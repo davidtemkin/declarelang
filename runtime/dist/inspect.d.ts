@@ -1,4 +1,10 @@
 import { Node } from "./node.js";
+/** Resolve a dotted inspect path (`app.col.opts`, `app.col.3`) to the node.
+ *  Returns null (never throws) on a miss — the caller owns the message. A step
+ *  is a member's name, a child's index, or what a view says — its label, its
+ *  accessible name or its text (`app.seg.Two`), quoted when it holds a dot or a
+ *  space (`app.menu."Save As…"`). */
+export declare function find(root: Node, path: string): Node | null;
 import { View } from "./view.js";
 import { type MaterializationDiag } from "./replicate.js";
 export interface InspectNode {
@@ -59,9 +65,6 @@ export declare function kindName(n: Node): string;
 export declare function nameOf(node: Node): string | null;
 /** The whole subtree as data. `path` seeds the root's address ("app"). */
 export declare function inspect(node: Node, path?: string): InspectNode;
-/** Resolve a dotted inspect path (`app.col.opts`, `app.col.3`) to the node.
- *  Returns null (never throws) on a miss — the caller owns the message. */
-export declare function find(root: Node, path: string): Node | null;
 export interface Provenance {
     attr: string;
     value: unknown;
@@ -153,8 +156,6 @@ export declare const clock: {
  *  whole inspect API bound to that app's root. What verify's rung 5 drives,
  *  and what a human pokes in the console. */
 export declare function bridgeFor(root: Node): Record<string, unknown>;
-/** The dotted address of a live node under `root` — the inverse of find(). */
-export declare function pathOf(root: Node, n: Node): string;
 /** PICK the view under a point — what a press at that point would reach.
  *
  *  NOT the same coordinates as `View.viewAt`, and the two used to share a name,

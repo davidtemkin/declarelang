@@ -6,7 +6,7 @@
 // capability, compiler/src/capabilities.ts); there, wireIslands is a stand-in
 // whose methods do nothing.
 
-import { mapUrl, renderProgramAsync, afterSettle, disposeApp, DomBackend, observe, provideHostServices, onIslandSlot, setAppAssetBase, assetBaseFor, linkIslandTenant, islandProvisions, islandNavigation, mountEmbeddedApp, feedPointer, kernelReady, onDiscard } from "../runtime/dist/host-api.js";
+import { islandPermitted, mapUrl, renderProgramAsync, afterSettle, disposeApp, DomBackend, observe, provideHostServices, onIslandSlot, setAppAssetBase, assetBaseFor, linkIslandTenant, islandProvisions, islandNavigation, mountEmbeddedApp, feedPointer, kernelReady, onDiscard } from "../runtime/dist/host-api.js";
 
 /** Wire the islands of `app`, the app bootHost just mounted in `host`. Returns
  *  `renderChild` (a live edit re-renders an island through it), `retry` (the
@@ -169,7 +169,7 @@ export function wireIslands({ app, host, cfg, seeds, compile, navServices, resol
     const name = box.dataset.declareSlot.slice(4);
     if (box.dataset.wired || box.dataset.wiring) return;
     box.dataset.wiring = "1";                              // in-flight: one compile at a time
-    const { compiled, unseeded } = await resolveCompiled(name, islandDirFor(islandViewOf.get(box)));
+    const { compiled, unseeded } = await resolveCompiled(name, islandViewOf.get(box) ?? null);
     delete box.dataset.wiring;
     if (unseeded) return;
     if (!hasProgram(compiled)) { deferPreview({ el: box }); return; }  // compiler not warm / fetch missed — retry when it lands
@@ -183,7 +183,18 @@ export function wireIslands({ app, host, cfg, seeds, compile, navServices, resol
   // LIVE-EDIT channels (__raw__, __page__) with nothing published yet — they
   // mount only when an edit arrives through watchLive, never by fetch.
   const unbuilt = new Set();                             // islands reported once as not built
-  async function resolveCompiled(name, dir = null) {
+  async function resolveCompiled(name, view) {
+    const dir = islandDirFor(view);
+    // the program's own permitted names, the same in every mode: a build ships
+    // only these, so a host that could compile another must refuse it too
+    const root = view ? view.root : null;
+    if (root != null && !islandPermitted(root, name)) {
+      if (!unbuilt.has(name)) {
+        unbuilt.add(name);
+        console.error(`[Declare] island '${name}' names a program this program does not declare — a build compiles the programs its islands name as literals; a computed name is declared at the top of the program: ship [ islands = ["${name}"] ] — then rebuild`);
+      }
+      return { compiled: null, unseeded: true };
+    }
     let compiled = null;
     // The VALIDATED prewarm tier, same as the page boot's (boot-uniform wires
     // it in): a slot whose program is on the committed prewarm list mounts
@@ -236,7 +247,7 @@ export function wireIslands({ app, host, cfg, seeds, compile, navServices, resol
     if (view.__childApp) return;                                  // already mounted: the link carries changes
     if (canvasWiring.has(view)) return;
     canvasWiring.add(view);
-    const { compiled, unseeded } = await resolveCompiled(name, islandDirFor(view));
+    const { compiled, unseeded } = await resolveCompiled(name, view);
     canvasWiring.delete(view);
     if (unseeded || isStopped()) return;
     if (!hasProgram(compiled)) { deferPreview({ view, slot: slotStr }); return; }

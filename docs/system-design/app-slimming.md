@@ -8,13 +8,37 @@ how that is decided, how the build leaves a piece out, and how it is checked.
 
 ## 1. The rule
 
-A piece of the runtime is left out only when the compiler can show, from the
-program, that nothing in it can reach that piece. The decision is made at
-compile time from the program's source — its tree, its classes, the libraries
-it pulls in, every `{ }` body — and never at run time: nothing optional is
-loaded lazily. A trigger that cannot be exact over-includes. Where a program
-could reach something only through a value the build cannot read (a `{ }`
-body, a `:path`), the trigger counts that as reaching it.
+A piece of the runtime is left out only on a **signal with no exceptions**: a
+fact about the program that no code, data or name assembled at run time can get
+around. A production build behaves exactly as a development page does, apart
+from debugging aids, so a piece the program could reach by any route the
+language allows ships. The decision is made at compile time from the program's
+source — its tree, its classes, the libraries it pulls in, every `{ }` body and
+script block — and never at run time: nothing optional is loaded lazily.
+
+There are four signals:
+
+- **the build's settings**: its renderer, `--debug`, the Inspector, the bridge,
+  the in-page compiler, hosting;
+- **syntax the source contains**: a replicating path, `<->`, a selector
+  segment, a literal the compile could not lower, a wiring it could not decide,
+  and, read from the replicated child's own element, `virtualize` and
+  `classFor` (rich text cannot make one: a path written as text is refused);
+- **a global its code names**: the decoration constructors and the theme
+  presets, which a body or script reaches only as identifiers (it cannot index
+  its scope or the global object by a string; a direct `eval` keeps them all);
+- **a class it uses**: constructed, extended, named as a value (`new X()`,
+  `instanceof X`), picked by `classFor`, or kept with `use [ … ]`. A class named
+  by a string outside that set is refused in every mode, with the same error
+  (`Program.permitted`, enforced where every by-name construction resolves).
+  The same holds for an island's program: a name it neither writes as a literal
+  nor lists in `ship [ islands ]` is refused everywhere (`Program.permittedIslands`).
+
+What a view's members reach — an attribute, a method, a handler — is not a
+signal: they can be set from data (rich text tags, `createView` props) or by a
+name code assembles, which no analysis bounds. So drawing, keyboard and focus,
+3D, tint and mask, the canvas-filter fallback, files, data and typed data, and
+the small pieces ship in every build.
 
 ## 2. Capabilities
 
@@ -39,6 +63,10 @@ auto-include: name only A and only A comes in; A requiring B brings both. A
 `hostsKeep` capability, since a hosted program may need what the page never
 names.
 
+A page that compiles programs at run time (`ship [ compiler ]`) hosts too, and
+carries the whole class registry, since what such a program constructs is not
+known to the build.
+
 What hosting shares, and why it costs: a hosted program runs **in the host's
 runtime** — the build compiles each island's program to `programs/<key>.json`,
 and the host's bundle hydrates and runs it; it brings no runtime of its own. So
@@ -53,20 +81,19 @@ homepage) would then slim like any other.
 ## 3. Triggers
 
 One walk over the program (`programFacts`) reads every fact a trigger can ask
-about. `{ }` bodies are read with TypeScript's own parser, never with a
-pattern. No capability has analysis code of its own.
+about: its tree, its classes, every `{ }` body and every script block, with
+TypeScript's own parser. No capability has analysis code of its own, and every
+trigger is one of the four signals (`test/slim-signals.test.mjs` refuses any
+other kind).
 
-| trigger | matches when the program… |
-|---|---|
-| `classes` | constructs the class or one descending from it: tags, `extends` bases, `new X()` in a body, `use [ … ]`, and each built-in's own bases (TextInput is an Editor) |
-| `ownClasses` | constructs the class itself; a built-in descending from it does not count (Spring from Animator) |
-| `methods` | declares a method of the name (`draw`) |
-| `attributes` | sets the attribute anywhere, or a body writes it (`attributesUnless` names literals that do not count, as `focusable = false`) |
-| `mentions`, `calls`, `writes` | a body names it, calls it, or assigns it |
-| `slots`, `dynamicSlots` | a slot is set at all, or set to a value the build cannot read |
-| `scoped` | sets the attribute on an element descending from one of the named classes (a program class counts through its `extends`), or constructs one of them while a body names or writes it — `maxLines` counts for the rich-text view path only on a rich text |
-| `syntax` | uses a construct: a replicating datapath, `<->`, a selector segment, a data shape, any read of data |
-| `build` | the build itself: its renderer, `--debug`, `ship [ inspector ]`, `ship [ compiler ]` |
+| trigger | signal | matches when the program… |
+|---|---|---|
+| `classes` | a class | uses the class or one descending from it: tags, `extends` bases, a class named as a value in a body (the compile writes it `$classes.X`), a `classFor` pick, `use [ … ]`, a literal rich text's tags, and each built-in's own bases (TextInput is an Editor) |
+| `ownClasses` | a class | uses the class itself; a built-in descending from it does not count (Spring from Animator) |
+| `mentions` | a global | names it as an identifier in a body or a script (`blur`, `Cupertino`, `eval`) |
+| `slots` | syntax | writes the slot on an element (`virtualize`, `classFor` on a replicated child) |
+| `syntax` | syntax | uses a construct: a replicating datapath, `<->`, a selector segment, an unlowered literal, an undecided wiring |
+| `build` | the build | its renderer, `--debug`, `ship [ inspector ]`, `ship [ compiler ]` |
 
 ## 4. What stands in for a piece left out
 
@@ -157,9 +184,17 @@ inlined. See [kernel.md](kernel.md) §10–11.
 
 ## 7. Checking it: the gate
 
-`test/slim-corpus.test.mjs` is the one check that what a build leaves out was
-unreachable. A trigger that misses shows up there as a program that behaves
-differently.
+Two checks. `test/slim-signals.test.mjs`, in `npm test`, is generated from the
+runtime's own tables: every built-in class reached every way the language
+allows (named as a value, tested with `instanceof`, aliased, kept with `use`,
+picked by `classFor`, a literal rich text tag) is permitted; every global named
+in a body, aliased or named in a script carries what it reaches; each construct
+carries its capability; no trigger is keyed on a view's member; and every import
+from a core module into a slimmable one is on a reviewed list with what makes it
+sound, so a new one fails until it is classified.
+
+`test/slim-corpus.test.mjs` checks behavior: a signal that misses shows up as a
+program that behaves differently.
 
 1. **The ladder, on the slimmed build.** Every app with a `tests/` folder has
    its rungs 5 and 6 (`tests/assert.mjs`, `tests/states.mjs` against the
@@ -173,11 +208,16 @@ differently.
    same view tree (every view's box, visibility and text), the same pixels and
    the same page errors. A difference counts only when the program is still:
    a second settle of the whole build must agree with the first.
+3. **Slim against development** (`--compare dev`): the whole build with its
+   bodies compiled from text, as a development page runs them.
+4. **As shipped** (`--no-bridge`): both builds without the bridge, whose imports
+   change the module graph; pixels and page errors only, since the tree is read
+   through the bridge.
 
 It takes minutes and a browser, so it is not part of `npm test`. Run it after
 changing the manifest or splitting a module:
 
-    node test/slim-corpus.test.mjs [--only <substring>] [--skip-ladder] [--skip-corpus] [--render=canvas]
+    node test/slim-corpus.test.mjs [--only <substring>] [--skip-ladder] [--skip-corpus] [--render=canvas] [--compare dev] [--no-bridge]
 
 `declarec.test` checks the manifest itself: every module exists, every
 stand-in generates, every export is answered, and no inert value names an

@@ -51,9 +51,13 @@ function slimRegistrySource(usedNames) {
   }
   const importLines = [...imports].map(([mod, exps]) =>
     `import { ${[...exps].join(", ")} } from ${JSON.stringify("./" + mod)};`).join("\n");
+  // Each entry is a getter: a class is read when it is looked up, after every
+  // module has evaluated. A literal would read it when this module evaluates,
+  // which an import cycle (the bridge's, through a class module) can put before
+  // the class's own module, leaving the entry undefined.
   const table = (t) => {
     const pairs = entries.filter((e) => e.table === t)
-      .map((e) => (e.name === e.export ? e.name : `${JSON.stringify(e.name)}: ${e.export}`));
+      .map((e) => `get ${JSON.stringify(e.name)}() { return ${e.export}; }`);
     return `export const ${t} = { ${pairs.join(", ")} };`;
   };
   return `${importLines}\n${TABLES.map(table).join("\n")}\n`;
@@ -461,7 +465,9 @@ export async function buildProduction(source, opts = {}) {
   const ship = { ...declared, compiler: declared.compiler || isl.compiler, inspector: declared.inspector || isl.inspector };
   if (!keepPos && !ship.inspector) stripPos(built.program);
   const inspector = ship.inspector ? await buildInspector(keepPos) : null;
-  const hosts = !!opts.hosts || tenants.length > 0 || ship.inspector;
+  // a page that runs programs it did not compile ahead — its tenants, the
+  // Inspector, or whatever its compiler is handed — carries what any of them may need
+  const hosts = !!opts.hosts || tenants.length > 0 || ship.inspector || ship.compiler;
   const alsoUses = [...(opts.alsoUses ?? []), ...tenants.flatMap((t) => t.usedClasses), ...(inspector ? inspector.usedClasses : [])];
   if (!opts.debug) await minifyBodies(built.program);
   // PRECOMPILED BODIES (on by default; opts.precompile === false ships text):
@@ -536,7 +542,9 @@ export async function buildProduction(source, opts = {}) {
       build.onLoad({ filter: /[/\\]registry\.js$/ }, () => ({
         // `alsoUses`: classes the page must carry for programs it HOSTS —
         // a site page's islands run in its runtime (prewarm.mjs unions them)
-        contents: slimRegistrySource([...new Set([...built.usedClasses, ...alsoUses])]),
+        // (a page that compiles programs at run time keeps every class: what
+        // they construct is not known here)
+        contents: slimRegistrySource(ship.compiler ? REGISTRY_MANIFEST.map((e) => e.name) : [...new Set([...built.usedClasses, ...alsoUses])]),
         loader: "js",
         resolveDir: RUNTIME,
       }));
@@ -636,6 +644,8 @@ export async function buildProduction(source, opts = {}) {
       __DECLARE_PRODUCTION__: opts.debug ? "false" : "true",
       // the accessibility layer, or none of it (build-flags.d.ts)
       __DECLARE_ACCESSIBILITY__: String(accessibility),
+      // the renderer this package carries: a page that boots it cannot ask for another
+      __DECLARE_RENDERER__: JSON.stringify(backend.cls),
     },
     write: false, legalComments: "none", metafile: true,
     plugins: [...(slim ? [slimPlugin] : []), capabilityPlugin, ...(opts.debug || ship.inspector ? [] : [errorCodePlugin])],

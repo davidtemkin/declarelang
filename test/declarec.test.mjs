@@ -159,8 +159,8 @@ await test("--sizes accounts for the whole build, and says how each file came in
   assert.deepEqual([how["library/textlabel.declare"].how, how["library/textlabel.declare"].by], ["auto", "library/button.declare"]);
   assert.deepEqual([how["library/focusring.declare"].how, how["library/focusring.declare"].name], ["provided", "FocusRing"]);
   assert.deepEqual([how["library/floating.declare"].how, how["library/floating.declare"].by], ["include", "library/tooltip.declare"]);
-  const draw = r.modules.find((m) => m.module === "draw");
-  assert.deepEqual([draw.status, draw.capability, draw.reason], ["aboard", "draw", "declares draw()"]);
+  const spring = r.modules.find((m) => m.module === "spring");
+  assert.deepEqual([spring.status, spring.capability, spring.reason], ["aboard", "spring", "constructs Spring"]);
   assert.ok(!r.modules.some((m) => m.module === "kernel-wasm"), "the kernel is a part of its own");
   assert.ok(r.parts.kernel.gzip > 5000);
   assert.ok(out.sizesReport !== undefined && (await buildProduction(src, { name: "calendar", originDir: resolve(HERE, "../apps/calendar") })).sizesReport === undefined,
@@ -567,8 +567,16 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // still ends; an error a body throws names its rule; a drawing whose view a gate
   // took away does not draw again — measured 140.0 KB (143,363 B), 3 B over the
   // old band; the drag handoff is +484 B of it, measured alone.
+  // 141 → 153 KB (2026-10-24, slimming on exact signals only, app-slimming.md §1):
+  // a build leaves a module out only on a signal with no exceptions, so what a
+  // view's members reach ships in every build — measured 152.1 KB (155,748 B),
+  // from 140.0: the Safari canvas-filter fallback and its WebAssembly +5.6, files
+  // +1.2, tint and mask and 3D +1.7, selectors, the line clamp, figures, the
+  // viewport lock, draw text and draw image +1.9; core +1.5 (scroll places' paths
+  // and the filter spelling moved in, the permitted-class cut, the registry's
+  // getters); the effects constructors, no longer brought in by a fill, −0.5.
   const wire = out.files.reduce((n, f) => n + gzipSync(Buffer.from(f.contents)).length, 0);
-  assert.ok(wire > 20 * 1024 && wire < 141 * 1024,
+  assert.ok(wire > 20 * 1024 && wire < 153 * 1024,
     `unexpected FIRST-LOAD size ${(wire / 1024).toFixed(1)} KB — ` +
     out.files.map((f) => `${f.name} ${(gzipSync(Buffer.from(f.contents)).length / 1024).toFixed(1)}`).join(", "));
 
@@ -610,24 +618,20 @@ await test("every capability's stand-ins mirror the modules they replace", async
   }
 });
 
-await test("slim-filter: the Safari filter fallback ships only where a program can reach it", async () => {
-  // canvas-filter.js is ~13 KB raw; its stub is a few hundred bytes. The
-  // metafile lists both under the same path, so size is the discriminator.
+await test("slim-filter: the Safari filter fallback ships wherever a drawing can be filtered", async () => {
+  // A drawing sets `d.filter` — a member of its context, which code can reach by
+  // a name it builds and a style record from data can carry — so the fallback
+  // rides every build that draws (app-slimming.md §1). canvas-filter.js is
+  // ~13 KB raw; a stub would be a few hundred bytes.
   const filterBytes = (out) => {
     const k = Object.keys(out.metafile.inputs).find((k) => /[/\\]canvas-filter\.js$/.test(k));
     return k ? out.metafile.inputs[k].bytes : -1;
   };
   const cal = readFileSync(resolve(HERE, "../apps/calendar/calendar.declare"), "utf8");
-  const blur = readFileSync(resolve(HERE, "../test/probe/blur.declare"), "utf8");
-  // a DOM program that never sets d.filter: stubbed (its frost is CSS backdrop-filter)
-  const a = await buildProduction(cal, { name: "calendar", originDir: resolve(HERE, "../apps/calendar") });
-  assert.ok(filterBytes(a) > 0 && filterBytes(a) < 1024, `expected the stub for a filter-free DOM program, got ${filterBytes(a)} bytes`);
-  // a program that sets d.filter: the real module, or Safari paints it unfiltered
-  const b = await buildProduction(blur, { name: "blur", originDir: resolve(HERE, "../test/probe") });
-  assert.ok(filterBytes(b) > 4096, `expected the real module for a program that sets d.filter, got ${filterBytes(b)} bytes`);
-  // a CANVAS build: frost filters a backdrop snapshot through the module with no d.filter anywhere
-  const c = await buildProduction(cal, { name: "calendar", originDir: resolve(HERE, "../apps/calendar"), render: "canvas" });
-  assert.ok(filterBytes(c) > 4096, `expected the real module for a canvas build, got ${filterBytes(c)} bytes`);
+  for (const render of ["dom", "canvas"]) {
+    const a = await buildProduction(cal, { name: "calendar", originDir: resolve(HERE, "../apps/calendar"), render });
+    assert.ok(filterBytes(a) > 4096, `expected the real module in a ${render} build, got ${filterBytes(a)} bytes`);
+  }
 });
 
 await test("closure freshness: an edit to an INCLUDED file invalidates the build (the prod-cache rule)", async () => {

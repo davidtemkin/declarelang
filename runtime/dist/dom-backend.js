@@ -22,7 +22,7 @@ import { allowedRef, notifyIslandSlot } from "./backend.js";
 import { domTransform3D, unproject } from "./projective.js";
 import { IDENTITY as IDENTITY_AFFINE, apply as applyAffine, cssMatrix, fromParts as affineFromParts, invert as invertAffine, isIdentity as affineIsIdentity, rotationOf as affineRotationOf, scaleOf as affineScaleOf } from "./affine.js";
 import { colorToCss, insetCss, insetSides, isGradient, radiusIsSquare, strokeUniform, gradientCss } from "./value.js";
-import { filterCss } from "./effects.js";
+import { filterCss } from "./filter-css.js";
 import { sideShadows } from "./stroke-sides.js";
 import { applyDomMask, tintFilterRef } from "./dom-effects.js";
 import { revealRichAnchor as revealAnchorIn, richBlocks, richInlineSlots, richMetrics, setRichClamp, setRichContent, setRichWidth } from "./dom-rich.js";

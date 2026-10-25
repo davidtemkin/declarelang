@@ -66,6 +66,10 @@ const RICH_TEXT_CONTENT: readonly (readonly [string, string])[] = [["HTMLText", 
  *  Nothing else about the content is parsed: the intersection with the program's
  *  own class names is what makes a hit meaningful. */
 const TAG_NAME = /<([A-Za-z_$][\w$]*)/g;
+/** A class named as a value in a compiled body (compile.ts writes `$classes.Name`). */
+const CLASS_VALUE = /\$classes\.([A-Za-z_$][\w$]*)/g;
+/** A name a `classFor` body was lowered to (compile.ts writes the class as a string). */
+const STRING_NAME = /["'`]([A-Za-z_$][\w$]*)["'`]/g;
 
 /** The program classes a LITERAL rich-text document names as an inline view.
  *  Inside `HTMLText.html` / `Markdown.text`, a tag whose name matches a class
@@ -78,7 +82,7 @@ const TAG_NAME = /<([A-Za-z_$][\w$]*)/g;
  *  a whitelisted tag (`<b>`, `<span>`) keeps nothing, and content a body
  *  computes or a `DataSource` fetches keeps nothing either — `use [ Issue ]` is
  *  the author's tool for a class named by a string it cannot see. */
-function inlineViewNames(el: Element, classNames: ReadonlySet<string>, schemaOf: (tag: string) => ClassSchema | null): string[] {
+function inlineViewNames(el: Element, vocab: ReadonlySet<string>, schemaOf: (tag: string) => ClassSchema | null): string[] {
   const schema = schemaOf(el.tag);
   if (schema === null) return [];
   const out: string[] = [];
@@ -86,15 +90,46 @@ function inlineViewNames(el: Element, classNames: ReadonlySet<string>, schemaOf:
     if (schema.name !== base && !descendsFrom(schema, base)) continue;
     const a = el.attrs.find((x) => x.name === slot);
     if (a === undefined || a.value.kind !== "string") continue;
-    for (const m of a.value.value.matchAll(TAG_NAME)) if (classNames.has(m[1])) out.push(m[1]);
+    for (const m of a.value.value.matchAll(TAG_NAME)) if (vocab.has(m[1])) out.push(m[1]);
   }
   return out;
 }
 
+/** The island programs a program names: an `AppIsland` (or a subclass) whose
+ *  `program` is a literal, plus `ship [ islands = … ]` for one it computes. The
+ *  same reading a production build ships tenants by (tools/declarec.mjs). */
+function islandProgramNames(program: Program): string[] {
+  const names = new Set<string>(program.ship?.islands ?? []);
+  const bases = new Map(program.classes.map((c) => [c.name, c.base]));
+  const isIsland = (tag: string): boolean => {
+    const seen = new Set<string>();
+    for (let t: string | null | undefined = tag; t !== null && t !== undefined && !seen.has(t); t = bases.get(t)) {
+      if (t === "AppIsland") return true;
+      seen.add(t);
+    }
+    return false;
+  };
+  const walk = (el: Element): void => {
+    if (isIsland(el.tag)) {
+      const v = el.attrs.find((x) => x.name === "program")?.value as { kind?: string; value?: unknown } | undefined;
+      if ((v?.kind === "string" || v?.kind === "value") && typeof v.value === "string" && v.value !== "") names.add(v.value);
+      // a `{ }` choosing among names it writes (`{ open ? "player" : "" }`) names each
+      if (v?.kind === "code") for (const m of String((v as { src?: string }).src ?? "").matchAll(/["'`]([^"'`$\\]+)["'`]/g)) names.add(m[1]);
+    }
+    for (const c of el.children) walk(c);
+  };
+  walk(program.root);
+  for (const c of program.classes) walk(c.body);
+  return [...names];
+}
+
 /** The class NAMES a program may instantiate: its STATIC tree references
- *  (tags + class bases) ∪ any class a `{ }` body constructs BY NAME
- *  (`new Markdown()`, scanned via free-idents) ∪ the classes a LITERAL rich-text
- *  document names as inline-view tags ∪ the explicit `use [ … ]` keep-list.
+ *  (tags + class bases) ∪ any class a `{ }` body names as a value (`new
+ *  Markdown()`, `v instanceof Card`, `const C = Video`: the compile writes each as
+ *  `$classes.Name`, read here from the compiled text) ∪ the classes a `classFor`
+ *  body picks (lowered to their names as strings) ∪ the classes a LITERAL
+ *  rich-text document names as inline-view tags ∪ the explicit `use [ … ]`
+ *  keep-list.
  *  Sound because Declare has no reflective new-by-value: every construction path
  *  is a compile-time literal, so this set is complete (create-by-STRING — an
  *  `iconLeft = "TrashIcon"`, a fetched document — is what `use` covers). The
@@ -124,15 +159,19 @@ export function usedClassNames(program: Program): string[] {
     return Object.hasOwn(SCHEMAS, name) ? SCHEMAS[name] : null;
   };
   const scan = (src: string, expression: boolean, params: readonly string[]): void => {
+    for (const m of src.matchAll(CLASS_VALUE)) if (vocab.has(m[1])) used.add(m[1]);
     const ids = freeIdentifiers(src, { expression, bound: [...params] });
     if (ids === null) return; // unparseable body — the checker owns that error
     for (const id of ids) if (vocab.has(id.name)) used.add(id.name);
   };
   const walk = (el: Element): void => {
-    for (const a of el.attrs) if (a.value.kind === "code") scan(a.value.src, true, []);
+    for (const a of el.attrs) if (a.value.kind === "code") {
+      scan(a.value.src, true, []);
+      if (a.name === "classFor") for (const m of a.value.src.matchAll(STRING_NAME)) if (vocab.has(m[1])) used.add(m[1]);
+    }
     for (const d of el.decls) if (d.def?.kind === "code") scan(d.def.src, true, []);
     for (const m of el.methods) scan(m.body, false, m.params.map((p) => p.name));
-    for (const n of inlineViewNames(el, classNames, schemaOf)) used.add(n);
+    for (const n of inlineViewNames(el, vocab, schemaOf)) used.add(n);
     for (const c of el.children) walk(c);
   };
   walk(program.root);
@@ -209,6 +248,8 @@ export async function programFromCompiled(c: Compiled & { closure?: Closure }, o
   // Compute the used-set BEFORE stripping positions (the scan walks bodies; it
   // needs nothing positional, but order it here so it reads the same program).
   const usedClasses = usedClassNames(program);
+  program.permitted = usedClasses;
+  program.permittedIslands = program.ship?.compiler === true ? null : islandProgramNames(program);
   // Facts are read from the program as written, before its literals become values.
   const facts = opts.facts ? programFacts(program, usedClasses) : undefined;
   const { kept } = lowerLiterals(program, literals);

@@ -265,11 +265,12 @@ export function compileExpr(src: string): { fn: ExprFn } | { error: string } {
     const r = rewriteDatapaths(src);
     if ("error" in r) return r;
     try {
-      const build = (): Function => new Function("$d", "$s", "parent", "classroot", `"use strict"; ${PRELUDE} ${scriptPrelude(scripts)} return (${r.src});`);
-      const raw = (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && phasesOn ? phased("compile bodies", build) : build());
-      const fn: ExprFn = function (this: unknown, parent: unknown, classroot: unknown): unknown {
-        return raw.call(this, SCOPE, scripts, parent, classroot);
-      };
+      // The shape a precompiled body has (declarec precompileBodies): the scope
+      // unpacked once by a factory, the body a function of its own parameters
+      // only — so `arguments` is the body's, never the scope, in every mode.
+      const build = (): Function => new Function("$d", "$s", `"use strict"; ${PRELUDE} ${scriptPrelude(scripts)} return function(parent, classroot) { return (${r.src}\n); };`);
+      const factory = (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && phasesOn ? phased("compile bodies", build) : build());
+      const fn = factory(SCOPE, scripts) as ExprFn;
       return { fn: NAMES_KEYS.test(r.src) ? askingKeys(fn) : fn };
     } catch (e) {
       return { error: `is not a valid expression — ${(e as Error).message}` };
@@ -423,10 +424,9 @@ export function compileBody(params: readonly string[], src: string): { fn: BodyF
       // The body runs inside its own block so a statement may shadow a
       // constructor name (`const stop = …`) without a redeclaration error;
       // `var` still hoists to the function and `return` works unchanged.
-      const raw = new Function("$d", "$s", "parent", "classroot", "$base", ...params, `"use strict"; ${PRELUDE} ${scriptPrelude(scripts)} { ${r.src} }`);
-      const fn: BodyFn = function (this: unknown, parent: unknown, classroot: unknown, base: object, ...args: unknown[]): unknown {
-        return raw.call(this, SCOPE, scripts, parent, classroot, base, ...args);
-      };
+      // the precompiled shape, as for an expression above
+      const factory = new Function("$d", "$s", `"use strict"; ${PRELUDE} ${scriptPrelude(scripts)} return function(parent, classroot, $base${params.map((q) => ", " + q).join("")}) { { ${r.src}\n } };`);
+      const fn = factory(SCOPE, scripts) as BodyFn;
       return { fn: NAMES_KEYS.test(r.src) ? askingKeys(fn) : fn };
     } catch (e) {
       return { error: `is not a valid method body — ${(e as Error).message}` };

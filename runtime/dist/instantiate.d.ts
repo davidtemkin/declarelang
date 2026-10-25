@@ -17,6 +17,11 @@ export declare function instantiate(input: Element | Program): View;
  *  windowed row scrolling back in, a keyed re-derivation reusing identity),
  *  it pre-marks the fresh subtree and initTree stays silent. */
 export declare function markInited(view: View): void;
+/** May the program `root` was built from mount the island program `name`? A
+ *  name it neither writes as a literal nor declares in `ship [ islands ]` is
+ *  refused in every mode: a production build never compiled it. Live-edit
+ *  channels (`__page__`, `__raw__`) are the host's, not the program's. */
+export declare function islandPermitted(root: object, name: string): boolean;
 /** Imperative creation (planes.md §7): instantiate `tag` by NAME into
  *  `parent`, on the tree rooted at `root` — the same construct pipeline as
  *  replication (one materializer instance: construct → link → attach →

@@ -24,6 +24,11 @@ detail pane sets `selectable = true` on its container, so all right-pane text
 unselectable chrome.
 */
 
+// the reader compiles in the page: a class's example is named by the class being
+// read, and its edit pane recompiles it
+
+ship [ compiler = true ]
+
 class Title extends Text [ fontWeight = semibold, textColor = { provided("theme").text } ]
 
 class Muted extends Text [ textColor = { provided("theme").textMuted } ]

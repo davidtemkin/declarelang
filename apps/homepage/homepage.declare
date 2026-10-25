@@ -18,6 +18,11 @@ records below — the palette lives there, once, and nowhere else.
 
 include [ "fonts.declare", "live.declare" ]
 
+// the live demos compile in the page: each one's program is named by its section,
+// and an edit recompiles it
+
+ship [ compiler = true ]
+
 /*
 ## The figures under an app card
 

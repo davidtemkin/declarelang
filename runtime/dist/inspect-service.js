@@ -14,7 +14,8 @@
 import { Node } from "./node.js";
 import { View, App, inheritedCursor } from "./view.js";
 import { rootFrameBox } from "./interaction.js";
-import { inspect, find, explain, stats, pickAt, explainHit, dependentsOf, expandValue, slotsOf, clock, kindName, nameOf, pathOf } from "./inspect.js";
+import { inspect, find, explain, stats, pickAt, explainHit, dependentsOf, expandValue, slotsOf, clock, kindName, nameOf } from "./inspect.js";
+import { pathOf } from "./node-path.js";
 import { clearTrace, readTrace, startTrace, stopTrace, traceText, tracing } from "./wake-trace.js";
 import { compileExpr, validateExpr } from "./expr.js";
 import { scanDatapaths } from "./datapath.js";

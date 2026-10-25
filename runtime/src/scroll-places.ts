@@ -21,7 +21,7 @@
 
 import type { Node } from "./node.js";
 import { View } from "./view.js";
-import { find, pathOf } from "./inspect.js";
+import { findPath as find, pathOf } from "./node-path.js";
 import { afterSettle } from "./reactive.js";
 import { sharedClock } from "./animate.js";
 

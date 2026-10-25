@@ -40,9 +40,15 @@ const pick = (file) => only === null || file.includes(only);
 const render = argv.find((a) => a.startsWith("--render="))?.slice("--render=".length) ?? "dom";
 // `--compare target`: the corpus built at the shipped language target against the
 // previous one (ES2020), slimmed both times — the same program must behave the same
+// `--compare dev`: the slimmed build against the shape a development page runs —
+// bodies compiled from text, every class and capability kept
 const compare = argv.includes("--compare") ? argv[argv.indexOf("--compare") + 1] : "slim";
+// `--no-bridge`: both builds as they ship, with no `__declare` bridge, whose
+// imports change the module graph (and once hid an evaluation-order failure); the
+// tree cannot be read without it, so pixels and page errors are compared
+const noBridge = argv.includes("--no-bridge");
 
-const build = (file, opts) => buildProduction(readFileSync(file, "utf8"), { name: basename(file, ".declare"), originDir: dirname(file), bridge: true, render, ...opts });
+const build = (file, opts) => buildProduction(readFileSync(file, "utf8"), { name: basename(file, ".declare"), originDir: dirname(file), bridge: !noBridge, render, ...opts });
 
 // ── 1. the ladder, on the slimmed build ─────────────────────────────────────
 if (!argv.includes("--skip-ladder") && render === "dom") {
@@ -128,7 +134,8 @@ if (!argv.includes("--skip-corpus")) {
     try {
       await tab.goto(base + page, { waitUntil: "load", timeout: 60000 });
       await tab.waitForNetworkIdle({ idleTime: 300, timeout: 10000 }).catch(() => {});
-      await tab.waitForFunction("!!window.__declare?.find", { timeout: 20000 }).catch(() => {});
+      if (!noBridge) await tab.waitForFunction("!!window.__declare?.find", { timeout: 20000 }).catch(() => {});
+      else await new Promise((r) => setTimeout(r, 1500));   // no bridge to ask: let it settle
       const tree = await tab.evaluate(async () => {
         const D = window.__declare;
         if (!D?.find) return null;
@@ -158,20 +165,20 @@ if (!argv.includes("--skip-corpus")) {
   };
 
   for (const file of corpus()) {
-    const label = compare === "target" ? "es2022 = es2020" : "slim = full";
+    const label = (compare === "target" ? "es2022 = es2020" : compare === "dev" ? "slim = dev" : "slim = full") + (noBridge ? ", no bridge" : "");
     await test(`${label}${render === "dom" ? "" : ` (${render})`}: ${relative(ROOT, file)}`, async () => {
       let slim;
       try { slim = await build(file, {}); } catch (e) { slim = { ok: false, errors: [e] }; }
       // a program that does not build is not this gate's subject (verify-apps owns it)
       if (!slim.ok) { console.log(`    (not built: ${String(slim.errors?.[0]?.message ?? "").split("\n")[0].slice(0, 120)})`); return; }
       // the reference build: the whole registry, or the previous language target
-      const full = await build(file, compare === "target" ? { esTarget: "es2020" } : { slim: false, keepAll: true });
+      const full = await build(file, compare === "target" ? { esTarget: "es2020" } : compare === "dev" ? { slim: false, keepAll: true, precompile: false } : { slim: false, keepAll: true });
       assert.ok(full.ok, "the reference build failed where the shipped one built");
       const a = await settle(file, full, "full"), b = await settle(file, slim, "slim");
       const why = `absent: ${slim.capabilities.absent.join(", ")}`;
       // a whole build that does not boot is not this gate's subject — but it is
       // never counted as agreement either
-      if (a.tree === null) { console.log(`    (the whole build does not boot: ${a.errors[0] ?? "no bridge answered"})`); return; }
+      if (a.tree === null && !noBridge) { console.log(`    (the whole build does not boot: ${a.errors[0] ?? "no bridge answered"})`); return; }
       assert.deepEqual(b.errors, a.errors, `page errors differ — ${why}`);
       // A difference counts only when the program is STILL: time is pinned, but
       // a playing video or a live stream moves on its own, so a mismatch is

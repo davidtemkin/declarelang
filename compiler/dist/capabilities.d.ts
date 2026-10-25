@@ -154,6 +154,7 @@ interface ProgramLike {
     scripts?: Array<{
         src: string;
     }>;
+    shapes?: readonly unknown[];
 }
 /** ONE walk over the program — its tree, its classes, every `{ }` body, and its
  *  script, whose helpers a body calls and which can do what a body would. */

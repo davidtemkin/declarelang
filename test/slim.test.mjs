@@ -256,11 +256,13 @@ if (!CHROME) {
   };
   const STUBBED = 400;   // a stub compiles to a few hundred bytes; the real modules are thousands
 
-  await test("focus + keys drop from an app with nothing focusable", async () => {
+  // A view becomes focusable through a member (`focusable`, set from data or by a
+  // name code builds, app-slimming.md §1), so the keyboard ships in every build.
+  await test("focus + keys ship in every build, even an app with nothing focusable", async () => {
     const b = await buildProduction(`App [ width = 200, Text [ text = "static" ] ]`, {});
     const m = modsOf(b);
-    assert.ok((m["focus.js"] ?? 0) < STUBBED, `focus.js should be stubbed, was ${m["focus.js"]}`);
-    assert.ok((m["keys.js"] ?? 0) < STUBBED, `keys.js should be stubbed, was ${m["keys.js"]}`);
+    assert.ok(m["focus.js"] > STUBBED, `focus.js should ride, was ${m["focus.js"]}`);
+    assert.ok(m["keys.js"] > STUBBED, `keys.js should ride, was ${m["keys.js"]}`);
   });
 
   await test("…and STAY for a TextInput, whose runtime class makes itself a tab stop", async () => {
@@ -285,11 +287,9 @@ if (!CHROME) {
     assert.ok(modsOf(b)["keys.js"] > STUBBED, "the source component is a use");
   });
 
-  await test("the tip service drops without tips, and stays with one", async () => {
+  await test("the tip service ships in every build (tooltipLabel is a member)", async () => {
     const without = await buildProduction(`App [ width = 200, Text [ text = "x" ] ]`, {});
-    assert.ok((modsOf(without)["tooltips.js"] ?? 0) < STUBBED, "no tips → no tip service");
-    const with_ = await buildProduction(`App [ width = 200, Text [ text = "x", tooltipLabel = "hello" ] ]`, {});
-    assert.ok(modsOf(with_)["tooltips.js"] > STUBBED, "one tip attribute keeps it");
+    assert.ok(modsOf(without)["tooltips.js"] > STUBBED, "no tips in the source, and the tip service still rides");
   });
 
   await test("the datapath island scanner drops from EVERY production build (data-paths.md §5)", async () => {
@@ -312,50 +312,43 @@ if (!CHROME) {
     await renders(src);
   });
 
-  await test("the selector evaluator rides only with selectors aboard (data-paths.md §7 — pay-for-what-you-write)", async () => {
+  await test("the selector evaluator ships with data in every build (a datapath can arrive as a member)", async () => {
     const without = await buildProduction(`App [ width = 200,
       d: Dataset { { "label": "x" } },
       v: View [ datapath = { d.value }, Text [ text = { "" + :label } ] ],
     ]`, {});
-    assert.ok((modsOf(without)["select.js"] ?? 0) < STUBBED, `a name-only program stubs select.js, was ${modsOf(without)["select.js"]}`);
+    assert.ok(modsOf(without)["select.js"] > STUBBED, `a name-only program carries select.js too, was ${modsOf(without)["select.js"]}`);
     const src = `App [ width = 200, fill = white,
       d: Dataset { { "rows": ["a", "b", "c", "d"] } },
       v: View [ datapath = { d.value }, Text [ x = 10, y = 10, text = { (:rows[1:3]).join("+") } ] ],
     ]`;
-    const with_ = await buildProduction(src, {});
-    assert.ok(modsOf(with_)["select.js"] > STUBBED, "a slice keeps the evaluator");
-    await renders(src); // and it evaluates under the production stubs
+    await renders(src); // and a slice evaluates in the production build
   });
 
-  await test("the shape validator rides only with a schema aboard (B4 — pay-per-use)", async () => {
+  await test("the shape validator ships in every build (a dataset's schema is a member)", async () => {
     const without = await buildProduction(`App [ width = 200, d: Dataset { { "x": 1 } }, Text [ text = "n" ] ]`, {});
-    assert.ok((modsOf(without)["data-schema.js"] ?? 0) < STUBBED, `no schema → data-schema.js stubbed, was ${modsOf(without)["data-schema.js"]}`);
-    const with_ = await buildProduction(`App [ width = 200,
-      d: Dataset [ schema = [ rows[]: [ id: string ] ] ] { { "rows": [] } },
-      Text [ text = "n" ] ]`, {});
-    assert.ok(modsOf(with_)["data-schema.js"] > STUBBED, "a declared schema keeps the validator");
+    assert.ok(modsOf(without)["data-schema.js"] > STUBBED, `no schema in the source, and data-schema.js still rides, was ${modsOf(without)["data-schema.js"]}`);
   });
 
-  await test("the named vocabulary — effects, 3D, measureText, drawn text and images, features, FontFace, the change event — rides only where a program names it", async () => {
-    const MODS = ["effects.js", "dom-effects.js", "projective.js", "text-measure.js", "font-derive.js", "face-literal.js", "draw-image.js", "draw-text.js", "change-event.js"];
+  await test("the effects constructors ride only where a program names one; what a member reaches ships always", async () => {
+    // a member can carry each of these (a filter or mask from data, a 3D turn, a
+    // line clamp, a drawing), so they ride every build…
+    // (face-literal.js is FontFace's own: the class carries it)
+    const ALWAYS = ["dom-effects.js", "projective.js", "text-measure.js", "font-derive.js", "draw-image.js", "draw-text.js", "change-event.js"];
     const none = modsOf(await buildProduction(`App [ width = 200, Text [ text = "plain" ] ]`, {}));
-    for (const f of MODS) assert.ok((none[f] ?? 0) < STUBBED, `${f} should be stubbed for a program naming none of it, was ${none[f]}`);
-    // every word named, and it RENDERS on the real modules (effects.js and value.js import each other)
+    for (const f of ALWAYS) assert.ok(none[f] > STUBBED, `${f} should ride every build, was ${none[f]}`);
+    // …and the constructors are globals, reached only by name
+    assert.ok((none["effects.js"] ?? 0) < STUBBED, `effects.js should be stubbed for a program naming no constructor, was ${none["effects.js"]}`);
     const src = `App [ width = 200, fill = white,
       a: View [ width = 40, height = 40, fill = radialGradient(0.5, 0.5, 1, red, blue), filter = [blur(2), colorize(navy)], rotateY = 20,
         trackChanges = ["opacity"], onChange(e: ChangeEvent) { } ],
       b: View [ y = 50, width = 40, height = 40, fill = red, mask = gradient(#000000, #00000000) ],
       c: Text [ y = 100, text = "12", numerals = lining, width = { measureText("12", { fontSize: 13 }).width + 4 } ],
       e: View [ y = 130, width = 60, height = 20, draw(d: Draw) { d.fillText("hi", 2, 14, { fontSize: 12 }) } ],
+      k: any = { blur },
     ]`;
-    const kept = modsOf(await buildProduction(src, {}));
-    for (const f of MODS.filter((m) => m !== "face-literal.js" && m !== "draw-image.js")) assert.ok(kept[f] > STUBBED, `${f} should ride for a program that names it, was ${kept[f]}`);
+    assert.ok(modsOf(await buildProduction(src, {}))["effects.js"] > STUBBED, "a program naming a constructor keeps effects.js");
     await renders(src);
-    const faced = await buildProduction(`App [ width = 200, img: Image [ width = 10, height = 10 ],
-      f: Font [ FontFace [ src = "f.woff2" ] ],
-      View [ width = 10, height = 10, draw(d: Draw) { d.drawImage(app.img, 0, 0) } ] ]`, {});
-    assert.ok(faced.ok, "build failed: " + (faced.errors || []).map((e) => e.message).join("; "));
-    assert.ok(modsOf(faced)["face-literal.js"] > STUBBED && modsOf(faced)["draw-image.js"] > STUBBED, "a FontFace and a drawImage call keep their modules");
   });
 
   // The DOM backend's native rich-text flow (dom-rich.js) is reachable from one
@@ -384,34 +377,21 @@ App [ width = 200, fill = white, Deep [ html = "<p>prose</p>" ] ]`;
   // to the slimming framework that loses one fails here instead of silently
   // shipping the code again.
 
-  await test("the Text line clamp (text-clamp.js) rides only where `maxLines` is named", async () => {
+  await test("the Text line clamp ships in every build (maxLines is a member)", async () => {
     const none = modsOf(await buildProduction(`App [ width = 200, Text [ text = "plain" ] ]`, {}));
-    assert.ok((none["text-clamp.js"] ?? 0) < STUBBED, `text-clamp.js should be stubbed, was ${none["text-clamp.js"]}`);
-    const attr = modsOf(await buildProduction(`App [ width = 200, Text [ width = 100, maxLines = 1, text = "a long label" ] ]`, {}));
-    assert.ok(attr["text-clamp.js"] > STUBBED, "a Text naming maxLines keeps the clamp");
-    const body = modsOf(await buildProduction(`App [ width = 200, t: Text [ width = 100, text = "x" ], onClick() { t.maxLines = 2 } ]`, {}));
-    assert.ok(body["text-clamp.js"] > STUBBED, "a body naming maxLines keeps the clamp");
+    assert.ok(none["text-clamp.js"] > STUBBED, `text-clamp.js should ride, was ${none["text-clamp.js"]}`);
   });
 
-  await test("the rich-text view path (rich-views.js) rides a DOM build only with a clamped rich text; the document path (rich-doc.js) never rides canvas", async () => {
+  await test("the rich-text view path rides with any rich text (its clamp is a member); the document path never rides canvas", async () => {
     const md = `App [ width = 200, Markdown [ width = 180, text = "hi" ] ]`;
     const dom = modsOf(await buildProduction(md, {}));
-    assert.ok((dom["rich-views.js"] ?? 0) < STUBBED, `a DOM Markdown with no maxLines should stub rich-views.js, was ${dom["rich-views.js"]}`);
+    assert.ok(dom["rich-views.js"] > STUBBED, `a DOM Markdown carries rich-views.js, was ${dom["rich-views.js"]}`);
     assert.ok(dom["rich-doc.js"] > STUBBED, "the DOM lays documents out: rich-doc.js rides");
+    const plain = modsOf(await buildProduction(`App [ width = 200, Text [ width = 100, maxLines = 1, text = "a label" ] ]`, {}));
+    assert.ok((plain["rich-views.js"] ?? 0) < STUBBED, `no rich text, no rich-views.js, was ${plain["rich-views.js"]}`);
     const canvas = modsOf(await buildProduction(md, { render: "canvas" }));
     assert.ok(canvas["rich-views.js"] > STUBBED, "canvas lays documents out from views: rich-views.js rides");
     assert.ok((canvas["rich-doc.js"] ?? 0) < STUBBED, `canvas never builds a document flow: rich-doc.js should be stubbed, was ${canvas["rich-doc.js"]}`);
-    // the fact is the RICH TEXT's maxLines — a clamped Text label beside it is not
-    const label = modsOf(await buildProduction(`App [ width = 200, Markdown [ width = 180, text = "hi" ], Text [ y = 40, width = 100, maxLines = 1, text = "a label" ] ]`, {}));
-    assert.ok((label["rich-views.js"] ?? 0) < STUBBED, `a clamped Text beside a Markdown should not keep rich-views.js, was ${label["rich-views.js"]}`);
-    for (const src of [
-      `App [ width = 200, Markdown [ width = 180, maxLines = 2, text = "hi" ] ]`,
-      `class Note extends HTMLText [ maxLines = 2 ]\nApp [ width = 200, Note [ width = 180, html = "hi" ] ]`,
-      `App [ width = 200, m: Markdown [ width = 180, text = "hi" ], onClick() { m.maxLines = 3 } ]`,
-    ]) {
-      const kept = modsOf(await buildProduction(src, {}));
-      assert.ok(kept["rich-views.js"] > STUBBED, "a rich text with maxLines (attribute, class body, or a body write) keeps rich-views.js: " + src.slice(0, 60));
-    }
     await renders(md);
     await renders(`App [ width = 200, fill = white, Markdown [ width = 180, maxLines = 1, text = "one two three four five six seven eight nine ten eleven twelve" ] ]`);
   });
@@ -425,16 +405,20 @@ App [ width = 200, fill = white, Deep [ html = "<p>prose</p>" ] ]`;
     assert.ok((ht["md.js"] ?? 0) < md["md.js"] / 3, `an HTMLText-only build carries md.js's shared helpers, not its parser (${ht["md.js"]} vs ${md["md.js"]})`);
   });
 
-  await test("a theme preset named as a literal ships as its record, not the preset table", async () => {
-    const none = modsOf(await buildProduction(`App [ width = 200, Text [ text = "plain" ] ]`, {}));
-    assert.ok((none["themes-data.js"] ?? 0) < STUBBED, `a program naming no preset carries no records, had ${none["themes-data.js"]}`);
+  await test("a theme preset named as a literal ships as its record; the table keeps only the default and what is named", async () => {
+    const jsOf = (b) => b.files.find((f) => f.name.startsWith("app.")).contents;
+    // the default preset is the runtime's own answer to a theme read with none
+    // set (attributes.ts provided), so it is the one record every build keeps
+    // (a record is known by its own values: the names are the body scope's keys)
+    const { Cupertino, MountainView } = await import("../runtime/dist/themes-data.js");
+    const none = jsOf(await buildProduction(`App [ width = 200, Text [ text = "plain" ] ]`, {}));
+    assert.ok(!none.includes(String(Cupertino.background)) && !none.includes(String(MountainView.background)), "a program naming no preset carries only the default record");
     // `theme = SanFranciscoDark` resolves at compile time (lower-literals.ts
-    // lowerThemeNames): the program carries the one record, the table stays out
+    // lowerThemeNames): the program carries the one record, the table no more
     const lit = `App [ width = 200, fill = black, View [ width = 200, height = 60, theme = SanFranciscoDark, HTMLText [ width = 180, html = "<p>hi</p>" ] ] ]`;
-    const b = await buildProduction(lit, {});
-    assert.ok((modsOf(b)["themes-data.js"] ?? 0) < STUBBED, "the preset table stays out");
-    const js = b.files.find((f) => f.name.startsWith("app.")).contents;
+    const js = jsOf(await buildProduction(lit, {}));
     assert.ok(js.includes(String(0x4C8DFF)), "the dark preset's accent rides in the program");
+    assert.ok(!js.includes(String(Cupertino.background)), "no preset the program does not name rides");
     await renders(lit);
   });
 
@@ -494,27 +478,15 @@ App [ width = 200, fill = white, Deep [ html = "<p>prose</p>" ] ]`;
   // text saw nothing, dropped the module, and the production build threw on a
   // program that ran fine in development. The decision reads the parse tree now:
   // a carrying slot whose value is not a literal keeps its module.
-  await test("a value that can only arrive at RUN TIME keeps its module (the word match dropped it)", async () => {
-    const dynFilter = `App [ width = 200, fill = white,
-      d: DataSource [ url = "look.json" ],
-      v: View [ width = 40, height = 40, fill = red, filter = { d.value.f } ] ]`;
-    assert.ok(modsOf(await buildProduction(dynFilter, {}))["effects.js"] > STUBBED,
-      "a filter whose value comes from data must keep effects.js — nothing in the source names blur()");
-    const dynPaint = `App [ width = 200, fill = white,
-      d: DataSource [ url = "look.json" ],
-      v: View [ width = 40, height = 40, fill = { d.value.paint } ] ]`;
-    assert.ok(modsOf(await buildProduction(dynPaint, {}))["effects.js"] > STUBBED,
-      "a computed fill can yield a gradient, so effects.js must ride");
-    // …and the DOM half, for a mask or a colorize arriving the same way
-    const dynMask = `App [ width = 200, fill = white,
-      d: DataSource [ url = "look.json" ],
-      v: View [ width = 40, height = 40, fill = red, mask = { d.value.m } ] ]`;
-    assert.ok(modsOf(await buildProduction(dynMask, {}))["dom-effects.js"] > STUBBED,
-      "a mask set from data must keep dom-effects.js");
-    // the floor still holds: a program with no carrying slot at all stays slim
-    const plain = modsOf(await buildProduction(`App [ width = 200, fill = navy, Text [ text = "hi" ] ]`, {}));
-    assert.ok((plain["effects.js"] ?? 0) < STUBBED && (plain["dom-effects.js"] ?? 0) < STUBBED,
-      "a program that sets no filter, mask or computed fill is still slimmed");
+  await test("a filter, fill or mask that arrives at RUN TIME paints in every build (app-slimming.md §1: it is a member)", async () => {
+    // the spelling of a filter and a gradient is core, and the DOM's tint and
+    // mask ship always, so a value from data needs no constructor's module
+    for (const src of [
+      `App [ width = 200, fill = white, f: any = { JSON.parse('[{"fn":"blur","radius":4}]') }, v: View [ width = 40, height = 40, fill = red, filter = { app.f } ] ]`,
+      `App [ width = 200, fill = white, d: DataSource [ url = "look.json" ], v: View [ width = 40, height = 40, fill = { d.value.paint } ] ]`,
+    ]) await renders(src);
+    const mask = modsOf(await buildProduction(`App [ width = 200, fill = white, d: DataSource [ url = "look.json" ], v: View [ width = 40, height = 40, fill = red, mask = { d.value.m } ] ]`, {}));
+    assert.ok(mask["dom-effects.js"] > STUBBED, "the DOM's mask rides");
   });
 
   await test("a service-free app still RENDERS (the stubs satisfy boot's wiring)", async () => {

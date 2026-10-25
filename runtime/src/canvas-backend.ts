@@ -123,7 +123,7 @@ const damageChecking = (): boolean => typeof __DECLARE_DEV_SWITCHES__ !== "undef
 import { type MaskSpec, notifyIslandSlot, type Bitmap, type EditableSpec, type InputSink, type RenderBackend, type Stretch, type Surface, type InputWants } from "./backend.js";
 import { lockFocusZoom } from "./viewport-lock.js";
 import { colorToCss, insetCss, insetSides, isGradient, radiusFit, radiusIsSquare, type Fill, type Gradient, type Outline, type Inset, type Radius, type Shadow, type BoxStroke, filterBlur, type Filter, filterBleed } from "./value.js";
-import { filterCss } from "./effects.js";
+import { filterCss } from "./filter-css.js";
 import { paintBox, paintBoxShadow, boxShape, realizeGradient } from "./boxpaint.js";
 import { clampLines, cssWeight, fontMetrics, fontString, textWidth, transformText, wrapLines, type TextStyle, type TextTransform } from "./measure.js";
 import { replay, replayArea, rasterPad, rasterEntryCap, rasterTotalCap, rasterLooksBlank, blankRasterMessage, listIsolated, makeCanvas, RASTER_MAX_DIM, RASTER_MAX_AREA, RASTER_GRACE_MS, type DisplayList, type Bounds } from "./draw.js";

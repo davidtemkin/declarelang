@@ -366,6 +366,18 @@ export interface Program {
    *  library, or a developer class alike (one declaration, all three backends).
    *  Additive to what the tree + body scan already discover. */
   uses: string[];
+  /** The built-in classes this program may construct, set by the compile
+   *  (program-build usedClassNames: what it names, plus `use`). A class named by
+   *  a string outside it is refused in every mode, as a production build — whose
+   *  registry holds only these — would refuse it; the program's own classes are
+   *  always constructible. Absent on a program no compile has seen. */
+  permitted?: string[];
+  /** The programs its islands may mount, set by the compile: the names an
+   *  `AppIsland`'s `program` gives as a literal, plus `ship [ islands = … ]`.
+   *  Null when the program carries the compiler (`ship [ compiler ]`), which
+   *  compiles any program it is handed. A name outside it is refused in every
+   *  mode, as a build that did not compile it must refuse it. */
+  permittedIslands?: string[] | null;
   /** The `ship [ … ]` declaration: what a self-contained package of this
    *  program must carry beyond what its source names (hosting.md, model 1).
    *  Absent when the program declares nothing; merged across `include`s. */

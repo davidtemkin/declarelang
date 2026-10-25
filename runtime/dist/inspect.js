@@ -10,6 +10,31 @@
 // allocates until asked). The `__declare` page bridge is installed by boot.ts
 // for top-level apps.
 import { Node, authoredName } from "./node.js";
+import { findPath, pathOf } from "./node-path.js";
+/** Resolve a dotted inspect path (`app.col.opts`, `app.col.3`) to the node.
+ *  Returns null (never throws) on a miss — the caller owns the message. A step
+ *  is a member's name, a child's index, or what a view says — its label, its
+ *  accessible name or its text (`app.seg.Two`), quoted when it holds a dot or a
+ *  space (`app.menu."Save As…"`). */
+export function find(root, path) {
+    return findPath(root, path, said);
+}
+/** The nearest view inside `from` (level by level) that says `words`: its label,
+ *  its accessible name, or its text. */
+function said(from, words) {
+    const says = (n) => {
+        const a = n;
+        return a.label === words || a.accessibilityLabel === words || a.text === words;
+    };
+    let level = [...from.children];
+    while (level.length > 0) {
+        const hit = level.find(says);
+        if (hit !== undefined)
+            return hit;
+        level = level.flatMap((n) => [...n.children]);
+    }
+    return undefined;
+}
 import { hitAt, pressAt, traceHitAt, rootFrameOrigin, rootFrameBox, rootTransform } from "./interaction.js";
 import { apply as applyAffine } from "./affine.js";
 import { bootCheck } from "./boot-check.js";
@@ -197,43 +222,6 @@ export function inspect(node, path = "app") {
 function intersectBox(a, b) {
     const x = Math.max(a.x, b.x), y = Math.max(a.y, b.y);
     return { x, y, width: Math.max(0, Math.min(a.x + a.width, b.x + b.width) - x), height: Math.max(0, Math.min(a.y + a.height, b.y + b.height) - y) };
-}
-/** Resolve a dotted inspect path (`app.col.opts`, `app.col.3`) to the node.
- *  Returns null (never throws) on a miss — the caller owns the message. */
-export function find(root, path) {
-    // a step is a member's name, a child's index, or what a view says — its
-    // label, its accessible name or its text (`app.seg.Two`), quoted when it
-    // holds a dot or a space (`app.menu."Save As…"`)
-    const segs = (path.match(/"[^"]*"|[^.]+/g) ?? []).filter((s) => s !== "");
-    let cur = root;
-    for (let i = segs[0] === "app" ? 1 : 0; i < segs.length; i++) {
-        const raw = segs[i];
-        const quoted = raw.startsWith('"');
-        const seg = quoted ? raw.slice(1, -1) : raw;
-        const asIndex = !quoted && /^\d+$/.test(seg) ? cur.children[Number(seg)] : undefined;
-        const asName = quoted ? undefined : cur[seg];
-        const next = asIndex ?? (asName instanceof Node ? asName : undefined) ?? said(cur, seg);
-        if (next === undefined)
-            return null;
-        cur = next;
-    }
-    return cur;
-}
-/** The nearest view inside `from` (level by level) that says `words`: its label,
- *  its accessible name, or its text. */
-function said(from, words) {
-    const says = (n) => {
-        const a = n;
-        return a.label === words || a.accessibilityLabel === words || a.text === words;
-    };
-    let level = [...from.children];
-    while (level.length > 0) {
-        const hit = level.find(says);
-        if (hit !== undefined)
-            return hit;
-        level = level.flatMap((n) => [...n.children]);
-    }
-    return undefined;
 }
 export function explain(node, attr) {
     // A slot that does not exist answers LOUDLY — an absent key reads
@@ -559,17 +547,6 @@ const BRIDGE_HELP = {
     build: "build — what this page runs: compiled-at, the main file, every included file, and the dev server (pid, root) that built it. Null on a static host. Check this FIRST when an edit seems not to show",
     help: "help() — this table",
 };
-/** The dotted address of a live node under `root` — the inverse of find(). */
-export function pathOf(root, n) {
-    const parts = [];
-    let cur = n;
-    while (cur !== null && cur.parent !== null && cur !== root) {
-        const m = nameOf(cur);
-        parts.unshift(m ?? String(cur.parent.children.indexOf(cur)));
-        cur = cur.parent;
-    }
-    return ["app", ...parts].join(".");
-}
 // ── the Inspector's additions ───────────────────────────────────────────────
 // Hit-testing, reverse dependency edges, and lazy value expansion — the three
 // queries an interactive object browser needs that verify's rung 5 never did.

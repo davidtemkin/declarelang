@@ -81,7 +81,9 @@ export async function bootHost(cfg) {
   // human never flashes the bare text; this second removal is the belt-and-braces for
   // any boot path that didn't emit that pre-paint remover. Null-safe + idempotent.
   document.getElementById("declare-static")?.remove();
-  const Backend = BACKENDS[cfg.backend] ?? DomBackend;
+  // a package runs the renderer it was built with (declarec defines it); the
+  // dev host, which carries both, takes the one asked for
+  const Backend = typeof __DECLARE_RENDERER__ !== "undefined" ? BACKENDS[__DECLARE_RENDERER__] : (BACKENDS[cfg.backend] ?? DomBackend);
   // Build the compiled program, then SEED app.location from the URL BEFORE the
   // first paint (docs/system-design/location.md §2): a deep link is just an initial state, so
   // every constraint derives from it as if the user had already navigated there —

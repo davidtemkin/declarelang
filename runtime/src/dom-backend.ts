@@ -23,7 +23,7 @@ import { type MaskSpec, allowedRef, notifyIslandSlot, type Bitmap, type Editable
 import { domTransform3D, unproject, type Homography } from "./projective.js";
 import { IDENTITY as IDENTITY_AFFINE, apply as applyAffine, cssMatrix, fromParts as affineFromParts, invert as invertAffine, isIdentity as affineIsIdentity, rotationOf as affineRotationOf, scaleOf as affineScaleOf, type Affine } from "./affine.js";
 import { colorToCss, insetCss, insetSides, isGradient, radiusIsSquare, strokeUniform, type BoxStroke, type Fill, type Inset, type Radius, type Shadow, gradientCss, type Filter } from "./value.js";
-import { filterCss } from "./effects.js";
+import { filterCss } from "./filter-css.js";
 import { sideShadows } from "./stroke-sides.js";
 import { applyDomMask, tintFilterRef } from "./dom-effects.js";
 import { revealRichAnchor as revealAnchorIn, richBlocks, richInlineSlots, richMetrics, setRichClamp, setRichContent, setRichWidth } from "./dom-rich.js";

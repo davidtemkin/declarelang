@@ -8,7 +8,7 @@
 // checks that rest on text are left out (`realText`).
 import { View } from "./view.js";
 import { rootFrameBox } from "./interaction.js";
-import { find, pathOf } from "./inspect.js";
+import { findPath as find, pathOf } from "./node-path.js";
 import { isSet, ownerOf, percentOwned, setBound } from "./attributes.js";
 import { semanticTree, formatSemantics } from "./semantics.js";
 import { DataSource } from "./data.js";

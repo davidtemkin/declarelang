@@ -290,7 +290,7 @@ function buildTree(program, trusted, scripts, routed) {
     // DataSource`, `class Hot extends Keys`, `class Wide extends State` — and
     // its synthesized ctor joins the same table under its own name, so every
     // construct path resolves a tag's class here, built-in or authored alike.
-    const tags = {
+    const allTags = {
         ...TAGS,
         ...DATA,
         ...ANIMATORS,
@@ -298,7 +298,13 @@ function buildTree(program, trusted, scripts, routed) {
         ...SOURCES,
         ...STATES,
     };
-    const layoutCtors = { ...LAYOUT_BASES };
+    // …cut to the built-ins the compile says the program may construct, so a
+    // class named by a string resolves the same in every mode: a production
+    // build's registry holds only these, and a development one holds them all.
+    const permitted = program.permitted === undefined ? null : new Set(program.permitted);
+    const keep = (table) => permitted === null ? { ...table } : Object.fromEntries(Object.entries(table).filter(([n]) => permitted.has(n)));
+    const tags = keep(allTags);
+    const layoutCtors = keep(LAYOUT_BASES);
     const classes = new Map();
     const isShapeType = (n) => programShapes.has(n);
     for (const decl of basesFirst(program.classes)) {
@@ -332,6 +338,7 @@ function buildTree(program, trusted, scripts, routed) {
     const ctx = {
         scripts,
         tags,
+        allTags,
         shapes: programShapes,
         layoutCtors,
         families: new Map(),
@@ -342,6 +349,7 @@ function buildTree(program, trusted, scripts, routed) {
         pending: [],
         expanding: new Set(),
         trusted,
+        permittedIslands: program.permittedIslands == null ? null : new Set(program.permittedIslands),
     };
     // The `style` bundles a `<span class>` inside RichText resolves against (the
     // by-name cascade's global tier) — module-scoped for the running program.
@@ -1774,6 +1782,16 @@ function appendChildren(from, parentView, croot, ctx, parentEl, slot) {
     }
 }
 const CONTEXTS = new WeakMap();
+/** May the program `root` was built from mount the island program `name`? A
+ *  name it neither writes as a literal nor declares in `ship [ islands ]` is
+ *  refused in every mode: a production build never compiled it. Live-edit
+ *  channels (`__page__`, `__raw__`) are the host's, not the program's. */
+export function islandPermitted(root, name) {
+    if (name.startsWith("__"))
+        return true;
+    const allowed = CONTEXTS.get(root)?.permittedIslands ?? null;
+    return allowed === null || allowed.has(name);
+}
 /** Imperative creation (planes.md §7): instantiate `tag` by NAME into
  *  `parent`, on the tree rooted at `root` — the same construct pipeline as
  *  replication (one materializer instance: construct → link → attach →
@@ -1789,8 +1807,7 @@ export function createViewIn(root, tag, parent, props) {
         throw new DeclareError(`createView: this tree was not built from a program (no registry to resolve '${tag}' against)`);
     }
     if (!Object.hasOwn(ctx.tags, tag)) {
-        const hint = tag in TAGS ? "" : diag ` — declare the class, include its library, or keep it with 'use [ ${tag} ]'`;
-        throw new DeclareError(`createView: no class named '${tag}'${hint}`);
+        throw new DeclareError(diag `createView: no class named '${tag}' — declare the class, include its library, or keep it with 'use [ ${tag} ]'`);
     }
     const el = { tag, name: null, attrs: [], decls: [], methods: [], children: [], pos: { line: 0, col: 0 } };
     const made = materializer(ctx)(el, parent);
@@ -1909,8 +1926,9 @@ export function createElementIn(root, el, parent) {
     // The element arrived from a live parse (the Inspector\'s evaluation) — no
     // compiler vouches for it, so validate even inside a trusted tree. The whole
     // pipeline (construct → attach → finish) runs inside the window.
-    const wasTrusted = ctx.trusted;
+    const wasTrusted = ctx.trusted, tags = ctx.tags;
     ctx.trusted = false;
+    ctx.tags = { ...ctx.allTags, ...tags };
     try {
         // …and route it, against the view it joins (what a State's overrides target)
         const router = ctx.router();
@@ -1927,6 +1945,7 @@ export function createElementIn(root, el, parent) {
     }
     finally {
         ctx.trusted = wasTrusted;
+        ctx.tags = tags;
     }
 }
 provideViewCreator(createViewIn);

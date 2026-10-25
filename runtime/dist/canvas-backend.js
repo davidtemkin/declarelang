@@ -118,7 +118,7 @@ const damageChecking = () => typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && 
 import { notifyIslandSlot } from "./backend.js";
 import { lockFocusZoom } from "./viewport-lock.js";
 import { colorToCss, insetCss, insetSides, isGradient, radiusFit, radiusIsSquare, filterBlur, filterBleed } from "./value.js";
-import { filterCss } from "./effects.js";
+import { filterCss } from "./filter-css.js";
 import { paintBox, paintBoxShadow, boxShape, realizeGradient } from "./boxpaint.js";
 import { clampLines, cssWeight, fontMetrics, fontString, textWidth, transformText, wrapLines } from "./measure.js";
 import { replay, replayArea, rasterPad, rasterEntryCap, rasterTotalCap, rasterLooksBlank, blankRasterMessage, listIsolated, makeCanvas, RASTER_MAX_DIM, RASTER_MAX_AREA, RASTER_GRACE_MS } from "./draw.js";

@@ -159,6 +159,9 @@ interface Ctx {
   /** Every constructible class by name — the built-in tables merged, plus the
    *  program's synthesized classes (any family; a layout lives in layoutCtors). */
   tags: Record<string, ViewCtor>;
+  /** Every built-in, uncut: what the Inspector's evaluation (a debugging aid,
+   *  createElementIn) resolves against, as an Inspector build carries them all. */
+  allTags: Record<string, ViewCtor>;
   /** The program's declared schema names (typed data) — record-slot decl
    *  resolution (`sel: Task = null`) asks these. */
   shapes: ReadonlySet<string>;
@@ -188,6 +191,9 @@ interface Ctx {
    *  while the Inspector evaluates a freshly-parsed element (createElementIn),
    *  whose tree nothing has checked. */
   trusted: boolean;
+  /** The programs this program's islands may mount (Program.permittedIslands):
+   *  null for any — a program carrying the compiler, or one no compile saw. */
+  permittedIslands: ReadonlySet<string> | null;
 }
 
 /** Route one attribute: the answer is read off the value's kind (a `{ }` is a
@@ -388,7 +394,7 @@ function buildTree(program: Program, trusted: boolean, scripts: Record<string, u
   // DataSource`, `class Hot extends Keys`, `class Wide extends State` — and
   // its synthesized ctor joins the same table under its own name, so every
   // construct path resolves a tag's class here, built-in or authored alike.
-  const tags: Record<string, ViewCtor> = {
+  const allTags: Record<string, ViewCtor> = {
     ...TAGS,
     ...(DATA as Record<string, unknown> as Record<string, ViewCtor>),
     ...(ANIMATORS as Record<string, unknown> as Record<string, ViewCtor>),
@@ -396,7 +402,14 @@ function buildTree(program: Program, trusted: boolean, scripts: Record<string, u
     ...(SOURCES as Record<string, unknown> as Record<string, ViewCtor>),
     ...(STATES as Record<string, unknown> as Record<string, ViewCtor>),
   };
-  const layoutCtors: Record<string, abstract new () => Layout> = { ...LAYOUT_BASES };
+  // …cut to the built-ins the compile says the program may construct, so a
+  // class named by a string resolves the same in every mode: a production
+  // build's registry holds only these, and a development one holds them all.
+  const permitted = program.permitted === undefined ? null : new Set(program.permitted);
+  const keep = <T>(table: Record<string, T>): Record<string, T> =>
+    permitted === null ? { ...table } : Object.fromEntries(Object.entries(table).filter(([n]) => permitted.has(n)));
+  const tags: Record<string, ViewCtor> = keep(allTags);
+  const layoutCtors: Record<string, abstract new () => Layout> = keep(LAYOUT_BASES);
   const classes = new Map<string, UserClass>();
   const isShapeType = (n: string): boolean => programShapes.has(n);
   for (const decl of basesFirst(program.classes)) {
@@ -428,6 +441,7 @@ function buildTree(program: Program, trusted: boolean, scripts: Record<string, u
   const ctx: Ctx = {
     scripts,
     tags,
+    allTags,
     shapes: programShapes,
     layoutCtors,
     families: new Map(),
@@ -438,6 +452,7 @@ function buildTree(program: Program, trusted: boolean, scripts: Record<string, u
     pending: [],
     expanding: new Set(),
     trusted,
+    permittedIslands: program.permittedIslands == null ? null : new Set(program.permittedIslands),
   };
   // The `style` bundles a `<span class>` inside RichText resolves against (the
   // by-name cascade's global tier) — module-scoped for the running program.
@@ -1851,6 +1866,16 @@ function appendChildren(from: Element, parentView: View, croot: View, ctx: Ctx, 
 
 const CONTEXTS = new WeakMap<object, Ctx>();
 
+/** May the program `root` was built from mount the island program `name`? A
+ *  name it neither writes as a literal nor declares in `ship [ islands ]` is
+ *  refused in every mode: a production build never compiled it. Live-edit
+ *  channels (`__page__`, `__raw__`) are the host's, not the program's. */
+export function islandPermitted(root: object, name: string): boolean {
+  if (name.startsWith("__")) return true;
+  const allowed = CONTEXTS.get(root)?.permittedIslands ?? null;
+  return allowed === null || allowed.has(name);
+}
+
 /** Imperative creation (planes.md §7): instantiate `tag` by NAME into
  *  `parent`, on the tree rooted at `root` — the same construct pipeline as
  *  replication (one materializer instance: construct → link → attach →
@@ -1866,8 +1891,7 @@ export function createViewIn(root: View, tag: string, parent: View, props?: Reco
     throw new DeclareError(`createView: this tree was not built from a program (no registry to resolve '${tag}' against)`);
   }
   if (!Object.hasOwn(ctx.tags, tag)) {
-    const hint = tag in TAGS ? "" : diag` — declare the class, include its library, or keep it with 'use [ ${tag} ]'`;
-    throw new DeclareError(`createView: no class named '${tag}'${hint}`);
+    throw new DeclareError(diag`createView: no class named '${tag}' — declare the class, include its library, or keep it with 'use [ ${tag} ]'`);
   }
   const el = { tag, name: null, attrs: [], decls: [], methods: [], children: [], pos: { line: 0, col: 0 } } as unknown as Element;
   const made = materializer(ctx)(el, parent);
@@ -1979,8 +2003,9 @@ export function createElementIn(root: View, el: Element, parent: View): View {
   // The element arrived from a live parse (the Inspector\'s evaluation) — no
   // compiler vouches for it, so validate even inside a trusted tree. The whole
   // pipeline (construct → attach → finish) runs inside the window.
-  const wasTrusted = ctx.trusted;
+  const wasTrusted = ctx.trusted, tags = ctx.tags;
   ctx.trusted = false;
+  ctx.tags = { ...ctx.allTags, ...tags };
   try {
     // …and route it, against the view it joins (what a State's overrides target)
     const router = ctx.router();
@@ -1995,6 +2020,7 @@ export function createElementIn(root: View, el: Element, parent: View): View {
     return made.view;
   } finally {
     ctx.trusted = wasTrusted;
+    ctx.tags = tags;
   }
 }
 

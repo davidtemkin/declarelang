@@ -47,6 +47,11 @@ Narrative context and the session in which each was found lives in
 | L-29 | compiler | Chain classification breaks at inner calls and computed-default segs | high | open — found building L-21 |
 | L-30 | compiler | Method BODIES are never checked against their written return type | medium | open — found building typed data |
 | L-31 | runtime | Layout↔author slot conflict: contained + one clear message across all 3 sites | — | **done** 2026-09-03 |
+| L-32 | runtime | The Safari canvas-filter fallback ships in every build that draws (5.6 KB) | medium | open — revisit |
+| L-33 | tests | Two app ladder rungs fail since v0.5.3 (docs R5, homepage R6), cause not traced | medium | open |
+| L-34 | build | A program whose script imports a module ships its bodies as text | low | open |
+| L-35 | build | A page that hosts islands carries every capability, not its tenants' union | low | open |
+| L-36 | tooling | The slim corpus gate runs by hand: no hook or CI runs it | medium | open |
 
 ---
 
@@ -1134,3 +1139,71 @@ The moment per-span font-size ships (a run TALLER than the block), this methodol
 the line box must go per-line, content-derived by default (potentially VARIABLE line heights), with a
 user-specified **`fixed line height of <X>`** optional attribute on RichText (**default OFF**) as the
 opt-in override — the CSS `line-height` twin. Do this WITH feature (b), not before.
+
+## L-32 — The Safari canvas-filter fallback ships in every build that draws · medium · open
+
+**What.** A `draw()` paints into a canvas, even in a DOM build (each drawn view
+rasterizes into its own). WebKit accepts `ctx.filter` and paints unfiltered, so a
+drawing that sets a filter (`d.filter = "blur(2px)"`, or a style record carrying
+one) is filtered by Declare itself in Safari: `canvas-filter.ts` with its blur and
+color-matrix passes in WebAssembly (`filter-wasm.ts`, embedded as base64). It
+does work only when a drawing applies a filter **and** the browser is Safari. CSS
+filters on ordinary views never use it.
+
+**Why it ships everywhere.** Since 2026-10-24 a build leaves a module out only on
+a signal with no exceptions (`app-slimming.md` §1). A drawing's filter is a member
+of its context, which code can reach by a name it builds and data can carry, so
+no signal bounds it; and drawing ships in every build. The fallback costs 5.6 KB
+gzipped (2.6 KB of JavaScript, 3.0 KB of base64 WebAssembly) on every page that
+draws, which is nearly every app (the library's icons draw), for a case most
+never meet.
+
+**Options, none taken yet:**
+- **Check whether current Safari still needs it.** If WebKit now honors
+  `ctx.filter`, the fallback serves only older Safari, and whether to keep it is a
+  support decision.
+- **Load it on first use.** It stays in every build, so slimming decides nothing
+  and production still equals development; it is fetched the first time a drawing
+  sets a filter in Safari. The cost: that drawing's first frame paints unfiltered,
+  then repaints. It relaxes §1's "nothing optional is loaded lazily".
+- **Ship the WebAssembly as bytes, not base64,** in the same file: saves part of
+  the 3.0 KB.
+
+## L-33 — Two app ladder rungs fail since v0.5.3, cause not traced · medium · open
+
+Found 2026-10-24 running `slim-corpus`, and reproduced on whole builds, at the
+v0.5.3 release and at 0127ba80, so slimming is not the cause:
+
+- **docs R5:** `expected app.location = "type/Motion", got "reference/Animator"`
+  after a click on a reference row's type link (`app.detail.col.refCol.0.attrs.6.sig.ty`),
+  with a timer still waiting.
+- **homepage R6:** `phone-loop@390x844` differs from its baseline (15,980 channel
+  values past tolerance, max Δ 91).
+
+The local Chrome is 155; a browser update is a guess for R6, not checked.
+
+## L-34 — A program whose script imports a module ships its bodies as text · low · open
+
+`precompileBodies` (`tools/declarec.mjs`) reads a script block's names from its
+`return { … }` binding, which an import-bundled block (ending
+`return module.exports`) does not have, so the whole program ships its bodies as
+text. Since 2026-10-24 a text body has the precompiled shape (the scope unpacked
+once, `arguments` the body's own), so this costs speed, not correctness. Teach
+it the bundled form.
+
+## L-35 — A page that hosts islands carries every capability · low · open
+
+A hosting page (tenants, the Inspector, `ship [ compiler ]`) keeps every
+`hostsKeep` capability. When every tenant is compiled ahead (literal programs,
+`ship [ islands ]`) the build knows each one's facts and could carry their union
+instead; only a page that compiles at run time needs everything.
+
+## L-36 — The slim corpus gate runs by hand · medium · open
+
+`test/slim-corpus.test.mjs` (slim against whole, `--compare dev`, `--no-bridge`)
+is the behavior check that slimming leaves out only what is unreachable. It takes
+a browser and minutes, so it is outside `npm test`; the pre-push hook runs no
+tests and the repository has no test CI. It has caught shipped defects (v0.5.3's
+blank slimmed program with no theme). It belongs in whatever runs before a
+release.
+

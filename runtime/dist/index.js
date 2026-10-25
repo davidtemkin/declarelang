@@ -44,6 +44,7 @@ export { Animator } from "./animator.js";
 export { AnimatorGroup } from "./animator-group.js";
 export { settle, afterSettle, observe, kernelReady, kernelReadySync, kernelLoaded, kernelStats } from "./reactive.js";
 export { inspect, find, explain, stats, clock, bridgeFor } from "./inspect.js";
+export { pathOf } from "./node-path.js";
 export { scrollPlaces, holdScrollPlaces, dropScrollPlaces } from "./scroll-places.js";
 export { Draw, record, replay } from "./draw.js";
 export { Font, FontFace, fontsReady, setFontHost, FONT_WEIGHTS } from "./font.js";

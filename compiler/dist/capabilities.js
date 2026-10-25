@@ -30,20 +30,10 @@
 // docs/system-design/app-slimming.md is the account of all this, and
 // test/slim-corpus.test.mjs the gate that what a build leaves out was unreachable.
 import ts from "typescript";
-import { THEME_PRESET_NAMES } from "../../runtime/dist/themes.js";
 import { SCHEMAS, descendsFrom } from "../../runtime/dist/schema.js";
 // ── the manifest ───────────────────────────────────────────────────────────
-const FOCUS_OBJECT = { members: {
-        setRoot: "noop", focus: "noop", blur: "noop", next: "noop", prev: "noop",
-        byKeyboard: "false", getFocus: "null", getRoot: "null", keyboardProgram: "null",
-        onFocusChange: "unsubscribe", onGeometry: "unsubscribe", noteDiscarded: "noop",
-        sequenceFor: "array", enter: "false", leaveMember: "false", nextRegion: "noop", focusIn: "false", holds: "false",
-    } };
-const KEYS_OBJECT = { members: {
-        listen: "noop", isDown: "false", held: "array", onKeyDown: "unsubscribe", onKeyUp: "unsubscribe",
-        keyDown: "noop", keyUp: "noop", chord: "unsubscribe", keyboardMoved: "noop", claimed: "false",
-        declareShortcuts: "noop", shortcutsInForce: "array",
-    } };
+/** The rich text classes: what reads tags and attributes from text as it arrives. */
+const RICH_TEXT = ["Markdown", "HTMLText", "RichText"];
 /** The effect constructors a literal slot or a body can name (effects.ts). */
 const EFFECT_CALLS = ["blur", "brightness", "contrast", "saturate", "grayscale", "invert",
     "sepia", "hueRotate", "colorize", "frost", "radialGradient", "conicGradient"];
@@ -54,7 +44,7 @@ export const CAPABILITIES = [
     { id: "bridge", describe: "the __declare introspection bridge",
         modules: ["inspect"], when: [{ build: { debug: true } }, { build: { inspector: true } }, { build: { bridge: true } }], refusal: "bridge",
         inert: { bridgeFor: "null", pickAt: "null", dependentsOf: "array", expandValue: "null", slotsOf: "array",
-            inspect: "null", find: "null", explain: "null", stats: "null", pathOf: "empty-string", kindName: "empty-string", clock: "object" } },
+            inspect: "null", find: "null", explain: "null", stats: "null", kindName: "empty-string", clock: "object" } },
     { id: "inspector-service", describe: "the Inspector's object-browser service",
         modules: ["inspect-service"], when: [{ build: { debug: true } }, { build: { inspector: true } }], refusal: "inspector",
         inert: { setInspectionTarget: "noop", provideEvalParser: "noop", inspectionTarget: "null", Inspect: { members: { ready: "false" } } } },
@@ -72,74 +62,28 @@ export const CAPABILITIES = [
     { id: "canvas-renderer", describe: "the canvas renderer", modules: ["canvas-backend"],
         when: [{ build: { render: "canvas" } }], refusal: "unused", debugKeeps: false },
     // ── what the program reaches ─────────────────────────────────────────────
-    { id: "themes", describe: "the Themes preset records", modules: ["themes"], hostsKeep: true, refusal: "unused",
-        // a theme read with none set answers the default preset (attributes.ts
-        // provided), so reading one at all reaches the presets
-        when: [{ mentions: [...THEME_PRESET_NAMES, "activeTone"], calls: ["provided", "$provided"] }],
-        inert: { THEME_PRESETS: "object", THEME_PRESET_NAMES: "array", activeTone: "identity", withThemeDefaults: "identity" } },
+    // A program reaches a capability below only through one of three facts, each
+    // with no exceptions (docs/system-design/app-slimming.md, "The signals"): a
+    // class it uses (constructed, extended, named as a value, picked by classFor,
+    // or kept with `use`; a class named by a string outside that set is refused
+    // the same way in every mode), a global its code names (the decoration
+    // constructors, the theme presets; a direct `eval` keeps them all), or syntax
+    // its source contains. Anything a view's member can reach (an attribute, a
+    // method, a handler), whether set in the tree, by code or from data, is not
+    // here: it ships in every build.
     { id: "theme-table", describe: "the Themes preset records, whole (a build ships the presets its program names)",
+        // the default preset is the runtime's own answer to a theme read with none set
         modules: ["themes-data"], when: [], hostsKeep: true, refusal: "unused", subset: { export: "THEME_RECORDS", keys: "mentions", always: ["SanFrancisco"] } },
-    { id: "draw", describe: "draw(): the drawing vocabulary and raster cache", modules: ["draw"], requires: ["visibility"], hostsKeep: true, refusal: "unused",
-        when: [{ methods: ["draw"] }],
-        inert: { record: "null", replay: "noop", Draw: "class", DrawGradient: "class", replayArea: "zero", listIsolated: "false",
-            rasterLooksBlank: "false", blankRasterMessage: "noop", rasterPad: "zero", rasterEntryCap: "zero", rasterTotalCap: "zero",
-            RASTER_MAX_DIM: "zero", RASTER_MAX_AREA: "zero", RASTER_GRACE_MS: "zero", makeCanvas: "null" } },
-    { id: "canvas-filter", describe: "the canvas `filter` fallback (Safari paints a canvas filter as nothing)",
-        modules: ["canvas-filter"], hostsKeep: true, refusal: "unused",
-        when: [{ writes: ["filter"] }, { build: { render: "canvas" } }],
-        inert: { isIdentity: "true", ctxFilterSupported: "true", applyFilterFallback: "identity", forceFilterFallback: "noop" } },
-    { id: "focus-keys", describe: "keyboard focus and the key service", modules: ["focus", "keys"], hostsKeep: true, refusal: "unused",
-        when: [{ classes: ["Keys", "Focus", "TextInput"], methods: ["onKeyDown", "onKeyUp", "onFocus", "onBlur"],
-                attributes: ["focusable", "focusScope"], attributesUnless: { focusable: "false", focusScope: "none" }, mentions: ["Keys", "Focus"] }],
-        inert: { Focus: FOCUS_OBJECT, deliverKeys: "unsubscribe", FocusService: "class",
-            Keys: KEYS_OBJECT, setKeysFocusProbe: "noop", setKeysPrograms: "noop", keysCaller: "null", KeysService: "class", normalize: "null", bareScroller: "false" } },
-    { id: "files", describe: "the person's files: the file dialog, drops, uploads", modules: ["files"], hostsKeep: true, refusal: "unused",
-        when: [{ mentions: ["Files"], methods: ["onFilesDrop", "onFilesOver", "onFilesOut"] }],
-        inert: { Files: { members: { pick: "rejects" } }, provideFilesHost: "noop", wireFiles: "noop", deliverFiles: "false",
-            formBody: { resolves: "null" } } },
-    { id: "tips", describe: "tooltips", modules: ["tooltips"], hostsKeep: true, refusal: "unused",
-        when: [{ classes: ["Tooltips"], attributes: ["tooltipLabel"], mentions: ["Tooltips"] }],
-        inert: { Tooltips: { members: { over: "noop", out: "noop", hide: "noop", show: "noop", onTooltip: "unsubscribe" } } } },
-    { id: "viewport-lock", describe: "the focus-zoom lock for a program that takes raw touches", modules: ["viewport-lock"],
-        hostsKeep: true, refusal: "unused",
-        when: [{ methods: ["onTouchStart", "onTouchMove", "onTouchEnd", "onTouchCancel"] }],
-        inert: { lockFocusZoom: "noop" } },
-    { id: "selectors", describe: "the path-selector evaluator (index, slice, wildcard)", modules: ["select"],
-        hostsKeep: true, refusal: "selectors", when: [{ syntax: ["selector-path"] }] },
-    { id: "schemas", describe: "typed data: the shape validator and resolver", modules: ["data-schema", "shape-resolve"],
-        hostsKeep: true, refusal: "unused", when: [{ syntax: ["schema"] }],
-        inert: { validateShape: "null", validateDoc: "null", fieldValueError: "null",
-            resolveShapes: { returns: { members: { table: "map", errors: "array" } } }, shapeNames: "set", isArrayDoc: "false" } },
-    { id: "effects", describe: "filters, gradients and backdrops", modules: ["effects"], hostsKeep: true, refusal: "unused",
-        when: [{ calls: EFFECT_CALLS, slots: ["filter", "backdrop"], dynamicSlots: ["fill", "textFill", "ink", "background", "bg", "tintUse", "hue"] }] },
-    { id: "dom-effects", describe: "the DOM's tint and mask", modules: ["dom-effects"], hostsKeep: true, refusal: "unused",
-        when: [{ calls: ["colorize"], slots: ["mask", "tint"], dynamicSlots: ["filter", "backdrop"] }] },
-    { id: "3d", describe: "3D transforms", modules: ["projective"], hostsKeep: true, refusal: "unused",
-        when: [{ attributes: ["rotateX", "rotateY", "translateZ", "perspective", "backface"] }] },
-    { id: "measure-text", describe: "measureText and providedTextStyle", modules: ["text-measure"], hostsKeep: true, refusal: "unused",
-        when: [{ calls: ["measureText", "providedTextStyle"] }] },
-    { id: "font-features", describe: "OpenType figures", modules: ["font-derive"], hostsKeep: true, refusal: "unused",
-        when: [{ attributes: ["numerals", "numeralWidth", "slashedZero"] }] },
-    { id: "faces", describe: "FontFace declarations", modules: ["face-literal"], hostsKeep: true, refusal: "unused",
-        when: [{ classes: ["FontFace"] }], inert: { FONT_WEIGHTS: "object", FACE_WEIGHT_FORMS: "empty-string" } },
-    { id: "draw-image", describe: "drawImage in draw()", modules: ["draw-image"], hostsKeep: true, refusal: "unused",
-        when: [{ calls: ["drawImage"] }],
-        inert: { registerDrawImage: "noop", drawImageBitmap: "noop", drawImageHandles: "array" } },
-    { id: "draw-text", describe: "fillText and strokeText in draw()", modules: ["draw-text"], hostsKeep: true, refusal: "unused",
-        when: [{ calls: ["fillText", "strokeText"] }] },
-    { id: "change-event", describe: "trackChanges and onChange", modules: ["change-event"], hostsKeep: true, refusal: "unused",
-        when: [{ attributes: ["trackChanges"] }],
-        inert: { setChangeDispatcher: "noop", untrackNode: "noop", fireChanges: "false", endChangeChain: "noop" } },
+    { id: "effects", describe: "the filter, gradient and backdrop constructors", modules: ["effects"], hostsKeep: true, refusal: "unused",
+        when: [{ mentions: [...EFFECT_CALLS, "frost", "eval"] }] },
     { id: "rich-dom", describe: "rich text's DOM flow", modules: ["dom-rich"], hostsKeep: true, refusal: "unused",
-        when: [{ classes: ["Markdown", "HTMLText", "RichText"] }],
+        when: [{ classes: RICH_TEXT }],
         inert: { richInlineSlots: "false", richBlocks: "false", revealRichAnchor: "false" } },
-    { id: "text-clamp", describe: "maxLines: the line clamp", modules: ["text-clamp"], hostsKeep: true, refusal: "unused",
-        when: [{ attributes: ["maxLines"] }] },
     { id: "rich-views", describe: "rich text laid out as views (canvas, and a line budget)", modules: ["rich-views"],
         hostsKeep: true, refusal: "unused",
-        // the DOM lays rich text out itself; only a CLAMPED rich text needs the view
-        // path there (its line budget) — a clamped plain Text beside it does not
-        when: [{ build: { render: "canvas" } }, { scoped: { attributes: ["maxLines"], on: ["Markdown", "HTMLText", "RichText"] } }] },
+        // the DOM lays rich text out itself; a clamped rich text needs the view path
+        // there, and a clamp can arrive from data, so any rich text carries it
+        when: [{ build: { render: "canvas" } }, { classes: RICH_TEXT }] },
     { id: "rich-doc", describe: "rich text laid out by the DOM", modules: ["rich-doc"], hostsKeep: true, refusal: "unused",
         when: [{ build: { render: "dom" } }] },
     // Literal TEXT reaches the runtime only in rich text's inline-view tags,
@@ -163,33 +107,36 @@ export const CAPABILITIES = [
         modules: ["size-report"], when: [{ build: { debug: true } }], refusal: "unused",
         inert: { noteNegativeSize: "noop", judgeNegativeSizes: "noop" } },
     // ── classes and constructs the core recognises but need not carry ─────────
-    { id: "data", describe: "data: Dataset, DataSource, cursors and region cells", modules: ["data"], hostsKeep: true, refusal: "unused",
-        when: [{ classes: ["Dataset"] }, { syntax: ["data-read"] }],
-        inert: { unwrapValue: "identity", trackedView: "identity", setAppDataBase: "noop", provideTransport: "identity" } },
-    { id: "replication", describe: "replication: one instance per record", modules: ["replicate"], requires: ["data"],
-        hostsKeep: true, refusal: "unused", when: [{ syntax: ["replication"] }], inert: { materializationInfo: "null" } },
+    // (data — Dataset, cursors, region cells and the path selectors — ships in
+    // every build: a datapath can arrive as a view's member, from createView's
+    // props, which no signal bounds, and core reads it through the data module)
+    // (typed data — the shape validator and resolver — ships too: data checks a
+    // document against a dataset's `schema`, and a member can hold one)
+    { id: "replication", describe: "replication: one instance per record", modules: ["replicate"],
+        hostsKeep: true, refusal: "unused", when: [{ syntax: ["replication"] }],
+        // only a Replicator writes the blocks table, so with none aboard it is empty
+        // and semantics' role walk (list, grid, menu, tree) reads none
+        inert: { materializationInfo: "null", blocksOf: "array" } },
+    // virtualize and classFor are replication's own metadata, read only from the
+    // replicated child's element where it is set up (instantiate.ts): an element
+    // of the tree or a class body, which the compile sees whole (rich text cannot
+    // make one: a path written as text is refused). Present at all, with any value,
+    // is the signal: `virtualize = false` still hands replication the windowing.
     { id: "virtualize", describe: "virtualize: windowing a long replication", modules: ["virtualize"], requires: ["replication"],
-        hostsKeep: true, refusal: "unused", when: [{ attributes: ["virtualize"], attributesUnless: { virtualize: "false" } }] },
+        hostsKeep: true, refusal: "unused", when: [{ slots: ["virtualize"] }] },
     { id: "class-for", describe: "classFor: a class per record in replication", modules: ["class-for"], requires: ["replication"],
-        hostsKeep: true, refusal: "unused", when: [{ attributes: ["classFor"] }] },
+        hostsKeep: true, refusal: "unused", when: [{ slots: ["classFor"] }] },
     { id: "state", describe: "State: a named set of overrides", modules: ["state"], hostsKeep: true, refusal: "unused",
         when: [{ classes: ["State"] }] },
     { id: "editor", describe: "editing: TextInput's draft and two-way binding", modules: ["editor"], hostsKeep: true, refusal: "unused",
         when: [{ classes: ["Editor"] }, { syntax: ["two-way"] }] },
-    // the boundary: values a host provides, and islands
-    { id: "host-values", describe: "host values: what a host provides and a hosted side exposes", modules: ["boundary"],
-        hostsKeep: true, refusal: "unused", when: [{ mentions: ["hostProvided", "$hostProvided"] }, { classes: ["DOMIsland"] }],
-        inert: { hostValuesFor: "null" } },
     { id: "islands", describe: "islands: DOMIsland, AppIsland, the tenant link, and the page's island mounting",
-        modules: ["island", "browser/host-islands"], requires: ["host-values"], hostsKeep: true, refusal: "unused",
+        modules: ["island", "browser/host-islands"], hostsKeep: true, refusal: "unused",
         when: [{ classes: ["DOMIsland"] }],
         inert: { wireIslands: { returns: { members: { renderChild: "noop", retry: "noop", discover: "noop", dispose: "noop" } } } } },
-    // the facts of being seen; a drawing arms them for its resolution
-    { id: "visibility", describe: "onScreen, visibleRect and apparentScale", modules: ["visibility", "dom-visibility"], hostsKeep: true,
-        refusal: "unused", when: [{ mentions: ["onScreen", "visibleRect", "apparentScale"] }],
-        inert: { reattachVisibility: "noop", retireVisibility: "noop" } },
     // motion: a Spring follows physics; the timed run, its curves, groups and the
-    // tweening layout come only with what uses them
+    // tweening layout come only with the classes that use them (`motion` is an
+    // Animator's and an AnimatorGroup's attribute, so the class carries the curves)
     { id: "animator", describe: "Animator: the motion family's shared base", modules: ["animator"], hostsKeep: true, refusal: "unused",
         when: [{ classes: ["Animator"] }] },
     { id: "spring", describe: "Spring: physics toward a reactive target", modules: ["spring"], requires: ["animator"],
@@ -197,7 +144,7 @@ export const CAPABILITIES = [
     { id: "tween", describe: "an Animator's timed run", modules: ["tween"], requires: ["animator", "easing"], hostsKeep: true, refusal: "unused",
         when: [{ ownClasses: ["Animator"] }, { classes: ["AnimatorGroup", "TweenLayout"] }] },
     { id: "easing", describe: "the easing curves a motion names", modules: ["easing"], hostsKeep: true, refusal: "unused",
-        when: [{ attributes: ["motion"] }, { build: { render: "canvas" } }], inert: { MOTION_TOKENS: "array" } },
+        when: [{ classes: ["Animator", "AnimatorGroup", "TweenLayout"] }, { build: { render: "canvas" } }], inert: { MOTION_TOKENS: "array" } },
     { id: "animator-group", describe: "AnimatorGroup", modules: ["animator-group"], requires: ["tween"], hostsKeep: true, refusal: "unused",
         when: [{ classes: ["AnimatorGroup"] }] },
     { id: "tween-layout", describe: "TweenLayout: animated reflow", modules: ["tween-layout"], requires: ["tween"], hostsKeep: true,
@@ -325,6 +272,8 @@ export function programFacts(program, usedClasses) {
             walk(c);
     };
     walk(program.root);
+    if ((program.shapes ?? []).length > 0)
+        f.syntax.add("schema"); // a declared schema, even one only a slot's type names
     for (const c of program.classes)
         walk(c.body, c.name ?? c.body.tag);
     for (const b of program.scripts ?? [])
@@ -514,7 +463,8 @@ export function subsetModule(cap, moduleName, source, facts) {
         const key = p.name !== undefined && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name)) ? p.name.text : null;
         if (key === null)
             throw new Error(`capability "${cap.id}": ${sub.export} has an entry the cut cannot name`);
-        if (names.has(key) || sub.always?.includes(key) === true)
+        // a direct eval can name any of them
+        if (names.has(key) || names.has("eval") || sub.always?.includes(key) === true)
             kept.push(p.getText(file));
     }
     return source.slice(0, table.getStart(file)) + `{ ${kept.join(", ")} }` + source.slice(table.getEnd());

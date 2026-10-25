@@ -19,7 +19,7 @@
 // held it is retried once a frame, for at most two seconds; the user's first
 // scroll drops it (the host calls dropScrollPlaces).
 import { View } from "./view.js";
-import { find, pathOf } from "./inspect.js";
+import { findPath as find, pathOf } from "./node-path.js";
 import { afterSettle } from "./reactive.js";
 import { sharedClock } from "./animate.js";
 export function scrollPlaces(app) {

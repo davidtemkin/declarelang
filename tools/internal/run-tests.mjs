@@ -81,6 +81,7 @@ const SUITE = [
   "test/text.test.mjs",            // the silent text regressions only: headless, one stub measurer, ~1s
   "test/md-conformance.test.mjs",  // Declare's Markdown reader vs markdown-it (VS Code's) over the CommonMark+GFM surface
   "test/slim.test.mjs",
+  "test/slim-signals.test.mjs",   // a build leaves a module out only on a signal with no exceptions
   "test/crawl.test.mjs",
   "test/serve-parity.test.mjs",
   "test/serve.test.mjs",

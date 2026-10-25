@@ -17,6 +17,6 @@ export { fontsReady } from "./font-value.js";
 export { hydrateProgram } from "./hydrate.js";
 export { scrollPlaces, holdScrollPlaces, dropScrollPlaces, type ScrollPlaces, type Place } from "./scroll-places.js";
 export { setInspectionTarget, provideEvalParser } from "./inspect-service.js";
-export { provideChecker } from "./instantiate.js";
+export { provideChecker, islandPermitted } from "./instantiate.js";
 export { onDiscard } from "./node.js";
 export { isEmbedded, provideHostServices, disposeApp, mountEmbeddedApp, mountApp, reflectAppName, renderProgram, renderProgramAsync, buildProgram } from "./boot.js";

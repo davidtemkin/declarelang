@@ -73,7 +73,8 @@ await test("a role is fixed for the view's life: written after the view is built
 });
 
 await test("a role given to createView is checked as it is created, in the compiler's words", async () => {
-  const app = await boot(`App [ ]`);
+  // a class created by name is kept with `use`, in every mode
+  const app = await boot(`use [ View ]\nApp [ ]`);
   assert.throws(() => createViewIn(app, "View", app, { accessibilityRole: "slider", accessibilityLabel: "Volume" }),
     /declares accessibilityRole = slider[\s\S]*no accessibilityValue/);
   const ok = createViewIn(app, "View", app, { accessibilityRole: "group", accessibilityLabel: "Tools" });
