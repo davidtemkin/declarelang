@@ -12,7 +12,7 @@ class ComboSwatch extends Swatch [ name = :name,
         ground: View [ x = 20, y = 14, width = 172, height = 92, cornerRadius = 10, fill = gradient(90, #17A34A, #FDE68A) ]
         ],
     body: View [ x = 36, y = 16, width = 140, height = 88, rotation = { :rot },
-        filter = { :fx == "shadow" ? [shadow(0, 6, 10, colorWithAlpha(0x000000, 170))] : :fx == "blur" ? [blur(2)] : :fx == "grayscale" ? [grayscale(1)] : null },
+        filter = { ({ shadow: [shadow(0, 6, 10, colorWithAlpha(0x000000, 170))], blur: [blur(2)], grayscale: [grayscale(1)] })[:fx] ?? null },
         opacity = { :fx == "opacity" ? 0.45 : 1 },
         blend = { :fx == "multiply" ? "multiply" : "normal" },
         mask = { :fx == "mask" ? gradient("90deg", 0x000000, colorWithAlpha(0x000000, 0)) : null },

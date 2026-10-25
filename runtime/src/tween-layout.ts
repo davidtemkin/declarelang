@@ -48,6 +48,12 @@ export abstract class TweenLayout extends Layout {
    *  lazily on first install and reused across re-arms. */
   private tween: Animator | null = null;
 
+  /** The children this layout has placed before. A re-install (the child set
+   *  changed: a replicated list reordered, grew or shrank) glides the ones it
+   *  knows from where they stand, and holds the newcomers hidden at their
+   *  destination until the glide lands — the reveal rule below. */
+  private placed = new WeakSet<View>();
+
   /** Pure geometry: one FULL Box per laid child (the lerp needs both
    *  endpoints of all four geometry slots plus visibility), from the layout's
    *  own state (its attributes) and `this.view`'s box. No time, no side
@@ -158,7 +164,12 @@ export abstract class TweenLayout extends Layout {
     }
     // Snapshot the current layout for these children, then evaluate the freshly
     // owned constraints against it (they subscribe to from/to/t on first run).
-    this.retarget(false);
+    // The first population snaps; a later change to the child set — a reorder,
+    // an arrival, a departure — glides, because the children that stay are
+    // the same views, still standing where they were. Until 2026-10-25 every
+    // re-install snapped, so a list that reordered under a TweenLayout jumped
+    // to its new order and a `retarget(true)` after it found nothing to move.
+    this.$snapshot(kids.some((c) => this.placed.has(c)));
     for (const o of owned) o.k.run();
     return detach;
   }
@@ -169,9 +180,20 @@ export abstract class TweenLayout extends Layout {
    *  imperative entry — the app calls it after setting the layout's state on a
    *  geometry-affecting change the constraints can't infer (mode, focus). */
   retarget(animate: boolean): void {
+    this.$snapshot(animate);
+  }
+
+  /** `from` is each known child's live box; a child never placed before starts
+   *  at its destination, hidden (`vis: false`), so it appears where it belongs
+   *  once the motion lands instead of flying in from the origin. */
+  private $snapshot(animate: boolean): void {
     const kids = this.laid();
-    this.from = kids.map((c) => ({ x: c.x, y: c.y, w: c.width, h: c.height, vis: c.visible }));
-    this.to = this.place() as FullBox[];
+    const to = this.place() as FullBox[];
+    this.from = kids.map((c, i) => this.placed.has(c) || to[i] === undefined
+      ? { x: c.x, y: c.y, w: c.width, h: c.height, vis: c.visible }
+      : { ...to[i], vis: false });
+    this.to = to;
+    for (const c of kids) this.placed.add(c);
     if (animate && this.tween !== null) {
       this.t = 0; // constraints settle children at `from` (= current) — no flash
       this.tween.duration = this.duration;

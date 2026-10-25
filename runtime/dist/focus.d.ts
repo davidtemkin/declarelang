@@ -174,12 +174,15 @@ export declare class FocusService {
     /** Is focus inside a region (a window, a pane)? */
     inRegion(): boolean;
     nextRegion(dir: 1 | -1): void;
-    /** The focused view's subtree is being discarded (or hidden) — move focus to
-     *  a live stop OUTSIDE it before it goes, so focus never dangles: the first
-     *  survivor in the same cycle, else in its program. Survivors come from the
-     *  dying view's OWN tree: when an embedded app is torn down (a live-edit
-     *  re-render), focus is dropped, never re-anchored into the host app's
-     *  controls. Called from View.discard() via the seam in view.ts. */
+    /** The focused view's subtree is being discarded: focus is cleared before it
+     *  goes, and the next Tab starts from where it was — the web's rule for a
+     *  focused element taken out of the page, and the one `rewatch` keeps for a
+     *  view hidden or disabled. It does not jump to some other stop: a search
+     *  field closed with Esc once sent focus, and its ring, to the first tile
+     *  of a sidebar across the window (2026-10-25). The spot is the dying
+     *  view's parent, which stays; a program torn down whole (an embedded app
+     *  re-rendered) leaves no spot, and focus is simply dropped. Called from
+     *  View.discard() via the seam in view.ts. */
     noteDiscarded(view: View): void;
 }
 /** A scroller with nothing inside it that takes focus — a pane of text, a strip

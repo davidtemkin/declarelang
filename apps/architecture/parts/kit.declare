@@ -109,30 +109,15 @@ class Section [ width = 100%,
 ## Figure
 
 A figure breaks out of the reading column to the wide measure, with air above
-and below it: a caption carrying the figure's label first, at the reading
-column's measure, then the drawing — stacked and sized by `Run`, with the air
-above and below as the figure's own `padding`.
+and below it. Its parts — a control, the drawing, a key — are stacked and
+sized by `Run`, with the air above and below as the figure's own `padding`.
+The text that introduces a figure is in the article's body, not on it.
 */
 
 class Figure [ width = { app.wide }, x = center,
     air: number = 36,
     padding = { [this.air, 0, this.air, 0] },   // air above and below, none at the sides
     layout: Run [ spacing = 16 ]
-    ]
-
-
-// the figure's label and its caption, together above the drawing, at the
-// reading column's measure and centred over the figure
-
-class Caption [
-    fig: string = "",
-    text: string = "",
-    measure: number = { app.col },
-    layout: Run [ spacing = 6 ],
-
-    Eyebrow [ wrap = true, lineHeight = 1.4, text = { classroot.fig } ],
-    Text [ fontSize = 14, lineHeight = 1.5, textColor = { provided("theme").muted },
-        text = { classroot.text } ]
     ]
 
 

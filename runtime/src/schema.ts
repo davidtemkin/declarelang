@@ -267,6 +267,10 @@ const ViewSchema: ClassSchema = {
     // scroller — or a child that declares `ignoreScroll`. Both backends
     // realize scrolling natively (DOM `overflow`; canvas clip+translate+wheel).
     scrolls: enumType("Scrolls", "none", "y", "x", "both"),
+    // A scrolling view that draws no scrollbars, on either axis (default false): it still
+    // scrolls by finger, wheel and trackpad — a sideways row of chips or
+    // cards, as phone apps show them. An opt-out, like ignoreScroll.
+    hideScrollbars: { kind: "boolean" },
     // The axis a declared drag CLAIMS (D8 RULED; claim-surface.md): `both`
     // (default — the whole single-finger gesture, today's semantics) or
     // `x`/`y`, scoping the claim to one axis so the cross axis stays the
@@ -539,6 +543,9 @@ const AppSchema: ClassSchema = {
     // summons it back instead of reaching the app. Fed by the runtime
     // (boot.ts): `hostHeight` minus the layout viewport, never negative.
     underlapBottom: { kind: "number" },
+    // How much of the window's foot an on-screen keyboard covers — 0 with no
+    // keyboard up, and on a desktop. Fed by the runtime (boot.ts).
+    keyboardHeight: { kind: "number" },
     // The names this app EXPOSES to whatever hosts it (islands.md) — its own
     // attributes, read UP by a host island's `exposed("name", default)` or a
     // page's `app.exposed("name")`. The down direction is `hostProvided(…)`.
@@ -615,7 +622,7 @@ const AppSchema: ClassSchema = {
   // them). `scrollY` here is App's OWN spec (view.ts) — a dead write before
   // this listing: App's spec shadows View's pusher, so assigning it never
   // moved the page anyway.
-  readOnly: ["hostWidth", "hostHeight", "dark", "pageVisible", "touchDevice", "hasTouch", "hasPointer", "lastPointerType", "safeTop", "safeBottom", "safeLeft", "safeRight", "underlapBottom", "scrollY", "pointerX", "pointerY", "pointerDown", "hovering", "pointerOverText"],
+  readOnly: ["hostWidth", "hostHeight", "dark", "pageVisible", "touchDevice", "hasTouch", "hasPointer", "lastPointerType", "safeTop", "safeBottom", "safeLeft", "safeRight", "underlapBottom", "keyboardHeight", "scrollY", "pointerX", "pointerY", "pointerDown", "hovering", "pointerOverText"],
   // `onFollow(ref) -> ref'` — the app-scoped arrival hook (location.md §0.6):
   // follow() applies it ONCE to every arrival — a linked view, a prose href, a
   // cold URL, back/forward — before routing. Return the reference to proceed

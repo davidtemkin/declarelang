@@ -473,8 +473,9 @@ on this page does.
 */
 
 class SiteButton extends Button [ height = 46, cornerRadius = 9,
-    fill = { primary ? (pressed ? provided("theme").accentPressed : hovered ? provided("theme").accentHovered : provided("theme").accent)
-                     : (pressed ? provided("theme").press       : hovered ? provided("theme").hover       : provided("theme").surface) },
+    fill = { primary ? (hovered ? provided("theme").accentHovered : provided("theme").accent)
+                     : (hovered ? provided("theme").hover         : provided("theme").surface) },
+    State [ applied = { pressed }, fill = { primary ? provided("theme").accentPressed : provided("theme").press } ],
     stroke = { primary ? null : stroke(1, pressed ? provided("theme").accentSecondary : provided("theme").line) },
 
     // the one ink decision, the library's own seam: the page's ground colour

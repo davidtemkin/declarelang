@@ -282,6 +282,14 @@ export const Diag = {
   // body reaches the wrong thing, and TypeScript's errors blame the use.
   shadowsTsGlobal: (kind: string, name: string, lib: string, pos: Pos): DeclareError =>
     err(code4(4015), `${kind} ${name} takes a name TypeScript's standard library already declares (${lib}) — the { } bodies typecheck against that library, where '${name}' means the built-in, so a use of yours there reaches the wrong thing. Choose another name`, pos),
+  // The same, for a name Declare's own types already hold — a value type
+  // (Backdrop, Color, Filter, Outline, …), a word list (Process, Tick, …) or a
+  // preset theme (Cupertino, …): the bodies typecheck with Declare's type under
+  // that name, so `this` inside a class of that name is the value type — the
+  // errors would say "'root' is not a member of Backdrop" at every use, or
+  // nothing at all where TypeScript merges the two.
+  shadowsDeclareType: (kind: string, name: string, rename: string, pos: Pos): DeclareError =>
+    err(code4(4015), `${kind} ${name} takes the name of one of Declare's own types (npx declare-help ${name} says what it is) — the { } bodies typecheck with that type under the name, so inside yours '${name}' would mean Declare's, not your ${kind}. Rename yours, as '${rename}'`, pos),
   // A Spring owns its slot for as long as it lives — it never finishes — so a
   // slot its view also binds ({ }, :path or a percent) has two owners, and the
   // boot refuses it. (An Animator may drive a bound slot: it takes the slot for
@@ -344,6 +352,13 @@ export const Diag = {
     err(code4(4023), `${owner} reads rowIndex, but ${owner} is not replicated — that is its own rowIndex, never the row's, because a built-in never resolves outward. The index of the row it sits in is that view's: parent.rowIndex (one level up), or classroot.rowIndex inside a class whose instances are the rows`, pos),
   writeToComputedDataset: (name: string, verb: string, pos: Pos): DeclareError =>
     err(code4(4024), `${name} computes its value with contents, so it refuses writes — ${name}.${verb}(…) will be refused when it runs, and what it meant to keep is lost. A dataset that is written holds its records as data: ${name}: Dataset { { … } } (its first value), and a list derived from it is a second dataset with contents`, pos),
+  // A WARNING: a constraint body whose decisions nest three `? :` deep, or one
+  // `&&`/`||` condition with four or more parts. It works; it is hard to read,
+  // to change and to inspect, because the facts it decides on have no names.
+  // Two levels (`pressed ? a : hovered ? b : c`) and three-part conditions stay
+  // quiet: the guide teaches both, and both read at a glance.
+  tangledConstraint: (attr: string, depth: number, parts: number, pos: Pos): DeclareError =>
+    err(code4(4025), `${attr} decides ${depth >= 3 ? "through " + depth + " nested ? : choices" : "on one condition of " + parts + " parts"} — give the facts it decides on names of their own (an attribute with a { } default: open: boolean = { … }), and the constraint reads them; a choice keyed by a value (an id, a kind, a mode) is a lookup in data or a theme list, and a look a view takes in some state is a State. A named value costs nothing: it is worked out once and kept`, pos),
   accessibilityDrawnFocusable: (owner: string, pos: Pos): DeclareError =>
     err(code4(4018), `${owner} draws itself and takes the focus, but has no accessibilityRole — what it draws is pixels, not anything a screen reader can read. Give it the role it plays and the facts that role reads, or make it a Control`, pos),
   afterInValue: (pos: Pos): DeclareError =>
@@ -474,8 +489,9 @@ export const DIAGNOSTIC_CATALOG: ReadonlyArray<{ code: string; phase: DiagPhase;
   { code: code4(4022), phase: "name", summary: "a control that shows it is chosen and reports no state (warning)" },
   { code: code4(4023), phase: "name", summary: "rowIndex read on a view that is not replicated — its own, never the row's (warning)" },
   { code: code4(4024), phase: "name", summary: "a write to a dataset that computes its value with contents (warning)" },
+  { code: code4(4025), phase: "name", summary: "a constraint whose decisions are nested three deep, or one condition with four or more parts (warning)" },
   { code: code4(4014), phase: "name", summary: "afterDelay() in a { } value — a value computes and never waits" },
-  { code: code4(4015), phase: "name", summary: "a class, schema, theme or style takes a name TypeScript's standard library declares" },
+  { code: code4(4015), phase: "name", summary: "a class, schema, theme or style takes a name TypeScript's standard library or Declare's own types declare" },
   { code: code4(5000), phase: "module", summary: "include/module error (unclassified)" },
   { code: code4(5001), phase: "module", summary: "two included files declare the same class" },
   { code: code4(5002), phase: "module", summary: "an include path cannot be found" },

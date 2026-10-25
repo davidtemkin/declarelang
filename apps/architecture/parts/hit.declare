@@ -20,13 +20,14 @@ class SceneCard [ cornerRadius = 12,
     sub: string = "",
     hue: Color = gray,
     soft: Color = gray,
-    fill = { this.hovered ? this.hue : this.soft },
-    stroke = { stroke(this.hovered ? 2 : 1, this.hue) },
+    lit: boolean = { this.hovered },
+    fill = { this.lit ? this.hue : this.soft },
+    stroke = { stroke(this.lit ? 2 : 1, this.hue) },
     shadow = { shadow(0, 6, 18, 0x0000001A) },
     t: Label [ x = 14, y = 12, fontSize = 15, text = { classroot.title },
-        textColor = { classroot.hovered ? provided("theme").panel : provided("theme").ink } ],
+        textColor = { classroot.lit ? provided("theme").panel : provided("theme").ink } ],
     s: Note [ x = 14, y = 34, fontSize = 12.5, width = { classroot.width - 28 }, text = { classroot.sub },
-        textColor = { classroot.hovered ? provided("theme").panel : provided("theme").muted } ]
+        textColor = { classroot.lit ? provided("theme").panel : provided("theme").muted } ]
     ]
 
 
@@ -43,6 +44,15 @@ class Read [
 
 
 class HitFig extends Plate [
+
+    // A finger doesn't hover, so on a touch screen the figure answers taps
+    // instead: each view's onClick records itself, and since a press goes to
+    // the first view the walk stops at, what is recorded is the runtime's own
+    // answer. With a pointer, the answers stay the views' hovered facts.
+
+    tapped: string = "",
+    touch: boolean = { app.touchDevice },
+
     row: View [
         layout: ResponsiveLayout [ plan = { [({ from: 820, flow: "row", gap: 32, share: ({ scene: 52, panel: 48 }) }),
             ({ from: 0, flow: "stack", gap: 22, share: ({ scene: 100, panel: 100 }) })] } ],
@@ -65,7 +75,7 @@ class HitFig extends Plate [
         scene: View [ height = { 380 * this.k }, cornerRadius = 10, fill = { provided("theme").sunk }, clip = true,
             selectable = false,
             k: number = { Math.min(1, this.width / 490) },
-            onClick() { },
+            onClick() { classroot.tapped = "Scene" },
 
             // the composition, scaled as one to fit — the walk hits through the scale too
 
@@ -73,25 +83,29 @@ class HitFig extends Plate [
 
                 base: SceneCard [ x = 26, y = 30, width = 250, height = 190, title = "Card", sub = "Plain. Declares onClick.",
                     hue = { provided("theme").app }, soft = { provided("theme").appSoft },
-                    onClick() { }
+                    lit = { classroot.touch ? classroot.tapped == "Card" : this.hovered },
+                    onClick() { classroot.tapped = "Card" }
                     ],
                 turned: SceneCard [ x = 170, y = 130, width = 230, height = 130, rotation = -9, title = "Rotated card",
                     sub = "Hit through its own transform, not its box.",
                     hue = { provided("theme").lib }, soft = { provided("theme").libSoft },
-                    onClick() { }
+                    lit = { classroot.touch ? classroot.tapped == "Rotated card" : this.hovered },
+                    onClick() { classroot.tapped = "Rotated card" }
                     ],
                 pane: View [ x = 40, y = 236, width = 200, height = 104, cornerRadius = 10, clip = true,
-                    fill = { this.hovered ? provided("theme").run : provided("theme").runSoft },
-                    stroke = { stroke(this.hovered ? 2 : 1, provided("theme").run) },
-                    onClick() { },
+                    lit: boolean = { classroot.touch ? classroot.tapped == "Clipped pane" || classroot.tapped == "Child" : this.hovered },
+                    fill = { this.lit ? provided("theme").run : provided("theme").runSoft },
+                    stroke = { stroke(this.lit ? 2 : 1, provided("theme").run) },
+                    onClick() { classroot.tapped = "Clipped pane" },
                     Label [ x = 12, y = 10, fontSize = 14, text = "Clipped pane",
-                        textColor = { parent.hovered && !parent.inner.hovered ? provided("theme").panel : provided("theme").ink } ],
+                        textColor = { parent.lit && !parent.inner.lit ? provided("theme").panel : provided("theme").ink } ],
                     inner: View [ x = 100, y = 44, width = 170, height = 90, cornerRadius = 8,
-                        fill = { this.hovered ? provided("theme").ker : provided("theme").kerSoft },
-                        stroke = { stroke(this.hovered ? 2 : 1, provided("theme").ker) },
-                        onClick() { },
+                        lit: boolean = { classroot.touch ? classroot.tapped == "Child" : this.hovered },
+                        fill = { this.lit ? provided("theme").ker : provided("theme").kerSoft },
+                        stroke = { stroke(this.lit ? 2 : 1, provided("theme").ker) },
+                        onClick() { classroot.tapped = "Child" },
                         Label [ x = 10, y = 8, fontSize = 13, text = "Child",
-                            textColor = { parent.hovered ? provided("theme").panel : provided("theme").ink } ]
+                            textColor = { parent.lit ? provided("theme").panel : provided("theme").ink } ]
                         ]
                     ],
 
@@ -112,7 +126,8 @@ class HitFig extends Plate [
                 // present but fully transparent: still on the hit path
 
                 glass: View [ x = 300, y = 24, width = 150, height = 96, cornerRadius = 10, opacity = 0,
-                    onClick() { }
+                    lit: boolean = { classroot.touch ? classroot.tapped == "Invisible glass" : this.hovered },
+                    onClick() { classroot.tapped = "Invisible glass" }
                     ],
                 glassMark: View [ x = 300, y = 24, width = 150, height = 96, pointerEvents = "none",
                     draw(d: Draw) {
@@ -124,8 +139,8 @@ class HitFig extends Plate [
                         d.stroke()
                         },
                     Note [ x = 12, y = 12, width = 126, fontSize = 12.5, pointerEvents = "none",
-                        text = { classroot.row.scene.world.glass.hovered ? "Hit: opacity 0, still present" : "Invisible glass (opacity 0)" },
-                        textColor = { classroot.row.scene.world.glass.hovered ? provided("theme").ink : provided("theme").muted } ]
+                        text = { classroot.row.scene.world.glass.lit ? "Hit: opacity 0, still present" : "Invisible glass (opacity 0)" },
+                        textColor = { classroot.row.scene.world.glass.lit ? provided("theme").ink : provided("theme").muted } ]
                     ],
 
                 // seen, never touched
@@ -139,32 +154,36 @@ class HitFig extends Plate [
 
         // what the runtime says is under the pointer, deepest first
 
-        hit: string = { this.scene.world.pane.inner.hovered ? "Child"
-            : this.scene.world.pane.hovered ? "Clipped pane"
-            : this.scene.world.glass.hovered ? "Invisible glass"
-            : this.scene.world.turned.hovered ? "Rotated card"
-            : this.scene.world.base.hovered ? "Card"
-            : this.scene.hovered ? "Scene"
-            : "" },
+        hit: string = { this.hitNow() },
+        hitNow() -> string {
+            if (classroot.touch) return classroot.tapped
+            const w = this.scene.world
+            if (w.pane.inner.hovered) return "Child"
+            if (w.pane.hovered) return "Clipped pane"
+            if (w.glass.hovered) return "Invisible glass"
+            if (w.turned.hovered) return "Rotated card"
+            if (w.base.hovered) return "Card"
+            if (this.scene.hovered) return "Scene"
+            return ""
+            },
         chain: string = { this.hit == "" ? "—"
-            : this.hit == "Child" ? "Child → Clipped pane → Scene → … → App"
-            : this.hit == "Scene" ? "Scene → … → App"
-            : this.hit + " → Scene → … → App" },
-        why: string = { this.hit == "" ? "Move the pointer over the scene."
-            : this.hit == "Child" ? "Inside the pane’s clip. Past the pane’s edge the same child is neither drawn nor hit."
-            : this.hit == "Clipped pane" ? "The child’s clipped-away part is not there to be hit; the press falls to the pane."
-            : this.hit == "Invisible glass" ? "Opacity is paint. The view is fully present, so it takes the press over the card beneath it."
-            : this.hit == "Rotated card" ? "Hit through its rotation: the corners of its unrotated box do not count. The white label on it declares nothing about the pointer, so the walk passes through it and finds the card."
-            : this.hit == "Card" ? "The topmost view here, and it declares onClick, so it takes the press."
-            : "Only the scene: nothing drawn above it is under the pointer." },
+            : ({ "Child": "Child → Clipped pane → Scene → … → App", "Scene": "Scene → … → App" })[this.hit]
+                ?? this.hit + " → Scene → … → App" },
+        why: string = { this.hit == "" ? (classroot.touch ? "Tap the scene." : "Move the pointer over the scene.")
+            : ({ "Child": "Inside the pane’s clip. Past the pane’s edge the same child is neither drawn nor hit.",
+                "Clipped pane": "The child’s clipped-away part is not there to be hit; the press falls to the pane.",
+                "Invisible glass": "Opacity is paint. The view is fully present, so it takes the press over the card beneath it.",
+                "Rotated card": "Hit through its rotation: the corners of its unrotated box do not count. The white label on it declares nothing about the pointer, so the walk passes through it and finds the card.",
+                "Card": "The topmost view here, and it declares onClick, so it takes the press." })[this.hit]
+                ?? "Only the scene: nothing drawn above it is under the pointer." },
 
         panel: View [
             layout: Run [ spacing = 18 ],
-            Read [ what = "topmost view under the pointer", ans = { classroot.row.hit == "" ? "—" : classroot.row.hit } ],
-            Read [ what = "hover chain", ans = { classroot.row.chain } ],
+            Read [ what = { classroot.touch ? "the view your tap reached" : "topmost view under the pointer" }, ans = { classroot.row.hit == "" ? "—" : classroot.row.hit } ],
+            Read [ what = { classroot.touch ? "its chain" : "hover chain" }, ans = { classroot.row.chain } ],
             Read [ what = "why", ans = { classroot.row.why } ],
             Note [ fontSize = 12.5,
-                text = { !app.touchDevice ? "These answers are the scene views’ own hovered facts, read live: the same walk that routes a press." : "On a touch screen there is no hover; press and hold to see the chain." } ]
+                text = { !classroot.touch ? "These answers are the scene views’ own hovered facts, read live: the same walk that routes a press." : "A finger doesn’t hover, so here each answer is the view the walk routed your tap to." } ]
             ]
         ]
     ]

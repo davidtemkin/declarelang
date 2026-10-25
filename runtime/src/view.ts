@@ -660,6 +660,9 @@ export class View extends Node {
   declare scrollStartX: number;
   declare scrolling: boolean;
   declare scrollAnchor: string;
+  /** A scrolling view that draws no scrollbars, on either axis (default false); it scrolls
+   *  the same. */
+  declare hideScrollbars: boolean;
   /** Keyboard focus (planes.md §13). `focusable` = a tab stop; `focusScope` = what
    *  Tab does at this view's edge (`none` | `stop` | `capture` | `region` | `modal`).
    *  Traversal order is the tree, overridable per view by a `tabOrder()` method. */
@@ -1494,6 +1497,7 @@ export class View extends Node {
     if (this.ignoreScroll) s.setIgnoreScroll?.(this.$pinsToFrame());
     for (const a of this.$endAnchor) s.setEndAnchor?.(a as "x" | "y", true);
     if (this.cursor !== "") s.setCursor(this.cursor);
+    if (this.hideScrollbars) s.setScrollbar?.(false);
     if (this.pointerEvents !== "") s.setPointerEvents(this.pointerEvents);
     if (this.direction !== "inherit") s.setDirection?.(this.direction);
     if (this.scale !== 1 || this.pivotX !== 0 || this.pivotY !== 0 || this.rotation !== 0
@@ -2228,6 +2232,7 @@ defineAttributes(View, {
   scrollStartX: { def: 0 },
   scrolling: { def: false },
   scrollAnchor: { def: "content" },
+  hideScrollbars: { def: false, push: (v, b: boolean) => v.$surface?.setScrollbar?.(!b) },
   // The text face / rich-text / iconSize / theme values are provided, not View
   // slots — they live with the text leaves, Icon, and Control (attributes.ts
   // providedDefault). A container that sets one PROVIDES it: an undeclared set
@@ -2581,6 +2586,7 @@ export class App extends View {
   declare safeTop: number;
   declare safeBottom: number;
   declare underlapBottom: number;
+  declare keyboardHeight: number;
   declare safeLeft: number;
   declare safeRight: number;
   /** The shipping page's over-the-wire size in KB (gzipped) and its Declare
@@ -3139,6 +3145,11 @@ defineAttributes(App, {
   // browser's bars are shown (nothing is hidden, so nothing is in the way),
   // their height once they retract. Desktop and the native host: always 0.
   underlapBottom: { def: 0 },
+  // How much of the window's foot an on-screen keyboard covers: the keyboard
+  // leaves `hostHeight` alone (it shrinks only the visual viewport), so a
+  // view pinned to the window's foot rises by this to stay in sight while
+  // a field is typed in. 0 with no keyboard up, on a desktop and the native host.
+  keyboardHeight: { def: 0 },
   // The side safe-area insets — 0 in portrait, the sensor-housing band on one
   // side in landscape (rotation re-feeds all four). Full-width pinned chrome
   // insets both edges: `x = { app.safeLeft }`,

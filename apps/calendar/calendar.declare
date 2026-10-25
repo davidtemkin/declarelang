@@ -273,8 +273,9 @@ class Cell [ clip = true,
     // inside the rectangle the view is heading for (its targets, not the
     // sprung values, so reachability does not flicker mid-transition)
 
-    inView: boolean = { app.mode != "year" && :row >= app.r0To && :row < app.r0To + app.nrTo
-                        && :col >= app.c0To && :col < app.c0To + app.ncTo },
+    inRows: boolean = { :row >= app.r0To && :row < app.r0To + app.nrTo },
+    inCols: boolean = { :col >= app.c0To && :col < app.c0To + app.ncTo },
+    inView: boolean = { app.mode != "year" && inRows && inCols },
 
     x = { lerp(app.pad + app.gutter + (:col - app.c0) * app.colW + app.gap / 2, app.slotX + 10 + :col * app.miniCellW, app.yearZoom) },
     y = { lerp(app.headH + (:row - app.r0) * app.rowH + app.gap / 2, app.slotY + 34 + :row * app.miniRowH, app.yearZoom) },
@@ -286,14 +287,16 @@ class Cell [ clip = true,
 
     bg: View [ width = 100%, height = 100%, cornerRadius = 8,
         opacity = { 1 - 0.82 * classroot.rowBlock },
+        dayBg: number = { !:inMonth ? provided("theme").outOfMonthBg
+                        : :weekend  ? provided("theme").weekendBg
+                        :             provided("theme").cellBg },
         fill = { mix(
               :key == app.drag.target ? provided("theme").dropTargetBg
             : :today              ? mix(provided("theme").todayBg, provided("theme").cellBg, classroot.rowBlock)
-            : !:inMonth           ? provided("theme").outOfMonthBg
-            : :weekend            ? provided("theme").weekendBg
-            :                       provided("theme").cellBg,
+            :                       dayBg,
             provided("theme").miniCurrentBg, app.yearZoom) },
-        stroke = { :key == app.drag.target ? stroke(2, mix(provided("theme").dropTargetRing, provided("theme").miniCurrentBg, app.yearZoom)) : null } ],
+        stroke = { :key == app.drag.target ? stroke(2, mix(provided("theme").dropTargetRing, provided("theme").miniCurrentBg, app.yearZoom)) : null }
+        ],
 
     // current-day accent bar, fading in as the cell fills the surface
 
@@ -301,8 +304,11 @@ class Cell [ clip = true,
     num: Text [ x = { lerp(11, parent.width / 2 - 5, app.yearZoom) }, y = { lerp(7, 2, app.yearZoom) },
         fontSize = { lerp(13, 9, app.yearZoom) }, wrap = false, fontWeight = semibold,
         opacity = { :inMonth ? 1 : 1 - app.yearZoom },
-        textColor = { :current ? provided("theme").currentDayText : :today ? provided("theme").todayText : :inMonth ? provided("theme").dayNumber : provided("theme").textMuted },
-        text = { "" + :d } ],
+        textColor = { :inMonth ? provided("theme").dayNumber : provided("theme").textMuted },
+        State [ applied = { :today }, textColor = { provided("theme").todayText } ],
+        State [ applied = { :current }, textColor = { provided("theme").currentDayText } ],
+        text = { "" + :d }
+        ],
     dow: Text [ x = 34, y = 8, fontSize = 11, wrap = false, opacity = { classroot.rowBlock },
         textColor = { :current ? provided("theme").currentDayText : provided("theme").textMuted }, text = { :dow } ],
     Ev [ datapath = :events[], key = :id, rowBlock = { classroot.rowBlock }, inView = { classroot.inView } ],
@@ -461,11 +467,12 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     widestOf(samples: string[]) -> number {
         return Math.max(0, ...samples.map((t) => measureText(t, app.titleFace).width))
         },
-    dateW: number = { Math.ceil(app.widestOf(
-        app.mode == "week"  ? ["September 30 – October 31"]           // the cross-month week, longest names
-      : app.mode == "day"   ? ["Wednesday, September 30"]              // longest weekday + longest month
-      : app.mode == "month" ? ["September 2088"]
-      :                       ["2088"]) + 14) },
+    dateW: number = { Math.ceil(app.widestOf(({
+        week:  ["September 30 – October 31"],           // the cross-month week, longest names
+        day:   ["Wednesday, September 30"],             // longest weekday + longest month
+        month: ["September 2088"],
+        year:  ["2088"],
+        })[app.mode]) + 14) },
     panelOverlay: boolean = { app.width < 720 },     // the detail panel overlays the grid instead of insetting it
     panelW: number = { Math.min(340, app.width - 32) },
 
@@ -572,11 +579,15 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     yearZoom: number = 0,
     Spring [ attribute = yearZoom, to = { app.mode == "year" ? 1 : 0 }, stiffness = 150, damping = 24, mass = 0.9, epsilon = 0.002 ],
 
-    periodLabel: string = {
-        app.mode == "year"  ? "" + app.year
-      : app.mode == "month" ? monthName(app.month) + " " + app.year
-      : app.mode == "week"  ? weekLabel(app.anchorKey)
-      :                       dayLabel(app.anchorKey) },
+    periodLabel: string = { app.periodText() },
+    periodText() -> string {
+        switch (this.mode) {
+            case "year":  return "" + this.year
+            case "month": return monthName(this.month) + " " + this.year
+            case "week":  return weekLabel(this.anchorKey)
+            default:      return dayLabel(this.anchorKey)
+            }
+        },
 
     // a day's 0..41 slot in the visible month's grid
 

@@ -348,10 +348,9 @@ class SegmentedItem extends Control [
 
     bg: View [ x = 2, y = 2, width = { parent.width - 4 }, height = { parent.height - 4 },
         cornerRadius = { Math.max(0, (parent.parent as Segmented).rad - 2) },
-        fill = { parent.on ? null
-               : parent.pressed ? provided("theme").controlPressed
-               : parent.hovered ? provided("theme").controlHovered
-               : null } ],
+        stateFill: Color? = { parent.pressed ? provided("theme").controlPressed : parent.hovered ? provided("theme").controlHovered : null },
+        fill = { parent.on ? null : this.stateFill }
+        ],
 
     // A choice shows a label or an icon, whichever the record carries — page
     // switches are labelled, appearance switches are the sun/half-disc/moon —

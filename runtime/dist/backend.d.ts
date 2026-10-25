@@ -484,6 +484,9 @@ export interface Surface {
      *  scrolls overflowing width, keeping over-wide content (a code block, a wide
      *  table) inside its box instead of spilling. Vertical overflow stays clipped.
      *  No reactive offset is mirrored (unlike `setScroll`) — it is presentation-only. */
+    /** Whether this scroller draws its scrollbar (View.hideScrollbars); false
+     *  scrolls the same with no bar. Optional: a host may always show its own. */
+    setScrollbar?(on: boolean): void;
     setScrollX?(on: boolean, onScroll?: (x: number) => void, onScrolling?: (active: boolean) => void): void;
     /** Mark this surface as opted OUT of its nearest enclosing scroll regime
      *  (`ignoreScroll` — the third member of the opt-out family): it rides the

@@ -33,8 +33,8 @@ class XFSwatch extends Swatch [ name = :name,
 class XF3DSwatch extends Swatch [ name = :name,
     stage: View [ x = 56, y = 28, width = 100, height = 64, perspective = 400,
         s: XFSubject [ content = { :content }, pivotX = 50, pivotY = 32,
-            rotateY = { :axis == "rotateY 40" ? 40 : :axis == "rotateY -40" ? -40 : :axis == "both 30" ? 30 : 0 },
-            rotateX = { :axis == "rotateX 40" ? 40 : :axis == "rotateX -40" ? -40 : :axis == "both 30" ? 30 : 0 },
+            rotateY = { ({ "rotateY 40": 40, "rotateY -40": -40, "both 30": 30 })[:axis] ?? 0 },
+            rotateX = { ({ "rotateX 40": 40, "rotateX -40": -40, "both 30": 30 })[:axis] ?? 0 },
             translateZ = { :axis == "translateZ 40" ? 40 : 0 } ]
         ]
     ]

@@ -35,6 +35,11 @@ export declare abstract class TweenLayout extends Layout {
      *  targets the layout itself (Animator.resolveTarget walks parent); created
      *  lazily on first install and reused across re-arms. */
     private tween;
+    /** The children this layout has placed before. A re-install (the child set
+     *  changed: a replicated list reordered, grew or shrank) glides the ones it
+     *  knows from where they stand, and holds the newcomers hidden at their
+     *  destination until the glide lands — the reveal rule below. */
+    private placed;
     /** Pure geometry: one FULL Box per laid child (the lerp needs both
      *  endpoints of all four geometry slots plus visibility), from the layout's
      *  own state (its attributes) and `this.view`'s box. No time, no side
@@ -51,4 +56,8 @@ export declare abstract class TweenLayout extends Layout {
      *  imperative entry — the app calls it after setting the layout's state on a
      *  geometry-affecting change the constraints can't infer (mode, focus). */
     retarget(animate: boolean): void;
+    /** `from` is each known child's live box; a child never placed before starts
+     *  at its destination, hidden (`vis: false`), so it appears where it belongs
+     *  once the motion lands instead of flying in from the origin. */
+    private $snapshot;
 }

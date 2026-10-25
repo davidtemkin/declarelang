@@ -426,10 +426,9 @@ class TreeRow extends Control [
 
     hl: View [ y = 1, width = 100%, height = { parent.height - 2 },
         cornerRadius = { provided("theme").controlCornerRadius },
-        fill = { classroot.selected ? provided("theme").controlSelected
-               : classroot.pressed ? provided("theme").controlPressed
-               : classroot.hovered ? provided("theme").controlHovered
-               : null } ],
+        stateFill: Color? = { classroot.pressed ? provided("theme").controlPressed : classroot.hovered ? provided("theme").controlHovered : null },
+        fill = { classroot.selected ? provided("theme").controlSelected : this.stateFill }
+        ],
 
     // The chevron turns rather than swapping between two marks, on a spring,
     // as an Accordion pane's does. It is its own hit target: a click on it opens

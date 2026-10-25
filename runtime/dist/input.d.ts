@@ -79,7 +79,17 @@ export interface TouchPoint {
     x: number;
     y: number;
 }
-export declare function setOutsidePressHook(fn: ((x: number, y: number) => boolean) | null, scroll?: ((x: number, y: number) => boolean) | null): void;
+/** Start routing window pointer input through `resolve`. `alive` gates the
+ *  whole route (false = the tree is gone; the listeners remove themselves
+ *  on the next event). */
+/** The open overlays' say over a press in the top-level program (outside.ts):
+ *  true = swallow it. Installed by the runtime. It hears the press where the
+ *  browser reports it — the window point, the frame the walk reads, as hover
+ *  does — and the root point beside it, for a step into a hosted program. No
+ *  scroll offset converts one into the other: the browser's own pair is exact
+ *  at the moment of the press, where an offset may lag the page. */
+type OutsideHook = (x: number, y: number, rootX: number, rootY: number) => boolean;
+export declare function setOutsidePressHook(fn: OutsideHook | null, scroll?: OutsideHook | null): void;
 export declare function provideKeyContextTarget(fn: () => {
     $surface?: unknown;
 } | null): void;
@@ -87,3 +97,4 @@ export declare function routeInput(alive: () => boolean, resolve: (e: MouseEvent
     x: number;
     y: number;
 }, onHover?: (t: HitTarget | null) => void, topLevel?: boolean): void;
+export {};

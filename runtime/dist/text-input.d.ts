@@ -30,7 +30,7 @@ export declare class TextInput extends Editor {
     padding: Inset;
     initial: string;
     protected $draftSlot(): string;
-    $attach(backend: RenderBackend, parentSurface: Surface | null): void;
+    $attach(backend: RenderBackend, parentSurface: Surface | null, before?: Surface | null): void;
     protected $flush(s: Surface): void;
     private $editStyle;
     /** Push the whole editable spec across the seam — value, style, callbacks.

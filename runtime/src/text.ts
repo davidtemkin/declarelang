@@ -171,7 +171,7 @@ export class Text extends View {
     return !isSet(this, "width") && (o === null || autoWidths.has(o) || installing.has(this));
   }
 
-  override $attach(backend: RenderBackend, parentSurface: Surface | null): void {
+  override $attach(backend: RenderBackend, parentSurface: Surface | null, before: Surface | null = null): void {
     // A switch to a font still inside its wait keeps this run in the family it
     // had until the font settles (font-value.ts) — measure and paint alike.
     holdsFamily(this);
@@ -210,7 +210,7 @@ export class Text extends View {
         return Math.ceil(lineH * lines) + top + bottom;
       });
     }
-    super.$attach(backend, parentSurface);
+    super.$attach(backend, parentSurface, before);
   }
 
   /** A Text's own content folds into `contentWidth`/`contentHeight` as its

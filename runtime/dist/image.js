@@ -34,8 +34,8 @@ export class Image extends View {
     $contentExtent(size) {
         return this.loaded ? this.natural[size] : 0;
     }
-    $attach(backend, parentSurface) {
-        super.$attach(backend, parentSurface);
+    $attach(backend, parentSurface, before = null) {
+        super.$attach(backend, parentSurface, before);
         this.$load();
     }
     $flush(s) {

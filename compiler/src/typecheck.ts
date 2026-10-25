@@ -56,7 +56,8 @@ import ts from "typescript";
 import { type Element, type Param, type Program, type SchemaDecl } from "../../runtime/dist/parser.js";
 import { resolveShapes } from "../../runtime/dist/shape-resolve.js";
 import { programSchemas, resolveWrittenType } from "../../runtime/dist/program-schema.js";
-import { generateScaffold, memberSig, tsType, signatureTsType, shapeObjectText, themeTokenTypes } from "./scaffold.js";
+import { THEME_PRESET_NAMES } from "../../runtime/dist/themes.js";
+import { generateScaffold, PRELUDE_NAMES, memberSig, tsType, signatureTsType, shapeObjectText, themeTokenTypes } from "./scaffold.js";
 import { SCHEMAS, attrType, descendsFrom, type ClassSchema } from "../../runtime/dist/schema.js";
 import { declaredType, isAuthoredUnion, type AttrType } from "../../runtime/dist/value.js";
 import { fillDatapaths } from "../../runtime/dist/datapath.js";
@@ -104,7 +105,7 @@ interface Unit {
  *  the lines a diagnostic is reported on. Returns coded DECLARE6001 diagnostics
  *  (empty when clean). Never throws on TS internals: a body that cannot be
  *  framed is skipped, not failed. */
-export function typecheckBodies(text: string, program: Program, mainStart = 0): { errors: DeclareError[]; oracle: TypeOracle | null } {
+export function typecheckBodies(text: string, program: Program, mainStart = 0, prefix = "My"): { errors: DeclareError[]; oracle: TypeOracle | null } {
   const { schemas } = programSchemas(program.classes, new Set((program.shapes ?? []).map((s) => s.name)));
   WORD_TYPES = new Set();
   for (const sc of Object.values(schemas)) for (const t of Object.values(sc.attrs)) if (t.kind === "enum" && !isAuthoredUnion(t.name)) WORD_TYPES.add(t.name);
@@ -169,8 +170,9 @@ export function typecheckBodies(text: string, program: Program, mainStart = 0): 
   const synthTags = emitter.synthTags;
   const out: DeclareError[] = [...scoped];
   out.push(...portableNames(tsProgram, regions, starts));
-  // A declared type name the standard library already owns: said once, at the
-  // declaration, before TypeScript's errors at each use.
+  // A declared type name the standard library, or Declare's own value types,
+  // already own: said once, at the declaration, before TypeScript's errors at
+  // each use (or the silence where an interface merges with it).
   const globals = libGlobals(tsProgram);
   const declared: [string, { name: string; pos: import("../../runtime/dist/errors.js").Pos }[]][] = [
     ["class", rprog.classes], ["schema", rprog.shapes ?? []], ["theme", rprog.themes ?? []], ["style", rprog.styles ?? []],
@@ -178,6 +180,8 @@ export function typecheckBodies(text: string, program: Program, mainStart = 0): 
   for (const [kind, list] of declared) for (const d of list) {
     const lib = globals.get(d.name);
     if (lib !== undefined) out.push(Diag.shadowsTsGlobal(kind, d.name, lib, d.pos));
+    else if (PRELUDE_NAMES.has(d.name) || WORD_TYPES.has(d.name) || (kind !== "theme" && THEME_PRESET_NAMES.includes(d.name)))
+      out.push(Diag.shadowsDeclareType(kind, d.name, prefix + d.name, d.pos));
   }
   for (const pos of emitter.literalPaths) out.push(Diag.literalDatapath(pos));
   for (const d of diags) {

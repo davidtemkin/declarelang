@@ -204,6 +204,12 @@ const TABLE = {
     mac: true,
     headless: NOT_APPLICABLE,
   },
+  setScrollbar: {
+    dom: true,
+    canvas: true,
+    mac: "GAP (deliberate, for now) — hideScrollbars needs a host message to drop the native scroller; it waits for the Mac host refactor in flight (2026-10-25). Until then a Mac pane keeps its bars, and scrolls the same",
+    headless: NOT_APPLICABLE,
+  },
 
   // ── the windowed-collection seam (added with materialization) ────────────
 
@@ -459,7 +465,8 @@ for (const member of members) {
 // interaction.ts's, shared, so input honesty never depends on this row.
 await test("the size of the silent-failure surface is stated, not drifting", () => {
   const total = [...src("backend.ts").matchAll(/^ {2}[a-zA-Z][a-zA-Z0-9]*\??\(/gm)].length;
-  assert.equal(members.length, 40,   // +setEndAnchor (2026-10-23): a page-pinned view at the window's end edge, held there by the browser
+  assert.equal(members.length, 41,   // +setScrollbar (2026-10-25): hideScrollbars, a scroller that draws no bars
+                                     // +setEndAnchor (2026-10-23): a page-pinned view at the window's end edge, held there by the browser
                                      // +setDirection (2026-10-23): the base direction of a view's text, `direction = rtl`
                                      // +setSemantics, +setLanguage (2026-10-18): a view's ARIA on its own element; an app's language (accessibility.md)
                                 // +setScaling (2026-10-11): a subtree's resampling, `scaling = pixelated`

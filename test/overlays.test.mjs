@@ -79,6 +79,34 @@ await test("a scroll outside: a sheet holds it back; a popover lets it by", asyn
   app.pop.close(); settle();
 });
 
+// The router hands the walk the press where the browser reports it — the window
+// point — with the root point beside it. A root point read as the window
+// point, on a scrolled page, fell past the window's foot: a press low in a
+// drawer dismissed the drawer (iPhone, 2026-10-25).
+await test("on a scrolled page, a press inside an open drawer is inside it, however far the page has scrolled", async () => {
+  let cb = null, last = 0;
+  const sched = { now: () => last, request(fn) { cb = fn; return 1; }, cancel() { cb = null; } };
+  const frames = (n) => { for (let i = 0; i < n; i++) { const fn = cb; cb = null; last = last + 16; if (fn) fn(last); settle(); } };
+  setClock(new Clock(sched));
+  try {
+    const app = await boot(`App [ width = 390, height = 800, scrolls = y,
+    View [ width = 100%, height = 3000 ],
+    nav: Sheet [ edge = "start", Text [ text = "a drawer" ] ]
+    ]`);
+    app.hostWidth = 390; app.hostHeight = 800; settle();
+    app.nav.show(); settle(); frames(120);
+    app.scrollY = 1500; settle();
+    assert.equal(pressOutside(app, 100, 600, 100, 1500 + 600), false, "a press low in the drawer is the drawer's");
+    settle();
+    assert.equal(app.nav.shown, true, "…and leaves it open");
+    assert.equal(pressOutside(app, 360, 600, 360, 1500 + 600), true, "past its edge, a press is outside it");
+    settle();
+    assert.equal(app.nav.shown, false, "…and dismisses it");
+  } finally {
+    setClock(new Clock());
+  }
+});
+
 await test("one Esc closes the top overlay and reaches no Keys member of the program; the next reaches it", async () => {
   const app = await boot(`App [ width = 600, height = 400,
     escs: number = 0,

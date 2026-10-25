@@ -420,7 +420,9 @@ keeps, and the user's typing only proposes to through `onInput`.
 | `segIndex: number = { … }` — **declare** with a default | no | inlines the expression, so its deps become yours | lands, and the formula is gone | you may want to take the value over later |
 
 Either kind is worked out once and kept, and worked out again only when what it reads
-changes: reading one, however often, costs nothing.
+changes: reading one, however often, costs nothing. So a value that depends on several
+conditions names them (`open: boolean = { … }`) and reads the names, rather than nesting
+`? :`; the compiler warns when choices nest three deep (`DECLARE4025`).
 
 Use both; know which you wrote. One rule covers every case: **derived state is never assigned —
 change its inputs instead.**

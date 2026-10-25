@@ -61,14 +61,14 @@ function escapeHtml(s: string): string {
 // A press that goes on to the program also settles focus: on content that takes
 // no focus it clears it, as the web does (focus.ts pressAt).
 setOutsidePressHook(
-  (x, y) => {
+  (x, y, rx, ry) => {
     const root = Focus.getRoot();
     if (root === null) return false;
-    if (pressOutside(root, x, y)) return true;
-    Focus.pressAt(leafAcross(root, x, y) as unknown as View | null);
+    if (pressOutside(root, x, y, rx, ry)) return true;
+    Focus.pressAt(leafAcross(root, x, y, rx, ry) as unknown as View | null);
     return false;
   },
-  (x, y) => { const root = Focus.getRoot(); return root !== null && scrollOutside(root, x, y); });
+  (x, y, rx, ry) => { const root = Focus.getRoot(); return root !== null && scrollOutside(root, x, y, rx, ry); });
 setBodyServices({ Focus, Keys, Files, Inspect, Accessibility, afterSettle, activeTone, measureText, escapeHtml, ...THEME_PRESETS });
 // A focused island is not a control: what its program claims, it claims itself.
 setKeysFocusProbe(() => { const f = Focus.getFocus(); return f !== null && !("$tenant" in f); });

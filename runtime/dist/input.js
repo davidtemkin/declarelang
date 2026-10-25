@@ -76,11 +76,6 @@ const SLOP_TOUCH = 10;
 const DBL_MS = 400;
 /** A press held this long, in place, is a hold (the tap-hold / click-hold). */
 const HOLD_MS = 500;
-/** Start routing window pointer input through `resolve`. `alive` gates the
- *  whole route (false = the tree is gone; the listeners remove themselves
- *  on the next event). */
-/** The open overlays' say over a press at a root point of the top-level
- *  program (outside.ts): true = swallow it. Installed by the runtime. */
 let OUTSIDE_PRESS = null;
 let OUTSIDE_SCROLL = null;
 export function setOutsidePressHook(fn, scroll = null) {
@@ -341,7 +336,7 @@ topLevel = true) {
             if (OUTSIDE_SCROLL === null)
                 return;
             const p = rootPoint !== undefined ? rootPoint({ clientX: x, clientY: y }) : { x, y };
-            if (OUTSIDE_SCROLL(p.x, p.y)) {
+            if (OUTSIDE_SCROLL(x, y, p.x, p.y)) {
                 e.preventDefault();
                 e.stopPropagation();
             } // the canvas scrolls in its own handler
@@ -410,7 +405,7 @@ topLevel = true) {
         // a press aimed past an open overlay: its policy first (planes.md §8.1)
         if (topLevel && OUTSIDE_PRESS !== null) {
             const op = rootPoint !== undefined ? rootPoint(e) : { x: e.clientX, y: e.clientY };
-            if (OUTSIDE_PRESS(op.x, op.y)) {
+            if (OUTSIDE_PRESS(e.clientX, e.clientY, op.x, op.y)) {
                 held = null;
                 swallowUp = e.pointerId;
                 e.preventDefault();

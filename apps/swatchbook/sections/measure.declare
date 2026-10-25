@@ -59,7 +59,7 @@ class MeasureSection extends Section [ title = "Measure",
         },
     rows: Dataset [ contents = { { measureRows: classroot.measureRows() } } ],
     SubHead [ visible = { app.matrix }, text = "Scripts" ],
-    Grid [ visible = { app.matrix || classroot.sub == "line" || classroot.sub == "wrap" || classroot.sub == "rich" }, datapath = { classroot.rows.value },
+    Grid [ visible = { classroot.showing("line") || classroot.showing("wrap") || classroot.showing("rich") }, datapath = { classroot.rows.value },
         MeasureSwatch [ datapath = :measureRows[], visible = { app.matrix || :kind == classroot.sub },
             classFor = { :kind == "line" ? LineMeasure : :kind == "wrap" ? WrapMeasure : RichMeasure } ]
         ],

@@ -106,6 +106,13 @@ thousand times is a thousand cheap assignments and one round of updates at the e
 The practical rule — reactive attributes for state you want to propagate, plain values
 for hot inner computation — covers almost every performance question.
 
+The same holds for a fact you give a name: `overdue: boolean = { … }` is worked out once,
+and every constraint that reads it reads a name rather than repeating a condition. Name the
+conditions a value depends on, and it reads as a decision instead of a puzzle. A choice
+keyed by a value (a kind, a mode) is a lookup; a look a view takes in some state is a
+[`State`](declare-docs:State). The compiler warns (`DECLARE4025`) when `? :` choices nest
+three deep, or one condition runs to four parts.
+
 ## The settle: when writes take effect
 
 A handler's writes do not take effect one at a time. While a handler runs, every read

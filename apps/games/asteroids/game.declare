@@ -111,11 +111,13 @@ class Game extends Dataset [ schema = Playfield,
 
     // what the player is looking at
 
-    mode: "attract" | "starting" | "playing" | "over" = {
-        !playing ? "attract"
-        : sinceStart <= 128 ? "starting"
-        : shipsLeft == 0 && !this.value.shots.some((s) => s.inPlay) ? "over"
-        : "playing" },
+    mode: "attract" | "starting" | "playing" | "over" = { this.modeNow() },
+    modeNow() -> "attract" | "starting" | "playing" | "over" {
+        if (!playing) return "attract"
+        if (sinceStart <= 128) return "starting"
+        if (shipsLeft == 0 && !this.value.shots.some((s) => s.inPlay)) return "over"
+        return "playing"
+        },
     flame: boolean = { thrustHeld && frame % 8 >= 4 },      // the exhaust flickers
     boomVolume: number = { playing ? boomCount >> 2 : 0 },
 

@@ -52,7 +52,7 @@ class Plate [ width = 100%, height = 100%, clip = true,
     odd: boolean = false,
     ink: number = 0,
     slot: number = 0,
-    shape: Outline = { app.game.shapeOf(picture) },
+    shape: Silhouette = { app.game.shapeOf(picture) },
     Image [ source = "art/pictures.png",
         x = { -2 * classroot.slot * classroot.shape.wide },
         y = { -(classroot.shape.top + (classroot.odd ? classroot.shape.high : 0)) },
@@ -69,7 +69,7 @@ class Sprite [
     picture: string = "none",
     odd: boolean = false,
     mono: number = -1,                  // an ink to draw it all in, or -1
-    shape: Outline = { app.game.shapeOf(picture) },
+    shape: Silhouette = { app.game.shapeOf(picture) },
     width = { 2 * shape.wide },
     height = { shape.high },
     fill = { arcadeColor(provided("inks")[0]) },
@@ -154,7 +154,7 @@ class EffectLayer [ width = 100%, height = 100%,
                 }
             }
         },
-    inkAt(shape: Outline, column: number, row: number) -> number {
+    inkAt(shape: Silhouette, column: number, row: number) -> number {
         const across = 2 * shape.wide
         if (row < shape.high) return parseInt(shape.pixels[row * across + column], 16)
         return column + 2 < across ? parseInt(shape.pixels[column + 2], 16) : 0

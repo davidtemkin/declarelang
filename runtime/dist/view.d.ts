@@ -307,6 +307,9 @@ export declare class View extends Node {
     scrollStartX: number;
     scrolling: boolean;
     scrollAnchor: string;
+    /** A scrolling view that draws no scrollbars, on either axis (default false); it scrolls
+     *  the same. */
+    hideScrollbars: boolean;
     /** Keyboard focus (planes.md §13). `focusable` = a tab stop; `focusScope` = what
      *  Tab does at this view's edge (`none` | `stop` | `capture` | `region` | `modal`).
      *  Traversal order is the tree, overridable per view by a `tabOrder()` method. */
@@ -1044,6 +1047,7 @@ export declare class App extends View {
     safeTop: number;
     safeBottom: number;
     underlapBottom: number;
+    keyboardHeight: number;
     safeLeft: number;
     safeRight: number;
     /** The shipping page's over-the-wire size in KB (gzipped) and its Declare

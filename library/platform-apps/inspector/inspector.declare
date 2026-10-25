@@ -370,18 +370,22 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
     whyLabel: string = { app.why != null && app.why.constraint != null ? "" + app.why.constraint.label : "" },
     whyStatic: boolean = { app.why != null && app.why.constraint != null && app.why.constraint.static == true },
     whyLive: boolean = { app.why != null && app.why.constraint != null && app.why.constraint.live == true },
-    whyHow: string = {
-        app.why == null || app.why.constraint == null ? ""
-        : app.why.constraint.live == true ? "live-bound · temporary, lost on reload"
-        : app.why.constraint.static == true ? "wired statically by the compiler"
-        : "tracked at runtime" },
+    whyBound: boolean = { app.why != null && app.why.constraint != null },
+    howBound: string = { app.whyLive ? "live-bound · temporary, lost on reload" : app.whyStatic ? "wired statically by the compiler" : "tracked at runtime" },
+    whyHow: string = { app.whyBound ? app.howBound : "" },
     whyLine: string = { app.why != null && app.why.constraint != null && app.why.constraint.pos != null
         ? "line " + app.why.constraint.pos.line : "" },
-    whyOrigin: string = {
-        app.why == null ? ""
-        : app.why.constraint != null ? "constraint"
-        : app.why.set == true ? "set imperatively"
-        : "class default" },
+    originWord: string = { app.whyBound ? "constraint" : app.why?.set == true ? "set imperatively" : "class default" },
+    whyOrigin: string = { app.why == null ? "" : app.originWord },
+
+    // a value's color in the tree: a view, a quoted string, a container, else a number
+
+    valueTone(kind: string, text: string) -> Color {
+        if (kind == "view") return app.c.accent
+        if (kind == "primitive" && text.indexOf("\"") == 0) return app.c.str
+        if (kind == "record" || kind == "array" || kind == "dataset") return app.c.muted
+        return app.c.num
+        },
     whySpring: string = { app.why != null && app.why.spring != null
         ? "spring → " + app.why.spring.target + "   stiffness " + app.why.spring.stiffness + "   damping " + app.why.spring.damping
         : "" },
@@ -668,20 +672,14 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                                     - (parent.mark.width > 0 ? parent.mark.width + 20 : 12)) },
                                 vl: Text [ x = 0, y = center,
                                     fontSize = 11.5, wrap = false, fontFamily = ["ui-monospace", "monospace"],
-                                    textColor = { :kind == "view" ? app.c.accent
-                                        : (:kind == "primitive" && ("" + :text).indexOf("\"") == 0) ? app.c.str
-                                        : :kind == "record" || :kind == "array" || :kind == "dataset" ? app.c.muted
-                                        : app.c.num },
+                                    textColor = { app.valueTone(:kind, "" + :text) },
                                     text = { "" + :text + (:kind == "view" ? " ›" : "") } ]
                                 ],
                             mark: Text [ x = { parent.width - this.width - 12 }, y = center,
                                 fontSize = 9.5, wrap = false, fontFamily = ["ui-monospace", "monospace"],
                                 textColor = { :origin == "constraint" ? app.c.accentSecondary
                                     : :origin == "set" ? app.c.amber : app.c.faint },
-                                text = { :origin == "constraint" ? "⟵ constraint"
-                                    : :origin == "set" ? "← set"
-                                    : :origin == "data" ? ""
-                                    : :origin == "value" ? "" : "default" } ]
+                                text = { ({ constraint: "⟵ constraint", set: "← set", data: "", value: "" })[:origin] ?? "default" } ]
                             ]
                         ]
                     ],

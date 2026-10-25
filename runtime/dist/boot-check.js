@@ -174,6 +174,17 @@ function layoutChecks(app, { touch = false, realText = false }) {
             if (o !== null && /hostHeight/.test(o.source ?? "")) {
                 out.push(`${pathOf(app, v)} is pinned to the window and placed from its height (y = { ${(o.source ?? "").trim()} }), so on a phone it follows the browser's bars a frame late and jumps. Write y = end: the browser holds it against the window's foot itself, and runs it through the home indicator's band.`);
             }
+            // …and the same through a layer pinned at the top as tall as the window:
+            // what sits at its foot is placed from the window's height too (a
+            // floating add button in a window-sized dock, 2026-10-25)
+            const h = ownerOf(v, "height");
+            if (v.y === 0 && h !== null && /hostHeight|(app|root)\.height\b/.test(h.source ?? "")) {
+                const p = v.padding;
+                const foot = v.height - (typeof p === "number" ? p : Array.isArray(p) ? Number(p[2] ?? 0) : 0);
+                const low = v.children.find((c) => c instanceof View && c.visible && c.height > 0 && c.y > v.height / 2 && c.y + c.height >= foot - 0.5);
+                if (low !== undefined)
+                    out.push(`${pathOf(app, low)} sits at the foot of ${pathOf(app, v)}, which is pinned to the window and as tall as it (height = { ${(h.source ?? "").trim()} }), so on a phone it follows the browser's bars a frame late and jumps. Pin a strip as tall as what it holds at the window's foot with y = end, and put it there: the browser holds it against the window's foot itself.`);
+            }
         }
         // A TARGET TOO SMALL FOR A FINGER, on a touch screen
         if (touch && isA(v, "Control") && v.width > 0 && v.height > 0 && (v.width < 44 || v.height < 44))

@@ -793,7 +793,8 @@ App [ fill = { provided("theme").background },
                     text = { "Left out: " + app.sizesLeftOut } ]
                 ],
 
-            beside: SizeSection [ visible = { app.sizes.loaded && !app.isInclude && app.sizes.value != null && app.sizes.value.beside.length > 0 },
+            beside: SizeSection [ hasRows: boolean = { (app.sizes.value?.beside.length ?? 0) > 0 },
+                visible = { app.sizes.loaded && !app.isInclude && this.hasRows },
                 title = "Beside the bundle", blurb = "Fetched when needed, and not in the total.",
                 View [ width = 100%, datapath = { app.sizeView.value },
                     layout: SimpleLayout [ axis = y, spacing = 10 ],

@@ -132,8 +132,26 @@ class Block [ cornerRadius = 5, clip = true,
     layer: string = "run",
     name: string = "",
     kb: number = 0,
-    hue: Color = { this.layer == "app" ? provided("theme").app : this.layer == "lib" ? provided("theme").lib : this.layer == "ker" ? provided("theme").ker : provided("theme").run },
-    fill = { this.hovered ? provided("theme").sunk : this.layer == "app" ? provided("theme").appSoft : this.layer == "lib" ? provided("theme").libSoft : this.layer == "ker" ? provided("theme").kerSoft : provided("theme").runSoft },
+    hue: Color = { this.hueOf(this.layer) },
+    fill = { this.hovered ? provided("theme").sunk : this.softOf(this.layer) },
+    hueOf(layer: string) -> Color {
+        const t = provided("theme")
+        switch (layer) {
+            case "app": return t.app
+            case "lib": return t.lib
+            case "ker": return t.ker
+            default: return t.run
+            }
+        },
+    softOf(layer: string) -> Color {
+        const t = provided("theme")
+        switch (layer) {
+            case "app": return t.appSoft
+            case "lib": return t.libSoft
+            case "ker": return t.kerSoft
+            default: return t.runSoft
+            }
+        },
     stroke = { stroke(1, this.hue) },
     flat: boolean = { this.height < 58 && this.width > 280 },
     roomy: boolean = { !this.flat && this.width > 40 && this.height > 32 },

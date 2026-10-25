@@ -698,7 +698,7 @@ class GridRow extends TableRow [
         // windowing and sort re-derives keep every edit.
 
         GridCell [ datapath = :cols[],
-            classFor = { :kind == "edit" ? EditCell : :kind == "check" ? CheckCell : :kind == "select" ? SelectCell : TextCell },
+            classFor = { ({ edit: EditCell, check: CheckCell, select: SelectCell })[:kind] ?? TextCell },
             row = { classroot } ]
         ]
     ]
@@ -767,7 +767,8 @@ class GridCell [ x = { :x }, width = { :width }, height = 100%, clip = true,
     // grid has focus
 
     dataGrid: DataGrid? = { this.row != null && (this.row.parent as DataGrid)._isDataGrid === true ? this.row.parent as DataGrid : null },
-    activeHere: boolean = { this.dataGrid != null && this.dataGrid.focused && !this.dataGrid.inHeader && this.row != null && this.row.active && this.dataGrid.activeCol == this._ci },
+    gridFocused: boolean = { this.dataGrid != null && this.dataGrid.focused && !this.dataGrid.inHeader },
+    activeHere: boolean = { this.gridFocused && this.row?.active == true && this.dataGrid?.activeCol == this._ci },
     stroke = { this.activeHere ? stroke(2, provided("theme").accent) : null },
     cornerRadius = { provided("theme").gridCellCornerRadius },
 

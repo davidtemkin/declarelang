@@ -318,6 +318,40 @@ await test("a declared name TypeScript's standard library already owns is said p
   assert.deepEqual((clean.errors ?? []).map((x) => x.message), [], "a free name");
 });
 
+await test("a declared name one of Declare's own types already holds is said plainly, at the declaration, with the app's rename", async () => {
+  // Backdrop: before, "'root' is not a member of Backdrop" at each use — `this` was the filter list.
+  // Outline: before, nothing at all — TypeScript merged the schema into Declare's interface.
+  for (const [src, kind, name] of [
+    [`class Backdrop extends View [ height = { this.root.height }, tint: number = 1 ]\nApp [ b: Backdrop [ ] ]`, "class", "Backdrop"],
+    [`schema Outline [ wide: number ]\nApp [ onClick() { const n = 1 } ]`, "schema", "Outline"],
+    [`class Color extends View [ tint: number = 1 ]\nApp [ c: Color [ ], onClick() { c.tint = 2 } ]`, "class", "Color"],
+    // a word list, and a preset theme: before, "'tint' is not a member of Process" / "refers to a value"
+    [`class Process extends View [ tint: number = 1 ]\nApp [ p: Process [ ], onClick() { p.tint = 2 } ]`, "class", "Process"],
+    [`class Cupertino extends View [ tint: number = 1 ]\nApp [ p: Cupertino [ ], onClick() { p.tint = 2 } ]`, "class", "Cupertino"],
+  ]) {
+    const r = await compile(src, { mainId: "apps/cadence.declare" });
+    const e = (r.errors ?? []).find((x) => x.code === "DECLARE4015");
+    assert.ok(e, `${kind} ${name} is reported`);
+    assert.match(e.message, new RegExp(`${kind} ${name} takes the name of one of Declare's own types \\(npx declare-help ${name} says what it is\\)`));
+    assert.match(e.message, new RegExp(`Rename yours, as 'Cadence${name}'`), "the app's name as the prefix");
+    assert.equal(e.pos?.line, 1, "at the declaration");
+  }
+});
+
+await test("a constraint whose decisions tangle is warned of (DECLARE4025); the guide's own shapes are not", async () => {
+  const warned = async (body) => {
+    const r = await compile(`App [ width = 100, height = 100, a: boolean = true, b: boolean = false, c: boolean = true, d: boolean = false,
+      k: string = "x", n: number = { ${body} } ]`);
+    return (r.warnings ?? []).some((w) => w.code === "DECLARE4025");
+  };
+  assert.equal(await warned(`app.k == "x" ? 1 : app.k == "y" ? 2 : app.k == "z" ? 3 : 4`), true, "three nested choices");
+  assert.equal(await warned(`app.a && app.b && app.c && app.d ? 1 : 0`), true, "one condition of four parts");
+  assert.equal(await warned(`app.a ? 1 : app.b ? 2 : 3`), false, "two levels — the pressed/hovered idiom");
+  assert.equal(await warned(`app.a && app.b && (app.c || app.d) ? 1 : 0`), false, "three parts, one of them a bracketed either");
+  assert.equal(await warned(`({ x: 1, y: 2, z: 3 } as Record<string, number>)[app.k] ?? 4`), false, "a lookup");
+  assert.equal(await warned(`[1, 2].map((v) => v == 1 ? 1 : v == 2 ? 2 : v == 3 ? 3 : 4)[0]`), false, "a callback inside the body is its own matter");
+});
+
 await test("check(): a child may not take the name of one of the runtime's own members — a field or a method", () => {
   for (const name of ["travelHost", "maskUsers", "viewAt", "scrollTo"]) {
     const errs = check(parse(`App [ ${name}: View [ width = 10 ] ]`));
@@ -7474,16 +7508,30 @@ await test("focus: keyboard delivery — Tab traverses, other keys reach the foc
   assert.deepEqual(globalThis.__k, ["a:KeyH", "b:KeyJ"], "keys follow focus");
 });
 
-await test("focus: discarding the focused subtree moves focus to a live neighbor", async () => {
+await test("focus: discarding the focused subtree clears focus, and Tab goes on from where it was", async () => {
+  // the web's rule for a focused element taken out of the page; focus no longer
+  // jumps to the first stop (a closed search field sent it, ringed, across the
+  // window to a sidebar's first tile)
   Focus.reset();
   const app = buildProgram(await compiled(`App [ width = 100, height = 100,
-    a: View [ focusable = true ], b: View [ focusable = true ],
+    a: View [ focusable = true ], box: View [ b: View [ focusable = true ] ], c: View [ focusable = true ],
   ]`));
   Focus.setRoot(app);
-  Focus.focus(app.b);
-  assert.equal(Focus.getFocus(), app.b);
-  app.b.discard();
-  assert.equal(Focus.getFocus(), app.a, "focus moved off the discarded view to the survivor");
+  Focus.focus(app.box.b);
+  assert.equal(Focus.getFocus(), app.box.b);
+  app.box.discard();
+  assert.equal(Focus.getFocus(), null, "focus is cleared, not moved to another stop");
+  Focus.next();
+  assert.equal(Focus.getFocus(), app.c, "Tab goes to the stop after where it was");
+  Focus.focus(app.a);
+  const app2 = buildProgram(await compiled(`App [ width = 100, height = 100,
+    a: View [ focusable = true ], b: View [ focusable = true ], c: View [ focusable = true ],
+  ]`));
+  Focus.setRoot(app2);
+  Focus.focus(app2.b);
+  app2.b.discard();
+  Focus.prev();
+  assert.equal(Focus.getFocus(), app2.a, "Shift-Tab goes to the stop before where it was");
 });
 
 // ── TextInput (docs/system-design/input.md, Layer 3) ──────────────────────────────

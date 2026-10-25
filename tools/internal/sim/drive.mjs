@@ -16,6 +16,13 @@
 //       "appium:udid":"<udid>","appium:newCommandTimeout":900}}}'
 //   → value.sessionId. Default newCommandTimeout is 60s — a thinking pause
 //   kills the session; set 900.
+//   Xcode 27 (2026-10-25): Simulator.app is gone — the simulator's window is
+//   DeviceHub (/Applications/Xcode.app/Contents/Applications/DeviceHub.app),
+//   so `open -a Simulator` fails, and Appium, still looking for Simulator.app,
+//   refuses the session. Add "appium:isHeadless":true to the capabilities and
+//   it runs; open DeviceHub to watch. `go` may not navigate: run
+//   `location.href = …` through POST /execute/sync instead. A navigation can
+//   also drop the web context ("No targets found"); a new session recovers.
 //
 // COORDINATES: these commands speak native screen points; Safari's web
 // content sits BELOW the browser chrome — measured 2026-08-06 (iPhone 16

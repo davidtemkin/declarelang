@@ -126,7 +126,7 @@ export class Text extends View {
         const o = ownerOf(this, "width");
         return !isSet(this, "width") && (o === null || autoWidths.has(o) || installing.has(this));
     }
-    $attach(backend, parentSurface) {
+    $attach(backend, parentSurface, before = null) {
         // A switch to a font still inside its wait keeps this run in the family it
         // had until the font settles (font-value.ts) — measure and paint alike.
         holdsFamily(this);
@@ -165,7 +165,7 @@ export class Text extends View {
                 return Math.ceil(lineH * lines) + top + bottom;
             });
         }
-        super.$attach(backend, parentSurface);
+        super.$attach(backend, parentSurface, before);
     }
     /** A Text's own content folds into `contentWidth`/`contentHeight` as its
      *  MEASURED glyph extent — the way an Image folds in its bitmap (view.ts

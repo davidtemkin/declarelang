@@ -9,10 +9,12 @@ App [ textColor = 0x172530,
         Button [ label = { app.blip.playing ? "Playing…" : "Play" }, primary = true,
             onClick() { app.blip.position = 0; app.blip.playing = true }
             ],
-        Text [ fontSize = 13, textColor = 0x6A7883,
-            text = { app.blip.failed ? "the clip failed to load"
-                   : app.blip.ended ? "ended — position " + app.blip.position.toFixed(2) + "s"
-                   : app.blip.playing ? "position " + app.blip.position.toFixed(2) + "s"
-                   : "a 0.35 s tone" } ]
+        Text [ fontSize = 13, textColor = 0x6A7883, text = "a 0.35 s tone",
+            // a later state wins while both apply
+
+            State [ applied = { app.blip.playing }, text = { "position " + app.blip.position.toFixed(2) + "s" } ],
+            State [ applied = { app.blip.ended },   text = { "ended — position " + app.blip.position.toFixed(2) + "s" } ],
+            State [ applied = { app.blip.failed },  text = "the clip failed to load" ]
+            ]
         ]
     ]

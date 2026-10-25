@@ -82,20 +82,25 @@ class Sheet extends Floating [
 
     edge: "bottom" | "end" | "start" = "bottom",
     narrow: boolean = { this.hostW < 600 },
-    form: string = { this.edge == "start" ? "start" : this.narrow ? "bottom" : this.edge == "end" ? "end" : "center" },
+    wideForm: string = { this.edge == "end" ? "end" : "center" },       // what it is with room to spare
+    form: string = { this.edge == "start" ? "start" : this.narrow ? "bottom" : this.wideForm },
     sheetWidth: number = { this.form == "end" ? 420 : this.form == "start" ? 320 : 520 },
     dragY: number = 0,
     dragX: number = 0,
 
     hostW: number = { this.host != null ? this.host.width : app.hostWidth > 0 ? app.hostWidth : app.width },     // a window's, else the browser window's
     hostH: number = { this.host != null ? this.host.height : app.hostHeight > 0 ? app.hostHeight : app.height },
+    keyboardH: number = { this._hostedLayer ? 0 : app.keyboardHeight },     // a bottom sheet rises above an on-screen keyboard (its own program's)
+    footY: number = { this.hostH - this.keyboardH },
 
-    width = { this.form == "bottom" ? this.hostW : Math.min(this.sheetWidth, this.hostW - (this.form == "center" ? 48 : this.form == "start" ? 56 : 0)) },
-    height = { this.form == "end" || this.form == "start" ? this.hostH : Math.min(this.body.contentHeight + (this.form == "bottom" ? 20 : 0), this.hostH - (this.form == "bottom" ? 24 : 48)) },
+    formMargin: number = { ({ center: 48, start: 56 })[this.form] ?? 0 },     // the room it leaves beside it
+    width = { this.form == "bottom" ? this.hostW : Math.min(this.sheetWidth, this.hostW - this.formMargin) },
+    height = { this.form == "end" || this.form == "start" ? this.hostH : Math.min(this.body.contentHeight + (this.form == "bottom" ? 20 : 0), this.form == "bottom" ? this.footY - 24 : this.hostH - 48) },
+    restX: number = { this.form == "bottom" ? 0 : (this.hostW - this.width) / 2 },     // a sheet that does not slide in from a side
     x = { this.form == "end" ? this.hostW - this.width * this.openT
         : this.form == "start" ? this.width * (this.openT - 1) - this.dragX
-        : this.form == "bottom" ? 0 : (this.hostW - this.width) / 2 },
-    y = { this.form == "bottom" ? this.hostH - this.height * this.openT + this.dragY
+        : this.restX },
+    y = { this.form == "bottom" ? this.footY - this.height * this.openT + this.dragY
         : this.form == "center" ? (this.hostH - this.height) / 2 + 16 * (1 - this.openT) : 0 },
     opacity = { this.form == "center" ? this.openT : 1 },
 
@@ -107,7 +112,7 @@ class Sheet extends Floating [
         fill = { provided("theme").scrimFill },
         opacity = { (provided("theme").scrimOpacity) * classroot.openT } ],
 
-    panel: View [ width = 100%, height = { parent.height + (classroot.form == "bottom" ? 40 : 0) },
+    panel: View [ width = 100%, height = { parent.height + (classroot.form == "bottom" ? 40 + classroot.keyboardH : 0) },
         cornerRadius = { classroot.form == "bottom" ? [(provided("theme").sheetCornerRadius), (provided("theme").sheetCornerRadius), 0, 0] : classroot.form == "end" || classroot.form == "start" ? 0 : (provided("theme").sheetCornerRadius) - 2 },
         fill = { provided("theme").surface },
         shadow = { provided("theme").sheetShadow } ],

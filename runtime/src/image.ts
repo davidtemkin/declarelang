@@ -68,8 +68,8 @@ export class Image extends View {
     return this.loaded ? this.natural[size] : 0;
   }
 
-  override $attach(backend: RenderBackend, parentSurface: Surface | null): void {
-    super.$attach(backend, parentSurface);
+  override $attach(backend: RenderBackend, parentSurface: Surface | null, before: Surface | null = null): void {
+    super.$attach(backend, parentSurface, before);
     this.$load();
   }
 

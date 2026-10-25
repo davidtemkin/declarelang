@@ -26,12 +26,12 @@ export class TextInput extends Editor {
     // The editor session (commitOn / error / valid / dirty + commit()/revert())
     // is inherited from Editor; `text` is this editor's draft slot.
     $draftSlot() { return "text"; }
-    $attach(backend, parentSurface) {
+    $attach(backend, parentSurface, before = null) {
         // A text field is a tab stop by default; an explicit `focusable = false`
         // (was-set) opts out untouched, exactly like Text's auto-size.
         if (!isSet(this, "focusable") && ownerOf(this, "focusable") === null)
             this.focusable = true;
-        super.$attach(backend, parentSurface);
+        super.$attach(backend, parentSurface, before);
         // Uncontrolled seed: unless the author bound or hard-set `text`, it
         // follows `initial` via a YIELDING derive — reactive, so a source that
         // arrives late fills the field — disposed on the first edit

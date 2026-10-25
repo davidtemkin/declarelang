@@ -30,7 +30,18 @@ async function post(path, body) {
 }
 const js = (script) => post("/execute/sync", { script, args: [] });
 const jsj = async (script) => JSON.parse(await js(script));
-async function go(path) { await post("/url", { url: BASE + path }); await sleep(2800); }
+// Navigate by script: on iOS 26 Safari (Appium XCUITest, 2026-10-25) POST /url
+// returns ok and leaves the page where it was. Then confirm the arrival — a
+// lab page that never loaded fails every aim after it, far from the cause.
+async function go(path) {
+  const url = BASE + path;
+  await js(`location.href = ${JSON.stringify(url)}; return 1`);
+  for (let i = 0; i < 20; i++) {
+    await sleep(500);
+    try { if (await js("return document.readyState === 'complete' ? location.href : ''") === url) break; } catch { /* the context is changing pages */ }
+  }
+  await sleep(2300);
+}
 
 const finger = (seq, id = "f1") => ({ type: "pointer", id, parameters: { pointerType: "touch" }, actions: seq });
 const seqDrag = (x, y, x2, y2, ms = 260) => [
@@ -306,6 +317,28 @@ await go("/apps/homepage/");
   check("hero link navigates on a rested tap", loc.includes("#why"), loc);
 }
 
+if (section("drawerlab")) {
+  console.log("drawerlab (a press inside an overlay on a finger-scrolled page)");
+  await go("/tools/internal/sim/drawerlab.declare");
+  // real swipes, so the page scrolls as a finger scrolls it and Safari's bars collapse
+  for (let i = 0; i < 3; i++) { await act(finger(seqDrag(200, 650, 200, 160, 220))); await sleep(700); }
+  const scrolled = await pageY();
+  await app(`(a.open = true, 1)`); await sleep(1200);
+  // aim without scrolling anything: the drawer is pinned, the page must stay where it is
+  const r = await jsj(`
+    const s=[...document.querySelectorAll("span,div,p")].find(e=>e.childElementCount===0&&e.textContent.trim().startsWith("drawer low row"));
+    if(!s) return JSON.stringify(null);
+    const b=s.getBoundingClientRect(), cx=Math.round(b.left+20), cy=Math.round(b.top+b.height/2);
+    const hit=document.elementFromPoint(cx,cy);
+    return JSON.stringify({cx,cy,ok:!!hit&&(hit===s||s.contains(hit)||hit.contains(s)||!!hit.closest("a"))});`);
+  if (!r || !r.ok) throw new Error(`aim failed for the drawer's low row: ${JSON.stringify(r)}`);
+  await act(finger(seqTap(r.cx, r.cy + OFF))); await sleep(1200);
+  const st = await app(`({ picks: a.picks, open: a.open, loc: a.location })`);
+  check("a tap low in a drawer on a scrolled page is the row's: it counts and follows its link",
+    scrolled > 600 && st.picks === 1 && st.loc === "b" && st.open === false,
+    `scrolled ${scrolled}, ${JSON.stringify(st)}`);
+}
+
 console.log(`\nregress: ${pass} passed, ${fail} failed`);
 if (fail === 0) {
   // Stamp the green run: run-gates compares the touch-input sources against
@@ -318,7 +351,7 @@ if (fail === 0) {
   const ROOT = rp(dn(fileURLToPath(import.meta.url)), "../../..");
   const IOS_INPUTS = ["runtime/src/input.ts", "runtime/src/dom-backend.ts",
     "runtime/src/canvas-backend.ts", "runtime/src/interaction.ts",
-    "runtime/src/viewport-lock.ts",
+    "runtime/src/viewport-lock.ts", "runtime/src/outside.ts", "runtime/src/focus.ts",
     // by extension, matching run-gates: a bare dir would sweep node_modules
     // and the ever-growing appium.log, and the stamp would never go quiet
     { dir: "tools/internal/sim", ext: ".mjs" },

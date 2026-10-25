@@ -152,20 +152,34 @@ class Chip [ height = { 24 * app.fontScale }, cornerRadius = 6,
     kind:  "attribute" | "method" | "event" | "class" | "token" = "attribute",
     cls:   string = "",
     width = { this.lbl.width + 16 },
-    fill = { hovered && cls != "" ? provided("theme").chipHov
-           : kind == "method" ? provided("theme").mchipBg
-           : kind == "event"  ? provided("theme").echipBg
-           : provided("theme").chipBg },
+
+    // the ground and the ink by kind
+
+    kindFill() -> number {
+        const t = provided("theme")
+        switch (kind) {
+            case "method": return t.mchipBg
+            case "event":  return t.echipBg
+            default:       return t.chipBg
+            }
+        },
+    kindInk() -> number {
+        const t = provided("theme")
+        switch (kind) {
+            case "class":  return t.accent
+            case "method": return t.chipBlue
+            case "event":  return t.chipAmber
+            case "token":  return t.code
+            default:       return t.chipTeal
+            }
+        },
+    fill = { hovered && cls != "" ? provided("theme").chipHov : this.kindFill() },
     cursor = { cls != "" ? "pointer" : "default" },
     link = { cls != "" ? "#reference/" + cls : "" },
     onClick() { if (cls != "") app.goRef(cls) },
     lbl: Mono [ x = 8, y = { 5 * app.fontScale }, fontSize = { 13 * app.fontScale }, wrap = false,
         text = { classroot.label },
-        textColor = { classroot.kind == "class"  ? provided("theme").accent
-                    : classroot.kind == "method" ? provided("theme").chipBlue
-                    : classroot.kind == "event"  ? provided("theme").chipAmber
-                    : classroot.kind == "token"  ? provided("theme").code
-                    : provided("theme").chipTeal } ]
+        textColor = { classroot.kindInk() } ]
     ]
 
 
@@ -175,10 +189,7 @@ class Chip [ height = { 24 * app.fontScale }, cornerRadius = 6,
 class MemberChip extends Chip [
     label = { "" + :name },
     cursor = "pointer",
-    fill = { hovered ? provided("theme").chipHov
-           : kind == "method" ? provided("theme").mchipBg
-           : kind == "event"  ? provided("theme").echipBg
-           : provided("theme").chipBg },
+    fill = { hovered ? provided("theme").chipHov : this.kindFill() },
     link = { "#" + provided("docPage", app.page) + "@" + :name }
     ]
 
@@ -353,6 +364,17 @@ class WrapChip [
     label: string = "",
     n:     number = { app.wordsOf(label).length },
 
+    // the ground by kind, as a Chip's
+
+    kindFill() -> number {
+        const t = provided("theme")
+        switch (kind) {
+            case "method": return t.mchipBg
+            case "event":  return t.echipBg
+            default:       return t.chipBg
+            }
+        },
+
     // wider than the column? then the chip is the column, and its words wrap
 
     long:  boolean = { measureText(label, ({ fontSize: 13 * app.fontScale, fontFamily: app.mono })).width + 16 > parent.width },
@@ -374,10 +396,7 @@ class WrapChip [
             last:  boolean = { rowIndex == classroot.n - 1 },
             width = { this.t.width + (first ? 8 : 0) + (last ? 8 : 0) },
             cornerRadius = { [first ? 6 : 0, last ? 6 : 0, last ? 6 : 0, first ? 6 : 0] },
-            fill = { classroot.hovered ? provided("theme").chipHov
-                   : classroot.kind == "method" ? provided("theme").mchipBg
-                   : classroot.kind == "event"  ? provided("theme").echipBg
-                   : provided("theme").chipBg },
+            fill = { classroot.hovered ? provided("theme").chipHov : classroot.kindFill() },
             t: Mono [ x = { parent.first ? 8 : 0 }, y = { 5 * app.fontScale }, fontSize = { 13 * app.fontScale }, wrap = false,
                 text = { "" + :w },
                 textColor = { classroot.kind == "method" ? provided("theme").chipBlue

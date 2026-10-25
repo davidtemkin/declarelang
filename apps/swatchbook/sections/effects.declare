@@ -40,10 +40,10 @@ class BlendSwatch extends Swatch [ name = :name,
 
 class MaskSwatch extends Swatch [ name = :name,
     s: Subject [ x = 36, y = 16, content = { :content },
-        mask = { :mask == "linear" ? gradient("90deg", 0x000000, colorWithAlpha(0x000000, 0))
-            : :mask == "vertical" ? gradient("180deg", 0x000000, colorWithAlpha(0x000000, 0))
-            : :mask == "radial" ? radialGradient(0.5, 0.5, 0.6, 0x000000, colorWithAlpha(0x000000, 0))
-            : conicGradient(0.5, 0.5, 0, 0x000000, colorWithAlpha(0x000000, 0), 0x000000) } ]
+        mask = { ({ linear: gradient("90deg", 0x000000, colorWithAlpha(0x000000, 0)),
+            vertical: gradient("180deg", 0x000000, colorWithAlpha(0x000000, 0)),
+            radial: radialGradient(0.5, 0.5, 0.6, 0x000000, colorWithAlpha(0x000000, 0)) })[:mask]
+            ?? conicGradient(0.5, 0.5, 0, 0x000000, colorWithAlpha(0x000000, 0), 0x000000) } ]
     ]
 
 

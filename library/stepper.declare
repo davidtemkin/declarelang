@@ -134,14 +134,18 @@ class Stepper extends Control [
     less: View [ x = 2, y = 2, width = { parent.height - 4 }, height = { parent.height - 4 },
         cornerRadius = { Math.max(0, provided("theme").segmentedCornerRadius - 2) },
         opacity = { classroot.value <= classroot.min ? 0.35 : 1 },
-        fill = { classroot.disabled || classroot.value <= classroot.min ? null : pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
+        idle: boolean = { classroot.disabled || classroot.value <= classroot.min },
+        stateFill: Color? = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
+        fill = { this.idle ? null : this.stateFill },
         onClick() { if (!classroot.disabled) classroot.accessibilityDecrement() },
         MinusIcon [ x = center, y = center, iconSize = 12, ink = { provided("theme").text } ]
         ],
     more: View [ x = { parent.width - this.width - 2 }, y = 2, width = { parent.height - 4 }, height = { parent.height - 4 },
         cornerRadius = { Math.max(0, provided("theme").segmentedCornerRadius - 2) },
         opacity = { classroot.value >= classroot.max ? 0.35 : 1 },
-        fill = { classroot.disabled || classroot.value >= classroot.max ? null : pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
+        idle: boolean = { classroot.disabled || classroot.value >= classroot.max },
+        stateFill: Color? = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
+        fill = { this.idle ? null : this.stateFill },
         onClick() { if (!classroot.disabled) classroot.accessibilityIncrement() },
         PlusIcon [ x = center, y = center, iconSize = 12, ink = { provided("theme").text } ]
         ]

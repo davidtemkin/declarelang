@@ -38,9 +38,7 @@ Renders the chevron. Override to replace the mark while keeping the class's role
 
 class ChevronIcon extends Icon [
     dir: string = "down",                       // down | up | left | right
-    angle: number = { classroot.dir == "up" ? Math.PI
-                    : classroot.dir == "left" ? Math.PI / 2
-                    : classroot.dir == "right" ? -Math.PI / 2 : 0 },
+    angle: number = { ({ up: Math.PI, left: Math.PI / 2, right: -Math.PI / 2 })[classroot.dir] ?? 0 },
 
     draw(d: Draw) {
         d.scale(unit, unit)
@@ -82,9 +80,7 @@ Renders the arrow.
 
 class ArrowIcon extends Icon [
     dir: string = "up",                         // up | down | left | right
-    angle: number = { classroot.dir == "down" ? Math.PI
-                    : classroot.dir == "left" ? -Math.PI / 2
-                    : classroot.dir == "right" ? Math.PI / 2 : 0 },
+    angle: number = { ({ down: Math.PI, left: -Math.PI / 2, right: Math.PI / 2 })[classroot.dir] ?? 0 },
 
     draw(d: Draw) {
         d.scale(unit, unit)

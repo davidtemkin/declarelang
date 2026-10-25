@@ -120,6 +120,11 @@ from wherever the children are, the same interruption a spring has. `duration` s
 glide's length, and `t`, the layout's 0-to-1 blend between arrangements, can also be
 driven by a constraint or an [`Animator`](declare-docs:Animator).
 
+A change to the children themselves needs no call: when the records a layout's children
+replicate over reorder, or one arrives or leaves, every child that stays glides from where it
+stands to its new place, and an arrival waits, hidden, at its own place until the glide lands.
+`retarget` is for what the layout cannot see — its own state, or a size a child asks for.
+
 ## Deriving appearance from the scalars
 
 The idiom's second power: *qualities* can derive from the same scalars. The calendar

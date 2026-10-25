@@ -303,6 +303,19 @@ when it turns false (only the latest counts). Read it in a constraint to keep a 
 cheap mid-gesture, rather than acting on its edges. Written by the platform's scroll process;
 never assigned.
 
+## hideScrollbars
+A scrolling view that draws no scrollbars, across or down (default `false`). It scrolls as before, by
+finger, wheel and trackpad; only the bars are gone. For a sideways strip people swipe through,
+such as a row of filter chips or cards, which phone apps show without a bar:
+
+```declare-fragment
+chips: View [ width = 100%, height = 44, scrolls = x, hideScrollbars = true,
+    layout: SimpleLayout [ axis = x, spacing = 8 ] ]
+```
+
+Leave the bars on a pane people read down through: it tells them how long it is and where they
+are. (The page itself keeps the browser's own bar; a Mac host keeps its own bars too.)
+
 ## scrollAnchor
 How this scroller keeps the reader's place as content changes size. **`content`** (the
 default) keeps the view at the top edge of the visible area where it is: when something above

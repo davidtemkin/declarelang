@@ -149,11 +149,16 @@ export interface TouchPoint {
 /** Start routing window pointer input through `resolve`. `alive` gates the
  *  whole route (false = the tree is gone; the listeners remove themselves
  *  on the next event). */
-/** The open overlays' say over a press at a root point of the top-level
- *  program (outside.ts): true = swallow it. Installed by the runtime. */
-let OUTSIDE_PRESS: ((x: number, y: number) => boolean) | null = null;
-let OUTSIDE_SCROLL: ((x: number, y: number) => boolean) | null = null;
-export function setOutsidePressHook(fn: ((x: number, y: number) => boolean) | null, scroll: ((x: number, y: number) => boolean) | null = null): void {
+/** The open overlays' say over a press in the top-level program (outside.ts):
+ *  true = swallow it. Installed by the runtime. It hears the press where the
+ *  browser reports it — the window point, the frame the walk reads, as hover
+ *  does — and the root point beside it, for a step into a hosted program. No
+ *  scroll offset converts one into the other: the browser's own pair is exact
+ *  at the moment of the press, where an offset may lag the page. */
+type OutsideHook = (x: number, y: number, rootX: number, rootY: number) => boolean;
+let OUTSIDE_PRESS: OutsideHook | null = null;
+let OUTSIDE_SCROLL: OutsideHook | null = null;
+export function setOutsidePressHook(fn: OutsideHook | null, scroll: OutsideHook | null = null): void {
   OUTSIDE_PRESS = fn;
   OUTSIDE_SCROLL = scroll;
 }
@@ -386,7 +391,7 @@ export function routeInput(
     const refuse = (e: Event, x: number, y: number): void => {
       if (OUTSIDE_SCROLL === null) return;
       const p = rootPoint !== undefined ? rootPoint({ clientX: x, clientY: y } as MouseEvent) : { x, y };
-      if (OUTSIDE_SCROLL(p.x, p.y)) { e.preventDefault(); e.stopPropagation(); }   // the canvas scrolls in its own handler
+      if (OUTSIDE_SCROLL(x, y, p.x, p.y)) { e.preventDefault(); e.stopPropagation(); }   // the canvas scrolls in its own handler
     };
     const onWheel = (e: Event): void => {
       if (!alive()) { window.removeEventListener("wheel", onWheel, true); return; }
@@ -431,7 +436,7 @@ export function routeInput(
     // a press aimed past an open overlay: its policy first (planes.md §8.1)
     if (topLevel && OUTSIDE_PRESS !== null) {
       const op = rootPoint !== undefined ? rootPoint(e) : { x: e.clientX, y: e.clientY };
-      if (OUTSIDE_PRESS(op.x, op.y)) {
+      if (OUTSIDE_PRESS(e.clientX, e.clientY, op.x, op.y)) {
         held = null;
         swallowUp = e.pointerId;
         e.preventDefault();

@@ -303,6 +303,44 @@ await test("focus and hits on a view never shown are as for any hidden view", as
   assert.equal(out.hit, true, "a point over a hidden view hits what is under it");
 });
 
+// Every View subclass that overrides $attach passes on the sibling it lands
+// before: Text, TextInput, Image and media once dropped it, so a field that
+// `exists` brought in painted over the views declared after it (a search
+// field over its magnifier, 2026-10-25).
+await test("a text, a field and an image that exists brings in each land before the siblings declared after them", async () => {
+  const out = await inPage(`App [ width = 300, height = 200, open: boolean = false,
+    Text [ exists = { app.open }, text = "t" ],
+    View [ width = 10, height = 10, fill = #FF0000 ],
+    TextInput [ exists = { app.open }, accessibilityLabel = "f", width = 60 ],
+    View [ width = 10, height = 10, fill = #00FF00 ],
+    Image [ exists = { app.open }, width = 10, height = 10 ],
+    View [ width = 10, height = 10, fill = #0000FF ] ]`, `
+    app.open = true; settle(); await frame();
+    const kind = (e) => e.querySelector("input") ? "field" : e.textContent === "t" ? "text"
+      : ({ "rgb(255, 0, 0)": "red", "rgb(0, 255, 0)": "green", "rgb(0, 0, 255)": "blue" })[getComputedStyle(e).backgroundColor] ?? "image";
+    return [...host.firstElementChild.children].map(kind);`);
+  assert.deepEqual(out, ["text", "red", "field", "green", "image", "blue"], "in the tree's order");
+});
+
+await test("hideScrollbars: a scroller that hides its bar still scrolls; one that does not keeps the platform's bar", async () => {
+  const out = await inPage(`App [ width = 300, height = 200, hide: boolean = true,
+    strip: View [ width = 200, height = 40, scrolls = x, hideScrollbars = { app.hide },
+      View [ width = 800, height = 40, fill = #FF0000 ] ],
+    pane: View [ y = 50, width = 200, height = 100, scrolls = y,
+      View [ width = 200, height = 600, fill = #00FF00 ] ] ]`, `
+    const els = [...host.querySelectorAll("*")].filter((e) => e.scrollWidth > e.clientWidth + 1 || e.scrollHeight > e.clientHeight + 1);
+    const strip = els.find((e) => e.scrollWidth > e.clientWidth + 1), pane = els.find((e) => e.scrollHeight > e.clientHeight + 1);
+    const hidden = getComputedStyle(strip).scrollbarWidth, other = getComputedStyle(pane).scrollbarWidth;
+    strip.scrollLeft = 100;
+    const scrolled = strip.scrollLeft;
+    app.hide = false; settle(); await frame();
+    return { hidden, other, scrolled, shown: getComputedStyle(strip).scrollbarWidth };`);
+  assert.equal(out.hidden, "none", "the strip draws no bar");
+  assert.equal(out.other, "auto", "a pane that does not ask keeps the platform's bar");
+  assert.equal(out.scrolled, 100, "and the strip still scrolls");
+  assert.equal(out.shown, "auto", "turned off again, the bar is back");
+});
+
 await browser.close();
 server.close();
 summarize("deferred-dom");

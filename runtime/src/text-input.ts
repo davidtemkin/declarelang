@@ -56,11 +56,11 @@ export class TextInput extends Editor {
   // is inherited from Editor; `text` is this editor's draft slot.
   protected override $draftSlot(): string { return "text"; }
 
-  override $attach(backend: RenderBackend, parentSurface: Surface | null): void {
+  override $attach(backend: RenderBackend, parentSurface: Surface | null, before: Surface | null = null): void {
     // A text field is a tab stop by default; an explicit `focusable = false`
     // (was-set) opts out untouched, exactly like Text's auto-size.
     if (!isSet(this, "focusable") && ownerOf(this, "focusable") === null) this.focusable = true;
-    super.$attach(backend, parentSurface);
+    super.$attach(backend, parentSurface, before);
     // Uncontrolled seed: unless the author bound or hard-set `text`, it
     // follows `initial` via a YIELDING derive — reactive, so a source that
     // arrives late fills the field — disposed on the first edit

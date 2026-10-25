@@ -147,10 +147,8 @@ class ToolButton extends Control [
     height = { (parent as View).height - 4 },
     width = { Math.max(this.height, (icon != "" ? this.ico.width : this.t.width) + 20) },
     cornerRadius = { Math.max(0, provided("theme").segmentedCornerRadius - 2) },
-    fill = { toggle && on ? (provided("theme").segmentedSelectedFill ?? provided("theme").surface)
-           : pressed ? provided("theme").controlPressed
-           : hovered ? provided("theme").controlHovered
-           : null },
+    stateFill: Color? = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
+    fill = { toggle && on ? (provided("theme").segmentedSelectedFill ?? provided("theme").surface) : this.stateFill },
     stroke = { toggle && on ? stroke(1, provided("theme").line) : null },
     opacity = { disabled ? provided("theme").disabledOpacity : 1 },
 

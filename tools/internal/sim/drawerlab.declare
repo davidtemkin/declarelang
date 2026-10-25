@@ -1,0 +1,25 @@
+/*
+# drawerlab — a press inside an overlay, on a page scrolled by a finger
+
+The regression (regress.mjs) swipes this page well down — Safari's bars collapse,
+and the window grows past the layout viewport — then opens the drawer and taps
+its low row. The row must take the tap: it counts, follows its link and closes
+the drawer. Read as a press outside, it dismissed the drawer and nothing else
+happened (2026-10-25: the router's root point, which scrolls with the page, was
+taken for the window point the overlay walk reads).
+*/
+
+App [ scrolls = y, location = "a",
+    open: boolean = false,
+    picks: number = 0,
+    Text [ x = 16, y = 16, text = "drawerlab — swipe down, open the drawer, tap its low row" ],
+    View [ width = 100%, height = 3000 ],
+    nav: Sheet [ edge = "start", accessibilityLabel = "Drawer", shown = { app.open },
+        input(v: boolean) { app.open = v },
+        View [ width = 200, height = 420 ],
+        low: View [ width = 220, height = 48, fill = #DDE6FF, link = { "#" + "b" },
+            onClick() { app.picks = app.picks + 1; app.open = false },
+            Text [ x = 12, y = 14, text = "drawer low row" ]
+            ]
+        ]
+    ]

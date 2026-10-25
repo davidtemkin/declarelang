@@ -136,7 +136,7 @@ const SUITE_INPUTS = {
 // and the rig itself.
 const IOS_INPUTS = ["runtime/src/input.ts", "runtime/src/dom-backend.ts",
   "runtime/src/canvas-backend.ts", "runtime/src/interaction.ts",
-  "runtime/src/viewport-lock.ts",
+  "runtime/src/viewport-lock.ts", "runtime/src/outside.ts", "runtime/src/focus.ts",
   // the rig by extension — a bare dir would sweep node_modules and the
   // ever-growing appium.log, and the stamp would never go quiet
   { dir: "tools/internal/sim", ext: ".mjs" },

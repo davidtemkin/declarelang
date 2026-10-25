@@ -1064,8 +1064,8 @@ App [ theme = { { ...SanFrancisco, ...MarketMap } }, fill = { provided("theme").
         halo: View [ ignoreLayout = true, pointerEvents = "none", fill = null,
             r: Rect = { rectFor(mapPartition(app.market.stocks, app.market.tree, app.day, app.mapW, app.mapH) as Record<string, Rect>,
                 app.hotGroup.slice(0, 4) == "sec:" ? "sector:" + app.hotGroup.slice(4) : "zone:" + app.hotGroup) },
-            visible = { app.hotGroup != "" && app.fieldHover
-                && app.zoom < 0.05 && this.r.x > -800 },
+            hot: boolean = { app.hotGroup != "" && app.fieldHover },
+            visible = { this.hot && app.zoom < 0.05 && this.r.x > -800 },
             x = { this.r.x - 1 },
             y = { this.r.y - 1 },
             width = { this.r.w + 2 },
@@ -1105,8 +1105,8 @@ App [ theme = { { ...SanFrancisco, ...MarketMap } }, fill = { provided("theme").
             StageTile [ datapath = :rows[] ],
             stghalo: View [ ignoreLayout = true, pointerEvents = "none", fill = null,
                 r: Rect = { rectFor(stagePartition(app.market.stocks, app.market.tree, app.day, app.mapW, app.mapH, app.stageKey, app.zoom, app.prevStageKey, app.drillProgress), "stgzone:" + app.hotStaged) },
-                visible = { app.stageKey.slice(0, 4) == "sec:" && app.hotStaged != ""
-                    && app.stageHover && app.zoom > 0.5 && this.r.x > -800 },
+                hot: boolean = { app.stageKey.slice(0, 4) == "sec:" && app.hotStaged != "" && app.stageHover },
+                visible = { this.hot && app.zoom > 0.5 && this.r.x > -800 },
                 x = { this.r.x - 1 },
                 y = { this.r.y - 1 },
                 width = { this.r.w + 2 },

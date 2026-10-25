@@ -12,13 +12,13 @@ class TypeSwatch extends Swatch [ name = :name,
         textTransform = { :transform }, smallCaps = { :caps }, numerals = { :numerals }, numeralWidth = { :figures },
         slashedZero = { :zero }, underline = { :under }, strike = { :strike },
         outline = { :outline > 0 ? outline(:outline, 0x2E6FE0) : null },
-        textShadow = { :shadow == "soft" ? shadow(0, 2, 6, colorWithAlpha(0x000000, 128)) : :shadow == "hard" ? shadow(3, 3, 0, 0xE4572E)
-            : :shadow == "glow" ? shadow(0, 0, 8, 0x2E6FE0) : null },
-        textColor = { :color == "accent" ? 0x2E6FE0 : :color == "translucent" ? colorWithAlpha(0x1B2733, 110)
-            : :color == "white" ? 0xFFFFFF : provided("theme").text },
-        textFill = { :fill == "solid" ? 0xE4572E : :fill == "linear" ? gradient("90deg", 0x2E6FE0, 0xE4572E)
-            : :fill == "vertical" ? gradient("180deg", 0x2E6FE0, 0xE4572E) : :fill == "radial" ? radialGradient(0.5, 0.5, 0.7, 0xFDE68A, 0xE4572E)
-            : :fill == "conic" ? conicGradient(0.5, 0.5, 0, 0x2E6FE0, 0x17A34A, 0xE4572E, 0x2E6FE0) : null },
+        textShadow = { ({ soft: shadow(0, 2, 6, colorWithAlpha(0x000000, 128)), hard: shadow(3, 3, 0, 0xE4572E),
+            glow: shadow(0, 0, 8, 0x2E6FE0) })[:shadow] ?? null },
+        textColor = { ({ accent: 0x2E6FE0, translucent: colorWithAlpha(0x1B2733, 110),
+            white: 0xFFFFFF })[:color] ?? provided("theme").text },
+        textFill = { ({ solid: 0xE4572E, linear: gradient("90deg", 0x2E6FE0, 0xE4572E),
+            vertical: gradient("180deg", 0x2E6FE0, 0xE4572E), radial: radialGradient(0.5, 0.5, 0.7, 0xFDE68A, 0xE4572E),
+            conic: conicGradient(0.5, 0.5, 0, 0x2E6FE0, 0x17A34A, 0xE4572E, 0x2E6FE0) })[:fill] ?? null },
         text = { :sample } ]
     ]
 

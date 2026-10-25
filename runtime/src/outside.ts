@@ -82,18 +82,26 @@ export function inside(node: InteractionView | null, overlay: View): boolean {
   return false;
 }
 
-/** The view under a root point, walking on through an island into the program
- *  it hosts (an overlay may belong to a tenant). */
-export function leafAcross(app: View, x: number, y: number): InteractionView | null {
+/** The view under a press, walking on through an island into the program it
+ *  hosts (an overlay may belong to a tenant). (x, y) is the press in the
+ *  root's FRAME — for the page, the window point the browser reports — which
+ *  is what the walk reads: an overlay pinned to the window is found where it
+ *  is seen, at any scroll. (rx, ry) is the same press in ROOT space, for the
+ *  step into a tenant (rootToLocal). Both come from the browser at the moment
+ *  of the press; no scroll offset is applied to either. (A root point given
+ *  as the frame point, on a scrolled page, fell past the window's foot: a
+ *  press inside an open drawer read as outside it and dismissed it — iPhone,
+ *  2026-10-25.) Unscrolled, the two are one point, the default. */
+export function leafAcross(app: View, x: number, y: number, rx = x, ry = y): InteractionView | null {
   let leaf = leafAt(app as unknown as InteractionView, x, y);
   for (let guard = 0; leaf !== null && guard < 8; guard++) {
     const t = (leaf as unknown as { $tenant?: View | null }).$tenant;
     if (!(t instanceof View)) break;
-    const [lx, ly] = rootToLocal(leaf, x, y);
+    const [lx, ly] = rootToLocal(leaf, rx, ry);
     const inner = leafAt(t as unknown as InteractionView, lx, ly);
     if (inner === null) break;
     leaf = inner;
-    x = lx; y = ly;
+    rx = lx; ry = ly;
   }
   return leaf;
 }
@@ -118,11 +126,12 @@ export function anyOverlayOpen(): boolean {
   return OPEN.length > 0;
 }
 
-/** A press at root point (x, y) of `app`: should the router swallow it? The
- *  overlays it passes are told (onOutsidePress) as their policies say. */
-export function pressOutside(app: View, x: number, y: number): boolean {
+/** A press at frame point (x, y) of `app` — root point (rx, ry), as
+ *  leafAcross takes them: should the router swallow it? The overlays it
+ *  passes are told (onOutsidePress) as their policies say. */
+export function pressOutside(app: View, x: number, y: number, rx = x, ry = y): boolean {
   if (OPEN.length === 0) return false;
-  const leaf = leafAcross(app, x, y);
+  const leaf = leafAcross(app, x, y, rx, ry);
   for (const o of openTopFirst()) {
     if (inside(leaf, o)) return false;
     const p = o.outsidePress;
@@ -137,11 +146,11 @@ export function pressOutside(app: View, x: number, y: number): boolean {
   return false;
 }
 
-/** A scroll (wheel or touch move) at root point (x, y) of `app`: should it be
- *  swallowed? */
-export function scrollOutside(app: View, x: number, y: number): boolean {
+/** A scroll (wheel or touch move) at frame point (x, y) of `app` — root
+ *  point (rx, ry): should it be swallowed? */
+export function scrollOutside(app: View, x: number, y: number, rx = x, ry = y): boolean {
   if (OPEN.length === 0) return false;
-  const leaf = leafAcross(app, x, y);
+  const leaf = leafAcross(app, x, y, rx, ry);
   for (const o of openTopFirst()) {
     if (inside(leaf, o)) return false;
     const s = o.scrollBelow;

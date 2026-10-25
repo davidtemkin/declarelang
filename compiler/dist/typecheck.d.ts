@@ -5,7 +5,7 @@ import { DeclareError } from "../../runtime/dist/errors.js";
  *  the lines a diagnostic is reported on. Returns coded DECLARE6001 diagnostics
  *  (empty when clean). Never throws on TS internals: a body that cannot be
  *  framed is skipped, not failed. */
-export declare function typecheckBodies(text: string, program: Program, mainStart?: number): {
+export declare function typecheckBodies(text: string, program: Program, mainStart?: number, prefix?: string): {
     errors: DeclareError[];
     oracle: TypeOracle | null;
 };

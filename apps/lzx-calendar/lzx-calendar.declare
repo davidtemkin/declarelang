@@ -37,11 +37,8 @@ class EventBar [
     // Selected: the bar goes near-white with a category-tinted grip texture and
     // an ⓘ button (SPEC §5 selector chrome); a click selects day + event (§6).
 
-    fill = { selected ? 0xFAFAFA
-           : category == "holiday"   ? 0xCBD1C5
-           : category == "astro"     ? 0xC5C3D5
-           : category == "milestone" ? 0xBBC6D1
-           :                           0xC6CEDC },
+    fill = { ({ holiday: 0xCBD1C5, astro: 0xC5C3D5, milestone: 0xBBC6D1 })[category] ?? 0xC6CEDC },
+    State [ applied = { selected }, fill = 0xFAFAFA ],
 
     draw(d: Draw) {
         d.fillStyle = 0xFFFFFF
@@ -207,11 +204,8 @@ class TimeEvent [
     dayKey: string = "",
     evId: number = { :ev.id ?? -1 },
 
-    fill = { selected ? 0xFAFAFA
-           : category == "holiday"   ? 0xCBD1C5
-           : category == "astro"     ? 0xC5C3D5
-           : category == "milestone" ? 0xBBC6D1
-           :                           0xC6CEDC },
+    fill = { ({ holiday: 0xCBD1C5, astro: 0xC5C3D5, milestone: 0xBBC6D1 })[category] ?? 0xC6CEDC },
+    State [ applied = { selected }, fill = 0xFAFAFA ],
 
     // Placed by time; overlapping events share the width by lane (§12-E — the
     // wrapper carries the event's lane index and its cluster's lane count).
@@ -304,8 +298,8 @@ class DayCell [
 
     body: View [ x = 3, y = 19, width = { parent.width - 8 }, height = { parent.height - 26 },
         clip = true,
-        fill = { classroot.selected || app.dragOverKey == classroot.dayKey ? 0xD3D3D3
-               : :inMonth ? (:weekend ? 0x879BA8 : 0x9BA9B1) : 0x768A97 },
+        fill = { :inMonth ? (:weekend ? 0x879BA8 : 0x9BA9B1) : 0x768A97 },
+        State [ applied = { classroot.selected || app.dragOverKey == classroot.dayKey }, fill = 0xD3D3D3 ],
 
         // Closed form: the sorted event list (hidden the moment the cell opens).
 

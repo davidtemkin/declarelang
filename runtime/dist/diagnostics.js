@@ -223,6 +223,13 @@ export const Diag = {
     // library, where the name already means the built-in — so a reference in a
     // body reaches the wrong thing, and TypeScript's errors blame the use.
     shadowsTsGlobal: (kind, name, lib, pos) => err(code4(4015), `${kind} ${name} takes a name TypeScript's standard library already declares (${lib}) — the { } bodies typecheck against that library, where '${name}' means the built-in, so a use of yours there reaches the wrong thing. Choose another name`, pos),
+    // The same, for a name Declare's own types already hold — a value type
+    // (Backdrop, Color, Filter, Outline, …), a word list (Process, Tick, …) or a
+    // preset theme (Cupertino, …): the bodies typecheck with Declare's type under
+    // that name, so `this` inside a class of that name is the value type — the
+    // errors would say "'root' is not a member of Backdrop" at every use, or
+    // nothing at all where TypeScript merges the two.
+    shadowsDeclareType: (kind, name, rename, pos) => err(code4(4015), `${kind} ${name} takes the name of one of Declare's own types (npx declare-help ${name} says what it is) — the { } bodies typecheck with that type under the name, so inside yours '${name}' would mean Declare's, not your ${kind}. Rename yours, as '${rename}'`, pos),
     // A Spring owns its slot for as long as it lives — it never finishes — so a
     // slot its view also binds ({ }, :path or a percent) has two owners, and the
     // boot refuses it. (An Animator may drive a bound slot: it takes the slot for
@@ -271,6 +278,12 @@ export const Diag = {
     accessibilityUnreportedChoice: (owner, flag, pos) => err(code4(4022), `${owner} shows whether it is the one chosen ('${flag}'), but tells a screen reader nothing — a row of them reads as plain buttons, none of them picked. For one of many, use Segmented (or a RadioGroup of Radios): it reports the choice, and the arrows move between the options. Keeping your own, set accessibilityPressed = { ${flag} }: a pressed control is the one that is in`, pos),
     rowIndexUnreplicated: (owner, pos) => err(code4(4023), `${owner} reads rowIndex, but ${owner} is not replicated — that is its own rowIndex, never the row's, because a built-in never resolves outward. The index of the row it sits in is that view's: parent.rowIndex (one level up), or classroot.rowIndex inside a class whose instances are the rows`, pos),
     writeToComputedDataset: (name, verb, pos) => err(code4(4024), `${name} computes its value with contents, so it refuses writes — ${name}.${verb}(…) will be refused when it runs, and what it meant to keep is lost. A dataset that is written holds its records as data: ${name}: Dataset { { … } } (its first value), and a list derived from it is a second dataset with contents`, pos),
+    // A WARNING: a constraint body whose decisions nest three `? :` deep, or one
+    // `&&`/`||` condition with four or more parts. It works; it is hard to read,
+    // to change and to inspect, because the facts it decides on have no names.
+    // Two levels (`pressed ? a : hovered ? b : c`) and three-part conditions stay
+    // quiet: the guide teaches both, and both read at a glance.
+    tangledConstraint: (attr, depth, parts, pos) => err(code4(4025), `${attr} decides ${depth >= 3 ? "through " + depth + " nested ? : choices" : "on one condition of " + parts + " parts"} — give the facts it decides on names of their own (an attribute with a { } default: open: boolean = { … }), and the constraint reads them; a choice keyed by a value (an id, a kind, a mode) is a lookup in data or a theme list, and a look a view takes in some state is a State. A named value costs nothing: it is worked out once and kept`, pos),
     accessibilityDrawnFocusable: (owner, pos) => err(code4(4018), `${owner} draws itself and takes the focus, but has no accessibilityRole — what it draws is pixels, not anything a screen reader can read. Give it the role it plays and the facts that role reads, or make it a Control`, pos),
     afterInValue: (pos) => err(code4(4014), `afterDelay() waits, and a { } value computes — it runs whenever what it reads changes, so a wait here would be scheduled again on every change. Call afterDelay(ms, fn) from a handler or a method; a value that should change over time derives from a Time's facts or moves with a Spring or an Animator`, pos),
     scriptWrite: (name, pos) => err(code4(4003), `'${name}' is a script { } variable — a { } body holds a copy of it, so a write lands nowhere (and throws at runtime). State that changes is an attribute: declare it on the app or the class (${name}: <type> = …) and write that; a script { } holds constants and functions`, pos),
@@ -387,8 +400,9 @@ export const DIAGNOSTIC_CATALOG = [
     { code: code4(4022), phase: "name", summary: "a control that shows it is chosen and reports no state (warning)" },
     { code: code4(4023), phase: "name", summary: "rowIndex read on a view that is not replicated — its own, never the row's (warning)" },
     { code: code4(4024), phase: "name", summary: "a write to a dataset that computes its value with contents (warning)" },
+    { code: code4(4025), phase: "name", summary: "a constraint whose decisions are nested three deep, or one condition with four or more parts (warning)" },
     { code: code4(4014), phase: "name", summary: "afterDelay() in a { } value — a value computes and never waits" },
-    { code: code4(4015), phase: "name", summary: "a class, schema, theme or style takes a name TypeScript's standard library declares" },
+    { code: code4(4015), phase: "name", summary: "a class, schema, theme or style takes a name TypeScript's standard library or Declare's own types declare" },
     { code: code4(5000), phase: "module", summary: "include/module error (unclassified)" },
     { code: code4(5001), phase: "module", summary: "two included files declare the same class" },
     { code: code4(5002), phase: "module", summary: "an include path cannot be found" },

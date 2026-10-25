@@ -68,7 +68,7 @@ export declare class Text extends View {
     /** True when the run sizes its own width: nothing set it, and what owns it, if
      *  anything, is the run's own auto-size. */
     get $ownWidth(): boolean;
-    $attach(backend: RenderBackend, parentSurface: Surface | null): void;
+    $attach(backend: RenderBackend, parentSurface: Surface | null, before?: Surface | null): void;
     /** A Text's own content folds into `contentWidth`/`contentHeight` as its
      *  MEASURED glyph extent — the way an Image folds in its bitmap (view.ts
      *  contentExtent). Without this a Text reported the base 0, so a container

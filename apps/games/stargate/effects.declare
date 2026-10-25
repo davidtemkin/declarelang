@@ -12,7 +12,7 @@ class Effects extends Node [
     game: Game,
     burstRate: number = 0,              // how fast explosions spread, in pairs of pixels a pass
 
-    blocks(o: Outline) -> number { return o.wide * Math.ceil(o.high / 2) },     // two pixels wide, two rows deep
+    blocks(o: Silhouette) -> number { return o.wide * Math.ceil(o.high / 2) },     // two pixels wide, two rows deep
     showing() -> number {
         const w = game.world
         return [...w.appears, ...w.bursts].reduce((n, e) => n + this.blocks(game.shapeOf(e.picture)), 0)

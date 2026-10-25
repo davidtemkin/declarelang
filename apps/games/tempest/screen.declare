@@ -107,8 +107,8 @@ class PlayerShot extends OnLane [ visible = :inPlay, picture = "playerShot" ]
 
 class Explosion extends OnLane [
     visible = :inPlay,
-    picture = { :kind == "debris" ? "explosion." + (1 + ((:stage >> 2) & 3)) : :kind == "caught" ? "spark.1"
-        : "fuseballScore." + (:kind == "fuseball250" ? 250 : :kind == "fuseball500" ? 500 : 750) }
+    picture = { ({ debris: "explosion." + (1 + ((:stage >> 2) & 3)), caught: "spark.1",
+        fuseball250: "fuseballScore.250", fuseball500: "fuseballScore.500" })[:kind] ?? "fuseballScore.750" }
     ]
 
 
@@ -197,8 +197,7 @@ class PlayScreen [ width = 100%, height = 100%,
         ClawView [ datapath = :claw ],
         enemies: View [ width = 100%, height = 100%, visible = { !app.game.value.claw.dropping },
             View [ datapath = :enemies[], visible = { :inPlay && rowIndex < app.game.level.enemySlots },
-                classFor = { :kind == "flipper" ? Flipper : :kind == "pulsar" ? Pulsar : :kind == "tanker" ? Tanker
-                    : :kind == "spiker" ? Spiker : Fuseball } ]
+                classFor = { ({ flipper: Flipper, pulsar: Pulsar, tanker: Tanker, spiker: Spiker })[:kind] ?? Fuseball } ]
             ],
         EnemyShot [ datapath = :enemyShots[] ],
         PlayerShot [ datapath = :shots[] ],

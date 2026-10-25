@@ -1219,6 +1219,8 @@ export class View extends Node {
             s.setEndAnchor?.(a, true);
         if (this.cursor !== "")
             s.setCursor(this.cursor);
+        if (this.hideScrollbars)
+            s.setScrollbar?.(false);
         if (this.pointerEvents !== "")
             s.setPointerEvents(this.pointerEvents);
         if (this.direction !== "inherit")
@@ -2017,6 +2019,7 @@ defineAttributes(View, {
     scrollStartX: { def: 0 },
     scrolling: { def: false },
     scrollAnchor: { def: "content" },
+    hideScrollbars: { def: false, push: (v, b) => v.$surface?.setScrollbar?.(!b) },
     // The text face / rich-text / iconSize / theme values are provided, not View
     // slots — they live with the text leaves, Icon, and Control (attributes.ts
     // providedDefault). A container that sets one PROVIDES it: an undeclared set
@@ -2816,6 +2819,11 @@ defineAttributes(App, {
     // browser's bars are shown (nothing is hidden, so nothing is in the way),
     // their height once they retract. Desktop and the native host: always 0.
     underlapBottom: { def: 0 },
+    // How much of the window's foot an on-screen keyboard covers: the keyboard
+    // leaves `hostHeight` alone (it shrinks only the visual viewport), so a
+    // view pinned to the window's foot rises by this to stay in sight while
+    // a field is typed in. 0 with no keyboard up, on a desktop and the native host.
+    keyboardHeight: { def: 0 },
     // The side safe-area insets — 0 in portrait, the sensor-housing band on one
     // side in landscape (rotation re-feeds all four). Full-width pinned chrome
     // insets both edges: `x = { app.safeLeft }`,

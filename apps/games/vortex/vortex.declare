@@ -263,11 +263,13 @@ App [ appName = "Vortex", fontFamily = ["Menlo", "Consolas", "monospace"],
             }
         },
 
-    banner: string = {
-        app.mode == "zoom" && app.field.anySpikes() ? "AVOID SPIKES"
-      : app.t - app.bonusLifeAt < 2 ? "BONUS LIFE"
-      : app.mode == "warp" || (app.mode == "play" && app.t - app.levelStart < 4) ? "LEVEL " + app.level
-      : "" },
+    banner: string = { app.bannerNow() },
+    bannerNow() -> string {
+        if (app.mode == "zoom" && app.field.anySpikes()) return "AVOID SPIKES"
+        if (app.t - app.bonusLifeAt < 2) return "BONUS LIFE"
+        if (app.mode == "warp" || (app.mode == "play" && app.t - app.levelStart < 4)) return "LEVEL " + app.level
+        return ""
+        },
     subBanner: string = {
         !app.banner.startsWith("LEVEL") ? ""
       : app.startBonus > 0 ? "BONUS " + app.startBonus + " FOR CLEARING IT"
@@ -569,8 +571,7 @@ App [ appName = "Vortex", fontFamily = ["Menlo", "Consolas", "monospace"],
             ],
         foes: View [ width = 100%, height = 100%, datapath = { app.field.value },
             FoeView [ datapath = :foes[],
-                classFor = { :kind == "flipper" ? Flipper : :kind == "tanker" ? Tanker : :kind == "spiker" ? Spiker
-                           : :kind == "fuseball" ? Fuseball : Pulsar } ]
+                classFor = { ({ flipper: Flipper, tanker: Tanker, spiker: Spiker, fuseball: Fuseball })[:kind] ?? Pulsar } ]
             ],
         shots: View [ width = 100%, height = 100%, datapath = { app.field.value },
             ShotView [ datapath = :shots[] ]

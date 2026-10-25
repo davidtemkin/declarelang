@@ -1264,7 +1264,8 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
     // which issue is open in place (0 = none): it edits where it lives, and
     // its row springs open around the editor
 
-    expandedId: number = { app.editing && !app.creating && app.selCount == 1 && app.selected != null ? app.selected.id : 0 },
+    editsOne: boolean = { app.editing && !app.creating && app.selCount == 1 },
+    expandedId: number = { app.editsOne && app.selected != null ? app.selected.id : 0 },
 
     // ── the body — the issues and the rail, in what the bar, the toolbar
     //    and the footer leave ──────────────────────────────────────────────

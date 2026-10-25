@@ -281,6 +281,15 @@ function wireEnvironment(app, host, embedded) {
         // viewport 678 in both states, visual viewport 678 with Safari's bars
         // shown and 760 once they retract — so this reads 0, then 82.
         app.underlapBottom = Math.max(0, app.hostHeight - de.clientHeight);
+        // THE ON-SCREEN KEYBOARD. It shrinks the visual viewport and leaves the
+        // layout viewport (and so `hostHeight`) alone, covering the foot of a
+        // window-pinned view: a bottom sheet with a field opened behind the
+        // keyboard (iPhone, iOS 26, 2026-10-25). What it covers is the layout
+        // viewport below the visual one's bottom edge; negative while Safari's
+        // bars are retracted (the visual viewport is then the taller), so 0.
+        // Under a pinch the visual viewport is not the keyboard's to read: 0.
+        const covered = vv != null && vv.scale <= 1.01 ? Math.round(de.clientHeight - vv.offsetTop - vv.height) : 0;
+        app.keyboardHeight = covered > 1 ? covered : 0;
     };
     // The page is the App's scroller only when the App scrolls. One that
     // declares `scrolls = none` has no offset of its own; the document's stays
@@ -329,6 +338,7 @@ function wireEnvironment(app, host, embedded) {
     // Bar-chrome collapse moves the VISUAL viewport without always firing a
     // window resize — hostHeight must track it (the widening above reads it).
     w.visualViewport?.addEventListener("resize", size);
+    w.visualViewport?.addEventListener("scroll", size); // the keyboard pans it: its bottom edge moves
     // the page scroll's `scrolling` — the same user-scroll fact every pane
     // reports — hears each scroll before the offset mirror (dom-backend setScroll)
     setPageScrollWatch(watchScrolling(w, (a) => { app.$scrollingChanged(a); }));

@@ -462,11 +462,12 @@ class MediaTransport [
             // the frame the original's button boots on; play once there is
             // something to resume.
 
-            source = { (app.nowPlayingKind === "" || classroot.isPlaying)
-                ? (pressed ? "resources/img/pausedown.png"
-                 : hovered ? "resources/img/pauseover.png" : "resources/img/pause.png")
-                : (pressed ? "resources/img/playdown.png"
-                 : hovered ? "resources/img/playover.png" : "resources/img/play.png") },
+            showsPause: boolean = { app.nowPlayingKind === "" || classroot.isPlaying },
+            source = { showsPause
+                ? (hovered ? "resources/img/pauseover.png" : "resources/img/pause.png")
+                : (hovered ? "resources/img/playover.png" : "resources/img/play.png") },
+            State [ applied = { pressed },
+                source = { showsPause ? "resources/img/pausedown.png" : "resources/img/playdown.png" } ],
             x = { (classroot.pos / Math.max(0.0001, classroot.dur)) * (parent.width - 16) },
             grabX: number = 0,
             onPointerDown(e: PointerEvent) { grabX = e.x },

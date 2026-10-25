@@ -72,7 +72,7 @@ export const RUNTIME_FIELDS = {
     DOMIsland: ["exposedValues", "handle", "tenantSink"],
     TextInput: ["pendingSel"],
     Layout: ["authorSized", "bases", "discarded", "rearming", "reported", "stackReported", "undo", "view"],
-    TweenLayout: ["from", "to", "tween"],
+    TweenLayout: ["from", "placed", "to", "tween"],
     Dataset: ["cursors"],
     DataSource: ["autoUrl", "inFlight", "seq"],
     Animator: ["autoStarted", "grouped", "perpetual", "run"],

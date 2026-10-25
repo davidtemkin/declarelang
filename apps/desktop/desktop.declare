@@ -3059,9 +3059,8 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
 
         tabOrder() { return this.tabDefault().reverse() },
         DeskWindow [ datapath = :wins[], key = :id,
-            classFor = { :cls == "FilesWindow" ? FilesWindow : :cls == "ViewerWindow" ? ViewerWindow
-                : :cls == "AppWindow" ? AppWindow : :cls == "AboutWindow" ? AboutWindow
-                : :cls == "JotWindow" ? JotWindow : DeskWindow } ]
+            classFor = { ({ FilesWindow: FilesWindow, ViewerWindow: ViewerWindow, AppWindow: AppWindow,
+                AboutWindow: AboutWindow, JotWindow: JotWindow })[:cls] ?? DeskWindow } ]
         ],
 
     // No background: the menu bar's words render straight on the wallpaper.

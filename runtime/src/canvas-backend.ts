@@ -1359,6 +1359,7 @@ class CanvasSurface implements Surface, SceneSurface {
   /** A bar's frame-local geometry along its axis (BAR, the spec), or null when
    *  that axis does not overflow. */
   barGeom(vertical = true): { start: number; len: number; thumb: number; pos: number; ext: number; view: number } | null {
+    if (this.barOff) return null;   // hideScrollbars: no bar on either axis, to paint or to grab
     if ((vertical ? !this.scrolls : !this.scrollsX) || this.pageRoot) return null;
     const ext = vertical ? this.contentExtent() : this.contentExtentX();
     const view = vertical ? this.height : this.width;
@@ -2498,6 +2499,15 @@ class CanvasSurface implements Surface, SceneSurface {
    *  attribute push optional-called a scrollToX that did not exist, so a fresh
    *  column never slid into view on this renderer alone — while the hit walk,
    *  which the View side already shifts by scrollX, disagreed with the paint. */
+  /** `hideScrollbars = true` (View.hideScrollbars): the pane scrolls as ever, with no
+   *  overlay bar drawn or grabbed. */
+  private barOff = false;
+  setScrollbar(on: boolean): void {
+    if (this.barOff === !on) return;
+    this.barOff = !on;
+    this.compositor.invalidateBar(this);
+  }
+
   setScrollX(on: boolean, onScroll?: (x: number) => void, onScrolling?: (active: boolean) => void): void {
     this.scrollsX = on;
     this.onScrollXCb = on ? (onScroll ?? null) : null;

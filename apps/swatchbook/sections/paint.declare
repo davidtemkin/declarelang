@@ -8,23 +8,22 @@ one at a time, then together.
 
 class PaintSwatch extends Swatch [ name = :name,
     box: View [ x = 36, y = 16, width = 140, height = 88,
-        fill = { :fill == "solid" ? 0x2E6FE0 : :fill == "translucent" ? colorWithAlpha(0x2E6FE0, 100) : :fill == "light" ? 0xE8EEF9 : :fill == "white" ? 0xFFFFFF
-            : :fill == "linear" ? gradient("90deg", 0xFDE68A, 0xE4572E) : :fill == "linear45" ? gradient("45deg", 0xFDE68A, 0xE4572E)
-            : :fill == "vertical" ? gradient("180deg", 0x2E6FE0, 0x17A34A) : :fill == "stops" ? gradient("90deg", 0x2E6FE0, 0xFDE68A, 0x17A34A, 0xE4572E)
-            : :fill == "radial" ? radialGradient(0.5, 0.5, 0.8, 0xFDE68A, 0xE4572E) : :fill == "radialEdge" ? radialGradient(0.1, 0.2, 1, 0xFFFFFF, 0x2E6FE0)
-            : :fill == "conic" ? conicGradient(0.5, 0.5, 0, 0x2E6FE0, 0x17A34A, 0xE4572E, 0x2E6FE0) : conicGradient(0.3, 0.6, 90, 0xFDE68A, 0xE4572E, 0xFDE68A) },
-        cornerRadius = { :radius == "square" ? 0 : :radius == "small" ? 4 : :radius == "round" ? 16 : :radius == "pill" ? 44
-            : :radius == "four" ? [0, 28, 44, 8] : 200 },
-        stroke = { :stroke == "hair" ? stroke(1, 0x111111) : :stroke == "ring" ? stroke(4, 0x111111) : :stroke == "thick" ? stroke(14, 0x111111)
-            : :stroke == "top" ? [stroke(8, 0x111111), null, null, null] : :stroke == "right" ? [null, stroke(8, 0x111111), null, null]
-            : :stroke == "bottom" ? [null, null, stroke(8, 0x111111), null] : :stroke == "left" ? [null, null, null, stroke(8, 0x111111)]
-            : :stroke == "topBottom" ? [stroke(4, 0x111111), null, stroke(10, 0x111111), null] : :stroke == "leftRight" ? [null, stroke(6, 0x111111), null, stroke(6, 0x111111)]
-            : :stroke == "three" ? [stroke(6, 0x111111), stroke(6, 0x111111), stroke(6, 0x111111), null]
-            : :stroke == "ladder" ? [stroke(2, 0x111111), stroke(6, 0x111111), stroke(10, 0x111111), stroke(14, 0x111111)]
-            : :stroke == "colours" ? [stroke(6, 0x2E6FE0), stroke(6, 0x17A34A), stroke(6, 0xE4572E), stroke(6, 0xB8860B)] : null },
-        shadow = { :shadow == "soft" ? shadow(0, 8, 16, colorWithAlpha(0x000000, 100)) : :shadow == "hard" ? shadow(6, 6, 0, 0x111111)
-            : :shadow == "far" ? shadow(12, 18, 24, colorWithAlpha(0x000000, 90)) : :shadow == "up" ? shadow(0, -8, 12, colorWithAlpha(0x000000, 100))
-            : :shadow == "coloured" ? shadow(0, 6, 14, 0xE4572E) : :shadow == "tight" ? shadow(0, 1, 2, colorWithAlpha(0x000000, 160)) : null } ]
+        fill = { ({ solid: 0x2E6FE0, translucent: colorWithAlpha(0x2E6FE0, 100), light: 0xE8EEF9, white: 0xFFFFFF,
+            linear: gradient("90deg", 0xFDE68A, 0xE4572E), linear45: gradient("45deg", 0xFDE68A, 0xE4572E),
+            vertical: gradient("180deg", 0x2E6FE0, 0x17A34A), stops: gradient("90deg", 0x2E6FE0, 0xFDE68A, 0x17A34A, 0xE4572E),
+            radial: radialGradient(0.5, 0.5, 0.8, 0xFDE68A, 0xE4572E), radialEdge: radialGradient(0.1, 0.2, 1, 0xFFFFFF, 0x2E6FE0),
+            conic: conicGradient(0.5, 0.5, 0, 0x2E6FE0, 0x17A34A, 0xE4572E, 0x2E6FE0) })[:fill] ?? conicGradient(0.3, 0.6, 90, 0xFDE68A, 0xE4572E, 0xFDE68A) },
+        cornerRadius = { ({ square: 0, small: 4, round: 16, pill: 44, four: [0, 28, 44, 8] })[:radius] ?? 200 },
+        stroke = { ({ hair: stroke(1, 0x111111), ring: stroke(4, 0x111111), thick: stroke(14, 0x111111),
+            top: [stroke(8, 0x111111), null, null, null], right: [null, stroke(8, 0x111111), null, null],
+            bottom: [null, null, stroke(8, 0x111111), null], left: [null, null, null, stroke(8, 0x111111)],
+            topBottom: [stroke(4, 0x111111), null, stroke(10, 0x111111), null], leftRight: [null, stroke(6, 0x111111), null, stroke(6, 0x111111)],
+            three: [stroke(6, 0x111111), stroke(6, 0x111111), stroke(6, 0x111111), null],
+            ladder: [stroke(2, 0x111111), stroke(6, 0x111111), stroke(10, 0x111111), stroke(14, 0x111111)],
+            colours: [stroke(6, 0x2E6FE0), stroke(6, 0x17A34A), stroke(6, 0xE4572E), stroke(6, 0xB8860B)] })[:stroke] ?? null },
+        shadow = { ({ soft: shadow(0, 8, 16, colorWithAlpha(0x000000, 100)), hard: shadow(6, 6, 0, 0x111111),
+            far: shadow(12, 18, 24, colorWithAlpha(0x000000, 90)), up: shadow(0, -8, 12, colorWithAlpha(0x000000, 100)),
+            coloured: shadow(0, 6, 14, 0xE4572E), tight: shadow(0, 1, 2, colorWithAlpha(0x000000, 160)) })[:shadow] ?? null } ]
     ]
 
 

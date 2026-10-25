@@ -341,7 +341,7 @@ export class FocusService {
   /** Where the next Tab starts when nothing has focus: the spot a press on
    *  content that takes no focus left (the web's sequential focus navigation
    *  starting point). Cleared as soon as anything is focused. */
-  private startPoint: View | null = null;
+  private startPoint: Spot | null = null;
 
   /** A press landed on `leaf` (the view under it, across islands). The web's
    *  rule: when nothing on its chain can take focus, focus is cleared — the
@@ -350,6 +350,15 @@ export class FocusService {
    *  it, leaves focus to that view (a control focuses itself on press). */
   pressAt(leaf: View | null): void {
     this.lastInputKeyboard = false;
+    // A press is pointing: the ring is for focus reached by keyboard, and goes.
+    // Not only when focus moves — a control that takes no focus on a press
+    // left focus, and a keyboard ring, where they were (2026-10-25).
+    // Those watching (the ring) hear it as a change to the same view, as in
+    // focus() when a press lands on what already has focus.
+    if (this.keyboard && this.current !== null) {
+      this.setKeyboard(false);
+      for (const h of [...this.changeHandlers]) h(this.current);
+    }
     for (let v: View | null = leaf; v !== null; v = parentAcross(v)) if (canFocus(v)) return;
     if (this.current !== null) { this.setKeyboard(false); this.apply(null); }
     this.startPoint = leaf;
@@ -371,8 +380,8 @@ export class FocusService {
   }
 
   private move(dir: 1 | -1): void {
-    const start = this.current === null && this.startPoint !== null && this.startPoint.root !== null ? this.startPoint : null;
-    const cyc = this.current !== null ? cycleOf(this.current) : start !== null ? cycleOf(start) : this.rootView;
+    const start = this.current === null && this.startPoint !== null && spotView(this.startPoint).root !== null ? this.startPoint : null;
+    const cyc = this.current !== null ? cycleOf(this.current) : start !== null ? cycleOf(spotView(start)) : this.rootView;
     if (cyc === null) return;
     const seq = sequence(cyc);
     if (seq.length === 0) return;
@@ -380,7 +389,7 @@ export class FocusService {
     // from a pressed spot: Tab goes to the first stop after it, Shift-Tab to
     // the last one before it
     if (start !== null) {
-      const after = seq.findIndex((e) => precedes(start, e.view));
+      const after = seq.findIndex((e) => afterSpot(start, e.view));
       idx = after < 0 ? (dir === 1 ? seq.length - 1 : seq.length) : (dir === 1 ? after - 1 : after);
     }
     // a focused island stands where its program's stops are spliced: Tab goes
@@ -474,21 +483,26 @@ export class FocusService {
     this.land(t);
   }
 
-  /** The focused view's subtree is being discarded (or hidden) — move focus to
-   *  a live stop OUTSIDE it before it goes, so focus never dangles: the first
-   *  survivor in the same cycle, else in its program. Survivors come from the
-   *  dying view's OWN tree: when an embedded app is torn down (a live-edit
-   *  re-render), focus is dropped, never re-anchored into the host app's
-   *  controls. Called from View.discard() via the seam in view.ts. */
+  /** The focused view's subtree is being discarded: focus is cleared before it
+   *  goes, and the next Tab starts from where it was — the web's rule for a
+   *  focused element taken out of the page, and the one `rewatch` keeps for a
+   *  view hidden or disabled. It does not jump to some other stop: a search
+   *  field closed with Esc once sent focus, and its ring, to the first tile
+   *  of a sidebar across the window (2026-10-25). The spot is the dying
+   *  view's parent, which stays; a program torn down whole (an embedded app
+   *  re-rendered) leaves no spot, and focus is simply dropped. Called from
+   *  View.discard() via the seam in view.ts. */
   noteDiscarded(view: View): void {
     if (this.current === null || !isInSubtree(this.current, view)) return;
-    const alive = (v: View) => !isInSubtree(v, view);
-    const inCycle = sequence(cycleOf(view)).map((e) => e.view).filter(alive);
-    const survivors = inCycle.length > 0 ? inCycle : sequence(rootOf(view)).map((e) => e.view).filter(alive);
     this.current = null; // the old focus is dying; drop it without a blur into a dead view
     noteFocused(null);
+    this.setKeyboard(false);
     this.currentCell.changed();
-    if (survivors.length > 0) this.focus(survivors[0]);
+    this.retargetFollower();
+    this.rewatch();
+    for (const h of [...this.changeHandlers]) h(null);
+    const p = view.parent instanceof View ? view.parent : null;
+    this.startPoint = p !== null ? { parent: p, at: p.childViews.indexOf(view) } : null;
   }
 }
 
@@ -610,6 +624,25 @@ function gatedBelow(p: View, c: View): boolean {
 
 /** Does `a` come before `b` in tree order (preorder: an ancestor before what
  *  it holds, siblings in their order)? For the pressed-spot Tab start. */
+/** Where the next Tab starts with nothing focused: a view (a pressed spot, a
+ *  view no longer reachable), or the place a discarded child held among its
+ *  parent's children — the views after it are those from that index on, once
+ *  it is gone. */
+type Spot = View | { parent: View; at: number };
+
+function spotView(s: Spot): View {
+  return s instanceof View ? s : s.parent;
+}
+
+/** Does `v` come after the spot, in the tree's order? */
+function afterSpot(s: Spot, v: View): boolean {
+  if (s instanceof View) return precedes(s, v);
+  if (v === s.parent || !insideAcross(v, s.parent)) return precedes(s.parent, v) && !insideAcross(v, s.parent);
+  let c: View = v;
+  while (c.parent !== s.parent && parentAcross(c) !== null) c = parentAcross(c) as View;
+  return s.parent.childViews.indexOf(c) >= s.at;
+}
+
 function precedes(a: View, b: View): boolean {
   if (a === b) return false;
   const chain = (v: View): View[] => { const out: View[] = []; for (let n: View | null = v; n !== null; n = parentAcross(n)) out.unshift(n); return out; };

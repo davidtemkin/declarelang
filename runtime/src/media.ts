@@ -103,8 +103,8 @@ export abstract class Media extends View {
   /** `source` went empty. Video clears the surface picture; Audio has nothing to clear. */
   protected $sourceCleared(): void {}
 
-  override $attach(backend: RenderBackend, parentSurface: Surface | null): void {
-    super.$attach(backend, parentSurface);
+  override $attach(backend: RenderBackend, parentSurface: Surface | null, before: Surface | null = null): void {
+    super.$attach(backend, parentSurface, before);
     this.$load();
   }
 

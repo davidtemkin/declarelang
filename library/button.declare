@@ -161,11 +161,11 @@ class Button extends Control [
     width   = { this.run.width + this.padH * 2 },
     opacity = { disabled ? (provided("theme").disabledOpacity) : 1 },
 
-    fill = { primary   ? (pressed || menuOpen ? provided("theme").accentPressed : hovered ? provided("theme").accentHovered : provided("theme").accent)
-           : menuOpen  ? provided("theme").controlSelected
-           : pressed      ? provided("theme").controlPressed
-           : hovered       ? provided("theme").controlHovered
-           :             provided("theme").control },
+    // the fill by state: pressed (or its menu open), hovered, at rest
+
+    primaryFill: Color = { pressed || menuOpen ? provided("theme").accentPressed : hovered ? provided("theme").accentHovered : provided("theme").accent },
+    plainFill: Color = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+    fill = { primary ? this.primaryFill : menuOpen ? provided("theme").controlSelected : this.plainFill },
 
     // platforms whose secondary buttons are bordered say so in the theme
     // (Cupertino's and Redmond's hairline) — flat systems leave it null

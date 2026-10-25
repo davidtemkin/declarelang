@@ -128,11 +128,13 @@ class Tooltip extends Floating [
     height = { this.t.height + 10 },
     x = { Math.max(4, Math.min(app.width - this.width - 4,
             placement == "pointer" ? _px + 10 : _ex + (_ew - this.width) / 2)) },
-    y = { placement == "pointer"
-            ? (_py + 18 + this.height > app.height ? _py - this.height - 8 : _py + 18)
-            : placement == "above"
-                ? (_ey - this.height - 7 < 0 ? _ey + _eh + 7 : _ey - this.height - 7)
-                : (_ey + _eh + 7 + this.height > app.height ? _ey - this.height - 7 : _ey + _eh + 7) },
+
+    // where each placement puts it, each flipping when it would leave the window
+
+    pointerY: number = { _py + 18 + this.height > app.height ? _py - this.height - 8 : _py + 18 },
+    aboveY: number = { _ey - this.height - 7 < 0 ? _ey + _eh + 7 : _ey - this.height - 7 },
+    belowY: number = { _ey + _eh + 7 + this.height > app.height ? _ey - this.height - 7 : _ey + _eh + 7 },
+    y = { placement == "pointer" ? this.pointerY : placement == "above" ? this.aboveY : this.belowY },
 
     cornerRadius = { provided("theme").tooltipCornerRadius },
     fill   = { provided("theme").tooltipFill },

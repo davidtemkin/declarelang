@@ -98,7 +98,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
     // the library presets, by city and mode: SanFrancisco / MountainView /
     // Cupertino / Redmond and their …Dark companions
 
-    preset: Theme = { style == "mountainView" ? (darkUI ? MountainViewDark : MountainView) : style == "cupertino" ? (darkUI ? CupertinoDark : Cupertino) : style == "redmond" ? (darkUI ? RedmondDark : Redmond) : (darkUI ? SanFranciscoDark : SanFrancisco) },
+    preset: Theme = { ({ sanFrancisco: darkUI ? SanFranciscoDark : SanFrancisco, mountainView: darkUI ? MountainViewDark : MountainView, cupertino: darkUI ? CupertinoDark : Cupertino, redmond: darkUI ? RedmondDark : Redmond })[style] },
 
     theme = { {
         ...app.preset,
@@ -115,7 +115,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
 
     // the type stack is part of the styling: Roboto for Mountain View, the system face for Cupertino
 
-    fontFamily = { style == "mountainView" ? [app.roboto, "system-ui", "sans-serif"] : style == "cupertino" ? "-apple-system, system-ui, sans-serif" : style == "redmond" ? "'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif" : "system-ui, sans-serif" },
+    fontFamily = { ({ sanFrancisco: "system-ui, sans-serif", mountainView: [app.roboto, "system-ui", "sans-serif"], cupertino: "-apple-system, system-ui, sans-serif", redmond: "'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif" })[style] },
 
     // ── data: the Table's cities; the DataGrid's issues (app-owned — seeded
     //    once, so cell edits persist; the sort verb reorders the data) ──────

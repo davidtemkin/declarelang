@@ -424,6 +424,42 @@ function richTextTagShadowWarnings(program) {
 // word for, an animation nothing can ever run, and a control wired to the one
 // slot that does not answer the pointer. Each is decided structurally — an AST
 // shape or a schema chain — so no site needs a judgement call.
+/** How tangled a `{ }` body's decisions are: the deepest nesting of `? :`
+ *  (a choice inside a branch or a test of another), and the longest run of one
+ *  `&&` or `||` operator (`a && b && c && d` is four parts; a bracketed group of
+ *  the other operator counts as one). A function written inside the body (a `map` or
+ *  `filter` callback) is its own matter and is not counted. `:path` reads are
+ *  not TypeScript, so each becomes a placeholder name first; a body that still
+ *  does not parse is not judged (null). */
+function decisionShape(src) {
+    const clean = src.replace(/:@/g, "_p_at").replace(/(^|[\s(\[{,!?=<>&|+\-*/%])\s*:(?=[A-Za-z_])/g, (m) => m.replace(/:$/, "_p_"));
+    const sf = ts.createSourceFile("shape.ts", "(" + clean + ")", ts.ScriptTarget.ESNext, true);
+    if (sf.parseDiagnostics?.length)
+        return null;
+    const isLogic = (n) => ts.isBinaryExpression(n)
+        && (n.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken || n.operatorToken.kind === ts.SyntaxKind.BarBarToken);
+    const peel = (n) => (ts.isParenthesizedExpression(n) ? peel(n.expression) : n);
+    let depth = 0, parts = 0;
+    // the parts of one run of the same operator (`a && b && c`); a bracketed
+    // group of the other operator is one part
+    const count = (n, op) => {
+        const p = peel(n);
+        return isLogic(p) && p.operatorToken.kind === op ? count(p.left, op) + count(p.right, op) : 1;
+    };
+    const visit = (n, d) => {
+        if (ts.isArrowFunction(n) || ts.isFunctionExpression(n))
+            return;
+        const p = peel(n);
+        if (isLogic(p))
+            parts = Math.max(parts, count(p, p.operatorToken.kind));
+        const nd = ts.isConditionalExpression(n) ? d + 1 : d;
+        if (nd > depth)
+            depth = nd;
+        ts.forEachChild(n, (c) => visit(c, nd));
+    };
+    visit(sf, 0);
+    return { depth, parts };
+}
 /** Does this `{ }` body say, in arithmetic, exactly what `x = center` says?
  *
  *  `(parent.width - this.width) / 2` and the spellings that mean the same
@@ -682,6 +718,15 @@ function idiomDiagnostics(program, schemas) {
             const w = callsOn(el, WRITES)[0];
             if (w !== undefined)
                 warnings.push(Diag.writeToComputedDataset(el.name, w.method, el.pos));
+        }
+        // 4025 — a constraint whose decisions are tangled: nested three deep, or
+        // one condition of four or more parts.
+        for (const [name, lit] of [...el.attrs.map((a) => [a.name, a.value]), ...el.decls.map((d) => [d.name, d.def])]) {
+            if (lit === null || lit.kind !== "code")
+                continue;
+            const shape = decisionShape(lit.src);
+            if (shape !== null && (shape.depth >= 3 || shape.parts >= 4))
+                warnings.push(Diag.tangledConstraint(name, shape.depth, shape.parts, lit.pos));
         }
         for (const c of el.children)
             walk(c, el, classRoot);
@@ -1118,7 +1163,7 @@ export async function compile(source, opts = {}) {
     // provideLib; an unregistered provider throws, never silently skips). A type
     // error blocks emission like any other, mapped to its `.declare` line
     // (DECLARE6001).
-    const tc = typecheckBodies(merged, program, preludeLen);
+    const tc = typecheckBodies(merged, program, preludeLen, programPrefix(opts));
     const typeOracle = tc.oracle;
     {
         const typeErrors = rbAll(tc.errors);

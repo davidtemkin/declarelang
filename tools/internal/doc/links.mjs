@@ -82,7 +82,7 @@ export function buildRegistry(reference, typeNames, formNames) {
     ids[id] = { path: path.relative(ROOT, file), title: title ?? titleOf(file), kind };
   };
 
-  // guide: strip the ordering prefix — `20-tree.md` → guide:tree.
+  // guide: strip the ordering prefix — `04-structure.md` → guide:structure.
   for (const f of readdirSync(path.join(ROOT, "docs/guide")).sort()) {
     if (!f.endsWith(".md")) continue;
     const slug = f.replace(/^\d+-/, "").replace(/\.md$/, "");

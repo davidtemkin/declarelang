@@ -203,6 +203,20 @@ const WANTS = new WeakMap();
  *  The rule targets only `[data-declare-scroll]` (delegation is definitional
  *  there); claim-carrying elements keep their claims. Singleton per document. */
 const ZOOM_WATCHED = new WeakSet();
+/** `hideScrollbars = true` (View.hideScrollbars): the standard `scrollbar-width: none`,
+ *  and for a WebKit without it, the same rule as a `::-webkit-scrollbar`
+ *  that matches only the marked scroller — so every other pane keeps the
+ *  platform's own overlay bar (see "Scrollbars are the platform's own"
+ *  below). One rule per document. */
+const NO_BAR_RULED = new WeakSet();
+function ruleNoScrollbar(doc) {
+    if (NO_BAR_RULED.has(doc))
+        return;
+    NO_BAR_RULED.add(doc);
+    const style = doc.createElement("style");
+    style.textContent = "[data-declare-nobar]{scrollbar-width:none}[data-declare-nobar]::-webkit-scrollbar{display:none}";
+    doc.head.appendChild(style);
+}
 function watchPinchZoom(doc) {
     if (ZOOM_WATCHED.has(doc) || typeof visualViewport === "undefined" || visualViewport === null)
         return;
@@ -1721,6 +1735,15 @@ export class DomSurface {
      *  URL so copy-link copies the truth; null = this document's own page. */
     linkBase = null;
     linkEl = null;
+    setScrollbar(on) {
+        const el = this.element;
+        if (on) {
+            delete el.dataset.declareNobar;
+            return;
+        }
+        ruleNoScrollbar(el.ownerDocument);
+        el.dataset.declareNobar = "";
+    }
     setLink(href, label = "") {
         // linkBase "" = an EMBEDDED app (§0.9): fragment refs realize NO native
         // anchor — one inside an island would target the host page's fragment

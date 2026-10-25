@@ -55,7 +55,8 @@ import ts from "typescript";
 import {} from "../../runtime/dist/parser.js";
 import { resolveShapes } from "../../runtime/dist/shape-resolve.js";
 import { programSchemas, resolveWrittenType } from "../../runtime/dist/program-schema.js";
-import { generateScaffold, memberSig, tsType, signatureTsType, shapeObjectText, themeTokenTypes } from "./scaffold.js";
+import { THEME_PRESET_NAMES } from "../../runtime/dist/themes.js";
+import { generateScaffold, PRELUDE_NAMES, memberSig, tsType, signatureTsType, shapeObjectText, themeTokenTypes } from "./scaffold.js";
 import { SCHEMAS, attrType, descendsFrom } from "../../runtime/dist/schema.js";
 import { declaredType, isAuthoredUnion } from "../../runtime/dist/value.js";
 import { fillDatapaths } from "../../runtime/dist/datapath.js";
@@ -69,7 +70,7 @@ import { DeclareError, insetOrRadiusShape, strokeShapeMessage } from "../../runt
  *  the lines a diagnostic is reported on. Returns coded DECLARE6001 diagnostics
  *  (empty when clean). Never throws on TS internals: a body that cannot be
  *  framed is skipped, not failed. */
-export function typecheckBodies(text, program, mainStart = 0) {
+export function typecheckBodies(text, program, mainStart = 0, prefix = "My") {
     const { schemas } = programSchemas(program.classes, new Set((program.shapes ?? []).map((s) => s.name)));
     WORD_TYPES = new Set();
     for (const sc of Object.values(schemas))
@@ -138,8 +139,9 @@ export function typecheckBodies(text, program, mainStart = 0) {
     const synthTags = emitter.synthTags;
     const out = [...scoped];
     out.push(...portableNames(tsProgram, regions, starts));
-    // A declared type name the standard library already owns: said once, at the
-    // declaration, before TypeScript's errors at each use.
+    // A declared type name the standard library, or Declare's own value types,
+    // already own: said once, at the declaration, before TypeScript's errors at
+    // each use (or the silence where an interface merges with it).
     const globals = libGlobals(tsProgram);
     const declared = [
         ["class", rprog.classes], ["schema", rprog.shapes ?? []], ["theme", rprog.themes ?? []], ["style", rprog.styles ?? []],
@@ -149,6 +151,8 @@ export function typecheckBodies(text, program, mainStart = 0) {
             const lib = globals.get(d.name);
             if (lib !== undefined)
                 out.push(Diag.shadowsTsGlobal(kind, d.name, lib, d.pos));
+            else if (PRELUDE_NAMES.has(d.name) || WORD_TYPES.has(d.name) || (kind !== "theme" && THEME_PRESET_NAMES.includes(d.name)))
+                out.push(Diag.shadowsDeclareType(kind, d.name, prefix + d.name, d.pos));
         }
     for (const pos of emitter.literalPaths)
         out.push(Diag.literalDatapath(pos));

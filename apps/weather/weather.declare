@@ -516,10 +516,8 @@ anyway, so the row is right before anything has decoded.
 class RowSky [ clip = true,
     cond: string = "sunny",
 
-    top: number = { this.cond == "night" ? 0x0A1230 : this.cond == "sunny" ? 0x2E7FD0
-        : this.cond == "cumulus" ? 0x4A648A : 0x6E7F8E },
-    bot: number = { this.cond == "night" ? 0x2A3A66 : this.cond == "sunny" ? 0x9CC6E8
-        : this.cond == "cumulus" ? 0x7E9AC0 : 0xA9B6C0 },
+    top: number = { ({ night: 0x0A1230, sunny: 0x2E7FD0, cumulus: 0x4A648A })[this.cond] ?? 0x6E7F8E },
+    bot: number = { ({ night: 0x2A3A66, sunny: 0x9CC6E8, cumulus: 0x7E9AC0 })[this.cond] ?? 0xA9B6C0 },
     fill = { gradient("180deg", this.top, this.bot) },
 
     // the two photographic conditions wear their photograph. `source` is never
@@ -577,10 +575,10 @@ class CityRow extends Control [ width = 100%, height = { ROW_H }, cursor = "poin
     changes only when the search does, never per frame.
     */
 
-    slide: number = { !app.phone || !app.cityUp ? 0
-        : rowIndex < app.openRank ? app.cityLift
+    ride: number = { rowIndex < app.openRank ? app.cityLift
         : rowIndex > app.openRank ? app.cityLift + app.cityGrow
         : 0 },
+    slide: number = { !app.phone || !app.cityUp ? 0 : this.ride },
     y = { rowIndex * (ROW_H + ROW_GAP) + this.slide },
 
     // No fade: the rows leave by moving. Everything above rides up with the
@@ -1197,12 +1195,10 @@ App [ textColor = whitesmoke, appName = "Weather",
     // frame reflows the whole page every frame. Nothing scrolls mid-transition,
     // so the exact value only has to be right at the two ends.
 
-    height = { app.phone
-        ? Math.max(app.hostHeight,
-            app.listGone ? app.cityH
-            : app.openT < 0.002 ? app.listH
-            : Math.max(app.listH, app.cityH))
-        : app.hostHeight },
+    extentH: number = { app.listGone ? app.cityH
+        : app.openT < 0.002 ? app.listH
+        : Math.max(app.listH, app.cityH) },
+    height = { app.phone ? Math.max(app.hostHeight, app.extentH) : app.hostHeight },
 
     // `edges = cover` is the edge-to-edge opt-in: the app extends under the
     // device's own chrome (notch, home indicator), and `app.safeTop` /
@@ -1230,9 +1226,7 @@ App [ textColor = whitesmoke, appName = "Weather",
     */
 
     backCond: string = { app.phone ? (app.listGone ? app.cond : "sunny") : app.cond },
-    skyTone: number = { app.backCond == "night" ? 0x0A1230
-           : app.backCond == "sunny" ? 0x2E7FD0
-           : app.backCond == "cumulus" ? 0x4A648A : 0x91A1AD },
+    skyTone: number = { ({ night: 0x0A1230, sunny: 0x2E7FD0, cumulus: 0x4A648A })[app.backCond] ?? 0x91A1AD },
     fill = { app.skyTone },
 
     /*

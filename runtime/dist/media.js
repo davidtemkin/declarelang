@@ -36,8 +36,8 @@ export class Media extends View {
     $metadataArrived(_el) { }
     /** `source` went empty. Video clears the surface picture; Audio has nothing to clear. */
     $sourceCleared() { }
-    $attach(backend, parentSurface) {
-        super.$attach(backend, parentSurface);
+    $attach(backend, parentSurface, before = null) {
+        super.$attach(backend, parentSurface, before);
         this.$load();
     }
     $teardown() {

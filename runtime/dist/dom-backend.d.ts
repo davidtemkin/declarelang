@@ -302,6 +302,7 @@ export declare class DomSurface implements Surface {
      *  URL so copy-link copies the truth; null = this document's own page. */
     linkBase: string | null;
     private linkEl;
+    setScrollbar(on: boolean): void;
     setLink(href: string, label?: string): void;
     /** `within` is the canvas path's concern; the flow scrolls its heading (dom-rich.ts). */
     revealRichAnchor(slug: string, _within: number, inset?: number): boolean;

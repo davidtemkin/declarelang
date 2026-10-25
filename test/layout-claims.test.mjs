@@ -323,6 +323,27 @@ await test("a TweenLayout reports a literal it places, in the same words", async
   assert.equal(app.a.width, 40, "the arrangement places it");
 });
 
+await test("a TweenLayout glides when its children reorder, and an arrival waits hidden at its place", async () => {
+  const app = await boot(`class Stack extends TweenLayout [ duration = 400,
+      place() { return this.laid().map((c, i) => ({ x: 0, y: i * 40, w: 100, h: 40, vis: true })) } ]
+    App [ width = 200, height = 300,
+      d: Dataset { { "rows": [ { "id": 1 }, { "id": 2 }, { "id": 3 } ] } },
+      list: View [ width = 100, datapath = { app.d.value }, layout: Stack [ ], View [ datapath = :rows[], rid: number = { :id } ] ]
+    ]`);
+  const byId = () => Object.fromEntries(app.list.childViews.map((c) => [c.rid, { y: c.y, vis: c.visible }]));
+  assert.deepEqual(Object.values(byId()).map((b) => b.y), [0, 40, 80], "the first population is placed outright");
+  app.d.move(["rows"], 2, 0);
+  settle();
+  // no frame has run: t is 0, so every row still stands where it was, about to glide
+  assert.equal(byId()[3].y, 80, "the moved row starts from its old place (before 2026-10-25 a reorder snapped it to 0)");
+  assert.equal(byId()[1].y, 0);
+  assert.equal(app.list.layout.to.map((b) => b.y).join(), "0,40,80", "…and is headed for the new order");
+  app.d.insert(["rows"], 1, { id: 9 });
+  settle();
+  assert.equal(byId()[9].vis, false, "an arrival is held hidden until the glide lands");
+  assert.equal(app.list.layout.to[1].y, 40, "…at its own destination");
+});
+
 // ── 5 · Size and the content size (§4) ───────────────────────────────────
 
 /** A content size is measured once a backend is attached — the way every app

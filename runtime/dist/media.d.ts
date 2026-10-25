@@ -58,7 +58,7 @@ export declare abstract class Media extends View {
     protected $metadataArrived(_el: HTMLMediaElement): void;
     /** `source` went empty. Video clears the surface picture; Audio has nothing to clear. */
     protected $sourceCleared(): void;
-    $attach(backend: RenderBackend, parentSurface: Surface | null): void;
+    $attach(backend: RenderBackend, parentSurface: Surface | null, before?: Surface | null): void;
     $teardown(): void;
     /** Let go of the current element. An `<audio>` never enters the document,
      *  so nothing else would ever stop it: a re-pointed clip would play over its

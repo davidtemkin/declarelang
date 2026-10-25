@@ -33,7 +33,7 @@ script {
     type Values = { [name: string]: number }
     type MessageTable = { [name: string]: Message }
     type InkLists = { [name: string]: number[] }
-    type Shapes = { [name: string]: Outline }
+    type Shapes = { [name: string]: Silhouette }
 
     // what a thing is, and what a turn runs (the schemas Thing and Turn list them): each has its rules (Rules.kinds)
     type ThingKind = Thing["kind"]
@@ -188,10 +188,10 @@ schema Banner [ id: number, says: string, number: number, px: number, py: number
 schema Inks [ background: number, laser: number, warning: number, ground: number, outline: number, marks: number, bombs: number,
     notices: number, glow: number, bombCenters: number, bombers: number, gateMark: number ]
 
-// A picture's outline: each column's rows, top down, "1" where it is solid; and its pixels,
+// A picture's silhouette: each column's rows, top down, "1" where it is solid; and its pixels,
 // an ink a figure, row by row.
 
-schema Outline [ wide: number, high: number, solid[]: string, inks[]: number, top: number, pixels: string ]
+schema Silhouette [ wide: number, high: number, solid[]: string, inks[]: number, top: number, pixels: string ]
 
 
 class Game extends Dataset [ schema = World,
@@ -395,7 +395,7 @@ class Game extends Dataset [ schema = World,
         },
     thing(id: number) -> Thing? { return world.near.find((t) => t.id == id) ?? world.far.find((t) => t.id == id) ?? null },
     pictureOf(t: Thing) -> string { return t.appearing ? "none" : this.rulesFor(t.kind).picture(t) },
-    shapeOf(picture: string) -> Outline { return shapes[picture] ?? { wide: 1, high: 1, solid: ["0"], inks: [], top: 0, pixels: "" } },
+    shapeOf(picture: string) -> Silhouette { return shapes[picture] ?? { wide: 1, high: 1, solid: ["0"], inks: [], top: 0, pixels: "" } },
 
     // A turn for something, starting now, after the one being taken.
 
@@ -547,7 +547,7 @@ class Game extends Dataset [ schema = World,
             }
         return false
         },
-    overlap(apx: number, ay: number, a: Outline, bpx: number, by: number, b: Outline) -> Spot? {
+    overlap(apx: number, ay: number, a: Silhouette, bpx: number, by: number, b: Silhouette) -> Spot? {
         const ax = Math.floor(apx / 2), bx = Math.floor(bpx / 2)
         for (let x = Math.max(ax, bx); x < Math.min(ax + a.wide, bx + b.wide); x++)
             for (let y = Math.min(ay + a.high, by + b.high) - 1; y >= Math.max(ay, by); y--)
@@ -558,7 +558,7 @@ class Game extends Dataset [ schema = World,
     // An outline holds, for each pair of pixels across, a string of its rows from the top,
     // "1" where something is lit.
 
-    solidAt(o: Outline, pair: number, row: number) -> boolean { return o.solid[pair]?.[row] == "1" },
+    solidAt(o: Silhouette, pair: number, row: number) -> boolean { return o.solid[pair]?.[row] == "1" },
 
     // A thing destroyed: its turn ends, it explodes where it was touched, and scores.
 

@@ -72,6 +72,7 @@ export declare const Diag: {
     showsUnreachable: (name: string, initial: string, names: readonly string[], pos: Pos) => DeclareError;
     literalDatapath: (pos: Pos) => DeclareError;
     shadowsTsGlobal: (kind: string, name: string, lib: string, pos: Pos) => DeclareError;
+    shadowsDeclareType: (kind: string, name: string, rename: string, pos: Pos) => DeclareError;
     springsBoundSlot: (owner: string, slot: string, spring: string, pos: Pos) => DeclareError;
     shadowsRichTextTag: (name: string, pos: Pos) => DeclareError;
     centersByHand: (axis: "x" | "y", pos: Pos) => DeclareError;
@@ -86,6 +87,7 @@ export declare const Diag: {
     accessibilityUnreportedChoice: (owner: string, flag: string, pos: Pos) => DeclareError;
     rowIndexUnreplicated: (owner: string, pos: Pos) => DeclareError;
     writeToComputedDataset: (name: string, verb: string, pos: Pos) => DeclareError;
+    tangledConstraint: (attr: string, depth: number, parts: number, pos: Pos) => DeclareError;
     accessibilityDrawnFocusable: (owner: string, pos: Pos) => DeclareError;
     afterInValue: (pos: Pos) => DeclareError;
     scriptWrite: (name: string, pos: Pos) => DeclareError;
