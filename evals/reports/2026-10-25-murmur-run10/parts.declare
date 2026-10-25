@@ -1,0 +1,210 @@
+/*
+# Parts
+
+The pieces every screen shares: where the service lives, how times and dates
+are written, the colors, the marks, and a person's face.
+*/
+
+script {
+    // the conversation service; every path the history gives is relative to it
+    const API = "http://localhost:8330/"
+    const LIVE = "ws://localhost:8330/live"
+
+    function media(path: string): string { return API + path }
+
+    function pad2(n: number): string { return n < 10 ? "0" + n : "" + n }
+    function localDay(iso: string): string { const d = new Date(iso); return d.getFullYear() + "-" + (d.getMonth() + 1) + "-" + d.getDate() }
+    function minutesApart(a: string, b: string): number { return Math.abs(Date.parse(b) - Date.parse(a)) / 60000 }
+
+    function clockTime(iso: string): string {
+        return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+        }
+
+    // the heading over a day in a conversation: near days by name, older ones in full
+    function dayHeading(iso: string, today: string): string {
+        const d = new Date(iso), t = new Date(today)
+        const days = Math.round((Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) - Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000)
+        if (days == 0) return "Today"
+        if (days == 1) return "Yesterday"
+        if (days < 7) return d.toLocaleDateString("en-US", { weekday: "long" })
+        return d.toLocaleDateString("en-US", d.getFullYear() == t.getFullYear()
+            ? { weekday: "long", month: "long", day: "numeric" }
+            : { month: "long", day: "numeric", year: "numeric" })
+        }
+
+    // the stamp on a conversation in the list: a time today, a weekday this week, a date before
+    function listStamp(iso: string, today: string): string {
+        if (iso == "") return ""
+        const d = new Date(iso), t = new Date(today)
+        const days = Math.round((Date.UTC(t.getFullYear(), t.getMonth(), t.getDate()) - Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())) / 86400000)
+        if (days == 0) return clockTime(iso)
+        if (days == 1) return "Yesterday"
+        if (days < 7) return d.toLocaleDateString("en-US", { weekday: "short" })
+        return d.toLocaleDateString("en-US", d.getFullYear() == t.getFullYear() ? { month: "short", day: "numeric" } : { month: "numeric", day: "numeric", year: "2-digit" })
+        }
+
+    function duration(sec: number): string {
+        const s = Math.max(0, Math.round(sec))
+        return Math.floor(s / 60) + ":" + pad2(s % 60)
+        }
+
+    function initials(name: string): string {
+        const w = name.split(/\s+/).filter((x) => x.length > 0)
+        return w.length == 0 ? "?" : w.length == 1 ? w[0].slice(0, 1).toUpperCase() : (w[0][0] + w[w.length - 1][0]).toUpperCase()
+        }
+
+    function firstName(name: string): string { return name.split(" ")[0] }
+
+    // a person's place in the six-hue palette, stable for the person
+    function hueOf(pid: string): number {
+        let h = 0
+        for (let i = 0; i < pid.length; i++) h = (h * 31 + pid.charCodeAt(i)) % 9973
+        return h % 6
+        }
+
+    // "Priya", "Priya and Dana", "Priya, Dana and 2 others"
+    function nameList(names: string[]): string {
+        if (names.length <= 1) return names.join("")
+        if (names.length == 2) return names[0] + " and " + names[1]
+        if (names.length == 3) return names[0] + ", " + names[1] + " and " + names[2]
+        return names[0] + ", " + names[1] + " and " + (names.length - 2) + " others"
+        }
+
+    // one line of a message, for the list
+    function previewOf(kind: string, text: string, voiceSec: number): string {
+        if (kind == "photo") return "Photo"
+        if (kind == "voice") return "Voice message · " + duration(voiceSec)
+        return text.replace(/\s+/g, " ")
+        }
+    }
+
+
+/* ── the colors ──
+
+   Paper and ink. The page is a warm off-white rather than a screen white, your
+   own words are set in one deep ink, and everyone else speaks in a hue of
+   their own: a pale wash on their bubbles and a deep tone on their name, so in
+   a group who said what reads before a single name is read. Dark mode is the
+   same idea after sundown. */
+
+theme MurmurLight [
+    background = #F5F2EC, surface = #FFFFFF, line = #E4DED4, rail = #EDE8E0,
+    text = #1D1A16, textMuted = #7B7369, textFaint = #ADA59B,
+    accent = #3A3FB4, accentTextColor = #FFFFFF, accentHovered = #3238A3, accentPressed = #2A2F8C,
+    control = #FFFFFF, controlHovered = #F4F1EB, controlPressed = #E9E4DB, controlSelected = #E8E6F7,
+    mineBubble = #3A3FB4, mineText = #FFFFFF, mineMuted = #C9CBF0,
+    theirsBubble = #FFFFFF, theirsText = #1D1A16, theirsEdge = #E4DED4,
+    rowSelected = #E9E5DD, unreadDot = #3A3FB4, photoWell = #E6E0D6, chip = #FFFFFFE8,
+    wave = #C4BDB2, waveMine = #7C80D6,
+    wash0 = #FBE6DA, wash1 = #DDEFE1, wash2 = #DFE8FA, wash3 = #F1E2F2, wash4 = #F8EDCB, wash5 = #D9EFEF,
+    ink0 = #B4532A, ink1 = #3B7A4C, ink2 = #3560B8, ink3 = #8E4596, ink4 = #94700F, ink5 = #2A7F80,
+    viewerBg = #0E0D0B
+    ]
+
+
+theme MurmurDark [
+    background = #141310, surface = #1C1A17, line = #2E2B26, rail = #191815,
+    text = #EFEAE2, textMuted = #9D958A, textFaint = #6A635A,
+    accent = #8E93F2, accentTextColor = #12122A, accentHovered = #9EA2F5, accentPressed = #7C81E6,
+    control = #24221E, controlHovered = #2C2925, controlPressed = #34302B, controlSelected = #2A2A45,
+    mineBubble = #4C52D0, mineText = #FFFFFF, mineMuted = #BFC2F5,
+    theirsBubble = #25231F, theirsText = #EFEAE2, theirsEdge = #2E2B26,
+    rowSelected = #26241F, unreadDot = #8E93F2, photoWell = #2A2723, chip = #25231FE8,
+    wave = #5E574E, waveMine = #9DA1F0,
+    wash0 = #3A2519, wash1 = #1E3324, wash2 = #1F2A40, wash3 = #33223A, wash4 = #362D14, wash5 = #183333,
+    ink0 = #F0A07A, ink1 = #8FD3A0, ink2 = #9DB8F2, ink3 = #E0A3E6, ink4 = #E8C766, ink5 = #7FD3D3,
+    viewerBg = #000000
+    ]
+
+
+/* ── marks ── each in the library's 16-box, one stroke weight, round caps */
+
+class PlayIcon extends Icon [
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.fillStyle = ink
+        d.beginPath(); d.moveTo(5, 3.2); d.lineTo(13, 8); d.lineTo(5, 12.8); d.closePath(); d.fill()
+        }
+    ]
+
+
+class PauseIcon extends Icon [
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.fillStyle = ink
+        d.fillRect(4, 3.5, 2.8, 9); d.fillRect(9.2, 3.5, 2.8, 9)
+        }
+    ]
+
+
+// a photograph: a frame with a hill and a sun
+
+class PhotoIcon extends Icon [
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink; d.lineWidth = weight / unit; d.lineJoin = "round"; d.lineCap = "round"
+        d.beginPath(); d.roundRect(1.5, 3, 13, 10, 2); d.stroke()
+        d.beginPath(); d.moveTo(2, 12); d.lineTo(6.5, 7.5); d.lineTo(10, 11); d.lineTo(11.5, 9.5); d.lineTo(14.5, 12.5); d.stroke()
+        d.beginPath(); d.arc(11, 6.2, 1.2, 0, Math.PI * 2); d.stroke()
+        }
+    ]
+
+
+// a face with a plus: add a reaction
+
+class ReactIcon extends Icon [
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink; d.lineWidth = weight / unit; d.lineCap = "round"
+        d.beginPath(); d.arc(7, 9, 5.5, 0, Math.PI * 2); d.stroke()
+        d.beginPath(); d.arc(7, 9.4, 2.6, 0.15 * Math.PI, 0.85 * Math.PI); d.stroke()
+        d.beginPath(); d.moveTo(5.2, 7.4); d.lineTo(5.2, 7.5); d.moveTo(8.8, 7.4); d.lineTo(8.8, 7.5); d.stroke()
+        d.beginPath(); d.moveTo(13.5, 1); d.lineTo(13.5, 5); d.moveTo(11.5, 3); d.lineTo(15.5, 3); d.stroke()
+        }
+    ]
+
+
+/*
+## A face
+
+A person's photograph in a circle, or — for someone with no picture, and while
+the picture loads — their initials on their own hue.
+*/
+
+class Avatar [ cornerRadius = { this.width / 2 }, clip = true,
+    pid: string = "",
+    size: number = 40,
+    width = { classroot.size }, height = { classroot.size },
+    person: Person? = { app.store.person(classroot.pid) },
+    fill = { app.wash(classroot.pid) },
+    accessibilityLabel = { classroot.person?.name ?? "" },
+    letters: Text [ x = center, y = center, wrap = false, fontWeight = semibold,
+        fontSize = { Math.round(classroot.size * 0.38) }, textColor = { app.ink(classroot.pid) },
+        text = { initials(classroot.person?.name ?? "") } ],
+    pic: Image [ exists = { (classroot.person?.avatar ?? "") != "" }, width = 100%, height = 100%, stretches = cover,
+        opacity = { this.loaded ? 1 : 0 },
+        source = { media(classroot.person?.avatar ?? "") } ]
+    ]
+
+
+/*
+## A conversation's face
+
+A pair shows the other person. A group shows two of its people, the second
+tucked behind the first, ringed in the surface they sit on.
+*/
+
+class ThreadFace [ size: number = 48,
+    width = { classroot.size }, height = { classroot.size },
+    people: string[] = [],
+    group: boolean = false,
+    ring: Color = { provided("theme").background },      // the surface it sits on, which parts the two faces
+    one: Avatar [ exists = { !classroot.group }, size = { classroot.size }, pid = { classroot.people[0] ?? "" } ],
+    back: Avatar [ exists = { classroot.group }, size = { classroot.size * 0.7 }, x = { classroot.size * 0.3 }, y = 0,
+        pid = { classroot.people[1] ?? "" } ],
+    front: View [ exists = { classroot.group }, x = 0, y = { classroot.size * 0.3 - 2 },
+        width = { classroot.size * 0.7 + 4 }, height = { classroot.size * 0.7 + 4 }, cornerRadius = { this.width / 2 },
+        fill = { classroot.ring },
+        Avatar [ x = 2, y = 2, size = { classroot.size * 0.7 }, pid = { classroot.people[0] ?? "" } ]
+        ]
+    ]

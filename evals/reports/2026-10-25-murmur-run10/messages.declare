@@ -1,0 +1,292 @@
+/*
+# Messages
+
+One row per message, of three kinds. The row decides from its neighbours what
+goes around the message: a day's heading where the day changes, the time where
+the conversation paused, the speaker's name where a run of theirs begins in a
+group, their face where it ends. Consecutive messages from one person draw as
+one column of bubbles, their inner corners tightened so the run reads as one
+turn of speech.
+
+The kind decides only the bubble's content: `TextMsg`, `PhotoMsg`, `VoiceMsg`.
+*/
+
+class Msg [ width = 100%,
+    msgs: Message[] = { provided("msgs") },        // the conversation's messages, from the pane
+    tid: string = { provided("tid") },
+    group: boolean = { provided("group") },
+    lineW: number = { provided("lineW") },
+
+    prev: Message? = { rowIndex > 0 ? classroot.msgs[rowIndex - 1] ?? null : null },
+    next: Message? = { classroot.msgs[rowIndex + 1] ?? null },
+    mine: boolean = { :from == app.store.me },
+    newDay: boolean = { classroot.prev == null || localDay(classroot.prev.at) != localDay(:at) },
+    pause: boolean = { classroot.newDay || minutesApart(classroot.prev?.at ?? :at, :at) > 45 },
+    startsRun: boolean = { classroot.pause || classroot.prev?.from != :from },
+    endsRun: boolean = { classroot.next == null || classroot.next.from != :from
+        || localDay(classroot.next.at) != localDay(:at) || minutesApart(:at, classroot.next.at) > 45 },
+
+    gutter: number = { classroot.group && !classroot.mine ? 36 : 0 },
+    maxW: number = { Math.min(classroot.lineW * 0.78, 520) },
+    bubbleFill: Color = { classroot.mine ? provided("theme").mineBubble
+        : classroot.group ? app.wash(:from) : provided("theme").theirsBubble },
+    inkColor: Color = { classroot.mine ? provided("theme").mineText : provided("theme").theirsText },
+
+    // big outer corners, tight inner ones where the run continues
+
+    corners: [number, number, number, number] = { classroot.mine
+        ? [18, classroot.startsRun ? 18 : 5, classroot.endsRun ? 18 : 5, 18]
+        : [classroot.startsRun ? 18 : 5, 18, 18, classroot.endsRun ? 18 : 5] },
+
+    reactions: Reaction[] = { :reactions ?? [] },
+
+    // the room the reactions hang into: it opens on a spring when the first one
+    // lands, so what is being read glides rather than jumps; a row built with
+    // reactions already on it starts at rest
+
+    room: number = { classroot.reactions.length > 0 ? 16 : 0 },
+    Spring [ attribute = room, to = { classroot.reactions.length > 0 ? 16 : 0 }, stiffness = 180, damping = 26 ],
+    lastMine: boolean = { classroot.mine && provided("myLast") == rowIndex },
+
+    padding = { [classroot.startsRun ? 8 : 1, 0, classroot.endsRun ? 3 : 0, 0] },
+    layout: SimpleLayout [ axis = y ],
+
+    stamp: View [ exists = { classroot.pause }, width = 100%, height = { classroot.newDay ? 58 : 34 },
+        day: Text [ exists = { classroot.newDay }, x = center, y = 18, wrap = false,
+            fontFamily = { app.serif }, fontSize = 15, fontWeight = semibold, textColor = { provided("theme").text },
+            text = { dayHeading(:at, app.today) } ],
+        time: Text [ x = center, y = { classroot.newDay ? 39 : 10 }, wrap = false, fontSize = 11.5,
+            textColor = { provided("theme").textMuted }, numeralWidth = tabular,
+            text = { clockTime(:at) } ]
+        ],
+
+    who: Text [ exists = { classroot.group && !classroot.mine && classroot.startsRun },
+        x = { classroot.gutter + 12 }, padding = [2, 0, 3, 0], wrap = false, maxLines = 1,
+        width = { Math.min(this.contentWidth, classroot.maxW) },
+        fontSize = 12.5, fontWeight = semibold, textColor = { app.ink(:from) },
+        text = { firstName(app.store.nameOf(:from)) } ],
+
+    line: View [ width = 100%,
+        face: Avatar [ exists = { classroot.group && !classroot.mine }, visible = { classroot.endsRun },
+            size = 28, y = { parent.body.height - 28 }, pid = { :from } ],
+
+        // the bubble: each kind fills it. A hold, or a right click, offers reactions.
+
+        body: View [ x = { classroot.mine ? parent.width - this.width : classroot.gutter },
+            onHold(e: PointerEvent) { app.offerReactions(this, classroot.tid, :id) },
+            onContextMenu(e: PointerEvent) { app.offerReactions(this, classroot.tid, :id) }
+            ],
+
+        // where a pointer is, a quiet way to react without knowing the gesture
+
+        add: Control [ visible = { !app.touchDevice && (parent.hovered || this.focused) },
+            width = 30, height = 30, cornerRadius = 15, y = { Math.max(0, parent.body.height / 2 - 15) },
+            x = { classroot.mine ? parent.body.x - 36 : parent.body.x + parent.body.width + 6 },
+            accessibilityLabel = "React",
+            fill = { this.hovered ? provided("theme").controlHovered : null },
+            ReactIcon [ x = center, y = center, iconSize = 17,
+                ink = { parent.hovered ? provided("theme").text : provided("theme").textFaint } ],
+            press() { app.offerReactions(parent.body, classroot.tid, :id) }
+            ],
+
+        // reactions hang off the bubble's lower edge, overlapping it
+
+        reacts: Control [ exists = { classroot.reactions.length > 0 }, opacity = { classroot.room / 16 },
+            y = { parent.body.height - 8 }, height = 24, cornerRadius = 12, padding = [0, 8, 0, 7],
+            x = { classroot.mine ? Math.max(0, parent.body.x + parent.body.width - this.width - 10) : parent.body.x + 10 },
+            fill = { provided("theme").surface },
+            stroke = { stroke(1.5, classroot.reactions.some((r) => r.person == app.store.me) ? provided("theme").accent : provided("theme").background) },
+            shadow = shadow(0, 1, 3, #0000001F),
+            accessibilityLabel = { app.reactionWords(classroot.reactions) },
+            layout: SimpleLayout [ axis = x, spacing = 3, align = center ],
+            marks: Text [ fontSize = 13, wrap = false, text = { app.reactionMarks(classroot.reactions) } ],
+            count: Text [ exists = { classroot.reactions.length > 1 }, fontSize = 11.5, fontWeight = semibold,
+                wrap = false, textColor = { provided("theme").textMuted }, text = { "" + classroot.reactions.length } ],
+            press() { app.offerReactions(parent.body, classroot.tid, :id) }
+            ]
+        ],
+
+    // the fate of your latest message: on its way, arrived, read
+
+    status: Text [ exists = { classroot.lastMine }, x = { parent.width - this.width - 4 },
+        padding = { [4 + classroot.room, 0, 2, 0] },
+        fontSize = 11.5, wrap = false, textColor = { provided("theme").textMuted },
+        text = { app.statusOf(classroot.tid, classroot.rowIndex, :pending ?? false) } ],
+
+    // where the reactions overhang, the run opens to make room for them
+
+    spill: View [ exists = { classroot.room > 0 && !classroot.lastMine }, width = 1, height = { classroot.room } ],
+
+    defaultplacement = body
+    ]
+
+
+/*
+## Written text
+
+As wide as what it says, up to the line length; never wider.
+*/
+
+class TextMsg extends Msg [
+    bubble: View [ cornerRadius = { classroot.corners }, fill = { classroot.bubbleFill },
+        stroke = { classroot.mine || classroot.group ? null : stroke(1, provided("theme").theirsEdge) },
+        padding = [8, 13, 9, 13],
+        words: Text [ wrapWidth = { classroot.maxW - 26 }, fontSize = { app.wide ? 15 : 16 }, lineHeight = 1.32,
+            selectable = { !app.touchDevice }, textColor = { classroot.inkColor }, text = { :text ?? "" } ]
+        ]
+    ]
+
+
+/*
+## A photograph
+
+Shown whole, at its own proportions, inside a box no taller than a phone's
+glance and no wider than the line: the box takes the picture's shape the
+moment its size is known, and the record remembers that shape, so scrolling
+back to it never measures it twice. Until then it is a quiet well holding the
+picture's description. A tap opens it at full size.
+*/
+
+class PhotoMsg extends Msg [
+    aspect: number = { :aspect ?? 4 / 3 },
+    maxH: number = { app.wide ? 360 : 320 },
+    boxW: number = { Math.round(Math.min(Math.min(classroot.lineW * 0.8, 400), classroot.maxH * classroot.aspect)) },
+    boxH: number = { Math.round(classroot.boxW / classroot.aspect) },
+
+    frame: Control [ width = { classroot.boxW }, height = { classroot.boxH }, clip = true,
+        cornerRadius = { classroot.corners }, fill = { provided("theme").photoWell },
+        accessibilityLabel = { "Photo: " + (:alt ?? "") },
+        alt: Text [ visible = { !parent.pic.loaded }, x = center, y = center, width = { parent.width - 32 },
+            textAlign = center, fontSize = 12.5, maxLines = 3, textColor = { provided("theme").textMuted },
+            text = { parent.pic.failed ? "This photo didn’t load" : (:alt ?? "") } ],
+        pic: Image [ width = 100%, height = 100%, stretches = contain, source = { media(:src ?? "") },
+            opacity = 0,
+            Spring [ attribute = opacity, to = { parent.loaded ? 1 : 0 }, stiffness = 120, damping = 22 ],
+            trackChanges = ["loaded"],
+            onChange() { if (this.loaded && this.naturalHeight > 0) classroot.learn(this.naturalWidth / this.naturalHeight) }
+            ],
+        press() { app.viewPhoto(:src ?? "", :alt ?? "") }
+        ],
+
+    learn(a: number) {
+        if (Math.abs(a - classroot.aspect) > 0.01) { :aspect = a }
+        }
+    ]
+
+
+/*
+## A voice
+
+Play, a waveform to scrub, and the time: the whole length before it plays,
+the time heard while it plays. Only one voice speaks at a time — `app.playing`
+names it, and every other one falls quiet because its condition stops
+holding.
+*/
+
+class VoiceMsg extends Msg [
+    on: boolean = { app.playing == :id },
+    total: number = { (:durationMs ?? 0) / 1000 },
+    head: number = 0,                                  // seconds heard, moving smoothly
+    started: boolean = { classroot.on || classroot.head > 0 },
+
+    audio: Audio [ source = { media(:src ?? "") }, playing = { classroot.on },
+        onEnded() { app.playing = ""; classroot.head = 0 }
+        ],
+    Time [ exists = { classroot.on }, tick = frame,
+        onTick(dt: number) {
+            const next = classroot.head + dt, heard = classroot.audio.position
+            classroot.head = Math.min(classroot.total, Math.abs(next - heard) > 0.35 ? heard : next)
+            }
+        ],
+
+    seek(frac: number) {
+        head = Math.max(0, Math.min(1, frac)) * total
+        audio.position = head
+        },
+
+    bubble: View [ cornerRadius = { classroot.corners }, fill = { classroot.bubbleFill },
+        stroke = { classroot.mine || classroot.group ? null : stroke(1, provided("theme").theirsEdge) },
+        padding = [8, 14, 8, 8],
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+
+        play: Control [ width = 36, height = 36, cornerRadius = 18,
+            accessibilityLabel = { classroot.on ? "Pause" : "Play voice message" },
+            fill = { classroot.mine ? provided("theme").mineText : provided("theme").accent },
+            opacity = { this.pressed ? 0.75 : 1 },
+            PlayIcon [ visible = { !classroot.on }, x = 10, y = center, iconSize = 17,
+                ink = { classroot.mine ? provided("theme").mineBubble : provided("theme").accentTextColor } ],
+            PauseIcon [ visible = { classroot.on }, x = center, y = center, iconSize = 16,
+                ink = { classroot.mine ? provided("theme").mineBubble : provided("theme").accentTextColor } ],
+            press() { app.playing = classroot.on ? "" : :id }
+            ],
+
+        scrub: Scrubber [ width = { Math.max(120, Math.min(classroot.lineW * 0.78, 300) - 130) }, height = 40,
+            peaks = { :peaks ?? [] }, total = { classroot.total },
+            at = { classroot.total > 0 ? classroot.head / classroot.total : 0 },
+            live = { classroot.started },
+            heard = { classroot.mine ? provided("theme").mineText : provided("theme").accent },
+            unheard = { classroot.mine ? provided("theme").waveMine : provided("theme").wave },
+            input(frac: number) { classroot.seek(frac) }
+            ],
+
+        time: Text [ width = 38, wrap = false, fontSize = 12.5, numeralWidth = tabular, fontWeight = medium,
+            textColor = { classroot.mine ? provided("theme").mineMuted : provided("theme").textMuted },
+            text = { duration(classroot.started ? classroot.head : classroot.total) } ]
+        ]
+    ]
+
+
+/*
+## The scrubber
+
+The recording's own loudness, drawn as bars — the shape of the voice is the
+track. What has been heard is inked, what has not is faint, and a thin line
+marks the point. Touch or press anywhere on it to go there, drag to search;
+a finger moving up or down still scrolls the conversation. The arrow keys
+step five seconds.
+*/
+
+class Scrubber extends Control [
+    peaks: number[] = [],
+    total: number = 0,
+    at: number = 0,                                     // 0–1, where the head is
+    live: boolean = false,                              // started, so the head is shown
+    heard: Color = black,
+    unheard: Color = gray,
+    accessibilityRole = slider,
+    accessibilityLabel = { "Position, " + duration(this.at * this.total) + " of " + duration(this.total) },
+    claim = x,
+    accessibilityValue = { Math.round(this.at * this.total) },
+    accessibilityMin = 0,
+    accessibilityMax = { Math.round(this.total) },
+    step: number = { this.total > 0 ? 5 / this.total : 0.1 },
+    accessibilityIncrement() { this.input(Math.min(1, this.at + this.step)) },
+    accessibilityDecrement() { this.input(Math.max(0, this.at - this.step)) },
+
+    input(frac: number) { },
+    onPointerDown(e: PointerEvent) { this.input(e.x / this.width) },
+    onPointerMove(e: PointerEvent) { if (this.pressed) this.input(e.x / this.width) },
+    onKeyDown(e: KeyEvent) {
+        if (e.key == "ArrowRight") this.accessibilityIncrement()
+        else if (e.key == "ArrowLeft") this.accessibilityDecrement()
+        },
+
+    draw(d: Draw) {
+        const n = this.peaks.length
+        if (n == 0) return
+        const w = this.width, h = this.height
+        const pitch = w / n, bar = Math.max(1.5, pitch * 0.58)
+        for (let i = 0; i < n; i++) {
+            const bh = Math.max(3, Math.min(1, this.peaks[i] * 1.15) * (h - 8))
+            const x = i * pitch + (pitch - bar) / 2
+            d.fillStyle = (i + 0.5) / n <= this.at ? this.heard : this.unheard
+            d.beginPath(); d.roundRect(x, (h - bh) / 2, bar, bh, bar / 2); d.fill()
+            }
+        if (this.live || this.pressed) {
+            const px = Math.max(1, Math.min(w - 1, this.at * w))
+            d.fillStyle = this.heard
+            d.fillRect(px - 0.75, 2, 1.5, h - 4)
+            d.beginPath(); d.arc(px, 3, 3, 0, Math.PI * 2); d.fill()
+            }
+        }
+    ]

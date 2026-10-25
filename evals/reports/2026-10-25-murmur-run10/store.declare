@@ -1,0 +1,108 @@
+/*
+# The conversations
+
+Everything the service knows, held once. The history arrives in one fetch;
+after that the live feed writes into the same records, and nothing fetches
+again, so no refresh can overwrite what arrived. Every write goes through this
+class: a message arriving, one being sent and then confirmed, a reaction, the
+reader catching up.
+
+A sent message keeps the id the app gave it for its whole life; the service's
+id arrives later as `sid`, so the row showing it is never rebuilt and the
+service's references to it (a reaction, a read receipt) still find it.
+*/
+
+schema Reaction [ person: string, emoji: string ]
+
+schema Message [ id: string, from: string, at: string, kind: "text" | "photo" | "voice",
+    text?: string, src?: string, alt?: string, durationMs?: number, peaks?: number[],
+    reactions?: Reaction[], sid?: string, pending?: boolean ]
+
+schema Person [ id: string, name: string, avatar?: string ]
+
+schema Sendable [ src: string, alt: string ]
+
+schema Thread [ id: string, title?: string, participants: string[], lastSeen: string, messages[]: Message ]
+
+// one conversation as the list shows it: derived, read-only
+
+schema Summary [ id: string, name: string, group: boolean, people: string[], preview: string,
+    at: string, unread: number, composing: string, composingId: string ]
+
+
+class Conversations extends DataSource [ url = { API + "threads.json" }, auto = true,
+    schema = [ me: string, people[]: Person, sendable[]: Sendable, threads[]: Thread ],
+
+    me: string = { this.value?.me ?? "" },
+    threads() -> Thread[] { return this.value?.threads ?? [] },
+    slot(tid: string) -> number { return this.threads().findIndex((t) => t.id == tid) },
+    thread(tid: string) -> Thread? { return this.threads().find((t) => t.id == tid) ?? null },
+    person(pid: string) -> Person? { return (this.value?.people ?? []).find((p) => p.id == pid) ?? null },
+    nameOf(pid: string) -> string { return this.person(pid)?.name ?? "Someone" },
+
+    // a message by the id the app or the service knows it by, searched from the
+    // newest end: what the feed refers to is nearly always recent
+
+    find(t: Thread, mid: string) -> number {
+        const ms = t.messages
+        for (let i = ms.length - 1; i >= 0; i--) if (ms[i].id == mid || ms[i].sid == mid) return i
+        return -1
+        },
+
+    // what the reader has not yet seen: messages from others after lastSeen
+
+    unread(t: Thread) -> number {
+        const ms = t.messages
+        let n = 0
+        for (let i = ms.length - 1; i >= 0; i--) {
+            if (ms[i].id == t.lastSeen || ms[i].sid == t.lastSeen) break
+            if (ms[i].from != this.me) n++
+            }
+        return n
+        },
+
+    // ── writes ──
+
+    append(tid: string, m: Message) {
+        const i = this.slot(tid)
+        if (i >= 0) this.set(`/threads/${i}/messages/-`, m)
+        },
+
+    // the service's answer to a send: the message keeps its own id and row,
+    // and takes the service's id and time
+
+    confirm(ref: string, m: Message) {
+        const ts = this.threads()
+        for (let i = 0; i < ts.length; i++) {
+            const j = this.find(ts[i], ref)
+            if (j < 0) continue
+            this.set(["threads", i, "messages", j, "sid"], m.id)
+            this.set(["threads", i, "messages", j, "at"], m.at)
+            this.set(["threads", i, "messages", j, "pending"], false)
+            if (ts[i].lastSeen == ref) this.set(["threads", i, "lastSeen"], m.id)
+            return
+            }
+        },
+
+    // one mark per person per emoji: the service echoes our own reactions back
+
+    react(tid: string, mid: string, person: string, emoji: string) {
+        const i = this.slot(tid)
+        if (i < 0) return
+        const j = this.find(this.threads()[i], mid)
+        if (j < 0) return
+        const had = this.threads()[i].messages[j].reactions ?? []
+        if (had.some((r) => r.person == person && r.emoji == emoji)) return
+        this.set(["threads", i, "messages", j, "reactions"], [...had, { person: person, emoji: emoji }])
+        },
+
+    markRead(tid: string) {
+        const i = this.slot(tid)
+        if (i < 0) return
+        const ms = this.threads()[i].messages
+        if (ms.length == 0) return
+        const last = ms[ms.length - 1]
+        const id = last.sid ?? last.id
+        if (this.threads()[i].lastSeen != id) this.set(["threads", i, "lastSeen"], id)
+        }
+    ]

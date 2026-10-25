@@ -1,0 +1,902 @@
+/*
+# Conduit
+
+The RealWorld app — a Medium-style blog — as a front end for any backend
+that follows the RealWorld API spec (https://github.com/gothinkster/realworld).
+
+- **The server is the truth.** Every list, article, comment and profile is a
+  `DataSource` whose `url` derives from where the user is, with `auto` on:
+  move to another page, tab, tag or page number and the right request goes
+  out, because the address changed. Nothing fetches on a timer and nothing
+  copies server data into local state, except the token.
+- **Where the user is** is `location` — the spec's routes, as one string:
+  "" (home), "login", "register", "settings", "editor", "editor/<slug>",
+  "article/<slug>", "profile/<name>", "profile/<name>/favorites". Pages
+  derive their visibility from it; links write it.
+- **Signed in** is one fact, `token`, kept in the browser. Every source's
+  `Authorization` header derives from it, and a header with no value is not
+  sent, so signed-out requests need no second path.
+- **Writes are sources too.** Favorite, follow, publish, comment, sign in:
+  each a `DataSource` with a method and a body, fetched from a handler. Its
+  reply is merged where it shows, and its refusal — the spec's
+  `{ errors: { field: [...] } }` — is listed above the form that sent it.
+*/
+
+script [ "conduit.ts" ]
+
+script [ "session.ts", host = browser ]
+
+schema Profile [ username: string, bio?: string, image?: string, following: boolean ]
+schema Article [ slug: string, title: string, description: string, body?: string, tagList[]: string,
+    createdAt: string, updatedAt: string, favorited: boolean, favoritesCount: number, author: Profile ]
+schema User [ email: string, token: string, username: string, bio?: string, image?: string ]
+schema Comment [ id: number, createdAt: string, updatedAt: string, body: string, author: Profile ]
+
+
+/*
+## Reading
+
+A page of articles, and the one fix-up a reply makes to it: a favorite
+toggled anywhere lands in whichever list or article is showing.
+*/
+
+class ArticleList extends DataSource [ auto = true, schema = [ articles[]: Article, articlesCount: number ],
+    headers = { app.auth },
+    articles() -> Article[] { return this.value?.articles ?? [] },
+    pages() -> number { return Math.ceil((this.value?.articlesCount ?? 0) / app.pageSize) },
+    merge(a: Article) {
+        const i = this.articles().findIndex((x) => x.slug == a.slug)
+        if (i < 0) return
+        this.set(["articles", i, "favorited"], a.favorited)
+        this.set(["articles", i, "favoritesCount"], a.favoritesCount)
+        }
+    ]
+
+
+// Conduit's palette, over San Francisco (whose tokens the library controls read)
+
+theme Conduit [
+    background = #FFFFFF, surface = #FFFFFF, text = #373A3C, textMuted = #818A91, textFaint = #BBBBBB,
+    accent = #5CB85C, accentHovered = #449D44, accentPressed = #398439, line = #E5E5E5,
+    brand = #5CB85C, brandDeep = #3D8B3D, ink = #373A3C, quiet = #999999, faint = #BBBBBB,
+    pill = #818A91, pillHover = #687077, wash = #F3F3F3, darkBanner = #333333,
+    danger = #B85C5C, dangerWash = #B85C5C, onBrand = #FFFFFF, fieldEdge = #CCCCCC
+    ]
+
+
+/*
+## Icons — the five marks the templates use, drawn in a 16 box
+*/
+
+class HeartIcon extends Icon [
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.fillStyle = ink
+        d.beginPath()
+        d.moveTo(8, 14)
+        d.bezierCurveTo(2, 9.5, 1, 7, 1, 5)
+        d.bezierCurveTo(1, 2.6, 2.9, 1.5, 4.6, 1.5)
+        d.bezierCurveTo(6.2, 1.5, 7.4, 2.5, 8, 3.6)
+        d.bezierCurveTo(8.6, 2.5, 9.8, 1.5, 11.4, 1.5)
+        d.bezierCurveTo(13.1, 1.5, 15, 2.6, 15, 5)
+        d.bezierCurveTo(15, 7, 14, 9.5, 8, 14)
+        d.fill()
+        }
+    ]
+
+
+class PencilIcon extends Icon [
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.lineWidth = weight / unit
+        d.lineJoin = "round"
+        d.beginPath()
+        d.moveTo(2.5, 13.5); d.lineTo(3.2, 10.4); d.lineTo(11, 2.6); d.lineTo(13.4, 5); d.lineTo(5.6, 12.8); d.closePath()
+        d.stroke()
+        d.beginPath(); d.moveTo(9.4, 4.2); d.lineTo(11.8, 6.6); d.stroke()
+        }
+    ]
+
+
+class TrashIcon extends Icon [
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath(); d.moveTo(2.5, 4); d.lineTo(13.5, 4); d.stroke()
+        d.beginPath(); d.moveTo(6, 4); d.lineTo(6.5, 2); d.lineTo(9.5, 2); d.lineTo(10, 4); d.stroke()
+        d.beginPath(); d.moveTo(3.8, 4); d.lineTo(4.6, 14); d.lineTo(11.4, 14); d.lineTo(12.2, 4); d.stroke()
+        }
+    ]
+
+
+class GearIcon extends Icon [
+    draw(d: Draw) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.lineWidth = weight / unit
+        d.lineJoin = "round"
+        d.beginPath()
+        for (let i = 0; i < 16; i++) {
+            const a = (i / 16) * Math.PI * 2
+            const r = i % 2 == 0 ? 6.8 : 5.2
+            const b = a + Math.PI / 8
+            d.lineTo(8 + r * Math.cos(a), 8 + r * Math.sin(a))
+            d.lineTo(8 + r * Math.cos(b), 8 + r * Math.sin(b))
+            }
+        d.closePath()
+        d.stroke()
+        d.beginPath(); d.arc(8, 8, 2.2, 0, Math.PI * 2); d.stroke()
+        }
+    ]
+
+
+/*
+## Small pieces
+*/
+
+// Conduit's button: an outlined pill that fills when pressed (or always, `solid`)
+
+class Btn extends Control [ height = { big || app.touchDevice ? 44 : 30 }, cornerRadius = { big ? 5 : 3 },
+    label: string = "",
+    tone: "brand" | "plain" | "danger" = "plain",
+    solid: boolean = false,
+    big: boolean = false,
+    icon: string = "",
+    busy: boolean = false,
+    toneColor: Color = { tone == "brand" ? provided("theme").brand : tone == "danger" ? provided("theme").danger : provided("theme").textFaint },
+    filled: boolean = { solid || hovered || pressed },
+    fill = { filled ? (tone == "plain" && !solid ? provided("theme").wash : toneColor) : null },
+    stroke = { stroke(1, toneColor) },
+    opacity = { disabled || busy ? 0.6 : 1 },
+    padding = { big ? [0, 22, 0, 22] : [0, 10, 0, 10] },
+    layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+    ink: Color = { filled && (tone != "plain" || solid) ? provided("theme").onBrand : tone == "plain" ? provided("theme").quiet : toneColor },
+    HeartIcon [ visible = { classroot.icon == "heart" }, iconSize = 12, ink = { classroot.ink } ],
+    PlusIcon [ visible = { classroot.icon == "plus" }, iconSize = 11, ink = { classroot.ink } ],
+    PencilIcon [ visible = { classroot.icon == "pencil" }, iconSize = 12, ink = { classroot.ink } ],
+    TrashIcon [ visible = { classroot.icon == "trash" }, iconSize = 12, ink = { classroot.ink } ],
+    GearIcon [ visible = { classroot.icon == "gear" }, iconSize = 12, ink = { classroot.ink } ],
+    TextLabel [ fontSize = { classroot.big ? 18 : 14 }, wrap = false, textColor = { classroot.ink }, text = { classroot.label } ]
+    ]
+
+
+// a round portrait, or the spec's smiley when there is none
+
+class Avatar [ clip = true,
+    size: number = 32,
+    src: string = "",
+    width = { size }, height = { size }, cornerRadius = { size / 2 },
+    fill = { provided("theme").wash },
+    pic: Image [ width = 100%, height = 100%, stretches = cover,
+        source = { classroot.src != "" ? classroot.src : app.home + "default-avatar.svg" } ]
+    ]
+
+
+// a tag: outlined in lists and articles, solid in the sidebar where it is a button
+
+class TagPill [ height = 22, cornerRadius = 11, padding = [0, 8, 0, 8],
+    t: string = "",
+    hollow: boolean = true,
+    fill = { hollow ? null : provided("theme").pill },
+    stroke = { hollow ? stroke(1, provided("theme").line) : null },
+    TextLabel [ fontSize = 12.5, wrap = false, textColor = { classroot.hollow ? provided("theme").faint : provided("theme").onBrand },
+        text = { classroot.t } ]
+    ]
+
+
+class TagButton extends Control [ height = { app.touchDevice ? 32 : 22 }, cornerRadius = 11, padding = [0, 8, 0, 8],
+    t: string = "",
+    fill = { hovered ? provided("theme").pillHover : provided("theme").pill },
+    TextLabel [ fontSize = 12.5, wrap = false, textColor = { provided("theme").onBrand }, text = { classroot.t } ],
+    press() { app.showTag(t) }
+    ]
+
+
+// a tab in a feed toggle; the current one is underlined in the brand color
+
+class Tab extends Control [ height = { app.touchDevice ? 44 : 40 }, padding = [0, 16, 0, 16],
+    label: string = "",
+    on: boolean = false,
+    accessibilityRole = tab,
+    accessibilitySelected = { on },
+    stroke = { on ? [null, null, stroke(2, provided("theme").brand), null] : null },
+    TextLabel [ fontSize = 16, wrap = false,
+        textColor = { classroot.on ? provided("theme").brand : classroot.hovered ? provided("theme").textMuted : provided("theme").faint },
+        text = { classroot.label } ]
+    ]
+
+
+// the line of messages a refusal carries, above the form that was refused
+
+class Errors [ width = 100%, visible = { lines.length > 0 },
+    lines: string[] = [],
+    Text [ width = 100%, fontSize = 15, fontWeight = bold, textColor = { provided("theme").danger },
+        text = { classroot.lines.map((l) => "• " + l).join("\n") } ]
+    ]
+
+
+// a field in Conduit's style: a grey edge that turns brand-colored with focus
+
+class Input extends TextInput [ width = 100%, height = { big ? 50 : 38 }, fontSize = { big ? 20 : 16 },
+    big: boolean = false,
+    padding = [0, 14, 0, 14], cornerRadius = 4,
+    fill = { provided("theme").surface },
+    stroke = { stroke(1, this.focused ? provided("theme").brand : provided("theme").fieldEdge) }
+    ]
+
+
+class Prose extends TextInput [ width = 100%, multiline = true, wrap = true, fontSize = 16,
+    padding = [10, 14, 10, 14], cornerRadius = 4,
+    fill = { provided("theme").surface },
+    stroke = { stroke(1, this.focused ? provided("theme").brand : provided("theme").fieldEdge) }
+    ]
+
+
+// who wrote it and when, as the templates lay it out
+
+class Meta [ height = 36,
+    onDark: boolean = false,
+    who: Profile? = null,
+    when: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    Avatar [ size = 32, src = { classroot.who?.image ?? "" }, link = { "#profile/" + (classroot.who?.username ?? "") } ],
+    info: View [ layout: SimpleLayout [ axis = y ],
+        Text [ fontSize = 15, fontWeight = medium, wrap = false,
+            textColor = { classroot.onDark ? provided("theme").onBrand : provided("theme").brand },
+            link = { "#profile/" + (classroot.who?.username ?? "") }, text = { classroot.who?.username ?? "" } ],
+        Text [ fontSize = 12.5, wrap = false, textColor = { provided("theme").faint }, text = { longDate(classroot.when) } ]
+        ]
+    ]
+
+
+/*
+## An article in a list
+*/
+
+class Preview [ width = 100%, padding = [24, 0, 24, 0],
+    stroke = { rowIndex > 0 ? [stroke(1, provided("theme").line), null, null, null] : null },
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    top: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, align = center ],
+        Meta [ who = :author, when = :createdAt ],
+        Spacer [ ],
+        fav: Btn [ tone = "brand", icon = "heart", label = { "" + :favoritesCount }, solid = :favorited,
+            accessibilityLabel = { (:favorited ? "Unfavorite " : "Favorite ") + :title },
+            press() { app.toggleFavorite(:slug, !:favorited) }
+            ]
+        ],
+    body: View [ width = 100%, link = { "#article/" + :slug },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        Text [ width = 100%, fontSize = 24, fontWeight = semibold, textColor = { provided("theme").ink }, text = :title ],
+        Text [ width = 100%, fontSize = 16, fontWeight = light, textColor = { provided("theme").quiet }, text = :description ],
+        foot: View [ width = 100%, padding = [10, 0, 0, 0],
+            layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+            Text [ fontSize = 12.5, wrap = false, textColor = { provided("theme").faint }, text = "Read more..." ],
+            Spacer [ ],
+            tags: View [ layout: SimpleLayout [ axis = x, spacing = 4 ],
+                TagPill [ datapath = :tagList[], t = :@ ]
+                ]
+            ]
+        ]
+    ]
+
+
+// a page of articles, its empty and loading states, and its page numbers
+
+class Feed [ width = 100%,
+    pageList: Dataset [ contents = { { n: Array.from({ length: app.articles.pages() }, (_, i) => i) } } ],
+    layout: SimpleLayout [ axis = y ],
+    status: Text [ width = 100%, padding = [24, 0, 24, 0], fontSize = 15, textColor = { provided("theme").textMuted },
+        visible = { app.articles.loading && !app.articles.loaded || app.articles.failed || app.articles.loaded && app.articles.articles().length == 0 },
+        text = { app.articles.failed ? "Couldn't load articles: " + app.articles.error
+               : app.articles.loading && !app.articles.loaded ? "Loading articles..." : "No articles are here... yet." } ],
+    list: View [ width = 100%, datapath = { app.articles.value }, opacity = { app.articles.loading ? 0.5 : 1 },
+        layout: SimpleLayout [ axis = y ],
+        Preview [ datapath = :articles[], key = :slug ]
+        ],
+    pager: View [ width = 100%, padding = [16, 0, 32, 0], visible = { app.articles.pages() > 1 },
+        datapath = { classroot.pageList.value },
+        layout: WrappingLayout [ spacing = 0, rowSpacing = 4 ],
+        PageNum [ datapath = :n[], n = :@ ]
+        ]
+    ]
+
+
+class PageNum extends Control [ height = { app.touchDevice ? 44 : 36 }, padding = { app.touchDevice ? [0, 16, 0, 16] : [0, 12, 0, 12] },
+    n: number = 0,
+    on: boolean = { app.page == n },
+    accessibilityLabel = { "Page " + (n + 1) },
+    accessibilityPressed = { on },
+    fill = { on ? provided("theme").brand : hovered ? provided("theme").wash : provided("theme").surface },
+    stroke = { stroke(1, on ? provided("theme").brand : provided("theme").line) },
+    TextLabel [ fontSize = 15, wrap = false, textColor = { classroot.on ? provided("theme").onBrand : provided("theme").brand },
+        text = { "" + (classroot.n + 1) } ],
+    press() { app.page = n }
+    ]
+
+
+/*
+## Forms
+
+Each form is built when its page opens and discarded when it closes, so it
+starts empty every time; its fields are its own attributes, and the source
+that sends them is its own member.
+*/
+
+class AuthForm [ width = { Math.min(540, app.colW) }, x = center, padding = [24, 0, 48, 0],
+    joining: boolean = false,
+    username: string = "",
+    email: string = "",
+    password: string = "",
+    send: DataSource [ method = "POST", schema = [ user: User ],
+        url = { app.api + (classroot.joining ? "/users" : "/users/login") },
+        body = { classroot.joining
+            ? ({ user: { username: classroot.username, email: classroot.email, password: classroot.password } })
+            : ({ user: { email: classroot.email, password: classroot.password } }) },
+        onLoad() { app.signIn(this.value!.user) }
+        ],
+    submit() { if (!send.loading) send.fetch() },
+
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+    Text [ x = center, fontSize = 40, fontWeight = medium, textColor = { provided("theme").ink },
+        text = { classroot.joining ? "Sign up" : "Sign in" } ],
+    Text [ x = center, fontSize = 16, textColor = { provided("theme").brand },
+        link = { classroot.joining ? "#login" : "#register" },
+        text = { classroot.joining ? "Have an account?" : "Need an account?" } ],
+    errs: Errors [ lines = { classroot.send.failed ? errorLines(classroot.send.errorBody, classroot.send.error) : [] } ],
+    name: Input [ big = true, visible = { classroot.joining }, placeholder = "Username", purpose = username,
+        onInput(v: string) { classroot.username = v },
+        onEnter() { classroot.submit() }
+        ],
+    mail: Input [ big = true, placeholder = "Email", purpose = email,
+        onInput(v: string) { classroot.email = v },
+        onEnter() { classroot.submit() }
+        ],
+    pass: Input [ big = true, placeholder = "Password", concealed = true,
+        purpose = { classroot.joining ? "newPassword" : "password" },
+        onInput(v: string) { classroot.password = v },
+        onEnter() { classroot.submit() }
+        ],
+    go: Btn [ x = end, big = true, tone = "brand", solid = true, busy = { classroot.send.loading },
+        label = { classroot.joining ? "Sign up" : "Sign in" },
+        press() { classroot.submit() }
+        ]
+    ]
+
+
+class SettingsForm [ width = { Math.min(540, app.colW) }, x = center, padding = [24, 0, 48, 0],
+    image: string = { app.user?.image ?? "" },
+    username: string = { app.user?.username ?? "" },
+    bio: string = { app.user?.bio ?? "" },
+    email: string = { app.user?.email ?? "" },
+    password: string = "",
+    send: DataSource [ method = "PUT", schema = [ user: User ], headers = { app.auth },
+        url = { app.api + "/user" },
+        body = { { user: { image: classroot.image, username: classroot.username, bio: classroot.bio, email: classroot.email,
+                           ...(classroot.password != "" ? { password: classroot.password } : {}) } } },
+        onLoad() { app.signIn(this.value!.user) }
+        ],
+
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+    Text [ x = center, fontSize = 40, fontWeight = medium, textColor = { provided("theme").ink }, text = "Your Settings" ],
+    Errors [ lines = { classroot.send.failed ? errorLines(classroot.send.errorBody, classroot.send.error) : [] } ],
+    Input [ placeholder = "URL of profile picture", purpose = url,
+        initial = { classroot.image },
+        onInput(v: string) { classroot.image = v }
+        ],
+    Input [ big = true, placeholder = "Your Name",
+        initial = { classroot.username },
+        onInput(v: string) { classroot.username = v }
+        ],
+    bioF: Prose [ height = 200, fontSize = 18, placeholder = "Short bio about you",
+        initial = { classroot.bio },
+        onInput(v: string) { classroot.bio = v }
+        ],
+    Input [ big = true, placeholder = "Email", purpose = email,
+        initial = { classroot.email },
+        onInput(v: string) { classroot.email = v }
+        ],
+    Input [ big = true, placeholder = "New Password", concealed = true, purpose = newPassword,
+        onInput(v: string) { classroot.password = v }
+        ],
+    save: Btn [ x = end, big = true, tone = "brand", solid = true, busy = { classroot.send.loading },
+        label = "Update Settings",
+        press() { if (!classroot.send.loading) classroot.send.fetch() }
+        ],
+    Divider [ ],
+    logout: Btn [ tone = "danger", label = "Or click here to logout.",
+        press() { app.signOut() }
+        ]
+    ]
+
+
+class EditorForm [ width = { Math.min(920, app.colW) }, x = center, padding = [24, 0, 48, 0],
+    editing: string = { app.slug },        // "" is a new article
+
+    // an edit starts from the article as the server has it
+
+    title: string = { app.draftSource.value?.article.title ?? "" },
+    description: string = { app.draftSource.value?.article.description ?? "" },
+    body: string = { app.draftSource.value?.article.body ?? "" },
+    tags: string[] = { app.draftSource.value?.article.tagList ?? [] },
+    tagTyping: string = "",
+    tagData: Dataset [ contents = { { t: classroot.tags } } ],
+    send: DataSource [ schema = [ article: Article ], headers = { app.auth },
+        method = { classroot.editing == "" ? "POST" : "PUT" },
+        url = { app.api + "/articles" + (classroot.editing == "" ? "" : "/" + classroot.editing) },
+        body = { { article: { title: classroot.title, description: classroot.description, body: classroot.body,
+                              tagList: addTags(classroot.tags, classroot.tagTyping) } } },
+        onLoad() { app.location = "article/" + this.value!.article.slug }
+        ],
+
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+    errs: Errors [ lines = { classroot.send.failed ? errorLines(classroot.send.errorBody, classroot.send.error) : [] } ],
+    titleF: Input [ big = true, placeholder = "Article Title",
+        initial = { classroot.title },
+        onInput(v: string) { classroot.title = v }
+        ],
+    aboutF: Input [ placeholder = "What's this article about?",
+        initial = { classroot.description },
+        onInput(v: string) { classroot.description = v }
+        ],
+    bodyF: Prose [ height = 220, placeholder = "Write your article (in markdown)",
+        initial = { classroot.body },
+        onInput(v: string) { classroot.body = v }
+        ],
+    tagsF: Input [ placeholder = "Enter tags",
+        text = { classroot.tagTyping },
+        onInput(v: string) { classroot.tagTyping = v },
+        onEnter() { classroot.tags = addTags(classroot.tags, classroot.tagTyping); classroot.tagTyping = "" }
+        ],
+    chips: View [ width = 100%, datapath = { classroot.tagData.value },
+        layout: WrappingLayout [ spacing = 4, rowSpacing = 4 ],
+        TagChip [ datapath = :t[], t = :@ ]
+        ],
+    publish: Btn [ x = end, big = true, tone = "brand", solid = true, busy = { classroot.send.loading },
+        label = "Publish Article",
+        press() { if (!classroot.send.loading) classroot.send.fetch() }
+        ]
+    ]
+
+
+// a tag in the editor, with the × that removes it
+
+class TagChip extends Control [ height = { app.touchDevice ? 32 : 22 }, cornerRadius = 11, padding = [0, 8, 0, 6],
+    t: string = "",
+    accessibilityLabel = { "Remove tag " + t },
+    fill = { hovered ? provided("theme").pillHover : provided("theme").pill },
+    layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+    CloseIcon [ iconSize = 9, ink = { provided("theme").onBrand } ],
+    TextLabel [ fontSize = 12.5, wrap = false, textColor = { provided("theme").onBrand }, text = { classroot.t } ],
+    press() {
+        const form = parent.parent as EditorForm
+        form.tags = form.tags.filter((x) => x != t)
+        }
+    ]
+
+
+/*
+## The article page's own parts
+*/
+
+// follow · favorite, or edit · delete when it is yours — the bar appears in the
+// banner and again under the article
+
+class ArticleActions [ height = 36,
+    onDark: boolean = false,
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    Meta [ onDark = { classroot.onDark }, who = { app.shown?.author ?? null }, when = { app.shown?.createdAt ?? "" } ],
+    View [ width = 16 ],
+    followB: Btn [ visible = { !app.mine }, icon = "plus",
+        label = { (app.shown?.author.following ? "Unfollow " : "Follow ") + (app.shown?.author.username ?? "") },
+        solid = { app.shown?.author.following ?? false },
+        press() { app.toggleFollow(app.shown?.author.username ?? "", !(app.shown?.author.following ?? false)) }
+        ],
+    favB: Btn [ visible = { !app.mine }, tone = "brand", icon = "heart", solid = { app.shown?.favorited ?? false },
+        label = { (app.shown?.favorited ? "Unfavorite Article (" : "Favorite Article (") + (app.shown?.favoritesCount ?? 0) + ")" },
+        press() { app.toggleFavorite(app.slug, !(app.shown?.favorited ?? false)) }
+        ],
+    editB: Btn [ visible = { app.mine }, icon = "pencil", label = "Edit Article", link = { "#editor/" + app.slug } ],
+    deleteB: Btn [ visible = { app.mine }, tone = "danger", icon = "trash", label = "Delete Article",
+        press() { app.deleteArticle() }
+        ]
+    ]
+
+
+class CommentCard [ width = 100%, cornerRadius = 4, clip = true, stroke = { stroke(1, provided("theme").line) },
+    layout: SimpleLayout [ axis = y ],
+    Text [ width = 100%, padding = 20, fontSize = 16, textColor = { provided("theme").ink }, text = :body ],
+    foot: View [ width = 100%, height = 44, padding = [0, 20, 0, 20], fill = { provided("theme").wash },
+        stroke = { [stroke(1, provided("theme").line), null, null, null] },
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        Avatar [ size = 20, src = { :author.image ?? "" }, link = { "#profile/" + :author.username } ],
+        Text [ fontSize = 13, wrap = false, textColor = { provided("theme").brand }, link = { "#profile/" + :author.username },
+            text = :author.username ],
+        Text [ fontSize = 12, wrap = false, textColor = { provided("theme").faint }, text = { longDate(:createdAt) } ],
+        Spacer [ ],
+        trash: Control [ width = { app.touchDevice ? 44 : 24 }, height = { app.touchDevice ? 44 : 24 }, visible = { app.username == :author.username },
+            accessibilityLabel = "Delete comment",
+            TrashIcon [ x = center, y = center, iconSize = 13,
+                ink = { parent.hovered ? provided("theme").danger : provided("theme").textMuted } ],
+            press() { app.deleteComment(:id) }
+            ]
+        ]
+    ]
+
+
+App [ appName = { app.pageTitle == "" ? "Conduit" : app.pageTitle + " — Conduit" }, minWidth = 360,
+    theme = { { ...SanFrancisco, ...Conduit } },
+    fill = { provided("theme").background },
+    sans: Font [ family = "'Source Sans Pro', 'Source Sans 3', system-ui, -apple-system, sans-serif" ],
+    serif: Font [ family = "Lora, Georgia, 'Times New Roman', serif" ],
+    logo: Font [ family = "'Titillium Web', system-ui, -apple-system, sans-serif" ],
+    fontFamily = { app.sans },
+    textColor = { provided("theme").ink },
+
+    // ── the backend, and this app's own folder (for the default avatar) ──
+
+    api: string = "http://localhost:3000/api",
+    home: string = { hostProvided("base", "") },
+    pageSize: number = 10,
+    colW: number = { Math.min(1110, app.width - 30) },
+    wide: boolean = { app.width >= 768 },
+
+    // ── signed in: the token, kept in the browser; the user it names ──
+
+    token: string = { loadToken() },
+    authed: boolean = { app.token != "" },
+    auth: object = { { Authorization: app.token != "" ? "Token " + app.token : "" } },
+    me: DataSource [ auto = true, schema = [ user: User ], headers = { app.auth },
+        url = { app.token != "" ? app.api + "/user" : "" } ],
+    user: User? = { app.authed ? app.me.value?.user ?? null : null },
+    username: string = { app.user?.username ?? "" },
+
+    // ── where the user is: the address, parsed ──
+
+    location = "",
+    dest: string = { app.location.split("/")[0] },
+    slug: string = { app.dest == "article" || app.dest == "editor" ? app.location.split("/")[1] ?? "" : "" },
+    profileName: string = { app.dest == "profile" ? app.location.split("/")[1] ?? "" : "" },
+    favoritesTab: boolean = { app.dest == "profile" && app.location.split("/")[2] == "favorites" },
+
+    // the home page's feed and the page of any list: not addresses — a
+    // stranger handed the link starts at the global feed, page one
+
+    tab: "feed" | "global" | "tag" = "global",
+    tag: string = "",
+    page: number = 0,
+
+    trackChanges = ["token", "location", "tab", "tag"],
+    onChange(e: ChangeEvent) {
+        for (const c of e.changed) {
+            if (c.name == "token") saveToken(app.token)
+            else app.page = 0                    // a new list starts at its first page
+            }
+        },
+
+    // ── reading: each source's address derives from where the user is ──
+
+    listQuery: string = { "limit=" + app.pageSize + "&offset=" + app.page * app.pageSize },
+    articles: ArticleList [
+        url = { app.dest == "" ? (app.tab == "feed" && app.authed ? app.api + "/articles/feed?" + app.listQuery
+                                : app.tab == "tag" ? app.api + "/articles?tag=" + encodeURIComponent(app.tag) + "&" + app.listQuery
+                                : app.api + "/articles?" + app.listQuery)
+              : app.dest == "profile" ? app.api + "/articles?" + (app.favoritesTab ? "favorited=" : "author=")
+                                        + encodeURIComponent(app.profileName) + "&" + app.listQuery
+              : "" } ],
+    tags: DataSource [ auto = true, schema = [ tags[]: string ], url = { app.dest == "" ? app.api + "/tags" : "" } ],
+    article: DataSource [ auto = true, schema = [ article: Article ], headers = { app.auth },
+        url = { app.dest == "article" && app.slug != "" ? app.api + "/articles/" + app.slug : "" } ],
+    comments: DataSource [ auto = true, schema = [ comments[]: Comment ], headers = { app.auth },
+        url = { app.dest == "article" && app.slug != "" ? app.api + "/articles/" + app.slug + "/comments" : "" } ],
+    profile: DataSource [ auto = true, schema = [ profile: Profile ], headers = { app.auth },
+        url = { app.profileName != "" ? app.api + "/profiles/" + encodeURIComponent(app.profileName) : "" } ],
+    draftSource: DataSource [ auto = true, schema = [ article: Article ], headers = { app.auth },
+        url = { app.dest == "editor" && app.slug != "" ? app.api + "/articles/" + app.slug : "" } ],
+
+    shown: Article? = { app.article.value?.article.slug == app.slug ? app.article.value?.article ?? null : null },
+    mine: boolean = { app.authed && app.shown?.author.username == app.username },
+    shownProfile: Profile? = { app.profile.value?.profile.username == app.profileName ? app.profile.value?.profile ?? null : null },
+    pageTitle: string = { app.dest == "article" ? app.shown?.title ?? ""
+                        : app.dest == "profile" ? app.profileName
+                        : app.dest == "login" ? "Sign in" : app.dest == "register" ? "Sign up"
+                        : app.dest == "settings" ? "Settings" : app.dest == "editor" ? "Editor" : "" },
+
+    // ── writing ──
+
+    favSlug: string = "",
+    favOn: boolean = false,
+    favorite: DataSource [ schema = [ article: Article ], headers = { app.auth },
+        method = { app.favOn ? "POST" : "DELETE" },
+        url = { app.favSlug == "" ? "" : app.api + "/articles/" + app.favSlug + "/favorite" },
+        onLoad() {
+            const a = this.value!.article
+            app.articles.merge(a)
+            if (app.shown?.slug == a.slug) {
+                app.article.set(["article", "favorited"], a.favorited)
+                app.article.set(["article", "favoritesCount"], a.favoritesCount)
+                }
+            }
+        ],
+    toggleFavorite(slug: string, on: boolean) {
+        if (!this.authed) { this.location = "register"; return }
+        this.favSlug = slug
+        this.favOn = on
+        this.favorite.fetch()
+        },
+
+    followName: string = "",
+    followOn: boolean = false,
+    followReq: DataSource [ schema = [ profile: Profile ], headers = { app.auth },
+        method = { app.followOn ? "POST" : "DELETE" },
+        url = { app.followName == "" ? "" : app.api + "/profiles/" + encodeURIComponent(app.followName) + "/follow" },
+        onLoad() {
+            const p = this.value!.profile
+            if (app.shownProfile?.username == p.username) app.profile.set(["profile", "following"], p.following)
+            if (app.shown?.author.username == p.username) app.article.set(["article", "author", "following"], p.following)
+            }
+        ],
+    toggleFollow(name: string, on: boolean) {
+        if (!this.authed) { this.location = "register"; return }
+        this.followName = name
+        this.followOn = on
+        this.followReq.fetch()
+        },
+
+    removeArticle: DataSource [ method = "DELETE", headers = { app.auth }, format = "text",
+        url = { app.api + "/articles/" + app.slug },
+        onLoad() { app.location = "" }
+        ],
+    deleteArticle() { this.removeArticle.fetch() },
+
+    newComment: string = "",
+    postComment: DataSource [ method = "POST", schema = [ comment: Comment ], headers = { app.auth },
+        url = { app.api + "/articles/" + app.slug + "/comments" },
+        body = { { comment: { body: app.newComment } } },
+        onLoad() {
+            app.comments.insert(["comments"], 0, this.value!.comment)
+            app.newComment = ""
+            }
+        ],
+    commentId: number = -1,
+    removeComment: DataSource [ method = "DELETE", headers = { app.auth }, format = "text",
+        url = { app.api + "/articles/" + app.slug + "/comments/" + app.commentId },
+        onLoad() {
+            const i = (app.comments.value?.comments ?? []).findIndex((c) => c.id == app.commentId)
+            if (i >= 0) app.comments.removeAt(["comments"], i)
+            }
+        ],
+    deleteComment(id: number) {
+        this.commentId = id
+        this.removeComment.fetch()
+        },
+
+    // ── session ──
+
+    signIn(u: User) {
+        this.me.set([], ({ user: u }))
+        this.token = u.token
+        // from the sign-in pages, home to your feed; from a gated page, stay
+        if (this.dest == "login" || this.dest == "register") { this.location = ""; this.tab = "feed" }
+        },
+    signOut() {
+        this.token = ""
+        this.location = ""
+        this.tab = "global"
+        },
+    showTag(t: string) {
+        this.tag = t
+        this.tab = "tag"
+        this.location = ""
+        },
+
+    /* ## The page — the bar, the place, the footer */
+
+    layout: SimpleLayout [ axis = y ],
+
+    bar: View [ width = 100%, height = 56,
+        inner: View [ x = center, width = { app.colW }, height = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+            brand: Text [ fontFamily = { app.logo }, fontSize = 24, fontWeight = bold, wrap = false,
+                textColor = { provided("theme").brand }, link = "#", text = "conduit" ],
+            Spacer [ ],
+            NavLink [ label = "Home", to = "", on = { app.dest == "" } ],
+            NavLink [ visible = { app.authed }, label = "New Article", icon = "pencil", to = "editor",
+                on = { app.dest == "editor" && app.slug == "" } ],
+            NavLink [ visible = { app.authed }, label = "Settings", icon = "gear", to = "settings", on = { app.dest == "settings" } ],
+            NavLink [ visible = { app.authed && app.username != "" }, label = { app.username }, to = { "profile/" + app.username },
+                pic = { app.user?.image ?? "" }, avatar = true, on = { app.dest == "profile" && app.profileName == app.username } ],
+            NavLink [ visible = { !app.authed }, label = "Sign in", to = "login", on = { app.dest == "login" } ],
+            NavLink [ visible = { !app.authed }, label = "Sign up", to = "register", on = { app.dest == "register" } ]
+            ]
+        ],
+
+    // ── home ──
+
+    homePage: View [ width = 100%, visible = { app.dest == "" },
+        layout: SimpleLayout [ axis = y ],
+        banner: View [ width = 100%, padding = [32, 0, 32, 0], fill = { provided("theme").brand },
+            layout: SimpleLayout [ axis = y, spacing = 4, align = center ],
+            Text [ fontFamily = { app.logo }, fontSize = { app.wide ? 56 : 44 }, fontWeight = bold, wrap = false,
+                textColor = { provided("theme").onBrand }, text = "conduit" ],
+            Text [ fontSize = 24, fontWeight = light, textColor = { provided("theme").onBrand }, text = "A place to share your knowledge." ]
+            ],
+        cols: View [ x = center, width = { app.colW }, padding = [24, 0, 0, 0],
+            layout: ResponsiveLayout [ gap = 30, plan = { [
+                ({ from: 768, flow: "row", share: ({ main: 75, side: 25 }) }),
+                ({ from: 0, flow: "stack", share: ({ main: 100, side: 100 }) })
+                ] } ],
+            main: View [ layout: SimpleLayout [ axis = y ],
+                tabs: View [ width = 100%, stroke = { [null, null, stroke(1, provided("theme").line), null] },
+                    layout: SimpleLayout [ axis = x ],
+                    Tab [ visible = { app.authed }, label = "Your Feed", on = { app.tab == "feed" },
+                        press() { app.tab = "feed" }
+                        ],
+                    Tab [ label = "Global Feed", on = { app.tab == "global" },
+                        press() { app.tab = "global" }
+                        ],
+                    Tab [ visible = { app.tab == "tag" }, label = { "# " + app.tag }, on = true ]
+                    ],
+                Feed [ ]
+                ],
+            side: View [ padding = [5, 10, 10, 10], cornerRadius = 4, fill = { provided("theme").wash },
+                layout: SimpleLayout [ axis = y, spacing = 8 ],
+                Text [ fontSize = 15, textColor = { provided("theme").ink }, text = "Popular Tags" ],
+                Text [ visible = { !app.tags.loaded }, fontSize = 13, textColor = { provided("theme").textMuted },
+                    text = { app.tags.failed ? "Couldn't load tags." : "Loading tags..." } ],
+                tagCloud: View [ width = 100%, datapath = { app.tags.value },
+                    layout: WrappingLayout [ spacing = 4, rowSpacing = 4 ],
+                    TagButton [ datapath = :tags[], t = :@ ]
+                    ]
+                ]
+            ]
+        ],
+
+    // ── an article ──
+
+    articlePage: View [ width = 100%, visible = { app.dest == "article" },
+        layout: SimpleLayout [ axis = y ],
+        banner: View [ width = 100%, padding = [32, 0, 32, 0], fill = { provided("theme").darkBanner },
+            inner: View [ x = center, width = { app.colW },
+                layout: SimpleLayout [ axis = y, spacing = 24 ],
+                Text [ width = 100%, fontSize = { app.wide ? 44 : 32 }, fontWeight = semibold,
+                    textColor = { provided("theme").onBrand },
+                    text = { app.shown?.title ?? (app.article.failed ? "Article not found" : "") } ],
+                actions: ArticleActions [ visible = { app.shown != null }, onDark = true ]
+                ]
+            ],
+        body: View [ x = center, width = { app.colW }, padding = [32, 0, 48, 0], visible = { app.shown != null },
+            layout: SimpleLayout [ axis = y, spacing = 24 ],
+            Markdown [ width = 100%, fontFamily = { app.serif }, fontSize = 19, lineHeight = 1.6,
+                text = { app.shown?.body ?? "" } ],
+            tags: View [ width = 100%, datapath = { app.shown },
+                layout: WrappingLayout [ spacing = 4, rowSpacing = 4 ],
+                TagPill [ datapath = :tagList[], t = :@ ]
+                ],
+            Divider [ ],
+            ArticleActions [ x = center ],
+            talk: View [ x = center, width = { Math.min(730, app.colW) },
+                layout: SimpleLayout [ axis = y, spacing = 12 ],
+                signInFirst: Text [ visible = { !app.authed }, width = 100%, fontSize = 16, textColor = { provided("theme").ink },
+                    text = "Sign in or sign up to add comments on this article." ],
+                Errors [ lines = { app.postComment.failed ? errorLines(app.postComment.errorBody, app.postComment.error) : [] } ],
+                compose: View [ visible = { app.authed }, width = 100%, cornerRadius = 4, clip = true,
+                    stroke = { stroke(1, provided("theme").line) },
+                    layout: SimpleLayout [ axis = y ],
+                    box: TextInput [ width = 100%, height = 100, multiline = true, wrap = true, fontSize = 16, padding = 16,
+                        placeholder = "Write a comment...", fill = { provided("theme").surface },
+                        text = { app.newComment },
+                        onInput(v: string) { app.newComment = v }
+                        ],
+                    foot: View [ width = 100%, height = 52, padding = [0, 16, 0, 16], fill = { provided("theme").wash },
+                        stroke = { [stroke(1, provided("theme").line), null, null, null] },
+                        layout: SimpleLayout [ axis = x, align = center ],
+                        Avatar [ size = 30, src = { app.user?.image ?? "" } ],
+                        Spacer [ ],
+                        post: Btn [ tone = "brand", solid = true, label = "Post Comment", busy = { app.postComment.loading },
+                            disabled = { app.newComment.trim() == "" },
+                            press() { if (!app.postComment.loading) app.postComment.fetch() }
+                            ]
+                        ]
+                    ],
+                thread: View [ width = 100%, datapath = { app.comments.value },
+                    layout: SimpleLayout [ axis = y, spacing = 12 ],
+                    CommentCard [ datapath = :comments[], key = :id ]
+                    ]
+                ]
+            ]
+        ],
+
+    // ── a profile ──
+
+    profilePage: View [ width = 100%, visible = { app.dest == "profile" },
+        layout: SimpleLayout [ axis = y ],
+        banner: View [ width = 100%, padding = [32, 0, 16, 0], fill = { provided("theme").wash },
+            inner: View [ x = center, width = { Math.min(920, app.colW) },
+                layout: SimpleLayout [ axis = y, spacing = 8, align = center ],
+                Avatar [ size = 100, src = { app.shownProfile?.image ?? "" } ],
+                Text [ fontSize = 24, fontWeight = bold, textColor = { provided("theme").ink }, text = { app.profileName } ],
+                Text [ width = { Math.min(600, app.colW) }, textAlign = center, fontSize = 16, textColor = { provided("theme").quiet },
+                    visible = { (app.shownProfile?.bio ?? "") != "" }, text = { app.shownProfile?.bio ?? "" } ],
+                Text [ visible = { app.profile.failed }, fontSize = 15, textColor = { provided("theme").danger },
+                    text = "No such user." ],
+                act: View [ width = 100%, height = 32,
+                    followB: Btn [ x = end, visible = { app.shownProfile != null && app.profileName != app.username }, icon = "plus",
+                        solid = { app.shownProfile?.following ?? false },
+                        label = { (app.shownProfile?.following ? "Unfollow " : "Follow ") + app.profileName },
+                        press() { app.toggleFollow(app.profileName, !(app.shownProfile?.following ?? false)) }
+                        ],
+                    settingsB: Btn [ x = end, visible = { app.authed && app.profileName == app.username }, icon = "gear",
+                        label = "Edit Profile Settings", link = "#settings" ]
+                    ]
+                ]
+            ],
+        cols: View [ x = center, width = { Math.min(920, app.colW) }, padding = [24, 0, 0, 0],
+            layout: SimpleLayout [ axis = y ],
+            tabs: View [ width = 100%, stroke = { [null, null, stroke(1, provided("theme").line), null] },
+                layout: SimpleLayout [ axis = x ],
+                Tab [ label = "My Articles", on = { !app.favoritesTab }, link = { "#profile/" + app.profileName } ],
+                Tab [ label = "Favorited Articles", on = { app.favoritesTab }, link = { "#profile/" + app.profileName + "/favorites" } ]
+                ],
+            Feed [ ]
+            ]
+        ],
+
+    // ── forms ──
+    // settings and the editor are for the signed-in: signed out, they show
+    // the sign-in form at their own address, and signing in lands there
+
+    loginPage: View [ width = 100%, shows = "login",
+        form: AuthForm [ exists = { app.dest == "login" } ]
+        ],
+    registerPage: View [ width = 100%, shows = "register",
+        form: AuthForm [ exists = { app.dest == "register" }, joining = true ]
+        ],
+    settingsPage: View [ width = 100%, shows = "settings",
+        AuthForm [ exists = { app.dest == "settings" && !app.authed } ],
+        form: SettingsForm [ exists = { app.dest == "settings" && app.user != null } ]
+        ],
+    editorPage: View [ width = 100%, visible = { app.dest == "editor" },
+        AuthForm [ exists = { app.dest == "editor" && !app.authed } ],
+        form: EditorForm [ exists = { app.dest == "editor" && app.authed && (app.slug == "" || app.draftSource.loaded) } ]
+        ],
+
+    Spacer [ ],
+    footer: View [ width = 100%, height = 56, fill = { provided("theme").wash },
+        inner: View [ x = center, width = { app.colW }, height = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+            Text [ fontFamily = { app.logo }, fontSize = 16, fontWeight = bold, wrap = false,
+                textColor = { provided("theme").brand }, link = "#", text = "conduit" ],
+            Text [ visible = { app.wide }, fontSize = 13, wrap = false, textColor = { provided("theme").faint },
+                text = "An interactive learning project. Code & design licensed under MIT." ]
+            ]
+        ]
+    ]
+
+
+// a link in the bar: dark when it names the page you're on
+
+class NavLink [ height = { app.touchDevice ? 44 : 40 }, padding = [0, 8, 0, 8],
+    label: string = "",
+    to: string = "",
+    on: boolean = false,
+    icon: string = "",
+    avatar: boolean = false,
+    pic: string = "",
+    link = { "#" + to },
+
+    // narrow, a link with a mark of its own shows just the mark
+
+    brief: boolean = { app.width < 600 && (icon != "" || avatar) },
+    accessibilityLabel = { label },
+    layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+    ink: Color = { on ? provided("theme").ink : hovered ? provided("theme").textMuted : provided("theme").faint },
+    PencilIcon [ visible = { classroot.icon == "pencil" }, iconSize = { classroot.brief ? 18 : 13 }, ink = { classroot.ink } ],
+    GearIcon [ visible = { classroot.icon == "gear" }, iconSize = { classroot.brief ? 18 : 13 }, ink = { classroot.ink } ],
+    Avatar [ visible = { classroot.avatar }, size = 26, src = { classroot.pic } ],
+    TextLabel [ visible = { !classroot.brief }, fontSize = 16, wrap = false, textColor = { classroot.ink }, text = { classroot.label } ]
+    ]

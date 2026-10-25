@@ -1,0 +1,580 @@
+/*
+# Murmur
+
+A place to read and take part in a handful of ongoing conversations.
+
+The records are one `Conversations` source: the history fetched once, then
+kept current by the live feed, which writes into the same records. Where the
+person is — which conversation is open — is the `waypoint`, so the Back
+button closes a conversation on a phone. Everything on screen derives from
+those two.
+
+One tree serves both screens. At a phone's width the list is the first page
+and a conversation slides over it on one spring (`openT`); at a desk's width
+the list is a rail beside the open conversation. Each conversation is its own
+pane, kept built while another is shown, so each keeps its reader's place
+with nothing saved or restored. The pane reads from the bottom
+(`scrollAnchor = end`): at the newest message it follows what arrives, and
+further back it holds the words being read still.
+*/
+
+include [ "parts.declare" ]
+
+include [ "store.declare" ]
+
+include [ "messages.declare" ]
+
+script {
+    // one frame of the live feed; which fields are present depends on `t`
+    type Frame = { t: string, thread: string, person: string, state: string, emoji: string,
+                   through: string, ref: string, message: unknown }
+    function frameOf(raw: string): Frame { return JSON.parse(raw) as Frame }
+    }
+
+
+/*
+## A conversation in the list
+
+Who, the latest thing said, and when. Something new makes the name heavier,
+the line darker, and puts a count at the end of it; someone writing replaces
+the line with their name, in their own color.
+*/
+
+class ThreadRow extends Control [ height = 78, cornerRadius = { app.wide ? 14 : 0 },
+    current: boolean = { app.wide && app.openId == :id },
+    fresh: boolean = { (:unread ?? 0) > 0 },
+    fill = { classroot.current ? provided("theme").rowSelected
+        : this.pressed ? provided("theme").controlPressed
+        : this.hovered ? provided("theme").controlHovered : null },
+    accessibilityPressed = { classroot.current },
+    accessibilityLabel = { (:name ?? "") + ((:unread ?? 0) > 0 ? ", " + :unread + " new" : "") },
+
+    face: ThreadFace [ x = { app.wide ? 12 : 16 }, y = center, size = 50,
+        ring = { classroot.current ? provided("theme").rowSelected : app.wide ? provided("theme").rail : provided("theme").background }, people = { :people ?? [] }, group = { :group ?? false } ],
+
+    texts: View [ x = { parent.face.x + 64 }, y = center, width = { parent.width - this.x - (app.wide ? 14 : 18) },
+        layout: SimpleLayout [ axis = y, spacing = 3 ],
+        top: View [ width = 100%,
+            name: Text [ width = { parent.width - parent.stamp.width - 10 }, maxLines = 1, wrap = false,
+                fontSize = 16, fontWeight = { classroot.fresh ? "bold" : "semibold" }, textColor = { provided("theme").text },
+                text = { :name ?? "" } ],
+            stamp: Text [ x = end, y = 2, wrap = false, fontSize = 12.5, numeralWidth = tabular,
+                fontWeight = { classroot.fresh ? "semibold" : "regular" },
+                textColor = { classroot.fresh ? provided("theme").accent : provided("theme").textMuted },
+                text = { listStamp(:at ?? "", app.today) } ]
+            ],
+        bottom: View [ width = 100%,
+            line: Text [ width = { parent.width - (classroot.fresh ? (parent.badge?.width ?? 0) + 10 : 0) }, maxLines = 2, lineHeight = 1.25,
+                fontSize = 14, italic = { (:composing ?? "") != "" },
+                textColor = { (:composing ?? "") != "" ? app.ink(:composingId ?? "")
+                    : classroot.fresh ? provided("theme").text : provided("theme").textMuted },
+                text = { (:composing ?? "") != "" ? :composing : :preview ?? "" } ],
+            badge: View [ exists = { classroot.fresh }, x = end, y = 2, height = 20, cornerRadius = 10, padding = [0, 7, 0, 7],
+                width = { Math.max(20, this.contentWidth) }, fill = { provided("theme").unreadDot },
+                n: Text [ x = center, y = center, wrap = false, fontSize = 12, fontWeight = bold, numeralWidth = tabular,
+                    textColor = { provided("theme").accentTextColor }, text = { "" + :unread } ]
+                ]
+            ]
+        ],
+
+    rule: View [ exists = { !app.wide }, x = { parent.texts.x }, y = end, height = 1, width = { parent.width - this.x },
+        fill = { provided("theme").line }, visible = { classroot.rowIndex < (app.inbox.value?.rows.length ?? 0) - 1 } ],
+
+    press() { app.openThread(:id) }
+    ]
+
+
+/*
+## The list's order
+
+A stack whose rows glide to their new places when the order changes — a
+conversation that comes to life rises to the top rather than vanishing from
+one place and appearing in another.
+*/
+
+class GlideStack extends TweenLayout [ duration = 380,
+    gap: number = 0,
+    place() {
+        const W = this.contentExtent("width")
+        let y = 0
+        return this.laid().map((c) => {
+            const at = { x: 0, y: y, w: W, h: c.height, vis: true }
+            y = y + c.height + this.gap
+            return at
+            })
+        }
+    ]
+
+
+/*
+## A conversation, open
+
+Its header, its history, and the composer. The history pane is the one
+scroller; the date chip, the writing line and the arrow to what is new float
+over it without adding to it.
+*/
+
+class Conversation [ width = 100%, height = 100%,
+    tid: string = { :id ?? "" },
+    group: boolean = { (:participants ?? []).length > 2 },
+    msgs: Message[] = { :messages ?? [] },
+    myLast: number = { app.lastMineIndex(classroot.msgs) },
+    lineW: number = { this.scroller.column.width - 32 },
+    others: string[] = { (:participants ?? []).filter((p) => p != app.store.me) },
+    title: string = { :title ?? nameList(classroot.others.map((p) => app.store.nameOf(p))) },
+    shown: boolean = { app.openId == classroot.tid },
+    visible = { classroot.shown },
+
+    // the person is reading it: open, on screen, and at its newest message
+
+    reading: boolean = { classroot.shown && app.inConv && !classroot.below },
+    newest: string = { classroot.msgs[classroot.msgs.length - 1]?.id ?? "" },
+    trackChanges = ["reading", "newest"],
+    onChange() { if (classroot.reading) app.store.markRead(classroot.tid) },
+
+    below: boolean = { this.scroller.contentHeight - this.scroller.scrollY - this.scroller.height > 60 },
+    unseen: number = { app.unreadIn(classroot.tid) },
+    writers: string[] = { app.writersIn(classroot.tid) },
+
+    draft: string = "",
+    send() {
+        const text = draft.trim()
+        if (text == "") return
+        app.sendText(tid, text)
+        draft = ""
+        scroller.scrollTo(Infinity, { duration: 260 })
+        },
+    sendPhoto(src: string) {
+        app.sendPhoto(tid, src)
+        scroller.scrollTo(Infinity, { duration: 260 })
+        },
+    toEnd() { scroller.scrollTo(Infinity, { duration: 320 }) },
+
+    layout: SimpleLayout [ axis = y ],
+
+    header: View [ width = 100%, height = { app.wide ? 68 : 60 }, fill = { provided("theme").background },
+        stroke = { [null, null, stroke(1, provided("theme").line), null] },
+        back: Control [ exists = { !app.wide }, x = 4, y = center, height = 44, padding = [0, 8, 0, 6],
+            accessibilityLabel = "Conversations",
+            layout: SimpleLayout [ axis = x, spacing = 2, align = center ],
+            ChevronIcon [ dir = "left", iconSize = 22, ink = { provided("theme").accent } ],
+            count: Text [ exists = { app.unreadElsewhere > 0 }, fontSize = 15, fontWeight = semibold, numeralWidth = tabular,
+                textColor = { provided("theme").accent }, text = { "" + app.unreadElsewhere } ],
+            press() { app.closeThread() }
+            ],
+        who: View [ x = { app.wide ? 24 : 64 }, y = center, width = { parent.width - this.x - 20 },
+            layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+            ThreadFace [ size = 38, people = { classroot.others }, group = { classroot.group } ],
+            words: View [ width = { parent.width - 50 },
+                layout: SimpleLayout [ axis = y, spacing = 1 ],
+                title: Text [ width = 100%, maxLines = 1, fontFamily = { app.serif }, fontSize = { app.wide ? 20 : 18 },
+                    fontWeight = semibold, textColor = { provided("theme").text }, text = { classroot.title } ],
+                sub: Text [ exists = { classroot.group || classroot.writers.length > 0 }, width = 100%, maxLines = 1, fontSize = 12.5,
+                    textColor = { classroot.writers.length > 0 ? app.ink(classroot.writers[0]) : provided("theme").textMuted },
+                    text = { classroot.writers.length > 0 ? app.writingLine(classroot.writers)
+                        : nameList([...classroot.others.map((p) => firstName(app.store.nameOf(p))), "you"]) } ]
+                ]
+            ]
+        ],
+
+    scroller: View [ width = 100%, flexes = true, scrolls = y, scrollAnchor = end,
+        column: View [ x = center, width = { Math.min(parent.width, 780) }, padding = [8, 16, 14, 16],
+            y = { Math.max(0, parent.height - this.height) },      // a short conversation sits at the bottom, by the composer
+            msgs: Message[] = { classroot.msgs },
+            tid: string = { classroot.tid },
+            group: boolean = { classroot.group },
+            lineW: number = { classroot.lineW },
+            myLast: number = { classroot.myLast },
+            layout: SimpleLayout [ axis = y ],
+            Msg [ datapath = :messages[], virtualize = true,
+                classFor = { :kind == "photo" ? PhotoMsg : :kind == "voice" ? VoiceMsg : TextMsg } ]
+            ]
+        ],
+
+    // the day being read, while the history moves
+
+    chip: View [ ignoreLayout = true, x = center, y = { parent.header.height + 10 }, height = 28, cornerRadius = 14,
+        padding = [0, 12, 0, 12], fill = { provided("theme").chip }, shadow = shadow(0, 1, 4, #00000022),
+        opacity = 0,
+        Spring [ attribute = opacity, to = { classroot.scroller.scrolling && classroot.below ? 1 : 0 }, stiffness = 200, damping = 26 ],
+        visible = { this.opacity > 0.01 },
+        Text [ y = center, wrap = false, fontSize = 12.5, fontWeight = semibold, textColor = { provided("theme").text },
+            text = { dayHeading(classroot.msgs[Math.max(0, classroot.scroller.column.firstVisibleRow)]?.at ?? app.today, app.today) } ]
+        ],
+
+    // something arrived below where the person is reading
+
+    fresh: Control [ ignoreLayout = true, exists = { classroot.below && classroot.unseen > 0 }, x = center,
+        y = { parent.height - parent.composer.height - this.height - 14 - (classroot.writers.length > 0 ? 24 : 0) },
+        height = 34, cornerRadius = 17, padding = [0, 14, 0, 11], fill = { provided("theme").accent },
+        shadow = shadow(0, 3, 10, #00000030),
+        accessibilityLabel = { classroot.unseen + " new, go to the newest" },
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        ArrowIcon [ dir = "down", iconSize = 15, ink = { provided("theme").accentTextColor } ],
+        Text [ wrap = false, fontSize = 13.5, fontWeight = semibold, textColor = { provided("theme").accentTextColor },
+            text = { classroot.unseen == 1 ? "1 new message" : classroot.unseen + " new messages" } ],
+        press() { classroot.toEnd() }
+        ],
+
+    // who is writing, just above the composer
+
+    writing: View [ ignoreLayout = true, exists = { classroot.writers.length > 0 },
+        x = { Math.max(16, (parent.width - 780) / 2 + 18) }, y = { parent.height - parent.composer.height - 24 },
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        phase: number = 0,
+        Time [ tick = 380,
+            onTick() { parent.phase = (parent.phase + 1) % 4 }
+            ],
+        dots: View [ width = 22, height = 8,
+            layout: SimpleLayout [ axis = x, spacing = 3 ],
+            View [ width = 5, height = 5, cornerRadius = 3, fill = { app.ink(classroot.writers[0] ?? "") }, opacity = { parent.parent.phase == 1 ? 1 : 0.35 } ],
+            View [ width = 5, height = 5, cornerRadius = 3, fill = { app.ink(classroot.writers[0] ?? "") }, opacity = { parent.parent.phase == 2 ? 1 : 0.35 } ],
+            View [ width = 5, height = 5, cornerRadius = 3, fill = { app.ink(classroot.writers[0] ?? "") }, opacity = { parent.parent.phase == 3 ? 1 : 0.35 } ]
+            ],
+        Text [ wrap = false, fontSize = 12.5, italic = true, textColor = { app.ink(classroot.writers[0] ?? "") },
+            text = { app.writingLine(classroot.writers) } ]
+        ],
+
+    composer: View [ width = 100%, fill = { provided("theme").background },
+        padding = { [8, 12, 10 + app.safeBottom, 12] },
+        stroke = { [stroke(1, provided("theme").line), null, null, null] },
+        row: View [ x = center, width = { Math.min(parent.width, 760) },
+            layout: SimpleLayout [ axis = x, spacing = 8, align = end ],
+            photo: Control [ width = 42, height = 42, cornerRadius = 21, accessibilityLabel = "Send a photo",
+                fill = { this.pressed ? provided("theme").controlPressed : this.hovered ? provided("theme").controlHovered : null },
+                PhotoIcon [ x = center, y = center, iconSize = 22, ink = { provided("theme").textMuted } ],
+                press() { app.offerPhotos(this, classroot.tid) }
+                ],
+            field: TextInput [ flexes = true, multiline = true, wrap = true, enterSubmits = { !app.touchDevice },
+                height = { Math.min(136, Math.max(42, this.contentHeight + 4)) },
+                fontSize = 16, placeholder = "Message", accessibilityLabel = "Message",
+                cornerRadius = 21, padding = [10, 16, 10, 16],
+                fill = { provided("theme").surface },
+                stroke = { stroke(1, this.focused ? provided("theme").accent : provided("theme").line) },
+                text = { classroot.draft },
+                onInput(v: string) { classroot.draft = v },
+                onEnter() { classroot.send() }
+                ],
+            go: Control [ width = 42, height = 42, cornerRadius = 21, accessibilityLabel = "Send",
+                disabled = { classroot.draft.trim() == "" },
+                fill = { this.disabled ? provided("theme").line : this.pressed ? provided("theme").accentPressed : provided("theme").accent },
+                ArrowIcon [ dir = "up", x = center, y = center, iconSize = 20, ink = { provided("theme").accentTextColor } ],
+                press() { classroot.send() }
+                ]
+            ]
+        ]
+    ]
+
+
+App [ appName = "Murmur", minWidth = 320,
+    fill = { provided("theme").background },
+    fontFamily = ["system-ui", "-apple-system", "Segoe UI", "Roboto", "sans-serif"],
+    theme = { { ...(app.dark ? SanFranciscoDark : SanFrancisco), ...(app.dark ? MurmurDark : MurmurLight) } },
+    serif: string[] = ["ui-serif", "New York", "Iowan Old Style", "Charter", "Georgia", "serif"],
+
+    // ── the records ──
+
+    store: Conversations [ ],
+    live: Socket [ url = { LIVE }, active = { app.store.loaded }, retry = 2,
+        onMessage(e: StreamMessage) { app.hear(e.data) }
+        ],
+
+    // who is writing where, and how far each other person has read: the feed's
+    // passing facts, which the history does not carry
+
+    writers: object = { {} },                // thread → person ids
+    readTo: object = { {} },                 // thread → person → the index read through
+
+    // ── where the person is ──
+
+    waypoint = "",                       // the open conversation; Back closes it
+    recent: string = "",                 // the last one opened, still shown while it slides away
+    openId: string = { app.waypoint != "" ? app.waypoint : app.recent != "" ? app.recent : (app.inbox.value?.rows[0]?.id ?? "") },
+    inConv: boolean = { app.wide || app.waypoint != "" },
+    playing: string = "",                // the voice message speaking, by id
+    viewing: string = "",                // the photograph open at full size
+    viewingAlt: string = "",
+    target: string = "",                 // the message being reacted to, and its conversation
+    targetThread: string = "",
+    photoThread: string = "",
+    refs: number = 0,
+
+    openThread(tid: string) { app.recent = tid; app.waypoint = tid },
+    closeThread() { app.waypoint = "" },
+
+    // ── the shape of the screen ──
+
+    wide: boolean = { app.width >= 760 },
+    sideW: number = { Math.round(Math.max(320, Math.min(400, app.width * 0.3))) },
+    openT: number = 0,
+    Spring [ attribute = openT, to = { app.waypoint != "" ? 1 : 0 }, stiffness = 260, damping = 30 ],
+
+    clock: Time [ tick = minute ],
+    today: string = { new Date(app.clock.year, app.clock.month - 1, app.clock.day, 12).toISOString() },
+
+    // ── the list, derived ──
+
+    inbox: Dataset [ schema = [ rows[]: Summary ], contents = { { rows: app.summarize() } } ],
+
+    summarize() -> Summary[] {
+        const me = app.store.me
+        return app.store.threads().map((t) => {
+            const others = t.participants.filter((p) => p != me)
+            const last = t.messages[t.messages.length - 1]
+            const group = t.participants.length > 2
+            const who = last == null ? "" : last.from == me ? "You: " : group ? firstName(app.store.nameOf(last.from)) + ": " : ""
+            const ws = app.writersIn(t.id)
+            return { id: t.id, group: group, people: others,
+                     name: t.title ?? nameList(others.map((p) => app.store.nameOf(p))),
+                     preview: last == null ? "No messages yet" : who + previewOf(last.kind, last.text ?? "", (last.durationMs ?? 0) / 1000),
+                     at: last?.at ?? "", unread: app.store.unread(t),
+                     composing: ws.length > 0 ? app.writingLine(ws) : "", composingId: ws[0] ?? "" }
+            }).sort((a, b) => Date.parse(b.at || "0") - Date.parse(a.at || "0"))
+        },
+
+    unreadIn(tid: string) -> number { const t = app.store.thread(tid); return t == null ? 0 : app.store.unread(t) },
+    unreadElsewhere: number = { (app.inbox.value?.rows ?? []).filter((r) => r.id != app.openId).reduce((n, r) => n + r.unread, 0) },
+    writersIn(tid: string) -> string[] { return ((app.writers as Record<string, string[]>)[tid] ?? []) },
+    writingLine(ps: string[]) -> string {
+        const names = ps.map((p) => firstName(app.store.nameOf(p)))
+        return names.length == 1 ? names[0] + " is writing…" : nameList(names) + " are writing…"
+        },
+
+    lastMineIndex(ms: Message[]) -> number {
+        for (let i = ms.length - 1; i >= 0; i--) if (ms[i].from == app.store.me) return i
+        return -1
+        },
+
+    // what has become of your latest message
+
+    statusOf(tid: string, index: number, pending: boolean) -> string {
+        if (pending) return "Sending…"
+        const t = app.store.thread(tid)
+        if (t == null) return ""
+        const read = (app.readTo as Record<string, Record<string, number>>)[tid] ?? {}
+        const others = t.participants.filter((p) => p != app.store.me)
+        const by = others.filter((p) => (read[p] ?? -1) >= index)
+        if (by.length == 0) return "Delivered"
+        if (others.length == 1) return "Read"
+        if (by.length == others.length) return "Read by everyone"
+        return "Read by " + nameList(by.map((p) => firstName(app.store.nameOf(p))))
+        },
+
+    // a person's own hue: a wash for their bubbles, an ink for their name
+
+    wash(pid: string) -> Color {
+        const t = provided("theme")
+        return [t.wash0, t.wash1, t.wash2, t.wash3, t.wash4, t.wash5][hueOf(pid)]
+        },
+    ink(pid: string) -> Color {
+        const t = provided("theme")
+        return [t.ink0, t.ink1, t.ink2, t.ink3, t.ink4, t.ink5][hueOf(pid)]
+        },
+
+    reactionMarks(rs: Reaction[]) -> string {
+        const counts = new Map<string, number>()
+        for (const r of rs) counts.set(r.emoji, (counts.get(r.emoji) ?? 0) + 1)
+        return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 3).map((e) => e[0]).join("")
+        },
+    reactionWords(rs: Reaction[]) -> string {
+        return rs.map((r) => r.emoji + " from " + (r.person == app.store.me ? "you" : firstName(app.store.nameOf(r.person)))).join(", ")
+        },
+
+    // ── the live feed ──
+
+    hear(raw: string) {
+        const f = frameOf(raw)
+        if (f.t == "message") {
+            const m = f.message as Message
+            app.store.append(f.thread, m)
+            app.setWriting(f.thread, m.from, false)
+        } else if (f.t == "composing") {
+            app.setWriting(f.thread, f.person, f.state == "start")
+        } else if (f.t == "reaction") {
+            app.store.react(f.thread, f.message as string, f.person, f.emoji)
+        } else if (f.t == "seen") {
+            const t = app.store.thread(f.thread)
+            if (t == null) return
+            const all = app.readTo as Record<string, Record<string, number>>
+            app.readTo = { ...all, [f.thread]: { ...(all[f.thread] ?? {}), [f.person]: app.store.find(t, f.through) } }
+        } else if (f.t == "sent") {
+            app.store.confirm(f.ref, f.message as Message)
+            }
+        },
+
+    setWriting(tid: string, pid: string, on: boolean) {
+        const all = app.writers as Record<string, string[]>
+        const now = (all[tid] ?? []).filter((p) => p != pid)
+        app.writers = { ...all, [tid]: on ? [...now, pid] : now }
+        },
+
+    // ── what the person does ──
+
+    // what was sent is shown at once, under the app's own id; the service's
+    // answer only confirms it
+
+    deliver(tid: string, m: Message, wire: object) {
+        app.store.append(tid, m)
+        app.store.markRead(tid)
+        app.live.send(JSON.stringify(wire))
+        },
+    newRef() -> string { app.refs = app.refs + 1; return "local-" + app.refs },
+
+    sendText(tid: string, text: string) {
+        const ref = app.newRef()
+        app.deliver(tid, { id: ref, from: app.store.me, at: new Date().toISOString(), kind: "text", text: text, pending: true },
+                 { t: "send", ref: ref, thread: tid, kind: "text", text: text })
+        },
+    sendPhoto(tid: string, src: string) {
+        const ref = app.newRef()
+        const alt = (app.store.value?.sendable ?? []).find((s) => s.src == src)?.alt ?? ""
+        app.deliver(tid, { id: ref, from: app.store.me, at: new Date().toISOString(), kind: "photo", src: src, alt: alt, pending: true },
+                 { t: "send", ref: ref, thread: tid, kind: "photo", src: src })
+        app.photos.close()
+        },
+
+    offerReactions(v: View, tid: string, mid: string) {
+        app.targetThread = tid; app.target = mid
+        app.reactions.showFor(v)
+        },
+    react(emoji: string) {
+        const t = app.store.thread(app.targetThread)
+        if (t == null) return
+        const i = app.store.find(t, app.target)
+        app.store.react(app.targetThread, app.target, app.store.me, emoji)
+        const wire = i >= 0 ? (t.messages[i].sid ?? (t.messages[i].pending ? "" : t.messages[i].id)) : ""
+        if (wire != "") app.live.send(JSON.stringify({ t: "react", thread: app.targetThread, message: wire, emoji: emoji }))
+        app.reactions.close()
+        },
+    mineOn(emoji: string) -> boolean {
+        const t = app.store.thread(app.targetThread)
+        if (t == null) return false
+        const i = app.store.find(t, app.target)
+        return i >= 0 && (t.messages[i].reactions ?? []).some((r) => r.person == app.store.me && r.emoji == emoji)
+        },
+
+    offerPhotos(v: View, tid: string) { app.photoThread = tid; app.photos.showFor(v) },
+    pickPhoto(src: string) {
+        const pane = app.panes.childViews.find((c) => (c as Conversation).tid == app.photoThread) as Conversation
+        if (pane != null) pane.sendPhoto(src)
+        else app.sendPhoto(app.photoThread, src)
+        },
+
+    viewPhoto(src: string, alt: string) { app.viewingAlt = alt; app.viewing = src },
+
+    marks: Dataset { { "rows": [ { "id": "❤️" }, { "id": "😂" }, { "id": "😮" }, { "id": "😢" }, { "id": "👍" }, { "id": "🔥" } ] } },
+
+    // ── the screens ──
+
+    // the list: the whole first page on a phone, a rail at a desk
+
+    list: View [ height = { app.height }, width = { app.wide ? app.sideW : app.width },
+        x = { app.wide ? 0 : -0.3 * app.openT * app.width },
+        fill = { app.wide ? provided("theme").rail : provided("theme").background },
+        stroke = { app.wide ? [null, stroke(1, provided("theme").line), null, null] : null },
+        visible = { app.wide || app.openT < 0.999 },
+        layout: SimpleLayout [ axis = y ],
+        head: View [ width = 100%, height = { app.wide ? 68 : 64 + app.safeTop }, padding = { [app.safeTop, 20, 0, 20] },
+            Text [ y = { app.wide ? 18 : 16 }, wrap = false, fontFamily = { app.serif }, fontSize = { app.wide ? 26 : 30 },
+                fontWeight = bold, letterSpacing = -0.4, textColor = { provided("theme").text }, text = "Murmur" ]
+            ],
+        rows: View [ width = 100%, flexes = true, scrolls = y,
+            inner: View [ width = 100%, padding = { app.wide ? [4, 8, 12, 8] : [0, 0, 12, 0] }, datapath = { app.inbox.value },
+                layout: GlideStack [ gap = { app.wide ? 2 : 0 } ],
+                order: string = { (app.inbox.value?.rows ?? []).map((r) => r.id).join(" ") },
+                trackChanges = ["order"],
+                onChange() { this.layout.retarget(true) },
+                ThreadRow [ datapath = :rows[] ]
+                ]
+            ]
+        ],
+
+    // the open conversation: slides over the list on a phone, beside it at a desk
+
+    panes: View [ height = { app.height }, width = { app.wide ? app.width - app.sideW : app.width },
+        x = { app.wide ? app.sideW : app.width * (1 - app.openT) },
+        visible = { app.wide || app.openT > 0.001 },
+        fill = { provided("theme").background },
+        shadow = { app.wide ? null : shadow(-6, 0, 24, 0x0000002a) },
+        datapath = { app.store.value },
+        Conversation [ datapath = :threads[] ]
+        ],
+
+    // before anything has arrived
+
+    waiting: View [ width = { app.width }, height = { app.height }, fill = { provided("theme").background },
+        visible = { this.opacity > 0.01 },
+        opacity = 1,
+        Spring [ attribute = opacity, to = { app.store.loaded ? 0 : 1 }, stiffness = 120, damping = 20 ],
+        mark: View [ x = center, y = { app.height * 0.4 },
+            layout: SimpleLayout [ axis = y, spacing = 10, align = center ],
+            Text [ wrap = false, fontFamily = { app.serif }, fontSize = 34, fontWeight = bold, letterSpacing = -0.5,
+                textColor = { provided("theme").text }, text = "Murmur" ],
+            Text [ wrap = false, fontSize = 14, textColor = { provided("theme").textMuted },
+                text = { app.store.failed ? "Can’t reach your conversations" : "Gathering your conversations…" } ]
+            ]
+        ],
+
+    // ── the layers ──
+
+    reactions: Popover [ placement = "above", asSheet = false,
+        row: View [ datapath = { app.marks.value }, focusScope = stop,
+            layout: SimpleLayout [ axis = x, spacing = 2 ],
+            Control [ datapath = :rows[], width = 46, height = 46, cornerRadius = 23,
+                accessibilityLabel = { :id ?? "" },
+                fill = { app.mineOn(:id ?? "") ? provided("theme").controlSelected
+                    : this.pressed || this.hovered ? provided("theme").controlHovered : null },
+                Text [ x = center, y = center, fontSize = 27, wrap = false, text = { :id ?? "" },
+                    scale = { parent.pressed ? 1.25 : parent.hovered ? 1.12 : 1 } ],
+                press() { app.react(:id ?? "") }
+                ]
+            ]
+        ],
+
+    photos: Popover [ placement = "above",
+        sheet: View [ width = { app.wide ? 4 * 104 + 3 * 8 : Math.min(app.width - 32, 3 * 112 + 2 * 8) },
+            layout: SimpleLayout [ axis = y, spacing = 12 ],
+            Text [ fontFamily = { app.serif }, fontSize = 17, fontWeight = semibold, textColor = { provided("theme").text },
+                text = "Send a photo" ],
+            grid: View [ width = 100%, datapath = { app.store.value },
+                height = { Math.ceil((app.store.value?.sendable.length ?? 0) / (app.wide ? 4 : 3)) * ((app.wide ? 104 : 112) + 8) - 8 },
+                layout: WrappingLayout [ spacing = 8, rowSpacing = 8 ],
+                Control [ datapath = :sendable[], width = { app.wide ? 104 : 112 }, height = { app.wide ? 104 : 112 },
+                    cornerRadius = 12, clip = true, fill = { provided("theme").photoWell },
+                    accessibilityLabel = { "Send photo: " + (:alt ?? "") },
+                    opacity = { this.pressed ? 0.7 : 1 },
+                    Image [ width = 100%, height = 100%, stretches = cover, source = { media(:src ?? "") } ],
+                    press() { app.pickPhoto(:src ?? "") }
+                    ]
+                ]
+            ]
+        ],
+
+    // a photograph at full size: the whole picture, as large as the screen
+    // allows, never stretched; a tap anywhere, Esc, or the close puts it away
+
+    viewer: Dialog [ presentation = "full",
+        shown = { app.viewing != "" },
+        input(open: boolean) { if (!open) app.viewing = "" },
+        stage: View [ width = { app.width }, height = { app.height }, fill = { provided("theme").viewerBg },
+            onClick() { app.viewing = "" },
+
+            // as large as the screen allows, and never past the picture's own size
+
+            pic: Image [ x = center, y = center, stretches = contain,
+                width = { Math.min(parent.width - (app.wide ? 96 : 0), this.loaded ? this.naturalWidth : 10000) },
+                height = { Math.min(parent.height - (app.wide ? 120 : 140), this.loaded ? this.naturalHeight : 10000) },
+                opacity = 0,
+                Spring [ attribute = opacity, to = { parent.loaded ? 1 : 0 }, stiffness = 160, damping = 24 ],
+                source = { app.viewing == "" ? "" : media(app.viewing) }
+                ],
+            caption: Text [ x = center, y = { parent.height - this.height - 24 - app.safeBottom }, width = { Math.min(parent.width - 48, 640) },
+                textAlign = center, fontSize = 14, maxLines = 2, textColor = #D8D2C8, text = { app.viewingAlt } ],
+            close: Control [ x = { parent.width - 60 }, y = { 14 + app.safeTop }, width = 44, height = 44, cornerRadius = 22,
+                accessibilityLabel = "Close photo", fill = { this.hovered || this.pressed ? 0xffffff26 : 0xffffff14 },
+                CloseIcon [ x = center, y = center, iconSize = 18, ink = white ],
+                press() { app.viewing = "" }
+                ]
+            ]
+        ]
+    ]
