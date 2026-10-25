@@ -20,7 +20,7 @@ function verify(name, src, ...flags) {
   return JSON.parse(r.stdout);
 }
 
-await test("a control below a clip that does not scroll is reported; one a scroll reaches is not", () => {
+await test("a control below a clip that does not scroll is reported; one a scroll or a drag reaches is not", () => {
   // the shape Cadence 12 met: a window-tall sheet that clips, its form taller
   // than it — window-tall only because the boot fills a host (a clip with no
   // area is skipped, so with no host there would be nothing to report)
@@ -33,6 +33,11 @@ await test("a control below a clip that does not scroll is reported; one a scrol
         View [ width = 300, height = 1200 ],
         below: Button [ y = 1100, label = "Reachable" ],
         above: Button [ y = -60, label = "Above" ] ],
+    deck: Carousel [ x = 850, width = 200, height = 100,
+        View [ Button [ label = "One" ] ], View [ Button [ label = "Two" ] ] ],
+    surface: View [ x = 850, y = 150, width = 200, height = 100, clip = true,
+        onPointerMove(e: PointerEvent) { },
+        View [ width = 600, height = 100, Button [ x = 400, label = "Panned to" ] ] ],
     parked: Button [ x = 5000, label = "Off-stage on purpose" ] ]`);
   assert.equal(r.boot.ok, true, JSON.stringify(r.boot));
   const notes = r.boot.notes.filter((n) => /may be out of reach/.test(n));

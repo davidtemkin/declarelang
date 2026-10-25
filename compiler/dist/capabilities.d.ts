@@ -81,10 +81,12 @@ export interface Capability {
      *  the entries the program names (subsetModule), instead of a stand-in — and
      *  whatever only the cut entries referenced is left for the bundler to drop.
      *  `keys` says which names: `classes`, what it constructs, closed over bases;
-     *  `mentions`, the names its bodies say. */
+     *  `mentions`, the names its bodies say; `always`, entries the runtime reaches
+     *  on its own (a default). */
     subset?: {
         export: string;
         keys: "classes" | "mentions";
+        always?: readonly string[];
     };
 }
 export declare const CAPABILITIES: readonly Capability[];
@@ -149,8 +151,12 @@ interface ProgramLike {
         base?: string | null;
         body: El;
     }>;
+    scripts?: Array<{
+        src: string;
+    }>;
 }
-/** ONE walk over the program — its tree, its classes, every `{ }` body. */
+/** ONE walk over the program — its tree, its classes, every `{ }` body, and its
+ *  script, whose helpers a body calls and which can do what a body would. */
 export declare function programFacts(program: ProgramLike, usedClasses: Iterable<string>): ProgramFacts;
 /** The capabilities a program needs, closed over `requires`, each with why. */
 export declare function neededCapabilities(f: ProgramFacts, b: BuildContext, manifest?: readonly Capability[]): Map<string, string>;

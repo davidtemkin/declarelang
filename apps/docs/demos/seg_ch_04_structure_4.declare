@@ -1,22 +1,28 @@
-class Die extends Node [
-    sides: number = 6,
-    last: number = 0,
-    rolls: number = 0,
-    roll() { last = 1 + Math.floor(Math.random() * sides); rolls = rolls + 1 },
-    reset() { last = 0; rolls = 0 }
+class Row [ width = 100%, height = 44, cornerRadius = 6, fill = whitesmoke,
+    label: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    padding = [0, 10, 0, 10],
+    Text [ flexes = true, text = { classroot.label } ],
+    State [ applied = { app.editing }, fill = #FFF6E0,
+        Button [ label = "Remove" ]
+        ]
     ]
 
 
-App [ width = 340, height = 90, fill = white, textColor = black,
-    die: Die [ ],
-    row: View [ x = 20, y = 24,
-        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
-        Button [ label = "Roll", primary = true,
-            onClick() { app.die.roll() }
+App [ width = 360, height = 240, fill = white, textColor = black, theme = { SanFrancisco },
+    editing: boolean = false,
+    col: View [ x = 20, y = 16, width = 320,
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        bar: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, align = center ],
+            Text [ flexes = true, fontWeight = bold, text = "Items" ],
+            Button [ label = "Edit",
+                onClick() { app.editing = !app.editing },
+                State [ applied = { app.editing }, label = "Done", primary = true ]
+                ]
             ],
-        Button [ label = "Reset",
-            onClick() { app.die.reset() }
-            ],
-        Text [ text = { app.die.rolls == 0 ? "not rolled" : `${app.die.last} (roll ${app.die.rolls})` } ]
+        Row [ label = "First" ],
+        Row [ label = "Second" ],
+        Row [ label = "Third" ]
         ]
     ]

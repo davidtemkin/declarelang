@@ -2212,6 +2212,23 @@ await test("exists on a member that is not a view: built, initialised and starte
   } finally { app.discard(); }
 });
 
+await test("exists: a drawing in the subtree it takes away does not draw again", async () => {
+  // the drawing reads what the gate reads, so both are due in one settle; the
+  // gate's landing retires the view, and its drawing must not then run against
+  // a subtree no longer in the App
+  const app = buildProgram(await compiled(`class Holder extends Node [ n: number = 3 ]
+    App [ width = 300, height = 200, show: boolean = true, holder: Holder [ ],
+      screen: View [ width = 300, height = 200, exists = { app.show },
+        View [ width = 300, height = 200, draw(d: Draw) { const k = app.show ? app.holder.n : app.holder.n * 2; d.fillRect(0, 0, k, 20) } ] ] ]`));
+  try {
+    app.$attach(mockBackend([]), null);
+    settle();
+    app.show = false;
+    settle();
+    assert.equal(app.screen, undefined);
+  } finally { app.discard(); }
+});
+
 await test("exists: a named child that may be absent is typed so — its reader must check", async () => {
   const bad = await compile(`App [ width = 100, height = 100, on: boolean = false,
     b: View [ width = 10, height = 20, exists = { app.on } ],

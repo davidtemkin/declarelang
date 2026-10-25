@@ -303,7 +303,30 @@ const SINK_RAW = `App [ width = 640, height = 400, fill = #202830,
 const sinkCompiled = await compile(SINK_RAW);
 assert.deepEqual(sinkCompiled.errors, [], "scroller-sink fixture compiles clean");
 
+// DRAG HANDOFF (input.ts): controls inside views that claim a drag — a pan
+// surface holding a Button and a Slider, a Carousel with a Button on its page,
+// and a board that drags from a hold, holding a Button.
+const HANDOFF_RAW = `App [ width = 640, height = 400, fill = #202830, theme = { SanFrancisco },
+    taps: number = 0, panX: number = 0, grab: number = 0, held: number = 0, holdDragged: number = 0,
+    surface: View [ x = 0, y = 0, width = 300, height = 200, fill = #334455,
+        onPointerDown() { app.grab = app.panX },
+        onPointerMove(e: PointerEvent) { app.panX = app.grab + e.deltaX },
+        tap: Button [ x = 20, y = 20, width = 80, height = 44, label = "T", onClick() { app.taps = app.taps + 1 } ],
+        slider: Slider [ x = 20, y = 120, width = 200 ] ],
+    deck: Carousel [ x = 320, y = 0, width = 300, height = 200,
+        View [ fill = #446655, b: Button [ x = 20, y = 20, width = 80, height = 44, label = "B", onClick() { app.taps = app.taps + 1 } ] ],
+        View [ fill = #554466 ] ],
+    board: View [ x = 0, y = 220, width = 300, height = 160, fill = #443355,
+        onHold() { app.held = app.held + 1 },
+        onPointerMove(e: PointerEvent) { app.holdDragged = e.deltaX },
+        card: Button [ x = 20, y = 20, width = 80, height = 44, label = "C", onClick() { app.taps = app.taps + 1 } ] ]
+    ]`;
+const handoffCompiled = await compile(HANDOFF_RAW);
+assert.deepEqual(handoffCompiled.errors, [], "drag-handoff fixture compiles clean");
+
 const pages = {
+  "/dom-handoff": pageHtml("DomBackend", handoffCompiled),
+  "/canvas-handoff": pageHtml("CanvasBackend", handoffCompiled),
   "/dom-sink": pageHtml("DomBackend", sinkCompiled),
   "/canvas-sink": pageHtml("CanvasBackend", sinkCompiled),
   "/dom-wheel": pageHtml("DomBackend", wheelCompiled),
@@ -1361,6 +1384,123 @@ await test("under a finger, a program write does not claim the scroll: `scrollin
   assert.equal(r.before, false, "at rest before the touch");
   assert.equal(r.during, true, "the finger's scroll is the user's, the program's write notwithstanding");
 });
+
+// The element a touch began on can leave the page under the finger (a press
+// that changes the screen); its end goes to that element, out of the page, and
+// never reaches the scroller. The scroll still ends when the finger lifts.
+await test("a touch whose element leaves the page under the finger still ends: `scrolling` falls", async () => {
+  await new Promise((r) => setTimeout(r, 400));
+  const r = await page.evaluate(async () => {
+    const pane = window.__app.pane, el = pane.$surface.element;
+    const leaf = el.appendChild(document.createElement("div"));
+    const touch = (type, n) => leaf.dispatchEvent(new TouchEvent(type, { touches: n ? [new Touch({ identifier: 2, target: leaf, clientX: 10, clientY: 10 })] : [], bubbles: true }));
+    touch("touchstart", 1);
+    el.scrollTop = Math.max(0, el.scrollTop - 50);
+    await new Promise((f) => setTimeout(f, 30));
+    const during = pane.scrolling;
+    leaf.remove();
+    touch("touchend", 0);
+    el.dispatchEvent(new Event("scrollend"));
+    return { during, after: pane.scrolling };
+  });
+  assert.equal(r.during, true, "the finger's scroll is the user's");
+  assert.equal(r.after, false, "and over once the finger lifts and the scroll has ended");
+});
+
+// ── DRAG HANDOFF: a press on a control inside a drag claimant ──────────────
+// A press that stays put is the control's; one that travels is the drag of the
+// nearest view that claims it (input.ts DRAG HANDOFF). Fingers through the real
+// touch pipeline, the mouse through the real mouse; both renderers.
+
+{
+  const tp = await browser.newPage();
+  await tp.setViewport({ width: 640, height: 400, hasTouch: true, isMobile: true });
+  const mp = await browser.newPage();
+  await mp.setViewport({ width: 640, height: 400 });
+  const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+  const centre = (pg, path) => pg.evaluate((p) => {
+    let v = window.__app; for (const k of p.split(".")) v = v[k];
+    const b = v.rootBounds(); return { x: b.x + b.width / 2, y: b.y + b.height / 2 };
+  }, path);
+  const read = (pg) => pg.evaluate(() => { const a = window.__app; return { taps: a.taps, panX: Math.round(a.panX), slider: a.surface.slider.value, page: a.deck.page, held: a.held, holdDragged: Math.round(a.holdDragged) }; });
+  const finger = async (pg, at, dx, dy, holdMs = 0) => {
+    const cdp = await pg.createCDPSession();
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: at.x, y: at.y }] });
+    if (holdMs > 0) await sleep(holdMs);
+    for (let i = 1; i <= 10; i++) {
+      await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: at.x + dx * i / 10, y: at.y + dy * i / 10 }] });
+      await sleep(16);
+    }
+    await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+    await cdp.detach();
+    await sleep(60);
+  };
+  const mouse = async (pg, at, dx, dy) => {
+    await pg.mouse.move(at.x, at.y); await pg.mouse.down();
+    await pg.mouse.move(at.x + dx, at.y + dy, { steps: 10 }); await pg.mouse.up();
+    await sleep(60);
+  };
+  const load = async (pg, route) => {
+    await pg.bringToFront();   // a page behind another gets no animation frames
+    await pg.goto(`${B}${route}`, { waitUntil: "load", timeout: 30000 });
+    await pg.waitForFunction(() => window.__rendered === true, { timeout: 15000 });
+  };
+
+  for (const r of ["dom", "canvas"]) {
+    await test(`${r}: a finger that stays on a control inside a drag claimant presses it; one that travels drags the claimant`, async () => {
+      await load(tp, `/${r}-handoff`);
+      const at = await centre(tp, "surface.tap");
+      await finger(tp, at, 3, 0);
+      assert.deepEqual(await read(tp).then(({ taps, panX }) => ({ taps, panX })), { taps: 1, panX: 0 }, "a tap is the Button's");
+      await finger(tp, at, -100, 0);
+      assert.deepEqual(await read(tp).then(({ taps, panX }) => ({ taps, panX })), { taps: 1, panX: -100 }, "a drag from the Button moves the surface, measured from where it landed, and clicks nothing");
+    });
+
+    await test(`${r}: a control that claims a drag itself keeps it (a Slider on a pan surface)`, async () => {
+      await load(tp, `/${r}-handoff`);
+      const b = await tp.evaluate(() => { const s = window.__app.surface.slider.rootBounds(); return { x: s.x + 10, y: s.y + s.height / 2 }; });
+      await finger(tp, b, 120, 0);
+      const s = await read(tp);
+      assert.ok(s.slider > 0, `the Slider moved (value ${s.slider})`);
+      assert.equal(s.panX, 0, "the surface did not");
+    });
+
+    await test(`${r}: a Carousel turns from a Button on its page sideways, and not on a vertical travel`, async () => {
+      await load(tp, `/${r}-handoff`);
+      const at = await centre(tp, "deck.children.1.b");
+      await finger(tp, at, 0, 60);
+      await sleep(400);
+      assert.equal((await read(tp)).page, 0, "travel across the Carousel's axis is not its");
+      await finger(tp, at, -200, 0);
+      await sleep(800);
+      const s = await read(tp);
+      assert.deepEqual({ page: s.page, taps: s.taps }, { page: 1, taps: 0 }, "a sideways swipe from the Button turns the page and clicks nothing");
+    });
+
+    await test(`${r}: a view that drags from a hold takes a press on its control at the hold, not before`, async () => {
+      await load(tp, `/${r}-handoff`);
+      const at = await centre(tp, "board.card");
+      await finger(tp, at, 50, 0);
+      assert.equal((await read(tp)).holdDragged, 0, "a quick travel is not the board's drag");
+      await finger(tp, at, 50, 0, 650);
+      const s = await read(tp);
+      assert.deepEqual({ held: s.held, holdDragged: s.holdDragged, taps: s.taps }, { held: 1, holdDragged: 50, taps: 0 }, "after the hold the board drags, from where the finger landed");
+    });
+
+    await test(`${r}: a mouse stays the control's while it is inside it, and drags the claimant once it leaves`, async () => {
+      await load(mp, `/${r}-handoff`);
+      const at = await centre(mp, "surface.tap");
+      await mouse(mp, at, 3, 0);
+      assert.deepEqual(await read(mp).then(({ taps, panX }) => ({ taps, panX })), { taps: 1, panX: 0 }, "a click inside the Button is the Button's");
+      await mouse(mp, at, 30, 0);
+      assert.equal((await read(mp)).panX, 0, "travel that stays inside the Button moves nothing");
+      await mouse(mp, at, -100, 0);
+      assert.equal((await read(mp)).panX, -100, "travel out of the Button moves the surface");
+    });
+  }
+  await tp.close();
+  await mp.close();
+}
 
 await browser.close();
 server.close();

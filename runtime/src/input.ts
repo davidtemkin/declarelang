@@ -131,6 +131,11 @@ export interface HitTarget {
   hold?: { key: object; sink: InputSink };
   /** The nearest CONTEXT-MENU OWNER (onContextMenu), resolved the same way. */
   context?: { key: object; sink: InputSink };
+  /** The nearest DRAG OWNER (onPointerMove), resolved the same way, with the
+   *  axis it claims and whether it claims from a hold (it declares onHold too).
+   *  A press that stays put is the pressed view's; once it travels it is this
+   *  owner's, when the owner is not the pressed view itself (DRAG HANDOFF). */
+  drag?: { key: object; sink: InputSink; axis: "both" | "x" | "y"; fromHold: boolean };
 }
 
 /** One finger, as the raw touch family reports it. `id` is stable for the
@@ -186,6 +191,9 @@ export function routeInput(
   let pressY = 0;
   let pressSlop = SLOP_MOUSE;
   let wandered = false;
+  /** Whether this press's drag handoff has been decided (DRAG HANDOFF, below):
+   *  it is decided once, the first time the press travels. */
+  let dragDecided = false;
   /** A hold fired on an ancestor of the pressed view (HitTarget.hold): the
    *  release is not also that view's click. */
   let heldAbove = false;
@@ -280,6 +288,40 @@ export function routeInput(
     if (hoveredSink !== null) hoveredSink("pointerOut", 0, 0);
     hoveredKey = null;
     hoveredSink = null;
+  };
+  // ── DRAG HANDOFF ─────────────────────────────────────────────────────────
+  // A drag is claimed by declaring onPointerMove, and the claim covers the
+  // declaring view's subtree — so a press that lands on a control inside it (a
+  // Button on a Carousel's page) and then travels is the claimant's drag, as
+  // hold and pinch already go to their nearest owner. A press that stays put is
+  // the control's. When the press travels, the control's press ends canceled,
+  // as it does when the browser takes a finger for a scroll, and the owner's
+  // drag begins where the press landed: its pointerDown at that point, its moves
+  // measured from it. One owner per gesture, chosen once; nothing propagates.
+  // When it travels: a finger or a pen, past the slop (as a scroll takes it);
+  // a mouse, when it leaves the control (a mouse inside a control is still
+  // pointing at it). Not when the pressed view claims a drag itself (a Slider,
+  // a Switch's thumb: its own nearest owner), not across the owner's axis, not
+  // when a mouse press began on text or a field (that drag selects), and, for
+  // an owner that claims from a hold, at the hold rather than here.
+  const handOff = (from: HitTarget, to: NonNullable<HitTarget["drag"]>): void => {
+    dragDecided = true;
+    disarmHold();
+    from.sink("pointerUp", lastX, lastY, { canceled: true, ...moved(lastX, lastY) });
+    held = { key: to.key, sink: to.sink, wantsDrag: true, x: 0, y: 0 };
+    to.sink("pointerDown", pressX, pressY, { deltaX: 0, deltaY: 0 });
+  };
+  const travelled = (under: HitTarget | null, x: number, y: number): void => {
+    const h = held;
+    const to = h?.drag;
+    if (h === null || to === undefined || to.key === h.key || h.wantsDrag === true) { dragDecided = true; return; }
+    if (to.fromHold) return;   // decided at the hold
+    if (pressFinger ? !wandered : under !== null && under.key === h.key) return;
+    dragDecided = true;
+    if (!pressFinger && pressOnSelectable) return;
+    const dx = Math.abs(x - pressX), dy = Math.abs(y - pressY);
+    if ((to.axis === "x" && dx <= dy) || (to.axis === "y" && dy <= dx)) return;
+    handOff(h, to);
   };
   const listen = (
     type: "pointerdown" | "pointerup" | "pointermove" | "pointercancel",
@@ -403,6 +445,7 @@ export function routeInput(
     const t = resolve(e);
     held = t;
     wandered = false;
+    dragDecided = false;
     pressAux = e.pointerType === "mouse" && typeof e.button === "number" && e.button !== 0;
     pressSlop = e.pointerType === "touch" ? SLOP_TOUCH : SLOP_MOUSE;
     const p0 = rootPoint !== undefined ? rootPoint(e) : { x: e.clientX, y: e.clientY };
@@ -509,6 +552,13 @@ export function routeInput(
             // held on an ancestor's behalf: the long-press was the gesture, so
             // the release does not also click the child it began on
             if (holder.key !== target.key) heldAbove = true;
+            // …and an ancestor that drags from the hold takes the press now
+            // (DRAG HANDOFF): the finger is its, and the claim engages
+            const to = target.drag;
+            if (!dragDecided && to !== undefined && to.fromHold && to.key === holder.key && to.key !== target.key && target.wantsDrag !== true) {
+              handOff(target, to);
+              if (touch) holdCapture = true;
+            }
             holder.sink("hold", lastX, lastY, moved(lastX, lastY));
           }
         }, HOLD_MS);
@@ -582,6 +632,7 @@ export function routeInput(
         disarmHold();
       }
     }
+    if (!dragDecided) travelled(t, p.x, p.y);
     if (!pressOnSelectable) suppressSelection(true);
     if (held.wantsTouch === true && fingers.has(e.pointerId)) {
       fingers.set(e.pointerId, { id: e.pointerId, x: p.x, y: p.y });

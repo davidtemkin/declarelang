@@ -177,6 +177,19 @@ bootHost(cfg);
       await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: scheme }]);
       const pageErrors = [];
       page.on("pageerror", (e) => pageErrors.push(String(e?.message ?? e)));
+      // what the page's own boot says went wrong, so a boot that fails is
+      // reported by its reason rather than by the wait for a ready signal it
+      // will never give
+      const bootSaid = [];
+      // …and what the program threw that the runtime caught and logged with
+      // its place (`onClick on app.b threw: …`): an error, though not the page's
+      const thrown = [];
+      page.on("console", (m) => {
+        if (m.type() !== "error") return;
+        const t = m.text().replace(/(?: JSHandle@\w+)+$/, "");
+        if (t.startsWith("[Declare] boot failed")) bootSaid.push(consoleText(m));
+        else if (/^\[Declare\] .* threw: /.test(t)) thrown.push(t.slice("[Declare] ".length));
+      });
       // THE REQUESTS THE PROGRAM MAKES — its DataSources, streams and sockets,
       // not the page's own scripts, styles, fonts and pictures — in order, with
       // what each carried and what came back: a check asks what was sent
@@ -298,7 +311,11 @@ bootHost(cfg);
       };
       await watch.during("boot", async () => {
         await page.goto(`http://127.0.0.1:${port}${built !== null ? baseHref + "index.html" : "/__verify__/"}`, { waitUntil: "load", timeout: 30000 });
-        await page.waitForFunction("!!window.__declare?.inspect", { timeout: 10000, polling: 10 });
+        await page.waitForFunction("!!window.__declare?.inspect", { timeout: 10000, polling: 10 }).catch(async (e) => {
+          const lines = bootFailure(await Promise.all(bootSaid), pageErrors);
+          if (lines.length === 0) throw e;
+          throw Object.assign(new VerifyAssertion(lines.join("\n")), { lines });
+        });
         // the program's own fonts: a Font starts its faces' loads as the app comes
         // up, and the browser's document.fonts.ready can resolve before they begin
         await page.waitForFunction(() => {
@@ -352,7 +369,9 @@ bootHost(cfg);
       // to pass in silence, and the step after it failed for a reason it never named.
       // `at`, a point inside the view in its own units, is the one checked and
       // returned in place of the centre (clickAt: a day on a drawn chart).
-      const reach = async (path, at = null) => {
+      // `drag`: a finger's drag over a view that takes no presses is the scroll of
+      // the pane holding it, so reaching that pane there is reaching the view
+      const reach = async (path, at = null, { drag = false } = {}) => {
         const spot = () => at === null ? center(path) : pointIn(path, at.x, at.y);
         // A TARGET STILL MOVING is aimed at where it will be, not where it was: a
         // native smooth scroll, or a scroll request that lands a frame later,
@@ -395,13 +414,14 @@ bootHost(cfg);
           const clipped = t !== null && h !== null && h !== t && inside(t, h) && h.scrolls !== undefined && h.scrolls !== "none";
           return { ok: t !== null && h !== null && !clipped && (inside(h, t) || inside(t, h)), path: at.path, clipped };
         }, path, c.x, c.y);
-        let hit = await reaches();
+        const reachesFor = async () => { const h = await reaches(); return drag && touching() && h.clipped ? { ...h, ok: true, clipped: false } : h; };
+        let hit = await reachesFor();
         // below its pane's fold, though on the screen: scrolled into its pane, as a person would
         if (hit.clipped) {
           await page.evaluate((p) => { window.__declare.find(p)?.scrollIntoView?.("nearest"); }, path);
           await page.evaluate(() => window.__declare.clock?.settleMotion?.());
           c = await still();
-          hit = await reaches();
+          hit = await reachesFor();
         }
         if (!hit.ok) {
           // past the covering view: its bottom edge, when it covers from above
@@ -416,7 +436,7 @@ bootHost(cfg);
           }, path, hit.path, c.y);
           await page.evaluate(() => window.__declare.clock?.settleMotion?.());
           c = await still();
-          hit = await reaches();
+          hit = await reachesFor();
         }
         if (!hit.ok)
           throw new VerifyAssertion(`a press on '${path}'${at === null ? "" : ` at (${at.x}, ${at.y}) in it`} — (${Math.round(c.x)}, ${Math.round(c.y)}) in the window — would reach ${hit.path === null ? "nothing" : `'${hit.path}'`}: it is covered there, or takes no presses`);
@@ -425,8 +445,8 @@ bootHost(cfg);
         // do), so a tap a few pixels from a pinned button is the button's. On touch
         // the ring a finger covers is checked too, and a control there that is not
         // the target, inside it or holding it is said, not tapped.
-        if (touching()) {
-          const taker = await page.evaluate((p, x, y) => {
+        if (touching() && !drag) {
+          const takerAt = (q) => page.evaluate((p, x, y) => {
             const d = window.__declare, t = d.find(p);
             const inside = (a, b) => { for (let n = a; n != null; n = n.parent) if (n === b) return true; return false; };
             const presses = (v) => typeof v.press === "function" || typeof v.onClick === "function" || (typeof v.link === "string" && v.link !== "");
@@ -440,7 +460,18 @@ bootHost(cfg);
               if (n > 0 && v !== t && !inside(v, t) && !inside(t, v)) return { path: segs.slice(0, n).join("."), r };
             }
             return null;
-          }, path, c.x, c.y);
+          }, path, q.x, q.y);
+          let taker = await takerAt(c);
+          // a control that stays put beside it (a bar pinned to the window's
+          // foot): scrolled up clear of it, into the upper third, as a person would
+          if (taker !== null) {
+            await page.evaluate((p, inset) => { window.__declare.find(p)?.scrollIntoView?.("start", false, inset); }, path, Math.round(vp.height / 3));
+            await page.evaluate(() => window.__declare.clock?.settleMotion?.());
+            const was = c;
+            c = await still();
+            if (!off(c) && (await reaches()).ok && (await takerAt(c)) === null) taker = null;
+            else c = was;
+          }
           if (taker !== null)
             throw new VerifyAssertion(`a tap on '${path}'${at === null ? "" : ` at (${at.x}, ${at.y}) in it`} lands within ${taker.r} px of '${taker.path}', and a finger there is taken by it — a browser moves a tap onto a control that close. Tap farther from it, or give the two more room`);
         }
@@ -543,7 +574,7 @@ bootHost(cfg);
           await press(p.x, p.y);
         },
         async drag(path, dx, dy = 0, steps = 10) {
-          const c = await reach(path);
+          const c = await reach(path, null, { drag: true });
           step(`drag ${path} by (${dx}, ${dy})`);
           if (touching()) {
             // a finger's drag, a frame between moves: inside a scroller it is
@@ -643,14 +674,18 @@ bootHost(cfg);
         /** Select everything in a text field (focusing it): what select-all does
          *  before typing over a value. */
         async selectAll(path) {
-          step(`select all in ${path}`);
-          const r = await page.evaluate((p) => {
+          const field = (p) => {
             const n = window.__declare.find(p);
             if (n == null) return `no view at '${p}'`;
             if (typeof n.select !== "function") return `'${p}' is not a text field — it has no select()`;
-            n.focus?.(); n.select("all"); return null;
-          }, path);
+            return null;
+          };
+          const r = await page.evaluate(field, path);
           if (r !== null) throw new VerifyAssertion(`selectAll: ${r}`);
+          // a press into the field, as a person gives it focus, then its whole text
+          await this.click(path);
+          step(`select all in ${path}`);
+          await page.evaluate((p) => { window.__declare.find(p).select("all"); }, path);
           await landed();
         },
         async tab(n = 1) { for (let i = 0; i < n; i++) await this.key("Tab"); },
@@ -805,7 +840,7 @@ bootHost(cfg);
        *  stops answering, the run fails at once, naming the step it was on and
        *  the program's lines it was running. */
       const watched = (work) => watch.during(() => log.length > 0 ? `during ${log[log.length - 1]}` : "the script", work);
-      return { page, drive, expect, node, log, pageErrors, quiet, watched };
+      return { page, drive, expect, node, log, pageErrors, thrown, quiet, watched };
     };
 
     return await fn({ openApp });
@@ -835,7 +870,8 @@ export async function runBootInBrowser({ compiled, appDir, windows, queries = nu
       let app;
       try {
         app = await openApp({ width: w.size[0], height: w.size[1], touch: w.touch, budgetMs, onPage: (p) => {
-          p.on("console", (m) => { const t = m.text(); if (m.type() === "error" && t.startsWith("[Declare] ")) contained.push(t.slice("[Declare] ".length)); });
+          // (a message that also hands over the error object already says what it was)
+          p.on("console", (m) => { const t = m.text().replace(/(?: JSHandle@\w+)+$/, ""); if (m.type() === "error" && t.startsWith("[Declare] ")) contained.push(t.slice("[Declare] ".length)); });
         } });
       } catch (e) {
         record.errors.push(...(e?.lines ?? [`boot: ${String(e?.message ?? e).split("\n")[0]}`]));
@@ -877,6 +913,28 @@ const TIMED_OUT = Symbol("timed out");
 function within(p, ms) {
   let timer;
   return Promise.race([p, new Promise((r) => { timer = setTimeout(() => r(TIMED_OUT), ms); })]).finally(() => clearTimeout(timer));
+}
+
+/** A console message's text with its error arguments spelled out (the
+ *  browser's own text for `console.error("…", e)` names the error only as a
+ *  handle). */
+async function consoleText(m) {
+  const parts = await Promise.all(m.args().map((h) => h.evaluate((v) => (v instanceof Error ? v.stack ?? v.message : String(v))).catch(() => null)));
+  return parts.length > 0 && parts.every((p) => p !== null) ? parts.join(" ") : m.text();
+}
+
+/** The lines that say why a boot never came up: what the boot logged as it
+ *  failed — its header and the error's own first line, without the runtime's
+ *  frames — or, failing that, the page's uncaught errors. Empty when the page
+ *  said nothing. */
+function bootFailure(said, pageErrors) {
+  const lines = [];
+  for (const s of said) {
+    const rest = s.replace(/^\[Declare\] boot failed\s*(?:—[^:\n]*)?:?\s*/, "").split("\n").map((l) => l.trim()).filter((l) => l !== "" && !l.startsWith("at "));
+    lines.push(`boot: the program compiled but did not come up — ${(rest[0] ?? "no reason given").replace(/^Error: /, "")}`);
+  }
+  if (lines.length === 0) for (const e of pageErrors) lines.push(`boot: the program did not come up — ${e}`);
+  return [...new Set(lines)];
 }
 
 function watchPage(page, budgetMs) {
@@ -1004,6 +1062,7 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
       failures.push(`${e instanceof VerifyAssertion ? "" : "unexpected error: "}${e?.message ?? e}${where}${frame ? `\n      at ${frame}` : ""}`);
     }
     for (const e of app.pageErrors) failures.push(`page error: ${e}`);
+    for (const e of new Set(app.thrown)) failures.push(`error: ${e}`);
     return { ok: failures.length === 0, failures, log: app.log };
   });
 }
@@ -1231,6 +1290,7 @@ export async function runStates({ compiled, appDir, statesPath, baselinesDir, bl
           }
         });
         for (const e of app.pageErrors) failures.push(`${st.name}: page error: ${e}`);
+        for (const e of new Set(app.thrown)) failures.push(`${st.name}: error: ${e}`);
       } catch (e) {
         if (e?.lines !== undefined) failures.push(...e.lines.map((l, i) => i === 0 ? `${st.name}: ${l}` : l));
         else failures.push(`${st.name}: ${e?.message ?? e}`);

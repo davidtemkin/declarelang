@@ -128,6 +128,10 @@ const HOST = {
             const d = K.kdirty();
             if (d.length > 0)
                 pushHook(d);
+            // …and that push can retire the view the drawing belongs to (a gate the
+            // kernel landed taking its subtree away): a disposed rule does not run
+            if (RULES[rule] !== c)
+                return 0;
         }
         try {
             return c.runBody();
@@ -140,8 +144,10 @@ const HOST = {
             // the settle, and settle() throws it once the kernel has unwound.
             if (pendingError === null)
                 pendingError = e;
-            if (outer.length === 0)
+            if (outer.length === 0) {
+                placeError(e, c.label);
                 K.abort();
+            }
             // a kernel-landed rule's cell keeps its value: the kernel lands what we return
             return c.landedCell >= 0 ? table[c.landedCell] : 0;
         }
@@ -202,6 +208,21 @@ const HOST = {
     },
     schedule() { schedule(); },
 };
+/** An error a program's body threw with nothing between it and the settle to
+ *  contain it says where it came from, as a boot error does: the rule's label
+ *  (`Gauge.draw`, `Row.height`) leads its message, and its stack's first line,
+ *  so the page error a tool or a console shows has a place. Once per error; a
+ *  DeclareError is already worded with its place. */
+const PLACED = new WeakSet();
+function placeError(e, label) {
+    if (!(e instanceof Error) || e instanceof DeclareError || PLACED.has(e))
+        return;
+    PLACED.add(e);
+    const head = `${e.name}: ${e.message}`;
+    e.message = `${label.replace(/ \(.*\)$/, "")}: ${e.message}`;
+    if (typeof e.stack === "string" && e.stack.startsWith(head))
+        e.stack = `${e.name}: ${e.message}${e.stack.slice(head.length)}`;
+}
 /** After any call into the kernel that ran a body: an exception the body
  *  raised propagates NOW, through whatever JS is on the stack — exactly as it
  *  would have without the kernel in between. Inside a settle it stays recorded

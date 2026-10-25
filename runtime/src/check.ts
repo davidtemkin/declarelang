@@ -788,6 +788,8 @@ function checkElement(
           `'${child.name}' is already a member of ${el.tag} — a use site configures a class through its attributes, not by redeclaring its children. Give ${el.tag} an attribute and read it in the child ('text: string = ""' on the class, 'text = { classroot.text }' on '${child.name}')`,
           child.pos
         ));
+      } else if (objectMember(schema, child.name)) {
+        errors.push(new DeclareError(`'${child.name}' is a member of every object — a child cannot take its name; choose another`, child.pos));
       } else if (runtimeMethodsOf(schema).has(child.name) || runtimeFieldsOf(schema).has(child.name)) {
         // The runtime's own member (a method, or a field like `surface`): the
         // instantiate backstop refuses it at boot; this is the same rule, here.
@@ -824,8 +826,18 @@ function checkElement(
  *  `surface`, or a method) — the runtime-free twin of instantiate's refusal,
  *  from the pinned tables (runtime-methods.ts). */
 function runtimeMemberDecl(schema: ClassSchema, d: AttrDecl): DeclareError | null {
+  if (objectMember(schema, d.name)) return new DeclareError(`'${d.name}' is a member of every object — a declared attribute cannot take its name; choose another`, d.pos);
   if (!runtimeMethodsOf(schema).has(d.name) && !runtimeFieldsOf(schema).has(d.name)) return null;
   return new DeclareError(`'${d.name}' is a member of the running ${builtinOf(schema)} (the runtime's own) — a declared attribute cannot take its name; choose another`, d.pos);
+}
+
+/** A name every JavaScript object already answers (`valueOf`, `toString`,
+ *  `constructor`, …) that the running class does not implement itself. A node
+ *  is an object, so a member wearing the name would replace what the engine
+ *  calls on its own; instantiate refuses it at boot, and this is that rule
+ *  without a runtime. */
+function objectMember(schema: ClassSchema, name: string): boolean {
+  return Object.hasOwn(Object.prototype, name) && !runtimeMethodsOf(schema).has(name) && !runtimeFieldsOf(schema).has(name);
 }
 
 /** The built-in a schema's runtime members come from — itself, or the nearest
@@ -2112,6 +2124,9 @@ export function checkMethod(schema: ClassSchema, m: Method): CheckedMethod {
   const structural = structuralReason(m.name);
   if (structural !== null) {
     return err(`'${m.name}' is ${structural} — a method cannot take its name; choose another`, m.pos);
+  }
+  if (objectMember(schema, m.name)) {
+    return err(`${schema.name}.${m.name}: '${m.name}' is a member of every object — choose another name`, m.pos);
   }
   // The `on` prefix is a naming convention, not syntax (language §8): a method
   // so named that answers no event of its class is an ordinary method, and the

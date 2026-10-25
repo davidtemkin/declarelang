@@ -155,7 +155,7 @@ build it: the guide section that teaches it, a program that does it, and names t
 
 | Need | Guide (`docs/guide/`) | See it in | Ask about |
 |---|---|---|---|
-| Arranging views; sizes that follow content; one program for phone and desktop | `06-layout.md` | tracker: `SimpleLayout` and `padding` throughout; sampler: `Specimen extends Card`; weather: the App's `desk: State [ applied = { !app.phone } ]` | `SimpleLayout`, `ResponsiveLayout`, `Card`, `padding` |
+| Arranging views; sizes that follow content; one program for phone and desktop; a view that changes with where the user is | `06-layout.md`; `04-structure.md` § A view in each of the user's places | tracker: `SimpleLayout` and `padding` throughout; sampler: `Specimen extends Card`; weather: the App's `desk: State [ applied = { !app.phone } ]` | `SimpleLayout`, `ResponsiveLayout`, `Card`, `padding`, `State` |
 | Scrolling panes; views that stay put while the page scrolls; what is on screen staying still when content above it changes; a log that follows its newest line | `07-scrolling.md` | weather: `HourStrip`'s `scroller` (`scrolls = x`), the App's `pill` and `back` (`ignoreScroll = true`); keeping the reader's place is the default, so the tracker's list has no code for it | `scrolls`, `ignoreScroll`, `scrollTo`, `scrollAnchor` |
 | Buttons, fields, toggles; your own control, with keyboard, focus, hover and pressed built in | `08-controls.md`; `17-your-own-views.md` § View or Control | sampler: every library control; tracker: `Chip`, `Facet`, `RailStat`; calendar: `NavArrow` (each `extends Control`, with `press()`) | `Control`, `Button`, `TextInput`, `Segmented` |
 | Dragging and dropping; keys; keyboard shortcuts | `09-pointer-and-keyboard.md` § Dragging, § Keyboard events, § Keyboard shortcuts | calendar: `Ev` (`onPointerDown`, `onPointerUp`) and its `Drag` class; desktop: `DeskWindow`'s `beginDrag`, and its menu bar's records, whose `key:` fields are the program's shortcuts | `onPointerDown`, `viewAt`, `Keys`, `Shortcuts` |
@@ -173,7 +173,7 @@ build it: the guide section that teaches it, a program that does it, and names t
 | Anything that opens over the interface — a menu, a context menu, a popover, a dialog, a sheet, a toast — closing when it should, holding focus and keys while open, staying with its window | `18-overlays.md` | tracker: the App's `sortMenu`, `facetMenu`, `ctx: ContextMenu` and its undo `Toast`; sampler: the Overlays page, every kind opened from a card; desktop: a Files window's row menu, which opens in the window's layer | `Menu`, `ContextMenu`, `Popover`, `Dialog`, `Sheet`, `Toast`, `Window` |
 | A screen reader and the keyboard alone: names for what shows none, your own drawn control's role, announcements; what a field holds, for autofill and a phone's keyboard | `19-accessibility.md`; `08-controls.md` § Text fields | tracker: its icon buttons' `accessibilityLabel`; library: `Toast` (`Accessibility.announce`), `Slider`'s role contract | `accessibilityLabel`, `accessibilityRole`, `Accessibility`, `TextInput.purpose` |
 | Addresses, back and forward, deep links | `20-urls.md` | birds: the App's `location` and `waypoint` and what derives from them | `location`, `waypoint` |
-| Motion that can be interrupted and redirected; a view's states | `21-motion.md` | tracker: `ListRow`'s height spring; calendar: `DetailSection`'s spring; desktop: `DockIcon`'s `magSpring` | `Spring`, `State` |
+| Motion that can be interrupted and redirected | `21-motion.md` | tracker: `ListRow`'s height spring; calendar: `DetailSection`'s spring; desktop: `DockIcon`'s `magSpring` | `Spring` |
 | Clocks, a later call, one action when something changes | `22-time.md` | calendar: the App's `clock: Time [ tick = day ]`; tracker: `Toast` (`afterDelay`), the App's `trackChanges` and `onChange` | `Time`, `afterDelay`, `onChange` |
 | A whole arrangement moving from one view to another; one view becoming the next | `23-animated-arrangements.md` | calendar: the App's four springs (`c0`, `r0`, `nc`, `nr`) that every cell reads; weather: `CityView`, carried by one spring (`openT`); marketmap: the App's `flight` and `zoomer` | `Spring`, `TweenLayout` |
 | Another program inside yours; yours inside a page | `25-embedding.md` | desktop: `AppWindow`'s `island: AppIsland`; two-way: `crossings` — values go down with `provides`, come back up with the method `exposed(…)` (what the tenant `exposes`), and commands cross with `post` | `AppIsland`, `DOMIsland`, `provides`, `exposes`, `DOMIsland.exposed` |
@@ -230,10 +230,12 @@ shows the Declare form.
   it gets a label a panel can list, stays out of a text field's typing, and stands down
   while a menu is open. (`09-pointer-and-keyboard.md` § Keyboard shortcuts)
 - **Placing everything by hand.** A page's cards, rows and insets are a layout's job; `x` and
-  `y` are for a diagram's scene or an overlay. Three tells: a container whose height is
+  `y` are for a diagram's scene or an overlay. Four tells: a container whose height is
   arithmetic over its children (it sizes from its content);
-  `x = { (parent.width - this.width) / 2 }`, which is `x = center`; and equal widths by
-  arithmetic, `width = { (parent.width - 24) / 4 }`, which is `flexes = true` on each.
+  `x = { (parent.width - this.width) / 2 }`, which is `x = center`; equal widths by
+  arithmetic, `width = { (parent.width - 24) / 4 }`, which is `flexes = true` on each; and
+  `width = { app.wide ? parent.width - 280 : parent.width }` with its like on several
+  siblings, which is a layout of your own: one `place()` that divides the room.
   (`06-layout.md`)
 - **A method per control that only passes the press on** — `picked() { }` declared on the
   class, `press() { this.picked() }`, the use site overriding `picked`. The use site overrides

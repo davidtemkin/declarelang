@@ -71,6 +71,7 @@ export function hitWalk(s, px, py) {
     let pinch;
     let hold;
     let context;
+    let drag;
     for (let p = t; p !== null; p = p.parent) {
         if (p.sink === null)
             continue;
@@ -80,10 +81,12 @@ export function hitWalk(s, px, py) {
             hold = { key: p, sink: p.sink };
         if (context === undefined && p.wants?.wantsContext === true)
             context = { key: p, sink: p.sink };
-        if (pinch !== undefined && hold !== undefined && context !== undefined)
+        if (drag === undefined && p.wants?.wantsDrag === true)
+            drag = { key: p, sink: p.sink, axis: p.wants.claimAxis ?? "both", fromHold: p.wants.wantsHold === true };
+        if (pinch !== undefined && hold !== undefined && context !== undefined && drag !== undefined)
             break;
     }
-    return { key: t, sink: t.sink, ...t.wants, pinch, hold, context, x, y, cursor: cursorAt(s, px, py) };
+    return { key: t, sink: t.sink, ...t.wants, pinch, hold, context, drag, x, y, cursor: cursorAt(s, px, py) };
 }
 /** The text field a press at a point in `s`'s parent frame lands on: the topmost view there
  *  that takes a press or is a field, when it is a field — a press on a view over a field

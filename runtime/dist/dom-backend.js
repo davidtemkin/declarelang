@@ -720,6 +720,7 @@ export class DomBackend {
             if (el === null)
                 return null;
             let pinch, hold, context;
+            let drag;
             for (let pe = el; pe !== null; pe = pe === rootEl ? null : pe.parentElement) {
                 const w = WANTS.get(pe), ps = SINKS.get(pe);
                 if (w === undefined || ps === undefined)
@@ -730,11 +731,13 @@ export class DomBackend {
                     hold = { key: pe, sink: ps };
                 if (context === undefined && w.wantsContext === true)
                     context = { key: pe, sink: ps };
-                if (pinch !== undefined && hold !== undefined && context !== undefined)
+                if (drag === undefined && w.wantsDrag === true)
+                    drag = { key: pe, sink: ps, axis: w.claimAxis ?? "both", fromHold: w.wantsHold === true };
+                if (pinch !== undefined && hold !== undefined && context !== undefined && drag !== undefined)
                     break;
             }
             const p = localPoint(el, e.clientX, e.clientY);
-            return { key: el, sink: SINKS.get(el), ...WANTS.get(el), pinch, hold, context, x: p.x, y: p.y };
+            return { key: el, sink: SINKS.get(el), ...WANTS.get(el), pinch, hold, context, drag, x: p.x, y: p.y };
         }, (e) => localPoint(rootEl, e.clientX, e.clientY), undefined, !embedded);
         // Tap-to-dismiss for native editable fields. Desktop blurs a focused
         // input/textarea when you press a non-focusable element, but mobile Safari
@@ -3065,8 +3068,26 @@ export function watchScrolling(target, report) {
     const onTouch = (e) => {
         programEnds();
         touches = e.touches?.length ?? 0;
+        if (e.type === "touchstart")
+            followTouch(e.target);
         if (touches === 0 && active)
             arm(endsItself ? BACKSTOP : QUIET);
+    };
+    // A touch's later events go to the element it began on, wherever that element
+    // is by then. When a screen change takes it out of the page under the finger,
+    // its end never reaches this target, and a finger would stay down here for
+    // good, holding every program scroll; so the end is heard on that element too.
+    const followTouch = (el) => {
+        if (!(el instanceof Node) || el === target)
+            return;
+        const end = (ev) => {
+            el.removeEventListener("touchend", end);
+            el.removeEventListener("touchcancel", end);
+            if (!el.isConnected)
+                onTouch(ev);
+        };
+        el.addEventListener("touchend", end, { passive: true });
+        el.addEventListener("touchcancel", end, { passive: true });
     };
     const onEnd = () => { if (program) {
         programEnds();

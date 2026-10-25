@@ -54,6 +54,13 @@ demos and dashboards), [`Field`](declare-docs:Field) (a labeled form row),
 of drawn marks ([Your own views](declare-docs:guide:your-own-views@icons)). All of it is
 written in Declare, in `library/`, and none of it uses anything you cannot.
 
+**Controls inside other views.** A row, a cell, a card or a carousel page can hold
+buttons, fields and checkboxes, including a row that is itself selectable, as a
+`DataGrid`'s are. What can't hold another control is one a screen reader announces as a
+single thing: a button, a link, a checkbox or a switch. A control inside one of those is
+read as part of its name and can't be reached, and the compiler warns about it
+(DECLARE4020).
+
 ## The value pattern
 
 A control's value is an ordinary attribute, and it is used in one of three ways.

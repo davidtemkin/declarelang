@@ -138,8 +138,14 @@ const browser = { firstTurn: null, look: 0, assert: 0, ownScripts: 0, pictures: 
 // run of one is a browser render whatever its command line says
 const ownBrowserFiles = new Set();
 
+// THE BUILD ENDS AT ITS RESULT. A stream can go on past it — a background
+// command the agent left running ends later and wakes it for a turn of its own,
+// with a result of its own — and that turn is not the build: what follows the
+// first result is counted apart (afterBuild), never in the build's time.
+let afterBuild = 0;
 for (const e of events) {
-  if (e.type === "result") result = e;
+  if (result !== null) { if (e.message?.role === "assistant") afterBuild++; continue; }
+  if (e.type === "result") { result = e; continue; }
   const msg = e.message ?? {};
   if (msg.role === "assistant") turns++;
   const at = ts(e.timestamp);
@@ -286,7 +292,7 @@ const report = {
   // `turns` is the CLI's own count (a turn is a request/response round); the
   // assistant-message count is larger and is not the same unit, so it is not
   // reported as one.
-  shape: { turns: result.num_turns ?? turns, toolCalls: calls.length, failedChecks: failures },
+  shape: { turns: result.num_turns ?? turns, toolCalls: calls.length, failedChecks: failures, messagesAfterBuild: afterBuild },
   friction: {
     diagnostics: [...codes.values()].sort((a, b) => b.occasions - a.occasions || b.count - a.count)
       .map((v) => ({ code: v.code, seen: v.count, compiles: v.occasions, sites: v.positions.size, said: v.said })),
@@ -326,6 +332,7 @@ console.log(`  ${pad("TOTAL", 22)} ${min(totalMs).toFixed(1).padStart(6)} min`);
 
 console.log("\nSHAPE (collected, not judged)");
 console.log(`  turns ${report.shape.turns} · tool calls ${calls.length} · checks that reported failure ${failures}`);
+if (afterBuild > 0) console.log(`  after the build's result: ${afterBuild} message(s) more, not counted above`);
 
 console.log("\nFRICTION — where a change to the code, the docs, or the packaging would pay");
 const fr = report.friction;

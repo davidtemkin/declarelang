@@ -116,8 +116,9 @@ export interface Capability {
    *  the entries the program names (subsetModule), instead of a stand-in — and
    *  whatever only the cut entries referenced is left for the bundler to drop.
    *  `keys` says which names: `classes`, what it constructs, closed over bases;
-   *  `mentions`, the names its bodies say. */
-  subset?: { export: string; keys: "classes" | "mentions" };
+   *  `mentions`, the names its bodies say; `always`, entries the runtime reaches
+   *  on its own (a default). */
+  subset?: { export: string; keys: "classes" | "mentions"; always?: readonly string[] };
 }
 
 // ── the manifest ───────────────────────────────────────────────────────────
@@ -165,10 +166,12 @@ export const CAPABILITIES: readonly Capability[] = [
 
   // ── what the program reaches ─────────────────────────────────────────────
   { id: "themes", describe: "the Themes preset records", modules: ["themes"], hostsKeep: true, refusal: "unused",
-    when: [{ mentions: [...THEME_PRESET_NAMES, "activeTone"] }],
+    // a theme read with none set answers the default preset (attributes.ts
+    // provided), so reading one at all reaches the presets
+    when: [{ mentions: [...THEME_PRESET_NAMES, "activeTone"], calls: ["provided", "$provided"] }],
     inert: { THEME_PRESETS: "object", THEME_PRESET_NAMES: "array", activeTone: "identity", withThemeDefaults: "identity" } },
   { id: "theme-table", describe: "the Themes preset records, whole (a build ships the presets its program names)",
-    modules: ["themes-data"], when: [], hostsKeep: true, refusal: "unused", subset: { export: "THEME_RECORDS", keys: "mentions" } },
+    modules: ["themes-data"], when: [], hostsKeep: true, refusal: "unused", subset: { export: "THEME_RECORDS", keys: "mentions", always: ["SanFrancisco"] } },
   { id: "draw", describe: "draw(): the drawing vocabulary and raster cache", modules: ["draw"], requires: ["visibility"], hostsKeep: true, refusal: "unused",
     when: [{ methods: ["draw"] }],
     inert: { record: "null", replay: "noop", Draw: "class", DrawGradient: "class", replayArea: "zero", listIsolated: "false",
@@ -331,7 +334,7 @@ export interface BuildContext {
 interface Val { kind?: string; src?: string; name?: string; plan?: unknown[]; value?: unknown; args?: unknown[] }
 interface El { tag?: string; attrs?: Array<{ name: string; value?: Val; bind?: string }>; decls?: Array<{ name: string; def?: Val | null }>;
   methods?: Array<{ name: string; body?: string }>; children?: El[] }
-interface ProgramLike { root: El; classes: Array<{ name?: string; base?: string | null; body: El }> }
+interface ProgramLike { root: El; classes: Array<{ name?: string; base?: string | null; body: El }>; scripts?: Array<{ src: string }> }
 
 const DYNAMIC = new Set(["code", "path", "query", "subfrom"]);
 
@@ -375,7 +378,8 @@ function literalCalls(v: unknown, into: Set<string>): void {
   }
 }
 
-/** ONE walk over the program — its tree, its classes, every `{ }` body. */
+/** ONE walk over the program — its tree, its classes, every `{ }` body, and its
+ *  script, whose helpers a body calls and which can do what a body would. */
 export function programFacts(program: ProgramLike, usedClasses: Iterable<string>): ProgramFacts {
   const f: ProgramFacts = { classes: new Set(usedClasses), ownClasses: new Set(usedClasses), methods: new Set(), attributes: new Map(), mentions: new Set(),
     calls: new Set(), writes: new Set(), dynamicSlots: new Set(), syntax: new Set(), attributeOn: new Map() };
@@ -421,6 +425,7 @@ export function programFacts(program: ProgramLike, usedClasses: Iterable<string>
   };
   walk(program.root);
   for (const c of program.classes) walk(c.body, c.name ?? c.body.tag);
+  for (const b of program.scripts ?? []) readBody(b.src, f);
   for (const name of [...f.classes]) {   // a built-in constructs its bases too: TextInput is an Editor
     for (let s = Object.hasOwn(SCHEMAS, name) ? SCHEMAS[name].base : null; s !== null; s = s.base) f.classes.add(s.name);
   }
@@ -557,7 +562,7 @@ export function subsetModule(cap: Capability, moduleName: string, source: string
   for (const p of table.properties) {
     const key = p.name !== undefined && (ts.isIdentifier(p.name) || ts.isStringLiteral(p.name)) ? p.name.text : null;
     if (key === null) throw new Error(`capability "${cap.id}": ${sub.export} has an entry the cut cannot name`);
-    if (names.has(key)) kept.push(p.getText(file));
+    if (names.has(key) || sub.always?.includes(key) === true) kept.push(p.getText(file));
   }
   return source.slice(0, table.getStart(file)) + `{ ${kept.join(", ")} }` + source.slice(table.getEnd());
 }

@@ -250,6 +250,52 @@ Inside any one node, the same question has smaller answers:
 - A computed value used in several places → a **declared attribute** with a `{ }` default.
 - Behavior on a node's own state → a **method** on it.
 
+## A view in each of the user's places
+
+Where the user is changes what a view is. A view says so with a
+[`State`](declare-docs:State): a set of its own attributes, and children, that apply
+while a condition holds and come off when it lifts.
+
+```declare
+class Row [ width = 100%, height = 44, cornerRadius = 6, fill = whitesmoke,
+    label: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    padding = [0, 10, 0, 10],
+    Text [ flexes = true, text = { classroot.label } ],
+    State [ applied = { app.editing }, fill = #FFF6E0,
+        Button [ label = "Remove" ] ]
+    ]
+
+App [ width = 360, height = 240, fill = white, textColor = black, theme = { SanFrancisco },
+    editing: boolean = false,
+    col: View [ x = 20, y = 16, width = 320,
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        bar: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, align = center ],
+            Text [ flexes = true, fontWeight = bold, text = "Items" ],
+            Button [ label = "Edit", onClick() { app.editing = !app.editing },
+                State [ applied = { app.editing }, label = "Done", primary = true ] ]
+            ],
+        Row [ label = "First" ],
+        Row [ label = "Second" ],
+        Row [ label = "Third" ]
+        ]
+    ]
+```
+
+`editing` is part of where the user is, so it is on the App. Each view that changes
+carries its own state and reads that one flag: the button becomes Done, and each row takes
+a tint and a Remove button. Nothing turns them back. A view's attribute is its own value
+plus the states that hold, so when `editing` lifts every view is as it was, with no exit
+code to write or to forget. A state changes only its own view, and a child it brings
+exists only while it holds; another view that follows the same condition has a state of
+its own, written beside everything else that view is.
+
+The condition is any constraint: a mode the person chose, `app.items.failed` when the
+data did not arrive, `app.width < 480`. A state can be driven by `apply()` and `remove()`
+instead, and the change can move rather than snap
+([Motion and states](declare-docs:guide:motion@states)).
+
 ## When a class earns its place
 
 There are two good reasons to make a class, and they are different.

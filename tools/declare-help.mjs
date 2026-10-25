@@ -265,10 +265,11 @@ function sayEntry(e) {
   // a method's whole signature, as the runtime declares it: the argument order
   // and types prose cannot be trusted to carry
   if (e.kind === "method" && e.signature) say(`  ${e.signature}`);
+  // the marks that ship come before how to write one: most who ask want one of them
+  if (e.id === "Icon") sayIcons();
   for (const line of (e.doc ?? "").split("\n")) say(`  ${line}`);
   if (e.source?.file) say(`  source: ${e.source.file}${e.source.line ? ":" + e.source.line : ""}`);
   if (Array.isArray(e.seeAlso) && e.seeAlso.length > 0) say(`  see also: ${e.seeAlso.join(", ")}`);
-  if (e.id === "Icon") sayIcons();
 }
 
 /** A theme preset's own `name = value` pairs, read from its source: the

@@ -70,6 +70,28 @@ Notes, each load-bearing:
   trackpad pinch arrives as a ctrlKey wheel, and a mouse user's ctrl+wheel
   zoom reports the same way.
 
+## Who hears a gesture (the router, both backends)
+
+The realization above decides between the browser and the app. Inside the app,
+`input.ts` decides which view hears a gesture, once per gesture and from
+declarations alone; nothing propagates and no handler can stop or pass one on:
+
+| gesture | goes to |
+|---|---|
+| a press, a click, a double click | the view that takes input under the point |
+| a hold, a context menu, a pinch | the nearest view up the hit chain declaring it |
+| a drag | the pressed view, until the press travels; then the nearest view declaring `onPointerMove`, unless that is the pressed view |
+
+The drag row is the DRAG HANDOFF: the claim covers the subtree here as it does
+in `touch-action`. A finger or pen travels at the touch slop; a mouse when it
+leaves the pressed view. The pressed view's release is `canceled`, as when the
+browser takes the finger; the owner hears `pointerDown` at the press origin
+and moves measured from it. Not across the owner's `claim` axis; not on a mouse
+press that began on selectable or editable content; and for an owner that also
+declares `onHold`, at the hold instead (the hold-gated claim's engaged half).
+Each backend resolves the owner (`HitTarget.drag`) in the walk that resolves
+hold and pinch.
+
 ## The canvas backend — same contract, one element
 
 One shared `<canvas>` cannot carry per-subtree CSS, so (`canvas-backend.ts`):

@@ -1,0 +1,329 @@
+/*
+# The Venue — the model
+
+What the service holds, typed; the helpers that write money, dates and card
+numbers the way a person reads them; and the classes that hold the records:
+the production, one performance's seat map (with the geometry of the hall it
+is drawn in), and the signed-in account.
+*/
+
+
+// money, dates, card numbers and the hall's geometry: functions of their arguments
+
+script {
+    const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"]
+
+    // amounts read $240.00
+    function money(cents: number): string {
+        return "$" + (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    }
+
+    // the hall's local time, as printed on a ticket: "2026-11-13T19:30"
+    function parts(s: string): number[] {
+        const m = /^(\d+)-(\d+)-(\d+)T(\d+):(\d+)/.exec(s)
+        return m == null ? [1970, 1, 1, 0, 0] : m.slice(1).map(Number)
+    }
+    // dates read Fri 13 Nov
+    function dateLabel(s: string): string {
+        const p = parts(s)
+        return DOW[new Date(p[0], p[1] - 1, p[2]).getDay()] + " " + p[2] + " " + MON[p[1] - 1]
+    }
+    function weekday(s: string): string { const p = parts(s); return DOW[new Date(p[0], p[1] - 1, p[2]).getDay()] }
+    function dayOfMonth(s: string): string { return "" + parts(s)[2] }
+    function monthShort(s: string): string { return MON[parts(s)[1] - 1] }
+    function monthLabel(s: string): string { const p = parts(s); return MONTHS[p[1] - 1] + " " + p[0] }
+    function monthKey(s: string): string { return s.slice(0, 7) }
+    // times read 7:30pm
+    function timeLabel(s: string): string {
+        const p = parts(s)
+        const h = p[3] % 12 == 0 ? 12 : p[3] % 12
+        return h + ":" + (p[4] < 10 ? "0" : "") + p[4] + (p[3] < 12 ? "am" : "pm")
+    }
+
+    function plural(n: number, one: string, many: string): string { return n + " " + (n == 1 ? one : many) }
+
+    // ── cards ──
+
+    function digitsOf(v: string): string { return v.replace(/\D/g, "") }
+
+    // the kind of card, from its first digits
+    function brandOf(d: string): string {
+        if (/^3[47]/.test(d)) return "amex"
+        if (/^4/.test(d)) return "visa"
+        const p4 = Number(d.slice(0, 4))
+        if (/^5[1-5]/.test(d) || (d.length >= 4 && p4 >= 2221 && p4 <= 2720)) return "mastercard"
+        if (/^(6011|65|64[4-9])/.test(d)) return "discover"
+        return ""
+    }
+    function brandName(b: string): string {
+        return b == "visa" ? "Visa" : b == "mastercard" ? "Mastercard" : b == "amex" ? "American Express" : b == "discover" ? "Discover" : "Card"
+    }
+    function cvcLength(b: string): number { return b == "amex" ? 4 : 3 }
+    function maxDigits(b: string): number { return b == "amex" ? 15 : b == "mastercard" ? 16 : 19 }
+
+    // grouped as printed on the card: 4-6-5 for American Express, fours for the rest
+    function groupCard(d: string): string {
+        const b = brandOf(d)
+        const groups = b == "amex" ? [4, 6, 5] : [4, 4, 4, 4, 3]
+        const out: string[] = []
+        let i = 0
+        for (const g of groups) {
+            if (i >= d.length) break
+            out.push(d.slice(i, i + g))
+            i += g
+        }
+        return out.join(" ")
+    }
+
+    // where the caret belongs after regrouping: after the same count of digits
+    function caretAfterDigits(s: string, n: number): number {
+        if (n <= 0) return 0
+        let seen = 0
+        for (let i = 0; i < s.length; i++) {
+            if (/\d/.test(s[i])) seen++
+            if (seen == n) return i + 1
+        }
+        return s.length
+    }
+
+    function luhn(d: string): boolean {
+        let sum = 0
+        for (let i = 0; i < d.length; i++) {
+            let n = Number(d[d.length - 1 - i])
+            if (i % 2 == 1) { n *= 2; if (n > 9) n -= 9 }
+            sum += n
+        }
+        return sum % 10 == 0
+    }
+
+    function cardNumberError(v: string): string {
+        const d = digitsOf(v)
+        if (d == "") return "Enter the card number."
+        if (/[^\d\s-]/.test(v)) return "A card number is digits only."
+        const b = brandOf(d)
+        const ok = b == "amex" ? d.length == 15
+                 : b == "visa" ? [13, 16, 19].includes(d.length)
+                 : b == "mastercard" ? d.length == 16
+                 : b == "discover" ? d.length >= 16 && d.length <= 19
+                 : d.length >= 12 && d.length <= 19
+        if (!ok || !luhn(d)) return "That isn't a valid card number. Check the digits."
+        return ""
+    }
+
+    // expiry, typed as MM / YY
+    function formatExpiry(v: string): string {
+        let d = digitsOf(v).slice(0, 4)
+        if (d.length == 1 && Number(d) > 1) d = "0" + d
+        return d.length <= 2 ? d : d.slice(0, 2) + " / " + d.slice(2)
+    }
+    function expiryMonth(v: string): number { return Number(digitsOf(v).slice(0, 2)) }
+    function expiryYear(v: string): number { return 2000 + Number(digitsOf(v).slice(2, 4)) }
+    function expiryError(v: string, nowYear: number, nowMonth: number): string {
+        const d = digitsOf(v)
+        if (d == "") return "Enter the expiry date."
+        if (d.length != 4) return "Enter the expiry as MM / YY."
+        const m = expiryMonth(v)
+        if (m < 1 || m > 12) return "Enter a month from 01 to 12."
+        if (expiryYear(v) * 12 + m < nowYear * 12 + nowMonth) return "This card has expired."
+        return ""
+    }
+    function cvcError(v: string, brand: string): string {
+        const n = cvcLength(brand)
+        if (v == "") return "Enter the security code."
+        if (!/^\d+$/.test(v) || v.length != n) return "The security code is " + n + " digits."
+        return ""
+    }
+
+    // ── addresses ──
+
+    function postalError(country: string, v: string): string {
+        const t = v.trim()
+        if (t == "") return "Enter the postal code."
+        if (country == "US" && !/^\d{5}(-\d{4})?$/.test(t)) return "A ZIP code is five digits, like 94103."
+        if (country == "CA" && !/^[A-Za-z]\d[A-Za-z][ -]?\d[A-Za-z]\d$/.test(t)) return "A postal code looks like K1A 0B1."
+        if (country == "GB" && !/^[A-Za-z]{1,2}\d[A-Za-z\d]?\s*\d[A-Za-z]{2}$/.test(t)) return "A postcode looks like EC1A 1BB."
+        return ""
+    }
+    function emailError(v: string): string {
+        const t = v.trim()
+        if (t == "") return "Enter your email address."
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(t)) return "That doesn't look like an email address."
+        return ""
+    }
+    function required(v: string, what: string): string { return v.trim() == "" ? "Enter " + what + "." : "" }
+
+    // ── the hall ──
+    //
+    // Every row is an arc around one point behind the stage, so the house fans
+    // out the way a real one does; each section sits further back than the one
+    // before it, with a gap where its tier rises. Rows break into three blocks
+    // with an aisle between them. Units are seats: one seat is one unit wide.
+
+    const R0 = 21          // the front row's radius
+    const ROW = 1.12       // from one row to the next
+    const TIER = 3.3       // the extra gap where a tier rises
+    const AISLE = 1.1      // an aisle's width
+    const MARGIN = 1.2     // around the whole house
+    const STAGE = 4.6      // the stage's depth, above the front row
+
+    function hallGeometry(sections: any[]): any {
+        const seats: any[] = []
+        const plates: any[] = []
+        let r = R0
+        sections.forEach((sec: any, si: number) => {
+            if (si > 0) r += TIER
+            const rIn = r - 0.75
+            let span = 0
+            sec.rows.forEach((row: any, ri: number) => {
+                if (ri > 0) r += ROW
+                const n = row.seats.length
+                const q = Math.floor(n / 4)
+                const len = n + 2 * AISLE
+                span = Math.max(span, (len / 2 + 0.6) / r)
+                // in screen order, so the keyboard's Right moves right
+                row.seats.slice().reverse().forEach((seat: any, kr: number) => {
+                    const k = n - 1 - kr
+                    const s = k + 0.5 + (k >= q ? AISLE : 0) + (k >= n - q ? AISLE : 0) - len / 2
+                    // seats run left to right as seen from the stage, which faces down the page
+                    const a = -s / r
+                    seats.push({
+                        id: seat.id, seat: seat,
+                        label: sec.name + ", row " + row.name + ", seat " + seat.number,
+                        section: sec.key, sectionName: sec.name, row: row.name, number: seat.number,
+                        priceCents: sec.priceCents, feeCents: sec.feeCents, tier: si,
+                        x: r * Math.sin(a), y: r * Math.cos(a), rot: -a * 180 / Math.PI,
+                        first: k == 0, last: k == n - 1
+                    })
+                })
+            })
+            plates.push({ key: sec.key, name: sec.name, priceCents: sec.priceCents, tier: si,
+                          rIn: rIn, rOut: r + 0.75, span: span })
+        })
+        // the frame: the house's extent, with the stage above the front row
+        const minX = Math.min(...seats.map((s) => s.x)) - MARGIN - 2.4
+        const maxX = Math.max(...seats.map((s) => s.x)) + MARGIN + 2.4
+        const minY = R0 - STAGE - MARGIN
+        const maxY = Math.max(...seats.map((s) => s.y)) + MARGIN
+        for (const s of seats) { s.x -= minX; s.y -= minY }
+        return { seats: seats, plates: plates, cx: -minX, cy: -minY, w: maxX - minX, h: maxY - minY, stageR: R0 - 2.2 }
+    }
+
+    // a ticket's barcode, as bar widths from its code: the same code draws the same bars
+    function barWidths(code: string): number[] {
+        const out: number[] = [2, 1, 1, 2]
+        for (let i = 0; i < code.length; i++) {
+            let c = code.charCodeAt(i) * 7 + i * 13
+            for (let j = 0; j < 5; j++) { out.push(1 + (c % 3)); c = Math.floor(c / 3) }
+        }
+        out.push(2, 1, 1, 2)
+        return out
+    }
+    }
+
+
+// ── what the service says ──
+
+schema Performance [ id: string, startsAt: string, doorsAt: string, priceFromCents: number, seatsLeft: number, seats: number ]
+schema Production [ title: string, hall: string, runningTime: string, performances[]: Performance ]
+
+schema Seat [ id: string, number: number, status: string ]
+schema SeatRow [ name: string, seats[]: Seat ]
+schema Section [ key: string, name: string, priceCents: number, feeCents: number, rows[]: SeatRow ]
+schema SeatMapData [ performanceId: string, sections[]: Section ]
+
+schema SavedCard [ id: string, brand: string, last4: string, expMonth: number, expYear: number ]
+schema Billing [ line1: string, line2?: string, city: string, postalCode: string, country: string ]
+schema Me [ name: string, email: string, billing?: Billing, cards[]: SavedCard ]
+
+schema Ticket [ seatId: string, section: string, row: string, number: number, barcode: string ]
+schema Order [ code: string, email: string, totalCents: number, brand: string, last4: string,
+    performanceId: string, tickets[]: Ticket ]
+
+schema Country [ id: string, label: string ]
+schema ApiError [ error: string, message: string, field?: string, conflicts?: string[] ]
+
+// the hall as drawn: each seat placed, holding the seat map's own record
+
+schema PlacedSeat [ id: string, seat: Seat, label: string, section: string, sectionName: string, row: string,
+    number: number, priceCents: number, feeCents: number, tier: number, x: number, y: number, rot: number,
+    first: boolean, last: boolean ]
+schema Plate [ key: string, name: string, priceCents: number, tier: number, rIn: number, rOut: number, span: number ]
+schema HallData [ seats[]: PlacedSeat, plates[]: Plate, cx: number, cy: number, w: number, h: number, stageR: number ]
+
+// a performance in the list, and whether it opens a month
+
+schema PerfLine [ perf: Performance, opensMonth: boolean ]
+
+
+/*
+## The production
+
+Twenty performances; the list shows them by month, the first of each month
+carrying the month's name.
+*/
+
+class ProductionSource extends DataSource [ schema = Production, auto = true,
+    performances() -> Performance[] { return this.value?.performances ?? [] },
+    byId(id: string) -> Performance? { return this.performances().find((p) => p.id == id) ?? null },
+    lines: Dataset [ schema = [ rows[]: PerfLine ],
+        contents = { { rows: classroot.performances().map((p, i, all) =>
+            ({ perf: p, opensMonth: i == 0 || monthKey(all[i - 1].startsAt) != monthKey(p.startsAt) })) } } ]
+    ]
+
+
+/*
+## One performance's seats
+
+The seat map as the service sent it, kept true by the stream of other people's
+purchases: a seat the stream names is written sold in place, and everything
+drawn from it follows. `hall` places every seat in the room, wrapping the
+record rather than copying it, so a seat's status is read live.
+*/
+
+class SeatMap extends DataSource [ schema = SeatMapData,
+    sections() -> Section[] { return this.value?.sections ?? [] },
+
+    // a seat's place in the records, from its id
+
+    find(id: string) -> number[]? {
+        const secs = this.sections()
+        for (let i = 0; i < secs.length; i++)
+            for (let j = 0; j < secs[i].rows.length; j++) {
+                const k = secs[i].rows[j].seats.findIndex((s) => s.id == id)
+                if (k >= 0) return [i, j, k]
+                }
+        return null
+        },
+    markSold(id: string) {
+        const at = this.find(id)
+        if (at != null) this.set(["sections", at[0], "rows", at[1], "seats", at[2], "status"], "sold")
+        },
+    isFree(id: string) -> boolean {
+        const at = this.find(id)
+        return at != null && this.sections()[at[0]].rows[at[1]].seats[at[2]].status == "available"
+        },
+
+    hall: Dataset [ schema = HallData, contents = { hallGeometry(classroot.value?.sections ?? []) } ],
+    placed(id: string) -> PlacedSeat? { return (this.hall.value?.seats ?? []).find((s) => s.id == id) ?? null },
+
+    freeCount: number = { this.sections().reduce((n, s) => n + s.rows.reduce((m, r) => m + r.seats.filter((x) => x.status == "available").length, 0), 0) },
+    total: number = { this.sections().reduce((n, s) => n + s.rows.reduce((m, r) => m + r.seats.length, 0), 0) }
+    ]
+
+
+/*
+## The account
+
+`/api/me` answers who is signed in, or 401. The session lives with the
+service, so reloading asks again and signing out clears what it said.
+*/
+
+class Account extends DataSource [ schema = Me, errorSchema = ApiError,
+    signedIn: boolean = { this.loaded && this.value != null },
+    name: string = { this.value?.name ?? "" },
+    email: string = { this.value?.email ?? "" },
+    cards: SavedCard[] = { this.value?.cards ?? [] },
+    billing: Billing? = { this.value?.billing ?? null }
+    ]

@@ -132,9 +132,12 @@ that moves its view from the first move will wiggle a few pixels under a sloppy 
 Keep a small threshold of your own before the drag becomes visible, and commit on
 release only if it did.
 
-On a touch screen, declaring a drag handler also takes that finger from the browser over
-the view — and pairing it with `onHold` moves that to the press-and-hold, so a quick
-swipe still scrolls. [Touch and gestures](declare-docs:guide:touch) is the full story.
+A drag handler claims the drag over the view's whole subtree, so a press that lands on a
+control inside it and then travels is the view's drag, not the control's; the control
+keeps a press that stays put. On a touch screen, declaring a drag handler also takes that
+finger from the browser over the view — and pairing it with `onHold` moves that to the
+press-and-hold, so a quick swipe still scrolls.
+[Touch and gestures](declare-docs:guide:touch@gesture-claims) is the full story.
 
 ## Finding what is under the pointer
 

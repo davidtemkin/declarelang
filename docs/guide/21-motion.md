@@ -131,9 +131,10 @@ changes nothing a sleeping spring watches — the strip stays where the finger l
 
 ## States
 
-The other primitive is about *configurations*. A [`State`](declare-docs:State) is a named set of attribute
-overrides — and even conditional children — applied while a condition holds,
-reverted when it lifts:
+The other primitive is about *configurations*. A [`State`](declare-docs:State) is a set of a view's own
+attributes, and children, applied while a condition holds and reverted when it lifts;
+[Program structure](declare-docs:guide:structure@a-view-in-each-of-the-user-s-places)
+introduces it. Here is one on its own:
 
 ```declare
 App [ width = 360, height = 240, fill = black, textColor = whitesmoke,
@@ -150,16 +151,11 @@ App [ width = 360, height = 240, fill = black, textColor = whitesmoke,
 ```
 
 While `open` holds, the height, the fill, and the extra [`Text`](declare-docs:Text) apply *together*;
-when it lifts, they all revert. Note what is unwritable here: the "set it on enter,
-forget to unset it on exit" bug. An attribute's value is a pure function of its base
-plus the active states, so **a state cannot leak** — there is no exit code to forget
-because there is no exit code. States compose (two active states each contribute;
-on a conflict the later declaration wins), and the condition is any constraint —
-including `app.width < 480`, which is the "swap the whole arrangement" form of
-responsiveness mentioned in [Size, position and layout](declare-docs:guide:layout@responsiveness). A state
-overrides its own element's attributes only: `bg.opacity = 0.5` inside one is a
-compile error. A child that should follow the same condition declares its own state
-on it, or a constraint that reads the flag.
+when it lifts, they all revert, and **a state cannot leak**: there is no exit code to
+forget. States compose (two that hold each contribute; on a conflict the later
+declaration wins), and a state overrides its own element's attributes only:
+`bg.opacity = 0.5` inside one is a compile error. What a state does not do is move. It
+snaps; a spring whose target reads the same flag is what makes the change glide (below).
 
 ## Animators
 

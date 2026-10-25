@@ -1,0 +1,871 @@
+/*
+# The Venue
+
+*The Marriage of Figaro*, twenty performances in the Grand Hall: pick one,
+choose seats in a drawing of the room, pay, and leave with tickets to show at
+the door.
+
+Everything lives behind the venue's service. The production, the seat map, the
+account and the order are sources on the App; a stream of other people's
+purchases writes into the seat map as they happen, so the room never shows a
+seat as free that is not. Where the person is — which screen, which
+performance, which seats — is a handful of attributes on the App, and every
+screen derives from them.
+
+The model and its rules are in `venue-model.declare`; the room in
+`venue-hall.declare`; the checkout form, signing in and the tickets in
+`venue-checkout.declare`.
+*/
+
+include [ "venue-model.declare", "venue-hall.declare", "venue-checkout.declare" ]
+
+// paper and ink, with one colour that means "yours": the seats chosen, and the act of buying them
+
+theme Venue [
+    background = #F5F0E8, surface = #FFFDF9, line = #E4DBCC,
+    text = #1E1914, textMuted = #6B6157, textFaint = #A89E91,
+    accent = #9B1B30, accentTextColor = #FFFFFF, accentHovered = #881628, accentPressed = #741322,
+    control = #ECE4D7, controlHovered = #E4DACB, controlPressed = #D8CCBA, controlSelected = #EBDDD3,
+    error = #B42318, linkColor = #9B1B30,
+    controlCornerRadius = 10, buttonHeight = 46,
+    fieldEdge = #CFC4B3,
+    stage = #2B231C, stageText = #D9CBB5,
+    seatGone = #CFC4B4, seatHover = #F3E3E3,
+    tier0 = #3B3027, tier1 = #574A3E, tier2 = #756758, tier3 = #938575,
+    floor0 = #E9DFD0, floor1 = #EDE4D7, floor2 = #F0E9DE, floor3 = #F3EDE4
+    ]
+
+
+App [ appName = "The Venue", minWidth = 340,
+    theme = { { ...SanFrancisco, ...Venue } },
+    fill = { provided("theme").background },
+    textColor = { provided("theme").text },
+    fontFamily = ["system-ui", "-apple-system", "Segoe UI", "Helvetica Neue", "sans-serif"],
+    display: string[] = { ["Iowan Old Style", "Palatino Linotype", "Palatino", "Georgia", "serif"] },
+
+    api: string = "http://127.0.0.1:8350",
+
+    // ── where the person is ──
+
+    stage: "list" | "seats" | "checkout" | "tickets" = "list",
+    perfId: string = "",
+    chosen: string[] = [],          // seat ids, in the order chosen
+    lost: string[] = [],            // chosen seats someone else bought, until the next choice
+    takenNotice: string = "",       // and the sentence that said so
+    signingIn: boolean = false,
+    ticketPage: number = 0,
+
+    // ── the shape of the window ──
+
+    wide: boolean = { app.width >= 900 },
+    barH: number = { app.wide ? 68 : 56 },
+    sideW: number = 380,
+    screenH: number = { Math.max(520, app.height - app.barH) },
+
+    clock: Time [ tick = minute ],
+
+    // ── the records ──
+
+    production: ProductionSource [ url = { app.api + "/api/production" } ],
+    seatMap: SeatMap [ url = { app.perfId == "" ? "" : app.api + "/api/performances/" + app.perfId + "/seats" } ],
+    account: Account [ url = { app.api + "/api/me" }, credentials = include ],
+    onInit() { app.account.fetch() },
+
+    perf: Performance? = { app.production.byId(app.perfId) },
+    perfTitle: string = { app.production.value?.title ?? "" },
+    perfWhen: string = { app.perf == null ? "" : dateLabel(app.perf.startsAt) + " · " + timeLabel(app.perf.startsAt) },
+    doorsTime: string = { app.perf == null ? "" : timeLabel(app.perf.doorsAt) },
+    curtainTime: string = { app.perf == null ? "" : timeLabel(app.perf.startsAt) },
+
+    // other people buying, while this person is in the room or paying
+
+    feed: EventStream [ listenTo = ["seatchanged"],
+        url = { app.perfId == "" ? "" : app.api + "/api/events?performance=" + app.perfId },
+        active = { app.stage == "seats" || app.stage == "checkout" },
+        onMessage(e: StreamMessage) {
+            const m = JSON.parse(e.data)
+            if (m.status == "sold") app.seatTaken(m.seatId)
+            }
+        ],
+
+    // ── what has been chosen ──
+
+    chosenSeats: PlacedSeat[] = { app.chosen.map((id) => app.seatMap.placed(id)).filter((s) => s != null) as PlacedSeat[] },
+    chosenData: Dataset [ schema = [ seats[]: PlacedSeat ], contents = { { seats: app.chosenSeats } } ],
+    seatsCents: number = { app.chosenSeats.reduce((n, s) => n + s.priceCents, 0) },
+    feesCents: number = { app.chosenSeats.reduce((n, s) => n + s.feeCents, 0) },
+    totalCents: number = { app.seatsCents + app.feesCents },
+    summary: string = { plural(app.chosen.length, "seat", "seats") + " · " + money(app.seatsCents) },
+    houseSummary: string = { app.seatMap.freeCount + " of " + app.seatMap.total + " seats free" },
+
+    // the seat just chosen springs into place, and so does the total
+
+    popId: string = "",
+    pop: number = 1,
+    popper: Animator [ attribute = pop, from = 0, to = 1, duration = 340, motion = backOut ],
+
+    // ── the room's scale: pixels per seat ──
+
+    roomW: number = { app.seatMap.hall.value?.w ?? 40 },
+    roomH: number = { app.seatMap.hall.value?.h ?? 32 },
+    fitUnit: number = { app.wide
+        ? Math.min((app.width - app.sideW - 64) / app.roomW, (app.screenH - 48) / app.roomH)
+        : (app.width - 24) / app.roomW },
+
+    // too small to hit: the room is drawn a thumb wide per seat, and pans
+
+    closeUp: boolean = { app.fitUnit < (app.touchDevice || !app.wide ? 40 : 15) },
+    unit: number = { app.closeUp ? (app.touchDevice || !app.wide ? 44 : 26) : Math.min(app.fitUnit, 30) },
+
+    tierInk(t: number) -> number { const th = provided("theme"); return t == 0 ? th.tier0 : t == 1 ? th.tier1 : t == 2 ? th.tier2 : th.tier3 },
+    tierFloor(t: number) -> number { const th = provided("theme"); return t == 0 ? th.floor0 : t == 1 ? th.floor1 : t == 2 ? th.floor2 : th.floor3 },
+
+    // ── paying ──
+
+    checkout: Checkout [ ],
+    countries: Country[] = { [ ({ id: "US", label: "United States" }), ({ id: "CA", label: "Canada" }), ({ id: "GB", label: "United Kingdom" }) ] },
+    usableCards() -> SavedCard[] { return app.account.cards.filter((c) => !app.isExpired(c)) },
+    isExpired(c: SavedCard?) -> boolean { return c != null && c.expYear * 12 + c.expMonth < app.clock.year * 12 + app.clock.month },
+    expiryText(c: SavedCard?) -> string { return c == null ? "" : (c.expMonth < 10 ? "0" : "") + c.expMonth + "/" + ("" + c.expYear).slice(2) },
+
+    signInSource: DataSource [ url = { app.api + "/api/session" }, method = "POST", credentials = include,
+        errorSchema = ApiError,
+        onLoad() {
+            app.account.fetch()
+            app.signingIn = false
+            Accessibility.announce("Signed in as " + (this.value?.name ?? ""))
+            // the link that opened the sheet is gone now: land where the person goes next,
+            // once the sheet has handed focus back
+            afterDelay(150, () => app.focusAfterSignIn())
+            }
+        ],
+    signOutSource: DataSource [ url = { app.api + "/api/session" }, method = "DELETE", credentials = include, format = "text",
+        onLoad() {
+            app.account.clear()
+            Accessibility.announce("Signed out")
+            afterSettle(() => Focus.focus(app.bar.signInButton))
+            }
+        ],
+    focusAfterSignIn() {
+        if (app.stage == "checkout" && app.payForm != null) {
+            if (app.checkout.usingSaved) app.payForm.saved.savedCvc.focusEntry()
+            else Focus.focus(app.payForm.how.newCard)
+            }
+        else Focus.focus(app.bar.signOutButton)
+        },
+
+    order: DataSource [ url = { app.api + "/api/orders" }, method = "POST", credentials = include,
+        schema = Order, errorSchema = ApiError,
+        body = { { performanceId: app.perfId, seatIds: app.chosen, email: app.checkout.email.trim(), payment: app.checkout.payment() } },
+        onLoad() { app.paid() },
+        trackChanges = ["failed"],
+        onChange(e: ChangeEvent) { if (this.failed) app.refused() }
+        ],
+    paying: boolean = { app.order.loading },
+
+    // ── the verbs ──
+
+    pickPerformance(id: string) {
+        if (id != app.perfId) { app.chosen = []; app.lost = []; app.takenNotice = "" }
+        app.perfId = id
+        app.seatMap.clear()
+        app.seatMap.fetch()
+        app.go("seats")
+        },
+
+    go(s: "list" | "seats" | "checkout" | "tickets") {
+        app.stage = s
+        app.scrollTo(0)
+        afterSettle(() => app.focusHeading())
+        },
+
+    // each screen opens with the keyboard's focus on its heading, so nothing is lost on the way
+
+    focusHeading() {
+        const h = app.stage == "list" ? app.listScreen?.col.head.title
+                : app.stage == "seats" ? app.hallScreen?.heading
+                : app.stage == "checkout" ? app.payScreen?.heading
+                : app.ticketScreen?.col.heading
+        if (h != null) Focus.focus(h)
+        },
+
+    toggleSeat(id: string) {
+        app.lost = []
+        app.takenNotice = ""
+        if (app.chosen.includes(id)) { app.chosen = app.chosen.filter((s) => s != id); return }
+        if (!app.seatMap.isFree(id)) return
+        app.chosen = [...app.chosen, id]
+        app.popId = id
+        app.popper.start()
+        },
+
+    // someone else has bought a seat: the room shows it gone, and if it was one of theirs, they are told which
+
+    seatTaken(id: string) {
+        app.seatMap.markSold(id)
+        if (!app.chosen.includes(id)) return
+        const s = app.seatMap.placed(id)
+        app.chosen = app.chosen.filter((c) => c != id)
+        app.lost = [...app.lost, id]
+        app.takenNotice = (s?.label ?? id) + " has just been taken by someone else. Choose another seat."
+        Accessibility.announce(app.takenNotice, "assertive")
+        if (app.stage == "checkout" && app.chosen.length == 0) app.go("seats")
+        },
+
+    // the keyboard's Up and Down: the nearest free seat in the row in front or behind
+
+    focusRowNeighbour(from: View, id: string, dir: number) {
+        const all = app.seatMap.hall.value?.seats ?? []
+        const here = all.find((s) => s.id == id)
+        if (here == null) return
+        const rowKey = (s: PlacedSeat) => s.section + "-" + s.row
+        const rows: string[] = []
+        for (const s of all) if (!rows.includes(rowKey(s))) rows.push(rowKey(s))
+        const next = rows[rows.indexOf(rowKey(here)) + dir]
+        if (next == undefined) return
+        const cands = all.filter((s) => rowKey(s) == next && (s.seat.status == "available" || app.chosen.includes(s.id)))
+        if (cands.length == 0) return
+        const best = cands.reduce((a, b) => Math.abs(a.x - here.x) <= Math.abs(b.x - here.x) ? a : b)
+        const v = (from.parent as View).childViews.find((c) => (c as any).accessibilityLabel == best.label)
+        if (v != null) Focus.focus(v)
+        },
+
+    toCheckout() {
+        if (app.chosen.length == 0) return
+        app.go("checkout")
+        },
+
+    chooseMethod(id: string) { app.checkout.method = id; app.checkout.notice = "" },
+
+    signIn(email: string, password: string) {
+        if (app.signInSource.loading) return
+        app.signInSource.body = { email: email.trim(), password: password }
+        app.signInSource.fetch()
+        },
+    signOut() { app.signOutSource.fetch() },
+
+    pay() {
+        if (app.order.loading) return
+        const c = app.checkout
+        c.notice = ""
+        c.attempted = true
+        if (c.problemCount > 0) {
+            app.payForm?.judgeAll()
+            app.payForm?.focusField(c.firstProblem)
+            Accessibility.announce(c.problemCount == 1 ? "One field needs attention." : c.problemCount + " fields need attention.", "assertive")
+            return
+            }
+        c.rejectedField = ""
+        app.order.fetch()
+        },
+
+    paid() {
+        const bought = app.chosen
+        for (const id of bought) app.seatMap.markSold(id)
+        app.chosen = []
+        app.checkout.forgetCard()
+        app.ticketPage = 0
+        app.go("tickets")
+        },
+
+    // the service said no: say its sentence where it belongs
+
+    refused() {
+        const c = app.checkout
+        const b = app.order.errorBody
+        const code = app.order.statusCode
+        const msg = b?.message ?? "The payment didn't go through. Nothing was charged; please try again."
+        if (code == 409) {
+            const gone = b?.conflicts ?? []
+            for (const id of gone) app.seatMap.markSold(id)
+            app.chosen = app.chosen.filter((s) => !gone.includes(s))
+            app.lost = gone
+            app.takenNotice = msg
+            app.go("seats")
+            Accessibility.announce(msg, "assertive")
+            return
+            }
+        if (code == 422 && b?.field != null) {
+            const field = b.field == "postalCode" ? "postal" : b.field == "cvc" && c.usingSaved ? "savedCvc" : b.field
+            c.rejectedField = b.field
+            c.rejectedValue = c.fieldValue(field)
+            c.rejectedMessage = msg
+            if (b.field == "expiry") c.rejectedValue = c.expiry
+            app.payForm?.judgeAll()
+            app.payForm?.focusField(field)
+            Accessibility.announce(msg, "assertive")
+            return
+            }
+        if (code == 401) app.account.fetch()
+        c.notice = msg
+        if (code == 402) c.forgetCodes()
+        Accessibility.announce(msg, "assertive")
+        app.payForm?.focusField(c.usingSaved ? "savedCvc" : "cvc")
+        },
+
+    startAgain() {
+        app.order.clear()
+        app.perfId = ""
+        app.chosen = []
+        app.lost = []
+        app.takenNotice = ""
+        app.go("list")
+        },
+
+    // Tab reads the bar first, though it is declared last to paint on top
+
+    tabOrder() { return [this.bar, ...this.tabDefault().filter((v) => v != this.bar)] },
+
+    // ═════════════════════════════ the screens ═════════════════════════════
+
+    // ── 1. the performances ──
+
+    listScreen: View [ width = 100%, exists = { app.stage == "list" }, y = { app.barH },
+        accessibilityRole = main,
+        col: View [ x = center, width = { Math.min(760, app.width - (app.wide ? 64 : 32)) },
+            padding = { [app.wide ? 44 : 24, 0, 48, 0] },
+            layout: SimpleLayout [ axis = y, spacing = 0 ],
+            head: View [ width = 100%, padding = [0, 0, 28, 0],
+                layout: SimpleLayout [ axis = y, spacing = 8 ],
+                Text [ fontSize = 12, letterSpacing = 2, fontWeight = semibold, textColor = { provided("theme").accent },
+                    text = "THIS SEASON IN THE GRAND HALL" ],
+                title: Text [ width = 100%, wrap = true, focusable = true, accessibilityRole = heading, accessibilityLevel = 1,
+                    fontFamily = { app.display }, fontSize = { app.wide ? 48 : 36 }, lineHeight = 1.08,
+                    textColor = { provided("theme").text }, text = { app.production.value?.title ?? "The Marriage of Figaro" } ],
+                Text [ width = 100%, wrap = true, fontSize = 16, textColor = { provided("theme").textMuted },
+                    text = { app.production.loaded ? "Mozart · " + app.production.value?.runningTime + " · Choose a performance" : "" } ]
+                ],
+            loading: Text [ visible = { !app.production.loaded && !app.production.failed }, fontSize = 15,
+                textColor = { provided("theme").textMuted }, text = "Loading the season…" ],
+            failed: Text [ visible = { app.production.failed }, width = 100%, wrap = true, fontSize = 15,
+                textColor = { provided("theme").error }, text = "The season couldn't be loaded. Check your connection and reload the page." ],
+            rows: View [ width = 100%, datapath = { app.production.lines.value },
+                layout: SimpleLayout [ axis = y ],
+                PerfRow [ datapath = :rows[], key = :perf.id ]
+                ]
+            ]
+        ],
+
+    // ── 2. the hall ──
+
+    hallScreen: View [ width = 100%, height = { app.screenH }, y = { app.barH }, exists = { app.stage == "seats" },
+        accessibilityRole = main,
+        heading: Text [ ignoreLayout = true, x = -10000, focusable = true, accessibilityRole = heading, accessibilityLevel = 1,
+            text = { "Choose seats — " + app.perfWhen } ],
+
+        // the screen's frame: the room, with the side panel beside it at a desk or the bar under it on a phone
+
+        house: View [ width = { app.wide ? app.width - app.sideW : app.width },
+            height = { app.wide ? app.screenH : app.screenH - parent.foot.height },
+            layout: SimpleLayout [ axis = y ],
+
+            // on a phone: the performance, and the whole house in small above the room
+
+            phoneHead: View [ width = 100%, visible = { !app.wide }, padding = [12, 16, 10, 16],
+                stroke = { [null, null, stroke(1, provided("theme").line), null] },
+                layout: SimpleLayout [ axis = x, spacing = 14, align = center ],
+                back: BackButton [ ],
+                View [ flexes = true,
+                    layout: SimpleLayout [ axis = y, spacing = 2 ],
+                    Text [ fontSize = 16, fontWeight = semibold, text = { app.perfWhen } ],
+                    Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = { app.seatMap.loaded ? app.houseSummary : "Loading the hall…" } ]
+                    ]
+                ],
+            overview: View [ width = 100%, visible = { app.closeUp && app.seatMap.loaded }, padding = [10, 16, 10, 16],
+                fill = { provided("theme").surface },
+                stroke = { [null, null, stroke(1, provided("theme").line), null] },
+                layout: SimpleLayout [ axis = x, spacing = 16, align = center ],
+                map: HouseMap [ width = 150, height = 124, pane = { app.hallScreen?.house.pane ?? null } ],
+                View [ flexes = true,
+                    layout: SimpleLayout [ axis = y, spacing = 10 ],
+                    Text [ width = 100%, wrap = true, fontSize = 13, textColor = { provided("theme").textMuted },
+                        text = "The whole house. Tap it to look there; drag the room below to move around." ],
+                    SeatKeyColumn [ ]
+                    ]
+                ],
+
+            pane: View [ width = 100%, flexes = true, scrolls = { app.closeUp ? "both" : "none" },
+                exists = { app.seatMap.loaded },
+
+                // a close look opens on the front of the stalls, the edge of the stage just in view
+
+                onInit() { afterSettle(() => this.scrollTo({ x: Math.max(0, (app.roomW * app.unit - this.width) / 2), y: this.stageEdge() })) },
+                stageEdge() -> number {
+                    const h = app.seatMap.hall.value
+                    return h == null || !app.closeUp ? 0 : Math.max(0, (h.cy + h.stageR) * app.unit - 64)
+                    },
+                room: Room [ x = { Math.max(0, (parent.width - this.width) / 2) },
+                    y = { app.closeUp ? 0 : Math.max(0, (parent.height - this.height) / 2) } ]
+                ],
+            wait: Text [ visible = { !app.seatMap.loaded }, x = center, y = center, ignoreLayout = true,
+                fontSize = 15, textColor = { provided("theme").textMuted },
+                text = { app.seatMap.failed ? "The hall couldn't be loaded. Go back and try again." : "Loading the hall…" } ]
+            ],
+
+        // at a desk: the side panel; on a phone: the bar under the room
+
+        side: SeatSide [ x = end, visible = { app.wide } ],
+        foot: SeatFoot [ y = end, visible = { !app.wide } ]
+        ],
+
+    // ── 3. paying ──
+
+    // the page scrolls the form; at a desk the order stays pinned beside it, and on a
+    // phone the order sits above the form with the Pay button pinned under the thumb
+
+    payScreen: View [ width = 100%, y = { app.barH }, exists = { app.stage == "checkout" },
+        accessibilityRole = main,
+        heading: Text [ ignoreLayout = true, x = -10000, focusable = true, accessibilityRole = heading, accessibilityLevel = 1, text = "Checkout" ],
+        formPane: View [ width = { app.wide ? app.width - app.sideW : app.width },
+            col: View [ x = center, width = { Math.min(560, parent.width - (app.wide ? 96 : 32)) },
+                padding = { [app.wide ? 32 : 16, 0, app.wide ? 64 : 120 + app.safeBottom, 0] },
+                layout: SimpleLayout [ axis = y, spacing = 22 ],
+                BackToSeats [ ],
+                Text [ fontFamily = { app.display }, fontSize = { app.wide ? 40 : 32 }, textColor = { provided("theme").text }, text = "Checkout" ],
+                phoneOrder: OrderSummary [ visible = { !app.wide } ],
+                form: PayForm [ width = 100% ]
+                ]
+            ]
+        ],
+    payForm: PayForm? = { app.payScreen?.formPane.col.form ?? null },
+
+    // at a desk, the order and the Pay button stay beside the form as it scrolls
+
+    payAside: View [ ignoreScroll = true, x = end, y = { app.barH }, width = { app.sideW }, height = { app.height - app.barH },
+        visible = { app.stage == "checkout" && app.wide },
+        fill = { provided("theme").surface },
+        stroke = { [null, null, null, stroke(1, provided("theme").line)] },
+        padding = [32, 28, 28, 28],
+        layout: SimpleLayout [ axis = y, spacing = 22 ],
+        OrderSummary [ ],
+        PayButton [ width = 100% ],
+        Text [ width = 100%, wrap = true, fontSize = 13, textColor = { provided("theme").textMuted },
+            text = "Your card goes only to the Grand Hall's payment service. You'll be charged once, for exactly this total." ]
+        ],
+
+    // on a phone, the total and the Pay button stay under the thumb
+
+    payBar: View [ ignoreScroll = true, y = end, width = 100%, visible = { app.stage == "checkout" && !app.wide },
+        fill = { provided("theme").surface },
+        stroke = { [stroke(1, provided("theme").line), null, null, null] },
+        padding = { [10, 16, 10 + app.safeBottom, 16] },
+        layout: SimpleLayout [ axis = x, spacing = 14, align = center ],
+        View [ flexes = true,
+            layout: SimpleLayout [ axis = y, spacing = 1 ],
+            Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = { plural(app.chosen.length, "seat", "seats") + " with fees" } ],
+            Text [ fontSize = 18, fontWeight = semibold, numeralWidth = tabular, text = { money(app.totalCents) } ]
+            ],
+        PayButton [ width = 170 ]
+        ],
+
+    // ── 4. the tickets ──
+
+    ticketScreen: View [ width = 100%, y = { app.barH }, exists = { app.stage == "tickets" },
+        accessibilityRole = main,
+        datapath = { app.order.value },
+        col: View [ x = center, width = { Math.min(460, app.width - 32) }, padding = [32, 0, 56, 0],
+            layout: SimpleLayout [ axis = y, spacing = 18 ],
+            Text [ fontSize = 12, letterSpacing = 2, fontWeight = semibold, textColor = { provided("theme").accent }, text = "YOU'RE GOING" ],
+            heading: Text [ width = 100%, wrap = true, focusable = true, accessibilityRole = heading, accessibilityLevel = 1,
+                fontFamily = { app.display }, fontSize = 34, lineHeight = 1.1, textColor = { provided("theme").text },
+                text = { plural((app.order.value?.tickets ?? []).length, "ticket", "tickets") + " for " + (app.perf == null ? "" : dateLabel(app.perf.startsAt)) } ],
+            sent: View [ width = 100%,
+                layout: SimpleLayout [ axis = y, spacing = 4 ],
+                Text [ width = 100%, wrap = true, fontSize = 16, textColor = { provided("theme").text }, text = { "Sent to " + (app.order.value?.email ?? "") } ],
+                Text [ width = 100%, wrap = true, fontSize = 14, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+                    text = { "Confirmation " + (app.order.value?.code ?? "") + " · " + money(app.order.value?.totalCents ?? 0)
+                             + " paid with " + brandName(app.order.value?.brand ?? "") + " ending " + (app.order.value?.last4 ?? "") } ]
+                ],
+
+            // one ticket at a time: swipe, or step with the arrows
+
+            pager: View [ width = 100%, visible = { (app.order.value?.tickets ?? []).length > 1 },
+                layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+                Button [ label = "Previous", disabled = { app.ticketPage == 0 },
+                    onClick() { app.ticketPage = app.ticketPage - 1 }
+                    ],
+                Spacer [ ],
+                Text [ fontSize = 15, fontWeight = medium, numeralWidth = tabular, accessibilityLive = polite, textColor = { provided("theme").text },
+                    text = { "Ticket " + (app.ticketPage + 1) + " of " + (app.order.value?.tickets ?? []).length } ],
+                Spacer [ ],
+                Button [ label = "Next", disabled = { app.ticketPage >= (app.order.value?.tickets ?? []).length - 1 },
+                    onClick() { app.ticketPage = app.ticketPage + 1 }
+                    ]
+                ],
+            deck: Carousel [ width = 100%, height = 450,
+                page = { app.ticketPage },
+                input(p: number) { app.ticketPage = p },
+                TicketCard [ datapath = :tickets[], key = :barcode ]
+                ],
+            Text [ width = 100%, wrap = true, fontSize = 14, textColor = { provided("theme").textMuted },
+                text = { "Show each ticket at the door. Doors open at " + app.doorsTime + "; the performance runs " + (app.production.value?.runningTime ?? "") + "." } ],
+            Button [ width = 100%, label = "Book another performance",
+                onClick() { app.startAgain() }
+                ]
+            ]
+        ],
+
+    // ── the bar, pinned over every screen (declared last, so it paints on top) ──
+
+    bar: View [ ignoreScroll = true, width = 100%, height = { app.barH }, fill = { provided("theme").background }, padding = { [0, app.wide ? 32 : 16, 0, app.wide ? 32 : 16] },
+        accessibilityRole = banner,
+        stroke = { [null, null, stroke(1, provided("theme").line), null] },
+        layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+        brand: Control [ height = 44, accessibilityRole = link, accessibilityLabel = "The Venue — all performances",
+            press() { if (app.stage == "tickets") { app.startAgain() } else { app.go("list") } },
+            layout: SimpleLayout [ axis = x, spacing = 10, align = baseline ],
+            Text [ fontFamily = { app.display }, fontSize = { app.wide ? 24 : 21 }, italic = true, textColor = { provided("theme").text }, text = "The Venue" ],
+            Text [ fontSize = 12, letterSpacing = 1.6, fontWeight = semibold, textColor = { provided("theme").textMuted },
+                text = "GRAND HALL", visible = { app.wide } ]
+            ],
+        Spacer [ ],
+        who: Text [ fontSize = 14, textColor = { provided("theme").textMuted }, visible = { app.account.signedIn },
+            text = { app.wide ? app.account.name : app.account.name.split(" ")[0] } ],
+        signInButton: Button [ label = "Sign in", visible = { !app.account.signedIn },
+            onClick() { app.signingIn = true }
+            ],
+        signOutButton: Button [ label = "Sign out", visible = { app.account.signedIn },
+            onClick() { app.signOut() }
+            ]
+        ],
+
+    // ── signing in, over whatever is on screen ──
+
+    signInSheet: Sheet [ accessibilityLabel = "Sign in", shown = { app.signingIn },
+        input(open: boolean) { app.signingIn = open },
+        signInForm: SignInForm [ exists = { app.signingIn }, width = { Math.min(400, app.width - 48) } ]
+        ]
+    ]
+
+
+/*
+## A performance
+
+One line of the season: the date set large, the time, the lowest price, and how
+full the house is, drawn as a bar so that the nearly sold-out nights show
+before anything is read.
+*/
+
+class PerfRow extends Control [ width = 100%, height = { (app.wide ? 84 : 98) + this.headH },
+    headH: number = { :opensMonth ? (rowIndex == 0 ? 30 : 52) : 0 },
+    perf: Performance? = { :perf },
+    left: number = { this.perf?.seatsLeft ?? 0 },
+    full: number = { 1 - this.left / Math.max(1, this.perf?.seats ?? 1) },
+    scarce: boolean = { this.left <= 100 },
+    accessibilityLabel = { dateLabel(:perf.startsAt) + ", " + timeLabel(:perf.startsAt) },
+    accessibilityHint = { "From " + money(:perf.priceFromCents) + ". " + (this.scarce ? "Nearly sold out, " : "") + this.left + " seats left." },
+    press() { app.pickPerformance(:perf.id) },
+
+    month: Text [ visible = :opensMonth, y = { classroot.headH - 24 }, fontSize = 12, letterSpacing = 1.6, fontWeight = semibold,
+        textColor = { provided("theme").textMuted }, text = { monthLabel(:perf.startsAt).toUpperCase() } ],
+
+    card: View [ width = 100%, height = { parent.height - classroot.headH }, y = { classroot.headH }, cornerRadius = 14,
+        fill = { classroot.pressed ? provided("theme").controlPressed : classroot.hovered ? provided("theme").surface : null },
+        rule: View [ ignoreLayout = true, x = 14, y = end, width = { parent.width - 28 }, height = 1, fill = { provided("theme").line } ],
+        padding = [0, 14, 0, 14],
+        layout: SimpleLayout [ axis = x, spacing = { app.wide ? 22 : 14 }, align = center ],
+        date: View [ width = { app.wide ? 104 : 64 },
+            layout: SimpleLayout [ axis = { app.wide ? "x" : "y" }, spacing = { app.wide ? 8 : 0 }, align = { app.wide ? "baseline" : "start" } ],
+            Text [ fontSize = 13, fontWeight = semibold, letterSpacing = 1, textColor = { provided("theme").textMuted }, text = { weekday(:perf.startsAt).toUpperCase() } ],
+            Text [ fontFamily = { app.display }, fontSize = 30, numeralWidth = tabular, textColor = { provided("theme").text }, text = { dayOfMonth(:perf.startsAt) } ],
+            Text [ fontSize = 13, visible = { app.wide }, textColor = { provided("theme").textMuted }, text = { monthShort(:perf.startsAt) } ]
+            ],
+        what: View [ flexes = true,
+            layout: SimpleLayout [ axis = y, spacing = 6 ],
+            Text [ fontSize = 17, fontWeight = medium, numeralWidth = tabular, textColor = { provided("theme").text },
+                text = { timeLabel(:perf.startsAt) + (Number(:perf.startsAt.slice(11, 13)) < 17 ? "  ·  Matinée" : "") } ],
+            avail: View [ width = 100%,
+                layout: SimpleLayout [ axis = { app.wide ? "x" : "y" }, spacing = { app.wide ? 10 : 5 }, align = { app.wide ? "center" : "start" } ],
+                track: View [ width = { app.wide ? 160 : 110 }, height = 6, cornerRadius = 3, fill = { provided("theme").control },
+                    View [ height = 6, cornerRadius = 3, width = { parent.width * classroot.full },
+                        fill = { classroot.scarce ? provided("theme").text : provided("theme").tier3 } ]
+                    ],
+                Text [ fontSize = 13, numeralWidth = tabular,
+                    fontWeight = { classroot.scarce ? "semibold" : "regular" },
+                    textColor = { classroot.scarce ? provided("theme").text : provided("theme").textMuted },
+                    text = { classroot.scarce ? "Nearly sold out · " + classroot.left + " left" : classroot.left + " left" } ]
+                ]
+            ],
+        price: View [
+            layout: SimpleLayout [ axis = y, spacing = 2, align = end ],
+            Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = "from" ],
+            Text [ fontSize = 17, fontWeight = semibold, numeralWidth = tabular, textColor = { provided("theme").text }, text = { money(:perf.priceFromCents) } ]
+            ],
+        ChevronIcon [ iconSize = 14, dir = "right", ink = { provided("theme").textFaint } ]
+        ]
+    ]
+
+
+// back to the season, and back to the room
+
+class BackButton extends Control [ width = 44, height = 44, cornerRadius = 22,
+    accessibilityLabel = "All performances",
+    fill = { this.pressed ? provided("theme").controlPressed : provided("theme").control },
+    press() { app.go("list") },
+    ChevronIcon [ x = center, y = center, iconSize = 15, dir = "left", ink = { provided("theme").text } ]
+    ]
+
+
+class BackToSeats extends Control [ height = 44,
+    accessibilityLabel = "Back to seats",
+    press() { app.go("seats") },
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    ChevronIcon [ iconSize = 13, dir = "left", ink = { provided("theme").accent } ],
+    Text [ fontSize = 15, fontWeight = medium, textColor = { provided("theme").accent }, text = "Back to seats" ]
+    ]
+
+
+class SeatKeyColumn [
+    layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+    KeyItem [ kind = "free", label = "Free" ],
+    KeyItem [ kind = "mine", label = "Yours" ],
+    KeyItem [ kind = "gone", label = "Taken" ]
+    ]
+
+
+/*
+## Beside the room
+
+At a desk: the performance, how full the house is, the prices, what has been
+chosen, and the way on — always in view while the room is.
+*/
+
+class SeatSide [ width = { app.sideW }, height = { app.screenH },
+    fill = { provided("theme").surface },
+    stroke = { [null, null, null, stroke(1, provided("theme").line)] },
+    padding = [24, 28, 24, 28],
+    layout: SimpleLayout [ axis = y, spacing = 18 ],
+
+    nav: View [ layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        BackButton [ ],
+        Text [ fontSize = 14, textColor = { provided("theme").textMuted }, text = "All performances" ]
+        ],
+    head: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        Text [ fontFamily = { app.display }, fontSize = 30, textColor = { provided("theme").text }, text = { app.perf == null ? "" : dateLabel(app.perf.startsAt) } ],
+        Text [ fontSize = 15, textColor = { provided("theme").textMuted }, text = { app.curtainTime + " · Doors " + app.doorsTime } ]
+        ],
+    house: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        Text [ fontSize = 15, fontWeight = medium, numeralWidth = tabular, text = { app.seatMap.loaded ? app.houseSummary : "Loading the hall…" } ],
+        SeatKey [ ]
+        ],
+    prices: View [ width = 100%, datapath = { app.seatMap.hall.value },
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        View [ datapath = :plates[], key = :key, width = 100%,
+            layout: SimpleLayout [ axis = x, align = baseline ],
+            Text [ flexes = true, fontSize = 14, textColor = { provided("theme").textMuted }, text = :name ],
+            Text [ fontSize = 14, numeralWidth = tabular, textColor = { provided("theme").textMuted }, text = { money(:priceCents) } ]
+            ]
+        ],
+    rule: View [ width = 100%, height = 1, fill = { provided("theme").line } ],
+    TakenNotice [ ],
+    picks: View [ width = 100%, flexes = true, scrolls = y,
+        empty: Text [ width = 100%, wrap = true, visible = { app.chosen.length == 0 }, fontSize = 15,
+            textColor = { provided("theme").textMuted }, text = "Choose seats in the hall. Choose a seat again to let it go." ],
+        list: View [ width = 100%, datapath = { app.chosenData.value },
+            layout: SimpleLayout [ axis = y, spacing = 4 ],
+            ChosenLine [ datapath = :seats[], key = :id ]
+            ]
+        ],
+    SummaryLine [ ],
+    ContinueButton [ width = 100% ]
+    ]
+
+
+// on a phone, the bar under the room: what has been chosen, and the way on
+
+class SeatFoot [ width = 100%, fill = { provided("theme").surface },
+    padding = { [10, 16, 12 + app.safeBottom, 16] },
+    stroke = { [stroke(1, provided("theme").line), null, null, null] },
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    TakenNotice [ ],
+    row: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 14, align = center ],
+        SummaryLine [ flexes = true ],
+        ContinueButton [ width = 150 ]
+        ]
+    ]
+
+
+class SummaryLine [
+    accessibilityLive = polite,
+    scale = { 1 + 0.04 * Math.sin(Math.PI * Math.min(1, app.pop)) },
+    t: Text [ fontSize = 18, fontWeight = semibold, numeralWidth = tabular,
+        textColor = { app.chosen.length == 0 ? provided("theme").textMuted : provided("theme").text },
+        text = { app.chosen.length == 0 ? "No seats chosen" : app.summary } ]
+    ]
+
+
+class ContinueButton extends Button [ height = 50, primary = true, label = "Continue",
+    disabled = { app.chosen.length == 0 },
+    onClick() { app.toCheckout() }
+    ]
+
+
+class TakenNotice [ width = 100%, visible = { app.takenNotice != "" },
+    focusable = true,
+    accessibilityRole = status,
+    accessibilityLabel = { app.takenNotice },
+    padding = [10, 12, 10, 12], cornerRadius = 10, fill = { provided("theme").seatHover },
+    Text [ width = 100%, wrap = true, fontSize = 14, fontWeight = medium, textColor = { provided("theme").accent }, text = { app.takenNotice } ]
+    ]
+
+
+/*
+## The checkout form
+
+How to pay, then only what that way of paying needs. The order and its total
+stay in view: beside the form at a desk, and on a phone above it, with the Pay
+button pinned under the thumb.
+*/
+
+class PayForm [
+    layout: SimpleLayout [ axis = y, spacing = 18 ],
+
+    judgeAll() {
+        for (const f of app.checkout.fields) { const v = this.fieldView(f); if (v != null) v.judge() }
+        },
+    fieldView(f: string) -> FormField? {
+        return f == "savedCvc" ? this.saved.savedCvc : f == "email" ? this.card.email : f == "cardName" ? this.card.cardName
+             : f == "number" ? this.card.number : f == "expiry" ? this.card.pair.expiry : f == "cvc" ? this.card.pair.cvc
+             : f == "line1" ? this.address.line1 : f == "city" ? this.address.city : f == "postal" ? this.address.pair.postal : null
+        },
+    focusField(f: string) { const v = this.fieldView(f); if (v != null) afterSettle(() => v.focusEntry()) },
+
+    // how to pay: the saved cards, when there are any, and a new card
+
+    how: View [ width = 100%, visible = { app.account.signedIn && app.account.cards.length > 0 },
+        accessibilityRole = radioGroup, accessibilityLabel = "Payment method",
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        SectionTitle [ text = "Pay with" ],
+        cards: View [ width = 100%, datapath = { app.account.value },
+            layout: SimpleLayout [ axis = y, spacing = 10 ],
+            SavedCardRow [ datapath = :cards[], key = :id, card = :@ ]
+            ],
+        newCard: NewCardRow [ ]
+        ],
+
+    signInHint: View [ width = 100%, visible = { !app.account.signedIn },
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        Text [ fontSize = 15, textColor = { provided("theme").textMuted }, text = "Have an account?" ],
+        Control [ accessibilityRole = link, accessibilityLabel = "Sign in to use saved cards",
+            press() { app.signingIn = true },
+            Text [ fontSize = 15, fontWeight = medium, underline = true, textColor = { provided("theme").accent }, text = "Sign in to use saved cards" ]
+            ]
+        ],
+
+    // a saved card asks only for its code
+
+    saved: View [ width = 100%, visible = { app.checkout.usingSaved },
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        savedCvc: FormField [ label = "Security code", name = "savedCvc", purpose = cardCode,
+            width = { Math.min(220, parent.width) },
+            value = { app.checkout.savedCvc },
+            edit(v: string) { app.checkout.savedCvc = digitsOf(v).slice(0, 4) }
+            ],
+        Text [ width = 100%, wrap = true, fontSize = 14, textColor = { provided("theme").textMuted },
+            text = { "The 3 or 4 digits on your card. Tickets will be sent to " + app.checkout.email + "." } ]
+        ],
+
+    // a new card: where the tickets go, the card, and its billing address
+
+    card: View [ width = 100%, visible = { !app.checkout.usingSaved },
+        layout: SimpleLayout [ axis = y, spacing = 16 ],
+        Text [ width = 100%, wrap = true, fontSize = 14, textColor = { provided("theme").textMuted },
+            text = "Tickets are sent by email; there's nothing to post. Every field is needed unless it says Optional." ],
+        email: FormField [ width = 100%, label = "Email", name = "email", purpose = email,
+            value = { app.checkout.email },
+            edit(v: string) { app.checkout.email = v }
+            ],
+        SectionTitle [ text = "Card" ],
+        cardName: FormField [ width = 100%, label = "Name on card", name = "cardName", purpose = cardName,
+            value = { app.checkout.cardName },
+            edit(v: string) { app.checkout.cardName = v }
+            ],
+        number: FormField [ width = 100%, label = "Card number", name = "number", purpose = cardNumber,
+            trailing = { app.checkout.brand == "" ? "" : brandName(app.checkout.brand) },
+            value = { app.checkout.number },
+            edit(v: string) {
+                const before = digitsOf(v.slice(0, this.entry.selectionStart)).length
+                const d = digitsOf(v)
+                const g = groupCard(d.slice(0, maxDigits(brandOf(d))))
+                app.checkout.number = g
+                if (g != v) afterSettle(() => this.entry.select(caretAfterDigits(g, before)))
+                }
+            ],
+        pair: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 14 ],
+            expiry: FormField [ flexes = true, label = "Expiry (MM / YY)", name = "expiry", purpose = cardExpiry,
+                value = { app.checkout.expiry },
+                edit(v: string) {
+                    const deleting = v.length < app.checkout.expiry.length
+                    const f = deleting ? v : formatExpiry(v)
+                    app.checkout.expiry = f
+                    if (f != v) afterSettle(() => this.entry.select("end"))
+                    }
+                ],
+            cvc: FormField [ flexes = true, label = "Security code", name = "cvc", purpose = cardCode,
+                value = { app.checkout.cvc },
+                edit(v: string) { app.checkout.cvc = digitsOf(v).slice(0, 4) }
+                ]
+            ]
+        ],
+
+    address: View [ width = 100%, visible = { !app.checkout.usingSaved },
+        layout: SimpleLayout [ axis = y, spacing = 16 ],
+        SectionTitle [ text = "Billing address" ],
+        countryField: View [ width = 100%,
+            layout: SimpleLayout [ axis = y, spacing = 6 ],
+            Text [ fontSize = 14, fontWeight = medium, textColor = { provided("theme").text }, text = "Country" ],
+            country: Combobox [ width = 100%, height = 48, purpose = country, accessibilityLabel = "Country",
+                items = { app.countries },
+                value = { app.countries.find((c) => c.id == app.checkout.country) ?? null },
+                input(v: object) { app.checkout.country = (v as any).id },
+                trackChanges = ["value"],
+                onChange(e: ChangeEvent) { this.entry.text = this.labelOf(this.value) },
+                onInit() { this.entry.text = this.labelOf(this.value) }
+                ]
+            ],
+        line1: FormField [ width = 100%, label = "Street address", name = "line1", purpose = addressLine1,
+            value = { app.checkout.line1 },
+            edit(v: string) { app.checkout.line1 = v }
+            ],
+        line2: FormField [ width = 100%, label = "Address line 2", name = "line2", purpose = addressLine2, optional = true,
+            value = { app.checkout.line2 },
+            edit(v: string) { app.checkout.line2 = v }
+            ],
+        city: FormField [ width = 100%, label = "City", name = "city", purpose = city,
+            value = { app.checkout.city },
+            edit(v: string) { app.checkout.city = v }
+            ],
+        pair: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 14 ],
+            postal: FormField [ width = { Math.min(220, parent.width) }, label = "Postal code", name = "postal", purpose = postalCode,
+                value = { app.checkout.postal },
+                edit(v: string) { app.checkout.postal = v }
+                ]
+            ]
+        ],
+
+    // the card as a whole was refused
+
+    refusal: View [ width = 100%, visible = { app.checkout.notice != "" },
+        padding = [14, 16, 14, 16], cornerRadius = 12, fill = { provided("theme").seatHover },
+        accessibilityRole = status,
+        Text [ width = 100%, wrap = true, fontSize = 15, fontWeight = medium, textColor = { provided("theme").error }, text = { app.checkout.notice } ]
+        ]
+    ]
+
+
+class SectionTitle extends Text [ fontSize = 13, letterSpacing = 1.4, fontWeight = semibold,
+    textColor = { provided("theme").textMuted }, textTransform = uppercase,
+    accessibilityRole = heading, accessibilityLevel = 2
+    ]
+
+
+class PayButton extends Button [ height = 54, primary = true,
+    label = { app.paying ? "Paying…" : "Pay " + money(app.totalCents) },
+    accessibilityLive = polite,
+    onClick() { app.pay() }
+    ]

@@ -100,6 +100,16 @@ Bubble [ onHold(e: PointerEvent) { app.rowMenu.open(this, e) },
     ]
 ```
 
+**A drag goes to the nearest view that claims it, too.** A press on a `Button` that sits
+on a carousel's page, or on a map you pan, stays the button's while it stays put: a tap
+presses it. Once the finger travels, the drag is the carousel's or the map's, as it would
+be a scrolling page's: the button's press ends with `canceled` set and clicks nothing,
+and the claimant's drag begins at the point the finger landed, so its `deltaX` counts from
+there. A mouse stays the button's while it is inside the button, and is the claimant's once
+it leaves. A control that claims a drag of its own, such as a `Slider` on that map, keeps
+it, being the nearest; a claim on one axis takes only travel along that axis; and a view
+that pairs its drag with `onHold` takes the press at the hold.
+
 `onClick`, `onPointerDown`, and `onHold` alone claim nothing. A tap coexists with every
 browser gesture — that is the resolved layer's whole point — and when the browser
 does take a gesture back mid-flight, `e.canceled` reports it. Everything a claim

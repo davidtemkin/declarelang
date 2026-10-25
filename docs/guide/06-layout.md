@@ -232,11 +232,52 @@ answer to most things a single plan cannot say. The reference entry for
 Smaller adjustments are ordinary constraints: `spacing = { app.width < 480 ? 6 : 12 }`,
 or `axis = { app.narrow ? "y" : "x" }` on a `SimpleLayout` when only the direction
 changes. In a row whose children keep their natural widths, a `Spacer [ ]` absorbs the
-slack: one between two groups pushes them apart, one on each side centers the run. A
-wholly different configuration at a width is a [`State`](declare-docs:State)
-([Motion and states](declare-docs:guide:motion@states)). And often the cleanest answer is a
+slack: one between two groups pushes them apart, one on each side centers the run.
+A configuration that holds at some widths, with attributes that differ and children only
+those widths have, is a [`State`](declare-docs:State)
+([Program structure](declare-docs:guide:structure@a-view-in-each-of-the-user-s-places)). And often the cleanest answer is a
 floor: [`App [ minWidth = 360 ]`](declare-docs:App) holds the design at that width and lets a narrower
 window pan, instead of reflowing a layout below the width where it works.
+
+## A layout of your own
+
+When what changes is **where the room goes** — a panel beside the main view on a wide
+screen, a strip under it on a narrow one, the main view taking what is left either way —
+the arrangement is a layout you write. It is one method, `place()`, that returns a box for
+each child, and a box can carry a size as well as a place:
+
+```declare
+class SplitLayout extends Layout [
+    wide: boolean = true,
+    side: number = 160,
+    strip: number = 56,
+    place() {
+        const w = this.contentExtent("width")
+        const h = this.contentExtent("height")
+        const s = this.side, t = this.strip
+        return this.laid().map((c, i) => this.wide
+            ? (i == 0 ? ({ x: 0, y: 0, w: w - s, h: h }) : ({ x: w - s, y: 0, w: s, h: h }))
+            : (i == 0 ? ({ x: 0, y: 0, w: w, h: h - t }) : ({ x: 0, y: h - t, w: w, h: t })))
+        }
+    ]
+
+App [ width = 520, height = 200, fill = white, textColor = black,
+    frame: View [ width = 100%, height = 100%,
+        layout: SplitLayout [ wide = { app.width >= 480 } ],
+        main: View [ fill = whitesmoke, Text [ x = center, y = center, text = "main" ] ],
+        aside: View [ fill = gainsboro, Text [ x = center, y = center, text = "aside" ] ]
+        ]
+    ]
+```
+
+Neither child states a size or a place: the layout divides the room it has
+(`contentExtent`) one way or the other, and follows the room as it changes. Written
+without it, each child carries the division itself — `width = { app.wide ? … : … }`,
+`y = { app.wide ? … : … }` — and every size that depends on another is worked out again
+in each. That arithmetic is a layout done by hand. A layout may also read its children,
+total their sizes or find the widest, which a constraint on one child may not; the
+whole of what it can do is in
+[Your own views](declare-docs:guide:your-own-views@writing-a-layout).
 
 ## App size and the host window
 

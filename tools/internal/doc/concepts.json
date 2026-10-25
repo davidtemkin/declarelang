@@ -300,12 +300,11 @@
     },
     {
       "terms": [
-        "carousel",
         "skeleton",
         "badge",
         "avatar"
       ],
-      "answer": "No dedicated class — the library is deliberately small, and these are compositions: a carousel is a row whose `x` follows one sprung scalar; a skeleton is a few rounded Views whose opacity a `Time` pulses; a badge is a small rounded `Text` riding its parent's corner; an avatar is an `Image` with `stretches = cover` and rounding. Compose it, then keep it as your own class."
+      "answer": "No dedicated class — the library is deliberately small, and these are compositions: a skeleton is a few rounded Views whose opacity a `Time` pulses; a badge is a small rounded `Text` riding its parent's corner; an avatar is an `Image` with `stretches = cover` and rounding. Compose it, then keep it as your own class."
     },
     {
       "terms": [

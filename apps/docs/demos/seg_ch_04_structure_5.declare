@@ -1,19 +1,22 @@
-script {
-    function fileSize(n: number): string {
-        const units = ["B", "KB", "MB", "GB"]
-        let i = 0
-        while (n >= 1024 && i < units.length - 1) { n = n / 1024; i = i + 1 }
-        return (i == 0 ? n : n.toFixed(1)) + " " + units[i]
-    }
-    }
+class Die extends Node [
+    sides: number = 6,
+    last: number = 0,
+    rolls: number = 0,
+    roll() { last = 1 + Math.floor(Math.random() * sides); rolls = rolls + 1 },
+    reset() { last = 0; rolls = 0 }
+    ]
 
-App [ width = 300, height = 100, fill = white, textColor = black,
-    bytes: number = 1536000,
-    col: View [ x = 20, y = 20,
-        layout: SimpleLayout [ axis = y, spacing = 10 ],
-        Text [ text = { fileSize(app.bytes) } ],
-        Button [ label = "Double it",
-            onClick() { app.bytes = app.bytes * 2 }
-            ]
+
+App [ width = 340, height = 90, fill = white, textColor = black,
+    die: Die [ ],
+    row: View [ x = 20, y = 24,
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Button [ label = "Roll", primary = true,
+            onClick() { app.die.roll() }
+            ],
+        Button [ label = "Reset",
+            onClick() { app.die.reset() }
+            ],
+        Text [ text = { app.die.rolls == 0 ? "not rolled" : `${app.die.last} (roll ${app.die.rolls})` } ]
         ]
     ]

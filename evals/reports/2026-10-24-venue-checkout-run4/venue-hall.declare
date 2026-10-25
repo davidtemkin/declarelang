@@ -1,0 +1,253 @@
+/*
+# The Venue — the hall
+
+The Grand Hall drawn as the room it is: a stage everything faces, four tiers
+fanning out behind it, every seat a control in its place. One number, the
+app's `unit` (pixels per seat), sizes the whole room: at a desk the room is
+fitted to the window; on a phone a seat is a thumb wide and the room pans
+under the finger, with the whole house kept in view above it as a map.
+
+A seat's three states differ in shape, not only in colour: free is an open
+ring, theirs is a filled seat with a check, gone is a small solid dot.
+*/
+
+
+/*
+## A seat
+
+A toggle named as the brief names it, saying its price and whether it is free.
+Sold seats are disabled and stay where they are, so the room never lies about
+what is left; the one the person just chose springs into place.
+*/
+
+class SeatButton extends Control [
+    accessibilityRole = toggle,
+    accessibilityLabel = :label,
+    accessibilityPressed = { classroot.mine },
+    accessibilityHint = { money(:priceCents) + (classroot.mine ? ", chosen" : classroot.sold ? ", taken" : ", available") },
+
+    sold: boolean = { :seat.status != "available" },
+    mine: boolean = { app.chosen.includes(:id) },
+    lost: boolean = { app.lost.includes(:id) },
+    disabled = { classroot.sold && !classroot.mine },
+
+    width = { app.unit },
+    height = { app.unit },
+    x = { :x * app.unit - app.unit / 2 },
+    y = { :y * app.unit - app.unit / 2 },
+
+    press() { app.toggleSeat(:id) },
+
+    // the seat itself: turned to face the stage
+
+    chair: View [ x = center, y = center,
+        width = { app.unit * (classroot.sold && !classroot.lost ? 0.34 : 0.74) },
+        height = { this.width },
+        rotation = :rot,
+        cornerRadius = { this.width * (classroot.sold ? 0.5 : 0.32) },
+        scale = { app.popId == :id ? 0.55 + 0.45 * app.pop : 1 },
+        fill = { classroot.mine ? provided("theme").accent
+               : classroot.lost ? provided("theme").surface
+               : classroot.sold ? provided("theme").seatGone
+               : classroot.hovered ? provided("theme").seatHover
+               : provided("theme").surface },
+        stroke = { classroot.mine || (classroot.sold && !classroot.lost) ? null
+                 : stroke(classroot.lost ? 1.5 : Math.max(1.2, app.unit / 14),
+                          classroot.lost ? provided("theme").accent : app.tierInk(:tier)) },
+        tick: CheckIcon [ x = center, y = center, iconSize = { Math.max(8, app.unit * 0.46) },
+            visible = { classroot.mine }, ink = { provided("theme").accentTextColor } ],
+        gone: CloseIcon [ x = center, y = center, iconSize = { Math.max(7, app.unit * 0.36) },
+            visible = { classroot.lost && !classroot.mine }, ink = { provided("theme").accent } ]
+        ]
+    ]
+
+
+/*
+## The floor
+
+The stage and the four tiers, drawn beneath the seats as bands of the arcs the
+rows follow; each tier is a shade deeper the closer it is to the stage, and
+carries its name and price in the gap where it rises.
+*/
+
+class HallFloor [
+    draw(d: Draw) {
+        const h = app.seatMap?.hall?.value
+        if (h == null || h.seats.length == 0) return
+        const u = app.unit, cx = h.cx * u, cy = h.cy * u
+        for (const p of h.plates) {
+            d.fillStyle = app.tierFloor(p.tier)
+            d.beginPath()
+            d.arc(cx, cy, p.rOut * u, Math.PI / 2 - p.span, Math.PI / 2 + p.span, false)
+            d.arc(cx, cy, p.rIn * u, Math.PI / 2 + p.span, Math.PI / 2 - p.span, true)
+            d.closePath()
+            d.fill()
+            }
+        // the stage: the arc everything faces
+        const a = 0.36
+        d.fillStyle = provided("theme").stage
+        d.beginPath()
+        d.arc(cx, cy, h.stageR * u, Math.PI / 2 - a, Math.PI / 2 + a, false)
+        d.arc(cx, cy, (h.stageR - 2.6) * u, Math.PI / 2 + a * 0.82, Math.PI / 2 - a * 0.82, true)
+        d.closePath()
+        d.fill()
+        },
+
+    stageName: Text [ fontSize = { Math.max(9, app.unit * 0.5) }, letterSpacing = { Math.max(2, app.unit * 0.18) },
+        fontWeight = semibold, textColor = { provided("theme").stageText }, text = "STAGE",
+        x = { (app.seatMap.hall.value?.cx ?? 0) * app.unit - this.width / 2 },
+        y = { ((app.seatMap.hall.value?.cy ?? 0) + (app.seatMap.hall.value?.stageR ?? 0) - 1.5) * app.unit - this.height / 2 } ],
+
+    // each tier's name and price, centred in the gap in front of it
+
+    labels: View [ width = 100%, height = 100%, datapath = { app.seatMap.hall.value },
+        Text [ datapath = :plates[], key = :key,
+            fontSize = { Math.max(9, Math.min(13, app.unit * 0.48)) }, letterSpacing = 1.2, fontWeight = semibold,
+            textColor = { provided("theme").textMuted }, numeralWidth = tabular,
+            visible = { app.unit >= 12 },
+            text = { :name.toUpperCase() + "  ·  " + money(:priceCents) },
+            x = { (app.seatMap.hall.value?.cx ?? 0) * app.unit - this.width / 2 },
+            y = { ((app.seatMap.hall.value?.cy ?? 0) + :rIn - (:tier == 0 ? 0.72 : 0.95)) * app.unit - this.height / 2 } ]
+        ]
+    ]
+
+
+/*
+## The room
+
+The floor and every seat, at `app.unit` pixels per seat. Its size is the
+room's, so wherever it is placed it is exactly as big as what it draws.
+*/
+
+class Room [
+    width = { (app.seatMap.hall.value?.w ?? 0) * app.unit },
+    height = { (app.seatMap.hall.value?.h ?? 0) * app.unit },
+    accessibilityRole = group,
+    accessibilityLabel = "Seats in the Grand Hall",
+
+    floor: HallFloor [ width = 100%, height = 100% ],
+
+    // one Tab stop: the arrows move along the rows, Up and Down to the row in front and behind
+
+    seats: View [ width = 100%, height = 100%, datapath = { app.seatMap.hall.value }, focusScope = stop,
+        SeatButton [ datapath = :seats[], key = :id,
+            onKeyDown(e: KeyEvent) {
+                if (e.key == "ArrowUp" || e.key == "ArrowDown") app.focusRowNeighbour(this, :id, e.key == "ArrowUp" ? -1 : 1)
+                else super.onKeyDown(e)
+                }
+            ]
+        ]
+    ]
+
+
+/*
+## The map
+
+On a phone the room is larger than the screen, so the whole house stays in
+view above it, small: every seat a dot in its state, and a frame showing which
+part the pane below is looking at. Pressing or dragging on the map takes the
+pane there.
+*/
+
+class HouseMap [
+    accessibilityRole = image,
+    accessibilityLabel = { app.houseSummary },
+    pane: View? = null,
+
+    k: number = { Math.min(this.width / Math.max(1, app.seatMap.hall.value?.w ?? 1), this.height / Math.max(1, app.seatMap.hall.value?.h ?? 1)) },
+    ox: number = { (this.width - (app.seatMap.hall.value?.w ?? 0) * this.k) / 2 },
+    oy: number = { (this.height - (app.seatMap.hall.value?.h ?? 0) * this.k) / 2 },
+
+    draw(d: Draw) {
+        const h = app.seatMap?.hall?.value
+        if (h == null) return
+        const k = this.k, ox = this.ox, oy = this.oy
+        const t = provided("theme")
+        d.fillStyle = t.stage
+        d.fillRect(ox + (h.cx - 6) * k, oy + (h.cy + h.stageR - 2.2) * k, 12 * k, 1.6 * k)
+        for (const s of h.seats) {
+            const mine = app.chosen.includes(s.id)
+            const free = s.seat.status == "available"
+            d.fillStyle = mine ? t.accent : free ? app.tierInk(s.tier) : t.seatGone
+            d.beginPath()
+            d.arc(ox + s.x * k, oy + s.y * k, mine ? k * 0.62 : free ? k * 0.4 : k * 0.3, 0, Math.PI * 2, false)
+            d.fill()
+            }
+        // what the pane shows
+        if (this.pane != null) {
+            const u = app.unit
+            d.strokeStyle = t.accent
+            d.lineWidth = 1.5
+            d.strokeRect(ox + this.pane.scrollX / u * k, oy + this.pane.scrollY / u * k,
+                         Math.min(this.pane.width / u, h.w) * k, Math.min(this.pane.height / u, h.h) * k)
+            }
+        },
+
+    lookAt(px: number, py: number) {
+        if (this.pane == null) return
+        const u = app.unit
+        const hx = (px - this.ox) / this.k * u, hy = (py - this.oy) / this.k * u
+        this.pane.scrollTo({ x: hx - this.pane.width / 2, y: hy - this.pane.height / 2 })
+        },
+    onPointerDown(e: PointerEvent) { this.lookAt(e.x, e.y) },
+    onPointerMove(e: PointerEvent) { this.lookAt(e.x, e.y) }
+    ]
+
+
+/*
+## The key
+
+The three states drawn as the room draws them, so the shapes can be learned
+from it and read without it.
+*/
+
+class KeyMark [ width = 18, height = 18,
+    kind: string = "free",
+    dot: View [ x = center, y = center, cornerRadius = { this.width * 0.32 },
+        width = { classroot.kind == "gone" ? 7 : 15 }, height = { this.width },
+        fill = { classroot.kind == "mine" ? provided("theme").accent : classroot.kind == "gone" ? provided("theme").seatGone : provided("theme").surface },
+        stroke = { classroot.kind == "free" ? stroke(1.5, app.tierInk(0)) : null },
+        CheckIcon [ x = center, y = center, iconSize = 9, visible = { classroot.kind == "mine" }, ink = { provided("theme").accentTextColor } ]
+        ]
+    ]
+
+
+class KeyItem [
+    kind: string = "free",
+    label: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    KeyMark [ kind = { classroot.kind } ],
+    Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = { classroot.label } ]
+    ]
+
+
+class SeatKey [
+    layout: SimpleLayout [ axis = x, spacing = 16, align = center ],
+    KeyItem [ kind = "free", label = "Free" ],
+    KeyItem [ kind = "mine", label = "Yours" ],
+    KeyItem [ kind = "gone", label = "Taken" ]
+    ]
+
+
+/*
+## What they have chosen
+
+One line per chosen seat, in the order chosen, each with its price and a way
+to let it go — the same toggle the room has, said in words.
+*/
+
+class ChosenLine [ width = 100%, height = 44,
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    place: View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 1 ],
+        Text [ fontSize = 14, fontWeight = medium, textColor = { provided("theme").text }, text = { :sectionName } ],
+        Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = { "Row " + :row + ", seat " + :number } ]
+        ],
+    Text [ fontSize = 14, numeralWidth = tabular, textColor = { provided("theme").text }, text = { money(:priceCents) } ],
+    drop: Control [ width = 32, height = 32, cornerRadius = 16,
+        accessibilityLabel = { "Remove " + :label },
+        fill = { this.pressed ? provided("theme").controlPressed : this.hovered ? provided("theme").controlHovered : null },
+        press() { app.toggleSeat(:id) },
+        CloseIcon [ x = center, y = center, iconSize = 12, ink = { provided("theme").textMuted } ]
+        ]
+    ]

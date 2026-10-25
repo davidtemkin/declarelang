@@ -562,8 +562,13 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // press reaches past views that take none; a field being typed in kept clear of
   // the keyboard and pinned bars; a bar at the window's foot held there by the
   // browser; a paragraph's direction — measured 139.8 KB, from 138.2.
+  // 140 → 141 KB (2026-10-24, the fourth eval's fixes): a drag that starts on a
+  // control goes to the view that claims it; a touch whose element leaves the page
+  // still ends; an error a body throws names its rule; a drawing whose view a gate
+  // took away does not draw again — measured 140.0 KB (143,363 B), 3 B over the
+  // old band; the drag handoff is +484 B of it, measured alone.
   const wire = out.files.reduce((n, f) => n + gzipSync(Buffer.from(f.contents)).length, 0);
-  assert.ok(wire > 20 * 1024 && wire < 140 * 1024,
+  assert.ok(wire > 20 * 1024 && wire < 141 * 1024,
     `unexpected FIRST-LOAD size ${(wire / 1024).toFixed(1)} KB — ` +
     out.files.map((f) => `${f.name} ${(gzipSync(Buffer.from(f.contents)).length / 1024).toFixed(1)}`).join(", "));
 

@@ -1,0 +1,407 @@
+/*
+# The Venue — checkout, signing in, and the tickets
+
+The checkout is a draft the person fills in: a `Checkout` node holding what they
+have typed. Each field that the account can answer — their name, their email,
+their billing address, the card to use — starts as a formula over the account,
+so signing in halfway fills what is still empty, and anything already typed has
+replaced its formula and stays as they left it.
+
+Every rule a field is held to is a script function, used twice: by the field,
+to say what is wrong once the person has left it, and by the draft, to decide
+whether Pay may go to the service at all.
+*/
+
+
+class Checkout extends Node [
+    email: string = { app.account.email },
+    cardName: string = { app.account.name },
+    number: string = "",
+    expiry: string = "",
+    cvc: string = "",
+    savedCvc: string = "",
+    line1: string = { app.account.billing?.line1 ?? "" },
+    line2: string = { app.account.billing?.line2 ?? "" },
+    city: string = { app.account.billing?.city ?? "" },
+    postal: string = { app.account.billing?.postalCode ?? "" },
+    country: string = { app.account.billing?.country ?? "US" },
+
+    // which card: a saved one by id, or "new"; a signed-in person starts on their first card that still works
+
+    method: string = { app.usableCards()[0]?.id ?? "new" },
+    saved: SavedCard? = { app.usableCards().find((c) => c.id == this.method) ?? null },
+    usingSaved: boolean = { this.saved != null },
+    brand: string = { brandOf(digitsOf(this.number)) },
+
+    // what the service turned down: shown on its field while the field still holds what was sent
+
+    rejectedField: string = "",
+    rejectedValue: string = "",
+    rejectedMessage: string = "",
+
+    // the service's sentence for the card as a whole: declined, or no funds
+
+    notice: string = "",
+
+    serverError(field: string, v: string) -> string {
+        return this.rejectedField == field && this.rejectedValue == v ? this.rejectedMessage : ""
+        },
+
+    nowYear: number = { app.clock.year },
+    nowMonth: number = { app.clock.month },
+
+    // each field's rule, by the name its view carries
+
+    errorOf(field: string) -> string {
+        const local =
+              field == "savedCvc" ? cvcError(this.savedCvc, this.saved?.brand ?? "visa")
+            : field == "email"    ? emailError(this.email)
+            : field == "cardName" ? required(this.cardName, "the name on the card")
+            : field == "number"   ? cardNumberError(this.number)
+            : field == "expiry"   ? expiryError(this.expiry, this.nowYear, this.nowMonth)
+            : field == "cvc"      ? cvcError(this.cvc, this.brand)
+            : field == "line1"    ? required(this.line1, "the street address")
+            : field == "city"     ? required(this.city, "the city")
+            : field == "postal"   ? postalError(this.country, this.postal)
+            : ""
+        if (local != "") return local
+        const sent = field == "savedCvc" ? "cvc" : field == "postal" ? "postalCode" : field
+        return this.serverError(sent, this.fieldValue(field))
+        },
+    fieldValue(field: string) -> string {
+        return field == "savedCvc" ? this.savedCvc : field == "email" ? this.email : field == "cardName" ? this.cardName
+             : field == "number" ? this.number : field == "expiry" ? this.expiry : field == "cvc" ? this.cvc
+             : field == "line1" ? this.line1 : field == "city" ? this.city : field == "postal" ? this.postal : ""
+        },
+
+    // An empty field is not wrong until the person tries to pay: tabbing past one says
+    // nothing. What they typed and left wrong is said as soon as they leave it.
+
+    attempted: boolean = false,
+    shownError(field: string) -> string {
+        const e = this.errorOf(field)
+        return e != "" && !this.attempted && this.fieldValue(field).trim() == "" ? "" : e
+        },
+
+    // the fields this way of paying asks for, in the order they are shown
+
+    fields: string[] = { this.usingSaved ? ["savedCvc"] : ["email", "cardName", "number", "expiry", "cvc", "line1", "city", "postal"] },
+    firstProblem: string = { this.fields.find((f) => this.errorOf(f) != "") ?? "" },
+    problemCount: number = { this.fields.filter((f) => this.errorOf(f) != "").length },
+
+    payment() -> object {
+        if (this.usingSaved) return { savedCardId: this.method, cvc: this.savedCvc }
+        return {
+            card: { number: digitsOf(this.number), expMonth: expiryMonth(this.expiry), expYear: expiryYear(this.expiry),
+                    cvc: this.cvc, name: this.cardName.trim() },
+            billing: { line1: this.line1.trim(), line2: this.line2.trim() == "" ? null : this.line2.trim(),
+                       city: this.city.trim(), postalCode: this.postal.trim().toUpperCase(), country: this.country }
+            }
+        },
+
+    // a refusal of the card keeps everything but the security code
+
+    forgetCodes() { this.cvc = ""; this.savedCvc = "" },
+
+    // a new purchase starts with no card typed and nothing judged; who they are and where they live stay
+
+    forgetCard() { this.number = ""; this.expiry = ""; this.forgetCodes(); this.attempted = false; this.notice = ""; this.rejectedField = "" }
+    ]
+
+
+/*
+## A field
+
+Its label above it, saying what it is (and naming the field to a screen
+reader), and the error under it once there is one to say. The field waits
+until the person has left it, or tried to pay, before it judges. `name` is
+the draft's name for it: what it shows, where its typing goes and the rule
+it is held to all come from the draft by that name.
+*/
+
+class FormField [
+    label: string = "",
+    name: string = "",
+    purpose: Purpose = text,
+    optional: boolean = false,
+    value: string = "",
+    trailing: string = "",
+    edit(v: string) { },
+
+    layout: SimpleLayout [ axis = y, spacing = 6 ],
+
+    cap: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
+        Text [ fontSize = 14, fontWeight = medium, textColor = { provided("theme").text }, text = { classroot.label } ],
+        Spacer [ ],
+        Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = "Optional", visible = { classroot.optional } ]
+        ],
+
+    entry: TextInput [ width = 100%, height = 48, fontSize = 17, cornerRadius = 10,
+        padding = { [0, classroot.trailing == "" ? 14 : 96, 0, 14] },
+        purpose = { classroot.purpose },
+        accessibilityLabel = { classroot.label },
+        judgeOn = leave,
+        fill = { provided("theme").surface },
+        stroke = { stroke(this.focused ? 2 : 1, this.error != "" ? provided("theme").error : this.focused ? provided("theme").text : provided("theme").fieldEdge) },
+        text = { classroot.value },
+        onInput(v: string) { classroot.edit(v) },
+        validate(v: string) -> string { return app.checkout.shownError(classroot.name) },
+
+        // the kind of card, recognised as the number is typed
+
+        badge: Text [ ignoreLayout = true, x = { parent.width - this.width - 14 }, y = center,
+            fontSize = 12, fontWeight = semibold, letterSpacing = 0.6, textColor = { provided("theme").textMuted },
+            visible = { classroot.trailing != "" }, text = { classroot.trailing.toUpperCase() } ]
+        ],
+
+    msg: View [ width = 100%, visible = { classroot.entry.error != "" },
+        layout: SimpleLayout [ axis = x, spacing = 6 ],
+        mark: View [ y = 3, width = 14, height = 14, cornerRadius = 7, fill = { provided("theme").error },
+            Text [ x = center, y = center, fontSize = 10, fontWeight = bold, textColor = white, text = "!" ]
+            ],
+        Text [ flexes = true, wrap = true, fontSize = 14, textColor = { provided("theme").error }, text = { classroot.entry.error } ]
+        ],
+
+    judge() { this.entry.judge() },
+    focusEntry() { Focus.focus(this.entry) }
+    ]
+
+
+/*
+## A saved card
+
+Shown as a person knows a card: its kind, the last four digits, the expiry. An
+expired card is said to be expired and cannot be chosen.
+*/
+
+class SavedCardRow extends Control [ width = 100%, height = 64, cornerRadius = 12,
+    padding = [0, 16, 0, 16],
+    card: SavedCard? = null,
+    expired: boolean = { app.isExpired(this.card) },
+    chosen: boolean = { app.checkout.method == (this.card?.id ?? "") },
+    accessibilityRole = radio,
+    accessibilityChecked = { classroot.chosen },
+    accessibilityLabel = { brandName(this.card?.brand ?? "") + " ending " + (this.card?.last4 ?? "") + (this.expired ? ", expired" : "") },
+    disabled = { classroot.expired },
+    fill = { provided("theme").surface },
+    stroke = { stroke(this.chosen ? 2 : 1, this.chosen ? provided("theme").accent : provided("theme").fieldEdge) },
+    press() { app.chooseMethod(this.card?.id ?? "new") },
+
+    layout: SimpleLayout [ axis = x, spacing = 14, align = center ],
+    ring: View [ width = 20, height = 20, cornerRadius = 10, fill = { provided("theme").surface },
+        stroke = { stroke(classroot.chosen ? 6 : 1.5, classroot.chosen ? provided("theme").accent : provided("theme").fieldEdge) } ],
+    face: View [ width = 44, height = 30, cornerRadius = 5,
+        fill = { classroot.expired ? provided("theme").control : provided("theme").stage },
+        Text [ x = center, y = center, fontSize = 9, fontWeight = bold, letterSpacing = 0.6,
+            textColor = { classroot.expired ? provided("theme").textMuted : provided("theme").stageText },
+            text = { (classroot.card?.brand ?? "") == "mastercard" ? "MC" : (classroot.card?.brand ?? "").toUpperCase() } ]
+        ],
+    words: View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ fontSize = 15, fontWeight = medium, numeralWidth = tabular,
+            textColor = { classroot.expired ? provided("theme").textMuted : provided("theme").text },
+            text = { brandName(classroot.card?.brand ?? "") + " ending " + (classroot.card?.last4 ?? "") } ],
+        Text [ fontSize = 13, numeralWidth = tabular,
+            textColor = { classroot.expired ? provided("theme").error : provided("theme").textMuted },
+            text = { (classroot.expired ? "Expired " : "Expires ") + app.expiryText(classroot.card) } ]
+        ]
+    ]
+
+
+class NewCardRow extends Control [ width = 100%, height = 56, cornerRadius = 12,
+    padding = [0, 16, 0, 16],
+    chosen: boolean = { app.checkout.method == "new" || !app.checkout.usingSaved },
+    accessibilityRole = radio,
+    accessibilityChecked = { classroot.chosen },
+    accessibilityLabel = "New card",
+    fill = { provided("theme").surface },
+    stroke = { stroke(this.chosen ? 2 : 1, this.chosen ? provided("theme").accent : provided("theme").fieldEdge) },
+    press() { app.chooseMethod("new") },
+    layout: SimpleLayout [ axis = x, spacing = 14, align = center ],
+    ring: View [ width = 20, height = 20, cornerRadius = 10, fill = { provided("theme").surface },
+        stroke = { stroke(classroot.chosen ? 6 : 1.5, classroot.chosen ? provided("theme").accent : provided("theme").fieldEdge) } ],
+    Text [ fontSize = 15, fontWeight = medium, textColor = { provided("theme").text }, text = "New card" ]
+    ]
+
+
+/*
+## The order
+
+Each seat with its price and booking fee, and the total, to the cent. The
+same lines and the same total the service will charge, from the same prices.
+*/
+
+class OrderLine [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    top: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 10, align = baseline ],
+        Text [ flexes = true, fontSize = 15, fontWeight = medium, textColor = { provided("theme").text },
+            text = { :sectionName + " · Row " + :row + ", seat " + :number } ],
+        Text [ fontSize = 15, numeralWidth = tabular, textColor = { provided("theme").text }, text = { money(:priceCents) } ]
+        ],
+    fee: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 10, align = baseline ],
+        Text [ flexes = true, fontSize = 13, textColor = { provided("theme").textMuted }, text = "Booking fee" ],
+        Text [ fontSize = 13, numeralWidth = tabular, textColor = { provided("theme").textMuted }, text = { money(:feeCents) } ]
+        ]
+    ]
+
+
+class OrderSummary [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 14 ],
+    Text [ fontFamily = { app.display }, fontSize = 22, textColor = { provided("theme").text }, text = "Your order" ],
+    Text [ width = 100%, wrap = true, fontSize = 14, textColor = { provided("theme").textMuted },
+        text = { app.perfTitle + " · " + app.perfWhen } ],
+    lines: View [ width = 100%, datapath = { app.chosenData.value },
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        OrderLine [ datapath = :seats[], key = :id ]
+        ],
+    rule: View [ width = 100%, height = 1, fill = { provided("theme").line } ],
+    total: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 10, align = baseline ],
+        Text [ flexes = true, fontSize = 16, fontWeight = semibold, textColor = { provided("theme").text }, text = "Total" ],
+        Text [ fontSize = 20, fontWeight = semibold, numeralWidth = tabular, textColor = { provided("theme").text },
+            accessibilityLive = polite, text = { money(app.totalCents) } ]
+        ]
+    ]
+
+
+/*
+## Signing in
+
+Email and password, as every password manager expects them. A wrong password
+is answered in the service's own sentence; signing in leaves everything chosen
+and typed where it was.
+*/
+
+class SignInForm [ width = 100%,
+    email: string = "",
+    password: string = "",
+    reveal: boolean = false,
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+
+    Text [ fontFamily = { app.display }, fontSize = 26, textColor = { provided("theme").text }, text = "Sign in",
+        accessibilityRole = heading, accessibilityLevel = 2 ],
+    Text [ width = 100%, wrap = true, fontSize = 15, textColor = { provided("theme").textMuted },
+        text = "Use your saved cards and address. You don't need an account to buy tickets." ],
+
+    emailField: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        Text [ fontSize = 14, fontWeight = medium, textColor = { provided("theme").text }, text = "Email" ],
+        entry: TextInput [ width = 100%, height = 48, fontSize = 17, cornerRadius = 10, padding = [0, 14, 0, 14],
+            purpose = username, accessibilityLabel = "Email",
+            fill = { provided("theme").surface },
+            stroke = { stroke(this.focused ? 2 : 1, this.focused ? provided("theme").text : provided("theme").fieldEdge) },
+            text = { classroot.email },
+            onInput(v: string) { classroot.email = v },
+            onEnter() { Focus.focus(classroot.passwordField.row.entry) }
+            ]
+        ],
+    passwordField: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        Text [ fontSize = 14, fontWeight = medium, textColor = { provided("theme").text }, text = "Password" ],
+        row: View [ width = 100%,
+            entry: TextInput [ width = 100%, height = 48, fontSize = 17, cornerRadius = 10, padding = [0, 84, 0, 14],
+                purpose = password, concealed = { !classroot.reveal }, accessibilityLabel = "Password",
+                fill = { provided("theme").surface },
+                stroke = { stroke(this.focused ? 2 : 1, this.focused ? provided("theme").text : provided("theme").fieldEdge) },
+                text = { classroot.password },
+                onInput(v: string) { classroot.password = v },
+                onEnter() { app.signIn(classroot.email, classroot.password) }
+                ],
+            show: Control [ x = { parent.width - this.width - 6 }, y = center, width = 70, height = 36, cornerRadius = 8,
+                accessibilityRole = toggle, accessibilityLabel = "Show password", accessibilityPressed = { classroot.reveal },
+                fill = { this.pressed ? provided("theme").controlPressed : this.hovered ? provided("theme").controlHovered : null },
+                press() { classroot.reveal = !classroot.reveal },
+                Text [ x = center, y = center, fontSize = 14, fontWeight = medium, textColor = { provided("theme").text },
+                    text = { classroot.reveal ? "Hide" : "Show" } ]
+                ]
+            ]
+        ],
+
+    problem: Text [ width = 100%, wrap = true, fontSize = 15, textColor = { provided("theme").error },
+        accessibilityLive = assertive,
+        visible = { app.signInSource.failed },
+        text = { app.signInSource.errorBody?.message ?? "Couldn't sign in. Try again." } ],
+
+    go: Button [ width = 100%, height = 50, primary = true,
+        label = { app.signInSource.loading ? "Signing in…" : "Sign in" },
+        onClick() { app.signIn(classroot.email, classroot.password) }
+        ]
+    ]
+
+
+/*
+## The tickets
+
+What someone holds up at the door: one ticket at a time, large, with the
+performance, the seat, when to arrive and a code to scan.
+*/
+
+class Barcode [ height = 76,
+    code: string = "",
+    accessibilityRole = image,
+    accessibilityLabel = { "Barcode " + classroot.code },
+    draw(d: Draw) {
+        const bars = barWidths(this.code)
+        const total = bars.reduce((a, b) => a + b, 0)
+        const w = this.width / total
+        let x = 0
+        d.fillStyle = provided("theme").text
+        bars.forEach((b, i) => {
+            if (i % 2 == 0) d.fillRect(Math.round(x), 0, Math.max(1, Math.round(b * w)), this.height)
+            x += b * w
+            })
+        }
+    ]
+
+
+class TicketCard [ cornerRadius = 22, fill = { provided("theme").surface }, clip = true,
+    shadow = shadow(0, 18, 50, #2A1E1426),
+    accessibilityRole = group,
+    accessibilityLabel = { "Ticket " + (rowIndex + 1) + ": " + :section + ", row " + :row + ", seat " + :number },
+    layout: SimpleLayout [ axis = y ],
+
+    head: View [ width = 100%, fill = { provided("theme").stage }, padding = [22, 24, 20, 24],
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        Text [ fontSize = 12, letterSpacing = 2, fontWeight = semibold, textColor = { provided("theme").stageText }, text = "THE GRAND HALL" ],
+        Text [ width = 100%, wrap = true, fontFamily = { app.display }, fontSize = 26, textColor = white, text = { app.production.value?.title ?? "" } ],
+        Text [ fontSize = 16, numeralWidth = tabular, textColor = { provided("theme").stageText }, text = { app.perfWhen } ]
+        ],
+
+    seat: View [ width = 100%, padding = [22, 24, 6, 24],
+        layout: SimpleLayout [ axis = x, spacing = 22 ],
+        Stat [ caption = "SECTION", value = :section ],
+        Stat [ caption = "ROW", value = :row ],
+        Stat [ caption = "SEAT", value = { "" + :number } ]
+        ],
+
+    doors: View [ width = 100%, padding = [14, 24, 18, 24],
+        layout: SimpleLayout [ axis = x, spacing = 22 ],
+        Stat [ caption = "DOORS OPEN", value = { app.doorsTime }, small = true ],
+        Stat [ caption = "CURTAIN", value = { app.curtainTime }, small = true ]
+        ],
+
+    // the tear line between the stub and the code
+
+    tear: View [ width = 100%, height = 1, fill = { provided("theme").line } ],
+
+    stub: View [ width = 100%, flexes = true, padding = [20, 24, 22, 24],
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        Barcode [ width = 100%, code = :barcode ],
+        Text [ x = center, fontSize = 16, letterSpacing = 3, numeralWidth = tabular, slashedZero = true,
+            fontWeight = medium, textColor = { provided("theme").text }, text = :barcode ]
+        ]
+    ]
+
+
+class Stat [
+    caption: string = "",
+    value: string = "",
+    small: boolean = false,
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Text [ fontSize = 11, letterSpacing = 1.6, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = { classroot.caption } ],
+    Text [ fontSize = { classroot.small ? 22 : 34 }, fontWeight = semibold, numeralWidth = tabular,
+        textColor = { provided("theme").text }, text = { classroot.value } ]
+    ]

@@ -61,6 +61,16 @@ export interface HitTarget {
         key: object;
         sink: InputSink;
     };
+    /** The nearest DRAG OWNER (onPointerMove), resolved the same way, with the
+     *  axis it claims and whether it claims from a hold (it declares onHold too).
+     *  A press that stays put is the pressed view's; once it travels it is this
+     *  owner's, when the owner is not the pressed view itself (DRAG HANDOFF). */
+    drag?: {
+        key: object;
+        sink: InputSink;
+        axis: "both" | "x" | "y";
+        fromHold: boolean;
+    };
 }
 /** One finger, as the raw touch family reports it. `id` is stable for the
  *  life of that finger's contact, so an engine can track it across events. */

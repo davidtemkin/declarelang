@@ -63,10 +63,12 @@ const isA = (v: object, name: string): boolean => {
 /** CONTROLS NOBODY CAN REACH. A control that lies outside an ancestor which
  *  clips and does not scroll — with no scroller between them to bring it in —
  *  can never be seen or pressed; nor can one placed above or left of a
- *  scroller's origin, where no scroll reaches. Reported as a note, not a
- *  failure: a carousel that keeps cards outside its clip on purpose looks the
- *  same. The App's own frame is not a clip here: apps park closed panels
- *  off-stage by design. */
+ *  scroller's origin, where no scroll reaches. A drag brings content in as a
+ *  scroll does: a clip that takes a drag, or holds the view that does (a
+ *  carousel, a pan surface), reaches what lies outside it. Reported as a note,
+ *  not a failure: content kept outside a clip on purpose looks the same. The
+ *  App's own frame is not a clip here: apps park closed panels off-stage by
+ *  design. */
 function outOfReach(app: Node): string[] {
   const clips = (v: View): boolean => v.clip !== null && v.clip !== false && v.clip !== "";
   const out: string[] = [];
@@ -74,11 +76,13 @@ function outOfReach(app: Node): string[] {
   const round = (b: { x: number; y: number; width: number; height: number }): string =>
     `x ${Math.round(b.x)}–${Math.round(b.x + b.width)}, y ${Math.round(b.y)}–${Math.round(b.y + b.height)}`;
   const box = (v: View, stop: View | null = null) => rootFrameBox(v as unknown as InteractionView, undefined, stop as unknown as InteractionView | null);
+  const drags = (v: View): boolean => typeof (v as unknown as { onPointerMove?: unknown }).onPointerMove === "function";
   const visit = (v: View): void => {
     if (!v.visible) return;   // a hidden view is reached when it is shown, not now
     if (isA(v, "Control") && v.width > 0 && v.height > 0) {
       const b = box(v);
       for (let a: unknown = v.parent, child: View = v; a instanceof View && a.parent !== null; child = a, a = a.parent) {
+        if (drags(a)) break;   // a drag moves it into view
         if (a.scrolls !== "none") {
           const c = box(v, a);
           if (c.y + c.height <= 0 || c.x + c.width <= 0) say(v, `lies above or left of ${pathOf(app, a)}, a scroller, where no scroll reaches (${round(c)} in its content)`);
@@ -195,7 +199,13 @@ function layoutChecks(app: Node, { touch = false, realText = false }: BootCheckO
  *  data arrives or the state changes, so nothing here checked them. */
 function unbuiltClasses(app: Node, classes: readonly string[]): string[] {
   const built = new Set<string>();
-  const walk = (n: Node): void => { built.add(n.constructor.name); for (const c of n.children) walk(c); };
+  // a view's layout is its attribute, not a child, and is built with it
+  const walk = (n: Node): void => {
+    built.add(n.constructor.name);
+    const l = (n as { layout?: unknown }).layout;
+    if (l !== null && typeof l === "object") built.add(l.constructor.name);
+    for (const c of n.children) walk(c);
+  };
   walk(app);
   return classes.filter((n) => !built.has(n));
 }
