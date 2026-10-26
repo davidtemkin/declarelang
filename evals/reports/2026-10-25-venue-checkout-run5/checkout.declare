@@ -1,0 +1,578 @@
+/*
+# The Venue: checkout
+
+What the person types lives in `Checkout`, a node on the App (`app.pay`), not
+in the form's views: signing in halfway, or going back to the hall, leaves it
+as it was. Signing in fills only what is still empty.
+
+Each field judges itself once it has been left (`judgeOn = leave`), or when Pay
+is pressed; until then it says nothing. The service's own verdict on a field (a
+security code or a postal code the bank doesn't hold) is held as the field's
+error for exactly the value it was given, and goes as soon as the field changes.
+*/
+
+// ── What the person is paying with ─────────────────────────────────────────
+
+class Checkout extends Node [
+    method: string = "new",            // a saved card's id, or "new"
+    email: string = "",
+    name: string = "",
+    number: string = "",
+    expiry: string = "",
+    cvc: string = "",
+    savedCvc: string = "",
+    line1: string = "",
+    line2: string = "",
+    city: string = "",
+    postal: string = "",
+    country: string = "",
+
+    brand: string = { brandOf(number) },
+    saved: SavedCard? = { app.cards.find((c) => c.id == method) ?? null },
+    usingSaved: boolean = { saved != null },
+    nowYear: number = { app.clock.year },
+    nowMonth: number = { app.clock.month },
+    expired(c: SavedCard) -> boolean { return isExpired(c.expMonth, c.expYear, nowYear, nowMonth) },
+
+    // The service's verdict on one field, for the value it judged.
+
+    refusedField: string = "",
+    refusedValue: string = "",
+    refusedMessage: string = "",
+    fieldValue(field: string) -> string {
+        switch (field) {
+            case "email": return email
+            case "number": return number
+            case "expiry": return expiry
+            case "cvc": return cvc
+            case "savedCvc": return savedCvc
+            case "postal": return postal
+            default: return ""
+            }
+        },
+    fieldOf(serviceField: string) -> string {
+        if (serviceField == "postalCode") return "postal"
+        if (serviceField == "cvc" && usingSaved) return "savedCvc"
+        return serviceField
+        },
+    refuse(serviceField: string, message: string) {
+        const f = fieldOf(serviceField)
+        refusedField = f
+        refusedValue = fieldValue(f)
+        refusedMessage = message
+        },
+
+    problem(field: string, v: string) -> string {
+        if (refusedField == field && refusedValue == v && refusedMessage != "") return refusedMessage
+        switch (field) {
+            case "email": return emailProblem(v)
+            case "name": return v.trim() == "" ? "Enter the name as it is printed on the card." : ""
+            case "number": return cardNumberProblem(v)
+            case "expiry": return expiryProblem(v, nowYear, nowMonth)
+            case "cvc": return cvcProblem(v, brand)
+            case "savedCvc": return cvcProblem(v, saved?.brand ?? "")
+            case "line1": return v.trim() == "" ? "Enter the street address." : ""
+            case "city": return v.trim() == "" ? "Enter the town or city." : ""
+            case "postal": return country == "" ? (v.trim() == "" ? "Enter the postal code." : "") : postalProblem(v, country)
+            default: return ""
+            }
+        },
+
+    clearCode() { cvc = ""; savedCvc = "" },
+
+    prefill(a: Account?) {
+        if (a == null) return
+        if (email.trim() == "") email = a.email
+        if (name.trim() == "") name = a.name
+        const b = a.billing
+        if (b != null && line1 == "" && city == "" && postal == "") {
+            line1 = b.line1
+            line2 = b.line2 ?? ""
+            city = b.city
+            postal = b.postalCode
+            country = b.country
+            }
+        if (method == "new" && digitsOf(number) == "") {
+            const usable = a.cards.find((c) => !expired(c))
+            if (usable != null) method = usable.id
+            }
+        },
+    signedOut() { method = "new"; savedCvc = "" },
+    afterPurchase() { number = ""; expiry = ""; cvc = ""; savedCvc = ""; refusedField = "" },
+
+    body() -> object {
+        const base = ({ performanceId: app.perfId, seatIds: app.chosen })
+        if (usingSaved) {
+            return ({ ...base, email: app.account?.email ?? email.trim(),
+                payment: ({ savedCardId: method, cvc: savedCvc.trim() }) })
+            }
+        const e = parseExpiry(expiry.replace(/\s/g, "")) ?? [0, 0]
+        return ({ ...base, email: email.trim(),
+            payment: ({
+                card: ({ number: digitsOf(number), expMonth: e[0], expYear: e[1], cvc: cvc.trim(), name: name.trim() }),
+                billing: ({ line1: line1.trim(), line2: line2.trim() == "" ? null : line2.trim(), city: city.trim(),
+                    postalCode: postal.trim().toUpperCase(), country: country })
+                }) })
+        }
+    ]
+
+
+// ── A field ─────────────────────────────────────────────────────────────────
+//
+// The label above, the box, and under it a hint or, once judged, what is wrong.
+// The label is provided to the input as `fieldLabel`, which is its name to a
+// screen reader; the error is its own, said with it.
+
+class FormField [
+    label: string = "",
+    note: string = "",
+    hint: string = "",
+    value: string = "",
+    purpose: Purpose = text,
+    concealed: boolean = false,
+    placeholder: string = "",
+    trailing: string = "",
+    fieldLabel: string = { label },
+
+    edit(v: string, caret: number) { },
+    check(v: string) -> string { return "" },
+    entered() { },
+
+    error: string = { this.box.input.error },
+    valid: boolean = { this.box.input.valid },
+    target: View = { this.box.input },
+    judge() { this.box.input.judge() },
+    caretTo(i: number) { this.box.input.select(i) },
+
+    layout: SimpleLayout [ axis = y, spacing = 7 ],
+
+    head: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
+        Text [ fontSize = 14, fontWeight = semibold, text = { classroot.label } ],
+        Text [ visible = { classroot.note != "" }, fontSize = 13, textColor = { provided("theme").textMuted },
+            text = { classroot.note } ]
+        ],
+    box: View [ width = 100%, height = { app.touchDevice ? 50 : 46 }, cornerRadius = 9,
+        fill = { provided("theme").surface },
+        stroke = { classroot.error != "" ? stroke(1.5, provided("theme").error)
+            : this.input.focused ? stroke(1.5, provided("theme").text) : stroke(1, provided("theme").lineStrong) },
+        input: TextInput [ width = 100%, height = 100%,
+            padding = { [0, classroot.trailing == "" ? 14 : 64, 0, 14] },
+            fill = null, stroke = null,
+            fontSize = { app.touchDevice ? 17 : 16 },
+            purpose = { classroot.purpose },
+            concealed = { classroot.concealed },
+            placeholder = { classroot.placeholder },
+            judgeOn = leave,
+            text = { classroot.value },
+            onInput(v: string) { classroot.edit(v, this.selectionStart) },
+            onEnter() { classroot.entered() },
+            validate(v: string) -> string { return classroot.check(v) }
+            ],
+        tail: Text [ visible = { classroot.trailing != "" }, x = { parent.width - this.width - 14 }, y = center,
+            fontSize = 12, fontWeight = bold, letterSpacing = 0.6, textColor = { provided("theme").textMuted },
+            text = { classroot.trailing } ]
+        ],
+    below: View [ visible = { classroot.error != "" || classroot.hint != "" }, width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 6 ],
+        Mark [ visible = { classroot.error != "" }, width = 14, height = 14, ink = { provided("theme").error } ],
+        Text [ flexes = true, wrap = true, fontSize = 13, accessibilityLive = polite,
+            textColor = { classroot.error != "" ? provided("theme").error : provided("theme").textMuted },
+            text = { classroot.error != "" ? classroot.error : classroot.hint } ]
+        ]
+    ]
+
+
+// The country: one of three, chosen from a list or filled by the browser.
+
+class CountryField [
+    fieldLabel: string = "Country",
+    judged: boolean = false,
+    code: string = { app.pay.country },
+    error: string = { classroot.judged && classroot.code == "" ? "Choose a country." : "" },
+    valid: boolean = { classroot.code != "" },
+    target: View = { this.combo.entry },
+    judge() { judged = true },
+    choices: array = { [ ({ id: "US", label: "United States" }), ({ id: "CA", label: "Canada" }), ({ id: "GB", label: "United Kingdom" }) ] },
+
+    // a country set by the account shows in the field as its name
+
+    trackChanges = ["code"],
+    onChange() {
+        const name = countryName(code)
+        if (name != "" && this.combo.entry.text != name) { this.combo.entry.text = name; this.combo.query = name }
+        },
+    onInit() { if (countryName(code) != "") this.combo.entry.text = countryName(code) },
+
+    layout: SimpleLayout [ axis = y, spacing = 7 ],
+    Text [ fontSize = 14, fontWeight = semibold, text = "Country" ],
+    combo: Combobox [ width = 100%, height = { app.touchDevice ? 50 : 46 }, purpose = country,
+        placeholder = "Choose a country",
+        accessibilityError = { classroot.error },
+        items = { classroot.choices },
+        value = { classroot.choices.find((c) => c.id == classroot.code) ?? null },
+        input(v: object) {
+            app.pay.country = v == null ? "" : (v as { id: string }).id
+            classroot.judged = true
+            }
+        ],
+    below: View [ visible = { classroot.error != "" }, width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 6 ],
+        Mark [ width = 14, height = 14, ink = { provided("theme").error } ],
+        Text [ flexes = true, wrap = true, fontSize = 13, accessibilityLive = polite,
+            textColor = { provided("theme").error }, text = { classroot.error } ]
+        ]
+    ]
+
+
+// Two fields side by side on a wide form, stacked on a narrow one.
+
+class Pair [ width = 100%,
+    layout: SimpleLayout [ axis = x, spacing = 14 ]
+    ]
+
+
+class GroupHead [ width = 100%, padding = [10, 0, 0, 0],
+    text: string = "",
+    Text [ accessibilityRole = heading, accessibilityLevel = 2, fontFamily = { app.serif }, fontSize = 20,
+        fontWeight = semibold, text = { classroot.text } ]
+    ]
+
+
+// ── A saved card, or a new one ──────────────────────────────────────────────
+
+class CardOption extends Control [ width = 100%, height = 62,
+    cardId: string = "new",
+    brand: string = "",
+    last4: string = "",
+    expMonth: number = 0,
+    expYear: number = 0,
+    isNew: boolean = { classroot.cardId == "new" },
+    expired: boolean = { !classroot.isNew && isExpired(classroot.expMonth, classroot.expYear, app.pay.nowYear, app.pay.nowMonth) },
+    on: boolean = { app.pay.method == classroot.cardId },
+    when: string = { twoDigits(classroot.expMonth) + "/" + twoDigits(classroot.expYear % 100) },
+    disabled = { classroot.expired },
+    accessibilityRole = radio,
+    accessibilityChecked = { classroot.on },
+    accessibilityLabel = { classroot.isNew ? "A new card"
+        : brandName(classroot.brand) + " ending " + classroot.last4 + (classroot.expired ? ", expired " : ", expires ") + classroot.when },
+    press() { app.pay.method = classroot.cardId },
+
+    padding = [0, 14, 0, 14], cornerRadius = 10,
+    fill = { classroot.on ? provided("theme").accentTint : hovered ? provided("theme").raised : provided("theme").surface },
+    stroke = { classroot.on ? stroke(1.5, provided("theme").accent) : stroke(1, provided("theme").line) },
+    opacity = { classroot.expired ? 0.62 : 1 },
+    layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+
+    dot: RadioDot [ width = 20, height = 20, on = { classroot.on } ],
+    plate: BrandPlate [ visible = { !classroot.isNew }, brand = { classroot.brand } ],
+    words: View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ fontSize = 15, fontWeight = semibold, numeralWidth = tabular,
+            text = { classroot.isNew ? "A new card" : brandName(classroot.brand) + " •••• " + classroot.last4 } ],
+        Text [ visible = { !classroot.isNew }, fontSize = 13, numeralWidth = tabular,
+            textColor = { provided("theme").textMuted },
+            text = { (classroot.expired ? "Expired " : "Expires ") + classroot.when } ]
+        ],
+    tag: Text [ visible = { classroot.expired }, fontSize = 11, fontWeight = bold, letterSpacing = 1,
+        textColor = { provided("theme").textMuted }, text = "EXPIRED" ]
+    ]
+
+
+class RadioDot [ on: boolean = false,
+    ink: Color = { provided("theme").accent },
+    rim: Color = { provided("theme").lineStrong },
+    draw(d: Draw) {
+        const r = Math.min(width, height) / 2
+        d.lineWidth = on ? 6 : 1.5
+        d.strokeStyle = on ? ink : rim
+        d.beginPath()
+        d.arc(width / 2, height / 2, on ? r - 3 : r - 1, 0, Math.PI * 2)
+        d.stroke()
+        }
+    ]
+
+
+// A card's kind as a small plate of type — not a logo, but read as one.
+
+class BrandPlate [ brand: string = "",
+    width = 46, height = 30, cornerRadius = 5,
+    fill = { provided("theme").stage },
+    TextLabel [ x = center, fontSize = 10, fontWeight = bold, letterSpacing = 0.8,
+        textColor = { provided("theme").onStage },
+        text = { brandShort(classroot.brand) } ]
+    ]
+
+
+// ── The form ────────────────────────────────────────────────────────────────
+
+class CheckoutForm [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 18 ],
+
+    // Judge every field that is showing; hand back the first that is wrong.
+
+    shownFields() -> array {
+        const n = this.newCard
+        return app.pay.usingSaved ? [this.savedCode]
+            : [n.emailF, n.nameF, n.numberF, n.dates.expiryF, n.dates.cvcF, n.line1F, n.line2F, n.cityF, n.place.countryF, n.place.postalF]
+        },
+    check() -> View? {
+        const fields = this.shownFields()
+        fields.forEach((f) => (f as FormField).judge())
+        const bad = fields.find((f) => !(f as FormField).valid)
+        return bad == null ? null : (bad as FormField).target
+        },
+    codeField() -> View { return app.pay.usingSaved ? this.savedCode.target : this.newCard.dates.cvcF.target },
+    fieldFor(serviceField: string) -> View? {
+        const n = this.newCard
+        switch (app.pay.fieldOf(serviceField)) {
+            case "email": return n.emailF.target
+            case "number": return n.numberF.target
+            case "expiry": return n.dates.expiryF.target
+            case "cvc": return n.dates.cvcF.target
+            case "savedCvc": return this.savedCode.target
+            case "postal": return n.place.postalF.target
+            default: return null
+            }
+        },
+    payButton() -> View { return app.wide ? app.checkoutScreen.body.aside.pay.button : app.payBar.pay.button },
+
+    account: View [ visible = { !app.signedIn }, width = 100%, padding = [14, 16, 14, 16], cornerRadius = 10,
+        fill = { provided("theme").raised },
+        Text [ width = 100%, wrap = true, fontSize = 14, textColor = { provided("theme").textMuted },
+            text = "No account needed. If you have one, sign in at the top to pay with a saved card; nothing here is lost." ]
+        ],
+
+    methods: View [ visible = { app.signedIn && app.cards.length > 0 }, width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        GroupHead [ text = "Pay with" ],
+        options: View [ width = 100%, focusScope = stop,
+            accessibilityRole = radioGroup, accessibilityLabel = "Pay with",
+            layout: SimpleLayout [ axis = y, spacing = 8 ],
+            saved: View [ width = 100%, datapath = { app.account },
+                layout: SimpleLayout [ axis = y, spacing = 8 ],
+                CardOption [ datapath = :cards[], cardId = :id, brand = :brand, last4 = :last4,
+                    expMonth = :expMonth, expYear = :expYear ]
+                ],
+            CardOption [ cardId = "new" ]
+            ]
+        ],
+
+    savedCode: FormField [ width = 100%, visible = { app.pay.usingSaved },
+        label = "Security code", purpose = cardCode, placeholder = { app.pay.saved?.brand == "amex" ? "4 digits" : "3 digits" },
+        hint = { "The " + cvcLength(app.pay.saved?.brand ?? "") + " digits " + (app.pay.saved?.brand == "amex" ? "on the front" : "on the back")
+            + " of your card ending " + (app.pay.saved?.last4 ?? "") + ". Tickets go to " + (app.account?.email ?? "") + "." },
+        value = { app.pay.savedCvc },
+        edit(v: string, caret: number) { app.pay.savedCvc = digitsOf(v).slice(0, 4) },
+        check(v: string) -> string { return app.pay.problem("savedCvc", v) },
+        entered() { app.submit() }
+        ],
+
+    newCard: View [ visible = { !app.pay.usingSaved }, width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 16 ],
+        Text [ width = 100%, wrap = true, fontSize = 13, textColor = { provided("theme").textMuted },
+            text = "Every field is needed unless it says optional." ],
+
+        GroupHead [ text = "Where to send the tickets" ],
+        emailF: FormField [ width = 100%, label = "Email", purpose = email, placeholder = "you@example.com",
+            hint = "Your tickets arrive here. Nothing is posted.",
+            value = { app.pay.email },
+            edit(v: string, caret: number) { app.pay.email = v },
+            check(v: string) -> string { return app.pay.problem("email", v) },
+            entered() { app.submit() }
+            ],
+
+        GroupHead [ text = "Card" ],
+        nameF: FormField [ width = 100%, label = "Name on card", purpose = cardName,
+            value = { app.pay.name },
+            edit(v: string, caret: number) { app.pay.name = v },
+            check(v: string) -> string { return app.pay.problem("name", v) },
+            entered() { app.submit() }
+            ],
+        numberF: FormField [ width = 100%, label = "Card number", purpose = cardNumber, placeholder = "1234 5678 9012 3456",
+            trailing = { brandName(app.pay.brand) == "American Express" ? "AMEX" : brandName(app.pay.brand).toUpperCase() },
+            value = { app.pay.number },
+            edit(v: string, caret: number) {
+                const grouped = groupCard(v)
+                const at = caretAfterDigits(grouped, digitsBefore(v, caret))
+                app.pay.number = grouped
+                this.caretTo(at)
+                },
+            check(v: string) -> string { return app.pay.problem("number", v) },
+            entered() { app.submit() }
+            ],
+        dates: Pair [
+            expiryF: FormField [ flexes = true, label = "Expiry date", purpose = cardExpiry, placeholder = "MM / YY",
+                value = { app.pay.expiry },
+                edit(v: string, caret: number) {
+                    const next = formatExpiry(v, app.pay.expiry)
+                    app.pay.expiry = next
+                    if (caret >= v.length) this.caretTo(next.length)
+                    },
+                check(v: string) -> string { return app.pay.problem("expiry", v) },
+                entered() { app.submit() }
+                ],
+            cvcF: FormField [ flexes = true, label = "Security code", purpose = cardCode,
+                placeholder = { cvcLength(app.pay.brand) + " digits" },
+                hint = { app.pay.brand == "amex" ? "4 digits, on the front" : "3 digits, on the back" },
+                value = { app.pay.cvc },
+                edit(v: string, caret: number) { app.pay.cvc = digitsOf(v).slice(0, 4) },
+                check(v: string) -> string { return app.pay.problem("cvc", v) },
+                entered() { app.submit() }
+                ]
+            ],
+
+        GroupHead [ text = "Billing address" ],
+        line1F: FormField [ width = 100%, label = "Street address", purpose = addressLine1,
+            value = { app.pay.line1 },
+            edit(v: string, caret: number) { app.pay.line1 = v },
+            check(v: string) -> string { return app.pay.problem("line1", v) },
+            entered() { app.submit() }
+            ],
+        line2F: FormField [ width = 100%, label = "Address line 2", note = "Optional", purpose = addressLine2,
+            placeholder = "Flat, suite, floor",
+            value = { app.pay.line2 },
+            edit(v: string, caret: number) { app.pay.line2 = v },
+            entered() { app.submit() }
+            ],
+        cityF: FormField [ width = 100%, label = "City", purpose = city,
+            value = { app.pay.city },
+            edit(v: string, caret: number) { app.pay.city = v },
+            check(v: string) -> string { return app.pay.problem("city", v) },
+            entered() { app.submit() }
+            ],
+        place: Pair [
+            countryF: CountryField [ flexes = true ],
+            postalF: FormField [ flexes = true, label = "Postal code", purpose = postalCode,
+                placeholder = { postalExample(app.pay.country) },
+                value = { app.pay.postal },
+                edit(v: string, caret: number) { app.pay.postal = v.toUpperCase() },
+                check(v: string) -> string { return app.pay.problem("postal", v) },
+                entered() { app.submit() }
+                ]
+            ]
+        ]
+    ]
+
+
+// ── The seats being bought, and the total ──────────────────────────────────
+
+class OrderSummary [ width = 100%,
+    layout: SimpleLayout [ axis = y ],
+    Text [ fontFamily = { app.serif }, fontSize = 20, fontWeight = semibold,
+        text = { app.production.value?.title ?? "" } ],
+    Text [ padding = [2, 0, 12, 0], fontSize = 14, textColor = { provided("theme").textMuted },
+        text = { app.perf == null ? "" : dayLabel(app.perf.startsAt) + " · " + timeLabel(app.perf.startsAt) + " · " + (app.production.value?.hall ?? "") } ],
+    lines: View [ width = 100%, datapath = { app.chosenList.value },
+        layout: SimpleLayout [ axis = y ],
+        OrderLine [ datapath = :rows[] ]
+        ],
+    total: View [ width = 100%, padding = [14, 0, 0, 0],
+        layout: SimpleLayout [ axis = x, align = baseline ],
+        Text [ flexes = true, fontSize = 16, fontWeight = semibold, text = "Total" ],
+        Text [ fontSize = 22, fontWeight = bold, numeralWidth = tabular, text = { money(app.totalCents) } ]
+        ]
+    ]
+
+
+class OrderLine [ width = 100%, padding = [10, 0, 10, 0],
+    stroke = { [null, null, stroke(1, provided("theme").line), null] },
+    layout: SimpleLayout [ axis = y, spacing = 3 ],
+    View [ width = 100%,
+        layout: SimpleLayout [ axis = x, align = baseline ],
+        Text [ flexes = true, fontSize = 15, text = { (:section ?? "") + " · Row " + (:row ?? "") + " · Seat " + (:number ?? "") } ],
+        Text [ fontSize = 15, numeralWidth = tabular, text = { money(:price ?? 0) } ]
+        ],
+    View [ width = 100%,
+        layout: SimpleLayout [ axis = x, align = baseline ],
+        Text [ flexes = true, fontSize = 13, textColor = { provided("theme").textMuted }, text = "Booking fee" ],
+        Text [ fontSize = 13, numeralWidth = tabular, textColor = { provided("theme").textMuted }, text = { money(:fee ?? 0) } ]
+        ]
+    ]
+
+
+// The pay button names the amount; once pressed it shows the payment under
+// way, and `app.submit` ignores every press until the service has answered.
+
+class PayBlock [ width = 100%,
+    button: Button = { this.payButton },
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    Notice [ message = { app.payError } ],
+    payButton: Button [ width = 100%, height = 52, primary = true,
+        label = { "Pay " + money(app.totalCents) },
+        opacity = { app.paying ? 0.72 : 1 },
+        onClick() { app.submit() },
+        Spinner [ visible = { app.paying }, x = 16, y = center, width = 20, height = 20 ]
+        ],
+    Text [ visible = { app.wide || app.paying }, width = 100%, wrap = true, fontSize = 13, accessibilityLive = polite, textAlign = center,
+        textColor = { provided("theme").textMuted },
+        text = { app.paying ? "Taking payment… Please don't close this page." : "Card details go only to the box office, over a secure connection." } ]
+    ]
+
+
+// A turning arc, while the payment is under way.
+
+class Spinner [ turn: number = 0,
+    clock: Time [ tick = frame, running = { classroot.visible },
+        onTick(dt: number) { classroot.turn = (classroot.turn + dt / 900) % 1 }
+        ],
+    draw(d: Draw) {
+        const r = Math.min(width, height) / 2 - 2
+        d.strokeStyle = 0xFFFFFF
+        d.lineWidth = 2.4
+        d.lineCap = "round"
+        d.beginPath()
+        const a = turn * Math.PI * 2
+        d.arc(width / 2, height / 2, r, a, a + Math.PI * 1.4)
+        d.stroke()
+        }
+    ]
+
+
+// ── The checkout screen ─────────────────────────────────────────────────────
+
+class CheckoutScreen [ width = 100%,
+    heading: Text = { this.body.main.heading },
+    form: CheckoutForm = { this.body.main.form },
+    padding = { [app.phone ? 16 : 32, app.gutter, app.wide ? 80 : 220, app.gutter] },
+    body: View [ x = center, width = { Math.min(1060, parent.width - 2 * app.gutter) },
+        layout: SimpleLayout [ axis = x, spacing = 56 ],
+        main: View [ flexes = true,
+            layout: SimpleLayout [ axis = y, spacing = 22 ],
+            heading: Text [ focusable = true, accessibilityRole = heading, accessibilityLevel = 1,
+                fontFamily = { app.serif }, fontSize = { app.phone ? 28 : 36 }, fontWeight = semibold, text = "Checkout" ],
+            summary: View [ visible = { !app.wide }, width = 100%, padding = [16, 16, 16, 16], cornerRadius = 12,
+                fill = { provided("theme").card }, stroke = { stroke(1, provided("theme").line) },
+                OrderSummary [ ]
+                ],
+            Notice [ message = { app.notice } ],
+            form: CheckoutForm [ ]
+            ],
+        aside: View [ visible = { app.wide }, width = 380, ignoreScroll = true,
+            padding = [22, 22, 22, 22], cornerRadius = 14,
+            fill = { provided("theme").card }, stroke = { stroke(1, provided("theme").line) },
+            layout: SimpleLayout [ axis = y, spacing = 18 ],
+            OrderSummary [ ],
+            pay: PayBlock [ ]
+            ]
+        ]
+    ]
+
+
+// The phone's foot: the total and the button, always in reach of a thumb, and
+// lifted above the on-screen keyboard while one is up.
+
+class PayBar [ ignoreScroll = true, ignoreLayout = true,
+    y = { app.height - this.height - app.keyboardHeight }, width = { app.width },
+    padding = { [12, app.gutter, 12 + (app.keyboardHeight > 0 ? 0 : app.safeBottom), app.gutter] },
+    fill = { provided("theme").card },
+    stroke = { [stroke(1, provided("theme").line), null, null, null] },
+    shadow = { shadow(0, -6, 20, 0x1D1A2414) },
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    View [ width = 100%,
+        layout: SimpleLayout [ axis = x, align = baseline ],
+        Text [ flexes = true, fontSize = 14, textColor = { provided("theme").textMuted }, text = { seatCount(app.chosen.length) + " with fees" } ],
+        Text [ fontSize = 18, fontWeight = bold, numeralWidth = tabular, text = { money(app.totalCents) } ]
+        ],
+    pay: PayBlock [ ]
+    ]

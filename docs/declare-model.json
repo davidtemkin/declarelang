@@ -108874,9 +108874,10 @@
    "short": "Paint and themes",
    "part": "Building",
    "teaches": {
-    "App": 8,
+    "App": 9,
     "AppearanceSwitch": 3,
     "Control": 2,
+    "Font": 1,
     "Image": 1,
     "SimpleLayout": 4,
     "Text": 19,
