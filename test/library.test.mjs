@@ -224,31 +224,30 @@ await test("Combobox: the list lives at the APP layer — it paints over the com
 
 const GRID = `App [ width = 700, height = 400,
   d: Dataset { { "rows": [] } },
-  g: DataGrid [ x = 10, y = 10, width = 600, height = 300, datapath = { d.value },
-    selects = "multi",
-    Column [ title = "ID", field = "id", width = 70 ],
-    Column [ title = "Title", field = "title", width = 280 ],
-    Column [ title = "State", field = "state", width = 110 ],
-    GridRow [ datapath = :rows[] ],
-  ],
+  g: DataGrid [ x = 10, y = 10, width = 600, height = 300, selects = "multi",
+    items = { app.d.value.rows },
+    columns = { [ { id: "id", title: "ID", width: 70 },
+                  { id: "title", title: "Title", width: 280 },
+                  { id: "state", title: "State", width: 110 } ] } ],
 ]`;
 
 const ROWS = (n) =>
   Array.from({ length: n }, (_, i) => ({ id: i, title: "Issue " + i, state: i % 2 ? "open" : "done" }));
 
 const gridRows = (g) => g.children.filter((c) => c._isGridRow === true);
-const cellTexts = (row) => row.cells.children.filter((c) => c.t).map((c) => c.t.text);
+const cellsOf = (row) => row.cells.children.filter((c) => c._isGridCell === true);
+const cellTexts = (row) => cellsOf(row).map((c) => c.drawn()?.t?.text);
 
-await test("DataGrid: columns are written members — cells generate from the model, offsets run", async () => {
+await test("DataGrid: no children — rows from items, cells from the columns' records, offsets run", async () => {
   const app = await boot(GRID);
   app.d.value = { rows: ROWS(3) };
   settle();
   const cols = app.g.colData.value.cols;
-  assert.deepEqual(cols.map((c) => c.id), ["id", "title", "state"], "a column's id is its field");
+  assert.deepEqual(cols.map((c) => c.id), ["id", "title", "state"], "a column's id is the field it shows");
   assert.deepEqual(cols.map((c) => c.x), [0, 70, 350], "running x offsets from plain widths");
   const rows = gridRows(app.g);
   assert.equal(rows.length, 3);
-  assert.deepEqual(cellTexts(rows[1]), ["1", "Issue 1", "open"], "each cell shows record[field]");
+  assert.deepEqual(cellTexts(rows[1]), ["1", "Issue 1", "open"], "a cell with no class shows its field as text");
   assert.ok(app.g.hdr.paintsIn === app.g.parent, "the header paints in the grid's parent, outside the scroll box");
   assert.equal(app.g.hdr.y, app.g.y - app.g.headerH, "and floats ABOVE the scroll box, in that parent's frame");
   assert.equal(rows[0].y, 0, "rows start at the box top — the scroll region is rows only");
@@ -292,14 +291,11 @@ await test("DataGrid: reorder and resize are value-pattern state — deliveries 
   const app2 = await boot(`App [ width = 700, height = 400,
     got: array = null,
     d: Dataset { { "rows": [] } },
-    g: DataGrid [ x = 10, y = 10, width = 600, height = 300, datapath = { d.value },
-      arrangeInput(ord: array) { app.got = ord },
-      Column [ title = "A", field = "a", width = 100 ],
-      Column [ title = "B", field = "b", width = 100 ],
-      GridRow [ datapath = :rows[] ],
-    ],
+    g: DataGrid [ x = 10, y = 10, width = 600, height = 300, items = { app.d.value.rows },
+      columns = { [ { id: "a", title: "A", width: 100 }, { id: "b", title: "B", width: 100 } ] },
+      arrangeInput(ord: array) { app.got = ord } ],
   ]`);
-  app2.d.value = { rows: [{ a: 1, b: 2 }] };
+  app2.d.value = { rows: [{ id: 1, a: 1, b: 2 }] };
   settle();
   app2.g._dragCol = "a";
   app2.g._dropAt = app2.g._dropIndexFor(190);
@@ -309,73 +305,95 @@ await test("DataGrid: reorder and resize are value-pattern state — deliveries 
   assert.equal(app2.g.order, null, "…and the slot stayed the app's (press-never-writes)");
 });
 
-await test("DataGrid: the Table contract rides along — selection over grid rows", async () => {
+await test("DataGrid: the Table contract rides along — selection over grid rows, as the app's own records", async () => {
   const app = await boot(GRID);
   app.d.value = { rows: ROWS(4) };
   settle();
   const rows = gridRows(app.g);
   rows[1].onClick();
   settle();
-  assert.equal(app.g.selected, app.d.value.rows[1], "a grid row selects like a table row");
+  assert.equal(app.g.selected, app.d.value.rows[1], "a grid row selects its item — the dataset's own record");
   assert.equal(rows[1].selected, true);
   app.g.rowClick(3, app.d.value.rows[3], false, true);
   settle();
   assert.deepEqual(app.g.selection.map((r) => r.id), [1, 2, 3], "ranges too");
 });
 
-await test("DataGrid: cell KINDS — an editor, a checkbox, and a select all write the RECORD", async () => {
-  const app = await boot(`App [ width = 700, height = 400,
-    d: Dataset { { "rows": [ { "id": 1, "title": "One", "state": "open", "done": false } ] } },
-    g: DataGrid [ x = 10, y = 10, width = 650, height = 300, datapath = { d.value },
-      Column [ title = "ID", field = "id", width = 60 ],
-      Column [ title = "Title", field = "title", width = 240, kind = "edit" ],
-      Column [ title = "State", field = "state", width = 120, kind = "select", options = { ["open", "triage", "done"] } ],
-      Column [ title = "Done", field = "done", width = 70, kind = "check" ],
-      GridRow [ datapath = :rows[] ],
-    ],
+await test("DataGrid: a column's cell is a class of the app's own, bound to its row's record — and writes it", async () => {
+  const app = await boot(`
+  class DoneCell extends View [ width = 100%, height = 100%,
+    box: Checkbox [ label = "", accessibilityLabel = "Done", x = center, y = center,
+      checked = :done, input(v: boolean) { :done = v } ] ]
+  App [ width = 700, height = 400,
+    d: Dataset { { "rows": [ { "id": 1, "title": "One", "done": false }, { "id": 2, "title": "Two", "done": true } ] } },
+    g: DataGrid [ x = 10, y = 10, width = 650, height = 300, items = { app.d.value.rows },
+      columns = { [ { id: "title", title: "Title", width: 240, edit: true },
+                    { id: "done", title: "Done", width: 70, cell: "DoneCell" } ] } ],
   ]`);
-  const row = app.g.children.find((c) => c._isGridRow === true);
-  const cells = row.cells.children.filter((c) => c._k !== undefined);
-  assert.deepEqual(cells.map((c) => c._k), ["text", "edit", "select", "check"], "one presentation per kind");
-  // each cell is its kind's class, and builds only that kind's presentation
-  assert.deepEqual(cells.map((c) => c.constructor.name), ["TextCell", "EditCell", "SelectCell", "CheckCell"]);
-  assert.deepEqual(cells.map((c) => ["t", "ed", "sel", "ck"].filter((n) => c[n] != null)),
-    [["t"], ["ed"], ["sel"], ["ck"]], "nothing built for the other kinds");
-  // the editor commits each edit into the record through the row's cursor
-  cells[1].ed.onInput("Renamed");
+  const rows = gridRows(app.g);
+  const [title1, done1] = cellsOf(rows[0]);
+  const done2 = cellsOf(rows[1])[1];
+  assert.deepEqual([title1.kind(), done1.kind()], ["edit", "own"]);
+  assert.equal(done1.drawn().constructor.name, "DoneCell", "the column's class is what the cell draws");
+  assert.deepEqual([done1.drawn().box.checked, done2.drawn().box.checked], [false, true],
+    "each copy reads its own row's record");
+  done1.drawn().box.input(true);
+  settle();
+  assert.equal(app.d.value.rows[0].done, true, "the app's class writes its row's record — the dataset's own");
+  assert.equal(app.d.value.rows[1].done, true, "…and no other");
+  // an edit column writes as you type, and Esc puts back where the edit began
+  const ed = title1.editor();
+  ed.onFocus();
+  ed.onInput("Renamed");
   settle();
   assert.equal(app.d.value.rows[0].title, "Renamed", "typing writes the record live");
-  // the checkbox writes the boolean
-  cells[3].ck.input(true);
+  ed.onKeyDown({ key: "Escape", shift: false, ctrl: false, alt: false, meta: false, repeat: false, code: "Escape" });
   settle();
-  assert.equal(app.d.value.rows[0].done, true, "the checkbox writes the field");
-  assert.equal(cells[3].ck.checked, true, "…and re-derives from it");
-  // the select opens the SHARED app-layer menu and picking writes the field
-  cells[2].sel.onClick();
+  assert.equal(app.d.value.rows[0].title, "One", "Esc puts the text back");
+  // the grid's keyboard: Space on a cell of the app's own presses its control
+  app.g.activeIndex = 1; app.g.active = app.d.value.rows[1]; app.g.activeCol = 1;
   settle();
-  assert.equal(app.g._selMenu.parent, app, "one shared options menu, at the app layer");
-  assert.equal(app.g._selMenu.shown, true);
-  assert.deepEqual(app.g._selMenu.items.map((i) => i.id), ["open", "triage", "done"]);
-  assert.equal(app.g._selMenu.items[0].checked, true, "the current value wears the check");
-  app.g._selMenu.pick("done");
-  // deferred delivery: afterDelay(0) off the browser is two zero timers (the
-  // frame, then the delay), so wait two of our own, queued behind each — a
-  // fixed 5 ms lost the race when a loaded run stretched the gap between them
-  await new Promise((r) => setTimeout(r, 0));
-  await new Promise((r) => setTimeout(r, 0));
+  app.g.enterCell(app.g.activeCell(), " ");
   settle();
-  assert.equal(app.d.value.rows[0].state, "done", "picking writes the record");
-  assert.equal(app.g._selMenu.shown, false);
+  assert.equal(app.d.value.rows[1].done, false, "Space pressed the row's checkbox");
+});
+
+await test("DataGrid: a heading record is a heading row — full width, no cells, passed over by selection and keys", async () => {
+  const app = await boot(`App [ width = 700, height = 400,
+    d: Dataset { { "rows": [ { "id": "h1", "heading": "Open" }, { "id": 1, "title": "One" }, { "id": 2, "title": "Two" },
+                             { "id": "h2", "heading": "Done" }, { "id": 3, "title": "Three" } ] } },
+    g: DataGrid [ x = 10, y = 10, width = 600, height = 300, selects = "multi", items = { app.d.value.rows },
+      columns = { [ { id: "title", title: "Title", width: 240 } ] } ] ]`);
+  const heads = app.g.children.filter((c) => c._isGridHeading === true);
+  assert.equal(heads.length, 2, "two headings");
+  assert.equal(gridRows(app.g).length, 3, "three ordinary rows");
+  const texts = [];
+  const walk = (v) => { if (v.constructor.name === "TextLabel") texts.push(v.text); for (const c of v.children ?? []) walk(c); };
+  walk(heads[0]);
+  assert.deepEqual(texts, ["Open"], "the grid's own heading draws the heading text");
+  heads[0].onClick?.();
+  app.g.rowClick(0, app.d.value.rows[0], false, false);
+  settle();
+  assert.equal(app.g.selection, null, "a heading is not selected");
+  // arrows pass over headings
+  const K = (key) => ({ key, shift: false, ctrl: false, alt: false, meta: false, repeat: false, code: key });
+  app.g.onKeyDown(K("Home"));
+  settle();
+  assert.equal(app.g.activeIndex, 1, "Home lands on the first row, past the heading");
+  app.g.onKeyDown(K("ArrowDown")); app.g.onKeyDown(K("ArrowDown"));
+  settle();
+  assert.equal(app.g.activeIndex, 4, "Down steps over the second heading");
+  app.g.rowClick(1, app.d.value.rows[1], false, false);
+  app.g.rowClick(4, app.d.value.rows[4], false, true);
+  settle();
+  assert.deepEqual(app.g.selection.map((r) => r.id), [1, 2, 3], "a range leaves the heading out");
 });
 
 await test("DataGrid: windowing composes — the header offsets the window (the leading anchor)", async () => {
   const app = await boot(`App [ width = 700, height = 400,
     d: Dataset { { "rows": [] } },
-    g: DataGrid [ x = 10, y = 10, width = 600, height = 300, datapath = { d.value },
-      Column [ title = "ID", field = "id", width = 70 ],
-      Column [ title = "Title", field = "title", width = 280 ],
-      GridRow [ datapath = :rows[], virtualize = true ],
-    ],
+    g: DataGrid [ x = 10, y = 10, width = 600, height = 300, items = { app.d.value.rows },
+      columns = { [ { id: "id", title: "ID", width: 70 }, { id: "title", title: "Title", width: 280 } ] } ],
   ]`);
   app.d.value = { rows: ROWS(10000) };
   settle();
@@ -389,28 +407,33 @@ await test("DataGrid: windowing composes — the header offsets the window (the 
 
 await test("DataGrid: a FOCUSED cell's row is never recycled — focus is touch (D5 focus-as-touched)", async () => {
   const { Focus } = await import("../runtime/dist/focus.js");
-  const app = await boot(`App [ width = 700, height = 400,
+  // a control in a cell of the app's own class (a TextInput takes no focus in
+  // this headless runtime; a Control does). Views are compared by identity
+  // only: a failing assert.equal on a live view tries to print its whole graph,
+  // which runs out of memory before it finishes.
+  const same = (a, b, msg) => assert.ok(a === b, msg);
+  const app = await boot(`
+  class DoneCell extends View [ width = 100%, height = 100%,
+    box: Checkbox [ label = "", accessibilityLabel = "Done", checked = :done, input(v: boolean) { :done = v } ] ]
+  App [ width = 700, height = 400,
     d: Dataset { { "rows": [] } },
-    g: DataGrid [ x = 10, y = 10, width = 650, height = 300, datapath = { d.value },
-      Column [ title = "ID", field = "id", width = 60 ],
-      Column [ title = "State", field = "state", width = 120, kind = "select", options = { ["open", "done"] } ],
-      GridRow [ datapath = :rows[], virtualize = true ],
-    ],
+    g: DataGrid [ x = 10, y = 10, width = 650, height = 300, items = { app.d.value.rows },
+      columns = { [ { id: "id", title: "ID", width: 60 }, { id: "done", title: "Done", width: 80, cell: "DoneCell" } ] } ],
   ]`);
-  app.d.value = { rows: Array.from({ length: 1000 }, (_, i) => ({ id: i, state: i % 2 ? "open" : "done" })) };
+  app.d.value = { rows: Array.from({ length: 1000 }, (_, i) => ({ id: i, done: i % 2 == 1 })) };
   settle();
   const row = app.g.children.find((c) => c._isGridRow === true && c.tableIndex() === 3);
-  const sel = row.cells.children.find((c) => c._k === "select").sel;
+  const box = cellsOf(row)[1].drawn().box;
   Focus.setRoot(app);
-  Focus.focus(sel);
+  Focus.focus(box);
   settle();
-  assert.equal(Focus.getFocus(), sel);
+  same(Focus.getFocus(), box, "the cell's control has the focus");
   const rec = row.rec;
   app.g.scrollY = 20000; // the window leaves row 3 far behind
   settle();
   assert.ok(app.g.children.includes(row), "the focused row is RETAINED, not recycled or parked");
-  assert.equal(row.rec, rec, "…still presenting ITS record — focus never teleports to another row");
-  assert.equal(Focus.getFocus(), sel, "focus itself is undisturbed");
+  same(row.rec, rec, "…still presenting ITS record — focus never teleports to another row");
+  same(Focus.getFocus(), box, "focus itself is undisturbed");
   Focus.blur();
   app.g.scrollY = 0;
   settle();
@@ -473,16 +496,16 @@ await test("Segmented: a choice with a location is a real link — declared, not
   assert.equal(app.picked, "g", "the click still delivers the pick");
 });
 
-await test("DataGrid: a column added at runtime joins the column model — nothing to bump", async () => {
+await test("DataGrid: columns are data — one added or removed, the model follows", async () => {
   const app = await boot(`App [ width = 500, height = 200,
+    cols: array = { [ { id: "a", title: "A", width: 100 } ] },
     d: Dataset { { "rows": [ { "id": 1, "a": "x", "b": "y" } ] } },
-    g: DataGrid [ width = 400, height = 120, datapath = { d.value },
-      Column [ title = "A", field = "a", width = 100 ],
-      GridRow [ datapath = :rows[] ] ] ]`);
+    g: DataGrid [ width = 400, height = 120, items = { app.d.value.rows }, columns = { app.cols } ] ]`);
   assert.equal(app.g.colData.value.cols.length, 1);
-  app.g.createView("Column", { title: "B", field: "b", width: 100 });
+  app.cols = [...app.cols, { id: "b", title: "B", width: 100 }];
   settle();
   assert.equal(app.g.colData.value.cols.length, 2, "the new column is in the model");
+  assert.deepEqual(cellTexts(gridRows(app.g)[0]), ["x", "y"], "…and in every row");
 });
 
 // A warning is about the author's code. The library's own code must raise none

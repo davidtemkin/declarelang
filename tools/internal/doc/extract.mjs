@@ -767,7 +767,7 @@ for (const [base, subs] of Object.entries(subclassIndex)) {
 // binds to no own attribute, own method, event handler, or OVERRIDDEN inherited
 // attribute (below) is prose the page silently drops. Runtime classes have had
 // this gate since the 2026-08-07 audit; the library had none.
-// Classes that read the SAME block (a "DataGrid / Column / GridRow" heading, or
+// Classes that read the SAME block (a "DataGrid / DataGridRow" heading, or
 // a class with no block of its own falling back to the file's first) are one
 // documentation unit: a heading is bound if any class in the unit owns it.
 {
@@ -906,7 +906,7 @@ const CLASS_GROUPS = [
   // Data holds what STORES or FETCHES data and paints nothing. The tables are
   // views that display it — a different kind of thing, filed with their kind.
   ["Data",          ["Dataset", "DataSource", "Stream", "EventStream", "Socket"]],
-  ["Tables",        ["Table", "TableRow", "DataGrid", "Column", "GridRow", "GridCell", "TextCell", "EditCell", "CheckCell", "SelectCell"]],
+  ["Tables",        ["Table", "TableRow", "DataGrid", "DataGridRow", "DataGridHeadingRow", "DataGridHeading", "DataGridCell", "DataGridText", "DataGridEdit"]],
   ["Motion and state", ["Animator", "AnimatorGroup", "Spring", "State", "Time"]],
   ["Services",      ["Keys", "Shortcuts", "Focus", "Tooltips"]],
   ["Embedding",     ["DOMIsland", "AppIsland"]],

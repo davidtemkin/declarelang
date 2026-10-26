@@ -67,6 +67,44 @@ class Specimen extends Card [ width = 100%,
     ]
 
 
+// ── The DataGrid's cells. A column names the class its cells draw; each copy
+//    is bound to its own row's record, so `:done` is that row's `done`.
+
+// A checkbox over the record's `done`.
+
+class DoneCell [ width = 100%, height = 100%,
+    Checkbox [ x = center, y = center, label = "", accessibilityLabel = "Done",
+        checked = :done,
+        input(v: boolean) { :done = v }
+        ]
+    ]
+
+
+// A value picked from a short list: a button that drops the App's one pick
+// menu (a control's `menu`), which reads the button's cell for its choices
+// and hands the pick back to it. The field and the choices are the subclass's.
+
+class PickCell [ width = 100%, height = 100%,
+    field: string = "",
+    choices: array = [],
+    value: string = { "" + (:@[(classroot.field)] ?? "") },
+    choose(v: string) { :@[(field)] = v },
+    button: Control [ x = 2, y = 2, width = { parent.width - 4 }, height = { parent.height - 4 },
+        cornerRadius = { provided("theme").gridCellCornerRadius + 2 },
+        accessibilityLabel = { classroot.field },
+        menu = { app.pickMenu },
+        fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
+        TextLabel [ x = 6, fontSize = { provided("theme").gridFontSize }, wrap = false, text = { classroot.value } ],
+        ChevronIcon [ y = center, x = { parent.width - this.width - 6 }, iconSize = 11,
+            ink = { provided("theme").textMuted } ]
+        ]
+    ]
+
+
+class StateCell extends PickCell [ field = "state", choices = { ["open", "triage", "done"] } ]
+
+class OwnerCell extends PickCell [ field = "owner", choices = { ["ada", "alan", "grace", "edsger"] } ]
+
 App [ fill = { provided("theme").background }, textColor = { provided("theme").text }, minWidth = 320,
     roboto: Font [
         FontFace [ src = "../../assets/fonts/roboto/roboto-400.woff2" ],
@@ -159,6 +197,19 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
     // the sort delivery's consumer: the app owns the data, so sorting is a
     // data verb — a reordered copy replaces the rows (identity by `id` keeps
     // every instance and every edit)
+
+    // the one menu every pick cell drops: its items are the opening cell's
+    // choices, the current one checked, and a pick goes back to that cell
+
+    pickMenu: Menu [ minWidth = 150,
+        items = { app.pickItems(opener) },
+        picked(id: string) { const c = app.pickCellOf(opener); if (c != null) c.choose(id) }
+        ],
+    pickCellOf(o: View?) -> PickCell? { return o != null && o.parent != null && (o.parent as any).choices != null ? o.parent as PickCell : null },
+    pickItems(o: View?) -> array {
+        const c = app.pickCellOf(o)
+        return c == null ? [] : c.choices.map((v) => ({ id: v, label: v, checked: v == c.value }))
+        },
 
     resort(on: string, dir: string) {
         const rows = [...(gd.value.rows ?? [])]
@@ -608,7 +659,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                     text = "DATAGRID — 500 ROWS, WINDOWED; EVERY CELL WRITES THE RECORD" ],
                 grid: DataGrid [ width = 100%, accessibilityLabel = "Tasks",
                     height = { Math.max(280, app.height - app.barH - 220) },
-                    datapath = { app.gd.value }, selects = "multi",
+                    items = { app.gd.value.rows }, selects = "multi",
                     fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) }, cornerRadius = 8,
                     widths = { app.gridNarrow
                         ? ({ id: 34, title: 116, state: 84, owner: 74, done: 44, ...(app.gridWidths ?? ({})) })
@@ -621,14 +672,11 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                         sortDir = dir
                         app.resort(on, dir)
                         },
-                    Column [ title = "#", field = "id", width = 56 ],
-                    Column [ title = "Title", field = "title", width = 250, kind = "edit" ],
-                    Column [ title = "State", field = "state", width = 120, kind = "select",
-                        options = { ["open", "triage", "done"] } ],
-                    Column [ title = "Owner", field = "owner", width = 120, kind = "select",
-                        options = { ["ada", "alan", "grace", "edsger"] } ],
-                    Column [ title = "Done", field = "done", width = 64, kind = "check" ],
-                    GridRow [ datapath = :rows[], virtualize = true ]
+                    columns = { [ { id: "id",    title: "#",     width: 56 },
+                                  { id: "title", title: "Title", width: 250, edit: true },
+                                  { id: "state", title: "State", width: 120, cell: "StateCell" },
+                                  { id: "owner", title: "Owner", width: 120, cell: "OwnerCell" },
+                                  { id: "done",  title: "Done",  width: 64,  cell: "DoneCell" } ] }
                     ],
                 cap: Text [ width = 100%, wrap = true, fontSize = 12, textColor = { provided("theme").textMuted },
                     text = "Title edits live; State and Owner pick from a menu; Done is a checkbox — every edit writes the record. Drag headers to reorder, edges to resize, click to sort. From the keyboard: arrows move the active cell, Enter or typing edits, Esc puts it back." ]

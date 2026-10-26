@@ -342,9 +342,9 @@ extends from, and `active`, the keyboard position. [`selects`](declare-docs:Tabl
 ## DataGrid columns
 
 `Table` gives a collection selection and keyboard travel. `DataGrid` adds the other half a
-real data table needs — headers that sort, columns you can drag to reorder and resize —
-and it does it by making **columns members of the tree** rather than a configuration
-object:
+real data table needs — headers that sort, columns you can drag to reorder and resize — and,
+like the library's other controls that arrange what they show, it **takes records**: the
+rows are its `items`, and the columns are records too.
 
 ```declare
 App [ width = 460, height = 240, fill = white, textColor = black,
@@ -358,38 +358,48 @@ App [ width = 460, height = 240, fill = white, textColor = black,
     chosen: number = 0,
     head: Text [ x = 20, y = 12, textColor = 0x666666,
         text = { app.chosen + " selected of " + (d.value.rows).length } ],
-    g: DataGrid [ x = 20, y = 66, width = 420, height = 150, datapath = { d.value },
-        selects = "multi",
-        input(sel: object) { app.chosen = (sel ?? []).length },
-        Column [ title = "ID",    field = "id",    width = 60 ],
-        Column [ title = "Title", field = "title", width = 220 ],
-        Column [ title = "State", field = "state", width = 120 ],
-        GridRow [ datapath = :rows[], virtualize = true ]
+    g: DataGrid [ x = 20, y = 66, width = 420, height = 150, selects = "multi",
+        items = { app.d.value.rows },
+        columns = { [ { id: "id",    title: "ID",    width: 60 },
+                      { id: "title", title: "Title", width: 220 },
+                      { id: "state", title: "State", width: 120 } ] },
+        input(sel: object) { app.chosen = (sel ?? []).length }
         ]
     ]
 ```
 
-Two thousand records, three column declarations, one bare [`GridRow`](declare-docs:GridRow). **Drag a header
-sideways to reorder; drag the divider between two headers to resize; click a header to
-sort.** Then select a range and scroll — selection holds, because it is records.
+Two thousand records and three column records; the grid makes the rows, a screenful at a
+time. **Drag a header sideways to reorder; drag the divider between two headers to resize;
+click a header to sort.** Then select a range and scroll — selection holds, because it is
+records: the dataset's own, so an edit made in the grid writes the record.
 
-The row template is empty on purpose: **cells generate from the column model**, each
-showing `record[field]`. A column's `kind` chooses what a cell *is* — `"text"`, `"edit"`
-(a field that commits into the record as you type), `"check"`, or `"select"` — so an
-editable grid is a word per column, not a cell renderer per column. Each kind is a class —
-[`TextCell`](declare-docs:TextCell), [`EditCell`](declare-docs:EditCell), [`CheckCell`](declare-docs:CheckCell), [`SelectCell`](declare-docs:SelectCell), each a [`GridCell`](declare-docs:GridCell) — and a column's
-cells are built as that class alone, the `classFor` of [Records of different kinds](#records-of-different-kinds)
-applied to cells.
+A column shows its field as text unless it says otherwise. `edit: true` makes its cells text
+fields that write the record as you type. `cell: "DoneCell"` names a class of your own,
+drawn in each of the column's rows and bound to that row's record — so `:done` in it is the
+row's `done`:
 
-From the keyboard the grid is one Tab stop with an active cell: the arrows move it, Enter or
-F2 or a typed character edits it, Esc puts the value back, Enter commits and moves down, and
-Space toggles a checkbox cell.
+```declare-fragment
+class DoneCell [ width = 100%, height = 100%,
+    Checkbox [ x = center, y = center, label = "", accessibilityLabel = "Done",
+        checked = :done, input(v: boolean) { :done = v } ] ]
+
+columns = { [ { id: "title", title: "Title", width: 240, edit: true },
+              { id: "done",  title: "Done",  width: 70,  cell: "DoneCell" } ] }
+```
+
+A record with a `heading` field — `{ id: "g1", heading: "Overdue" }` — is a heading row:
+full width, no cells, passed over by selection and the arrow keys. After a sort, regroup the
+items so each heading stays above its rows.
+
+From the keyboard the grid is one Tab stop with an active cell: the arrows move it; in an
+edit column, Enter, F2 or a typed character edits, Esc puts the value back, and Enter commits
+and moves down; in a cell of your own, Enter moves into its control and Space presses it.
 
 Two things here are worth carrying to your own work.
 
 **Sorting names a derivation; it does not reorder anything.** Clicking a header delivers
 through [`sortInput(on, dir)`](declare-docs:DataGrid.method.sortInput), whose default writes [`sortOn`](declare-docs:DataGrid.sortOn)/[`sortDir`](declare-docs:DataGrid.sortDir) and stops. The grid
-displays the order its collection already has, and *you* derive the sorted dataset —
+displays the order its items already have, and *you* derive the sorted items —
 overriding `sortInput` when the sort belongs to a server query — which is why sorting a
 virtualized million rows is a data operation, not a view operation, and why a server-side
 sort needs no special case.
@@ -398,7 +408,7 @@ sort needs no special case.
 state, delivered through [`arrangeInput`](declare-docs:DataGrid.method.arrangeInput) and [`resizeInput`](declare-docs:DataGrid.method.resizeInput) — override those and you own the
 column layout, which is how you persist a user's arrangement. Widths are plain values;
 nothing measures cells. And a width of `0` **drops** a column, so a responsive table is a
-constraint: `widths = { app.narrow ? ({ notes: 0 }) : null }` — priority, not squish.
+constraint: `widths = { app.narrow ? { notes: 0 } : null }` — priority, not squish.
 
 ## What the runtime handles
 

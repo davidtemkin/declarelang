@@ -145,7 +145,7 @@ export default [
     },
   },
 
-  // The DataGrid, its cells each built as their column's kind.
+  // The DataGrid: an edit column, and cells of the app's own classes.
   {
     name: "grid",
     route: async ({ drive }) => {

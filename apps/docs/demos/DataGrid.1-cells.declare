@@ -1,0 +1,25 @@
+// Cells of your own, and headings between rows
+// The Task column is an `edit` column: type into it, Esc puts back what was there, Enter
+// moves down. Done names a class of the app's own, bound to each row's record. A record
+// with a `heading` field is a heading row, which selection and the arrows pass over.
+
+class DoneCell [ width = 100%, height = 100%,
+    Checkbox [ x = center, y = center, label = "", accessibilityLabel = "Done",
+        checked = :done,
+        input(v: boolean) { :done = v }
+        ]
+    ]
+
+
+App [ width = 520, height = 220,
+    d: Dataset { { "rows": [ { "id": "open", "heading": "Open" },
+                             { "id": 1, "task": "Review the draft", "owner": "Lin", "done": false },
+                             { "id": 2, "task": "Send it out", "owner": "Sam", "done": false },
+                             { "id": "closed", "heading": "Done" },
+                             { "id": 3, "task": "Write the outline", "owner": "Ada", "done": true } ] } },
+    DataGrid [ x = 20, y = 50, width = 480, height = 150, selects = "multi",
+        items = { app.d.value.rows },
+        columns = { [ { id: "task",  title: "Task",  width: 220, edit: true },
+                      { id: "owner", title: "Owner", width: 110 },
+                      { id: "done",  title: "Done",  width: 70,  cell: "DoneCell" } ] } ]
+    ]

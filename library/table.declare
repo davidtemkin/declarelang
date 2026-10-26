@@ -101,6 +101,12 @@ The item at a logical index.
 ## itemCount()
 How many items there are — the full logical count, not what is materialized.
 
+## selectable()
+Whether an item can be selected and stood on — `true` for every item by default. Clicks,
+ranges, arrows, Home and End pass over an item it refuses, so a heading between rows is
+never selected. Override it to say which items are rows a person picks:
+`selectable(m: object) -> boolean { return m.heading == null }`.
+
 ## isSelected()
 Whether a item is in the selection, by identity.
 
@@ -200,6 +206,11 @@ class Table extends Control [
     isSelected(m: object) -> boolean { return (this.selection ?? []).some(s => this.same(s, m)) },
     isActive(m: object)   -> boolean { return this.active != null && this.same(this.active, m) },
 
+    // which items are picked and stood on: all of them, unless a subclass or a
+    // use site says otherwise (a heading between rows is not one)
+
+    selectable(m: object) -> boolean { return true },
+
     // ── the delivery seam: every gesture lands here; the default writes
     //    the value attributes, a use-site override redirects ───────────────────
 
@@ -234,13 +245,13 @@ class Table extends Control [
     // ── the click protocol ────────────────────────────────────────────────
 
     rowClick(i: number, m: object, toggle: boolean, range: boolean) {
-        if (selects == "none" || disabled) return
+        if (selects == "none" || disabled || !this.selectable(m)) return
         activeIndex = i
         active = m
         if (selects == "multi" && range && _anchorIndex >= 0) {
             const arr = this.itemArray() ?? []
             const lo = Math.min(_anchorIndex, i), hi = Math.max(_anchorIndex, i)
-            input(arr.slice(lo, hi + 1))
+            input(arr.slice(lo, hi + 1).filter((m) => this.selectable(m)))
             return
             }
         _anchorIndex = i
@@ -257,10 +268,15 @@ class Table extends Control [
     // ⌘ = move alone (Space toggles) — keyboard parity for discontiguous
     // selection. Home/End jump, same modifiers.
 
-    step(to: number, e: KeyEvent) {
+    // `dir` is the way to look for an item that can be stood on, when the one
+    // at `to` cannot (a heading): on past it, and nowhere if there is none
+
+    step(to: number, e: KeyEvent, dir: number) {
         const n = this.itemCount()
         if (n == 0) return
-        const i = Math.max(0, Math.min(n - 1, to))
+        let i = Math.max(0, Math.min(n - 1, to))
+        while (i >= 0 && i < n && !this.selectable(this.itemAt(i))) i = i + dir
+        if (i < 0 || i >= n) return
         activeIndex = i
         active = this.itemAt(i)
         this.showRow(i)
@@ -269,7 +285,7 @@ class Table extends Control [
         if (selects == "multi" && e.shift && _anchorIndex >= 0) {
             const arr = this.itemArray() ?? []
             const lo = Math.min(_anchorIndex, i), hi = Math.max(_anchorIndex, i)
-            input(arr.slice(lo, hi + 1))
+            input(arr.slice(lo, hi + 1).filter((m) => this.selectable(m)))
             return
             }
         _anchorIndex = i
@@ -292,11 +308,11 @@ class Table extends Control [
 
     onKeyDown(e: KeyEvent) {
         if (disabled || e.repeat && e.key == " ") return
-        if (e.key == "ArrowDown")      step(activeIndex + 1, e)
-        else if (e.key == "ArrowUp")   step(activeIndex - 1, e)
-        else if (e.key == "Home")      step(0, e)
-        else if (e.key == "End")       step(this.itemCount() - 1, e)
-        else if (e.key == " " && selects == "multi" && activeIndex >= 0) {
+        if (e.key == "ArrowDown")      step(activeIndex + 1, e, 1)
+        else if (e.key == "ArrowUp")   step(activeIndex - 1, e, -1)
+        else if (e.key == "Home")      step(0, e, 1)
+        else if (e.key == "End")       step(this.itemCount() - 1, e, -1)
+        else if (e.key == " " && selects == "multi" && activeIndex >= 0 && this.selectable(this.itemAt(activeIndex))) {
             // toggle at the position — the ⌘-walk's other half
             const m = this.itemAt(activeIndex)
             const cur = selection ?? []

@@ -195,7 +195,7 @@ export const SURFACES = [
         Icon: ["ChevronIcon", "ArrowIcon", "CheckIcon", "CloseIcon", "PlusIcon", "MinusIcon",
                "LightbulbIcon", "SunIcon", "MoonIcon", "AutoIcon", "TextSizeIcon", "TextSmallIcon",
                "TextMediumIcon", "TextLargeIcon", "IconHost"],
-        Segmented: ["SegmentedItem"], DataGrid: ["GridRow"], Table: ["TableRow"],
+        Segmented: ["SegmentedItem"], DataGrid: ["DataGridRow", "DataGridHeadingRow", "DataGridHeading", "DataGridCell", "DataGridText", "DataGridEdit"], Table: ["TableRow"],
         Accordion: ["Pane"], RadioGroup: ["Radio"], Carousel: ["CarouselLayout"],
       };
       const headOf = {};
