@@ -590,7 +590,8 @@ App [ appName = "To-do", minWidth = 320,
     // ── type: the system face for everything, a serif for the large titles.
     //    A `Font` with faces loads its files (here Fraunces, from Google
     //    Fonts); a list of names is tried in order, so without the network the
-    //    title falls back to Georgia.
+    //    title falls back to Georgia. The lists live here, not in the themes:
+    //    a theme holds values, and a web font is an object in the tree.
 
     fraunces: Font [ FontFace [ weight = semibold,
             src = "https://fonts.gstatic.com/s/fraunces/v38/6NUh8FyLNQOQZAnv9bYEvDiIdE9Ea92uemAk_WBq8U_9v0c2Wa0K7iN7hzFUPJH58nhr1K03gg7S2nfgRYIcaRyTCf7Tp05GNyXk.woff2" ]

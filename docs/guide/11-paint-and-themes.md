@@ -148,7 +148,9 @@ all dark mode is.
 place, it is a token: declare it in a `theme`, read it with `provided("theme")`, and
 the app can be re-skinned, darkened or varied for one subtree without touching a view.
 The same values written as `script` constants, or repeated as hex literals, can do
-none of that — nothing above them can provide a different value. A repeated *text* look
+none of that — nothing above them can provide a different value. A theme holds values,
+not objects: a list of font *names* is a token, but a web font is a `Font` you declare
+on the App, and a list that includes it lives there too. A repeated *text* look
 — a caption, a label voice — is a `style` or a small class
 ([Text and fonts](declare-docs:guide:text@reusing-a-text-style)).
 
