@@ -10,7 +10,7 @@
 // Scope inside a body: the three injected scope nouns of language §11 — `this`
 // (the node the code is on), `parent` (its view-tree parent), and `classroot`
 // (the enclosing class instance, R6). (The `app` noun needs no runtime binding
-// — compile.ts rewrites it to `this.root`.) Bare reads of enclosing-scope
+// — compile.ts rewrites it to `this.$root`.) Bare reads of enclosing-scope
 // attributes (`count`, `label`) are COMPILE-TIME scope resolution (compile.ts
 // rewrites them to explicit reads through these nouns — never runtime
 // `with`-style scoping, per the R4 ruling); a body that skipped the compile step and kept
@@ -190,7 +190,7 @@ const BODY_MEMO = new WeakMap<object, Map<string, { fn: BodyFn } | { error: stri
 
 /** THE RUNTIME'S OWN PATHS, WALKED — not compiled. Beyond the author's bodies,
  *  the runtime compiles small expressions of its own: the receivers a kernel
- *  rule reads through (`this.root.dock`), dependency probes (`classroot`,
+ *  rule reads through (`this.$root.dock`), dependency probes (`classroot`,
  *  `this.$provided("theme")`). With the bodies precompiled these were the last
  *  text-to-code calls at boot (9–33 per app, 2026-09-19) — the ones a strict
  *  Content-Security-Policy would still refuse. A root (`this` / `parent` /

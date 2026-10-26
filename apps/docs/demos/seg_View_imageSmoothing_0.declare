@@ -1,5 +1,5 @@
 App [ width = 300, height = 140, fill = black,
-    screen: View [ x = 20, y = 20, scale = 4, scaling = pixelated,
+    screen: View [ x = 20, y = 20, scale = 4, imageSmoothing = pixelated,
         // a ten-pixel mark, drawn at one pixel per unit and shown in sharp 4×4 blocks
 
         mark: View [ width = 10, height = 6,

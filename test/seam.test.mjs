@@ -83,7 +83,7 @@ const TABLE = {
     dom: true, canvas: true, mac: true,
     headless: NOT_APPLICABLE,
   },
-  // `scaling` (2026-10-11): how a subtree's images and drawings resample when
+  // `imageSmoothing` (2026-10-11): how a subtree's images and drawings resample when
   // shown at another size — `pixelated` keeps pixel art sharp under a scale.
   setScaling: {
     dom: true, canvas: true, mac: true,
@@ -469,7 +469,7 @@ await test("the size of the silent-failure surface is stated, not drifting", () 
                                      // +setEndAnchor (2026-10-23): a page-pinned view at the window's end edge, held there by the browser
                                      // +setDirection (2026-10-23): the base direction of a view's text, `direction = rtl`
                                      // +setSemantics, +setLanguage (2026-10-18): a view's ARIA on its own element; an app's language (accessibility.md)
-                                // +setScaling (2026-10-11): a subtree's resampling, `scaling = pixelated`
+                                // +setScaling (2026-10-11): a subtree's resampling, `imageSmoothing = pixelated`
                                      // +scrollbarHeld (2026-10-02): a held thumb maps the pointer onto the range, so a windowed list holds its range still   // +userScrollByTouch (2026-09-30): a browser-driven scroll says a finger holds it, so anchoring waits   // +richMetrics (2026-09-26, the document flow): baseline + widest off the renderer's layout — DOM reports, canvas/mac use the manual flow's arithmetic
                                      // +setPadding (2026-09-19, padding moves to the view): the TRAILING inset a padded scroller must still show — the origin shift rides the children's own setX/setY and needs no row
                                      // +setRichClamp (2026-09-13, the truncation round): maxLines on a flow — DOM/mac clamp in the host, canvas spends the budget model-side

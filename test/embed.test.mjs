@@ -102,7 +102,7 @@ await test("navigate() routes through hostServices — and an embedder can inter
   await page.evaluate(() => {
     const a = document.getElementById("slot-a").__declareApp;
     window.__navCalls = [];
-    a.hostServices = { ...a.hostServices, navigate: (to) => window.__navCalls.push(to) };
+    a.$hostServices = { ...a.$hostServices, navigate: (to) => window.__navCalls.push(to) };
   });
   await clickIn("slot-a", 90, 122);           // the "navigate out" button
   const calls = await page.evaluate(() => window.__navCalls);

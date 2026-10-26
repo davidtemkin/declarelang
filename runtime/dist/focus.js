@@ -341,7 +341,7 @@ export class FocusService {
         return cyc !== null ? sequence(cyc).map((e) => e.view) : [];
     }
     move(dir) {
-        const start = this.current === null && this.startPoint !== null && spotView(this.startPoint).root !== null ? this.startPoint : null;
+        const start = this.current === null && this.startPoint !== null && spotView(this.startPoint).$root !== null ? this.startPoint : null;
         const cyc = this.current !== null ? cycleOf(this.current) : start !== null ? cycleOf(spotView(start)) : this.rootView;
         if (cyc === null)
             return;
@@ -578,7 +578,7 @@ function overflows(n) {
  *  and named by each ancestor's own `tabOrder()` where one gates its members.
  *  Read inside a constraint, so each of those is tracked. */
 function reachable(v) {
-    if (!canFocus(v) || v.root === null)
+    if (!canFocus(v) || v.$root === null)
         return false;
     for (let c = v, p = parentAcross(v); p !== null; c = p, p = parentAcross(p)) {
         if (!p.visible)
@@ -1017,8 +1017,8 @@ export function deliverKeys(keys, focus) {
             // (coexistence rule: handler, then follow — same order as a click).
             fireEvent(f, "keyDown", e);
             if (e.code === "Enter" && f.link !== "") {
-                const app = f.root;
-                app?.follow?.(f.link, f.replace);
+                const app = f.$root;
+                app?.followLink?.(f.link, f.replace);
             }
             // Esc closes a member scope entered inside a stop — after the focused
             // view has had it (an editor cancels its edit first)

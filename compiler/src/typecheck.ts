@@ -122,7 +122,7 @@ export function typecheckBodies(text: string, program: Program, mainStart = 0, p
   // Pass 1 — synthesize each element's INSTANCE type (language §5: an element
   // with inline declarations is an anonymous one-off subclass — withDecls is
   // the checker's currency for the same fact). The root's instance type then
-  // feeds the scaffold, so `app`/`this.root` carries the root's declared
+  // feeds the scaffold, so `app`/`this.$root` carries the root's declared
   // members program-wide.
   for (const cls of rprog.classes) emitter.classHasChildren.set(cls.name, cls.body.children.length > 0);
   for (const cls of rprog.classes) emitter.assignTypes(cls.body, true);
@@ -213,7 +213,7 @@ export function typecheckBodies(text: string, program: Program, mainStart = 0, p
     // 2026-08-23 every typecheck position said col 1 — five files and a line
     // number into the wrong one was the whole of "is this mine?".
     // The body as checked carries the resolver's rewrites (`app.` is
-    // `this.root.`), so a column is carried back through them to the text the
+    // `this.$root.`), so a column is carried back through them to the text the
     // author wrote.
     const inBody = d.line >= u.bodyStart && d.line < u.bodyStart + u.lineCount;
     // the wrapper's header declares the parameters' types: an unknown name
@@ -480,7 +480,7 @@ function explainTs(d: TsDiag, u: Unit, synthTags: ReadonlyMap<string, string>): 
         if (m[1] === "$setData") {
           const t = quoteType(m[2]);
           return `a two-way ':path' WRITES the enclosing view's data, and ${t} is not a view. Reading a path here is fine; ` +
-            `an edit belongs to the leaf that owns it (a TextInput, an Editor) — bind the path there, and read it from here.`;
+            `an edit belongs to the leaf that owns it (a TextInput, an EditControl) — bind the path there, and read it from here.`;
         }
         // Reading INTO a stroke. The slot holds one Stroke or four, so `width`
         // and `color` are there only in the uniform form; TypeScript prints the
@@ -1128,7 +1128,7 @@ function tsSlotType(schemas: Readonly<Record<string, ClassSchema>>, tag: string,
   // The check-block annotates the slot with its WRITE type, and a cursor
   // slot's write side accepts a place-bearing VALUE (`datapath = { d.value }`
   // — toCursor's contract; scaffold memberSig carries the same asymmetry).
-  if (t.kind === "cursor") return "Cursor | object | null";
+  if (t.kind === "cursor") return "DataCursor | object | null";
   return tsType(t);
 }
 
@@ -1286,7 +1286,7 @@ function childByNameDiags(ts: typeof import("typescript"), program: import("type
         if (children.length > 0 && lacking.length > 0) {
           out.push({
             file: sf, start: n.name.getStart(sf), length: n.name.getWidth(sf), category: ts.DiagnosticCategory.Error, code: CHILD_BY_NAME,
-            messageText: `'${want}' is not something every child of ${ea.expression.getText(sf).replace(/^this\.root\./, "app.")} has — a name known only at run time may be any of them, and ${lacking.map((c) => c.name).join(", ")} ${lacking.length === 1 ? "has" : "have"} no '${want}'. Narrow the name's type to the children that do ("a" | "b"), or test which child it is first`,
+            messageText: `'${want}' is not something every child of ${ea.expression.getText(sf).replace(/^this\.\$root\./, "app.")} has — a name known only at run time may be any of them, and ${lacking.map((c) => c.name).join(", ")} ${lacking.length === 1 ? "has" : "have"} no '${want}'. Narrow the name's type to the children that do ("a" | "b"), or test which child it is first`,
           });
         }
       }

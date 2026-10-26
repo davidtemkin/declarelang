@@ -8,7 +8,7 @@
       "comment": "the traveling focus indicator \u2014 provided with the library"
     },
     {
-      "class": "Tooltip",
+      "class": "TooltipLayer",
       "when": {
         "attributeUsed": "tooltipLabel",
         "onBase": "View"
@@ -31,10 +31,10 @@
   "ProgressBar": "progressbar.declare",
   "FocusRing": "focusring.declare",
   "Accordion": "accordion.declare",
-  "Pane": "accordion.declare",
+  "AccordionPane": "accordion.declare",
   "Carousel": "carousel.declare",
   "CarouselLayout": "carousel.declare",
-  "Tooltip": "tooltip.declare",
+  "TooltipLayer": "tooltip.declare",
   "Menu": "menu.declare",
   "MenuBar": "menubar.declare",
   "Dialog": "dialog.declare",
@@ -82,7 +82,7 @@
   "Shortcuts": "shortcuts.declare",
   "Toast": "toast.declare",
   "Window": "window.declare",
-  "SegmentedTab": "tabbar.declare",
+  "TabBarTab": "tabbar.declare",
   "TabBar": "tabbar.declare",
   "Tree": "tree.declare",
   "TreeRow": "tree.declare",
@@ -95,10 +95,10 @@
   "ToolButton": "toolbar.declare",
   "ToolbarDivider": "toolbar.declare",
   "Breadcrumb": "breadcrumb.declare",
-  "Crumb": "breadcrumb.declare",
-  "CrumbLink": "breadcrumb.declare",
-  "CrumbHere": "breadcrumb.declare",
-  "CalendarDay": "datepicker.declare",
-  "CalendarArrow": "datepicker.declare",
+  "BreadcrumbStep": "breadcrumb.declare",
+  "BreadcrumbLink": "breadcrumb.declare",
+  "BreadcrumbCurrent": "breadcrumb.declare",
+  "MonthCalendarDay": "datepicker.declare",
+  "MonthCalendarArrow": "datepicker.declare",
   "WindowClose": "window.declare"
 }

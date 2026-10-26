@@ -112,7 +112,7 @@ function settleWith(make: () => App, envOpt: Environment | undefined): App {
     app.$attach(new HeadlessBackend(), null);
     app.hostWidth = env.hostWidth;
     app.hostHeight = env.hostHeight;
-    app.dark = env.dark;
+    app.systemDark = env.dark;
     settle();
     return app;
   } finally {

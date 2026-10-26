@@ -288,7 +288,7 @@ const DECLARED_TYPES = {
     CrossAlign: enumType("CrossAlign", "none", "start", "center", "end", "baseline"),
     // What a text field holds (TextInput.purpose): declarable so a control built
     // around a field (a combobox of countries) can say it and hand it on.
-    Purpose: enumType("Purpose", ...PURPOSE_NAMES),
+    InputPurpose: enumType("InputPurpose", ...PURPOSE_NAMES),
 };
 /** Resolve a written declaration type name (`count: number`), or null when
  *  the name is not in the declarable vocabulary. */

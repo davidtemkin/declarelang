@@ -46,15 +46,15 @@ names its window by the open file). `""` until a child is up. It is the inbound 
 the child's own `appName`; the child changes it by changing *its* `appName`.
 
 ## post()
-The bridge's verb, host → tenant: `post(topic, payload)` delivers to the tenant's
-`onPost({ topic, payload })` — a Declare tenant's App handler, or a foreign tenant's
+The bridge's verb, host → tenant: `post(topic, payload)` delivers to the tenant —
+`onHostMessage({ topic, payload })` on a Declare tenant's App, or a foreign tenant's
 `__declareIsland.onPost(cb)`. Data-shaped payloads. Dropped with a console note when no
 tenant is linked. Verbs are consumed once and never re-readable — "do this", never
 "this is so"; continuous state belongs on the provided/exposed facts.
 
 ## onPost
 The verb's inbound half: the tenant's `post(topic, payload)` (a Declare tenant's
-`app.post`, a foreign tenant's handle `.post`) lands here as `onPost(m: IslandPost)`,
+`app.postToHost`, a foreign tenant's handle `.post`) lands here as `onPost(m: IslandPost)`,
 with `m.topic` and `m.payload`. Declare it like any event handler.
 
 ## onNavigate

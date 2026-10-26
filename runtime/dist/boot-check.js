@@ -178,7 +178,7 @@ function layoutChecks(app, { touch = false, realText = false }) {
             // what sits at its foot is placed from the window's height too (a
             // floating add button in a window-sized dock, 2026-10-25)
             const h = ownerOf(v, "height");
-            if (v.y === 0 && h !== null && /hostHeight|(app|root)\.height\b/.test(h.source ?? "")) {
+            if (v.y === 0 && h !== null && /hostHeight|(app|\$root)\.height\b/.test(h.source ?? "")) {
                 const p = v.padding;
                 const foot = v.height - (typeof p === "number" ? p : Array.isArray(p) ? Number(p[2] ?? 0) : 0);
                 const low = v.children.find((c) => c instanceof View && c.visible && c.height > 0 && c.y > v.height / 2 && c.y + c.height >= foot - 0.5);

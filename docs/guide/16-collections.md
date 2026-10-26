@@ -215,7 +215,7 @@ a record that moves to another aisle re-decides its own heading and its neighbou
 
 **Kinds that share a frame put their content into it.** When every kind has the same frame
 around it — the title above, the actions below — the base class draws the frame and names
-where the kind's own views go, `defaultplacement = body`; each subclass's children then go
+where the kind's own views go, `defaultPlacement = body`; each subclass's children then go
 into `body`, laid out in the frame's order
 ([Your own views](declare-docs:guide:your-own-views@a-frame-around-content)).
 

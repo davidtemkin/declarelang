@@ -13,7 +13,7 @@ because until they choose anything else, they already are.
 
 ```declare-fragment
 App [ themeMode: string = "auto",                     // "auto" until the reader chooses
-    isDark: boolean = { app.themeMode == "auto" ? app.dark : app.themeMode == "dark" },
+    isDark: boolean = { app.themeMode == "auto" ? app.systemDark : app.themeMode == "dark" },
     theme = { app.isDark ? SanFranciscoDark : SanFrancisco },
     AppearanceSwitch [ dark = { app.isDark },
         input(v: boolean) { app.themeMode = v ? "dark" : "light" } ]

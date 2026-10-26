@@ -880,7 +880,7 @@ ${new Error().stack ?? ""}`);
     const dpr = dprCell !== NONE && dprCell < ncells ? table[dprCell] : 1;
     for (let n = selfView; n !== NONE; n = elemParent[n]) {
       if (VS(n, "rotateX") !== 0 || VS(n, "rotateY") !== 0 || VS(n, "translateZ") !== 0) {
-        setField(b, "visMode", 0);
+        setField(b, "$visMode", 0);
         return 0;
       }
     }
@@ -893,7 +893,7 @@ ${new Error().stack ?? ""}`);
       m = compose([1, 0, 0, 1, VS(n, "x"), VS(n, "y")], m);
       if (p === NONE)
         break;
-      if (VS(p, "scrollsOn") !== 0 && VS(n, "ignoreScroll") === 0)
+      if (VS(p, "$scrollsOn") !== 0 && VS(n, "ignoreScroll") === 0)
         m = compose([1, 0, 0, 1, -VS(p, "scrollX"), -VS(p, "scrollY")], m);
       n = p;
     }
@@ -928,21 +928,21 @@ ${new Error().stack ?? ""}`);
         on = false;
       else {
         const kk = scale === 0 ? 1 : scale;
-        setField(b, "visX", (ix - bx) / kk);
-        setField(b, "visY", (iy - by) / kk);
-        setField(b, "visW", iw / kk);
-        setField(b, "visH", ih / kk);
+        setField(b, "$visX", (ix - bx) / kk);
+        setField(b, "$visY", (iy - by) / kk);
+        setField(b, "$visW", iw / kk);
+        setField(b, "$visH", ih / kk);
       }
     }
     if (!on) {
-      setField(b, "visX", 0);
-      setField(b, "visY", 0);
-      setField(b, "visW", 0);
-      setField(b, "visH", 0);
+      setField(b, "$visX", 0);
+      setField(b, "$visY", 0);
+      setField(b, "$visW", 0);
+      setField(b, "$visH", 0);
     }
-    setField(b, "visOn", on ? 1 : 0);
-    setField(b, "visScale", scale * dpr);
-    setField(b, "visMode", 1);
+    setField(b, "$visOn", on ? 1 : 0);
+    setField(b, "$visScale", scale * dpr);
+    setField(b, "$visMode", 1);
     return 0;
   }, "visRun");
   const VIS_FIELDS = [
@@ -960,7 +960,7 @@ ${new Error().stack ?? ""}`);
     "scrollX",
     "scrollY",
     "ignoreScroll",
-    "scrollsOn",
+    "$scrollsOn",
     "rotateX",
     "rotateY",
     "translateZ"

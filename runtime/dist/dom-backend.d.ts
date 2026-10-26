@@ -147,7 +147,7 @@ export declare class DomSurface implements Surface {
     setScale(scale: number, pivotX: number, pivotY: number): void;
     setRotation(deg: number, pivotX: number, pivotY: number): void;
     private applyTransform;
-    /** `scaling` (backend.ts). CSS's `image-rendering` is INHERITED, so one
+    /** `imageSmoothing` (backend.ts). CSS's `image-rendering` is INHERITED, so one
      *  declaration here reaches every <img>, tint mask and drawing canvas in the
      *  subtree — the platform's own cascade, as a transform's is. A drawing's
      *  density is this backend's to choose, so the subtree's drawings re-raster:

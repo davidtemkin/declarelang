@@ -480,7 +480,7 @@ class Roll extends Text [ wrap = false,
 // where the row is used, and lands in `lead`.
 
 class RailStat extends Control [ width = 100%, height = 30, cornerRadius = 7, padding = [0, 4, 0, 0],
-    defaultplacement = lead,
+    defaultPlacement = lead,
     facet: "status" | "assignee" = "status",
     value: string = "",
     cap: string = "",
@@ -680,7 +680,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
     // ── the chrome: appearance ─────────────────────────────────────────────
 
     themeMode: "auto" | "light" | "dark" = "auto",
-    darkUI: boolean = { themeMode == "dark" || (themeMode == "auto" && app.dark) },
+    darkUI: boolean = { themeMode == "dark" || (themeMode == "auto" && app.systemDark) },
     theme = { { ...(app.darkUI ? SanFranciscoDark : SanFrancisco), ...Tracker } },
 
     // a status, a priority or a name, as its color

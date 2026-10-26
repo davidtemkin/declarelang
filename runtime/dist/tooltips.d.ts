@@ -8,7 +8,7 @@ export interface TooltipEvent {
     readonly w: number;
     readonly h: number;
     /** The target's tree root — a page can host several apps (islands); each
-     *  app's Tooltip stands down for foreign targets, like the FocusRing. */
+     *  app's TooltipLayer stands down for foreign targets, like the FocusRing. */
     readonly root: View;
 }
 declare class TooltipsService {

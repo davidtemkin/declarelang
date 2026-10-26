@@ -97,7 +97,7 @@ export class Image extends View {
                 return; // superseded or detached
             setBound(this, "failed", true);
         };
-        img.src = resolveAsset(this.source, this.root);
+        img.src = resolveAsset(this.source, this.$root);
     }
 }
 defineAttributes(Image, {

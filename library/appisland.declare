@@ -77,7 +77,7 @@ build did not produce reports that, with the fix, rather than mounting nothing.
 ## location
 Where the program is: its own `location`, carried both ways. Set it before the program
 mounts and the program starts there, as a page starts at its URL's fragment; set it
-later and the program follows it (its `onFollow` applies). The program's own
+later and the program follows it (its `onFollowLink` applies). The program's own
 navigation is reflected back here, so a host can show where it is, keep it, or walk
 it back — Back and Forward across an island are the host's to give. Assign it from a
 handler or `onInit`: a constraint here would own a value the program also writes.

@@ -1,7 +1,7 @@
 // Static `:path` checking against declared schemas (B4 — the second half of
 // language §9's promise: "statically check every `:path` against the shape").
 // Runs over the RESOLVED program (cursor expressions are explicit
-// `this.root.d.value` chains there), so the walk is: find the elements whose
+// `this.$root.d.value` chains there), so the walk is: find the elements whose
 // `datapath = { … }` matches the direct-cursor idiom onto a schema'd
 // dataset, then check every path literal in that subtree — cursor
 // extensions, replication paths, value reads, `<->` targets — against the
@@ -177,7 +177,7 @@ export function schemaCheck(program: Program): DeclareError[] {
     };
     visit(root, OPEN, []);
   };
-  walkRoot(program.root, ["this\\.root", "app"]);
+  walkRoot(program.root, ["this\\.\\$root", "app"]);
   for (const cls of program.classes) walkRoot(cls.body, ["classroot"]);
   return errors;
 }

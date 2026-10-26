@@ -103,7 +103,7 @@ class Popover extends Floating [
     scrollPolicy = "allow",
     takesFocus = true,
     focusScope = modal,
-    defaultplacement = body,
+    defaultPlacement = body,
 
     anchorTo: View? = null,
     placement: string = "below",

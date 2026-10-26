@@ -240,10 +240,10 @@ on the App, and when a group of it becomes a thing in its own right — the rule
 records, a service, a piece of machinery — it moves into a class of its own that extends `Node`,
 or `Dataset` when it is those records' own logic.
 
-**A subclass adds children; `defaultplacement` says where they go.** A subclass's children
+**A subclass adds children; `defaultPlacement` says where they go.** A subclass's children
 (and a use site's) are appended to the instance, after the base class's own. A class that is a
 frame around content names the child the content belongs in — `class Sheet [
-defaultplacement = body, body: View [ … ] ]` — and every subclass's and use site's children go
+defaultPlacement = body, body: View [ … ] ]` — and every subclass's and use site's children go
 into `body`, in order; the base's own children never move. **A child can exist
 conditionally:** `exists = { … }` builds it while true and discards it while false, in its
 place (`visible` keeps a hidden view built — a focus sink, a definition read by its parent).
@@ -771,7 +771,7 @@ other: choosing one is an assignment, and text, layout and drawings follow a fac
 no code of yours.
 
 ```declare-fragment
-theme = { app.dark ? SanFranciscoDark : SanFrancisco },      // on the App: PROVIDE a preset, light or dark
+theme = { app.systemDark ? SanFranciscoDark : SanFrancisco },      // on the App: PROVIDE a preset, light or dark
 fill  = { provided("theme").surface },                       // READ it anywhere below
 
 panel: View [                                                // on a DESCENDANT, provide a modified one

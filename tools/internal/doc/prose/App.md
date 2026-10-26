@@ -5,7 +5,7 @@ so it is also the outermost box — and it **fills its host by default** (its `w
 default to `hostWidth`/`hostHeight`), so a plain app is full-window and an aspect-locked
 one reads the host extent. Two rules distinguish it from a plain View:
 an App is **clipped by definition** — a program owns its rectangle, so `clip = false` is a
-compile error (a Shape clip keeps its meaning) — and it **scrolls by default**
+compile error (a ClipPath clip keeps its meaning) — and it **scrolls by default**
 (`scrolls = y`), with its scroller being **the page itself**: content taller than the
 window makes the browser's own page scroll, and an app whose content fits simply has
 nothing to scroll (the "fixed window" is that default, idle). Chrome that must not scroll
@@ -82,11 +82,11 @@ supplies one). Read it anywhere as `provided("accessibilitySettings")`: a progra
 motion should stand still for someone who asks reads `.reduceMotion` where it moves things.
 The motion system does not act on it by itself.
 
-## dark
+## systemDark
 **Read-only.** The OS color-scheme flag — `true` under `prefers-color-scheme: dark`, kept
-live as the system theme flips. Theme off it: `theme = { app.dark ? darkTokens() : lightTokens() }`.
+live as the system theme flips. Theme off it: `theme = { app.systemDark ? darkTokens() : lightTokens() }`.
 It is only the OS signal; when you offer a Light/Dark/Auto control, keep your own mode
-attribute and read `app.dark` as the "auto" case.
+attribute and read `app.systemDark` as the "auto" case.
 
 ## pageVisible
 **Read-only.** Is the page this app lives on **visible** — `false` when the tab is
@@ -114,20 +114,20 @@ error. Running inside another program's island, the call goes to that island fir
 it declares `onNavigate`, the host decides what the link means (a desktop opens a window),
 and otherwise the page navigates. The program writes the same call either way.
 
-## follow()
+## followLink()
 The **one operation behind every arrival**: a linked
 view's activation, an authored href in rendered prose, a pasted URL, and back/forward all
-reduce to `app.follow(ref)`. The reference passes through `onFollow` once; an external
+reduce to `app.followLink(ref)`. The reference passes through `onFollowLink` once; an external
 reference leaves through `navigate`; a `#…` reference writes `location` — a bare anchor
 name (`"#story"`) first derives its destination from the tree, so the author never writes
 a compound. An anchored arrival is not finished until the target is rendered, **measured**,
 and in the viewport (`revealInset` honored); an anchorless one starts at the top — unless
 the app declares `onArrive`, which replaces that landing with the app's own. You
 rarely call this yourself — `link` calls it for you — but a handler that computes its
-destination may: `app.follow(picked)`. `follow(ref, true)` replaces the current history
+destination may: `app.followLink(picked)`. `followLink(ref, true)` replaces the current history
 entry instead of pushing (the `replace` attribute's path).
 
-## onFollow
+## onFollowLink
 The app-scoped door every arrival passes through, once: a linked view followed, a prose
 href, a cold URL, a back or forward step. It receives the reference and **returns the one
 to proceed with** — rewrite it, or return `""` to veto the navigation entirely. That
@@ -139,8 +139,8 @@ It is declared as an event so the checker admits the handler, but the platform *
 and uses its answer; nothing else in the family does either.
 
 ## onArrive
-The landing to `onFollow`'s door — the same arrival, delivered at the other end. Where
-`onFollow` holds the reference as a string, `onArrive(target: View)` holds the destination:
+The landing to `onFollowLink`'s door — the same arrival, delivered at the other end. Where
+`onFollowLink` holds the reference as a string, `onArrive(target: View)` holds the destination:
 the view the reference names — the `shows` view, the anchored view, or the view hosting an
 anchored heading — delivered once it exists and has its geometry. Immediately if it is
 already standing; settles later if the address named something data had yet to build. The
@@ -206,7 +206,7 @@ a stranger?* Yes → `location`. No, but Back should undo it → `waypoint`. Nei
 → an ordinary attribute. Waypoints are coordinates, never data — derive the data
 from the step, keep it under a few kilobytes, and put data that must outlive the
 document where data goes, since no coordinate survives an arrival. Because it can never arrive
-from outside the app, a waypoint passes no `onFollow`; your own parsing is the
+from outside the app, a waypoint passes no `onFollowLink`; your own parsing is the
 gate, and an unrecognized value degrades wherever that parsing sends it. The
 crawl never sees waypoints: content that should be indexed derives from
 `location` — crawlable and shareable are the same property.
@@ -323,8 +323,8 @@ one of the app's own attributes; the host reads it with `island.exposed("docH", 
 readable from outside. The down direction is `hostProvided(name, default)`, which reads
 what the host provides.
 
-## provide()
-The PAGE's side of the down direction, for a top-level app: `app.provide(name, value)`
+## provideHostValue()
+The PAGE's side of the down direction, for a top-level app: `app.provideHostValue(name, value)`
 sets the value this app's `hostProvided(name, …)` reads return, and every constraint over
 them re-derives; `undefined` withdraws it. `boot({ provides })` and a
 `data-declare-provide` JSON attribute on the host element do the same at boot. An
@@ -361,16 +361,16 @@ Opens the Inspector on this app, or on an embedded child app when given its isla
 (`app.inspect("run:preview")`). Dev tooling: a production build ships a stub unless you
 pass `declarec --debug`.
 
-## post()
+## postToHost()
 The island bridge's tenant-side verb: when this app runs **embedded as an island's
-tenant**, `app.post(topic, payload)` delivers to the host island's `onPost({ topic,
+tenant**, `app.postToHost(topic, payload)` delivers to the host island's `onPost({ topic,
 payload })`. Not linked (a top-level app), it drops with a console note — a verb has no
 meaning without a receiver. Continuous values cross as the app's `exposes` names (up)
-and `hostProvided` reads (down); post is for commands and occurrences, never state.
+and `hostProvided` reads (down); postToHost is for commands and occurrences, never state.
 
-## onPost
+## onHostMessage
 The inbound half, an event: a host island's `post(topic, payload)` arrives on its
-embedded tenant as `onPost(m: IslandPost)` — `m.topic`, `m.payload`. Fires only on a
+embedded tenant as `onHostMessage(m: IslandPost)` — `m.topic`, `m.payload`. Fires only on a
 linked tenant. Continuous values cross by name, each saying its direction: this app
 lists what it offers UP in `exposes`, and the host reads one with the island's
 `exposed(name, default)`; the host lists what it offers DOWN in the island's

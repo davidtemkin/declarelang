@@ -30,7 +30,7 @@ App [ minWidth = 340,
 
     page: string = "type",
     themeMode: string = "auto",
-    darkUI: boolean = { themeMode == "dark" || (themeMode == "auto" && app.dark) },
+    darkUI: boolean = { themeMode == "dark" || (themeMode == "auto" && app.systemDark) },
     compact: boolean = { app.width < 700 },
     barH: number = 52,
     theme = { app.darkUI ? SanFranciscoDark : SanFrancisco },

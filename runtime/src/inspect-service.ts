@@ -268,7 +268,7 @@ function qualify(node: Node, src: string): string {
       const member = prev === "." || prev === "?";
       const key = after === ":";
       if (!member && !key && !KEYWORDS.has(word)) {
-        if (word === "app") out += "this.root";
+        if (word === "app") out += "this.$root";
         else if (word in (node as unknown as Record<string, unknown>)) out += `this.${word}`;
         else out += word;
       } else out += word;

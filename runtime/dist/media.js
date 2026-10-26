@@ -1,7 +1,7 @@
 // Media — the transport, with no face on it. Video and Audio share every fact
 // that matters about a clip in time — `source`, `playing`, `position`,
 // `duration`, `volume` — and differ only in whether there is a picture. So the
-// transport lives here once, on the Editor/Stream arrangement: an abstract,
+// transport lives here once, on the EditControl/Stream arrangement: an abstract,
 // documented base that a program can read about and inherit from but never
 // instantiate, with the two concrete leaves each adding exactly what they are.
 //
@@ -127,7 +127,7 @@ export class Media extends View {
                 return;
             this.$report(el.currentTime);
         };
-        el.src = resolveAsset(this.source, this.root);
+        el.src = resolveAsset(this.source, this.$root);
     }
     /** Author (or constraint) asked to play or pause. `play()` can be REFUSED —
      *  autoplay policy, a source that never loaded — and it answers with a

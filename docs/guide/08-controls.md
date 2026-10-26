@@ -25,18 +25,18 @@ what the library ships, and what `extends Control` makes yours.
 | [`RadioGroup [ value ]`](declare-docs:RadioGroup) with [`Radio [ choice, label ]`](declare-docs:Radio) children | `value` on the group | one of several |
 | [`Slider [ value, min, max, step ]`](declare-docs:Slider) | `value: number` | drag or arrow keys |
 | [`Segmented [ choices, value ]`](declare-docs:Segmented) | the chosen `id` | one of a few, shown at once; set its `width` — segments divide it evenly |
-| [`TabBar [ choices, value ]`](declare-docs:TabBar) | the chosen `id` | a `Segmented` that switches what is shown below it — pages, panes; a screen reader hears tabs, made of [`SegmentedTab`](declare-docs:SegmentedTab)s |
+| [`TabBar [ choices, value ]`](declare-docs:TabBar) | the chosen `id` | a `Segmented` that switches what is shown below it — pages, panes; a screen reader hears tabs, made of [`TabBarTab`](declare-docs:TabBarTab)s |
 | [`Combobox [ items, value ]`](declare-docs:Combobox) | the chosen item | filter as you type |
 | [`TextInput [ text, placeholder ]`](declare-docs:TextInput) | `text: string` | the text field |
 | [`SearchField [ text, placeholder ]`](declare-docs:SearchField) | `text: string` | a text field for searching: round at both ends, and a search field to a screen reader |
 | [`AppearanceSwitch [ dark ]`](declare-docs:AppearanceSwitch) | `dark: boolean` | light or dark, as one icon |
 | [`TextSizeSwitch [ value ]`](declare-docs:TextSizeSwitch) | the scale, one of its `sizes` | the reading size: a small, a default and a large A |
 | [`Stepper [ value, min, max, step ]`](declare-docs:Stepper) | `value: number` | a number a step at a time, between − and +; a spin button to a screen reader |
-| [`DatePicker [ value ]`](declare-docs:DatePicker) | an ISO date string | a field that opens a [`MonthCalendar`](declare-docs:MonthCalendar) (its days are [`CalendarDay`](declare-docs:CalendarDay)s, its arrows [`CalendarArrow`](declare-docs:CalendarArrow)s); the calendar also stands alone |
+| [`DatePicker [ value ]`](declare-docs:DatePicker) | an ISO date string | a field that opens a [`MonthCalendar`](declare-docs:MonthCalendar) (its days are [`MonthCalendarDay`](declare-docs:MonthCalendarDay)s, its arrows [`MonthCalendarArrow`](declare-docs:MonthCalendarArrow)s); the calendar also stands alone |
 | [`Disclosure [ label, open ]`](declare-docs:Disclosure) | `open: boolean` | a section that slides open under the line that names it |
 | [`Tree [ items, value, expanded ]`](declare-docs:Tree) | the selected `id` | an outline whose [`TreeRow`](declare-docs:TreeRow)s open and close |
 | [`Toolbar`](declare-docs:Toolbar) with [`ToolButton [ label, icon, toggle ]`](declare-docs:ToolButton) children | a toggle's `on` | one Tab stop for a row of commands; [`ToolbarDivider`](declare-docs:ToolbarDivider) between groups |
-| [`Breadcrumb [ items ]`](declare-docs:Breadcrumb) | — | the path to where you are; its steps are [`Crumb`](declare-docs:Crumb)s, [`CrumbLink`](declare-docs:CrumbLink)s and the current [`CrumbHere`](declare-docs:CrumbHere) |
+| [`Breadcrumb [ items ]`](declare-docs:Breadcrumb) | — | the path to where you are; its steps are [`BreadcrumbStep`](declare-docs:BreadcrumbStep)s, [`BreadcrumbLink`](declare-docs:BreadcrumbLink)s and the current [`BreadcrumbCurrent`](declare-docs:BreadcrumbCurrent) |
 | [`Splitter [ value, min, max ]`](declare-docs:Splitter) | `value: number` | the divider between two panes you arrange, by pointer or keys |
 | [`Window [ title, open ]`](declare-docs:Window) | `open: boolean` | a window with a title bar, dragging and a close button ([`WindowClose`](declare-docs:WindowClose)); `frame = false` for one of your own design |
 
@@ -47,9 +47,9 @@ The library also has classes that are not controls — they have no value of the
 own: [`ProgressBar`](declare-docs:ProgressBar) (the read-only sibling of `Slider`), [`Gauge`](declare-docs:Gauge) (a captioned value bar for
 demos and dashboards), [`Field`](declare-docs:Field) (a labeled form row),
 [`Card`](declare-docs:Card) and [`Divider`](declare-docs:Divider) ([Size, position and layout](declare-docs:guide:layout@padding-and-card)),
-[`Accordion`](declare-docs:Accordion) with [`Pane`](declare-docs:Pane) children, [`Table`](declare-docs:Table) and [`DataGrid`](declare-docs:DataGrid)
+[`Accordion`](declare-docs:Accordion) with [`AccordionPane`](declare-docs:AccordionPane) children, [`Table`](declare-docs:Table) and [`DataGrid`](declare-docs:DataGrid)
 ([Large collections](declare-docs:guide:collections)), the overlay family — [`Menu`](declare-docs:Menu),
-[`MenuBar`](declare-docs:MenuBar), [`ContextMenu`](declare-docs:ContextMenu), [`Dialog`](declare-docs:Dialog), [`Tooltip`](declare-docs:Tooltip)
+[`MenuBar`](declare-docs:MenuBar), [`ContextMenu`](declare-docs:ContextMenu), [`Dialog`](declare-docs:Dialog), [`TooltipLayer`](declare-docs:TooltipLayer)
 ([Menus, dialogs and overlays](declare-docs:guide:overlays)) — and [`Icon`](declare-docs:Icon) with its set
 of drawn marks ([Your own views](declare-docs:guide:your-own-views@icons)). All of it is
 written in Declare, in `library/`, and none of it uses anything you cannot.

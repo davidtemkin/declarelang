@@ -233,7 +233,7 @@ class Table extends Control [
     itemArray() -> array {
         // the probe must be a row (a subclass may hold other cursor-bearing
         // children — DataGrid's header island rides a different dataset)
-        const probe = this.children.find(c => (c as TableRow)._isTableRow === true && c.datapath != null && (c.datapath as Cursor).data != null) as any
+        const probe = this.children.find(c => (c as TableRow)._isTableRow === true && c.datapath != null && (c.datapath as DataCursor).data != null) as any
         if (probe != null) return probe.datapath.data.read(probe.datapath.path.slice(0, -1))
         return this.children.filter(c => (c as TableRow)._isTableRow === true)
         },

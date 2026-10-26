@@ -332,7 +332,7 @@ export function instantiate(input: Element | Program): View {
   const scriptScope: Record<string, unknown> = {};
   // A program's own `theme Name [ … ]` records are in `{ }`-body scope by name
   // (the built-in presets are already there, process-wide), so a body can name
-  // one — `theme = { app.dark ? BrandDark : Brand }`.
+  // one — `theme = { app.systemDark ? BrandDark : Brand }`.
   for (const t of program.themes) scriptScope[t.name] = themeRecord(t);
   // …and its `style` bundles, the same way: a bundle is a plain record of text
   // attributes, so a body names one — `d.fillText("Plate 4", 0, 20, Caption)`.
@@ -1190,7 +1190,7 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentEl: Element 
   // source with a `link` wins — a use-site override beats the class body, the
   // same nearest-wins rule the methods/attrs merge below follows. Read only by
   // the static extractor; runtime navigation is the handler's own navigate(to).
-  for (const s of sources) if (s.el.link) view._navLink = s.el.link;
+  for (const s of sources) if (s.el.link) view.$navLink = s.el.link;
   // Attribute channels land in the ruled precedence order (mergeAttrs): class-
   // body sets base→leaf (rank 4), then the use site (rank 5). (The retired
   // `styles` bundle-on-a-view channel used to sit between them — provided values
@@ -1347,7 +1347,7 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentEl: Element 
   // anchor for replications across the sources (R8).
   //
   // DEFAULT PLACEMENT: a class body may name one of its own children
-  // (`defaultplacement = body`); the children every LATER source writes — a
+  // (`defaultPlacement = body`); the children every LATER source writes — a
   // subclass body, the use site — go into that child instead, appended in
   // order. The class's own children are never placed; a later class may name
   // a placement of its own for the sources after it. Placement carries VIEWS:
@@ -1379,7 +1379,7 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentEl: Element 
         const named = placementName(body);
         if (named !== null) {
           const target = findNamedChild(view, named);
-          if (target === null) throw new DeclareError(`defaultplacement = ${named} — '${el.tag}' has no child named '${named}' to place children into`, body.pos);
+          if (target === null) throw new DeclareError(`defaultPlacement = ${named} — '${el.tag}' has no child named '${named}' to place children into`, body.pos);
           place = { target, slot: { prev: target.children.length > 0 ? target.children[target.children.length - 1] : null } };
         }
       }
@@ -1391,9 +1391,9 @@ function construct(el: Element, outer: View | null, ctx: Ctx, parentEl: Element 
   return view;
 }
 
-/** The child a class body names as its `defaultplacement`, or null. */
+/** The child a class body names as its `defaultPlacement`, or null. */
 function placementName(body: Element): string | null {
-  const a = body.attrs.find((x) => x.name === "defaultplacement");
+  const a = body.attrs.find((x) => x.name === "defaultPlacement");
   if (a === undefined) return null;
   const v = a.value as { kind: string; name?: string; value?: unknown };
   return v.kind === "ident" && typeof v.name === "string" ? v.name : typeof v.value === "string" ? v.value : null;
@@ -1895,7 +1895,7 @@ export function createViewIn(root: View, tag: string, parent: View, props?: Reco
   }
   const el = { tag, name: null, attrs: [], decls: [], methods: [], children: [], pos: { line: 0, col: 0 } } as unknown as Element;
   const made = materializer(ctx)(el, parent);
-  parent.insertChild(made.view, parent.children.length);
+  parent.$insertChild(made.view, parent.children.length);
   made.provide();                                   // provisions before attach (partitionPending)
   const ps = parent.$surface;
   if (ps !== null && parent.$backend !== null) made.view.$attach(parent.$backend, ps, null);
@@ -2011,7 +2011,7 @@ export function createElementIn(root: View, el: Element, parent: View): View {
     const router = ctx.router();
     router.routeElement(el, router.effOf(parent.constructor.name, []));
     const made = materializer(ctx)(el, parent);
-    parent.insertChild(made.view, parent.children.length);
+    parent.$insertChild(made.view, parent.children.length);
     made.provide();                                 // provisions before attach (partitionPending)
     const ps = parent.$surface;
     if (ps !== null && parent.$backend !== null) made.view.$attach(parent.$backend, ps, null);
@@ -2062,7 +2062,7 @@ provideInlineViewHost((root) => {
       // the ancestor it fell through to instead of this instance. Landing them
       // after attach would leave the body wearing the document's face forever.
       for (const [k, v] of Object.entries(provides)) provideWrite(made.view, k, v);
-      parent.insertChild(made.view, parent.children.length);
+      parent.$insertChild(made.view, parent.children.length);
       made.provide();
       const ps = parent.$surface;
       if (ps !== null && parent.$backend !== null) made.view.$attach(parent.$backend, ps, null);

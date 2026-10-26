@@ -63,7 +63,7 @@ export class Audio extends Media {
     if (this.source === "") return;
     this.$sink ??= clipHost()!.sink();
     this.$sink.setVolume(this.volume, this.muted);
-    clipHost()!.decode(resolveAsset(this.source, this.root)).then(({ clip, duration }) => {
+    clipHost()!.decode(resolveAsset(this.source, this.$root)).then(({ clip, duration }) => {
       if (seq !== this.$clipSeq || this.$surface === null) return;
       this.$clip = clip;
       setBound(this, "duration", duration);

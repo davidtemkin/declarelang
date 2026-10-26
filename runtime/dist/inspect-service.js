@@ -261,7 +261,7 @@ function qualify(node, src) {
             const key = after === ":";
             if (!member && !key && !KEYWORDS.has(word)) {
                 if (word === "app")
-                    out += "this.root";
+                    out += "this.$root";
                 else if (word in node)
                     out += `this.${word}`;
                 else

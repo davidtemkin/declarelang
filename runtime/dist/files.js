@@ -1,4 +1,4 @@
-// files — the person's own files, chosen or dropped (docs: Files, View.onFilesDrop).
+// files — the person's own files, chosen or dropped (docs: FilePicker, View.onFilesDrop).
 //
 // A file is a record: its name, size, MIME type, when it last changed, its
 // path within a chosen or dropped folder ("" for a file on its own), and a
@@ -14,7 +14,7 @@
 // (provideFilesHost) and reports drags into the window (deliverFiles); there a
 // url is a file: URL.
 //
-// This module ships only in a program that names `Files` or a file-drop
+// This module ships only in a program that names `FilePicker` or a file-drop
 // handler (compiler capabilities "files"); everywhere else a stand-in answers.
 import { View, fireEvent } from "./view.js";
 let host = null;
@@ -39,7 +39,7 @@ function adopt(list) {
 /** The file dialog. Call it from what the person does — a press, a click — as
  *  a browser allows a file dialog only then; it resolves to the files chosen,
  *  none if the dialog was dismissed. */
-export const Files = {
+export const FilePicker = {
     pick(options = {}) {
         if (host !== null)
             return host.pick(options).then(adopt);

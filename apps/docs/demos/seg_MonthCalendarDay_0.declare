@@ -1,5 +1,5 @@
 App [ width = 200, height = 64,
     day: Dataset { { "iso": "2026-10-18", "day": 18, "inMonth": true, "selected": true,
                      "name": "Sunday, October 18, 2026" } },
-    CalendarDay [ x = 20, y = 16, datapath = { app.day.value } ]
+    MonthCalendarDay [ x = 20, y = 16, datapath = { app.day.value } ]
     ]

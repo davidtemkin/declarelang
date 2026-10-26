@@ -234,7 +234,7 @@ function navHref(v: View): string | null {
   // the old handler inference) covers the un-migrated corpus.
   const live = (v as { link?: unknown }).link;
   if (typeof live === "string" && live !== "") return live;
-  const link = (v as { _navLink?: LinkTarget })._navLink;
+  const link = (v as { $navLink?: LinkTarget }).$navLink;
   if (link === undefined) return null;
   if ("href" in link) return link.href || null;
   const c = compileExpr(link.read);

@@ -1,10 +1,10 @@
 /*
-# Tooltip
+# TooltipLayer
 
 The layer system's floor: any view sets `tooltipLabel = "…"` and this singleton renders
 it — hover delay, placement, flip, and theming are nobody's problem at the use
 site. It arrives automatically when any view in the program carries a tip, as
-`FocusRing` does; declare your own `Tooltip [ ]` (or subclass) to replace the
+`FocusRing` does; declare your own `TooltipLayer [ ]` (or subclass) to replace the
 rendition.
 
 It listens to the Tooltips service (a `Tooltips [ onTooltip(e: TooltipEvent) { … } ]` member), which owns the platform
@@ -90,7 +90,7 @@ From the theme's `tooltipCornerRadius` (4 by default).
 
 include [ "floating.declare" ]
 
-class Tooltip extends Floating [
+class TooltipLayer extends Floating [
     // a Floating in the floating layer (floating.declare): above everything in
     // the app, taking no focus and no keys; presses pass through it, and a
     // scroll aimed past it puts it away. It appears and goes at once.

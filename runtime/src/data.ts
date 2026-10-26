@@ -932,7 +932,7 @@ export class DataSource extends Dataset {
     // Resolved through THIS APP's data base (setAppDataBase): on a page
     // running several programs, relative means beside MY file, not the last
     // booted one's.
-    const url = appResolve(this.root, this.url);
+    const url = appResolve(this.$root, this.url);
     setBound(this, "loading", true);
     setBound(this, "failed", false);
     setBound(this, "error", null);

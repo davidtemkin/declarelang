@@ -222,7 +222,7 @@ export const CAPABILITIES: readonly Capability[] = [
   { id: "state", describe: "State: a named set of overrides", modules: ["state"], hostsKeep: true, refusal: "unused",
     when: [{ classes: ["State"] }] },
   { id: "editor", describe: "editing: TextInput's draft and two-way binding", modules: ["editor"], hostsKeep: true, refusal: "unused",
-    when: [{ classes: ["Editor"] }, { syntax: ["two-way"] }] },
+    when: [{ classes: ["EditControl"] }, { syntax: ["two-way"] }] },
   { id: "islands", describe: "islands: DOMIsland, AppIsland, the tenant link, and the page's island mounting",
     modules: ["island", "browser/host-islands"], hostsKeep: true, refusal: "unused",
     when: [{ classes: ["DOMIsland"] }],
@@ -374,7 +374,7 @@ export function programFacts(program: ProgramLike, usedClasses: Iterable<string>
   if ((program.shapes ?? []).length > 0) f.syntax.add("schema");   // a declared schema, even one only a slot's type names
   for (const c of program.classes) walk(c.body, c.name ?? c.body.tag);
   for (const b of program.scripts ?? []) readBody(b.src, f);
-  for (const name of [...f.classes]) {   // a built-in constructs its bases too: TextInput is an Editor
+  for (const name of [...f.classes]) {   // a built-in constructs its bases too: TextInput is an EditControl
     for (let s = Object.hasOwn(SCHEMAS, name) ? SCHEMAS[name].base : null; s !== null; s = s.base) f.classes.add(s.name);
   }
   return f;

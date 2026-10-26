@@ -105,7 +105,7 @@ tube: Shader [ source = "crt.wgsl",
     glare: number = 0.15
     ],
 
-screen: View [ scale = { app.unit }, scaling = pixelated, effect = { app.tube } ]
+screen: View [ scale = { app.unit }, imageSmoothing = pixelated, effect = { app.tube } ]
 ```
 
 - **`Shader`** is a Node-like member (no box, never drawn itself). `source` names a WGSL

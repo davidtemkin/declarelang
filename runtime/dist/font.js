@@ -237,7 +237,7 @@ export class Font extends Node {
             return;
         }
         const h = hostNow();
-        const base = assetBaseFor(this.root);
+        const base = assetBaseFor(this.$root);
         const rebase = (url) => (base === null ? url : rebaseAsset(url, base));
         const gen = { name: `declare-font-${this.#id}-${++this.#gen}`, handles: [], timer: null, expired: false, settled: false };
         const specs = faces

@@ -128,7 +128,7 @@ Whether focus is inside the window now, in a program it hosts included.
 A press inside the window, on nothing that takes it, gives the window the keyboard — and a
 framed one comes to the front.
 
-## defaultplacement
+## defaultPlacement
 `body`: its children go into the pane below the title bar (the whole window, without a
 frame).
 
@@ -226,7 +226,7 @@ class Window [ width = 360, height = 240,
     accessibilityRole = dialog,
     accessibilityLabel = { title },
     focusScope = region,
-    defaultplacement = body,
+    defaultPlacement = body,
     visible = { open },
 
     frame: boolean = true,

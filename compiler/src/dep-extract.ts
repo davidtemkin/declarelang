@@ -7,7 +7,7 @@
 // graph) — or a positioned error for a §3 residue form.
 //
 // A read-path is a source sub-expression that, evaluated under read-tracking,
-// yields exactly the cells it touches (`this.theme`, `this.root.data.value`,
+// yields exactly the cells it touches (`this.theme`, `this.$root.data.value`,
 // `parent.width`, or a `:datapath`). The prewiring runtime evaluates each once
 // at link time to bind its cell — versus re-discovering all deps every run.
 //
@@ -27,7 +27,7 @@ import type { TypeOracle } from "./typecheck.js";
 import { LANGUAGE_METHOD_EFFECTS } from "./effects.js";
 import { SCHEMAS } from "../../runtime/dist/schema.js";
 
-const SCOPE_ROOTS = new Set(["parent", "classroot"]); // `this` via ThisKeyword; `app` is `this.root`
+const SCOPE_ROOTS = new Set(["parent", "classroot"]); // `this` via ThisKeyword; `app` is `this.$root`
 
 /** The DYNAMIC sentinel (the alias/closure door, 2026-08-25). A body whose
  *  cell reads the extractor can SEE but cannot NAME as static paths — an
@@ -77,7 +77,7 @@ function isPureNodeNav(n: ts.Node): boolean {
   if (n.kind === ts.SyntaxKind.ThisKeyword) return true;
   if (ts.isIdentifier(n)) return SCOPE_ROOTS.has(n.text);
   if (ts.isParenthesizedExpression(n) || ts.isNonNullExpression(n)) return isPureNodeNav(n.expression);
-  if (ts.isPropertyAccessExpression(n)) return (n.name.text === "root" || n.name.text === "parent") && isPureNodeNav(n.expression);
+  if (ts.isPropertyAccessExpression(n)) return (n.name.text === "$root" || n.name.text === "parent") && isPureNodeNav(n.expression);
   return false;
 }
 
@@ -179,7 +179,7 @@ function rewriteDP(src: string): string {
  *  Returns its canonical text, or null when the expression is anything else (a
  *  call, an operator, a literal). This is what a script call's argument must be
  *  for a read *through* the corresponding parameter to be nameable at the call
- *  site: `f(app.card)` can rebase `node.title` to `this.root.card.title`;
+ *  site: `f(app.card)` can rebase `node.title` to `this.$root.card.title`;
  *  `f(pick())` has no name to rebase onto. */
 function nameablePath(n: ts.Node): string | null {
   if (ts.isParenthesizedExpression(n) || ts.isNonNullExpression(n) || ts.isAsExpression(n)) return nameablePath(n.expression);
@@ -902,12 +902,12 @@ function memberElementOf(el: unknown, seg: string): unknown | undefined {
   return undefined;
 }
 
-/** Resolve a full receiver PATH (`this.root.launcher`, `classroot.spring`) to
+/** Resolve a full receiver PATH (`this.$root.launcher`, `classroot.spring`) to
  *  the element it addresses, walking named members and class-typed decls.
  *  `undefined` = not statically knowable (an indexed step, a parameter, the
  *  `parent` of a class root — the use site) — the caller stays conservative. */
 function receiverElementDeep(receiver: string, owner: unknown, classRoot: unknown): unknown | undefined {
-  const p = receiver.replace(/(\.root)+/g, ".root");
+  const p = receiver.replace(/(\.\$root)+/g, ".$root");
   if (/[[()]/.test(p)) return undefined;                   // indexed / call steps: not a static path
   const segs = p.split(".");
   let base: unknown | undefined;
@@ -919,7 +919,7 @@ function receiverElementDeep(receiver: string, owner: unknown, classRoot: unknow
   for (; base !== undefined && i < segs.length; i++) {
     // `.root` from anywhere is the program root; `.parent` is knowable for every
     // element but a class root (whose parent is the use site) and the root itself
-    if (segs[i] === "root") base = PROGRAM_ROOT;
+    if (segs[i] === "$root") base = PROGRAM_ROOT;
     else if (segs[i] === "parent") base = base === classRoot ? undefined : PARENT_OF.get(base);
     else base = memberElementOf(base, segs[i]);
   }
@@ -967,13 +967,13 @@ function slotKind(el: unknown, name: string): "node" | "data" | undefined {
  *  Nothing reached through data carries a `{ }` default. */
 function receiverIsData(receiver: string, owner: unknown, classRoot: unknown): boolean {
   if (receiver.startsWith(":")) return true;
-  const segs = receiver.replace(/(\.root)+/g, ".root").split(/[.[]/);
+  const segs = receiver.replace(/(\.\$root)+/g, ".$root").split(/[.[]/);
   let base: unknown | undefined;
   if (segs[0] === "this" || segs[0] === "parent") base = owner;
   else if (segs[0] === "classroot") base = classRoot ?? undefined;
   for (let i = segs[0] === "parent" ? 0 : 1; base !== undefined && i < segs.length; i++) {
     const s = segs[i];
-    if (s === "root") { base = PROGRAM_ROOT; continue; }
+    if (s === "$root") { base = PROGRAM_ROOT; continue; }
     if (s === "parent") { base = base === classRoot ? undefined : PARENT_OF.get(base); continue; }
     const next = memberElementOf(base, s);
     if (next !== undefined) { base = next; continue; }
@@ -1383,7 +1383,7 @@ function buildMethodSummaries(): Summaries {
     // An iterator over `<receiver>.children` (or another collection spelling):
     // an aggregation over a data-dependent number of NODES when the receiver is
     // a node and the name is not one of its own declared members. A receiver
-    // that is pure node navigation (`parent`, `this.root`) is a node even where
+    // that is pure node navigation (`parent`, `this.$root`) is a node even where
     // the element is not statically knowable; any other unresolved receiver (a
     // dataset's value, a record, a parameter's data) is an ordinary data read.
     if (c.kind === "collection") {
@@ -1665,19 +1665,19 @@ export function extractProgram(program: Program, oracle: TypeOracle | null = nul
     const errors = [...r.errors];
     for (const call of r.calls) { const sub = follow(call, { owner: c.owner, classRoot: c.classRoot }); for (const rd of sub.reads) reads.add(rd); for (const e of sub.errors) errors.push(e); }
     const canon = new Set<string>();
-    for (let rd of reads) { rd = rd.replace(/(\.root)+/g, ".root"); if (!/^(this|parent|classroot)(\.root)?$/.test(rd)) canon.add(rd); }
+    for (let rd of reads) { rd = rd.replace(/(\.\$root)+/g, ".$root"); if (!/^(this|parent|classroot)(\.\$root)?$/.test(rd)) canon.add(rd); }
     const dynamic = canon.delete(DYNAMIC);
     // SELF-DEPENDENCE — a constraint that reads the slot it defines is a cycle
     // by construction: it invalidates itself on every run (the bare-`...theme`
     // trap in a theme provision → `this.theme`; on the App root the `app.`
-    // spelling lands as `this.root.<attr>`). The dep set makes the cycle
+    // spelling lands as `this.$root.<attr>`). The dep set makes the cycle
     // statically visible, so it is refused here with the rewrite named
     // (docs/system-design/classes-baseline.md Contract 2). Dotted attrs (state overrides
     // targeting descendants) are skipped — their `this.` frame is the override's
     // owner, not the target slot. (The rare explicit `classroot.<attr>` spelling
     // on a class root's own slot is not caught in v1.)
     if (!c.attr.includes(".")) {
-      const selfPaths = [`this.${c.attr}`, ...(c.tag === "App" ? [`this.root.${c.attr}`] : [])];
+      const selfPaths = [`this.${c.attr}`, ...(c.tag === "App" ? [`this.$root.${c.attr}`] : [])];
       // A computed DECL DEFAULT that (transitively) reads its own slot is the
       // runtime's defect to name (attributes.ts EVALING — the guard this shape
       // has always hit), not a compile refusal: the slot read recorded for the

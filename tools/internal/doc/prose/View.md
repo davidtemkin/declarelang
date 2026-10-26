@@ -229,14 +229,14 @@ constructed, so toggling it is cheap and keeps its state.
 
 ## clip
 Clips the subtree to a shape. `clip = true` clips to the view's **own box**
-(reactively on width/height) — the common case; a `Shape` value clips to an arbitrary
+(reactively on width/height) — the common case; a `ClipPath` value clips to an arbitrary
 path. `null`/unset (default) draws children unclipped, even outside the box. Kept
 explicit (not implied by `cornerRadius`) so clipping is pay-per-use.
 
 ## tooltipLabel
 The tooltip text — the layer system's floor (one attribute at the use site): a non-empty
 `tooltipLabel` makes this view hover-interactive, and after the theme's delay the auto-provided
-`Tooltip` singleton shows the text beside it. Placement, delay, and size are theme data
+`TooltipLayer` singleton shows the text beside it. Placement, delay, and size are theme data
 (`tooltipPlacement` below | above | pointer, `tooltipDelay`, `tooltipFontSize`) — so Cupertino
 tips appear near the cursor after ~1s at 11px (the Cupertino help tag), Redmond's above the
 control (WinUI), Mountain View's below at ~500ms (M3) — always flipped and clamped inside
@@ -327,10 +327,10 @@ reader's place like `content`; it opens at its end, and `scrollTo(Infinity)` cou
 there while it travels. **`none`** does nothing, for content meant to move under the reader.
 A virtualized list keeps its place the same way, its rows' estimated heights included.
 
-## defaultplacement
+## defaultPlacement
 Written on a **class**: names one of the class's own children (at any depth), and the children
 its subclasses and use sites write go **into** that child, after the child's own, instead of
-beside it. `class Sheet [ defaultplacement = body, body: View [ … ] ]` — a `DetailSheet`
+beside it. `class Sheet [ defaultPlacement = body, body: View [ … ] ]` — a `DetailSheet`
 extending it, and a `Sheet [ … ]` use site, fill `body`. The class's own children are never
 placed. A placed child's `parent` is the child it went into; it is still reachable by name
 from the class or use site that wrote it.
@@ -875,9 +875,9 @@ is refused. Nothing uploads until the program sends it.
 ```declare-fragment
 photos: File[] = [],
 well: View [ width = 300, height = 200, fill = { app.hot ? 0xddeeff : 0xffffff },
-    onFilesOver(e: FilesOver) { app.hot = true },
+    onFilesOver(e: FilesOverEvent) { app.hot = true },
     onFilesOut() { app.hot = false },
-    onFilesDrop(e: FilesDrop) { app.hot = false; app.photos = e.files }
+    onFilesDrop(e: FilesDropEvent) { app.hot = false; app.photos = e.files }
     ]
 ```
 
@@ -1051,7 +1051,7 @@ A blending view blends **as a unit**, children included; compositing is paint, n
 input — hit-testing and focus are unchanged. A token string in a `{ }` body, like
 `scrolls` — so a blend can be state: `blend = { active ? "multiply" : "normal" }`.
 
-## scaling
+## imageSmoothing
 How what is painted inside this view — its **images and drawings**, and everything inside
 it — looks when it is shown larger or smaller. `smooth` (the default) blends neighbouring
 pixels: right for photographs and for an ordinary interface under a zoom. `pixelated`
@@ -1061,7 +1061,7 @@ scene; its whole subtree follows, as it follows that view's `scale`.
 
 ```declare
 App [ width = 300, height = 140, fill = black,
-    screen: View [ x = 20, y = 20, scale = 4, scaling = pixelated,
+    screen: View [ x = 20, y = 20, scale = 4, imageSmoothing = pixelated,
         // a ten-pixel mark, drawn at one pixel per unit and shown in sharp 4×4 blocks
         mark: View [ width = 10, height = 6,
             draw(d: Draw) { d.fillStyle = "#ffcc00"; d.fillRect(0, 0, 10, 1); d.fillRect(4, 1, 2, 5) } ]

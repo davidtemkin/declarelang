@@ -97,7 +97,7 @@ include [ "menu.declare", "shortcuts.declare" ]
 
 // one menu of the bar, as data
 
-schema MenuBarMenu [ id: string, label: string, bold?: boolean, kind?: string, items: MenuItem[] ]
+schema MenuBarMenuRecord [ id: string, label: string, bold?: boolean, kind?: string, items: MenuItemRecord[] ]
 
 class MenuBar [
     accessibilityRole = menuBar,
@@ -112,7 +112,7 @@ class MenuBar [
     // slot); behavior stays the title's (open, track). Keep kind-only
     // classes with `use [ Name ]`, exactly as Menu's kind rows do.
 
-    menus: MenuBarMenu[]? = null,
+    menus: MenuBarMenuRecord[]? = null,
 
     // optional title-ink override: when set, the menu titles render in this
     // color instead of `provided("theme").text` — for a bar drawn straight over a

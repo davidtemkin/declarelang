@@ -171,16 +171,16 @@ async function bootAt(program: Program, opts: CrawlOptions, location: string, re
     app.$attach(new HeadlessBackend(), null);
     app.hostWidth = env.hostWidth;
     app.hostHeight = env.hostHeight;
-    app.dark = env.dark;
+    app.systemDark = env.dark;
     // an island tenant: built with what its island provides and linked before
     // its first settle, exactly as the live hosts do it
     beforeSettle?.(app);
     // "" = the declared default (seed nothing). A seeded location routes
-    // through FOLLOW when the app declares an onFollow (location.md §0.8.3):
+    // through FOLLOW when the app declares an onFollowLink (location.md §0.8.3):
     // the crawl sees the same redirects users do — the hook runs at t=0
     // initials, exactly the cold-arrival contract (§0.6).
     if (location !== "") {
-      if (typeof (app as unknown as { onFollow?: unknown }).onFollow === "function") app.follow("#" + location);
+      if (typeof (app as unknown as { onFollowLink?: unknown }).onFollowLink === "function") app.followLink("#" + location);
       else app.location = location;
     }
     settle();
@@ -279,7 +279,7 @@ async function serialize(app: App, opts: CrawlOptions, refusals: Map<string, str
  *  life — later flips may fetch (a location-derived DataSource url) — and the
  *  app is REUSED: `flip(location)` is an incremental settle plus data
  *  quiescence, not a build. Arrival semantics match bootAt exactly (follow
- *  when the app declares onFollow; a raw seed otherwise), so the two paths
+ *  when the app declares onFollowLink; a raw seed otherwise), so the two paths
  *  cannot drift in what an arrival MEANS — only in what it costs. */
 async function warmSession(program: Program, opts: CrawlOptions, refusals: Map<string, string>): Promise<{
   app: App; flip: (location: string) => Promise<void>; dispose: () => void;
@@ -296,7 +296,7 @@ async function warmSession(program: Program, opts: CrawlOptions, refusals: Map<s
   app.$attach(new HeadlessBackend(), null);
   app.hostWidth = env.hostWidth;
   app.hostHeight = env.hostHeight;
-  app.dark = env.dark;
+  app.systemDark = env.dark;
   const quiesce = async (): Promise<void> => {
     settle();
     await drainAsync();
@@ -315,7 +315,7 @@ async function warmSession(program: Program, opts: CrawlOptions, refusals: Map<s
     app,
     flip: async (location: string) => {
       if (location !== "" && location !== app.location) {
-        if (typeof (app as unknown as { onFollow?: unknown }).onFollow === "function") app.follow("#" + location);
+        if (typeof (app as unknown as { onFollowLink?: unknown }).onFollowLink === "function") app.followLink("#" + location);
         else app.location = location;
       }
       await quiesce();

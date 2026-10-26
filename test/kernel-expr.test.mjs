@@ -27,7 +27,7 @@ function snapshot(app) {
 function drive(app, step) {
   if (step === 0) { app.hostWidth = 700; app.hostHeight = 500; }
   if (step === 1) { app.hostWidth = 1400; app.hostHeight = 900; }
-  if (step === 2) { app.dark = !app.dark; }
+  if (step === 2) { app.systemDark = !app.systemDark; }
   settle();
 }
 for (const name of ["weather", "desktop", "calendar", "homepage", "lzx-dashboard", "marketmap"]) {

@@ -118,21 +118,21 @@ await test("scaffold: the fixed value prelude mirrors value.ts", () => {
     "type Percent = { percent: number };",
     "type Length = number | Percent;",
     "type Color = number | null;",
-    "type Shape = string | null;",
+    "type ClipPath = string | null;",
     "type Fill = Color | Gradient;",
     "type Radius = number | readonly [number, number, number, number];",
     "type BoxStroke = Stroke | readonly [Stroke | null, Stroke | null, Stroke | null, Stroke | null] | null;",
     // `any`, not `unknown` — a record's keys are open by design (no schema
     // construct yet); `unknown` would flag every correct read of a theme token.
     "type Theme = Readonly<Record<string, any>>;",
-    "interface Cursor { readonly data: any; readonly path: readonly string[] }",
+    "interface DataCursor { readonly data: any; readonly path: readonly string[] }",
     "declare function gradient(",
     "declare function stroke(width: number, color: Color): Stroke;",
     "declare function shadow(dx: number, dy: number, blur: number, color: Color): Shadow;",
-    "type Backdrop = readonly Filter[];",
-    "declare function frost(radius: number, saturation?: number): Backdrop;",
-    "declare function blur(radius: number): Filter;",
-    "declare function colorize(color: Color): Filter;",
+    "type FilterList = readonly ImageFilter[];",
+    "declare function frost(radius: number, saturation?: number): FilterList;",
+    "declare function blur(radius: number): ImageFilter;",
+    "declare function colorize(color: Color): ImageFilter;",
     "declare function radialGradient(cx: number, cy: number, r: number, ",
     "declare function conicGradient(cx: number, cy: number, angle: number, ",
     "declare function colorWithAlpha(rgb: number, a: number): number;",
@@ -147,7 +147,7 @@ await test("scaffold: the fixed value prelude mirrors value.ts", () => {
 
 await test("scaffold: enum-typed attributes emit named string-literal unions", () => {
   const s = scaffoldFor(PROGRAM);
-  assert.ok(s.includes(`type Stretch = "none" | "width" | "height" | "both" | "cover" | "contain";`), "Stretch enum alias");
+  assert.ok(s.includes(`type MediaFit = "none" | "width" | "height" | "both" | "cover" | "contain";`), "MediaFit enum alias");
   assert.ok(s.includes(`type FontWeight = "thin" | "extralight" | "light" | "regular" | "normal" | "medium" | "semibold" | "bold" | "extrabold" | "black" | number;`), "FontWeight enum alias — keywords or a number 1–1000");
   // Axis reaches the scaffold through a DECLARED enum now (the built-in value
   // enums are declarable — library SimpleLayout's `axis: Axis = y`):
@@ -168,7 +168,7 @@ await test("scaffold: View declares its attrs (AttrType→TS map) + the §11 nou
   assert.ok(view.includes("cornerRadius: Radius;"), "radius → Radius (a number, or four corners)");
   assert.ok(view.includes("opacity: number;"), "number → number");
   assert.ok(view.includes("visible: boolean;"), "boolean → boolean");
-  assert.ok(view.includes("clip: Shape | boolean | null;"), "shape → Shape, or true for the own box (a { } may compute either)");
+  assert.ok(view.includes("clip: ClipPath | boolean | null;"), "shape → ClipPath, or true for the own box (a { } may compute either)");
   assert.ok(view.includes("fill: Fill;"), "fill → Fill");
   // The THIRD one-or-four slot, beside cornerRadius and padding: one Stroke on
   // all four sides, four of them, or null. Symmetric — the slot reads back what
@@ -192,8 +192,8 @@ await test("scaffold: View declares its attrs (AttrType→TS map) + the §11 nou
   // Declared on Node since 2026-09-24 (a model class stands on a record), so View
   // inherits it.
   const nodeBlock = classBlock(s, "Node");
-  assert.ok(nodeBlock.includes("get datapath(): Cursor;"), "cursor → read as the Cursor");
-  assert.ok(nodeBlock.includes("set datapath(v: Cursor | object | null);"), "cursor → written as a place OR a place-bearing container");
+  assert.ok(nodeBlock.includes("get datapath(): DataCursor;"), "cursor → read as the DataCursor");
+  assert.ok(nodeBlock.includes("set datapath(v: DataCursor | object | null);"), "cursor → written as a place OR a place-bearing container");
   // The tree nouns (language §11) live on the ROOT class — Node since
   // 2026-07-28, when the schema table started recording the runtime's real
   // chain (`class View extends Node`) instead of treating View as a root.

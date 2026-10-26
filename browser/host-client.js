@@ -93,7 +93,7 @@ export async function bootHost(cfg) {
   // `hostProvided("name", …)`, there from its very first evaluation — from a
   // no-script page's `data-declare-provide='{…}'` on the host element, then
   // `boot({ provides })`, which wins. Later changes come through
-  // `el.__declareApp.provide(name, value)`.
+  // `el.__declareApp.provideHostValue(name, value)`.
   const provideAttr = host.getAttribute?.("data-declare-provide");
   let pageProvides = {};
   if (provideAttr) {
@@ -146,19 +146,19 @@ export async function bootHost(cfg) {
   // page (location.md §0.9); only the embedder's explicit initial applies.
   const seedFrag = embedded ? (cfg.location ?? "") : (fragmentOf() || cfg.location);  // the URL fragment wins; else a host override (?view=)
   if (seedFrag) {
-    // A COLD ARRIVAL is a follow (location.md §0.5): the app-scoped onFollow
+    // A COLD ARRIVAL is a follow (location.md §0.5): the app-scoped onFollowLink
     // hook applies — at t=0, declared initials, before any data loads (§0.6's
     // stated caveat) — and a redirect leaves the URL out of step with the app,
     // which the canonicalize-by-replace below squares up, minting no entry.
-    if (typeof app.follow === "function") app.follow("#" + seedFrag);
+    if (typeof app.followLink === "function") app.followLink("#" + seedFrag);
     else app.location = seedFrag;                      // an empty fragment leaves the initial alone (§3)
   }
   if (seedFrag || stepSeed !== "") settle();           // propagate to the derived constraints SYNCHRONOUSLY,
                                                        // before the first paint — the deep link's view, no home→target flash
   await fontsReady(app);
   mountApp(app, host, new Backend());
-  if (cfg.pageWeight != null) app.pageWeight = cfg.pageWeight;
-  if (cfg.sourceLines != null) app.sourceLines = cfg.sourceLines;
+  if (cfg.pageWeight != null) app.$pageWeight = cfg.pageWeight;
+  if (cfg.sourceLines != null) app.$sourceLines = cfg.sourceLines;
 
   const seeds = cfg.seeds ?? {};
   app.demoSources = seeds;                 // host→Declare: seeds every editor by demo name (+ __page__)
@@ -226,7 +226,7 @@ export async function bootHost(cfg) {
     (loc === locationInitial ? "" : "#" + loc);
   // Square the ENTRY to the app BY REPLACE — no entry minted. Covers: the
   // default-valued deep link (`#home` → clean URL, the old rule), a cold
-  // arrival the onFollow hook redirected or vetoed, and every history
+  // arrival the onFollowLink hook redirected or vetoed, and every history
   // traversal (below). Also consumes a pending replace verb: the entry now
   // agrees with the app, so there is nothing left for the mirror to do.
   const syncByReplace = () => {
@@ -235,7 +235,7 @@ export async function bootHost(cfg) {
       history.replaceState(entryState(app.waypoint, entryId), "", url);
     mirrored = app.location;
     mirroredW = app.waypoint;
-    if (app.pendingHistoryVerb !== undefined) app.pendingHistoryVerb = "push";
+    if (app.$pendingHistoryVerb !== undefined) app.$pendingHistoryVerb = "push";
   };
   syncByReplace();
   // WHERE THE USER WAS, per entry (runtime scroll-places has the division of
@@ -283,14 +283,14 @@ export async function bootHost(cfg) {
     // A TRAVERSAL arrival restores the PAIR: the step first (written directly —
     // a waypoint has no door to guard, since it can never arrive from outside
     // the app; every restored value is one this app wrote earlier), then the
-    // address through follow (location.md §0.5.6): the onFollow hook applies,
+    // address through follow (location.md §0.5.6): the onFollowLink hook applies,
     // and whatever it decides — pass, redirect, veto — the result is squared
     // to THIS entry by replace. A traversal never pushes, so a redirect rule
     // can never trap Back in a loop.
     const w = typeof e.state?.declare?.w === "string" ? e.state.declare.w : "";
     if (app.waypoint !== w) app.waypoint = w;
     const ref = fragmentOf() || locationInitial;       // an empty fragment restores the initial (§3)
-    if (typeof app.follow === "function") app.follow("#" + ref);
+    if (typeof app.followLink === "function") app.followLink("#" + ref);
     else app.location = ref;
     syncByReplace();
     departing = null;
@@ -346,8 +346,8 @@ export async function bootHost(cfg) {
       // same-place follow — is consumed by that follow's own syncByReplace or
       // simply sits until the next mirror; the per-frame disarm this replaced
       // closed that window a frame sooner, at the cost of running forever.)
-      const verb = app.pendingHistoryVerb === "replace" ? "replace" : "push";
-      if (app.pendingHistoryVerb !== undefined) app.pendingHistoryVerb = "push";
+      const verb = app.$pendingHistoryVerb === "replace" ? "replace" : "push";
+      if (app.$pendingHistoryVerb !== undefined) app.$pendingHistoryVerb = "push";
       guardStep();
       dropScrollPlaces(app);                            // the app moved on: no late landing
       if (verb === "replace") history.replaceState(entryState(app.waypoint, entryId), "", urlFor(app.location));

@@ -12,7 +12,7 @@ style Warm [ textColor = #CC3333, fontWeight = bold ]
 class Heading extends Text [ fontSize = 18, fontWeight = bold, textColor = { provided("theme").text } ]
 
 App [ width = 380, height = 240, textStyles = { { Warm } },
-    theme = { app.dark ? BrandDark : Brand },          // app.dark follows the OS
+    theme = { app.systemDark ? BrandDark : Brand },          // app.systemDark follows the OS
     fill = { provided("theme").surface },
     fontFamily = { ["-apple-system", "Helvetica Neue", app.inter, "sans-serif"] },
     inter: Font [ FontFace [ src = "fonts/inter.woff2", weight = range(100, 900) ] ],
@@ -33,7 +33,7 @@ App [ width = 380, height = 240, textStyles = { { Warm } },
 - With library controls, start from a preset (`SanFrancisco`, `Cupertino`,
   `MountainView`, `Redmond`, each with a `…Dark`) and change what you need:
   `{ { ...provided("theme"), accent: 0xCC3333 } }`.
-- Dark mode is opt-in: `theme = { app.dark ? BrandDark : Brand }` follows the OS.
+- Dark mode is opt-in: `theme = { app.systemDark ? BrandDark : Brand }` follows the OS.
 - A font is an object (`Font [ FontFace [ src ] ]`); `fontFamily` is a list tried in order,
   written in `{ }` when it holds a font. Put the platform face first: a web font loads
   only when text reaches it.
@@ -48,7 +48,7 @@ App [ width = 380, height = 240, textStyles = { { Warm } },
 - Wrapped text as wide as its longest line (a caption, a label in a box):
   `width = { Math.ceil(measureText(words, providedTextStyle(), 320).width) }`.
 
-**Look up** `theme` (and the *Theme tokens* page), `provided`, `App.dark`, `Font`,
+**Look up** `theme` (and the *Theme tokens* page), `provided`, `App.systemDark`, `Font`,
 `FontFace`, `Text.fontFamily`, `Markdown`, `HTMLText`, `RichText.textStyles`,
 `measureText`, `providedTextStyle`.
 

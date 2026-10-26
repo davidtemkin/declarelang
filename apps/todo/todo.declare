@@ -603,7 +603,7 @@ App [ appName = "To-do", minWidth = 320,
     // ── appearance: follow the system until the person picks one
 
     themeMode: "auto" | "light" | "dark" = "auto",
-    isDark: boolean = { app.themeMode == "auto" ? app.dark : app.themeMode == "dark" },
+    isDark: boolean = { app.themeMode == "auto" ? app.systemDark : app.themeMode == "dark" },
     theme = { app.isDark ? ({ ...SanFranciscoDark, ...PaperDark }) : ({ ...SanFrancisco, ...PaperLight }) },
 
     // ── sizes. `app.width` follows the window, and these follow it.

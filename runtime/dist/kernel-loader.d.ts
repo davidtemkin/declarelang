@@ -162,7 +162,7 @@ export interface Kernel {
     layoutAdd?(axis: number, words: ArrayLike<number>): number;
 }
 /** dk_view_layout, field order (declare_kernel.h). */
-export declare const VIEW_LAYOUT_FIELDS: readonly ["x", "y", "width", "height", "visible", "scale", "scaleX", "scaleY", "rotation", "skewX", "skewY", "pivotX", "pivotY", "scrollX", "scrollY", "ignoreScroll", "scrollsOn", "rotateX", "rotateY", "translateZ", "visOn", "visScale", "visX", "visY", "visW", "visH", "visMode", "ignoreClip"];
+export declare const VIEW_LAYOUT_FIELDS: readonly ["x", "y", "width", "height", "visible", "scale", "scaleX", "scaleY", "rotation", "skewX", "skewY", "pivotX", "pivotY", "scrollX", "scrollY", "ignoreScroll", "$scrollsOn", "rotateX", "rotateY", "translateZ", "$visOn", "$visScale", "$visX", "$visY", "$visW", "$visH", "$visMode", "ignoreClip"];
 /** An empty image: no compiled elements — everything is added at runtime.
  *  (Phase B's compiler output replaces this with the program's tables.) */
 export declare function emptyImage(): Uint8Array;

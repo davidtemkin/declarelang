@@ -1,4 +1,4 @@
-/** The two-way **edit session** — the reusable core an Editor class owns
+/** The two-way **edit session** — the reusable core an EditControl class owns
  *  (language §9, the leaf-input exception). `TextInput` is the first editor; a
  *  `Picker` or a `DatePopup` reuses the same functions, differing only in how a
  *  user gesture produces a new draft.
@@ -219,7 +219,7 @@ export function revertDraft(view, name) {
  *  / `valid` / `dirty`) and the `commit()` / `revert()` verbs; a subclass only
  *  provides the editing UI and names its **draft slot** (`TextInput` → `text`,
  *  a `Picker` → `value`). Custom controls become editors by extending it. */
-export class Editor extends View {
+export class EditControl extends View {
     /** The field's element holds what is typed, the selection and focus. */
     $eagerSurface() { return true; }
     /** @api Commit the current draft into the bound dataset field, if it
@@ -237,7 +237,7 @@ export class Editor extends View {
         judgeDraft(this, this.$draftSlot());
     }
 }
-defineAttributes(Editor, {
+defineAttributes(EditControl, {
     commitOn: { def: "input" },
     judgeOn: { def: "edit" },
     error: { def: "" },

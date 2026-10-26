@@ -84,7 +84,7 @@ function schemaSpine() {
  *  that must not confuse them is not forced to.
  *
  *  Bases must precede subclasses for the chain walk, so classes are emitted in
- *  dependency order — `Pane extends Control` needs Control's schema built. A
+ *  dependency order — `AccordionPane extends Control` needs Control's schema built. A
  *  class whose base is neither a built-in nor a library class (impossible today)
  *  is skipped rather than failing the assembly. */
 function librarySchemaSpine() {
@@ -147,7 +147,7 @@ function typeSpine() {
  *  the scaffold's PRELUDE declares into each program's check block: `Draw` and
  *  its gradient, the event payloads a handler receives (`PointerEvent`,
  *  `KeyEvent`, …), the value types (`Color`, `Length`, `Fill`, `Stroke`,
- *  `Shadow`, `Gradient`, `Theme`, `Cursor`), and the constructors (`stroke()`,
+ *  `Shadow`, `Gradient`, `Theme`, `DataCursor`), and the constructors (`stroke()`,
  *  `shadow()`, `gradient()`, the motion curves, the timers).
  *
  *  These are typechecked for every program and were in the reference NOWHERE —
@@ -326,7 +326,7 @@ function enumVocabularies() {
     const t = declaredType(n);
     if (t && t.kind === "enum" && !(n in vocab)) vocab[n] = [...t.tokens];
   }
-  delete vocab.Unsupported; // internal (strip-mode enum) — not author surface
+  delete vocab.UnsupportedTags; // internal (strip-mode enum) — not author surface
   return vocab;
 }
 
@@ -589,7 +589,7 @@ const VOCAB_NOTE = {
   Color: "a packed `0xRRGGBB` number in a `{ }` body — `null` means *no paint*, not black. **Alpha, by context**: a constant carries it in the literal — `0xRRGGBBAA` (or `#RRGGBBAA`), in bare slots and `{ }` bodies alike; a computed alpha calls `colorWithAlpha(rgb, a)` in a body; inside `draw()` the canvas takes its own CSS string (`\"rgba(51,102,153,0.5)\"`). `rgba(…)` is never a slot spelling",
   Length: "a number of pixels, or a `Percent` from a bare `50%` literal",
   Percent: "what a bare `50%` literal becomes; you never write the type",
-  Shape: "a clip shape",
+  ClipPath: "a clip shape",
   Gradient: "colour stops along a line (`gradient(…)`), out from a centre (`radialGradient(…)`) or around one (`conicGradient(…)`)",
   Fill: "what paints a box: a `Color` or a `Gradient`",
   Stroke: "a width and a colour — build it with `stroke(w, c)`. A border *is* a stroke",
@@ -597,7 +597,7 @@ const VOCAB_NOTE = {
   Theme: "a design-token record; see **Theme tokens** for the vocabulary classes read",
   tint: "`tint(color, dark)` — an active tone derived from an accent (22% over the surface), for a theme that overrides the accent.",
   Inspect: "The running program's introspection surface, behind the same door as `__declare.explain` — dev tooling, stubbed in a production build unless you pass `declarec --debug`.",
-  Cursor: "a datapath's resolved position — `.data` and `.path`",
+  DataCursor: "a datapath's resolved position — `.data` and `.path`",
   MotionCurve: "an easing curve for an `Animator`",
   PointerEvent: "a pointer went down, moved, or a view was clicked",
   PointerUpEvent: "a pointer release — carries **`canceled`**, true when the browser reclaimed the gesture",
@@ -615,8 +615,8 @@ const VOCAB_NOTE = {
   shadow: "build a `Shadow` — the box's own, glyphs' (`textShadow`), or in a `filter` list the painted alpha's",
   stop: "one colour stop, for `gradient(…)`",
   frost: "the material pair `[blur(radius), saturate(saturation)]` — what lies beneath the view, blurred under its own fill",
-  Backdrop: "what a `backdrop` slot holds — a filter list, sampled beneath the view; `frost(…)` builds the common pair",
-  Filter: "one function of the filter vocabulary, for `filter` (the view's own paint) and `backdrop` (what lies beneath)",
+  FilterList: "what a `backdrop` slot holds — a filter list, sampled beneath the view; `frost(…)` builds the common pair",
+  ImageFilter: "one function of the filter vocabulary, for `filter` (the view's own paint) and `backdrop` (what lies beneath)",
   blur: "a Gaussian blur, radius in view units",
   brightness: "multiply the light: `brightness(0.8)` darkens, `1` is unchanged",
   contrast: "scale about mid-grey: `contrast(1.5)` deepens, `1` is unchanged",
@@ -763,16 +763,16 @@ const sharedTypesDoc = (spine) => {
 // type exactly once, so a new enum or a new PRELUDE declaration fails the
 // assembly until it is placed.
 const TYPE_GROUPS = [
-  ["Enums", ["AccessibilityLive", "AccessibilityRole", "AccessibilitySort", "Axis", "Backface", "Blend", "Claim", "Credentials", "CrossAlign", "Direction", "Edges", "EditorJudgeOn",
-             "FitAlign", "FocusScope", "FontLate", "FontWeight", "Justify", "Motion", "Numerals", "NumeralWidth",
-             "OutsidePress", "Process", "Purpose", "Scaling", "ScrollAnchor", "ScrollBelow", "Scrolls", "StreamStatus", "Stretch", "TextAlign", "TextTransform", "Tick"]],
-  ["Values", ["Color", "Fill", "Gradient", "Length", "Percent", "Radius", "Inset", "Shape", "Stroke", "BoxStroke", "Outline",
-              "Shadow", "Filter", "Backdrop", "Theme", "MotionCurve", "Cursor", "TextMeasure", "IslandPost", "IslandNavigation", "DelayHandle"]],
+  ["Enums", ["AccessibilityLive", "AccessibilityRole", "AccessibilitySort", "Axis", "Backface", "Blend", "ClaimAxis", "RequestCredentials", "CrossAlign", "TextDirection", "SafeAreaMode", "EditControlJudgeOn",
+             "FitAlign", "FocusScope", "FontLoadBehavior", "FontWeight", "Justify", "Motion", "Numerals", "NumeralWidth",
+             "OutsidePress", "AnimatorOrder", "InputPurpose", "ImageSmoothing", "ScrollAnchor", "ScrollBelow", "Scrolls", "StreamStatus", "MediaFit", "TextAlign", "TextTransform", "ClockTick"]],
+  ["Values", ["Color", "Fill", "Gradient", "Length", "Percent", "Radius", "Inset", "ClipPath", "Stroke", "BoxStroke", "GlyphOutline",
+              "Shadow", "ImageFilter", "FilterList", "Theme", "MotionCurve", "DataCursor", "TextMetrics", "IslandPost", "IslandNavigation", "DelayHandle"]],
   ["Text", ["TextStyle", "TextStyles", "BlockGeometry", "RichTextLayout"]],
   ["Event payloads", ["PointerEvent", "PointerUpEvent", "TouchEvent", "Touch", "WheelEvent", "PinchEvent",
                       "KeyEvent", "FocusGeometry", "TooltipEvent", "StreamMessage", "ChangeEvent", "ValueChange",
-                      "FilesOver", "FilesDrop"]],
-  ["Files", ["File", "PickOptions"]],
+                      "FilesOverEvent", "FilesDropEvent"]],
+  ["Files", ["File", "FilePickOptions"]],
   ["Drawing", ["Draw", "DrawGradient", "DrawImageSource"]],
   ["Inspection", ["TraceSettle", "TraceChange"]],
   ["Host", ["Headers", "AbortSignal", "AbortController", "RequestInit", "Response", "Blob", "FormData",
@@ -918,7 +918,7 @@ function buildTypes(spine, docsModel) {
   for (const c of docsModel.tree ?? []) if (!(c.name in index.link)) index.link[c.name] = "reference/" + c.name;
   for (const [n, toks] of Object.entries(spine.enums)) {
     index.unions[toks.join(" | ")] = "type/" + n;
-    index.unions[toks.join(" | ") + " | number"] = "type/" + n;   // a numeric enum (FontWeight, Tick)
+    index.unions[toks.join(" | ") + " | number"] = "type/" + n;   // a numeric enum (FontWeight, ClockTick)
   }
 
   return { groups, pages, order, index };
@@ -935,7 +935,7 @@ const themeTokensDoc = (spine) => {
     "spread to change a token — **an empty record is not a theme**, because the library reads",
     "specific names:", "",
     "```declare-fragment",
-    "theme = { app.dark ? SanFranciscoDark : SanFrancisco },     // on the App",
+    "theme = { app.systemDark ? SanFranciscoDark : SanFrancisco },     // on the App",
     "theme = { { ...provided(\"theme\"), accent: 0xCC3333 } }       // override one token below",
     "```", "",
     `Presets, each with a light record and a \`…Dark\` companion: ${spine.themeTokens.presets.map((p) => `[\`${p}\`](declare-docs:${p})`).join(" · ")}.`, "",

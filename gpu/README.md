@@ -177,7 +177,7 @@ Every app in apps/ now starts under ?render=gpu. What was added for them:
 
 - **Images**: env.ts's `<img>` stand-in fetches and decodes in the worker and hands the
   pixels to the engine under a handle (engine `add_image`, command 11); stretch, alignment,
-  tint and `scaling = pixelated` are drawn as the canvas renderer draws them.
+  tint and `imageSmoothing = pixelated` are drawn as the canvas renderer draws them.
 - **Scrolling** is the host's process, as on the Mac host: a wheel finds the innermost
   scroller (or `onWheel` claimant) under the point, the offset moves here, the frame shows
   it, and the runtime hears it afterwards (macScrollFacts). Scrollers clip; pinned children

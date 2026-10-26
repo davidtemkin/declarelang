@@ -302,7 +302,7 @@ export class Windowing {
     parent.$setVirtualExtent(null);
     parent.$surface?.setRowCount?.(null);
     this.ariaCount = -1;
-    for (const v of this.pool.splice(0)) { markEvicting(v); parent.removeChild(v); v.discard(); }
+    for (const v of this.pool.splice(0)) { markEvicting(v); parent.$removeChild(v); v.discard(); }
     const sorted = this.realized();
     for (const { view } of sorted) { setBound(view, "y", 0); view.$surface?.setRowIndex?.(null); }
     this.rows.clear();
@@ -333,7 +333,7 @@ export class Windowing {
     if (this.pool.length === 0) return;
     const parent = this.host.parent;
     const gone = new Set<View>(this.pool.splice(0));
-    for (const v of gone) { markEvicting(v); parent.removeChild(v); v.discard(); }
+    for (const v of gone) { markEvicting(v); parent.$removeChild(v); v.discard(); }
     this.owned = this.owned.filter((o) => !gone.has(o));
     parent.$childrenMutated();
   }
@@ -369,7 +369,7 @@ export class Windowing {
   /** The room below the last row: what follows the rows in their parent
    *  (`trailing`), then the parent's bottom padding. */
   private rowsTrail(): number {
-    return this.trailing.room + Math.max(0, ((this.host.parent as unknown as { insetY?: number }).insetY ?? 0) - this.rowsLead());
+    return this.trailing.room + Math.max(0, ((this.host.parent as unknown as { $insetY?: number }).$insetY ?? 0) - this.rowsLead());
   }
 
   /** What the parent stacks after the rows (a "loading more…" line, a footer):
@@ -669,7 +669,7 @@ export class Windowing {
       this.dropPool();
       const base = this.leading + this.dev;
       for (const r of this.rows.values()) setBound(r.view, "y", base + this.ledger.offset(r.index));
-      this.publish(Math.min(EXTENT_CAP, this.leading + this.span() + this.trailing.room + this.dev + ((parent as unknown as { insetY?: number }).insetY ?? 0)));
+      this.publish(Math.min(EXTENT_CAP, this.leading + this.span() + this.trailing.room + this.dev + ((parent as unknown as { $insetY?: number }).$insetY ?? 0)));
       return;
     }
 
@@ -752,7 +752,7 @@ export class Windowing {
     // (replicate.ts; child order is stacking only: placement is absolute)
     if (fresh.length > 0) {
       let at = host.start() + this.owned.length;
-      for (const f of fresh) { parent.insertChild(f.view, at++); this.owned.push(f.view); }
+      for (const f of fresh) { parent.$insertChild(f.view, at++); this.owned.push(f.view); }
       for (const f of fresh) {
         try { f.made.provide(); } catch (e) { reportInstanceThrow(f.view, "providing", e); }
       }
@@ -773,7 +773,7 @@ export class Windowing {
     for (const v of pointed) arriveSubtree(v);
 
     // place every mounted row, and publish the extent
-    const extent = Math.min(EXTENT_CAP, this.leading + this.span() + this.trailing.room + this.dev + ((parent as unknown as { insetY?: number }).insetY ?? 0));
+    const extent = Math.min(EXTENT_CAP, this.leading + this.span() + this.trailing.room + this.dev + ((parent as unknown as { $insetY?: number }).$insetY ?? 0));
     const range = this.bar && this.published > 0 ? this.published : extent;
     // a row kept out of reach (touched, focused) is out of sight wherever it
     // sits: it stays inside the published range, so it never stretches it,
@@ -896,7 +896,7 @@ export class Windowing {
   }
 
   private drop(v: View): void {
-    this.host.parent.removeChild(v);
+    this.host.parent.$removeChild(v);
     this.owned = this.owned.filter((o) => o !== v);
     v.discard();
   }

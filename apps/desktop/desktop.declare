@@ -591,7 +591,7 @@ class DeskWindow extends Window [ width = 560, height = 400,
         width = { parent.width + 2 * classroot.gutter }, height = { parent.height + 2 * classroot.gutter },
 
         // the halo's own clip is a ring (outer rect wound one way, inner the
-        // other — nonzero rule keeps the band): a Shape clip cuts hit-testing
+        // other — nonzero rule keeps the band): a ClipPath clip cuts hit-testing
         // along with the pixels, so everything deeper than the band is
         // transparent to the pointer whatever the stacking. The
         // inner cut sits `inset` px inside the frame — the ± resize band —
@@ -599,7 +599,7 @@ class DeskWindow extends Window [ width = 560, height = 400,
         // the diagonal exactly.
 
         clip = { this.ring(classroot.gutter, classroot.inset, classroot.bandR, this.width, this.height) },
-        ring(g: number, n: number, r: number, w: number, h: number) -> Shape {
+        ring(g: number, n: number, r: number, w: number, h: number) -> ClipPath {
             // outer rect clockwise, inner rounded rect counter-clockwise — the
             // opposed windings are what makes nonzero fill keep only the band
             const i = g + n
@@ -2913,13 +2913,13 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
 
     onPointerDown() { app.launcher.dismissAbouts() },
 
-    // Appearance follows the OS color scheme (app.dark) by default; the menu's
+    // Appearance follows the OS color scheme (app.systemDark) by default; the menu's
     // Dark / Light item locks the choice to the user's pick from that point on,
     // so later system flips do not move it.
 
     darkLocked: boolean = false,
     darkChoice: boolean = false,
-    darkMode: boolean = { this.darkLocked ? this.darkChoice : app.dark },
+    darkMode: boolean = { this.darkLocked ? this.darkChoice : app.systemDark },
 
     // ── The documentation model: one fetch of the docs app's own spine. The
     // Files browser's Guide and Reference folders, and the synthesized reference

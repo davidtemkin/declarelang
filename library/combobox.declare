@@ -152,7 +152,7 @@ class Combobox extends Control [
     // what the choice is — `country`, `region` — so autofill and a phone's
     // keyboard treat the entry as that field; the entry carries it
 
-    purpose: Purpose = text,
+    purpose: InputPurpose = text,
 
     // the query — what the user has typed since last pick; `filtering` is
     // false until they type, so a bare disclosure shows the whole list

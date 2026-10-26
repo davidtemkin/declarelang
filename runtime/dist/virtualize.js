@@ -286,7 +286,7 @@ export class Windowing {
         this.ariaCount = -1;
         for (const v of this.pool.splice(0)) {
             markEvicting(v);
-            parent.removeChild(v);
+            parent.$removeChild(v);
             v.discard();
         }
         const sorted = this.realized();
@@ -324,7 +324,7 @@ export class Windowing {
         const gone = new Set(this.pool.splice(0));
         for (const v of gone) {
             markEvicting(v);
-            parent.removeChild(v);
+            parent.$removeChild(v);
             v.discard();
         }
         this.owned = this.owned.filter((o) => !gone.has(o));
@@ -367,7 +367,7 @@ export class Windowing {
     /** The room below the last row: what follows the rows in their parent
      *  (`trailing`), then the parent's bottom padding. */
     rowsTrail() {
-        return this.trailing.room + Math.max(0, (this.host.parent.insetY ?? 0) - this.rowsLead());
+        return this.trailing.room + Math.max(0, (this.host.parent.$insetY ?? 0) - this.rowsLead());
     }
     /** What the parent stacks after the rows (a "loading more…" line, a footer):
      *  the stack's pass stands down while windowing places the block, so these
@@ -725,7 +725,7 @@ export class Windowing {
             const base = this.leading + this.dev;
             for (const r of this.rows.values())
                 setBound(r.view, "y", base + this.ledger.offset(r.index));
-            this.publish(Math.min(EXTENT_CAP, this.leading + this.span() + this.trailing.room + this.dev + (parent.insetY ?? 0)));
+            this.publish(Math.min(EXTENT_CAP, this.leading + this.span() + this.trailing.room + this.dev + (parent.$insetY ?? 0)));
             return;
         }
         // measure: each mounted row's extent, a correction above the reader absorbed
@@ -825,7 +825,7 @@ export class Windowing {
         if (fresh.length > 0) {
             let at = host.start() + this.owned.length;
             for (const f of fresh) {
-                parent.insertChild(f.view, at++);
+                parent.$insertChild(f.view, at++);
                 this.owned.push(f.view);
             }
             for (const f of fresh) {
@@ -859,7 +859,7 @@ export class Windowing {
         for (const v of pointed)
             arriveSubtree(v);
         // place every mounted row, and publish the extent
-        const extent = Math.min(EXTENT_CAP, this.leading + this.span() + this.trailing.room + this.dev + (parent.insetY ?? 0));
+        const extent = Math.min(EXTENT_CAP, this.leading + this.span() + this.trailing.room + this.dev + (parent.$insetY ?? 0));
         const range = this.bar && this.published > 0 ? this.published : extent;
         // a row kept out of reach (touched, focused) is out of sight wherever it
         // sits: it stays inside the published range, so it never stretches it,
@@ -1024,7 +1024,7 @@ export class Windowing {
         return v;
     }
     drop(v) {
-        this.host.parent.removeChild(v);
+        this.host.parent.$removeChild(v);
         this.owned = this.owned.filter((o) => o !== v);
         v.discard();
     }

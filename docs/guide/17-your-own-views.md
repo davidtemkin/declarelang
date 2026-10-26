@@ -140,11 +140,11 @@ its children read them.
 A class is often a frame — a sheet with a title and padding, a card with a header and a row
 of actions — whose content each subclass or use site supplies. The children
 a subclass writes are appended to the instance, beside the base's own; the frame says where
-they belong instead with [`defaultplacement`](declare-docs:View.defaultplacement), naming one of
+they belong instead with [`defaultPlacement`](declare-docs:View.defaultPlacement), naming one of
 its own children:
 
 ```declare-fragment
-class Sheet [ width = 300, fill = white, cornerRadius = 16, defaultplacement = body,
+class Sheet [ width = 300, fill = white, cornerRadius = 16, defaultPlacement = body,
     title: Text [ x = 16, y = 12, fontSize = 18, text = { classroot.heading } ],
     heading: string = "",
     body: View [ y = 44, width = 100%, padding = [0, 16, 16, 16],
@@ -160,7 +160,7 @@ class DetailSheet extends Sheet [ heading = "Order",
 children written where a `DetailSheet [ … ]` is used. The base's own children (`title`,
 `body`) never move. A placed child's `parent` is the child it went into (so `parent.width` is
 the padded width); it is still reachable by name from the class that wrote it
-(`classroot.figs`). A subclass may name its own `defaultplacement` for the classes and use
+(`classroot.figs`). A subclass may name its own `defaultPlacement` for the classes and use
 sites after it.
 
 ## Delivering a control's value

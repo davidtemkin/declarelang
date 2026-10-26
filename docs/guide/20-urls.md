@@ -97,7 +97,7 @@ and none of the session. A **reload** is the same arrival: the URL is all there
 is to rebuild from, so the address comes back and the step starts at its declared
 initial, however far into a round the user had got. A
 **traversal** (Back/Forward) restores the pair — the address passes through
-`onFollow` exactly as any arrival does; the step is written directly, and
+`onFollowLink` exactly as any arrival does; the step is written directly, and
 deliberately has no hook: a waypoint can never arrive from outside your app, so
 every restored value is one your own code wrote earlier. Your parser is the gate —
 an unrecognized step degrades wherever your parsing sends it, same as an
@@ -142,11 +142,11 @@ state is never assigned.** Links write `location`; everything else derives.
 Sometimes a link alone is not enough and you want code to run around an arrival.
 Three hooks cover it, from narrowest to widest. `onClick` beside a `link` runs first
 — close the menu, then go. A handler may compute its destination and call
-[`app.follow(ref)`](declare-docs:App.method.follow) itself. And one app-scoped hook sees every arrival — a click, a
+[`app.followLink(ref)`](declare-docs:App.method.followLink) itself. And one app-scoped hook sees every arrival — a click, a
 prose link, a pasted URL, Back and Forward alike:
 
 ```declare-fragment
-onFollow(ref: string) -> string {
+onFollowLink(ref: string) -> string {
     if (ref == "#pricing") return "#plans"   // moved pages
     return ref                                // "" vetoes
     }
@@ -157,7 +157,7 @@ the destination, where a raw URL cannot walk around it: two views sharing one `s
 name, split on `visible = { app.authed }`, and the login screen renders with the
 location preserved — finishing auth lands the user where they aimed.
 
-`onFollow` meets the arrival at the door: the reference is still a string, and
+`onFollowLink` meets the arrival at the door: the reference is still a string, and
 nothing has moved yet. There is also a hook for the other end. **`onArrive`**
 delivers the same arrival *landed*: its argument is the view the reference names —
 the destination view, or the anchored view inside it — handed to your handler once
@@ -200,7 +200,7 @@ do five things in order:
 1. **Click a plate.** The URL becomes `#b/roseate-spoonbill`: an address, and one
    you could paste to anybody.
 2. **Press Back.** The plate flies home to its slot on the shelf. (The return is
-   armed inside `onFollow` — Back runs no handler, and the hook is the one door
+   armed inside `onFollowLink` — Back runs no handler, and the hook is the one door
    every arrival comes through, which is what makes a motion answerable to it.)
 3. **Open the quiz and answer a few questions.** Watch the address bar: it says
    `#quiz` and then never moves again, however long you play.

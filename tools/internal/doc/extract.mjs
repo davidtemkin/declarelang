@@ -42,7 +42,7 @@ const DOC_SCHEMAS = { ...SCHEMAS, RichText: RichTextSchema };
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const TARGETS = [                                        // the documented class surface
   "View", "App", "Text", "Font", "FontFace", "Image", "Media", "Video", "Audio", "RichText", "Markdown", "HTMLText", "DOMIsland", "TextInput",
-  "Layout", "TweenLayout", "Editor",
+  "Layout", "TweenLayout", "EditControl",
   "Dataset", "DataSource",
   "Animator", "AnimatorGroup", "Spring", "Time", "Keys", "Focus", "Tooltips",
   "Stream", "EventStream", "Socket",
@@ -190,7 +190,7 @@ function renderType(t) {
     case "boolean": return "boolean";
     case "string": return "string";
     case "color": return "Color";
-    case "shape": return "Shape";
+    case "shape": return "ClipPath";
     // an authored-style union's NAME is its quoted member list — the spelling
     // the ruling requires at every use site; a named vocabulary lists tokens
     case "enum": return t.name.startsWith('"') ? t.name : t.tokens.join(" | ") + (t.numeric ? " | number" : "");
@@ -360,7 +360,7 @@ const METHODS = readMethods([
   "runtime/src/streams.ts", "runtime/src/media.ts", "runtime/src/audio.ts",
 ]);
 // A class is ABSTRACT when no registry can instantiate it by name: Layout,
-// TweenLayout, RichText and Editor are bases you extend, never tags you write.
+// TweenLayout, RichText and EditControl are bases you extend, never tags you write.
 // Derived from the registries rather than a hand list, so it cannot drift.
 const INSTANTIABLE = new Set([TAGS, LAYOUTS, DATA, ANIMATORS, SOURCES, ANIMATOR_GROUPS, STATES]
   .flatMap((r) => Object.keys(r)));
@@ -422,8 +422,8 @@ for (const [cls, lines] of Object.entries(LANGUAGE_STATICS)) {
 // answers. The Draw interface itself is on the Types page.
 (CALLABLE.View ??= new Map()).set("draw", { signature: "draw(d: Draw): void", isStatic: false });
 // `validate(v)` likewise: a reserved method an editor may define, called by its edit
-// session (editor.ts runValidate) — so `declare-help Editor.validate` answers.
-(CALLABLE.Editor ??= new Map()).set("validate", { signature: "validate(v): string | boolean", isStatic: false });
+// session (editor.ts runValidate) — so `declare-help EditControl.validate` answers.
+(CALLABLE.EditControl ??= new Map()).set("validate", { signature: "validate(v): string | boolean", isStatic: false });
 
 const RUNTIME_NAME = {};                                // doc id → runtime class name (no mismatches since the DOMIsland rename)
 
@@ -894,15 +894,15 @@ const CLASS_GROUPS = [
   ["Text",          ["Text", "TextLabel", "Font", "FontFace", "RichText", "Markdown", "HTMLText"]],
   ["Media",         ["Image", "Media", "Video", "Audio"]],
   ["Layout",        ["Layout", "SimpleLayout", "WrappingLayout", "ResponsiveLayout", "TweenLayout", "Spacer"]],
-  ["Controls",      ["Control", "Button", "Checkbox", "Switch", "Slider", "RadioGroup", "Radio", "Field", "Editor", "TextInput", "SearchField", "Combobox", "Segmented", "SegmentedItem", "TabBar", "SegmentedTab", "Stepper", "DatePicker", "MonthCalendar", "CalendarDay", "CalendarArrow", "Toolbar", "ToolButton", "ToolbarDivider", "Splitter", "ProgressBar", "FocusRing", "AppearanceSwitch", "TextSizeSwitch"]],
+  ["Controls",      ["Control", "Button", "Checkbox", "Switch", "Slider", "RadioGroup", "Radio", "Field", "EditControl", "TextInput", "SearchField", "Combobox", "Segmented", "SegmentedItem", "TabBar", "TabBarTab", "Stepper", "DatePicker", "MonthCalendar", "MonthCalendarDay", "MonthCalendarArrow", "Toolbar", "ToolButton", "ToolbarDivider", "Splitter", "ProgressBar", "FocusRing", "AppearanceSwitch", "TextSizeSwitch"]],
   // "Structure", not "Chrome": the word is the browser the gates drive, and the
   // reference is read by agents as often as by people, so the collision was one
   // we would have been adding on purpose. It is also the word the language file's
   // own map already uses for these — "controls, structure, layouts, embedding".
-  ["Structure",     ["Gauge", "Card", "Divider", "MenuBar", "Accordion", "Pane", "Carousel", "CarouselLayout", "Disclosure", "Tree", "TreeRow", "Breadcrumb", "Crumb", "CrumbLink", "CrumbHere", "Window", "WindowClose"]],
+  ["Structure",     ["Gauge", "Card", "Divider", "MenuBar", "Accordion", "AccordionPane", "Carousel", "CarouselLayout", "Disclosure", "Tree", "TreeRow", "Breadcrumb", "BreadcrumbStep", "BreadcrumbLink", "BreadcrumbCurrent", "Window", "WindowClose"]],
   // what paints above everything in its context (planes.md §3.3): one base, the
   // objects every platform converges on, and the layers they paint in
-  ["Overlays",      ["Floating", "Menu", "ContextMenu", "Popover", "Dialog", "Sheet", "Toast", "Tooltip", "OverlayStrata"]],
+  ["Overlays",      ["Floating", "Menu", "ContextMenu", "Popover", "Dialog", "Sheet", "Toast", "TooltipLayer", "OverlayStrata"]],
   // Data holds what STORES or FETCHES data and paints nothing. The tables are
   // views that display it — a different kind of thing, filed with their kind.
   ["Data",          ["Dataset", "DataSource", "Stream", "EventStream", "Socket"]],

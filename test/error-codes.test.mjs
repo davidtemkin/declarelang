@@ -71,7 +71,7 @@ await test("a [Declare] diagnostic IS coded (the contained-report path)", () => 
   assert.ok(out.includes("${phase}") && out.includes("${e}"), "values kept");
   assert.ok(!out.includes("replicated"), "prose gone");
   // the warning level is the same report (it shipped as prose until 2026-09-15)
-  const warn = stripSource('console.warn(`[Declare] app.post("${topic}"): this app is not linked to a host island — message dropped`);');
+  const warn = stripSource('console.warn(`[Declare] app.postToHost("${topic}"): this app is not linked to a host island — message dropped`);');
   assert.equal(warn.entries.length, 1, "console.warn coded");
   assert.ok(!warn.src.includes("island"), "prose gone");
 });

@@ -469,7 +469,7 @@ function viewTree(K, seed, n) {
     set("scale", rnd(3) === 0 ? 0.5 + rnd(20) / 10 : 1); set("scaleX", 1); set("scaleY", rnd(6) === 0 ? 0.7 : 1);
     set("rotation", rnd(4) === 0 ? rnd(90) - 45 : 0); set("skewX", rnd(6) === 0 ? rnd(30) - 15 : 0); set("skewY", 0);
     set("pivotX", rnd(80)); set("pivotY", rnd(60));
-    set("scrollsOn", rnd(3) === 0 ? 1 : 0); set("scrollX", rnd(50)); set("scrollY", rnd(120)); set("ignoreScroll", rnd(8) === 0 ? 1 : 0);
+    set("$scrollsOn", rnd(3) === 0 ? 1 : 0); set("scrollX", rnd(50)); set("scrollY", rnd(120)); set("ignoreScroll", rnd(8) === 0 ? 1 : 0);
     set("rotateX", 0); set("rotateY", 0); set("translateZ", 0); set("ignoreClip", 0);
     const parent = i === 0 ? -1 : views[rnd(i)];
     views.push(K.viewAdd(b, parent));

@@ -129,7 +129,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
     pane: string = "general",
     lastBar: string = "(none yet)",
     themeMode: "auto" | "light" | "dark" = "auto",          // orthogonal to the styling
-    darkUI: boolean = { themeMode == "dark" || (themeMode == "auto" && app.dark) },
+    darkUI: boolean = { themeMode == "dark" || (themeMode == "auto" && app.systemDark) },
     animateFocus: boolean = true,
     accentPick: number = 0,                      // 0 = the mode's own accent; a pick overrides it everywhere
 
@@ -608,17 +608,17 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
 
                     Specimen [ label = "Accordion",
                         acc: Accordion [ width = 100%,
-                            Pane [ label = "First", initial = true,
+                            AccordionPane [ label = "First", initial = true,
                                 View [ width = 100%, height = 64, fill = { provided("theme").background },
                                     Button [ x = 12, y = center, width = 110, label = "In pane 1" ]
                                     ]
                                 ],
-                            Pane [ label = "Second",
+                            AccordionPane [ label = "Second",
                                 View [ width = 100%, height = 64, fill = { provided("theme").background },
                                     Button [ x = 12, y = center, width = 110, label = "In pane 2" ]
                                     ]
                                 ],
-                            Pane [ label = "Third",
+                            AccordionPane [ label = "Third",
                                 View [ width = 100%, height = 56, fill = { provided("theme").background },
                                     Text [ x = 12, y = 10, textColor = { provided("theme").textMuted }, text = "A taller third pane." ]
                                     ]

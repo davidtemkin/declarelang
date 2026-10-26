@@ -257,7 +257,7 @@ function navHref(v) {
     const live = v.link;
     if (typeof live === "string" && live !== "")
         return live;
-    const link = v._navLink;
+    const link = v.$navLink;
     if (link === undefined)
         return null;
     if ("href" in link)

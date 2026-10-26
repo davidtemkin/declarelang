@@ -7,7 +7,7 @@ goes; press again and it slides shut. `Accordion` is a stack of these that keeps
 a `Disclosure` stands alone, and any number may be open.
 
 The content is the disclosure's ordinary children, present through the whole slide and
-carried by the disclosure's clip, exactly as an `Accordion`'s `Pane` carries its own:
+carried by the disclosure's clip, exactly as an `Accordion`'s `AccordionPane` carries its own:
 
 ```declare
 App [ width = 320, height = 200,
@@ -68,7 +68,7 @@ class Disclosure [ clip = true,
     // where the content goes: the body, present only while open or sliding,
     // so Tab and a screen reader reach it only when it can be seen
 
-    defaultplacement = body,
+    defaultPlacement = body,
 
     accessibilityRole = group,
     accessibilityLabel = { label },

@@ -18,7 +18,7 @@ import { provideTransport, DataSource } from "../runtime/dist/data.js";
 import { SCHEMAS, RichTextSchema } from "../runtime/dist/schema.js";
 import * as reg from "../runtime/dist/registry.js";
 import { Media } from "../runtime/dist/media.js";
-import { Editor } from "../runtime/dist/editor.js";
+import { EditControl } from "../runtime/dist/editor.js";
 import { Stream } from "../runtime/dist/streams.js";
 import { RichText } from "../runtime/dist/rich-text.js";
 import { RUNTIME_METHODS, RUNTIME_FIELDS, runtimeMethodsOf, runtimeFieldsOf } from "../runtime/dist/runtime-methods.js";
@@ -216,7 +216,7 @@ App [ width = 1, height = 1, s: Spring [ attribute = x, to = 1 ], onInit() { thi
 
 // ── The table is pinned against the runtime classes ───────────────────────────
 await (async () => {
-  const classes = { ...reg.TAGS, ...reg.LAYOUT_BASES, ...reg.DATA, ...reg.ANIMATORS, ...reg.ANIMATOR_GROUPS, ...reg.SOURCES, ...reg.STATES, Media, Editor, Stream, RichText };
+  const classes = { ...reg.TAGS, ...reg.LAYOUT_BASES, ...reg.DATA, ...reg.ANIMATORS, ...reg.ANIMATOR_GROUPS, ...reg.SOURCES, ...reg.STATES, Media, EditControl, Stream, RichText };
   const schemas = { ...SCHEMAS, RichText: RichTextSchema };
   // Every function on the prototype chain below Object.prototype, minus
   // `constructor` and `$`-names — the runtime's own rule (instantiate.ts
@@ -283,7 +283,7 @@ await (async () => {
     // uses them, on View; a non-view node inherits them.
     const documented = (cls, name) => {
       for (let s = schemas[cls]; s; s = s.base) if (model.reference[`${s.name}.method.${name}`]?.api === true) return true;
-      return model.reference[`View.method.${name}`]?.api === true && ["insertChild", "removeChild", "discard"].includes(name);
+      return model.reference[`View.method.${name}`]?.api === true && ["discard"].includes(name);
     };
     let checked = 0;
     for (const s of Object.keys(schemas)) {

@@ -380,7 +380,7 @@ export class FocusService {
   }
 
   private move(dir: 1 | -1): void {
-    const start = this.current === null && this.startPoint !== null && spotView(this.startPoint).root !== null ? this.startPoint : null;
+    const start = this.current === null && this.startPoint !== null && spotView(this.startPoint).$root !== null ? this.startPoint : null;
     const cyc = this.current !== null ? cycleOf(this.current) : start !== null ? cycleOf(spotView(start)) : this.rootView;
     if (cyc === null) return;
     const seq = sequence(cyc);
@@ -600,7 +600,7 @@ function overflows(n: View): boolean {
  *  and named by each ancestor's own `tabOrder()` where one gates its members.
  *  Read inside a constraint, so each of those is tracked. */
 function reachable(v: View): boolean {
-  if (!canFocus(v) || v.root === null) return false;
+  if (!canFocus(v) || v.$root === null) return false;
   for (let c: View = v, p = parentAcross(v); p !== null; c = p, p = parentAcross(p)) {
     if (!p.visible) return false;
     if (c.parent !== p) continue;                // crossed an island: its tenant is its whole content
@@ -973,8 +973,8 @@ export function deliverKeys(keys: KeysService, focus: FocusService): () => void 
       // (coexistence rule: handler, then follow — same order as a click).
       fireEvent(f, "keyDown", e);
       if (e.code === "Enter" && f.link !== "") {
-        const app = f.root as unknown as { follow?: (ref: string, replace?: boolean) => void };
-        app?.follow?.(f.link, f.replace);
+        const app = f.$root as unknown as { followLink?: (ref: string, replace?: boolean) => void };
+        app?.followLink?.(f.link, f.replace);
       }
       // Esc closes a member scope entered inside a stop — after the focused
       // view has had it (an editor cancels its edit first)

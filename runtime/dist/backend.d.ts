@@ -4,7 +4,7 @@ import type { TextStyle, FontWeight } from "./measure.js";
 import type { DisplayList } from "./draw.js";
 /** The reference schemes a link may carry (location.md §0.4): the app's own
  *  fragment, the web's, mail, or a relative path — never javascript:/data:.
- *  Shared by BOTH enforcement points: App.follow (the operation), and the
+ *  Shared by BOTH enforcement points: App.followLink (the operation), and the
  *  realization seam (a disallowed scheme never becomes an href, so the native
  *  paths that bypass follow — copy-link, middle-click — stay shut too). */
 export declare function allowedRef(ref: string): boolean;

@@ -12,7 +12,7 @@
 //     does NOT — a coordinate is restored by traversal, never by arrival;
 //   - a fresh page at the same URL starts at the declared initial (a URL
 //     carries no waypoint — the stranger test, enforced by construction);
-//   - `follow(ref, true)` (the replace verb) overwrites the pair, no entry;
+//   - `followLink(ref, true)` (the replace verb) overwrites the pair, no entry;
 //   - a traversal lands where the user left the entry — the page's scroll and
 //     every scrolling pane's, as they were when the app started to leave, so a
 //     navigation that also moves to the top cannot overwrite them — and a
@@ -131,7 +131,7 @@ try {
   });
 
   await test("the replace verb overwrites the pair without minting an entry", async () => {
-    await page.evaluate(() => { window.__app.waypoint = "turn3"; window.__app.follow("#results/2", true); });
+    await page.evaluate(() => { window.__app.waypoint = "turn3"; window.__app.followLink("#results/2", true); });
     await tick();
     let s = await state();
     assert.equal(s.hash, "#results/2");

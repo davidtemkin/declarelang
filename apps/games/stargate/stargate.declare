@@ -166,7 +166,7 @@ App [ appName = "Stargate", fill = black,
     // frame ago — and the top of the screen goes over it. Every pixel of it shows as a solid
     // block, as on the monitor.
 
-    screen: View [ clip = true, x = center, y = center, width = 292, height = 240, scale = { app.unit }, scaling = pixelated,
+    screen: View [ clip = true, x = center, y = center, width = 292, height = 240, scale = { app.unit }, imageSmoothing = pixelated,
         beam: number = 128,             // the row where the halves meet
         picture: View [ x = -6, y = -7, width = 304, height = 256,
             whole: Playfield [ exists = { !app.monitor.split }, datapath = { app.game.value }, explosions = { app.game } ],

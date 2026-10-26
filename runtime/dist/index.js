@@ -63,7 +63,7 @@ export { DeclareError, DeclareErrors } from "./errors.js";
 export { headingSlug } from "./slug.js";
 export { Keys, KeysService, normalize } from "./keys.js";
 export { Focus, FocusService, deliverKeys } from "./focus.js";
-export { Files, provideFilesHost, deliverFiles } from "./files.js";
+export { FilePicker, provideFilesHost, deliverFiles } from "./files.js";
 // The runtime services usable INSIDE `{ }` bodies (`Focus.focus(this)` in a
 // click handler) are injected by services.js — a side-effect-only module, split
 // out so the PRODUCTION entry can carry the wiring without importing this

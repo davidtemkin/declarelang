@@ -22,22 +22,21 @@ App [ width = 460, height = 260, fill = white,
         },
     chosen: object[] = [],
     head: Text [ x = 20, y = 12, text = { app.chosen.length + " selected of " + app.d.value.rows.length } ],
-    g: DataGrid [ x = 20, y = 40, width = 420, height = 200, datapath = { app.sorted.value },
-        selects = "multi",
-        input(sel: object) { app.chosen = (sel ?? []) as object[] },
-        Column [ title = "ID",    field = "id",    width = 60 ],
-        Column [ title = "Title", field = "title", width = 220, kind = "edit" ],
-        Column [ title = "State", field = "state", width = 120 ],
-        GridRow [ datapath = :rows[], virtualize = true ]
+    g: DataGrid [ x = 20, y = 40, width = 420, height = 200, selects = "multi",
+        items = { app.sorted.value.rows },
+        columns = { [ { id: "id",    title: "ID",    width: 60 },
+                      { id: "title", title: "Title", width: 220, edit: true },
+                      { id: "state", title: "State", width: 120 } ] },
+        input(sel: object) { app.chosen = (sel ?? []) as object[] }
         ]
     ]
 ```
 
 **Rules**
-- `Table` gives a collection selection and keyboard travel; `DataGrid` adds sortable,
-  reorderable, resizable columns declared as `Column` members. Both replicate a row over
-  data like any list (`TableRow`/`GridRow [ datapath = :rows[] ]`), and `virtualize`
-  still works.
+- `Table` gives a collection selection and keyboard travel over rows you replicate
+  (`TableRow [ datapath = :rows[] ]`, `virtualize` still works). `DataGrid` is driven
+  from records: `items` are the rows and `columns` are column records, and it adds
+  sortable, reorderable, resizable columns.
 - The selection holds **items** (the records themselves), so it survives sorting,
   filtering and scrolling. The table owns `selected`/`selection` and hands them out
   through `input(sel)`; don't write into them.
@@ -45,13 +44,14 @@ App [ width = 460, height = 260, fill = white,
   what's on screen.
 - Sorting names a derivation: a header click sets `sortOn`/`sortDir`, and **you** derive
   the sorted dataset (or send the sort to a server by overriding `sortInput`).
-- Cells come from the column model (`record[field]`); `kind` picks `"text"`, `"edit"`,
-  `"check"` or `"select"`. An edit writes the record, through a derived dataset too.
+- A cell shows `record[id]` as text; `edit: true` makes it editable, and `cell:
+  "ClassName"` names a class of your own bound to the row's record. An edit writes the
+  record, through a derived dataset too. A record with a `heading` field is a heading row.
 - Column `order` and `widths` are the value pattern (`arrangeInput`, `resizeInput`);
   a width of `0` drops a column, so a responsive table is a constraint.
 
 **Look up** `Table`, `Table.selection`, `Table.selects`, `TableRow.item`, `DataGrid`,
-`Column`, `Column.kind`, `DataGrid.sortOn`, `DataGrid.sortInput`.
+`DataGrid.columns`, `DataGrid.items`, `DataGrid.sortOn`, `DataGrid.sortInput`.
 
 **Examples** `apps/tracker/tracker.declare`: a `Table` of issues, multi-select, a derived
 sort · `apps/sampler/sampler.declare`: an editable `DataGrid`.

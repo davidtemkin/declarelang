@@ -12,8 +12,8 @@ content appearing — never an instant pop, never a blank gap.
 The open pane is **one attribute on the group** — `value`, the open pane's name
 — which is exactly `RadioGroup`'s shape. Panes are
 the group's direct children; each names itself (`name`, defaulting to its
-`label`) and derives `open` from the group. Content is authored as the Pane's
-ordinary children — the Pane stacks its header then the content, and clips.
+`label`) and derives `open` from the group. Content is authored as the AccordionPane's
+ordinary children — the AccordionPane stacks its header then the content, and clips.
 
 The pane stacks them **flush**, header against content, because the header is
 edge-to-edge and an inset that reached it would break that. So the breathing
@@ -21,13 +21,13 @@ room around a pane's content is the content's own `padding`:
 
 ```declare
 Accordion [ x = 20, y = 20, width = 260,
-    Pane [ label = "Account", initial = true,
+    AccordionPane [ label = "Account", initial = true,
         View [ width = 100%, padding = 12,
             Text [ width = 100%, wrap = true,
                 text = "Panes slide on a spring; the content rides the whole way." ]
             ]
         ],
-    Pane [ label = "Privacy",
+    AccordionPane [ label = "Privacy",
         View [ width = 100%, padding = 12,
             Text [ width = 100%, text = "One pane open at a time." ]
             ]
@@ -37,7 +37,7 @@ Accordion [ x = 20, y = 20, width = 260,
 
 ## value
 The **open pane's `name`** — the group's whole value, exactly `RadioGroup`'s shape.
-Assign it to open a pane from code; `""` closes all of them. A `Pane` never stores
+Assign it to open a pane from code; `""` closes all of them. A `AccordionPane` never stores
 whether it is open, it derives it from here, which is why the one-open-at-a-time
 invariant cannot break.
 
@@ -56,7 +56,7 @@ class Accordion [
 
 
 /*
-# Pane
+# AccordionPane
 
 One pane of an `Accordion`: a header you press and the content you write as its
 ordinary children. A pane derives `open` from the group's `value` — it never stores
@@ -66,10 +66,10 @@ whole way and revealed by the pane's own clip.
 ```declare
 App [ width = 300, height = 180, fill = white, textColor = black,
     Accordion [ x = 20, y = 20, width = 260,
-        Pane [ label = "Details", initial = true,
+        AccordionPane [ label = "Details", initial = true,
             Text [ width = 100%, padding = 12, text = { "open: " + parent.open } ]
             ],
-        Pane [ label = "More", Text [ padding = 12, text = "Press a header." ] ]
+        AccordionPane [ label = "More", Text [ padding = 12, text = "Press a header." ] ]
         ]
     ]
 ```
@@ -124,14 +124,14 @@ neither opens nor closes; whatever it shows stays as it is.
 The header's text, naming the pane; the header itself is the button a screen reader presses to open it.
 */
 
-class Pane extends Control [ width = 100%, clip = true,
+class AccordionPane extends Control [ width = 100%, clip = true,
     label: string = "",
 
     // what the pane holds goes in its body, which is present only while the pane
     // is open or still sliding — closed, the content is absent, to a screen
     // reader as to Tab, not merely clipped out of sight
 
-    defaultplacement = body,
+    defaultPlacement = body,
 
     // a pane is its header and its content in one view: to a screen reader, a
     // group named by its header, the header a button that opens and closes it
@@ -139,7 +139,7 @@ class Pane extends Control [ width = 100%, clip = true,
     accessibilityRole = group,
     accessibilityLabel = { label },
     name:  string = { label },
-    initial: boolean = false,                     // seed the open pane: first Pane sets initial = true
+    initial: boolean = false,                     // seed the open pane: first AccordionPane sets initial = true
 
     open: boolean = { (parent as Accordion).value == name && name != "" },
 
@@ -154,8 +154,8 @@ class Pane extends Control [ width = 100%, clip = true,
     // a closed pane is clip-occluded, not hidden — its content stays visible
     // so the slide can carry it, but focus must never descend into it (the
     // web's inert rule; ARIA's inactive-panel rule). The traversal protocol
-    // handles it: while closed, this Pane contributes no members — the header
-    // stop (the Pane itself) remains.
+    // handles it: while closed, this AccordionPane contributes no members — the header
+    // stop (the AccordionPane itself) remains.
 
     tabOrder() { return open ? this.tabDefault() : [] },
 

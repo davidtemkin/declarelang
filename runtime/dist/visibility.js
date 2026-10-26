@@ -91,7 +91,7 @@ function relinkKernelVis(v, f) {
  *  slot table — rootTransform ∘ boxThrough ∩ the root's frame, scale × dpr,
  *  the arithmetic of readVisibility term for term — and writes the vis* cells;
  *  a wired JS rule over those cells delivers (or wakes). A 3D transform
- *  anywhere on the chain is beyond the affine walk: the rule writes visMode = 0
+ *  anywhere on the chain is beyond the affine walk: the rule writes $visMode = 0
  *  and the JS walk takes over (fallbackToJS). Returns false when the kernel
  *  path is not available (no kernel; 3D at arm). */
 function installKernelVis(v, f) {
@@ -103,7 +103,7 @@ function installKernelVis(v, f) {
         if (a.rotateX !== 0 || a.rotateY !== 0 || a.translateZ !== 0)
             return false;
     const K = kernel();
-    const root = (v.root ?? v);
+    const root = (v.$root ?? v);
     const rule = K.visAdd(kernelElem(v), kernelElem(root));
     if (rule < 0)
         return false;
@@ -113,7 +113,7 @@ function installKernelVis(v, f) {
 }
 /** The delivery rule: wired over the seven output cells. */
 function outputRule(v, f, label, land) {
-    const c = new Constraint(label, () => [v.visMode, v.visOn, v.visScale, v.visX, v.visY, v.visW, v.visH], (x) => {
+    const c = new Constraint(label, () => [v.$visMode, v.$visOn, v.$visScale, v.$visX, v.$visY, v.$visW, v.$visH], (x) => {
         const [mode, on, scale, px, py, w, h] = x;
         if (mode === 0) {
             fallbackToJS(v, f);
@@ -121,7 +121,7 @@ function outputRule(v, f, label, land) {
         }
         land(on, on ? { x: px, y: py, width: w, height: h } : null, scale);
     });
-    c.wire(() => { void v.visMode; void v.visOn; void v.visScale; void v.visX; void v.visY; void v.visW; void v.visH; });
+    c.wire(() => { void v.$visMode; void v.$visOn; void v.$visScale; void v.$visX; void v.$visY; void v.$visW; void v.$visH; });
     return c;
 }
 /** The chain grew a 3D transform: retire the kernel rule and run the JS walk
@@ -156,7 +156,7 @@ export function readVisibility(v) {
             return { on: false, rect: null, scale: rootTransform(iv).scale * dpr };
     const t = rootTransform(iv);
     const b = rootFrameBox(iv);
-    const r = (v.root ?? v);
+    const r = (v.$root ?? v);
     const ix = Math.max(b.x, 0), iy = Math.max(b.y, 0);
     const iw = Math.min(b.x + b.width, r.width) - ix, ih = Math.min(b.y + b.height, r.height) - iy;
     if (iw <= 0 || ih <= 0)

@@ -118,7 +118,7 @@ const CLASSIFIED = {
   "instantiate→animator": "class", "registry→animator": "class", "instantiate→animator-group": "class",
   "registry→animator-group": "class", "instantiate→spring": "class", "registry→spring": "class",
   "instantiate→state": "class", "registry→state": "class", "registry→tween-layout": "class",
-  "registry→islands": "class", "text-input→editor": "class (TextInput is an Editor)",
+  "registry→islands": "class", "text-input→editor": "class (TextInput is an EditControl)",
   "instantiate→editor": "syntax (<->)", "instantiate→class-for": "slot (classFor)", "instantiate→virtualize": "slot (virtualize)",
   "instantiate→replication": "syntax ([])", "expr→effects": "global (the constructors are the body's names)",
   "rich-text→rich-doc": "build (dom)", "rich-text→rich-views": "class (rich text) or build (canvas)",

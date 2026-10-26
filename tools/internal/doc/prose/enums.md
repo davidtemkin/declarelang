@@ -30,7 +30,7 @@ down to the nearest **isolating** ancestor, so what a `multiply` chip blends wit
 depends on where the isolation is, not on how deeply it is nested. `normal` is no
 blending at all, and the value every view has until one is named.
 
-## Claim
+## ClaimAxis
 
 The axis a declared drag takes for itself. `both` (the default) gives the drag the
 whole gesture; `x` or `y` leaves the other axis to the enclosing scroller, so a
@@ -38,7 +38,7 @@ horizontal column-drag and a vertical page scroll can share one finger. It
 **scopes** a drag that already exists and never creates one — a view with no
 pointer handler ignores it.
 
-## Credentials
+## RequestCredentials
 
 Whether a request carries cookies, TLS client certificates and authentication
 headers. These are the Fetch API's three modes as tokens, so `sameOrigin` is the
@@ -54,12 +54,12 @@ leaves the cross placement to the child, which is what lets an ordinary
 `baseline` only where each child can report one: a `Text` does by itself, and a
 composite must **declare** which of its parts carries it.
 
-## EditorJudgeOn
+## EditControlJudgeOn
 
-When a field first says what is wrong with its draft (`Editor.judgeOn`): `edit` at every
+When a field first says what is wrong with its draft (`EditControl.judgeOn`): `edit` at every
 edit, `leave` once the field has been left — or `judge()` asked — and at every edit after.
 
-## Edges
+## SafeAreaMode
 
 How an app meets the device's **own** chrome — a notch, a home-indicator bar.
 `safe` keeps the app inside the safe region and every `safe*` inset then reads 0,
@@ -97,7 +97,7 @@ and the arrows move inside (a radio group, a list). `capture`: Tab walks in and 
 stops (an entry form). `region`: one stop from outside, a cycle of its own inside, left with
 F6 (a window, a pane). `modal`: Tab wraps inside and never leaves (a dialog).
 
-## FontLate
+## FontLoadBehavior
 
 What a face that finishes loading **after** the text is already painted does to
 text already on screen. `swap` changes to the real face — one redraw, and the
@@ -150,14 +150,14 @@ counter does not jitter as it counts; `proportional` lets each digit take its
 natural width and reads better in prose. `normal` defers to the face, and faces
 disagree about which of the two that is.
 
-## Purpose
+## InputPurpose
 
 What a text field holds — an email address, a password, a card number, a line of an
 address — said once on `TextInput.purpose`, so the platform can help: autofill and
 password managers recognise the field, a phone brings up the keyboard that suits it,
 and a password is hidden. `text`, the default, says nothing.
 
-## Process
+## AnimatorOrder
 
 Whether the members of an `AnimatorGroup` run one after another or all at once. It
 is the group's own control — nothing else in the language reads it — and it is
@@ -170,7 +170,7 @@ no further — a menu), `dismissAndDeliver` (it closes; the press goes on — a 
 (the press goes nowhere; the overlay stays — a dialog), `ignore` (the press goes on as if the
 overlay were not there — a toast). `none` is every ordinary view.
 
-## Scaling
+## ImageSmoothing
 
 How a view's images and drawings look when they are shown larger or smaller. `smooth`
 blends neighbouring pixels, which suits photographs and an ordinary interface under a
@@ -206,7 +206,7 @@ has for a fetch. `retrying` is the one worth planning for: it covers both the
 platform's own recovery and a declared retry waiting to re-dial, and it is the
 difference between a stream that is coming back and `failed`, which is not.
 
-## Stretch
+## MediaFit
 
 How a bitmap fills a box whose size differs from its natural size. The axis values
 — `width`, `height`, `both` — **distort by design**; the aspect-preserving fits
@@ -214,7 +214,7 @@ never do: `contain` puts the whole picture in the box and letterboxes the
 remainder, `cover` fills the box and crops the overflow. `none` paints at natural
 size. Both fits center the picture until `FitAlign` says otherwise.
 
-## Direction
+## TextDirection
 
 The direction a view's text runs in, and what it holds: `ltr`, `rtl`, or `auto` (from the
 first strong letter of the text); `inherit`, the default, takes the nearest ancestor's.
@@ -235,7 +235,7 @@ and `$data` all see the original string, exactly as CSS `text-transform` behaves
 The measurer shapes the transformed glyphs, so an `uppercase` run still wraps
 correctly at its real width on every renderer.
 
-## Tick
+## ClockTick
 
 How often a `Time` fires, from the display's own rate up to a calendar boundary.
 The calendar tiers aim at the **boundary** — aligned and drift-free, so an

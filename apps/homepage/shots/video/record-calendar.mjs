@@ -15,7 +15,7 @@ The calendar's appearance is its own `themeMode` ("light" / "auto" / "dark";
 the bar's Segmented writes it). `isDark` derives from it: an explicit
 "light"/"dark" wins outright, and only "auto" consults the environment
 (`hostProvided("dark", …)` from a host, else the OS scheme via
-`app.dark`). So the stage writes `themeMode` directly — the same cell the
+`app.systemDark`). So the stage writes `themeMode` directly — the same cell the
 switch writes — and neither the host nor headless Chrome's color scheme can
 leak in. (The original clip clicked the switch's Dark segment at (273, 29);
 same state, same frame.)

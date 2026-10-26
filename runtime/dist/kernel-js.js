@@ -860,7 +860,7 @@ export function instantiateKernelJS(host, caps = {}) {
         const dpr = dprCell !== NONE && dprCell < ncells ? table[dprCell] : 1;
         for (let n = selfView; n !== NONE; n = elemParent[n]) {
             if (VS(n, "rotateX") !== 0 || VS(n, "rotateY") !== 0 || VS(n, "translateZ") !== 0) {
-                setField(b, "visMode", 0);
+                setField(b, "$visMode", 0);
                 return 0;
             }
         }
@@ -873,7 +873,7 @@ export function instantiateKernelJS(host, caps = {}) {
             m = compose([1, 0, 0, 1, VS(n, "x"), VS(n, "y")], m);
             if (p === NONE)
                 break;
-            if (VS(p, "scrollsOn") !== 0 && VS(n, "ignoreScroll") === 0)
+            if (VS(p, "$scrollsOn") !== 0 && VS(n, "ignoreScroll") === 0)
                 m = compose([1, 0, 0, 1, -VS(p, "scrollX"), -VS(p, "scrollY")], m);
             n = p;
         }
@@ -908,25 +908,25 @@ export function instantiateKernelJS(host, caps = {}) {
                 on = false;
             else {
                 const kk = scale === 0 ? 1 : scale;
-                setField(b, "visX", (ix - bx) / kk);
-                setField(b, "visY", (iy - by) / kk);
-                setField(b, "visW", iw / kk);
-                setField(b, "visH", ih / kk);
+                setField(b, "$visX", (ix - bx) / kk);
+                setField(b, "$visY", (iy - by) / kk);
+                setField(b, "$visW", iw / kk);
+                setField(b, "$visH", ih / kk);
             }
         }
         if (!on) {
-            setField(b, "visX", 0);
-            setField(b, "visY", 0);
-            setField(b, "visW", 0);
-            setField(b, "visH", 0);
+            setField(b, "$visX", 0);
+            setField(b, "$visY", 0);
+            setField(b, "$visW", 0);
+            setField(b, "$visH", 0);
         }
-        setField(b, "visOn", on ? 1 : 0);
-        setField(b, "visScale", scale * dpr);
-        setField(b, "visMode", 1);
+        setField(b, "$visOn", on ? 1 : 0);
+        setField(b, "$visScale", scale * dpr);
+        setField(b, "$visMode", 1);
         return 0;
     };
     const VIS_FIELDS = ["x", "y", "visible", "scale", "scaleX", "scaleY", "rotation", "skewX", "skewY",
-        "pivotX", "pivotY", "scrollX", "scrollY", "ignoreScroll", "scrollsOn", "rotateX", "rotateY", "translateZ"];
+        "pivotX", "pivotY", "scrollX", "scrollY", "ignoreScroll", "$scrollsOn", "rotateX", "rotateY", "translateZ"];
     const linkChecked = (rule, cell) => { if (cell >= ncells)
         return ERR_BAD; link(rule, cell); return OK; };
     const visLinkChain = (rule, selfView, root) => {

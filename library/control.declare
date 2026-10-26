@@ -48,7 +48,7 @@ dim themselves against `provided("theme").disabledOpacity`.
 ## focusVisible
 Focused **and** the focus arrived by keyboard — the web's `:focus-visible` channel.
 Cleared by blur and by a pointer press on this control, so a clicked control shows no
-keyboard edge while a tabbed one does. What a `Pane` header's focus edge reads.
+keyboard edge while a tabbed one does. What a `AccordionPane` header's focus edge reads.
 
 ## iconLeft
 A decorative icon for the leading slot, **named by class** (`iconLeft = "TrashIcon"`),

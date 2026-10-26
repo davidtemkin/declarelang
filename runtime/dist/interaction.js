@@ -339,7 +339,7 @@ function ensureApp(app) {
     return state;
 }
 function recOf(view) {
-    const root = view.root;
+    const root = view.$root;
     if (root !== null && root !== undefined && isView(root)) {
         const state = ensureApp(root);
         let r = state.recs.get(view);

@@ -157,7 +157,7 @@ export function emitExpr(src, scope = null) {
             if (arg !== undefined)
                 return segs.length === 0 ? { param: arg } : null; // a number has no members
             if (cur.text === "app")
-                segs.unshift("this.root");
+                segs.unshift("this.$root");
             else if (cur.text === "classroot" || cur.text === "parent") {
                 if (env.prefix !== null)
                     return null;
@@ -182,7 +182,7 @@ export function emitExpr(src, scope = null) {
             return "this";
         if (ts.isIdentifier(r))
             return r.text === "app" ? "app" : r.text === "classroot" ? "classroot" : null;
-        if (ts.isPropertyAccessExpression(r) && r.expression.kind === K.ThisKeyword && r.name.text === "root")
+        if (ts.isPropertyAccessExpression(r) && r.expression.kind === K.ThisKeyword && r.name.text === "$root")
             return "app";
         return null;
     };
@@ -302,7 +302,7 @@ export function emitExpr(src, scope = null) {
                 const params = new Map();
                 for (let i = 0; i < m.params.length; i++)
                     params.set(m.params[i].name, { node: n.arguments[i], env });
-                value(ret, { prefix: recv === "app" ? "this.root" : recv, params, depth: env.depth + 1 });
+                value(ret, { prefix: recv === "app" ? "this.$root" : recv, params, depth: env.depth + 1 });
                 return;
             }
             return fail();

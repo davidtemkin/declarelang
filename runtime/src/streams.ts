@@ -6,7 +6,7 @@
 // arrives, a handler assigns, every constraint that read the changed state
 // updates — so streaming AI text into a view is one line of handler.
 //
-// One family, three names (the Editor arrangement): the abstract `Stream`
+// One family, three names (the EditControl arrangement): the abstract `Stream`
 // base carries the whole shared surface — `url`, `active`, `retry`, the
 // handlers, and the read-only lifecycle intrinsics (`status`/`error`/`open`/
 // `last`, the DataSource.status/.loaded design transplanted); `EventStream`

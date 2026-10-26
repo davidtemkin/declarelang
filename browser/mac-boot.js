@@ -348,7 +348,7 @@ export async function macBoot(url) {
  *  wirePageLocation), aimed at the titlebar arrows instead of a URL bar.
  *
  *  OUTWARD per settle: one trail entry when either half changed (both changed
- *  = one entry, restored atomically), the verb from app.pendingHistoryVerb —
+ *  = one entry, restored atomically), the verb from app.$pendingHistoryVerb —
  *  a follow whose link declared `replace = true` overwrites instead of
  *  burying Back. Each entry is named by an id the window stores and hands
  *  back on travel.
@@ -356,7 +356,7 @@ export async function macBoot(url) {
  *  INWARD on an arrow press (__declareTravel — the popstate direction): the
  *  step written directly (a waypoint can never arrive from outside the app;
  *  every restored value is one this app wrote earlier), the address through
- *  `follow` so the onFollow hook applies — pass, redirect, veto — and
+ *  `followLink` so the onFollowLink hook applies — pass, redirect, veto — and
  *  whatever the app decided is squared back to the entry (historySquare).
  *  A traversal never pushes, so a redirect rule can never trap Back in a
  *  loop.
@@ -404,8 +404,8 @@ function wireMacHistory(app) {
   observe(() => [app.location, app.waypoint], () => {
     if (currentApp !== app) return;        // a later boot owns the window now
     if (app.location === mirrored && app.waypoint === mirroredW) return;
-    const verb = app.pendingHistoryVerb === "replace" ? "replace" : "push";
-    if (app.pendingHistoryVerb !== undefined) app.pendingHistoryVerb = "push";
+    const verb = app.$pendingHistoryVerb === "replace" ? "replace" : "push";
+    if (app.$pendingHistoryVerb !== undefined) app.$pendingHistoryVerb = "push";
     dropScrollPlaces(app);                 // the app moved on: no late landing
     if (verb === "push") {
       note(entryId, departing ?? placeOf(app));
@@ -423,7 +423,7 @@ function wireMacHistory(app) {
     dropScrollPlaces(app);
     entryId = id || newId();
     if (app.waypoint !== step) app.waypoint = step;
-    if (typeof app.follow === "function") app.follow("#" + loc);
+    if (typeof app.followLink === "function") app.followLink("#" + loc);
     else app.location = loc;
     // Square BEFORE the settle: follow decided synchronously (pass, redirect,
     // veto), and the mirror's observer runs at the settle's close — with the
@@ -539,12 +539,12 @@ function startPumps(app) {
  *  program and the distro share an origin; here they need not.) */
 function navTick(app) {
   const base = globalThis.__declareMain || globalThis.__declareBase || "";
-  if (app.pendingNav) {
-    const u = app.pendingNav; app.pendingNav = "";
+  if (app.$pendingNav) {
+    const u = app.$pendingNav; app.$pendingNav = "";
     H.navigate(new URL(u, base).href, false);
   }
-  if (app.pendingOpen) {
-    const u = app.pendingOpen; app.pendingOpen = "";
+  if (app.$pendingOpen) {
+    const u = app.$pendingOpen; app.$pendingOpen = "";
     H.navigate(new URL(u, base).href, true);   // true = a window of its own
   }
 }
@@ -580,9 +580,9 @@ function inspectTick(app) {
       if (inspectorApp !== null) { inspectorApp.hostWidth = r.width; inspectorApp.hostHeight = r.height; }
     }
   }
-  if (app.pendingInspect === null || inspectorBusy) return;
-  const slot = app.pendingInspect;
-  app.pendingInspect = null;
+  if (app.$pendingInspect === null || inspectorBusy) return;
+  const slot = app.$pendingInspect;
+  app.$pendingInspect = null;
   toggleInspector(app, slot).catch((e) => log("inspector: " + e.message));
 }
 
@@ -872,7 +872,7 @@ function mountCompiled(surfaceId, compiled, assetUrl) {
   // child is ATTACHED, not mounted, so nothing wires it — and the live-edit
   // pane's nested desktop came up LIGHT against the DOM's dark. (Distinct from
   // a host's own appearance, which it PROVIDES to the child as a value.)
-  child.dark = H.appearance() === "dark";
+  child.systemDark = H.appearance() === "dark";
   liveApps.set(child, box);          // a child can itself publish live edits
   childIslands.set(child, surfaceId);
   // The sanctioned handle (guide 18): with no element anywhere, `__childApp`
@@ -900,7 +900,7 @@ function mountCompiled(surfaceId, compiled, assetUrl) {
       child.hostWidth = box.width; child.hostHeight = box.height;
     }
     const dark = H.appearance() === "dark";
-    if (child.dark !== dark) child.dark = dark;      // keep live, as the root app is
+    if (child.systemDark !== dark) child.systemDark = dark;      // keep live, as the root app is
 
     // Reflect the tenant's name up to the island, so a hosting window can title
     // itself by what it shows (the viewer names its window by the open file).
@@ -1026,5 +1026,5 @@ globalThis.__declareReset = () => {
 
 globalThis.__declareEnvChanged = () => {
   globalThis.__declareAppearanceChanged?.();
-  if (currentApp) { currentApp.dark = H.appearance() === "dark"; settle(); flushOps(); }
+  if (currentApp) { currentApp.systemDark = H.appearance() === "dark"; settle(); flushOps(); }
 };

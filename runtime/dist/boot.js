@@ -40,7 +40,7 @@ export function isEmbedded(host) {
         && host.closest("[data-declare-app], [data-declare-embed]") !== null;
 }
 export function provideHostServices(app, services) {
-    app.hostServices = services;
+    app.$hostServices = services;
 }
 /** Per-app teardown for an EMBEDDED app's environment listeners (a top-level app
  *  lives for the page and needs none). The host calls disposeApp() before it
@@ -87,12 +87,12 @@ export function wireInput(app, host, chrome = false) {
     // a build without the bridge says so, rather than leaving an empty object that reads as breakage
     window.__declare = bridgeFor(app) ?? { stub: notAboard("bridgeFor", "bridge").message };
 }
-/** Feed `app.dark` from the OS color scheme and keep it live as the system theme
+/** Feed `app.systemDark` from the OS color scheme and keep it live as the system theme
  *  flips. Returns an unsubscribe so an embedded app's re-render can drop the listener. */
 function wireColorScheme(app) {
     const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    app.dark = mq.matches;
-    const update = () => { app.dark = mq.matches; };
+    app.systemDark = mq.matches;
+    const update = () => { app.systemDark = mq.matches; };
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
 }

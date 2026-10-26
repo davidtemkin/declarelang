@@ -61,7 +61,7 @@ export function provideBind(view, name, src, pos, classroot, deps) {
     }
 }
 /** The functions that TOUCH a body's static read paths, so the wiring sees the
- *  reads. A plain dotted chain — `this.root.width`, `parent.x`, `classroot.a.b`
+ *  reads. A plain dotted chain — `this.$root.width`, `parent.x`, `classroot.a.b`
  *  — is walked by a shared getter with no compile at all (boot-deferrals.ts:
  *  on the desktop 372 of 404 distinct paths are plain, each was a `new
  *  Function`); anything else (`:field`, `.read([…])`, `$provided(…)`) keeps the
@@ -74,7 +74,7 @@ function probeFns(deps) {
             const segs = rp.split(".");
             const root = segs[0];
             out.push(function (parent, classroot) {
-                let cur = root === "this" ? this : root === "parent" ? parent : root === "classroot" ? classroot : this.root;
+                let cur = root === "this" ? this : root === "parent" ? parent : root === "classroot" ? classroot : this.$root;
                 for (let i = 1; i < segs.length; i++)
                     cur = cur[segs[i]];
                 return cur;
@@ -454,7 +454,7 @@ bytecode) {
     // region cells, which live on the value tree and are recreated with it, so
     // the tracking path (re-tracked each run) is the only honest wiring here too.
     if (plan !== null && plan.probes !== null && !byBranch) {
-        // Each read-path is an analyzable expression (`this.root.n`, `this.theme`);
+        // Each read-path is an analyzable expression (`this.$root.n`, `this.theme`);
         // compiled once per template and read under tracking to wire the (stable) edge.
         const probes = plan.probes;
         k.wire(() => {
@@ -595,7 +595,7 @@ export function bindPercent(view, name, percent, pos) {
     // box is two slots (extent, inset total) and CONTENT_BOX is the same
     // arithmetic, so the derive survives the rule. The JavaScript form below is
     // the fallback (a non-numeric slot) and the A/B.
-    const inset = axis === "width" ? "insetX" : "insetY";
+    const inset = axis === "width" ? "$insetX" : "$insetY";
     if (kernelDerives() && bindKernelExpr(view, name, { code: [...CONTENT_BOX, OP_CONST, 1, OP_MUL, OP_END], paths: [`parent.${axis}`, `parent.${inset}`], consts: [0, percent / 100] }, null, `${cls}.${name} = ${percent}%`, `parent.contentBox(${axis}) * ${percent / 100}`, pos, false, [], true))
         return;
     const k = percentRule(view, name, percent, pos);
@@ -662,7 +662,7 @@ export function bindAlign(view, name, align, pos, transformLater = false) {
     // inset. IN THE KERNEL for the plain box (View.alignBand's base answer: lead
     // 0, the whole size); a view whose alignBand is overridden keeps the
     // JavaScript form, which asks it.
-    const insetA = size === "width" ? "insetX" : "insetY";
+    const insetA = size === "width" ? "$insetX" : "$insetY";
     const transformed = transformLater || mayTransform(view);
     // a child of the App placed at its end is measured against the WINDOW when
     // it is pinned to it (alignRule) — the page frame, not the page's content

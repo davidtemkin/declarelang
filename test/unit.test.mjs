@@ -319,14 +319,14 @@ await test("a declared name TypeScript's standard library already owns is said p
 });
 
 await test("a declared name one of Declare's own types already holds is said plainly, at the declaration, with the app's rename", async () => {
-  // Backdrop: before, "'root' is not a member of Backdrop" at each use — `this` was the filter list.
-  // Outline: before, nothing at all — TypeScript merged the schema into Declare's interface.
+  // (the rename pass freed the broad names these cases first hit — Backdrop,
+  // Outline, Process; the collision is the same with the names now held)
   for (const [src, kind, name] of [
-    [`class Backdrop extends View [ height = { this.root.height }, tint: number = 1 ]\nApp [ b: Backdrop [ ] ]`, "class", "Backdrop"],
-    [`schema Outline [ wide: number ]\nApp [ onClick() { const n = 1 } ]`, "schema", "Outline"],
+    [`class FilterList extends View [ height = { this.$root.height }, tint: number = 1 ]\nApp [ b: FilterList [ ] ]`, "class", "FilterList"],
+    [`schema GlyphOutline [ wide: number ]\nApp [ onClick() { const n = 1 } ]`, "schema", "GlyphOutline"],
     [`class Color extends View [ tint: number = 1 ]\nApp [ c: Color [ ], onClick() { c.tint = 2 } ]`, "class", "Color"],
-    // a word list, and a preset theme: before, "'tint' is not a member of Process" / "refers to a value"
-    [`class Process extends View [ tint: number = 1 ]\nApp [ p: Process [ ], onClick() { p.tint = 2 } ]`, "class", "Process"],
+    // a word list, and a preset theme
+    [`class AnimatorOrder extends View [ tint: number = 1 ]\nApp [ p: AnimatorOrder [ ], onClick() { p.tint = 2 } ]`, "class", "AnimatorOrder"],
     [`class Cupertino extends View [ tint: number = 1 ]\nApp [ p: Cupertino [ ], onClick() { p.tint = 2 } ]`, "class", "Cupertino"],
   ]) {
     const r = await compile(src, { mainId: "apps/cadence.declare" });
@@ -353,13 +353,13 @@ await test("a constraint whose decisions tangle is warned of (DECLARE4025); the 
 });
 
 await test("check(): a child may not take the name of one of the runtime's own members — a field or a method", () => {
-  for (const name of ["travelHost", "maskUsers", "viewAt", "scrollTo"]) {
+  for (const name of ["demoSources", "viewAt", "scrollTo"]) {
     const errs = check(parse(`App [ ${name}: View [ width = 10 ] ]`));
     assert.equal(errs.length, 1, name);
     assert.match(errs[0].message, new RegExp(`'${name}' is a member of the running App \\(the runtime's own\\)`));
   }
   // the runtime's plumbing wears `$` names, so the plain words stay the author's
-  for (const name of ["surface", "backend", "attach", "drawing", "flush"]) {
+  for (const name of ["surface", "backend", "attach", "drawing", "flush", "travelHost", "maskUsers", "pendingNav", "visX"]) {
     assert.deepEqual(check(parse(`App [ ${name}: View [ width = 10 ] ]`)), [], name);
   }
   assert.deepEqual(check(parse(`App [ strip: View [ width = 10 ] ]`)), [], "a free name");
@@ -657,7 +657,7 @@ await test("check() rejects bad Text/Image values with pointed messages", () => 
     ["Text [ fontWeight=heavy ]", /Text\.fontWeight expects a FontWeight \(one of .*\bmedium\b.*\bbold\b.*\), got 'heavy'/],
     ["Text [ text=42 ]", /Text\.text expects a string, got the number 42/],
     ['Text [ fontSize="big" ]', /Text\.fontSize expects a number, got the string "big"/],
-    ["Image [ stretches=sideways ]", /Image\.stretches expects a Stretch \(one of none \| width \| height \| both \| cover \| contain\), got 'sideways'/],
+    ["Image [ stretches=sideways ]", /Image\.stretches expects a MediaFit \(one of none \| width \| height \| both \| cover \| contain\), got 'sideways'/],
     ["Image [ source=7 ]", /Image\.source expects a string, got the number 7/],
   ];
   for (const [src, want] of cases) {
@@ -690,7 +690,7 @@ await test("buildProgram() instantiates Text/Image with coerced fields and defau
   assert.deepEqual([i2.source, i2.stretches], ["", "none"]);
 });
 
-// ── R3: the Shape value type (clip) ─────────────────────────────────────────
+// ── R3: the ClipPath value type (clip) ─────────────────────────────────────────
 
 await test("check() accepts clip path data on any view, and null", () => {
   assert.deepEqual(check(parse('View [ clip="M0 0 L80 0 L40 60 Z" ]')), []);
@@ -700,7 +700,7 @@ await test("check() accepts clip path data on any view, and null", () => {
 
 await test("check() rejects malformed path data, saying what is wrong", () => {
   const cases = [
-    ["View [ clip=42 ]", /View\.clip expects a Shape \(SVG path data in a string, like "M0 0 L80 0 L40 60 Z", or null\), got the number 42/],
+    ["View [ clip=42 ]", /View\.clip expects a ClipPath \(SVG path data in a string, like "M0 0 L80 0 L40 60 Z", or null\), got the number 42/],
     ['View [ clip="" ]', /got the string "" \(an empty path\)/],
     ['View [ clip="L10 10" ]', /\(a path starts with M or m, not 'L'\)/],
     ['View [ clip="M0 0 L10" ]', /\('L' expects 2 numbers per segment \(character 9\)\)/],
@@ -1185,7 +1185,7 @@ await test("the State verbs are reachable from source — gate XOR verbs", async
   const app = buildProgram(await compiled(`App [ width=100, height=60,
     v: View [ width = 10, big: State [ width = 99 ] ],
     go() { this.v.big.toggle() },
-    gated: State [ applied = { this.root.width > 50 } ],
+    gated: State [ applied = { this.$root.width > 50 } ],
     bad() { this.gated.apply() } ]`));
   assert.equal(app.v.width, 10);
   app.go(); assert.equal(app.v.width, 99, "toggle applies the override");
@@ -2274,8 +2274,8 @@ await test("exists: a named child that may be absent is typed so — its reader 
   assert.deepEqual(good.errors.map((e) => e.message), []);
 });
 
-await test("defaultplacement: a subclass's and a use site's children go into the child the class names", async () => {
-  const app = buildProgram(await compiled(`class Panel [ width = 200, height = 200, defaultplacement = body,
+await test("defaultPlacement: a subclass's and a use site's children go into the child the class names", async () => {
+  const app = buildProgram(await compiled(`class Panel [ width = 200, height = 200, defaultPlacement = body,
       head: View [ width = 200, height = 20 ],
       body: View [ y = 20, width = 200, height = 180 ] ]
     class DetailPanel extends Panel [ figs: View [ width = 10, height = 10 ], acts: View [ width = 10, height = 10 ] ]
@@ -2290,9 +2290,9 @@ await test("defaultplacement: a subclass's and a use site's children go into the
   } finally { app.discard(); }
 });
 
-await test("defaultplacement: the checker names a missing child, and a use of it outside a class", () => {
-  assert.match(check(parseProgram(`class Panel [ defaultplacement = bodie, body: View [ ] ]\nApp [ ]`)).map((e) => e.message).join("\\n"), /declares no child named 'bodie'/);
-  assert.match(check(parseProgram(`App [ v: View [ defaultplacement = x, x: View [ ] ] ]`)).map((e) => e.message).join("\\n"), /defaultplacement belongs on a class/);
+await test("defaultPlacement: the checker names a missing child, and a use of it outside a class", () => {
+  assert.match(check(parseProgram(`class Panel [ defaultPlacement = bodie, body: View [ ] ]\nApp [ ]`)).map((e) => e.message).join("\\n"), /declares no child named 'bodie'/);
+  assert.match(check(parseProgram(`App [ v: View [ defaultPlacement = x, x: View [ ] ] ]`)).map((e) => e.message).join("\\n"), /defaultPlacement belongs on a class/);
 });
 
 await test("Spring.arrive(): the next target is taken outright; a later change still travels", async () => {
@@ -2810,8 +2810,8 @@ await test("compile(): 'classroot' is valid only inside a class body — App / s
   assert.deepEqual((await compile(`App [ count: number = 0, Text [ text = { "" + app.count } ] ]`, {})).errors, []);
   // and a bare App-name rewrite stays idempotent (no classroot leaks into App output)
   const out = await compile(`App [ zip: number = 2, Text [ text = { "" + zip } ] ]`, {});
-  assert.ok(out.source.includes("this.root.zip") && !out.source.includes("classroot"),
-    "App bodies resolve to this.root, never classroot");
+  assert.ok(out.source.includes("this.$root.zip") && !out.source.includes("classroot"),
+    "App bodies resolve to this.$root, never classroot");
   assert.equal((await compile(out.source, {})).source, out.source, "resolve twice = resolve once");
 });
 
@@ -2894,8 +2894,8 @@ await test("named children are members: real properties, on the parent, collisio
   assert.equal(app.box.cap, app.box.children[0], "the name lives on the child's parent");
   assert.equal(app.cap, undefined);
   await assert.rejects(
-    async () => build("App [ width=1, height=1, travelHost: View [ ] ]"),
-    /'travelHost' is a member of the running App \(the runtime's own\)/,
+    async () => build("App [ width=1, height=1, demoSources: View [ ] ]"),
+    /'demoSources' is a member of the running App \(the runtime's own\)/,
     "refused in the source (the instantiate backstop still stands for a direct instantiate)"
   );
 });
@@ -2947,7 +2947,7 @@ App [ width=1, height=1, W [ ] ]`);
   assert.match(out, /\$\{classroot\.count\}/, "the body root is classroot, depth-independent");
 });
 
-await test("compile(): the 'app' noun rewrites to this.root anywhere in the tree", async () => {
+await test("compile(): the 'app' noun rewrites to this.$root anywhere in the tree", async () => {
   // hostWidth is a built-in App attribute and `editing` is one the root declares
   // — `app` reaches both from any depth without a parent chain or a classroot
   // that happens to be the App.
@@ -2955,8 +2955,8 @@ await test("compile(): the 'app' noun rewrites to this.root anywhere in the tree
     deep: View [ mid: View [ leaf: View [
       width = { app.hostWidth / 2 },
       onClick() { app.editing = true } ] ] ] ]`);
-  assert.match(out, /width = \{ this\.root\.hostWidth \/ 2 \}/, "app.X → this.root.X regardless of depth");
-  assert.match(out, /this\.root\.editing = true/, "app in a handler resolves too");
+  assert.match(out, /width = \{ this\.\$root\.hostWidth \/ 2 \}/, "app.X → this.$root.X regardless of depth");
+  assert.match(out, /this\.\$root\.editing = true/, "app in a handler resolves too");
   assert.doesNotMatch(out, /\bapp\./, "no bare 'app' survives the rewrite");
 });
 
@@ -2966,7 +2966,7 @@ await test("compile(): the anonymous-App top level — bare names in app-level b
     box: View [ zip: number = 2, Text [ text = { "" + zip + "/" + App.zip } ] ] ]`);
   assert.match(out, /total\(\) \{ return this\.zip \}/, "on the App root itself, bare = this (App IS the anonymous class)");
   assert.match(out, /parent\.zip/, "the nearer declaration wins");
-  assert.match(out, /this\.root\.zip/, "App.zip resolves lexically to the App (this.root, i.e. app) — the �11 qualified form; classroot is component-only");
+  assert.match(out, /this\.\$root\.zip/, "App.zip resolves lexically to the App (this.$root, i.e. app) — the �11 qualified form; classroot is component-only");
 });
 
 await test("compile(): locals, parameters, and TS globals are never rewritten; shorthand stays an object literal", async () => {
@@ -4493,8 +4493,8 @@ await test("compile(): :paths lower to emitted plans (data-paths.md §5); resolu
   ]`;
   const compiled = await compile(src);
   assert.deepEqual(compiled.errors, []);
-  assert.ok(compiled.source.includes("this.root.d.value"), "bare names in the App body resolve to this.root (app), never classroot");
-  assert.ok(compiled.source.includes(`this.root.zip + ":" +`), "…even beside an island");
+  assert.ok(compiled.source.includes("this.$root.d.value"), "bare names in the App body resolve to this.$root (app), never classroot");
+  assert.ok(compiled.source.includes(`this.$root.zip + ":" +`), "…even beside an island");
   assert.ok(compiled.source.includes(`this.$data(["n"])`), "the island lowers to its pre-parsed plan — the emitted program carries no ':' value mode");
   assert.ok(!/[+] :n \}/.test(compiled.source), "the raw island does not ship through");
   const again = await compile(compiled.source);
@@ -4645,14 +4645,14 @@ await test("auto-extent: childrenMutated re-derives — and installs lazily", ()
   const kid = new View();
   kid.width = 42;
   kid.height = 6;
-  p.insertChild(kid, 0);
+  p.$insertChild(kid, 0);
   p.$childrenMutated(); // the replicator's lifecycle call
   assert.equal(p.width, 42, "a slot can become derivable when children arrive");
   const kid2 = new View();
   kid2.x = 50;
   kid2.width = 30;
   kid2.height = 4;
-  p.insertChild(kid2, 1);
+  p.$insertChild(kid2, 1);
   p.$childrenMutated();
   assert.equal(p.width, 80, "each mutation burst re-derives once");
 });
@@ -4704,16 +4704,16 @@ await test("readonly: assigning a user readonly attribute is a compile error", (
   assert.ok(errs.some((e) => /read-only/.test(e.message)), "setting percent is refused");
 });
 
-await test("Node.insertChild / removeChild keep links straight", () => {
+await test("Node.$insertChild / $removeChild keep links straight", () => {
   const p = new Node();
   const a = new Node();
   const b = new Node();
   const c = new Node();
   p.$appendChild(a);
   p.$appendChild(c);
-  p.insertChild(b, 1);
+  p.$insertChild(b, 1);
   assert.deepEqual(p.children, [a, b, c]);
-  p.removeChild(b);
+  p.$removeChild(b);
   assert.deepEqual(p.children, [a, c]);
   assert.equal(b.parent, null);
 });
@@ -7403,23 +7403,23 @@ await test("createView/discard notify: auto-size engages on an EMPTY parent; lay
   app.discard();
 });
 
-await test("tooltipLabel: the attribute auto-provides the Tooltip singleton (the FocusRing mechanism)", async () => {
+await test("tooltipLabel: the attribute auto-provides the TooltipLayer singleton (the FocusRing mechanism)", async () => {
   const r = await compile(`App [ width=100, height=100, b: View [ tooltipLabel = "hello", onClick() { } ] ]`);
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  assert.ok(r.source.includes("class Tooltip"), "the library file was auto-included");
-  assert.ok(r.source.includes("Tooltip [ ],"), "the singleton was spliced as the LAST App child (source order stacks)");
+  assert.ok(r.source.includes("class TooltipLayer"), "the library file was auto-included");
+  assert.ok(r.source.includes("TooltipLayer [ ],"), "the singleton was spliced as the LAST App child (source order stacks)");
   const none = await compile(`App [ width=100, height=100, b: View [ onClick() { } ] ]`);
-  assert.ok(!none.source.includes("class Tooltip"), "no tip anywhere -> no Tooltip");
-  const own = await compile(`App [ width=100, height=100, b: View [ tooltipLabel = "x", onClick() { } ], t: Tooltip [ ] ]`);
-  assert.equal(own.errors.length, 0, "an app-declared Tooltip compiles (bare-tag auto-include)");
-  assert.ok(!own.source.includes("// the tooltip singleton — provided"), "an app-declared Tooltip suppresses the auto splice");
+  assert.ok(!none.source.includes("class TooltipLayer"), "no tip anywhere -> no TooltipLayer");
+  const own = await compile(`App [ width=100, height=100, b: View [ tooltipLabel = "x", onClick() { } ], t: TooltipLayer [ ] ]`);
+  assert.equal(own.errors.length, 0, "an app-declared TooltipLayer compiles (bare-tag auto-include)");
+  assert.ok(!own.source.includes("// the tooltip singleton — provided"), "an app-declared TooltipLayer suppresses the auto splice");
   // The trigger is SCOPED to View descendants (the manifest's onBase): a
   // Node-descended class owns its own attribute names — an attr named `tooltipLabel`
   // there is the author's slot, never a tooltip.
   const node = await compile(`class Meter extends Node [ tooltipLabel: number = 15 ]
 App [ width=100, height=100, m: Meter [ tooltipLabel = 20 ], t: Text [ text = "x" ] ]`);
   assert.equal(node.errors.length, 0, node.errors.map((e) => e.message).join("; "));
-  assert.ok(!node.source.includes("class Tooltip"), "tooltipLabel on a NON-View node does not summon the Tooltip");
+  assert.ok(!node.source.includes("class TooltipLayer"), "tooltipLabel on a NON-View node does not summon the TooltipLayer");
 });
 
 await test("tooltips: the service's platform conventions — delay, warm retarget, press cools", async () => {
@@ -7757,7 +7757,7 @@ await test("include resolution agrees across hosts: a `..` path names the SAME f
 
 await test("$provide reaches the fetch host: a Control program compiles in-browser, FocusRing and all", async () => {
   // The $provide rules (library/autoincludes.json) splice a component the program
-  // never names: FocusRing whenever anything descends from Control, Tooltip
+  // never names: FocusRing whenever anything descends from Control, TooltipLayer
   // whenever `tooltipLabel` is used. compile.ts reached the host for those through a LOCAL
   // CAST that declared resolveLibrary synchronous — so when the include seam went
   // async the cast lied, `lib` was a Promise, `lib.canonical` undefined, and
@@ -9121,7 +9121,7 @@ await test("onReady: fires once, at the close of the first settle, after geometr
   } finally { app.discard(); }
 });
 
-await test("onArrive: the landing to onFollow's door — anchorless, per follow, replaces the scroll", async () => {
+await test("onArrive: the landing to onFollowLink's door — anchorless, per follow, replaces the scroll", async () => {
   const r = await compile(`App [ width = 400, height = 400, location = "",
     home: View [ shows = "", width = 10, height = 10 ],
     detail: View [ shows = "detail", width = 20, height = 20 ],
@@ -9132,11 +9132,11 @@ await test("onArrive: the landing to onFollow's door — anchorless, per follow,
   assert.equal(r.errors.length, 0, "onArrive(target: View) is an admitted App event: " + (r.errors[0]?.message ?? ""));
   const app = settleHeadless(r.program);
   try {
-    app.follow("#detail");
+    app.followLink("#detail");
     settle();
     assert.equal(app.landedOn, "detail", "the handler was handed the destination VIEW");
     assert.equal(app.arrivals, 1);
-    app.follow("#detail"); // arriving where you already are arrives again (§0.5.5)
+    app.followLink("#detail"); // arriving where you already are arrives again (§0.5.5)
     settle();
     assert.equal(app.arrivals, 2, "per FOLLOW, not per change of address");
   } finally { app.discard(); }
@@ -9195,7 +9195,7 @@ await test("app.reveal(target): the default landing stays callable from a handle
   assert.equal(r.errors.length, 0, "reveal(target) typechecks in body scope: " + (r.errors[0]?.message ?? ""));
   const app = settleHeadless(r.program);
   try {
-    app.follow("#detail");
+    app.followLink("#detail");
     settle(); // headless: the scroll is a no-op — composing it back must not throw
   } finally { app.discard(); }
 });

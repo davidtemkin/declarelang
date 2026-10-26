@@ -317,7 +317,7 @@ App [ fill = { provided("theme").background },
     // on a phone the tab switch is a menu, opened from a button that names the tab
 
     tabMenu: Menu [ items = { app.tabs().map((t: any) => ({ id: t.location, label: t.label, checked: t.id == app.mode })) },
-        picked(id: string) { app.follow("#" + id, true) }
+        picked(id: string) { app.followLink("#" + id, true) }
         ],
 
     // The history walk is the host's — the browser's Back/Forward, the mac
@@ -337,7 +337,7 @@ App [ fill = { provided("theme").background },
     // and from then on that holds.
 
     isDark: boolean = { app.themeMode == "auto"
-        ? hostProvided("dark", app.dark)
+        ? hostProvided("dark", app.systemDark)
         : app.themeMode == "dark" },
 
     // The house preset, plus this app's two domain names — and no private
@@ -995,7 +995,7 @@ App [ fill = { provided("theme").background },
             // build the full location itself — and replace, like the click
             // path, so no tab switch ever buries Back.
 
-            input(v: object) { app.follow("#" + ("" + v) + (app.fileRel == "" ? "" : "/" + app.fileRel), true) },
+            input(v: object) { app.followLink("#" + ("" + v) + (app.fileRel == "" ? "" : "/" + app.fileRel), true) },
 
             // each tab states its location, which is what makes the switch a link
             // the crawler can follow — without it this app emits one document

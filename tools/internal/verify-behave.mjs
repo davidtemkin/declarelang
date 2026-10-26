@@ -1009,7 +1009,7 @@ async function pausedLines(s, asking) {
       const ret = full.lastIndexOf("return (", col);
       const from = ret >= 0 && col - ret < 70 ? ret : Math.max(0, col - 40);
       let line = full.length <= 110 ? full.trim() : full.slice(from, from + 110).trim();
-      line = line.replace(/this\.root\./g, "app.").replace(/^"use strict";\s*/, "");
+      line = line.replace(/this\.\$root\./g, "app.").replace(/^"use strict";\s*/, "");
       if (full.length > 110 && from > 0 && ret < 0) line = "…" + line;
       if (full.length > 110 && from + 110 < full.length) line = line + "…";
       if (line !== "" && !quoted.includes(line)) quoted.push(line);

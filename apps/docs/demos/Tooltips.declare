@@ -1,5 +1,5 @@
 // A tooltip is one attribute
-// `tooltipLabel = "…"` makes a view hover-interactive and the auto-provided Tooltip shows the text
+// `tooltipLabel = "…"` makes a view hover-interactive and the auto-provided TooltipLayer shows the text
 // after the theme's delay. The Tooltips service, as a child, sees the same requests — here it
 // mirrors them into a status line. Hover the boxes.
 

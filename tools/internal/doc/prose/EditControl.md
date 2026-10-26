@@ -4,7 +4,7 @@ and the validity derived from both — so a control gets `commitOn` / `error` /
 `valid` / `dirty` and the `commit()` / `revert()` verbs without restating them.
 Not instantiable: write the concrete control.
 
-**`validate(v)` is a method you declare** on the field — `Editor` does not ship one. It is
+**`validate(v)` is a method you declare** on the field — `EditControl` does not ship one. It is
 called with the field's text whenever that changes, and before every commit. Return `""` when it
 is good, and otherwise the message to show. The message becomes `error`, `valid` follows it, and
 on a two-way field a draft that fails never reaches the dataset. Keep it pure: it judges the

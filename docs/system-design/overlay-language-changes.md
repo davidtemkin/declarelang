@@ -16,7 +16,7 @@ library-level answer exists, use it instead. Library classes and docs are not li
 
 ## Made during the build — not in the design text
 
-1. **`defaultplacement` places views only.** A subclass's or use site's non-view members
+1. **`defaultPlacement` places views only.** A subclass's or use site's non-view members
    (Spring, Animator, State, Keys, Dataset, Node) stay on the instance instead of going into
    the placement target. Before, `class DeskWindow extends Window [ tiltSpring: Spring
    [ attribute = tiltA ] ]` drove the *content pane's* `tiltA` — silently nothing — once

@@ -785,7 +785,7 @@ const ES_GLOBALS = new Set([
 // in a handler is the service, never a member to resolve. `afterSettle` and
 // `tint` are the function-shaped entries; the built-in theme presets are in
 // scope by name (`SanFrancisco`, `CupertinoDark`, …), so a body names one.
-const RUNTIME_SERVICES = new Set(["Focus", "Keys", "Files", "Inspect", "Accessibility", "afterSettle", "activeTone", ...THEME_PRESET_NAMES]);
+const RUNTIME_SERVICES = new Set(["Focus", "Keys", "FilePicker", "Inspect", "Accessibility", "afterSettle", "activeTone", ...THEME_PRESET_NAMES]);
 
 /** Every name the runtime binds in a { } body's own scope (expr.ts SCOPE): the
  *  value constructors, the literal-lowering helper, the services and presets.
@@ -916,7 +916,7 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
 
   // Library-provided singletons ride in by MANIFEST RULE (`$provide` in
   // autoincludes.json): the FocusRing with any Control descendant (OL's
-  // `canvas.focusclass` default, reborn), the Tooltip with any `tooltipLabel`
+  // `canvas.focusclass` default, reborn), the TooltipLayer with any `tooltipLabel`
   // attribute — each suppressed when the author declares that name
   // themselves (the customization path). The trigger vocabulary and the
   // executor live below; the ASSOCIATIONS are the library's data.
@@ -931,7 +931,7 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
     // ── PROVIDED SINGLETONS — data, not code paths ────────────────────────
     // The library manifest's `$provide` rules say when a program has EARNED a
     // library-provided singleton (the FocusRing with any Control descendant;
-    // the Tooltip with any `tooltipLabel` attribute). The compiler executes ONE
+    // the TooltipLayer with any `tooltipLabel` attribute). The compiler executes ONE
     // generic rule over a small trigger vocabulary — `baseUsed` (a declared
     // class descends from the named base) and `attributeUsed` (any element
     // sets the named attribute) — includes the class's own manifest file, and
@@ -980,7 +980,7 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
     // because the lie was written here. Reuse AutoIncludeHost's shape instead.
     const autoHost = host as Partial<Pick<AutoIncludeHost, "autoincludes" | "resolveLibrary">>;
     // A provided class's file is spliced whole, after the include phase — so
-    // the libraries it includes (a Tooltip is a Floating) are spliced first,
+    // the libraries it includes (a TooltipLayer is a Floating) are spliced first,
     // dependency-first and include-once, and its own `include` lines are
     // blanked (same length, so every position stays true). False when the
     // file is missing or already in the program.
@@ -1737,7 +1737,7 @@ class Resolver {
    *  never writable (see topLevelMutableBindings). */
   private readonly scriptMutable: Set<string>;
   /** Names the program's `theme Name [ … ]` declarations bind — in body scope
-   *  by name, like a preset (`theme = { app.dark ? BrandDark : Brand }`). */
+   *  by name, like a preset (`theme = { app.systemDark ? BrandDark : Brand }`). */
   private readonly themeNames: Set<string>;
   /** Names the program's `style Name [ … ]` bundles bind — plain text-style
    *  records, in body scope by name like a theme (`fillText(s, x, y, Caption)`). */
@@ -1947,7 +1947,7 @@ class Resolver {
       e.children.some((c) => c.attrs.some((a) => a.name === "datapath"));
     if (levels.some(supplies)) return;
     // The write-back spelling differs by family and the message must name the
-    // one that exists on THIS class: an Editor (TextInput) delivers through
+    // one that exists on THIS class: an EditControl (TextInput) delivers through
     // the `input` EVENT (`onInput(v: string)`), a Control (Checkbox, Slider,
     // RadioGroup) through the `input` METHOD (`input(v: …)`, Contract 1). Naming
     // the wrong one sends the reader to a member that is legal to declare, never
@@ -2127,7 +2127,7 @@ class Resolver {
       if (id.callee && CALLEE_GLOBALS.has(id.name)) continue; // a value constructor, not a member
       if (id.name === "app") {
         // `app` (language §11) — the running App at the top of the tree. Sugar
-        // for `this.root` (the `root` getter walks parent links to the top),
+        // for `this.$root` (the `root` getter walks parent links to the top),
         // so it reads as a noun anywhere — `app.hostWidth`, `app.navigate(…)`
         // — and typechecks as `App` via View's `root: App` in the scaffold. A
         // scope noun, never a member, so it is intercepted before the surface
@@ -2136,7 +2136,7 @@ class Resolver {
         this.edits.push({
           start: bodyStart + id.start,
           end: bodyStart + id.end,
-          text: id.shorthand ? `${id.name}: this.root` : "this.root",
+          text: id.shorthand ? `${id.name}: this.$root` : "this.$root",
         });
         continue;
       }
@@ -2144,7 +2144,7 @@ class Resolver {
         // `provided("name"[, default])` (language §9, provided values) — read a
         // value the nearest providing ancestor makes available. A body-scope
         // operator, not a member: rewritten to the base-node method so `this` is
-        // the reading node, exactly as `app` becomes `this.root`. The runtime
+        // the reading node, exactly as `app` becomes `this.$root`. The runtime
         // `Node.$provided` walks the parent chain (attributes.ts providedRead).
         // Intercepted before the surface search so a same-named slot cannot
         // shadow it, and left as a plain call so the argument (a string, or a
@@ -2372,12 +2372,12 @@ class Resolver {
 
   /** The explicit path to level `k` of `count` levels: the node itself, a
    *  parent chain, or the body root. In a CLASS body the root is `classroot`
-   *  (the class instance). In the App body (`appRoot`) it is `this.root`
+   *  (the class instance). In the App body (`appRoot`) it is `this.$root`
    *  (i.e. `app`) — `classroot` never appears in App output, so a bare App-name
    *  rewrite is idempotent and cannot collide with the App-body classroot ban. */
   private pathTo(k: number, count: number, appRoot = false): string {
     if (k === 0) return "this";
-    if (k === count - 1) return appRoot ? "this.root" : "classroot";
+    if (k === count - 1) return appRoot ? "this.$root" : "classroot";
     return Array<string>(k).fill("parent").join(".");
   }
 

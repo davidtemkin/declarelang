@@ -8,18 +8,18 @@ App [ width = 600, height = 400, fill = #f4f4f4,
     names: string = { app.picked.map((f) => (f.path != "" ? f.path : f.name) + " " + f.size).join("\n") },
     up: DataSource [ url = "", method = "POST" ],      // the test points it at its echo server
     choose: Button [ x = 20, y = 20, label = "Choose files",
-        onClick() { Files.pick({ multiple: true }).then((fs: File[]) => { app.picked = fs }) }
+        onClick() { FilePicker.pick({ multiple: true }).then((fs: File[]) => { app.picked = fs }) }
         ],
     folder: Button [ x = 180, y = 20, label = "Choose a folder",
-        onClick() { Files.pick({ folder: true }).then((fs: File[]) => { app.picked = fs }) }
+        onClick() { FilePicker.pick({ folder: true }).then((fs: File[]) => { app.picked = fs }) }
         ],
     send: Button [ x = 360, y = 20, label = "Upload",
         onClick() { app.up.body = { note: "hi", file: app.picked[0] }; app.up.fetch() }
         ],
     zone: View [ x = 20, y = 70, width = 560, height = 150, fill = { app.hot ? 0xccddee : 0xffffff },
-        onFilesOver(e: FilesOver) { app.hot = true },
+        onFilesOver(e: FilesOverEvent) { app.hot = true },
         onFilesOut() { app.hot = false },
-        onFilesDrop(e: FilesDrop) { app.hot = false; app.picked = e.files },
+        onFilesDrop(e: FilesDropEvent) { app.hot = false; app.picked = e.files },
         Text [ x = 10, y = 10, text = "Drop files or a folder here" ]
         ],
     list: Text [ x = 20, y = 240, width = 560, text = { app.names } ],

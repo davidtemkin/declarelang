@@ -19,11 +19,11 @@ export class Node {
     /** The parent a removeChild just unlinked from — a re-link back to the SAME
      *  parent (what replication does to every row of a block on any change) is
      *  not a move, and must not invalidate the provider memos. */
-    exParent = null;
+    $exParent = null;
     /** Landing under a DIFFERENT parent changes this subtree's ancestor chain,
      *  and only this subtree's: clear its provider memos (attributes.ts). */
     $chainMoved(child) {
-        if (child.parent === this || child.exParent === this)
+        if (child.parent === this || child.$exParent === this)
             return;
         providedChainMoved(child);
     }
@@ -49,7 +49,7 @@ export class Node {
     children = [];
     /** The read behind `provided("name")` — a value an ancestor makes available,
      *  read explicitly here. The compiler rewrites a `provided(…)` call's callee
-     *  to `this.$provided` (like `app` → `this.root`), so `this` is the reading
+     *  to `this.$provided` (like `app` → `this.$root`), so `this` is the reading
      *  node; `providedRead` (attributes.ts) walks the parent chain for the nearest
      *  ancestor that provides `name`. A second argument is the createContext-style
      *  default when nothing above provides it; with none, an unprovided read
@@ -99,7 +99,7 @@ export class Node {
     }
     /** The read behind `hostProvided("name", default)` — a value this program's
      *  HOST makes available: an island's `provides` name, a page's
-     *  `app.provide(…)`, the native host's launch parameters. The compiler
+     *  `app.provideHostValue(…)`, the native host's launch parameters. The compiler
      *  rewrites the callee to `this.$hostProvided`; the value lives on the
      *  running App (its host values), so every node in the program reads the
      *  same one. The default types the read and stands in when nothing is
@@ -109,7 +109,7 @@ export class Node {
         let top = this;
         while (top.parent !== null)
             top = top.parent;
-        const hv = top.hostValues;
+        const hv = top.$hostValues;
         if (hv == null) {
             if (dflt.length > 0)
                 return dflt[0];
@@ -145,7 +145,7 @@ export class Node {
      *  replication-populated container's content extent re-derive when rows
      *  ARRIVE — per-child attr reads track the children that exist, and this
      *  cell tracks that the SET of children changed. */
-    structure = null;
+    $structure = null;
     /** Register the caller's interest in "my child list changed" (no-op when
      *  nothing is tracking). Every reactive read works this way — a cell the
      *  reader subscribes to — and the child list's cell is created on first
@@ -153,23 +153,23 @@ export class Node {
     $watchChildList() {
         if (!isTracking())
             return;
-        if (this.structure === null) {
-            this.structure = new Cell();
-            this.structure.structural = true; // wakes carry the re-wire signal
+        if (this.$structure === null) {
+            this.$structure = new Cell();
+            this.$structure.structural = true; // wakes carry the re-wire signal
         }
-        this.structure.track();
+        this.$structure.track();
     }
     $childListChanged() {
-        this.structure?.changed();
+        this.$structure?.changed();
     }
     /** The child-list cell's kernel id (created on first need) — a native
      *  rule's edge on "the SET of children changed" (the auto-extent rule). */
     $structureCellId() {
-        if (this.structure === null) {
-            this.structure = new Cell();
-            this.structure.structural = true;
+        if (this.$structure === null) {
+            this.$structure = new Cell();
+            this.$structure.structural = true;
         }
-        return this.structure.cellId();
+        return this.$structure.cellId();
     }
     /** The scope noun (R6) for members declared in THIS node's body — the
      *  enclosing class instance, set at construction. It lives here, on Node, not
@@ -177,10 +177,10 @@ export class Node {
      *  (a controller node's members resolve `classroot` to the controller). */
     classroot = null;
     /** The top of the tree — the App root. A deeply-nested view reaches
-     *  app-level state and methods through `this.root` instead of a
+     *  app-level state and methods through `this.$root` instead of a
      *  fragile fixed-depth `.parent` chain (the language's one escape from
      *  strict child→parent locality; structure, not reactive). */
-    get root() {
+    get $root() {
         let n = this;
         while (n.parent !== null)
             n = n.parent;
@@ -196,7 +196,7 @@ export class Node {
     }
     /** Link `child` at `index` — child order is semantic (tree order is paint
      *  order, and replicated children take their data's order, R8). */
-    insertChild(child, index) {
+    $insertChild(child, index) {
         this.$chainMoved(child);
         child.parent = this;
         this.children.splice(index, 0, child);
@@ -204,8 +204,8 @@ export class Node {
     }
     /** Unlink `child`. Model structure only — a live view's surface and
      *  standing computations are the caller's to retire (View.discard). */
-    removeChild(child) {
-        child.exParent = this; // so a re-link back here is not a move
+    $removeChild(child) {
+        child.$exParent = this; // so a re-link back here is not a move
         const i = this.children.indexOf(child);
         if (i >= 0) {
             this.children.splice(i, 1);
@@ -223,7 +223,7 @@ export class Node {
     discard() {
         const p = this.parent;
         if (p !== null)
-            p.removeChild(this);
+            p.$removeChild(this);
         this.$teardown();
         if (p !== null)
             p.$childrenMutated();
@@ -246,7 +246,7 @@ export class Node {
         runRetire(this);
         disposeBindings(this);
         freeCells(this);
-        this.structure?.free();
+        this.$structure?.free();
     }
     /** Children were inserted/removed/reordered as a unit — the notification
      *  seam the tree verbs speak (discard above; the replicator, once per

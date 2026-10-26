@@ -196,7 +196,7 @@ export const SURFACES = [
                "LightbulbIcon", "SunIcon", "MoonIcon", "AutoIcon", "TextSizeIcon", "TextSmallIcon",
                "TextMediumIcon", "TextLargeIcon", "IconHost"],
         Segmented: ["SegmentedItem"], DataGrid: ["DataGridRow", "DataGridHeadingRow", "DataGridHeading", "DataGridCell", "DataGridText", "DataGridEdit"], Table: ["TableRow"],
-        Accordion: ["Pane"], RadioGroup: ["Radio"], Carousel: ["CarouselLayout"],
+        Accordion: ["AccordionPane"], RadioGroup: ["Radio"], Carousel: ["CarouselLayout"],
       };
       const headOf = {};
       for (const [head, kin] of Object.entries(FAMILY)) for (const k of kin) headOf[k] = head;

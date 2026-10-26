@@ -37,7 +37,7 @@ App [ width = 340, height = 260, fill = white,
   Its overrides and children apply only while `applied` holds.
 - They nest: a class per kind, with states inside.
 - Kinds that share a frame (a title above and actions below a body): the base class
-  names its content child, `defaultplacement = body`, and each kind's views go into it —
+  names its content child, `defaultPlacement = body`, and each kind's views go into it —
   laid out in the frame's order, no position arithmetic.
 - A part only some rows have (a sale badge, a status line) → `exists = { … }` on that
   child: built while true, discarded while false, in its place. Its reader handles its
@@ -50,7 +50,7 @@ App [ width = 340, height = 260, fill = white,
 - `classFor` reads only the record (`:fields`) and names classes; no app state in it.
 - A record whose kind changes is rebuilt as its new class, in place.
 
-**Look up** `View.classFor`, `State`, `State.applied`, `View.defaultplacement`, `View.rowIndex`.
+**Look up** `View.classFor`, `State`, `State.applied`, `View.defaultPlacement`, `View.rowIndex`.
 
 **Examples** `apps/tracker/tracker.declare`: `ListRow` / `GroupRow` / `IssueRow` ·
 `apps/desktop/desktop.declare`: each window record built as its window class ·

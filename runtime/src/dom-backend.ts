@@ -825,7 +825,7 @@ function ensureClipBoxFor(el: HTMLElement): HTMLElement {
   return box;
 }
 
-/** Each drawing's canvas → the surface that rasters it: a `scaling` change on an
+/** Each drawing's canvas → the surface that rasters it: an `imageSmoothing` change on an
  *  ancestor re-rasters the drawings inside (setScaling). */
 const DRAWING_OF = new WeakMap<HTMLCanvasElement, DomSurface>();
 
@@ -1235,7 +1235,7 @@ export class DomSurface implements Surface {
     this.element.style.transform = "translate(" + this.posX + "px," + this.posY + "px) " + (t3?.css ?? "") + cssMatrix(this.xform);
   }
 
-  /** `scaling` (backend.ts). CSS's `image-rendering` is INHERITED, so one
+  /** `imageSmoothing` (backend.ts). CSS's `image-rendering` is INHERITED, so one
    *  declaration here reaches every <img>, tint mask and drawing canvas in the
    *  subtree — the platform's own cascade, as a transform's is. A drawing's
    *  density is this backend's to choose, so the subtree's drawings re-raster:

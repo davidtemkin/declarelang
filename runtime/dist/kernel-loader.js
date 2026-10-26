@@ -18,7 +18,7 @@ export const KERNEL_TRACK = Object.freeze({ OWNER: 0x80000000, NOBODY: 0x7ffffff
 export const CELL_KIND = Object.freeze({ F64: 0, REF: 1 });
 /** dk_view_layout, field order (declare_kernel.h). */
 export const VIEW_LAYOUT_FIELDS = ["x", "y", "width", "height", "visible", "scale", "scaleX", "scaleY", "rotation", "skewX", "skewY", "pivotX", "pivotY",
-    "scrollX", "scrollY", "ignoreScroll", "scrollsOn", "rotateX", "rotateY", "translateZ", "visOn", "visScale", "visX", "visY", "visW", "visH", "visMode", "ignoreClip"];
+    "scrollX", "scrollY", "ignoreScroll", "$scrollsOn", "rotateX", "rotateY", "translateZ", "$visOn", "$visScale", "$visX", "$visY", "$visW", "$visH", "$visMode", "ignoreClip"];
 /** An empty image: no compiled elements — everything is added at runtime.
  *  (Phase B's compiler output replaces this with the program's tables.) */
 export function emptyImage() {

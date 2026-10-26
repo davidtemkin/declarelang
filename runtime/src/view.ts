@@ -77,7 +77,7 @@ export function provideInlineViewHost(fn: (root: Node) => InlineViewHost | null)
 }
 /** The class table for the program `v` belongs to, or null (no program). */
 export function inlineViewHost(v: View): InlineViewHost | null {
-  return inlineHost === null ? null : inlineHost(v.root);
+  return inlineHost === null ? null : inlineHost(v.$root);
 }
 import { record, type Draw, type DisplayList } from "./draw.js";
 import { sharedClock } from "./animate.js";
@@ -457,7 +457,7 @@ export class View extends Node {
    *  this instance's activation handler — stamped by instantiate from the source
    *  element's `link`. Read only by the static extractor (static-html.ts) to wrap the
    *  subtree in `<a href>`; undefined for all but the handful of navigable views. */
-  _navLink?: LinkTarget;
+  $navLink?: LinkTarget;
   declare x: number;
   declare y: number;
   declare width: number;
@@ -487,19 +487,19 @@ export class View extends Node {
    *  (`Layout.contentExtent`), and a padded view with no layout at all still
    *  has an inside. */
   /** @internal kernel-facing (the native visibility rule): a numeric mirror of scrolls, and the rule's outputs. */
-  declare scrollsOn: boolean;
-  declare visOn: boolean; declare visScale: number; declare visX: number; declare visY: number; declare visW: number; declare visH: number;
-  declare visMode: number;
+  declare $scrollsOn: boolean;
+  declare $visOn: boolean; declare $visScale: number; declare $visX: number; declare $visY: number; declare $visW: number; declare $visH: number;
+  declare $visMode: number;
   /** The names this app EXPOSES to whatever hosts it — its own attributes,
    *  read by a host island's `exposed(…)` or a page's `app.exposed(…)`. */
   declare exposes: readonly string[];
   declare padding: Inset;
   /** @internal The inset TOTALS, one per axis (left+right, top+bottom) — the
    *  content box as two numeric slots, so a kernel expression can read it the
-   *  way it reads any other slot (`parent.insetX`). Maintained by `padding`'s
+   *  way it reads any other slot (`parent.$insetX`). Maintained by `padding`'s
    *  push below; authored nowhere. */
-  declare insetX: number;
-  declare insetY: number;
+  declare $insetX: number;
+  declare $insetY: number;
   /** What paints this view's box: a solid Color (null = paint nothing) or a
    *  Gradient — the ruled `fill` slot, subsuming the retired backgroundColor. */
   declare fill: Fill;
@@ -594,7 +594,7 @@ export class View extends Node {
    *  drawing's pixels being one to each unit of the view, so pixel art stays
    *  sharp under any scale above it. The whole subtree follows, as it follows
    *  a transform; paint only — hit testing and focus never change. */
-  declare scaling: "smooth" | "pixelated";
+  declare imageSmoothing: "smooth" | "pixelated";
   /** The frost (`frost(radius, saturation?)`; null = none): what has already
    *  painted beneath this view, sampled through a blur within the view's own
    *  painted shape — the view's `fill` then paints OVER the frosted sample,
@@ -621,7 +621,7 @@ export class View extends Node {
   /** Views masked BY this one (it is their stencil) — re-pushed when this
    *  view attaches, since a stencil declared after (or inside) the masked
    *  view has no surface at the masked view's own push. */
-  private maskUsers: Set<View> | null = null;
+  private $maskUsers: Set<View> | null = null;
 
   /** Push the mask to the seam; a stencil rides as the live view itself. */
   $applyMask(m: Mask | null): void {
@@ -630,7 +630,7 @@ export class View extends Node {
     if (m === null) { s.setMask?.(null); return; }
     if (isMaskGradient(m)) { s.setMask?.({ kind: "gradient", gradient: m }); return; }
     const stencil = m as unknown as View;
-    (stencil.maskUsers ??= new Set()).add(this);
+    (stencil.$maskUsers ??= new Set()).add(this);
     // a stencil is read by the renderer even while hidden: it takes its surface now
     stencil.$ensureReal("stencil");
     s.setMask?.({ kind: "view", stencil: stencil as unknown as import("./backend.js").MaskStencil });
@@ -646,9 +646,9 @@ export class View extends Node {
   declare claim: "both" | "x" | "y";
   /** The tooltip text (planes.md tier 1 — one attribute at the use site). A
    *  non-empty tip wires this view's hover into the Tooltips service; the
-   *  auto-included Tooltip singleton renders it. "" = no tip. */
+   *  auto-included TooltipLayer singleton renders it. "" = no tip. */
   declare tooltipLabel: string;
-  declare defaultplacement: string;
+  declare defaultPlacement: string;
   declare scrollY: number;
   declare scrollX: number;
   /** @internal The offset the PLATFORM last reported — never the eager write a
@@ -881,10 +881,10 @@ export class View extends Node {
             // inside a settle (a reconcile re-links every row): re-list ONCE
             // per settle, at the close, where the run's write folds into the
             // same settle — the extent is exact before anything paints
-            if (!this.extentRelistQueued) {
-              this.extentRelistQueued = true;
+            if (!this.$extentRelistQueued) {
+              this.$extentRelistQueued = true;
               afterSettle(() => {
-                this.extentRelistQueued = false;
+                this.$extentRelistQueued = false;
                 for (const s of ["width", "height"] as const) {
                   const n = ownerOf(this, s);
                   if (n !== null && n.isAutoExtent && n.isNative && n.id >= 0) {
@@ -985,7 +985,7 @@ export class View extends Node {
     return ownerOf(this, size) !== null;
   }
 
-  private extentRelistQueued = false;
+  private $extentRelistQueued = false;
   /** THE KERNEL'S AUTO-EXTENT (kernel.md, the layout-pass item): the same
    *  max over the children's footprints as extentOf, evaluated natively over
    *  the table — a container with many children re-derived per frame was half
@@ -996,7 +996,7 @@ export class View extends Node {
    *  later DECLINES the rule and the JS derive takes over then. */
   private $installKernelExtent(size: "width" | "height"): Constraint | null {
     // PADDING IS PART OF THE EXTENT (extentOf): the rule reads this view's inset
-    // total on its axis — the `insetX`/`insetY` slot `padding` maintains — and
+    // total on its axis — the `$insetX`/`$insetY` slot `padding` maintains — and
     // adds it, as extentOf adds both insets.
     if (!kernelLoaded() || !viewLayoutReady()) return null;
     if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && (globalThis as { __declareNoKernelExtent?: boolean }).__declareNoKernelExtent === true) return null;   // the A/B switch (profiling builds only)
@@ -1004,7 +1004,7 @@ export class View extends Node {
     for (const c of this.children) if (c instanceof View && c.$is3D()) return null;
     const target = slotCellOf(this, size);
     if (target < 0) return null;
-    if (slotCellOf(this, size === "width" ? "insetX" : "insetY") < 0) return null;
+    if (slotCellOf(this, size === "width" ? "$insetX" : "$insetY") < 0) return null;
     const K = kernel();
     const words = this.$extentWords(size);
     if (words.length > 1000) return null;   // the scratch's reach; a JS derive walks any count
@@ -1030,7 +1030,7 @@ export class View extends Node {
    *  cell on the axis, then each View child's numeric block base (the rule
    *  reads its slots by base). */
   private $extentWords(size: "width" | "height"): number[] {
-    const words: number[] = [this.$structureCellId(), slotCellOf(this, size === "width" ? "insetX" : "insetY")];
+    const words: number[] = [this.$structureCellId(), slotCellOf(this, size === "width" ? "$insetX" : "$insetY")];
     for (const c of this.children) if (c instanceof View && !c.$paintsElsewhere()) words.push(blockOf(c));
     return words;
   }
@@ -1118,7 +1118,7 @@ export class View extends Node {
    *  this runs on every position push, which is every frame of every animated
    *  or laid-out view in the tree. */
   $positionLead(axis: "x" | "y"): number {
-    const t = this.travelHost;
+    const t = this.$travelHost;
     const host = t === null ? this.parent : t;
     if (!(host instanceof View)) return 0;
     const p = host.padding;
@@ -1504,12 +1504,12 @@ export class View extends Node {
         || this.scaleX !== 1 || this.scaleY !== 1 || this.skewX !== 0 || this.skewY !== 0 || this.$is3D()) pushTransform(this);
     if (this.perspective !== 0) s.setPerspective?.(this.perspective);
     if (this.blend !== "normal") s.setBlend?.(this.blend);
-    if (this.scaling !== "smooth") s.setScaling?.(this.scaling);
+    if (this.imageSmoothing !== "smooth") s.setScaling?.(this.imageSmoothing);
     if (this.backdrop !== null) s.setBackdrop?.(nullIfEmpty(filterList(this.backdrop)));
     if (this.filter !== null) s.setFilter?.(nullIfEmpty(filterList(this.filter)));
     if (this.mask !== null) this.$applyMask(this.mask);
     // a stencil attaching late: the views it masks re-push, now with a surface
-    if (this.maskUsers !== null) for (const u of this.maskUsers) if (u.mask === (this as unknown as Mask)) u.$applyMask(u.mask);
+    if (this.$maskUsers !== null) for (const u of this.$maskUsers) if (u.mask === (this as unknown as Mask)) u.$applyMask(u.mask);
     this.$applyClip(this.clip);
     // The facts' read halves: the platform mirrors its offset and its
     // in-motion state in; nothing here pushes out (a request is a verb call).
@@ -1550,7 +1550,7 @@ export class View extends Node {
    *  own scroll converts here at the boundary — the contract stays exactly
    *  what the drag pairing needs, scrolled or not.) */
   viewAt(x: number, y: number, except: View | null = null): View | null {
-    const r = (this.root ?? this) as View;
+    const r = (this.$root ?? this) as View;
     return hitAt(r, x - r.scrollX, y - r.scrollY, false, except) as View | null;
   }
 
@@ -1578,7 +1578,7 @@ export class View extends Node {
    *  `app.hostHeight`. For the coarse question, bind `onScreen` instead. */
   rootBounds(): { x: number; y: number; width: number; height: number } {
     const b = rootFrameBox(this as unknown as InteractionView);
-    const r = (this.root ?? this) as View;
+    const r = (this.$root ?? this) as View;
     return { x: b.x + r.scrollX, y: b.y + r.scrollY, width: b.width, height: b.height };
   }
 
@@ -1594,7 +1594,7 @@ export class View extends Node {
    *  the facts above are its coarse, at-rest companions. */
   rootTransform(): { x: number; y: number; scale: number; rotation: number } {
     const t = rootTransform(this as unknown as InteractionView);
-    const r = (this.root ?? this) as View;
+    const r = (this.$root ?? this) as View;
     return { x: t.tx + r.scrollX, y: t.ty + r.scrollY, scale: t.scale, rotation: t.rotation };
   }
 
@@ -1607,7 +1607,7 @@ export class View extends Node {
 
   rootOrigin(): { x: number; y: number } {
     const o = rootFrameOrigin(this as unknown as InteractionView);
-    const r = (this.root ?? this) as View;
+    const r = (this.$root ?? this) as View;
     return { x: o.x + r.scrollX, y: o.y + r.scrollY };
   }
 
@@ -1626,7 +1626,7 @@ export class View extends Node {
   }
 
   /** The view this one paints in when that is not its parent, else null. */
-  private get travelHost(): View | null {
+  private get $travelHost(): View | null {
     const p = this.paintsIn;
     return p instanceof View && p !== this.parent ? p : null;
   }
@@ -1637,7 +1637,7 @@ export class View extends Node {
   /** `paintsIn` changed: move the guest listing, re-host the surface, and let
    *  the declared parent re-arrange and re-measure without it (or with it). */
   $paintHostChanged(): void {
-    const host = this.travelHost;
+    const host = this.$travelHost;
     const moved = this.$guestOf !== host;
     if (moved) {
       if (this.$guestOf !== null) {
@@ -1674,10 +1674,10 @@ export class View extends Node {
   $paintGuests: View[] = [];
 
   /** Does this view paint somewhere other than its parent? */
-  $paintsElsewhere(): boolean { return this.travelHost !== null; }
+  $paintsElsewhere(): boolean { return this.$travelHost !== null; }
 
   private $applyTravel(): boolean {
-    const scroller = this.travelHost;
+    const scroller = this.$travelHost;
     const s = this.$surface as (Surface & { travelWith?(h: unknown): void; isTraveling?(): boolean }) | null;
     if (s === null || typeof s.travelWith !== "function") return false;
     if (scroller === null) {
@@ -1794,7 +1794,7 @@ export class View extends Node {
    *  data context — replication's convention). The pair of `discard()`. */
   createView(tag: string, props?: Record<string, unknown>): View {
     if (viewCreator === null) throw new Error(diag`createView: the instantiation module is not loaded`);
-    return viewCreator(this.root as View, tag, this, props);
+    return viewCreator(this.$root as View, tag, this, props);
   }
 
   raise(below?: View | null): void {
@@ -1803,15 +1803,15 @@ export class View extends Node {
     const away = (this.$surface as (Surface & { isTraveling?(): boolean }) | null)?.isTraveling?.() === true;
     if (below == null || below === this || below.parent !== p) {
       if (p.children[p.children.length - 1] === this) return;         // already frontmost
-      p.removeChild(this);
-      p.insertChild(this, p.children.length);
+      p.$removeChild(this);
+      p.$insertChild(this, p.children.length);
       if (!away && this.$surface !== null && p.$surface !== null && !isDeferred(this.$surface)) p.$surface.insertChild(this.$surface, null);
       return;
     }
     if (p.children[p.children.indexOf(below) - 1] === this) return;   // already just beneath `below`
-    p.removeChild(this);
+    p.$removeChild(this);
     const at = p.children.indexOf(below);
-    p.insertChild(this, at < 0 ? p.children.length : at);
+    p.$insertChild(this, at < 0 ? p.children.length : at);
     if (!away && this.$surface !== null && p.$surface !== null && !isDeferred(this.$surface)) {
       p.$surface.insertChild(this.$surface, realSurfaceAfter(this));
     }
@@ -1845,7 +1845,7 @@ export class View extends Node {
     // A LINKED view is interactive by the same rule (location.md §0.4): `link`
     // grants interest the way a handler does, and a plain click follows the
     // reference — AFTER any declared onClick (handler first, then follow; the
-    // handler cannot cancel — veto belongs to onFollow, or to link = "").
+    // handler cannot cancel — veto belongs to onFollowLink, or to link = "").
     // A SCROLLER is interactive by the same rule. `scrolls` declares that this
     // view answers drags and wheels over its box, and the answer is scrolling —
     // performed by the platform's scroll process rather than by a method, which
@@ -1884,8 +1884,8 @@ export class View extends Node {
         this.$freezeHome(false);
       }
       if (type === "click" && this.link !== "") {
-        const app = this.root as unknown as { follow?: (ref: string, replace?: boolean) => void };
-        app?.follow?.(this.link, this.replace);
+        const app = this.$root as unknown as { followLink?: (ref: string, replace?: boolean) => void };
+        app?.followLink?.(this.link, this.replace);
       }
     });
   }
@@ -2024,7 +2024,7 @@ function syncPaddedRange(v: View): void {
 }
 
 const pushScrolls = (v: View, ax: string): void => {
-  setBound(v, "scrollsOn", ax !== "none");   // the kernel's numeric mirror (native visibility rule)
+  setBound(v, "$scrollsOn", ax !== "none");   // the kernel's numeric mirror (native visibility rule)
   syncPaddedRange(v);
   // optional-called: a minimal host/mock surface may omit the scroll seam
   const scrolling = (a: boolean) => { v.$scrollingChanged(a); };
@@ -2066,8 +2066,8 @@ defineAttributes(View, {
     // counted as a touch, and every padded row of a windowed list became
     // "user state" the reconciler may never recycle
     const [t, r, b, l] = insetSides(p);
-    setBound(v, "insetX", l + r);
-    setBound(v, "insetY", t + b);
+    setBound(v, "$insetX", l + r);
+    setBound(v, "$insetY", t + b);
     for (const c of v.children) if (c instanceof View) c.$repushPosition();
     v.$surface?.setPadding?.(p);
     syncPaddedRange(v);
@@ -2075,16 +2075,16 @@ defineAttributes(View, {
   // the names this app exposes to its host (islands.md); a program sets a
   // literal list, and the host reads each through `exposed(name)`
   exposes: { def: Object.freeze([]) },
-  insetX: { def: 0 },
-  insetY: { def: 0 },
+  $insetX: { def: 0 },
+  $insetY: { def: 0 },
   // KERNEL-FACING MIRRORS AND OUTPUTS (kernel.md; the native visibility rule):
-  // `scrollsOn` mirrors `scrolls !== "none"` as a number the kernel can read;
+  // `$scrollsOn` mirrors `scrolls !== "none"` as a number the kernel can read;
   // the vis* cells are the rule's outputs, delivered to the public facts by
   // the JS delivery rule (at-rest buffering intact). Not language surface.
-  scrollsOn: { def: false },
-  visOn: { def: true }, visScale: { def: 1 }, visX: { def: 0 }, visY: { def: 0 }, visW: { def: 0 }, visH: { def: 0 },
+  $scrollsOn: { def: false },
+  $visOn: { def: true }, $visScale: { def: 1 }, $visX: { def: 0 }, $visY: { def: 0 }, $visW: { def: 0 }, $visH: { def: 0 },
   /** 1 = the kernel computed the facts; 0 = a 3D transform on the chain: the JS walk owns them. */
-  visMode: { def: 1 },
+  $visMode: { def: 1 },
   fill: { def: null, push: (v, f) => v.$surface?.setFill(f), equal: fillEqual },
   cornerRadius: { def: 0, push: (v, r) => v.$surface?.setCornerRadius(r) },
   stroke: { def: null, push: (v, st) => v.$surface?.setStroke(st), equal: strokeEqual },
@@ -2139,7 +2139,7 @@ defineAttributes(View, {
   // optional-chained (the ignoreScroll pattern): backends adopt independently,
   // and the seam table (test/seam.test.mjs) says which have.
   blend: { def: "normal", push: (v, b: string) => v.$surface?.setBlend?.(b) },
-  scaling: { def: "smooth", push: (v, m: string) => v.$surface?.setScaling?.(m) },
+  imageSmoothing: { def: "smooth", push: (v, m: string) => v.$surface?.setScaling?.(m) },
   backdrop: { def: null, push: (v, b: FilterValue) => v.$surface?.setBackdrop?.(nullIfEmpty(filterList(b))), equal: backdropEqual },
   filter: { def: null, push: (v, f: FilterValue) => v.$surface?.setFilter?.(nullIfEmpty(filterList(f))), equal: filtersEqual },
   mask: { def: null, push: (v, m: Mask | null) => v.$applyMask(m) },
@@ -2199,7 +2199,7 @@ defineAttributes(View, {
   } },
   // `replace` — this link overwrites the current history entry instead of pushing
   // (location.md §0.5.6): fine-grained movement WITHIN a place (a deck's arrows),
-  // not movement between places. Read by App.follow when the link is followed.
+  // not movement between places. Read by App.followLink when the link is followed.
   replace: { def: false },
   // `shows` — this view manifests the named location (location.md §0.4). The slot
   // stores the name for the registry and introspection; the VISIBILITY it implies
@@ -2213,7 +2213,7 @@ defineAttributes(View, {
   // reads drive fades/reveals).
   scrolls: { def: "none", push: pushScrolls },
   tooltipLabel: { def: "" },
-  defaultplacement: { def: "" },
+  defaultPlacement: { def: "" },
   // FACTS (schema readOnly): the backend mirrors the platform's offset IN
   // (setScroll's callback); a program cannot write them — the checker refuses
   // an assignment and an Animator alike, naming the verbs. The push survives
@@ -2462,7 +2462,7 @@ export function viewLayoutReady(): boolean {
   const K = kernel();
   const layout: Record<string, number> = {};
   for (const f of ["x", "y", "width", "height", "visible", "scale", "scaleX", "scaleY", "rotation", "skewX", "skewY", "pivotX", "pivotY",
-                   "scrollX", "scrollY", "ignoreScroll", "scrollsOn", "rotateX", "rotateY", "translateZ", "visOn", "visScale", "visX", "visY", "visW", "visH", "visMode", "ignoreClip"]) {
+                   "scrollX", "scrollY", "ignoreScroll", "$scrollsOn", "rotateX", "rotateY", "translateZ", "$visOn", "$visScale", "$visX", "$visY", "$visW", "$visH", "$visMode", "ignoreClip"]) {
     const i = slotIndex(View, f);
     if (i < 0) return false;   // a slot is not numeric on this build: the kernel path stays off
     layout[f] = i;
@@ -2498,11 +2498,11 @@ export class App extends View {
    *  after it: tree standing, constraints wired, geometry computed, nothing
    *  painted, so what the handler writes is in the first frame the user sees.
    *  Once per App instance; an embedded island's App gets its own. */
-  private readyDelivered = false;
+  private $readyDelivered = false;
   override $attach(backend: RenderBackend, parentSurface: Surface | null, before: Surface | null = null): void {
     super.$attach(backend, parentSurface, before);
-    if (!this.readyDelivered) {
-      this.readyDelivered = true;
+    if (!this.$readyDelivered) {
+      this.$readyDelivered = true;
       afterSettle(() => fireEvent(this, "ready"));
       // the program has its room from here: sizes noted before it did are judged now
       afterSettle(judgeNegativeSizes);
@@ -2535,9 +2535,9 @@ export class App extends View {
    *  `cursor: View [ visible = { !classroot.pointerOverText } ]`. */
   declare pointerOverText: boolean;
   /** The OS color-scheme preference (`prefers-color-scheme: dark`), fed live by
-   *  the runtime. Theme an app off it: `fill = { app.dark ? 0x0B141B : 0xFFFFFF }`
+   *  the runtime. Theme an app off it: `fill = { app.systemDark ? 0x0B141B : 0xFFFFFF }`
    *  or drive a `theme` record from it. Read-only to user code. */
-  declare dark: boolean;
+  declare systemDark: boolean;
   /** The person's accessibility preferences, fed live by the host: `reduceMotion`,
    *  `increaseContrast`, `reduceTransparency`, and `textScale` (1 until a host
    *  supplies it). Read anywhere as `provided("accessibilitySettings")`. */
@@ -2592,8 +2592,8 @@ export class App extends View {
   /** The shipping page's over-the-wire size in KB (gzipped) and its Declare
    *  source line count — provided by the host/build (see index.ts note), 0
    *  until set. Reactive reads: a stat bound to them settles when they land. */
-  declare pageWeight: number;
-  declare sourceLines: number;
+  declare $pageWeight: number;
+  declare $sourceLines: number;
   /** INTERIM (capabilities.md §7): the two host-fed live-demo channels —
    *  `demoSources` (a name→source map the host seeds every editor from,
    *  host-client.js) and `liveReport` (the last live recompile's rendered
@@ -2628,7 +2628,7 @@ export class App extends View {
    *  Declare source names it: navigation is the CALL, never an observed attribute.
    *  The FALLBACK half of the verb — a host that registered `hostServices` is
    *  called directly instead, and this field never carries. */
-  pendingNav = "";
+  $pendingNav = "";
 
   /** The host's service table — the app→host VERBS' direct line, installed at
    *  mount by provideHostServices (boot.ts). Per-app, so two embedded apps on
@@ -2639,24 +2639,24 @@ export class App extends View {
    *  the verb parks its intent on the matching pending* channel for a polling
    *  host. (The mac bridge replaces `navigate` wholesale — Bridge.swift — and
    *  reads neither.) */
-  hostServices: { navigate?: (to: string) => void; openWindow?: (to: string) => void; inspect?: (slot: string) => void } | null = null;
+  $hostServices: { navigate?: (to: string) => void; openWindow?: (to: string) => void; inspect?: (slot: string) => void } | null = null;
 
   /** @internal an EMBEDDED tenant's line to its host island (linkIslandTenant
    *  installs it). Null = not linked (a top-level app, or never linked) —
    *  send() says so instead of vanishing. */
-  hostSink: { message(topic: string, payload: unknown): void } | null = null;
+  $hostSink: { message(topic: string, payload: unknown): void } | null = null;
 
   /** @internal an EMBEDDED tenant's host island (linkIslandTenant installs it):
    *  where this program's tree joins its host's, for focus and the keyboard. */
   $hostIsland: View | null = null;
 
-  /** post(topic, payload) — the tenant's message VERB, this app → its host
+  /** postToHost(topic, payload) — the tenant's message VERB, this app → its host
    *  island's onPost. The other half of the bridge from the facts: consumed
    *  once, ordered, never re-readable — for "do this", not "this is so"
    *  (islands design; the state channel is the `external` attributes). */
-  post(topic: string, payload?: unknown): void {
-    if (this.hostSink === null) { console.warn(`[Declare] app.post("${topic}"): this app is not linked to a host island — message dropped`); return; }
-    this.hostSink.message(topic, payload);
+  postToHost(topic: string, payload?: unknown): void {
+    if (this.$hostSink === null) { console.warn(`[Declare] app.postToHost("${topic}"): this app is not linked to a host island — message dropped`); return; }
+    this.$hostSink.message(topic, payload);
   }
 
   /** navigate(to) — the navigation SERVICE ACTION (capabilities.md §6). A link or
@@ -2665,8 +2665,8 @@ export class App extends View {
    *  runtime the host opens `to`. DOM-free: bodies never touch window.location, so
    *  navigation rides this channel like `editing` — one clear way, analyzable. */
   navigate(to: string): void {
-    if (this.hostServices?.navigate) { this.hostServices.navigate(to); return; }
-    this.pendingNav = to;
+    if (this.$hostServices?.navigate) { this.$hostServices.navigate(to); return; }
+    this.$pendingNav = to;
   }
 
   /** The reference schemes a link may carry (location.md §0.4) — the shared
@@ -2689,20 +2689,20 @@ export class App extends View {
    *  `replace = true`, and by the host itself on traversal/cold arrivals so a
    *  redirect can never mint an entry (no Back loops). Consumed (reset to
    *  "push") by the host at the mirror. A plain field, like pendingNav. */
-  pendingHistoryVerb: "push" | "replace" = "push";
+  $pendingHistoryVerb: "push" | "replace" = "push";
 
   /** follow(ref) — the ONE operation behind every arrival (location.md §0.5):
    *  a linked view's activation, a rich-text href, a cold URL, back/forward.
    *  Source requests, runtime delivers, destination decides. The app-scoped
-   *  hook `onFollow(ref) -> ref'` (a user-declared method, §0.6) is applied
+   *  hook `onFollowLink(ref) -> ref'` (a user-declared method, §0.6) is applied
    *  ONCE — transform, veto (""), or side-effect; then an external reference
    *  leaves through `navigate`, and a `#…` writes `location`. The anchor
    *  reveal rides the existing retained intent (resolveReveal); an anchorless
    *  arrival seeds the scroll to the top. Re-following the current reference
    *  re-runs the arrival step — no dead clicks. */
-  follow(ref: string, replace = false): void {
+  followLink(ref: string, replace = false): void {
     if (!App.allowedRef(ref)) return;
-    const hook = (this as unknown as { onFollow?: (r: string) => string }).onFollow;
+    const hook = (this as unknown as { onFollowLink?: (r: string) => string }).onFollowLink;
     if (typeof hook === "function") {
       const out = hook.call(this, ref);
       if (typeof out !== "string" || out === "") return;
@@ -2722,7 +2722,7 @@ export class App extends View {
       const dest = this.$destinationOfAnchor(loc);
       if (dest !== null) loc = dest === "" ? this.destinationOf(this.location) + "@" + loc : dest + "@" + loc;
     }
-    if (replace) this.pendingHistoryVerb = "replace";
+    if (replace) this.$pendingHistoryVerb = "replace";
     const same = this.location === loc;
     this.location = loc;
     // Anchorless: the destination starts at its top — the scroll must not
@@ -2763,22 +2763,22 @@ export class App extends View {
   /** app→host channel for openWindow, exactly like pendingNav: the verb writes
    *  it, the host polls it on the next frame and window.opens (still inside the
    *  click's transient user activation, so it isn't popup-blocked). */
-  pendingOpen = "";
+  $pendingOpen = "";
 
   /** app→host channel for the Inspector (the third of the same shape). A button
    *  calls `app.inspect("run:spring")` naming an island slot — or `""` for this
    *  app itself — and the host opens the Inspector on that subject. A plain
    *  field, not a reactive attribute: nothing renders from it, and no Declare
    *  source reads it. */
-  pendingInspect: string | null = null;
+  $pendingInspect: string | null = null;
 
   /** inspect(slot) — the Inspector SERVICE ACTION. `slot` names an embedded
    *  app's island ("run:spring"); omit it to inspect this app. Like navigate(),
    *  the intent rides the service table (or its channel fallback), so a `{ }`
    *  body never touches the document. */
   inspect(slot = ""): void {
-    if (this.hostServices?.inspect) { this.hostServices.inspect(slot); return; }
-    this.pendingInspect = slot;
+    if (this.$hostServices?.inspect) { this.$hostServices.inspect(slot); return; }
+    this.$pendingInspect = slot;
   }
 
   /** openWindow(to) — navigate's NEW-WINDOW sibling (a "View Source" that must
@@ -2787,15 +2787,15 @@ export class App extends View {
    *  A registered service runs synchronously inside the activation, which is
    *  MORE popup-safe than the old next-frame poll, not less. */
   openWindow(to: string): void {
-    if (this.hostServices?.openWindow) { this.hostServices.openWindow(to); return; }
-    this.pendingOpen = to;
+    if (this.$hostServices?.openWindow) { this.$hostServices.openWindow(to); return; }
+    this.$pendingOpen = to;
   }
 
   /** The reveal intent held from `location`'s trailing `@name` (location.md §6) —
    *  null when the location carries no anchor. Retained across settles until the
    *  name appears in a settled tree; re-armed or cancelled when `location` changes. */
-  private pendingAnchor: string | null = null;
-  private lastRevealLocation: string | null = null;
+  private $pendingAnchor: string | null = null;
+  private $lastRevealLocation: string | null = null;
 
   /** Resolve the pending `@name` reveal against the current settled tree. The host
    *  calls this after settles — and each frame while an intent is held, so a cold
@@ -2806,12 +2806,12 @@ export class App extends View {
    *  splits at the surface seam (DOM scrollIntoView / canvas scroll clamp). Returns
    *  the name it revealed this call (else null) — the host ignores it; tests read it. */
   $resolveReveal(): string | null {
-    if (this.location !== this.lastRevealLocation) {
-      this.lastRevealLocation = this.location;
+    if (this.location !== this.$lastRevealLocation) {
+      this.$lastRevealLocation = this.location;
       const at = this.location.indexOf("@");
-      this.pendingAnchor = at >= 0 ? this.location.slice(at + 1) : null;
+      this.$pendingAnchor = at >= 0 ? this.location.slice(at + 1) : null;
     }
-    const name = this.pendingAnchor;
+    const name = this.$pendingAnchor;
     if (name === null || name === "") return null;
     // THE MEASUREMENT VETO (location.md §0.5.3, closing §12.1): while any rich
     // flow's height is provisional — just rendered, or just un-hidden by this
@@ -2830,14 +2830,14 @@ export class App extends View {
     // scroll thunk's own (attached surface), same hold-and-retry.
     if (this.$hasArrive()) {
       if (hit.view.$surface === null) return null;
-      this.pendingAnchor = null;
+      this.$pendingAnchor = null;
       fireEvent(this, "arrive", hit.view);
       return name;
     }
     // Clear the intent only when the reveal ACTUALLY landed — the name being present
     // in `content` before its element is attached/rendered (the cold-deep-link race)
     // returns false, so we hold and retry next frame.
-    if (hit.fire()) { this.pendingAnchor = null; return name; }
+    if (hit.fire()) { this.$pendingAnchor = null; return name; }
     return null;
   }
 
@@ -2869,18 +2869,18 @@ export class App extends View {
    *  Seeded from build's `provides` when there are any, so the app's very
    *  first evaluation — at instantiate, before any settle or link — reads them.
    *  Null in a build without host values (boundary.ts): no read could reach them. */
-  readonly hostValues: BoundaryValues | null = hostValuesFor(SEED_PROVIDES);
+  readonly $hostValues: BoundaryValues | null = hostValuesFor(SEED_PROVIDES);
 
   /** The HOST's write: make `value` available to this app under `name` — what
    *  a `hostProvided("name", …)` read in the program returns. Called by the
    *  island bridge for each name the island `provides`, by a page embedding
-   *  this app (`el.__declareApp.provide(…)`, or `boot({ provides })`), and by
+   *  this app (`el.__declareApp.provideHostValue(…)`, or `boot({ provides })`), and by
    *  the native host for its launch parameters. Equality-gated; a change
    *  re-derives every reader. `undefined` withdraws the value (readers fall to
    *  their defaults). Data only — a host never hands over a node. */
-  provide(name: string, value: unknown): void {
-    if (value === undefined) this.hostValues?.clear(name);
-    else this.hostValues?.write(name, value);
+  provideHostValue(name: string, value: unknown): void {
+    if (value === undefined) this.$hostValues?.clear(name);
+    else this.$hostValues?.write(name, value);
   }
 
   /** The value this app exposes under `name` — one of its `exposes` names — or
@@ -2913,7 +2913,7 @@ export class App extends View {
   /** Re-arm the reveal intent for the CURRENT location — follow's no-dead-click
    *  rule (§0.5): re-following `#why@story` while already there re-runs the
    *  reveal, which resolveReveal's location-change guard would otherwise skip. */
-  $rearmReveal(): void { this.lastRevealLocation = null; this.$scheduleReveal(); }
+  $rearmReveal(): void { this.$lastRevealLocation = null; this.$scheduleReveal(); }
 
   /** The reveal pump — resolveReveal's retry as an ARMED-LIFETIME ticker on the
    *  shared clock. The hosts used to call resolveReveal once per frame for the
@@ -2927,25 +2927,25 @@ export class App extends View {
    *  like a Time. A held intent whose anchor never appears keeps the pump
    *  alive — exactly the old loops' behavior, now scoped to the one page that
    *  asked for an anchor. */
-  private pumpOn = false;
-  private readonly revealPump = {
+  private $pumpOn = false;
+  private readonly $revealPump = {
     perpetual: true as const,
     $tick: (): boolean => {
       this.$resolveReveal();
-      if (this.pendingAnchor !== null) return true;
-      this.pumpOn = false;
+      if (this.$pendingAnchor !== null) return true;
+      this.$pumpOn = false;
       return false;
     },
   };
 
   /** Stop the pump when the app leaves — a held intent must not keep the
    *  frame loop alive past the app (registered once, at first arm). */
-  private pumpRetireHooked = false;
+  private $pumpRetireHooked = false;
   private $hookPumpRetire(): void {
-    if (this.pumpRetireHooked) return;
-    this.pumpRetireHooked = true;
+    if (this.$pumpRetireHooked) return;
+    this.$pumpRetireHooked = true;
     onDiscard(this, () => {
-      if (this.pumpOn) { this.pumpOn = false; sharedClock.remove(this.revealPump); }
+      if (this.$pumpOn) { this.$pumpOn = false; sharedClock.remove(this.$revealPump); }
     });
   }
 
@@ -2957,10 +2957,10 @@ export class App extends View {
    *  first-call contract). A no-anchor location makes this a peek and a no-op. */
   $scheduleReveal(): void {
     afterSettle(() => {
-      if (this.location.indexOf("@") >= 0 && !this.pumpOn) {
-        this.pumpOn = true;
+      if (this.location.indexOf("@") >= 0 && !this.$pumpOn) {
+        this.$pumpOn = true;
         this.$hookPumpRetire();
-        sharedClock.add(this.revealPump);
+        sharedClock.add(this.$revealPump);
       }
     });
   }
@@ -2972,7 +2972,7 @@ export class App extends View {
    *  landed cleared the intent itself, so this is a no-op then — which is what
    *  makes the reveal's own scrollIntoView (whose scroll event arrives a tick
    *  later) safe from self-cancellation. */
-  $cancelReveal(): void { this.pendingAnchor = null; }
+  $cancelReveal(): void { this.$pendingAnchor = null; }
 
   /** The host's departure hook (scroll-places.ts): called at the first
    *  `location` or `waypoint` write of a settle — the moment the app leaves
@@ -2980,11 +2980,11 @@ export class App extends View {
    *  the host can note where the user was. Null on a host that keeps no
    *  history. */
   $onDepart: (() => void) | null = null;
-  private departArmed = false;
+  private $departArmed = false;
   $departing(): void {
-    if (this.departArmed || this.$onDepart === null) return;
-    this.departArmed = true;
-    afterSettle(() => { this.departArmed = false; });
+    if (this.$departArmed || this.$onDepart === null) return;
+    this.$departArmed = true;
+    afterSettle(() => { this.$departArmed = false; });
     this.$onDepart();
   }
 
@@ -3050,10 +3050,10 @@ export class App extends View {
    *  retires (stilling the rubber-band) when it doesn't. Reactive — content
    *  growth, floor changes, and host resizes all re-derive; child mutations
    *  re-run it through childrenMutated like the auto-extent derives. */
-  private pageScroll: Constraint | null = null;
+  private $pageScroll: Constraint | null = null;
   private $bindPageScroll(): void {
-    if (this.pageScroll !== null) return;
-    this.pageScroll = new Constraint(
+    if (this.$pageScroll !== null) return;
+    this.$pageScroll = new Constraint(
       "App.pageExtent",
       () => [this.contentWidth, this.contentHeight] as const,
       (wh) => {
@@ -3062,12 +3062,12 @@ export class App extends View {
       },
       1
     );
-    this.pageScroll.run();
+    this.$pageScroll.run();
   }
 
   override $childrenMutated(): void {
     super.$childrenMutated();
-    this.pageScroll?.run();
+    this.$pageScroll?.run();
   }
 }
 
@@ -3106,7 +3106,7 @@ defineAttributes(App, {
   pointerY: { def: 0 },
   hovering: { def: false },
   pointerOverText: { def: false },
-  dark: { def: false },
+  systemDark: { def: false },
   // the person's accessibility preferences (schema.ts); none, until a host says
   accessibilitySettings: { def: NO_SETTINGS },
   // page visibility (schema.ts) — true until a host reports otherwise, so
@@ -3156,8 +3156,8 @@ defineAttributes(App, {
   // `width = { app.width - app.safeLeft - app.safeRight }`.
   safeLeft: { def: 0 },
   safeRight: { def: 0 },
-  pageWeight: { def: 0 },
-  sourceLines: { def: 0 },
+  $pageWeight: { def: 0 },
+  $sourceLines: { def: 0 },
   // `location` — the app's URL fragment (docs/system-design/location.md). A stored reactive
   // slot: the host seeds/writes it (deep link, back/forward), the app writes it to
   // navigate, and `{ }` constraints that read it (`visible = { app.location == … }`)

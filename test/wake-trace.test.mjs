@@ -31,12 +31,12 @@ await test("a settle records its triggers, its changes, and the rule behind each
   assert.deepEqual({ from: trig.from, to: trig.to }, { from: 1, to: 2 }, "the write that opened the settle, with its values");
   const ch = rec.changes.find((c) => c.path === "app.box" && c.attr === "width");
   assert.deepEqual({ from: ch.from, to: ch.to }, { from: 10, to: 20 }, "what the settle changed in response");
-  assert.match(ch.by.source, /this\.root\.n \* 10/, "named by the rule that wrote it (the compiled body: app → this.root)");
+  assert.match(ch.by.source, /this\.\$root\.n \* 10/, "named by the rule that wrote it (the compiled body: app → this.$root)");
   assert.equal(typeof ch.by.line, "number");
   assert.ok(rec.runs >= 1);
   const text = T.text();
   assert.match(text, /app\.n 1 → 2/);
-  assert.match(text, /app\.box\.width 10 → 20 ← \{ this\.root\.n \* 10 \} \(line 3\)/);
+  assert.match(text, /app\.box\.width 10 → 20 ← \{ this\.\$root\.n \* 10 \} \(line 3\)/);
   T.clear();
   assert.equal(T.active(), false);
   assert.deepEqual(T.read(), [], "cleared");

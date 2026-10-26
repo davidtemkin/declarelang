@@ -166,7 +166,7 @@ export function check(input: Element | Program): DeclareError[] {
         const owner = childOwner(c.base, child.name);
         if (owner === null) continue;
         errors.push(new DeclareError(
-          `'${child.name}' is a child ${c.name} inherits from ${owner} — a subclass cannot declare it again. To put views INSIDE it, write 'defaultplacement = ${child.name}' in ${owner}'s body: a subclass's children then go into ${child.name}. To vary it, make what varies an attribute of ${owner} that the child reads (a color, a label, a size), or a method the subclass overrides`,
+          `'${child.name}' is a child ${c.name} inherits from ${owner} — a subclass cannot declare it again. To put views INSIDE it, write 'defaultPlacement = ${child.name}' in ${owner}'s body: a subclass's children then go into ${child.name}. To vary it, make what varies an attribute of ${owner} that the child reads (a color, a label, a size), or a method the subclass overrides`,
           child.pos));
       }
     }
@@ -1772,7 +1772,7 @@ export function checkAttr(schema: ClassSchema, attr: Attr): CheckedAttr {
     // exception): only on an EDITOR's value slot, and only to a single writable
     // datapath. Caught here so misuse is a clear compile error, not a silent
     // one-way (or literal) degrade.
-    if (!descendsFrom(schema, "Editor")) {
+    if (!descendsFrom(schema, "EditControl")) {
       return { ok: false, error: new DeclareError(
         `${schema.name}.${attr.name} <-> …: the two-way arrow edits a dataset value through an editor's value (e.g. 'TextInput.text') — ${schema.name} is not an editor. A control shows a value and hands its edits to input(v): write '${attr.name} = ${twoWayField(attr.value)}, input(v) { ${twoWayField(attr.value)} = v }'`,
         attr.pos) };
@@ -2008,28 +2008,28 @@ function checkControlledInput(program: Program): DeclareError[] {
   return errors;
 }
 
-/** `defaultplacement = name` (instantiate.ts DEFAULT PLACEMENT): written on a
+/** `defaultPlacement = name` (instantiate.ts DEFAULT PLACEMENT): written on a
  *  CLASS body, and naming a child that body declares, at any depth. */
 function checkPlacements(program: Program): DeclareError[] {
   const errors: DeclareError[] = [];
   const hasNamed = (el: Element, name: string): boolean => el.children.some((c) => c.name === name || hasNamed(c, name));
   const nameOf = (a: Attr): string | null => (a.value.kind === "ident" ? a.value.name : null);
   for (const c of program.classes) {
-    const a = c.body.attrs.find((x) => x.name === "defaultplacement");
+    const a = c.body.attrs.find((x) => x.name === "defaultPlacement");
     if (a === undefined) continue;
     const name = nameOf(a);
-    if (name === null) errors.push(new DeclareError(`defaultplacement names one of the class's children, written bare: 'defaultplacement = body'`, a.value.pos));
-    else if (!hasNamed(c.body, name)) errors.push(new DeclareError(`defaultplacement = ${name} — '${c.name}' declares no child named '${name}'; name the child its subclasses' and use sites' children should go into`, a.value.pos));
+    if (name === null) errors.push(new DeclareError(`defaultPlacement names one of the class's children, written bare: 'defaultPlacement = body'`, a.value.pos));
+    else if (!hasNamed(c.body, name)) errors.push(new DeclareError(`defaultPlacement = ${name} — '${c.name}' declares no child named '${name}'; name the child its subclasses' and use sites' children should go into`, a.value.pos));
   }
   const elsewhere = (el: Element): void => {
     for (const ch of el.children) {
-      const a = ch.attrs.find((x) => x.name === "defaultplacement");
-      if (a !== undefined) errors.push(new DeclareError(`defaultplacement belongs on a class — it says where the children of its subclasses and use sites go; write it in the class body`, a.pos));
+      const a = ch.attrs.find((x) => x.name === "defaultPlacement");
+      if (a !== undefined) errors.push(new DeclareError(`defaultPlacement belongs on a class — it says where the children of its subclasses and use sites go; write it in the class body`, a.pos));
       elsewhere(ch);
     }
   };
-  const rootAttr = program.root.attrs.find((x) => x.name === "defaultplacement");
-  if (rootAttr !== undefined) errors.push(new DeclareError(`defaultplacement belongs on a class — it says where the children of its subclasses and use sites go; write it in the class body`, rootAttr.pos));
+  const rootAttr = program.root.attrs.find((x) => x.name === "defaultPlacement");
+  if (rootAttr !== undefined) errors.push(new DeclareError(`defaultPlacement belongs on a class — it says where the children of its subclasses and use sites go; write it in the class body`, rootAttr.pos));
   elsewhere(program.root);
   for (const c of program.classes) elsewhere(c.body);
   return errors;

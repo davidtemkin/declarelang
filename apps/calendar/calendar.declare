@@ -430,13 +430,13 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
        that mode spread over it, so a library control dropped in here finds every
        token it reads. `themeMode` is Light / Dark / Auto — Auto follows the
        environment: what the host provides as `dark` when this app runs embedded
-       (a desktop passing its appearance through), else the OS through `app.dark`. */
+       (a desktop passing its appearance through), else the OS through `app.systemDark`. */
 
     theme = { { ...(app.isDark ? SanFranciscoDark : SanFrancisco), ...(app.isDark ? CalendarDark : CalendarLight) } },
     themeMode: "auto" | "light" | "dark" = "auto",
 
     isDark: boolean = { app.themeMode == "auto"
-        ? hostProvided("dark", app.dark)
+        ? hostProvided("dark", app.systemDark)
         : app.themeMode == "dark" },
 
     // layout constants

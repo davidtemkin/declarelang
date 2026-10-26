@@ -60,7 +60,7 @@ App [ appName = "What's under the hood · Declare",
 
     hosted: boolean = { hostProvided("hosted", false) },
     headWeight: number = { hostProvided("headWeight", 600) },
-    inDark: boolean = { hostProvided("dark", app.dark) },
+    inDark: boolean = { hostProvided("dark", app.systemDark) },
     headTrack: number = { app.headWeight >= 900 ? -0.006 : app.headWeight >= 700 ? -0.014 : -0.02 },
 
     // this app's full height, exposed for the host to size its island to

@@ -222,7 +222,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
         Inspect.clock.step(16.7)
         app.tick = app.tick + 1
         },
-    onInit() { app.darkUI = app.dark; app.open = ({ app: true }); app.vopen = ({ }) },
+    onInit() { app.darkUI = app.systemDark; app.open = ({ app: true }); app.vopen = ({ }) },
     refresh: Time [ tick = 110, running = { app.shown && app.running },
         onTick() { app.tick = app.tick + 1; app.pollTrace() }
         ],

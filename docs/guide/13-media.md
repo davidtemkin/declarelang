@@ -37,7 +37,7 @@ App [ width = 340, height = 170, fill = white, textColor = #51606C, fontSize = 1
   `both` to stretch.
 - [`alignX`](declare-docs:Image.alignX) / [`alignY`](declare-docs:Image.alignY) choose which part a `contain` or `cover` keeps.
 - `tint` colors a single-color bitmap — one icon asset, many colors.
-- [`scaling`](declare-docs:View.scaling)` = pixelated` keeps pixel art sharp when it is shown larger: set it on
+- [`imageSmoothing`](declare-docs:View.imageSmoothing)` = pixelated` keeps pixel art sharp when it is shown larger: set it on
   the view that holds the scene, `screen: View [ scale = 3, scaling = pixelated ]`, and every
   image and drawing inside follows.
 - `loaded`, `failed`, [`naturalWidth`](declare-docs:Image.naturalWidth) and [`naturalHeight`](declare-docs:Image.naturalHeight) are read-only facts. A

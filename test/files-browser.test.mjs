@@ -1,4 +1,4 @@
-// The person's files in a real browser (runtime files.ts): Files.pick answered
+// The person's files in a real browser (runtime files.ts): FilePicker.pick answered
 // with real files; files and a folder dragged and dropped onto a view, by the
 // browser's own drag events; and an upload of a picked file, as a form. Pins:
 //   - pick: each file's name, size, type, and a url; no path for a file alone;

@@ -33,12 +33,12 @@ class TabBar extends Segmented [
     accessibilityRole = tabList,
     tabRows: Dataset [ contents = { { tabs: ((classroot.choices ?? []) as any).map((c, i) => ({ ...c, i: i })) } } ],
     datapath = { this.tabRows.value },
-    SegmentedTab [ datapath = :tabs[] ]
+    TabBarTab [ datapath = :tabs[] ]
     ]
 
 
 /*
-# SegmentedTab
+# TabBarTab
 
 One tab of a `TabBar`: a `SegmentedItem` that is a tab to a screen reader. Built by a `TabBar` from its
 `choices` — never authored directly:
@@ -55,7 +55,7 @@ App [ width = 300, height = 80, view: string = "day",
 Follows `on`.
 */
 
-class SegmentedTab extends SegmentedItem [
+class TabBarTab extends SegmentedItem [
     accessibilityRole = tab,
     accessibilityChecked = null,
     accessibilitySelected = { on }

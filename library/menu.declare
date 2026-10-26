@@ -273,7 +273,7 @@ include [ "floating.declare" ]
 // a menu row, as data — the checker holds an `items` record to it, so a
 // misspelled field is a compile error, not a row that silently lacks it
 
-schema MenuItem [ id?: string, label?: string, key?: string, icon?: string, enabled?: boolean,
+schema MenuItemRecord [ id?: string, label?: string, key?: string, icon?: string, enabled?: boolean,
     checked?: boolean, selected?: boolean, divider?: boolean, submenu?: any, kind?: string, props?: any,
     minWidth?: number ]
 
@@ -345,7 +345,7 @@ class Menu extends Floating [
     minWidth:    number = 120,
     width = { Math.max(minWidth, widestCustom, textEdge + widestLabel + (widestKey > 0 ? 26 + widestKey + 16 : hasSubs ? 34 : 18)) },
 
-    items: MenuItem[]? = null,
+    items: MenuItemRecord[]? = null,
 
     // The column model: a check column exists when some row in this menu can be
     // checked — a record carrying `checked`, true or false — the way a native

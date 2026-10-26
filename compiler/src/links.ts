@@ -16,7 +16,7 @@
 // is "" when it shouldn't fire), which the extractor reads as a read-path and the
 // serializer honours by emitting no anchor for an empty href.
 //
-// Runs on the RESOLVED program (post scope resolution, so `app` is `this.root`
+// Runs on the RESOLVED program (post scope resolution, so `app` is `this.$root`
 // and every read is an explicit `this.`/`classroot.`/`parent.` chain), the same
 // input dep-extract runs on.
 
@@ -122,12 +122,12 @@ function targetInBody(body: string, isClassRoot: boolean): LinkTarget | undefine
 }
 
 /** Is this the App's `location` attribute (the assignment LHS)? Matches the
- *  resolved `this.root.location` plus `app.location`, the twin of isNavigateCallee. */
+ *  resolved `this.$root.location` plus `app.location`, the twin of isNavigateCallee. */
 function isLocationTarget(expr: ts.Expression): boolean {
   if (!ts.isPropertyAccessExpression(expr) || expr.name.text !== "location") return false;
   const recv = expr.expression;
   if (ts.isIdentifier(recv)) return recv.text === "app";
-  return ts.isPropertyAccessExpression(recv) && recv.name.text === "root" && recv.expression.kind === ts.SyntaxKind.ThisKeyword;
+  return ts.isPropertyAccessExpression(recv) && recv.name.text === "$root" && recv.expression.kind === ts.SyntaxKind.ThisKeyword;
 }
 
 /** The evaluable text of a location/navigate RHS, or null if it reads something not
@@ -144,15 +144,15 @@ function navExprText(arg: ts.Expression, isClassRoot: boolean): string | null {
 }
 
 /** Is this call target the App's navigate service action? Matches the resolved
- *  spelling `this.root.navigate`, plus `app.navigate` and a bare `navigate` for
+ *  spelling `this.$root.navigate`, plus `app.navigate` and a bare `navigate` for
  *  robustness — no other `.navigate(` exists (it is not an attribute anymore). */
 function isNavigateCallee(callee: ts.Expression): boolean {
   if (ts.isIdentifier(callee)) return callee.text === "navigate";
   if (!ts.isPropertyAccessExpression(callee) || callee.name.text !== "navigate") return false;
   const recv = callee.expression;
   if (ts.isIdentifier(recv)) return recv.text === "app";
-  // `this.root` (the resolved `app`): a `.root` access on `this`.
-  return ts.isPropertyAccessExpression(recv) && recv.name.text === "root" && recv.expression.kind === ts.SyntaxKind.ThisKeyword;
+  // `this.$root` (the resolved `app`): a `.$root` access on `this`.
+  return ts.isPropertyAccessExpression(recv) && recv.name.text === "$root" && recv.expression.kind === ts.SyntaxKind.ThisKeyword;
 }
 
 /** Resolve a navigate argument to a link target: a string literal → an href; a

@@ -182,7 +182,7 @@ await test("a hosted program's focus reaches its host's shortcuts across the isl
     got: string = "",
     sc: Shortcuts [ title = "Tenant", items = { [ ({ id: "find", key: "⌘F", label: "Find in Tenant" }) ] }, picked(id: string) { app.got = id } ],
     f: View [ width = 40, height = 20, focusable = true ] ]`);
-  tenant.hostValues = hostValuesFor({});
+  tenant.$hostValues = hostValuesFor({});
   const unlink = linkIslandTenant(host.w.isl, tenant); settle();
   Focus.focus(tenant.f); settle();
   press("f", { meta: true });

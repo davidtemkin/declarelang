@@ -41,7 +41,7 @@ export function wireIslands({ app, host, cfg, seeds, compile, navServices, resol
   // inside an embedded app — a docs page's live example, with docs hosted in a
   // desktop window — resolves against that app's own folder. Null means the page's.
   const islandDirFor = (view) => {
-    const root = view ? view.root : null;
+    const root = view ? view.$root : null;
     if (root == null || root === app) return null;
     const base = assetBaseFor(root);
     try { return base ? new URL(".", base).href : null; } catch { return null; }
@@ -187,7 +187,7 @@ export function wireIslands({ app, host, cfg, seeds, compile, navServices, resol
     const dir = islandDirFor(view);
     // the program's own permitted names, the same in every mode: a build ships
     // only these, so a host that could compile another must refuse it too
-    const root = view ? view.root : null;
+    const root = view ? view.$root : null;
     if (root != null && !islandPermitted(root, name)) {
       if (!unbuilt.has(name)) {
         unbuilt.add(name);
@@ -332,7 +332,7 @@ export function wireIslands({ app, host, cfg, seeds, compile, navServices, resol
       };
       if (el.isConnected) admit();
       else afterSettle(admit);
-    } else if (ev.view && ev.view.root === app) {
+    } else if (ev.view && ev.view.$root === app) {
       // a CANVAS island of THIS page's app: surface composition (no element)
       mountCanvasPreview(ev.view, ev.slot);
     }

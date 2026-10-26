@@ -43,7 +43,7 @@ section("dep-extract\n─ A. unit: extraction + residue ─");
 
 test("direct reads — union of the slots the expression names", async () => {
   const r = await extract(`App [ n: number = 3, m: number = 4, v: View [ width = { app.n * 20 + app.m } ] ]`);
-  assert.deepEqual(readsOf(r, "width"), ["this.root.m", "this.root.n"]);
+  assert.deepEqual(readsOf(r, "width"), ["this.$root.m", "this.$root.n"]);
 });
 
 test("phase-4 half-close: a method's parameter reads wire through the call site (found 2026-07-27)", async () => {
@@ -55,7 +55,7 @@ test("phase-4 half-close: a method's parameter reads wire through the call site 
     box: View [ width = { app.vOf(app.src) + app.w } ] ]`);
   // the argument node itself rides along (reference read — harmless
   // over-approximation); the CELL that used to go stale is the point:
-  assert.deepEqual(readsOf(r, "width", "box"), ["this.root.src", "this.root.src.width", "this.root.w"]);
+  assert.deepEqual(readsOf(r, "width", "box"), ["this.$root.src", "this.$root.src.width", "this.$root.w"]);
   assert.deepEqual(errsOf(r, "width", "box"), [], "and nothing refuses");
 });
 
@@ -67,12 +67,12 @@ test("phase-4 half-close: an UNNAMEABLE argument degrades to the old silence, ne
   // the filter result is unnameable — its read is dropped (pre-close behavior),
   // the nameable read still wires, and the app compiles
   assert.deepEqual(errsOf(r, "width", "sum"), []);
-  assert.ok(readsOf(r, "width", "sum").includes("this.root.total"));
+  assert.ok(readsOf(r, "width", "sum").includes("this.$root.total"));
 });
 
 test("ternary takes the union of ALL branches (over-subscription, by design)", async () => {
   const r = await extract(`App [ a: boolean = true, b: number = 1, c: number = 2, v: View [ width = { app.a ? app.b : app.c } ] ]`);
-  assert.deepEqual(readsOf(r, "width"), ["this.root.a", "this.root.b", "this.root.c"]);
+  assert.deepEqual(readsOf(r, "width"), ["this.$root.a", "this.$root.b", "this.$root.c"]);
 });
 
 test("record projection off an attribute — the read-path resolves to the slot cell", async () => {
@@ -80,14 +80,14 @@ test("record projection off an attribute — the read-path resolves to the slot 
   // reading a field off a record slot resolves to the SLOT cell — the `.pageBg`
   // projection is a plain (untracked) property access, so the tracked read-path
   // is the `pal` slot itself (verified against the tracker in the cross-check).
-  assert.deepEqual(readsOf(r, "fill"), ["this.root.pal"]);
+  assert.deepEqual(readsOf(r, "fill"), ["this.$root.pal"]);
 });
 
 test("interprocedural — reads through a method call into its body", async () => {
   const r = await extract(`App [ n: number = 3, m: number = 4,
       v: View [ width = { app.sum() } ],
       sum() { return this.n + this.m } ]`);
-  assert.deepEqual(readsOf(r, "width"), ["this.root.m", "this.root.n"]);
+  assert.deepEqual(readsOf(r, "width"), ["this.$root.m", "this.$root.n"]);
 });
 
 test("interprocedural — transitive across a call chain", async () => {
@@ -95,7 +95,7 @@ test("interprocedural — transitive across a call chain", async () => {
       v: View [ width = { app.a() } ],
       a() { return this.b() + 1 },
       b() { return this.n * 2 } ]`);
-  assert.deepEqual(readsOf(r, "width"), ["this.root.n"]);
+  assert.deepEqual(readsOf(r, "width"), ["this.$root.n"]);
 });
 
 test("callback closure — reactive reads inside are found; the loop var is not", async () => {
@@ -103,7 +103,7 @@ test("callback closure — reactive reads inside are found; the loop var is not"
       v: View [ width = { app.list().filter(x => x.k > app.n).length } ],
       list() { return [] } ]`);
   const reads = readsOf(r, "width");
-  assert.ok(reads.includes("this.root.n"), "app.n from the closure is a dep: " + reads);
+  assert.ok(reads.includes("this.$root.n"), "app.n from the closure is a dep: " + reads);
 });
 
 test("datapath read is a dependency", async () => {
@@ -117,7 +117,7 @@ test("recursion terminates (cycle guard) and still extracts", async () => {
       v: View [ width = { app.a() } ],
       a() { return this.b() },
       b() { return this.a() + this.n } ]`);
-  assert.deepEqual(readsOf(r, "width"), ["this.root.n"]);
+  assert.deepEqual(readsOf(r, "width"), ["this.$root.n"]);
 });
 
 // ── residue: the dynamic-target forms + opaque calls are BLOCKING compile errors
@@ -215,7 +215,7 @@ test("refused — a script call passed a NODE (the silent-staleness shape)", asy
   // phase-4 answer) are both retired: the shape is refused, with the fix named.
   const e = await refusedBy(`script { function vOf(node: any) { return node.v } }
 App [ v: number = 10, w: number = 2, b: View [ width = { vOf(app) + app.w } ] ]`);
-  assert.ok(e.some((x) => /passed the node 'this\.root'/.test(x)), JSON.stringify(e));
+  assert.ok(e.some((x) => /passed the node 'this\.\$root'/.test(x)), JSON.stringify(e));
   assert.ok(e.some((x) => /make it a method/.test(x)), "the fix is named");
 });
 
@@ -241,7 +241,7 @@ test("a script helper over plain VALUES stays analyzable (nothing to rebase)", a
   // the call site, and arithmetic on a parameter can't hide an attribute read.
   const r = await extract(`script { function pick(a: number, b: number) { return a > b ? a : b } }
 App [ v: number = 10, w: number = 3, b: View [ width = { pick(app.v, app.w) } ] ]`);
-  assert.deepEqual(readsOf(r, "width"), ["this.root.v", "this.root.w"]);
+  assert.deepEqual(readsOf(r, "width"), ["this.$root.v", "this.$root.w"]);
 });
 
 test("refused — a node reaching a script call THROUGH a method's parameter", async () => {
@@ -264,7 +264,7 @@ test("a helper's own module state is INVISIBLE — allowed, and on the author (t
   const r = await extract(`script { let bias = 5
 function biased(n: number) { return n + bias } }
 App [ v: number = 10, b: View [ width = { biased(app.v) } ] ]`);
-  assert.deepEqual(readsOf(r, "width"), ["this.root.v"]);
+  assert.deepEqual(readsOf(r, "width"), ["this.$root.v"]);
   assert.equal(errsOf(r, "width").length, 0, JSON.stringify(errsOf(r, "width")));
 });
 
@@ -278,7 +278,7 @@ test("a script body reading a module CONST is fine (a frozen constant)", async (
   const r = await extract(`script { const SCALE = 3
 function scaled(n: number) { return n * SCALE } }
 App [ v: number = 10, b: View [ width = { scaled(app.v) } ] ]`);
-  assert.deepEqual(readsOf(r, "width"), ["this.root.v"]);
+  assert.deepEqual(readsOf(r, "width"), ["this.$root.v"]);
   assert.equal(errsOf(r, "width").length, 0);
 });
 
@@ -287,7 +287,7 @@ test("an argument that is no nameable path is fine — its own reads are the dep
   // the script call adds nothing. Nothing left to refuse: no body is read.
   const r = await extract(`script { function fmt(v: any) { return "" + v } }
 App [ v: number = 10, b: View [ width = { fmt(app.pick()) ? app.v : 0 } ], pick() { return this.v } ]`);
-  assert.deepEqual(readsOf(r, "width"), ["this.root.v"]);
+  assert.deepEqual(readsOf(r, "width"), ["this.$root.v"]);
   assert.equal(errsOf(r, "width").length, 0, JSON.stringify(errsOf(r, "width")));
 });
 
@@ -297,14 +297,14 @@ test("a helper aliasing its parameter is the author's business now — values in
   const r = await extract(`script { function inc(n: number) { const m = n
   return m + 1 } }
 App [ v: number = 10, w: number = 2, b: View [ width = { inc(app.v) + app.w } ] ]`);
-  assert.deepEqual(readsOf(r, "width"), ["this.root.v", "this.root.w"]);
+  assert.deepEqual(readsOf(r, "width"), ["this.$root.v", "this.$root.w"]);
   assert.equal(errsOf(r, "width").length, 0, JSON.stringify(errsOf(r, "width")));
 });
 
 test("a script function passed as a VALUE is opaque — the receiver chain's reads are the deps", async () => {
   const r = await extract(`script { function double(n: number) { return n * 2 } }
 App [ rows: number[] = [], b: View [ width = { app.rows.map(double).length } ] ]`);
-  assert.deepEqual(readsOf(r, "width"), ["this.root.rows"]);
+  assert.deepEqual(readsOf(r, "width"), ["this.$root.rows"]);
   assert.equal(errsOf(r, "width").length, 0, JSON.stringify(errsOf(r, "width")));
 });
 
@@ -314,7 +314,7 @@ test("refused — nodes passed for the callee to CHOOSE between (the projection 
   const e = await refusedBy(`script { function pick(a: any, b: any) { return a.n > b.n ? a : b } }
 App [ cardA: View [ n: number = 1, label: string = "a" ], cardB: View [ n: number = 2, label: string = "b" ],
   b: Text [ text = { pick(app.cardA, app.cardB).label } ] ]`);
-  assert.ok(e.some((x) => /passed the node 'this\.root\.cardA'/.test(x)), JSON.stringify(e));
+  assert.ok(e.some((x) => /passed the node 'this\.\$root\.cardA'/.test(x)), JSON.stringify(e));
 });
 
 test("a script function that returns a parameter is fine when the result is NOT projected", async () => {
@@ -446,9 +446,9 @@ test("a written-to defaulted slot keeps its CELL edge alongside the inline (issu
     retagRequest: DataSource [ method = "POST", url = "./x.json",
         body = { { filenames: app.retagFilenames, tag: app.retagTag } } ] ]`);
   const reads = readsOf(r, "body");
-  assert.ok(reads.includes("this.root.retagFilenames"),
+  assert.ok(reads.includes("this.$root.retagFilenames"),
     "the defaulted slot's cell is a dep — a handler write must wake the body: " + JSON.stringify(reads));
-  assert.ok(reads.includes("this.root.retagTag"), "the literal-defaulted slot too: " + JSON.stringify(reads));
+  assert.ok(reads.includes("this.$root.retagTag"), "the literal-defaulted slot too: " + JSON.stringify(reads));
   assert.deepEqual(errsOf(r, "body"), [], "and nothing refuses");
 });
 
@@ -468,12 +468,12 @@ test("a computed default does NOT shadow a same-named app slot (L-17)", async ()
         ],
     ]`);
   const own = readsOf(r, "colA", "panes");
-  assert.ok(own.includes("this.root.colA"), "the default keeps its edge to the app slot: " + JSON.stringify(own));
-  assert.ok(!own.some((p) => p === "this.root.parent.width"),
+  assert.ok(own.includes("this.$root.colA"), "the default keeps its edge to the app slot: " + JSON.stringify(own));
+  assert.ok(!own.some((p) => p === "this.$root.parent.width"),
     "and never inlines itself into an impossible path: " + JSON.stringify(own));
 
   const consumer = readsOf(r, "width", "treeCol");
-  assert.ok(consumer.includes("parent.root.colA"),
+  assert.ok(consumer.includes("parent.$root.colA"),
     "the consumer inlines the default and inherits its app-slot edge: " + JSON.stringify(consumer));
   assert.ok(consumer.includes("parent.parent.width"),
     "and the default's other read, rebased: " + JSON.stringify(consumer));
@@ -494,8 +494,8 @@ test("shadowing still inlines the RIGHT default when two elements share a name",
     ]`);
   const kids = r.filter((c) => c.name === "kid" && c.attr === "width").map((c) => c.reads.sort());
   assert.equal(kids.length, 2, "two consumers");
-  assert.ok(kids.some((k) => k.includes("parent.root.a")), "one inlines app.a: " + JSON.stringify(kids));
-  assert.ok(kids.some((k) => k.includes("parent.root.b")), "the other inlines app.b: " + JSON.stringify(kids));
+  assert.ok(kids.some((k) => k.includes("parent.$root.a")), "one inlines app.a: " + JSON.stringify(kids));
+  assert.ok(kids.some((k) => k.includes("parent.$root.b")), "the other inlines app.b: " + JSON.stringify(kids));
 });
 
 section("\n─ D. self-dependence: a constraint may not read its own slot ─");
@@ -586,22 +586,22 @@ test("a deep receiver without the default reads its own slot — the tail is nev
       ${extra} ]`;
   for (const extra of ["split: Splitter [ ]", ""]) {
     const r = await extract(src(extra));
-    assert.deepEqual(readsOf(r, "text", "mirror"), ["this.root.card.active.text"], extra);
-    assert.deepEqual(readsOf(r, "text", "via"), ["this.root.card.active.text"], "through a method body too — " + extra);
+    assert.deepEqual(readsOf(r, "text", "mirror"), ["this.$root.card.active.text"], extra);
+    assert.deepEqual(readsOf(r, "text", "via"), ["this.$root.card.active.text"], "through a method body too — " + extra);
   }
 });
 
 test("a resolved receiver with no default of that name inlines nothing", async () => {
-  // Drawer's `open` is a literal; Accordion's Pane has a computed `open` whose
+  // Drawer's `open` is a literal; Accordion's AccordionPane has a computed `open` whose
   // chain reaches `label`. `this.caption()` reads THIS drawer's plain slot — the
-  // Pane's formula must not join it (it made `label` read itself).
+  // AccordionPane's formula must not join it (it made `label` read itself).
   const r = await compile(`class Drawer extends View [ open: boolean = false, label: string = "",
       caption(): string { return this.open ? "Hide" : "Show" } ]
-    App [ d: Drawer [ label = { this.caption() } ], acc: Accordion [ Pane [ label = "One" ] ] ]`, {});
+    App [ d: Drawer [ label = { this.caption() } ], acc: Accordion [ AccordionPane [ label = "One" ] ] ]`, {});
   assert.ok(r.source !== null, "expected it to compile: " + r.errors.map((e) => e.message).join("; "));
   const x = await extract(`class Drawer extends View [ open: boolean = false, label: string = "",
       caption(): string { return this.open ? "Hide" : "Show" } ]
-    App [ d: Drawer [ label = { this.caption() } ], acc: Accordion [ Pane [ label = "One" ] ] ]`);
+    App [ d: Drawer [ label = { this.caption() } ], acc: Accordion [ AccordionPane [ label = "One" ] ] ]`);
   assert.deepEqual(readsOf(x, "label", "d"), ["this.open"]);
 });
 
@@ -618,7 +618,7 @@ test("a call's verdict never depends on a same-named method in an unrelated clas
   // a known node with no such method: refused either way (extracted from the
   // resolved form directly — the typecheck would answer first, as a member miss)
   for (const extra of ["", ", z: View [ frob(): number { return 2 } ]"]) {
-    const x = extractProgram(parseProgram(`App [ v: View [ ], t: Text [ text = { "" + this.root.v.frob() } ]${extra} ]`));
+    const x = extractProgram(parseProgram(`App [ v: View [ ], t: Text [ text = { "" + this.$root.v.frob() } ]${extra} ]`));
     assert.ok(errsOf(x, "text", "t").some((e) => /unresolved call target \.frob\(\)/.test(e.message)),
       "refused" + extra + ": " + JSON.stringify(errsOf(x, "text", "t")));
   }

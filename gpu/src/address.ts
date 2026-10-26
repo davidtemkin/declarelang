@@ -84,14 +84,14 @@ export function wireAddress(app: App, initial: string, seed: AddressSeed, post: 
   const replace = (): void => {
     post({ t: "history", verb: "replace", state: entry(), frag: frag(app.location) });
     mirrored = app.location; mirroredW = app.waypoint;
-    if (app.pendingHistoryVerb !== undefined) app.pendingHistoryVerb = "push";
+    if (app.$pendingHistoryVerb !== undefined) app.$pendingHistoryVerb = "push";
   };
   replace();
   let traversing = false;
   observe(() => [app.location, app.waypoint], () => {
     if (traversing || (app.location === mirrored && app.waypoint === mirroredW)) return;
-    const verb = app.pendingHistoryVerb === "replace" ? "replace" : "push";
-    if (app.pendingHistoryVerb !== undefined) app.pendingHistoryVerb = "push";
+    const verb = app.$pendingHistoryVerb === "replace" ? "replace" : "push";
+    if (app.$pendingHistoryVerb !== undefined) app.$pendingHistoryVerb = "push";
     if (app.waypoint.length > 64 * 1024)
       console.error("[Declare] waypoint exceeds 64KB — a waypoint is coordinates in the session, not the session's data; derive the data from it instead (guide: URLs, links and history)");
     dropScrollPlaces(app as never);                    // the app moved on: no late landing

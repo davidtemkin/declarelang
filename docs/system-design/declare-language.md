@@ -419,7 +419,7 @@ Three references reach a node from a `{ }` body, because the node a piece of cod
 
 - **`this`** — the node the code is on.
 - **`parent`** — that node's parent in the view tree.
-- **`app`** — the running App, reachable from **any** depth, wherever the code is written: `app.scrollY`, `app.navigate("/docs")`, `app.width`. It reads as a noun (under the hood it is `this.root`); use it for app-level state and page-wide actions from a component or from the App itself. (Because a filling app's `width` *is* its host, responsive layout usually reads `app.width` rather than the host directly — see [sizing.md](sizing.md).)
+- **`app`** — the running App, reachable from **any** depth, wherever the code is written: `app.scrollY`, `app.navigate("/docs")`, `app.width`. It reads as a noun (under the hood it is `this.$root`); use it for app-level state and page-wide actions from a component or from the App itself. (Because a filling app's `width` *is* its host, responsive layout usually reads `app.width` rather than the host directly — see [sizing.md](sizing.md).)
 
 Inside a `{ }` body a child reads the enclosing class's attributes by **bare name** (`label`, `count`) — until a nearer name shadows it, at which point the qualified `classroot.label` disambiguates (below). The bare capital **`App`** is the *class*, not the instance — `App.foo` resolves only in a use-site binding and errors inside a class body; write **`app.foo`** for the running instance. The scope nouns are reserved: none may be an attribute, child, or parameter name.
 

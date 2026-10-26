@@ -1,10 +1,10 @@
 import type { RenderBackend, Surface } from "./backend.js";
 import { type FontWeight } from "./measure.js";
 import { type FamilyValue } from "./font-value.js";
-import { Editor } from "./editor.js";
+import { EditControl } from "./editor.js";
 import { type Color, type Inset } from "./value.js";
 import { type Purpose } from "./purpose.js";
-export declare class TextInput extends Editor {
+export declare class TextInput extends EditControl {
     textColor: Color;
     fontSize: number;
     /** A family string, a Font, or a list of them. */

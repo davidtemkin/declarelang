@@ -78,7 +78,7 @@ it too (`el.__declareApp`), which is the embedder's way in:
 
 - **watch state out** — `observe(() => app.total, v => …)` (a runtime export)
   runs your callback once per settle in which the value changed;
-- **feed values in** — pass `boot({ provides: {…} })`, or call [`app.provide(name, value)`](declare-docs:App.method.provide)
+- **feed values in** — pass `boot({ provides: {…} })`, or call [`app.provideHostValue(name, value)`](declare-docs:App.method.provideHostValue)
   any time later, and everything reading it with `hostProvided` re-derives (below); the
   page-visibility fact ([`app.pageVisible`](declare-docs:App.pageVisible)) arrives on its own;
 - **intercept the verbs** — replace the app's service table
@@ -215,7 +215,7 @@ list of what it offers back:
 App [ exposes = ["pos"],
     volume: number = { hostProvided("volume", 0) },   // the host's value; 0 when nothing hosts it
     pos: number = 3,                                   // this app writes it; the host reads it
-    onPost(m: IslandPost) { app.pos = app.pos + 1; app.post("ack", m.topic) },
+    onHostMessage(m: IslandPost) { app.pos = app.pos + 1; app.postToHost("ack", m.topic) },
     ]
 ```
 
@@ -246,7 +246,7 @@ on the site ([Packaging for production](declare-docs:guide:packaging)).
 Values vs. verbs is the load-bearing distinction. A provided or exposed value
 is continuous — meaningful whenever read, and owned by exactly one side: the
 tenant cannot write what the host provides, and the host cannot write what
-the tenant exposes. [`post(topic, payload)`](declare-docs:App.method.post) / `onPost(m)` are **verbs** —
+the tenant exposes. [`postToHost(topic, payload)`](declare-docs:App.method.postToHost) / `onHostMessage(m)` are **verbs** —
 consumed once, ordered, never re-readable: "do this", never "this is so".
 Only data crosses: numbers, strings, booleans, arrays, plain objects. A
 view is an identity in one program's graph and cannot cross.
@@ -254,7 +254,7 @@ view is an identity in one program's graph and cannot cross.
 **The page is the topmost host.** A top-level app reads what its *page*
 provides with the same `hostProvided`: pass `boot({ …, provides: { dark: true } })`,
 put JSON on the element (`<div data-declare-embed data-declare-provide='{"dark":true}'>`),
-or call `el.__declareApp.provide("dark", false)` any time later. Reading back
+or call `el.__declareApp.provideHostValue("dark", false)` any time later. Reading back
 out is [`app.exposed(name)`](declare-docs:App.method.exposed) and [`app.watchExposed(name, cb)`](declare-docs:App.method.watchExposed), over the names
 the App's `exposes` lists.
 
@@ -292,7 +292,7 @@ and its **links** on its own.
 **Where it is.** [`location`](declare-docs:AppIsland.location) on an `AppIsland` is
 its tenant's [`location`](declare-docs:App.location), carried both ways. Set it and
 the tenant starts there, as a page starts at its URL's fragment; set it later and
-the tenant goes there, through its own `onFollow`. When the tenant moves itself, the
+the tenant goes there, through its own `onFollowLink`. When the tenant moves itself, the
 island's `location` follows, so the host can show where its tenant is:
 
 ```declare-fragment

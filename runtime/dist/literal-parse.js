@@ -264,7 +264,7 @@ export function coerceMotion(lit) {
 // shape". Path2D and clip-path both swallow malformed data silently, so the
 // validation here is where a bad path becomes a positioned message instead
 // of a mysteriously blank region.
-const SHAPE = diag `a Shape (SVG path data in a string, like "M0 0 L80 0 L40 60 Z", or null)`;
+const SHAPE = diag `a ClipPath (SVG path data in a string, like "M0 0 L80 0 L40 60 Z", or null)`;
 export function coerceShape(lit) {
     if (lit.kind === "ident" && lit.name === "null")
         return ok(null);

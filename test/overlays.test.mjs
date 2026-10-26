@@ -194,8 +194,8 @@ await test("a menu in a turned window opens at its anchor in the window's frame 
   app.w.menu.close(); settle();
 });
 
-await test("defaultplacement carries a subclass's views; its members with no view stay on the instance", async () => {
-  const app = await boot(`class Frame [ defaultplacement = body,
+await test("defaultPlacement carries a subclass's views; its members with no view stay on the instance", async () => {
+  const app = await boot(`class Frame [ defaultPlacement = body,
     t: number = 0,
     body: View [ width = 100, height = 100 ]
     ]
@@ -225,7 +225,7 @@ async function hosted() {
     ]`, { originDir: process.cwd() + "/library", stripPos: false });
   assert.equal(b.errors.length, 0, b.errors.map((e) => e.message).join("; "));
   const tenant = instantiate(b.program);
-  tenant.hostValues = hostValuesFor({});
+  tenant.$hostValues = hostValuesFor({});
   const unlink = linkIslandTenant(host.w.isl, tenant);
   settle();
   return { host, tenant, unlink };
@@ -273,7 +273,7 @@ async function hostedIn(islandSrc) {
     ]`, { originDir: process.cwd() + "/library", stripPos: false });
   assert.equal(b.errors.length, 0, b.errors.map((e) => e.message).join("; "));
   const tenant = instantiate(b.program);
-  tenant.hostValues = hostValuesFor({});
+  tenant.$hostValues = hostValuesFor({});
   return { host, tenant };
 }
 
@@ -316,7 +316,7 @@ await test("a hosted program's dialog in its window keeps Tab inside it; Esc giv
     ]`, { originDir: process.cwd() + "/library", stripPos: false });
   assert.equal(b.errors.length, 0, b.errors.map((e) => e.message).join("; "));
   const tenant = instantiate(b.program);
-  tenant.hostValues = hostValuesFor({});
+  tenant.$hostValues = hostValuesFor({});
   const unlink = linkIslandTenant(host.w.isl, tenant); settle();
   Focus.focus(tenant.field); settle();
   tenant.dlg.show(); settle();

@@ -75,7 +75,7 @@ const BIN: Partial<Record<number, number>> = {
 // else), and a class's for `classroot`/`this` only when no subclass and no
 // use site of the class (or of a subclass) declares a method of that name.
 // The receiver's own slots read inside the body (`this.nDays`) become the
-// receiver's path in the caller (`this.root.nDays`).
+// receiver's path in the caller (`this.$root.nDays`).
 export interface InlineScope {
   /** The methods visible for a receiver at this body's site, or null. */
   lookup(receiver: "app" | "classroot" | "this", name: string): Method | null;
@@ -84,7 +84,7 @@ export interface InlineScope {
   constant?(name: string): number | undefined;
 }
 interface Env {
-  /** The receiver path `this` means inside an inlined body ("this.root",
+  /** The receiver path `this` means inside an inlined body ("this.$root",
    *  "classroot", "this"); null at the top level (the body's own `this`). */
   prefix: string | null;
   /** Parameter name → the argument node and the env it is read in. */
@@ -158,7 +158,7 @@ export function emitExpr(src: string, scope: InlineScope | null = null): ExprCod
     else if (ts.isIdentifier(cur)) {
       const arg = env.params.get(cur.text);
       if (arg !== undefined) return segs.length === 0 ? { param: arg } : null;   // a number has no members
-      if (cur.text === "app") segs.unshift("this.root");
+      if (cur.text === "app") segs.unshift("this.$root");
       else if (cur.text === "classroot" || cur.text === "parent") { if (env.prefix !== null) return null; segs.unshift(cur.text); }   // an inlined body's classroot/parent is the receiver's, not the caller's
       else if (env.prefix !== null) return null;   // a free identifier inside a method body: a local, a script — not a slot
       else segs.unshift(cur.text);
@@ -172,7 +172,7 @@ export function emitExpr(src: string, scope: InlineScope | null = null): ExprCod
     if (env.prefix !== null) return null;   // no inlining through an inlined body's receiver chain (depth is bounded anyway)
     if (r.kind === K.ThisKeyword) return "this";
     if (ts.isIdentifier(r)) return r.text === "app" ? "app" : r.text === "classroot" ? "classroot" : null;
-    if (ts.isPropertyAccessExpression(r) && r.expression.kind === K.ThisKeyword && r.name.text === "root") return "app";
+    if (ts.isPropertyAccessExpression(r) && r.expression.kind === K.ThisKeyword && r.name.text === "$root") return "app";
     return null;
   };
   // value position: the expression's value is consumed as a number
@@ -232,7 +232,7 @@ export function emitExpr(src: string, scope: InlineScope | null = null): ExprCod
       if (m !== null && ret !== null && env.depth < INLINE_DEPTH && n.arguments.length === m.params.length) {
         const params = new Map<string, { node: ts.Node; env: Env }>();
         for (let i = 0; i < m.params.length; i++) params.set(m.params[i].name, { node: n.arguments[i], env });
-        value(ret, { prefix: recv === "app" ? "this.root" : recv!, params, depth: env.depth + 1 }); return;
+        value(ret, { prefix: recv === "app" ? "this.$root" : recv!, params, depth: env.depth + 1 }); return;
       }
       return fail();
     }

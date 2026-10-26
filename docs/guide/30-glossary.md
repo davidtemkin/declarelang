@@ -67,7 +67,7 @@ name the same thing, the one here is the one the platform means.
 - **island** — a leaf view whose interior is foreign: [`DOMIsland`](declare-docs:DOMIsland) holds host-managed DOM,
   [`AppIsland`](declare-docs:AppIsland) holds another Declare program (the **tenant**). Values cross by name —
   [`provides`](declare-docs:DOMIsland.provides) / `hostProvided` down, [`exposes`](declare-docs:App.exposes) / [`exposed`](declare-docs:App.method.exposed) up — and messages cross with
-  [`post`](declare-docs:App.method.post) / `onPost`. → [Embedding](declare-docs:guide:embedding)
+  [`post`](declare-docs:DOMIsland.method.post) / [`postToHost`](declare-docs:App.method.postToHost) / `onHostMessage`. → [Embedding](declare-docs:guide:embedding)
 - **inline view** — a real view placed in rich text by a tag naming one of the program's
   view classes. → [Text and fonts](declare-docs:guide:text)
 
@@ -96,8 +96,8 @@ name the same thing, the one here is the one the platform means.
 - **schema** — a top-level `schema Name [ … ]`: the shape of data a program relies on, a
   real type, checked by the compiler where it can see and by the runtime at every
   boundary. → [Typed data](declare-docs:guide:schemas)
-- **edit session** — a text field's draft under `<->`: [`commitOn`](declare-docs:Editor.commitOn), `validate`, and the
-  facts [`valid`](declare-docs:Editor.valid), `error` and [`dirty`](declare-docs:Editor.dirty).
+- **edit session** — a text field's draft under `<->`: [`commitOn`](declare-docs:EditControl.commitOn), `validate`, and the
+  facts [`valid`](declare-docs:EditControl.valid), `error` and [`dirty`](declare-docs:EditControl.dirty).
 - **stream** — [`EventStream`](declare-docs:EventStream) or [`Socket`](declare-docs:Socket): a source of messages over a live connection,
   connected while `active` is true.
 - **virtualize** — build only the instances near the viewport and leave the rest logical.

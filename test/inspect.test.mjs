@@ -152,7 +152,7 @@ await test("explain: provenance — literal vs wired constraint (label + static 
   assert.equal(wired.value, 40);
   assert.ok(wired.constraint, "a { } slot is owned");
   assert.equal(wired.constraint.static, true, "compiler-wired, not tracked");
-  assert.deepEqual([...wired.constraint.deps], ["this.root.n"], "the extracted read-paths ride to runtime");
+  assert.deepEqual([...wired.constraint.deps], ["this.$root.n"], "the extracted read-paths ride to runtime");
   const sprung = explain(find(app, "app.ball"), "x");
   assert.ok(sprung.spring, "a driving Spring is reported");
   assert.equal(sprung.spring.target, 100, "with its live target");

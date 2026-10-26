@@ -5,7 +5,7 @@
 // where Declare is made — and `SanFrancisco` is ALSO what a widget renders when
 // nothing provides a theme (control.declare's `theme: Theme = provided("theme",
 // SanFrancisco)`). Each city has a light record and a `…Dark` companion; an app
-// picks the pair it wants (`theme = { app.dark ? CupertinoDark : Cupertino }`).
+// picks the pair it wants (`theme = { app.systemDark ? CupertinoDark : Cupertino }`).
 //
 // A record carries the full vocabulary the library consults: colors, role radii
 // (buttonCornerRadius pill-capable / fieldCornerRadius), control heights, switch dimensions

@@ -56,7 +56,7 @@ const TENANT = `App [ width = 10, height = 10,
     pos: number = 5,
     hidden: number = 8,
     heard: string = "",
-    onPost(m: IslandPost) { app.heard = app.heard + m.topic },
+    onHostMessage(m: IslandPost) { app.heard = app.heard + m.topic },
     bump() { this.pos = this.pos + 1 },
     ]`;
 
@@ -137,7 +137,7 @@ await test("verbs: post/onPost cross both ways with { topic, payload }", async (
     host.isl.post("play", 1);
     settle();
     assert.equal(tenant.heard, "play", "host → tenant verb");
-    tenant.post("seek", 42);
+    tenant.postToHost("seek", 42);
     settle();
     assert.equal(host.log, "seek:42;", "tenant → host verb, payload carried");
   } finally { unlink(); host.discard(); tenant.discard(); }
@@ -186,12 +186,12 @@ await test("the page is the topmost host: provide, exposed, watchExposed", async
     assert.equal(app.theme2, "light", "unprovided: the default");
     const seen = [];
     const un = app.watchExposed("total", (v) => seen.push(v));
-    app.provide("mode", "dark");
+    app.provideHostValue("mode", "dark");
     settle();
     assert.equal(app.theme2, "dark", "a page provide reaches hostProvided");
     assert.equal(app.exposed("total"), 2);
     assert.equal(app.exposed("theme2"), undefined, "a name not in `exposes` is not readable from the page");
-    app.provide("mode", undefined);
+    app.provideHostValue("mode", undefined);
     settle();
     assert.equal(app.theme2, "light", "providing undefined withdraws it");
     un();

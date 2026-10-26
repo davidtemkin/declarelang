@@ -72,7 +72,7 @@ async function mountAppIsland(id: number, slot: string, mainDir: URL): Promise<v
   const name = slot.slice(4);
   // beside the app the island sits in: the page's own program, or an embedded app's
   let dir = mainDir.href;
-  if (view.root != null && view.root !== app) { const b = assetBaseFor(view.root as never); if (b) dir = new URL(".", b).href; }
+  if (view.$root != null && view.$root !== app) { const b = assetBaseFor(view.$root as never); if (b) dir = new URL(".", b).href; }
   const url = new URL(name + ".declare", dir).href;
   mountingIslands.add(view);
   const got = await islandProgram(url) as { program?: unknown; report?: unknown; missing?: boolean } | null;

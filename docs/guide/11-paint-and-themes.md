@@ -141,7 +141,7 @@ App [ width = 340, height = 150, theme = { app.night ? Night : Brand }, fill = {
 App provides one — a plain set, no keyword — and every reader below follows when it
 changes, in one step. Because a theme is an ordinary value, two moves come for free:
 `theme = { { ...provided("theme"), accent: 0xE05252 } }` on a subtree re-skins part of
-the app, and `theme = { app.dark ? BrandDark : Brand }` swaps the whole record, which is
+the app, and `theme = { app.systemDark ? BrandDark : Brand }` swaps the whole record, which is
 all dark mode is.
 
 **A palette is a theme.** When a color, a size or a font list appears in more than one
@@ -163,7 +163,7 @@ library controls should start from a preset and change what it needs, never from
 empty record:
 
 ```declare-fragment
-theme = { app.dark ? SanFranciscoDark : SanFrancisco },       // a preset, light or dark
+theme = { app.systemDark ? SanFranciscoDark : SanFrancisco },       // a preset, light or dark
 theme = { { ...provided("theme"), accent: 0xCC3333 } }        // one token changed, lower down
 ```
 
@@ -205,7 +205,7 @@ design decision, and you should never ship a rendition you have not looked at. F
 the system is one line:
 
 ```declare-fragment
-theme = { app.dark ? SanFranciscoDark : SanFrancisco }       // app.dark follows the OS, live
+theme = { app.systemDark ? SanFranciscoDark : SanFrancisco }       // app.systemDark follows the OS, live
 ```
 
 To let the reader choose, keep your own mode attribute that starts by following the
@@ -213,7 +213,7 @@ system, and use [`AppearanceSwitch`](declare-docs:AppearanceSwitch):
 
 ```declare-fragment
 App [ themeMode: string = "auto",
-    isDark: boolean = { app.themeMode == "auto" ? app.dark : app.themeMode == "dark" },
+    isDark: boolean = { app.themeMode == "auto" ? app.systemDark : app.themeMode == "dark" },
     theme = { app.isDark ? SanFranciscoDark : SanFrancisco },
     AppearanceSwitch [ dark = { app.isDark },
         input(v: boolean) { app.themeMode = v ? "dark" : "light" } ]

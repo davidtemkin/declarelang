@@ -234,11 +234,11 @@ test("a CONTROLLED text field still delivers the edit as an event", async () => 
 });
 
 test("the A2 message names the write-back that exists on THAT class", async () => {
-  // an Editor delivers through the `input` EVENT, a Control through the `input`
+  // an EditControl delivers through the `input` EVENT, a Control through the `input`
   // METHOD; naming the wrong one sends the reader to a member that is legal to
   // declare, never called, and silent — the exact failure this check ends
   const editor = await errorsOf(`App [ n: string = "s", f: TextInput [ text <-> { app.n } ] ]`);
-  assert.match(editor, /onInput\(v: string\)/, `TextInput is an Editor; got: ${editor}`);
+  assert.match(editor, /onInput\(v: string\)/, `TextInput is an EditControl; got: ${editor}`);
   assert.ok(!/plus 'input\(v: …\)/.test(editor), "it must not offer the Control spelling here");
 });
 

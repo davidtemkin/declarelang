@@ -9,9 +9,9 @@ App [ width = 200, height = 600, fill = #22303C,                   // taller tha
     pos: number = 3,
 
     volT: Text [ x = 8, y = 8, textColor = whitesmoke, text = { "v" + app.volume } ],
-    onPost(m: IslandPost) {
+    onHostMessage(m: IslandPost) {
         app.pos = app.pos + 1
-        app.post("ack", m.topic)
+        app.postToHost("ack", m.topic)
         if (m.topic == "go") app.navigate("other/other.declare#there")
         }
     ]

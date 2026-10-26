@@ -37,12 +37,12 @@ export const LANGUAGE_METHOD_EFFECTS = new Map([
     // argument's own reads (`app.location` at every lowered `shows` gate) are
     // extracted at the call site, so the binding wires exactly them. PURE.
     ["destinationOf", []],
-    // App.follow(ref) — the one arrival operation (location.md §0.5). Like
+    // App.followLink(ref) — the one arrival operation (location.md §0.5). Like
     // navigate: an ACTION a handler calls — it writes location and the host
     // channels, and reads no reactive cell the CALLER's analysis must wire (the
-    // app-scoped onFollow hook runs inside it imperatively, never as a tracked
+    // app-scoped onFollowLink hook runs inside it imperatively, never as a tracked
     // read). The LINK relation itself is authored (`link =`), not inferred here.
-    ["follow", []],
+    ["followLink", []],
     // App.reveal(target) (view.ts) — the default landing, exposed: an ACTION
     // that scrolls and reads no reactive cell the caller must wire. PURE.
     ["reveal", []],
@@ -90,7 +90,7 @@ export const LANGUAGE_METHOD_EFFECTS = new Map([
     //
     // Live geometry in a constraint is already expressible, and statically: name
     // the scroller and subtract it — `{ pane.y + row.y - pane.scrollY }` wires
-    // this.root.pane.y, this.root.row.y, this.root.pane.scrollY and stays true.
+    // this.$root.pane.y, this.$root.row.y, this.$root.pane.scrollY and stays true.
     // Keys.navClaim(owner, on) — claim/release the navigation keys from the
     // browser's scroll defaults (keys.ts). Mutates a plain claim set, reads no
     // reactive cell → pure for analysis. A Menu claims at open, releases at close.

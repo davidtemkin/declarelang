@@ -4,7 +4,7 @@ import { type ClassSchema } from "./schema.js";
 import { coerceToken, type AttrType, type AttrValue } from "./value.js";
 export { coerceToken };
 /** The scope nouns of language §11 — never legal as member or parameter names.
- *  `app` is the running-App noun (compiles to `this.root`); reserving it here
+ *  `app` is the running-App noun (compiles to `this.$root`); reserving it here
  *  keeps it un-shadowable, so `app.hostWidth` always means the App. */
 export declare const NOUNS: string[];
 /** The value-constructor names are reserved as member names:
@@ -13,21 +13,12 @@ export declare const NOUNS: string[];
  *  `shadow` are already View attributes — the ordinary collision rules cover
  *  them; this catches the two that are not.) */
 export declare const RESERVED: readonly string[];
-/** The other two node references the scaffold declares on every View, beside the
- *  §11 nouns above (scaffold.ts groups all four: parent / classroot / root /
- *  children). They are NOT scope nouns — §11 lists four and neither of these is
- *  one; `root` is the under-the-hood spelling `app` compiles to, and `children`
- *  is Node's own child list. But neither is a schema attribute either, so the
- *  ordinary "a child may not take an attribute's name" rules miss them, and
- *  shadowing one breaks code that never mentions it.
- *
- *  `root` is the sharp case. Because `app` compiles to `this.root`, a member
- *  named `root` makes every `{ app.… }` in the SAME class resolve `app` against
- *  the shadow — so the failure surfaces as "'k' is not a member of View" at the
- *  binding's line, blaming an app attribute several lines from the name that
- *  actually took the reference. Caught here so the report names the cause.
- *  (The runtime already refuses these at instantiate; that check stands, but it
- *  fires at boot, after typecheck has had its misleading say.) */
+/** The other node reference the scaffold declares on every View, beside the
+ *  §11 nouns above: `children`, Node's own child list. It is not a scope noun
+ *  and not a schema attribute either, so the ordinary "a child may not take an
+ *  attribute's name" rules miss it, and shadowing it breaks code that never
+ *  mentions it. (`app` compiles to `this.$root`, a `$` name no program can
+ *  take, so `root` is the author's.) */
 export declare const STRUCTURAL: Readonly<Record<string, string>>;
 /** The reason a name is structural, or null if it is free to use. */
 export declare function structuralReason(name: string): string | null;

@@ -1,9 +1,9 @@
 App [ width = 300, height = 180, fill = white, textColor = black,
     Accordion [ x = 20, y = 20, width = 260,
-        Pane [ label = "Details", initial = true,
+        AccordionPane [ label = "Details", initial = true,
             Text [ width = 100%, padding = 12, text = { "open: " + parent.open } ]
             ],
-        Pane [ label = "More",
+        AccordionPane [ label = "More",
             Text [ padding = 12, text = "Press a header." ]
             ]
         ]

@@ -118,7 +118,7 @@ export declare class View extends Node {
      *  this instance's activation handler — stamped by instantiate from the source
      *  element's `link`. Read only by the static extractor (static-html.ts) to wrap the
      *  subtree in `<a href>`; undefined for all but the handful of navigable views. */
-    _navLink?: LinkTarget;
+    $navLink?: LinkTarget;
     x: number;
     y: number;
     width: number;
@@ -148,24 +148,24 @@ export declare class View extends Node {
      *  (`Layout.contentExtent`), and a padded view with no layout at all still
      *  has an inside. */
     /** @internal kernel-facing (the native visibility rule): a numeric mirror of scrolls, and the rule's outputs. */
-    scrollsOn: boolean;
-    visOn: boolean;
-    visScale: number;
-    visX: number;
-    visY: number;
-    visW: number;
-    visH: number;
-    visMode: number;
+    $scrollsOn: boolean;
+    $visOn: boolean;
+    $visScale: number;
+    $visX: number;
+    $visY: number;
+    $visW: number;
+    $visH: number;
+    $visMode: number;
     /** The names this app EXPOSES to whatever hosts it — its own attributes,
      *  read by a host island's `exposed(…)` or a page's `app.exposed(…)`. */
     exposes: readonly string[];
     padding: Inset;
     /** @internal The inset TOTALS, one per axis (left+right, top+bottom) — the
      *  content box as two numeric slots, so a kernel expression can read it the
-     *  way it reads any other slot (`parent.insetX`). Maintained by `padding`'s
+     *  way it reads any other slot (`parent.$insetX`). Maintained by `padding`'s
      *  push below; authored nowhere. */
-    insetX: number;
-    insetY: number;
+    $insetX: number;
+    $insetY: number;
     /** What paints this view's box: a solid Color (null = paint nothing) or a
      *  Gradient — the ruled `fill` slot, subsuming the retired backgroundColor. */
     fill: Fill;
@@ -253,7 +253,7 @@ export declare class View extends Node {
      *  drawing's pixels being one to each unit of the view, so pixel art stays
      *  sharp under any scale above it. The whole subtree follows, as it follows
      *  a transform; paint only — hit testing and focus never change. */
-    scaling: "smooth" | "pixelated";
+    imageSmoothing: "smooth" | "pixelated";
     /** The frost (`frost(radius, saturation?)`; null = none): what has already
      *  painted beneath this view, sampled through a blur within the view's own
      *  painted shape — the view's `fill` then paints OVER the frosted sample,
@@ -280,7 +280,7 @@ export declare class View extends Node {
     /** Views masked BY this one (it is their stencil) — re-pushed when this
      *  view attaches, since a stencil declared after (or inside) the masked
      *  view has no surface at the masked view's own push. */
-    private maskUsers;
+    private $maskUsers;
     /** Push the mask to the seam; a stencil rides as the live view itself. */
     $applyMask(m: Mask | null): void;
     /** Which axes of interior overflow this view scrolls — `"none"` (the View
@@ -293,9 +293,9 @@ export declare class View extends Node {
     claim: "both" | "x" | "y";
     /** The tooltip text (planes.md tier 1 — one attribute at the use site). A
      *  non-empty tip wires this view's hover into the Tooltips service; the
-     *  auto-included Tooltip singleton renders it. "" = no tip. */
+     *  auto-included TooltipLayer singleton renders it. "" = no tip. */
     tooltipLabel: string;
-    defaultplacement: string;
+    defaultPlacement: string;
     scrollY: number;
     scrollX: number;
     /** @internal The offset the PLATFORM last reported — never the eager write a
@@ -471,7 +471,7 @@ export declare class View extends Node {
      *  child whose size a percent or a flex drives, and this one no longer is).
      *  True when the slot has an owner again; else the caller restores a value. */
     $sizeReleased(size: "width" | "height"): boolean;
-    private extentRelistQueued;
+    private $extentRelistQueued;
     /** THE KERNEL'S AUTO-EXTENT (kernel.md, the layout-pass item): the same
      *  max over the children's footprints as extentOf, evaluated natively over
      *  the table — a container with many children re-derived per frame was half
@@ -802,7 +802,7 @@ export declare class View extends Node {
      *  names it, and where it would pin). */
     $pinsToFrame(): boolean;
     /** The view this one paints in when that is not its parent, else null. */
-    private get travelHost();
+    private get $travelHost();
     /** The host this view is listed under as a paint guest (planes.md §3.1). */
     $guestOf: View | null;
     /** `paintsIn` changed: move the guest listing, re-host the surface, and let
@@ -971,7 +971,7 @@ export declare class App extends View {
      *  after it: tree standing, constraints wired, geometry computed, nothing
      *  painted, so what the handler writes is in the first frame the user sees.
      *  Once per App instance; an embedded island's App gets its own. */
-    private readyDelivered;
+    private $readyDelivered;
     $attach(backend: RenderBackend, parentSurface: Surface | null, before?: Surface | null): void;
     /** `hostWidth`/`hostHeight` — the App's enclosing extent (the window at top
      *  level, the container element when embedded), fed by the runtime at mount
@@ -999,9 +999,9 @@ export declare class App extends View {
      *  `cursor: View [ visible = { !classroot.pointerOverText } ]`. */
     pointerOverText: boolean;
     /** The OS color-scheme preference (`prefers-color-scheme: dark`), fed live by
-     *  the runtime. Theme an app off it: `fill = { app.dark ? 0x0B141B : 0xFFFFFF }`
+     *  the runtime. Theme an app off it: `fill = { app.systemDark ? 0x0B141B : 0xFFFFFF }`
      *  or drive a `theme` record from it. Read-only to user code. */
-    dark: boolean;
+    systemDark: boolean;
     /** The person's accessibility preferences, fed live by the host: `reduceMotion`,
      *  `increaseContrast`, `reduceTransparency`, and `textScale` (1 until a host
      *  supplies it). Read anywhere as `provided("accessibilitySettings")`. */
@@ -1053,8 +1053,8 @@ export declare class App extends View {
     /** The shipping page's over-the-wire size in KB (gzipped) and its Declare
      *  source line count — provided by the host/build (see index.ts note), 0
      *  until set. Reactive reads: a stat bound to them settles when they land. */
-    pageWeight: number;
-    sourceLines: number;
+    $pageWeight: number;
+    $sourceLines: number;
     /** INTERIM (capabilities.md §7): the two host-fed live-demo channels —
      *  `demoSources` (a name→source map the host seeds every editor from,
      *  host-client.js) and `liveReport` (the last live recompile's rendered
@@ -1089,7 +1089,7 @@ export declare class App extends View {
      *  Declare source names it: navigation is the CALL, never an observed attribute.
      *  The FALLBACK half of the verb — a host that registered `hostServices` is
      *  called directly instead, and this field never carries. */
-    pendingNav: string;
+    $pendingNav: string;
     /** The host's service table — the app→host VERBS' direct line, installed at
      *  mount by provideHostServices (boot.ts). Per-app, so two embedded apps on
      *  one page each route to their own host, and a foreign page can supply its
@@ -1099,7 +1099,7 @@ export declare class App extends View {
      *  the verb parks its intent on the matching pending* channel for a polling
      *  host. (The mac bridge replaces `navigate` wholesale — Bridge.swift — and
      *  reads neither.) */
-    hostServices: {
+    $hostServices: {
         navigate?: (to: string) => void;
         openWindow?: (to: string) => void;
         inspect?: (slot: string) => void;
@@ -1107,17 +1107,17 @@ export declare class App extends View {
     /** @internal an EMBEDDED tenant's line to its host island (linkIslandTenant
      *  installs it). Null = not linked (a top-level app, or never linked) —
      *  send() says so instead of vanishing. */
-    hostSink: {
+    $hostSink: {
         message(topic: string, payload: unknown): void;
     } | null;
     /** @internal an EMBEDDED tenant's host island (linkIslandTenant installs it):
      *  where this program's tree joins its host's, for focus and the keyboard. */
     $hostIsland: View | null;
-    /** post(topic, payload) — the tenant's message VERB, this app → its host
+    /** postToHost(topic, payload) — the tenant's message VERB, this app → its host
      *  island's onPost. The other half of the bridge from the facts: consumed
      *  once, ordered, never re-readable — for "do this", not "this is so"
      *  (islands design; the state channel is the `external` attributes). */
-    post(topic: string, payload?: unknown): void;
+    postToHost(topic: string, payload?: unknown): void;
     /** navigate(to) — the navigation SERVICE ACTION (capabilities.md §6). A link or
      *  button calls `app.navigate(url)` in an activation handler; the compiler reads
      *  the call statically (links.ts → `<a href>` in the static extraction), and at
@@ -1139,17 +1139,17 @@ export declare class App extends View {
      *  `replace = true`, and by the host itself on traversal/cold arrivals so a
      *  redirect can never mint an entry (no Back loops). Consumed (reset to
      *  "push") by the host at the mirror. A plain field, like pendingNav. */
-    pendingHistoryVerb: "push" | "replace";
+    $pendingHistoryVerb: "push" | "replace";
     /** follow(ref) — the ONE operation behind every arrival (location.md §0.5):
      *  a linked view's activation, a rich-text href, a cold URL, back/forward.
      *  Source requests, runtime delivers, destination decides. The app-scoped
-     *  hook `onFollow(ref) -> ref'` (a user-declared method, §0.6) is applied
+     *  hook `onFollowLink(ref) -> ref'` (a user-declared method, §0.6) is applied
      *  ONCE — transform, veto (""), or side-effect; then an external reference
      *  leaves through `navigate`, and a `#…` writes `location`. The anchor
      *  reveal rides the existing retained intent (resolveReveal); an anchorless
      *  arrival seeds the scroll to the top. Re-following the current reference
      *  re-runs the arrival step — no dead clicks. */
-    follow(ref: string, replace?: boolean): void;
+    followLink(ref: string, replace?: boolean): void;
     /** The destination gating an anchored view: walk the tree for `anchor ===
      *  name`, then up from it for the nearest `shows`. null = no such anchor
      *  (the name is a destination or a computed location); "" = an anchor
@@ -1158,13 +1158,13 @@ export declare class App extends View {
     /** app→host channel for openWindow, exactly like pendingNav: the verb writes
      *  it, the host polls it on the next frame and window.opens (still inside the
      *  click's transient user activation, so it isn't popup-blocked). */
-    pendingOpen: string;
+    $pendingOpen: string;
     /** app→host channel for the Inspector (the third of the same shape). A button
      *  calls `app.inspect("run:spring")` naming an island slot — or `""` for this
      *  app itself — and the host opens the Inspector on that subject. A plain
      *  field, not a reactive attribute: nothing renders from it, and no Declare
      *  source reads it. */
-    pendingInspect: string | null;
+    $pendingInspect: string | null;
     /** inspect(slot) — the Inspector SERVICE ACTION. `slot` names an embedded
      *  app's island ("run:spring"); omit it to inspect this app. Like navigate(),
      *  the intent rides the service table (or its channel fallback), so a `{ }`
@@ -1179,8 +1179,8 @@ export declare class App extends View {
     /** The reveal intent held from `location`'s trailing `@name` (location.md §6) —
      *  null when the location carries no anchor. Retained across settles until the
      *  name appears in a settled tree; re-armed or cancelled when `location` changes. */
-    private pendingAnchor;
-    private lastRevealLocation;
+    private $pendingAnchor;
+    private $lastRevealLocation;
     /** Resolve the pending `@name` reveal against the current settled tree. The host
      *  calls this after settles — and each frame while an intent is held, so a cold
      *  deep link (`/#guide/22-reach@some-heading`) fires once the DataSource lands and
@@ -1203,15 +1203,15 @@ export declare class App extends View {
      *  Seeded from build's `provides` when there are any, so the app's very
      *  first evaluation — at instantiate, before any settle or link — reads them.
      *  Null in a build without host values (boundary.ts): no read could reach them. */
-    readonly hostValues: BoundaryValues | null;
+    readonly $hostValues: BoundaryValues | null;
     /** The HOST's write: make `value` available to this app under `name` — what
      *  a `hostProvided("name", …)` read in the program returns. Called by the
      *  island bridge for each name the island `provides`, by a page embedding
-     *  this app (`el.__declareApp.provide(…)`, or `boot({ provides })`), and by
+     *  this app (`el.__declareApp.provideHostValue(…)`, or `boot({ provides })`), and by
      *  the native host for its launch parameters. Equality-gated; a change
      *  re-derives every reader. `undefined` withdraws the value (readers fall to
      *  their defaults). Data only — a host never hands over a node. */
-    provide(name: string, value: unknown): void;
+    provideHostValue(name: string, value: unknown): void;
     /** The value this app exposes under `name` — one of its `exposes` names — or
      *  undefined when it exposes no such name. The page's read (an island reads
      *  through its own `exposed`); tracked, so an `observe` over it follows. */
@@ -1242,11 +1242,11 @@ export declare class App extends View {
      *  like a Time. A held intent whose anchor never appears keeps the pump
      *  alive — exactly the old loops' behavior, now scoped to the one page that
      *  asked for an anchor. */
-    private pumpOn;
-    private readonly revealPump;
+    private $pumpOn;
+    private readonly $revealPump;
     /** Stop the pump when the app leaves — a held intent must not keep the
      *  frame loop alive past the app (registered once, at first arm). */
-    private pumpRetireHooked;
+    private $pumpRetireHooked;
     private $hookPumpRetire;
     /** Enroll the pump at the close of the current settle when the location
      *  carries an `@name`. Armed from `location`'s own push (the write IS the
@@ -1269,7 +1269,7 @@ export declare class App extends View {
      *  the host can note where the user was. Null on a host that keeps no
      *  history. */
     $onDepart: (() => void) | null;
-    private departArmed;
+    private $departArmed;
     $departing(): void;
     /** The app's size floor. An app that degrades below some width declares
      *  `minWidth = 600` and the auto-extent never goes under it: in a narrower
@@ -1317,7 +1317,7 @@ export declare class App extends View {
      *  retires (stilling the rubber-band) when it doesn't. Reactive — content
      *  growth, floor changes, and host resizes all re-derive; child mutations
      *  re-run it through childrenMutated like the auto-extent derives. */
-    private pageScroll;
+    private $pageScroll;
     private $bindPageScroll;
     $childrenMutated(): void;
 }

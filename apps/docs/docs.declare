@@ -337,7 +337,7 @@ class TocFlow extends WrappingLayout [
 class OnThisPage [ width = 100%,
     tocSpan: number = { this.width },          // provided: the room a link's title is cut to
     scrolls = { app.docked ? "none" : "x" },
-    defaultplacement = row,
+    defaultPlacement = row,
     row: View [ width = { app.docked ? parent.width : this.contentWidth },
         layout: TocFlow [ oneLine = { !app.docked }, spacing = 8, rowSpacing = 8, align = baseline ],
         Muted [ fontSize = { 16 * app.fontScale }, wrap = false, text = "On this page:" ]
@@ -1766,7 +1766,7 @@ App [ fill = { provided("theme").background }, appName = "Declare Docs",
         },
 
     fontScale: number = 1.0,                   // reader font-size zoom for the CONTENT pane (the text-size switch drives it; nav is fixed)
-    themeMode: string = "auto",                // "light" | "auto" | "dark" — the ☀◐☾ switch; auto follows app.dark
+    themeMode: string = "auto",                // "light" | "auto" | "dark" — the ☀◐☾ switch; auto follows app.systemDark
     barH: number = 52,                         // the house chrome bar (Viewer/Calendar/Tracker share the height)
     compact: boolean = { app.width < 780 },    // narrow bar: the type-size stepper stands down so the pill keeps its room
 
@@ -1916,7 +1916,7 @@ App [ fill = { provided("theme").background }, appName = "Declare Docs",
     // the Markdown rich-element palette must agree, or an override leaves
     // headings in the OS scheme while the chrome switches
 
-    darkUI: boolean = { themeMode == "dark" || (themeMode == "auto" && app.dark) },
+    darkUI: boolean = { themeMode == "dark" || (themeMode == "auto" && app.systemDark) },
 
     // the rail is fixed-width chrome, sized snug around the short chapter titles
 
@@ -1984,7 +1984,7 @@ App [ fill = { provided("theme").background }, appName = "Declare Docs",
             if (hit == null) return
             if (section == null) { app.goGuide(hit.id); return }
             app.guideAt = hit.id                             // guide:data@talking-to-a-server → that section
-            app.follow("#guide/" + hit.id + "@" + section)
+            app.followLink("#guide/" + hit.id + "@" + section)
             return
         }
         if (id == "reference:index") { app.goRef(app.refAt); return }
@@ -1994,7 +1994,7 @@ App [ fill = { provided("theme").background }, appName = "Declare Docs",
             const parts = id.split(".")
             if (parts.length == 1) { app.goRef(parts[0]); return }
             app.refAt = parts[0]
-            app.follow("#reference/" + parts[0] + "@" + parts[parts.length - 1])
+            app.followLink("#reference/" + parts[0] + "@" + parts[parts.length - 1])
             return
         }
         if (id.startsWith("operational:")) { app.navigate("docs/operational/" + id.slice("operational:".length) + ".md"); return }

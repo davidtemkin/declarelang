@@ -126,7 +126,7 @@ export class Image extends View {
       if (seq !== this.loadSeq || this.$surface === null) return; // superseded or detached
       setBound(this, "failed", true);
     };
-    img.src = resolveAsset(this.source, this.root);
+    img.src = resolveAsset(this.source, this.$root);
   }
 }
 

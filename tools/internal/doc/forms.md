@@ -146,9 +146,9 @@ base: `extends Node`, or `extends Dataset` for a document.
 - One name, one class. A second declaration of the same name is refused, and so is a class named like a built-in.
   > says: there is already a class named 'Chip'
   > probe: class Chip [ ]\nclass Chip [ ]\nApp [ Chip [ ] ]
-- `root` and `children` are structural members of every View and cannot be a class's own member. `root` is the sharp one: shadowing it makes every `{ app.… }` in the class resolve against the shadow.
-  > says: 'root' is the node reference `app` compiles to (`app` is `this.root`) — a child cannot take its name; choose another
-  > probe: class Chip [ root: View [ ] ]\nApp [ Chip [ ] ]
+- `children` is a structural member of every View and cannot be a class's own member.
+  > says: 'children' is the node's own child list — a child cannot take its name; choose another
+  > probe: class Chip [ children: View [ ] ]\nApp [ Chip [ ] ]
 - A bare `name = value` sets an attribute the base has; an attribute the base does not have must be **declared**, with a type — `name: Type = value`.
   > says: Chip has no attribute 'labl'
   > probe: class Chip [ labl = "x" ]\nApp [ Chip [ ] ]
@@ -183,14 +183,14 @@ the base is `Node` — a model class with no box.
 The base may be declared later in the file, or in an included one. Any concrete built-in is
 a base — `View`, `Node`, `Layout` and `TweenLayout`, `Dataset`, `Spring`, `Keys`, `State` and
 the rest — as is any class descending from one; only the abstract bases (`Stream`, `Media`,
-`Editor`) are refused.
+`EditControl`) are refused.
 
 ### rules
 
 - The base must be a class: a built-in or a declared one.
   > says: unknown base 'Widget' — a class extends a library class or one declared in this program
   > probe: class Chip extends Widget [ ]\nApp [ Chip [ ] ]
-- Any built-in class is a base — View, Layout, Node, Dataset, Spring, Keys, State alike; only an abstract base (Stream, Media, Editor), which no runtime class implements, is refused.
+- Any built-in class is a base — View, Layout, Node, Dataset, Spring, Keys, State alike; only an abstract base (Stream, Media, EditControl), which no runtime class implements, is refused.
   > says: 'Stream' is an abstract base — it names no class to construct; extend one of its concrete members (EventStream, Socket)
   > probe: class S extends Stream [ ]\nApp [ ]
 - A subclass may not take a built-in's name.
@@ -749,7 +749,7 @@ so data flow stays traceable. One-way `:path` everywhere else.
 ### related
 
 forms: datapath, set
-classes: TextInput, Editor, Dataset
+classes: TextInput, EditControl, Dataset
 guide: 14-data · Data, 08-controls · Controls
 
 ## constructors
@@ -884,9 +884,6 @@ or attribute named `root` would shadow every `app.…` in the same class.
 - A scope noun cannot be declared.
   > says: 'parent' is a scope noun (language §11) — it cannot be declared
   > probe: App [ parent: number = 1 ]
-- `root` is the node reference `app` compiles to; nothing may take its name.
-  > says: 'root' is the node reference `app` compiles to (`app` is `this.root`) — a child cannot take its name; choose another
-  > probe: class Chip [ root: View [ ] ]\nApp [ Chip [ ] ]
 - A bare name must resolve up the enclosing brackets.
   > says: cannot resolve 'nothingHere' — not a member of t: Text → App
   > probe: App [ t: Text [ text = { nothingHere } ] ]
@@ -1253,7 +1250,7 @@ provides the record to the whole tree — a plain set, no keyword. `provided("th
 reads a token from the nearest provider; the standard library reads it *for* you (a `Button`
 styles off `provided("theme")` inside `Control`), so an app that only sets `theme` never
 writes the read. Because `theme` is an ordinary reactive value, dark mode is one expression
-— `theme = { app.dark ? BrandDark : Brand }` — and a subtree re-skins partially by providing
+— `theme = { app.systemDark ? BrandDark : Brand }` — and a subtree re-skins partially by providing
 a spread copy lower down. The library reads specific token names, so build a theme from a
 preset rather than an empty record.
 

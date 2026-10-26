@@ -4,7 +4,7 @@
 // caller reads a property off it, wired the NODE and not the property —
 //
 //     pickBox() { return this.box },
-//     text = { app.pickBox().width }      // deps: ["this.root.box"]
+//     text = { app.pickBox().width }      // deps: ["this.$root.box"]
 //
 // A node reference never changes, so nothing ever invalidated: the constraint
 // showed its first value forever, with no error at any rung. It is subscribing
@@ -44,7 +44,7 @@ await test("a returned node's attribute is wired, not just the node", async () =
       box: View [ width = 100 ],
       pickBox(): View { return this.box },
       t: Text [ text = { "" + app.pickBox().width } ] ]`);
-  assert.ok(deps.includes("this.root.box.width"),
+  assert.ok(deps.includes("this.$root.box.width"),
     `expected the ATTRIBUTE to be wired; got ${JSON.stringify(deps)}`);
 });
 
@@ -56,7 +56,7 @@ await test("a deeper tail is carried whole", async () => {
       outer: Outer [ ],
       pick(): Outer { return this.outer },
       t: Text [ text = { "" + app.pick().inner.width } ] ]`);
-  assert.ok(deps.includes("this.root.outer.inner.width"),
+  assert.ok(deps.includes("this.$root.outer.inner.width"),
     `expected the full tail; got ${JSON.stringify(deps)}`);
 });
 
@@ -68,7 +68,7 @@ await test("a conditional return wires BOTH arms", async () => {
       a: View [ width = 10 ], b: View [ width = 20 ],
       which(): View { return app.flag ? this.a : this.b },
       t: Text [ text = { "" + app.which().width } ] ]`);
-  assert.ok(deps.includes("this.root.a.width") && deps.includes("this.root.b.width"),
+  assert.ok(deps.includes("this.$root.a.width") && deps.includes("this.$root.b.width"),
     `expected both arms; got ${JSON.stringify(deps)}`);
 });
 
@@ -80,7 +80,7 @@ await test("the derived-value shape is UNCHANGED", async () => {
       n: number = 3,
       listOf(k: number): array { return [1, 2, 3].slice(0, k) },
       t: Text [ text = { "" + app.listOf(app.n).length } ] ]`);
-  assert.ok(deps.includes("this.root.n"), `lost the body's read: ${JSON.stringify(deps)}`);
+  assert.ok(deps.includes("this.$root.n"), `lost the body's read: ${JSON.stringify(deps)}`);
   assert.ok(!deps.some((d) => d.endsWith(".length")),
     `a computed value has no static path to project; got ${JSON.stringify(deps)}`);
 });
@@ -100,7 +100,7 @@ await test("a call whose result is NOT read through is untouched", async () => {
       box: View [ width = 100 ],
       pickBox(): View { return this.box },
       t: Text [ text = { app.pickBox() == null ? "none" : "some" } ] ]`);
-  assert.ok(!deps.some((d) => d.startsWith("this.root.box.")),
+  assert.ok(!deps.some((d) => d.startsWith("this.$root.box.")),
     `nothing is read off the result, so nothing should be projected; got ${JSON.stringify(deps)}`);
 });
 
@@ -112,7 +112,7 @@ await test("a returned PARAMETER resolves against the argument", async () => {
       a: View [ width = 10 ], b: View [ width = 20 ],
       pick(x: View, y: View): View { return x },
       t: Text [ text = { "" + app.pick(app.a, app.b).width } ] ]`);
-  assert.ok(deps.includes("this.root.a.width"),
+  assert.ok(deps.includes("this.$root.a.width"),
     `expected the ARGUMENT's attribute; got ${JSON.stringify(deps)}`);
 });
 

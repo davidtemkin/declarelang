@@ -51,10 +51,10 @@ Registers the set with the keyboard service.
 
 // a shortcut, as data
 
-schema Shortcut [ id: string, key: string, label?: string, enabled?: boolean ]
+schema ShortcutRecord [ id: string, key: string, label?: string, enabled?: boolean ]
 
 class Shortcuts extends Node [
-    items: Shortcut[] = [],
+    items: ShortcutRecord[] = [],
     on: View? = null,
     title: string = "",
     onInit() { Keys.declareShortcuts(this) },

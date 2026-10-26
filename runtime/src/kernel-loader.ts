@@ -132,7 +132,7 @@ export interface Kernel {
 }
 /** dk_view_layout, field order (declare_kernel.h). */
 export const VIEW_LAYOUT_FIELDS = ["x", "y", "width", "height", "visible", "scale", "scaleX", "scaleY", "rotation", "skewX", "skewY", "pivotX", "pivotY",
-  "scrollX", "scrollY", "ignoreScroll", "scrollsOn", "rotateX", "rotateY", "translateZ", "visOn", "visScale", "visX", "visY", "visW", "visH", "visMode", "ignoreClip"] as const;
+  "scrollX", "scrollY", "ignoreScroll", "$scrollsOn", "rotateX", "rotateY", "translateZ", "$visOn", "$visScale", "$visX", "$visY", "$visW", "$visH", "$visMode", "ignoreClip"] as const;
 
 /** An empty image: no compiled elements — everything is added at runtime.
  *  (Phase B's compiler output replaces this with the program's tables.) */

@@ -18,7 +18,7 @@ export declare class Node {
     /** The parent a removeChild just unlinked from — a re-link back to the SAME
      *  parent (what replication does to every row of a block on any change) is
      *  not a move, and must not invalidate the provider memos. */
-    private exParent;
+    private $exParent;
     /** Landing under a DIFFERENT parent changes this subtree's ancestor chain,
      *  and only this subtree's: clear its provider memos (attributes.ts). */
     private $chainMoved;
@@ -47,7 +47,7 @@ export declare class Node {
     readonly children: Node[];
     /** The read behind `provided("name")` — a value an ancestor makes available,
      *  read explicitly here. The compiler rewrites a `provided(…)` call's callee
-     *  to `this.$provided` (like `app` → `this.root`), so `this` is the reading
+     *  to `this.$provided` (like `app` → `this.$root`), so `this` is the reading
      *  node; `providedRead` (attributes.ts) walks the parent chain for the nearest
      *  ancestor that provides `name`. A second argument is the createContext-style
      *  default when nothing above provides it; with none, an unprovided read
@@ -66,7 +66,7 @@ export declare class Node {
     };
     /** The read behind `hostProvided("name", default)` — a value this program's
      *  HOST makes available: an island's `provides` name, a page's
-     *  `app.provide(…)`, the native host's launch parameters. The compiler
+     *  `app.provideHostValue(…)`, the native host's launch parameters. The compiler
      *  rewrites the callee to `this.$hostProvided`; the value lives on the
      *  running App (its host values), so every node in the program reads the
      *  same one. The default types the read and stands in when nothing is
@@ -92,7 +92,7 @@ export declare class Node {
      *  replication-populated container's content extent re-derive when rows
      *  ARRIVE — per-child attr reads track the children that exist, and this
      *  cell tracks that the SET of children changed. */
-    private structure;
+    private $structure;
     /** Register the caller's interest in "my child list changed" (no-op when
      *  nothing is tracking). Every reactive read works this way — a cell the
      *  reader subscribes to — and the child list's cell is created on first
@@ -108,19 +108,19 @@ export declare class Node {
      *  (a controller node's members resolve `classroot` to the controller). */
     classroot: Node | null;
     /** The top of the tree — the App root. A deeply-nested view reaches
-     *  app-level state and methods through `this.root` instead of a
+     *  app-level state and methods through `this.$root` instead of a
      *  fragile fixed-depth `.parent` chain (the language's one escape from
      *  strict child→parent locality; structure, not reactive). */
-    get root(): Node;
+    get $root(): Node;
     /** Link `child` beneath this node. The tree is the single source of
      *  structure; the render backend mirrors it (see View.attach). */
     $appendChild(child: Node): void;
     /** Link `child` at `index` — child order is semantic (tree order is paint
      *  order, and replicated children take their data's order, R8). */
-    insertChild(child: Node, index: number): void;
+    $insertChild(child: Node, index: number): void;
     /** Unlink `child`. Model structure only — a live view's surface and
      *  standing computations are the caller's to retire (View.discard). */
-    removeChild(child: Node): void;
+    $removeChild(child: Node): void;
     /** The self-completing retirement verb — the pair of createView: cut the
      *  model link if one still stands, tear the subtree down, then notify the
      *  ex-parent that its child list changed as a unit (childrenMutated), so

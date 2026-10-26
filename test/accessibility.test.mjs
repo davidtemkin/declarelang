@@ -294,7 +294,7 @@ await test("expanded: a menu button and an accordion header say whether what the
   const app = await boot(`App [ width = 400, height = 400, layout: SimpleLayout [ axis = y ],
     opts: Button [ label = "Options", menu = { app.m } ],
     m: Menu [ items = { [ ({ id: "a", label: "Copy" }) ] } ],
-    Accordion [ width = 300, Pane [ label = "First", initial = true, Text [ text = "inside" ] ], Pane [ label = "Second" ] ] ]`);
+    Accordion [ width = 300, AccordionPane [ label = "First", initial = true, Text [ text = "inside" ] ], AccordionPane [ label = "Second" ] ] ]`);
   const line = (name) => tree(app).split("\n").find((l) => l.includes(`"${name}"`)) ?? "";
   assert.match(line("Options"), /\[collapsed\]/);
   assert.match(tree(app), /button "First" \[expanded\]/);

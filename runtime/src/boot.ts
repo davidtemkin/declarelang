@@ -59,7 +59,7 @@ export interface HostServices {
   inspect?: (slot: string) => void;
 }
 export function provideHostServices(app: App, services: HostServices): void {
-  app.hostServices = services;
+  app.$hostServices = services;
 }
 
 /** Per-app teardown for an EMBEDDED app's environment listeners (a top-level app
@@ -108,12 +108,12 @@ export function wireInput(app: App, host: HTMLElement, chrome = false): void {
   (window as unknown as { __declare?: unknown }).__declare = bridgeFor(app) ?? { stub: notAboard("bridgeFor", "bridge").message };
 }
 
-/** Feed `app.dark` from the OS color scheme and keep it live as the system theme
+/** Feed `app.systemDark` from the OS color scheme and keep it live as the system theme
  *  flips. Returns an unsubscribe so an embedded app's re-render can drop the listener. */
 function wireColorScheme(app: App): () => void {
   const mq = window.matchMedia("(prefers-color-scheme: dark)");
-  app.dark = mq.matches;
-  const update = () => { app.dark = mq.matches; };
+  app.systemDark = mq.matches;
+  const update = () => { app.systemDark = mq.matches; };
   mq.addEventListener("change", update);
   return () => mq.removeEventListener("change", update);
 }

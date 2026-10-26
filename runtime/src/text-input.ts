@@ -21,11 +21,11 @@ import { Constraint, settle } from "./reactive.js";
 import { Focus } from "./focus.js";
 import { fontMetrics, fontString, wrapEditable, type TextStyle, type FontWeight } from "./measure.js";
 import { heldFamily, type FamilyValue } from "./font-value.js";
-import { isTwoWay, edited, commitDraft, judgeDraft, judgeOwnDraft, Editor } from "./editor.js";
+import { isTwoWay, edited, commitDraft, judgeDraft, judgeOwnDraft, EditControl } from "./editor.js";
 import { insetSides, stroke, type Color, type Inset } from "./value.js";
 import { hintsOf, type Purpose } from "./purpose.js";
 
-export class TextInput extends Editor {
+export class TextInput extends EditControl {
   // The FACE slots (off View — docs/system-design/style.md): each defaults to
   // the nearest provided value, so a field inherits its region's text style.
   declare textColor: Color;
@@ -53,7 +53,7 @@ export class TextInput extends Editor {
   declare padding: Inset;
   declare initial: string;
   // The editor session (commitOn / error / valid / dirty + commit()/revert())
-  // is inherited from Editor; `text` is this editor's draft slot.
+  // is inherited from EditControl; `text` is this editor's draft slot.
   protected override $draftSlot(): string { return "text"; }
 
   override $attach(backend: RenderBackend, parentSurface: Surface | null, before: Surface | null = null): void {
@@ -336,14 +336,14 @@ defineAttributes(TextInput, {
   // the field's content box, as View's: where the text sits inside it
   padding: { def: 0, push: (t, p) => {
     const [top, r, b, l] = insetSides(p as Inset);
-    t.insetX = l + r;
-    t.insetY = top + b;
+    t.$insetX = l + r;
+    t.$insetY = top + b;
     t.$syncEditable();
   } },
   initial: { def: "" },
   selectionStart: { def: 0 },
   selectionEnd: { def: 0 },
-  // commitOn / error / valid / dirty are declared on the Editor base.
+  // commitOn / error / valid / dirty are declared on the EditControl base.
 });
 
 // what a TextInput is to assistive technology (View.$leafRole), in a build with the layer

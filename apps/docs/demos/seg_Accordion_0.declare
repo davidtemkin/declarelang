@@ -1,12 +1,12 @@
 App [
     Accordion [ x = 20, y = 20, width = 260,
-        Pane [ label = "Account", initial = true,
+        AccordionPane [ label = "Account", initial = true,
             View [ width = 100%, padding = 12,
                 Text [ width = 100%, wrap = true,
                     text = "Panes slide on a spring; the content rides the whole way." ]
                 ]
             ],
-        Pane [ label = "Privacy",
+        AccordionPane [ label = "Privacy",
             View [ width = 100%, padding = 12,
                 Text [ width = 100%, text = "One pane open at a time." ]
                 ]

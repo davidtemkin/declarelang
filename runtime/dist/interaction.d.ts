@@ -33,7 +33,7 @@ export interface InteractionView {
      *  a minimal test view may omit it, and 0 is the answer then. */
     padding?: Inset;
     parent: unknown;
-    root: unknown;
+    $root: unknown;
     children: readonly unknown[];
 }
 /** The app surface the driver reads. */

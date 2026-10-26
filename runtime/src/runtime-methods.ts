@@ -21,9 +21,9 @@
 import { SCHEMAS, RichTextSchema, type ClassSchema } from "./schema.js";
 
 export const RUNTIME_METHODS: Readonly<Record<string, readonly string[]>> = {
-  Node: ["insertChild", "removeChild", "discard"],
+  Node: ["discard"],
   View: ["contentBox", "bounds", "footprint", "tabDefault", "viewAt", "containsPoint", "rootBounds", "rootTransform", "transformTo", "rootOrigin", "scrollIntoView", "scrollTo", "scrollToX", "scrollBy", "createView", "raise", "onKeyDown"],
-  App: ["post", "navigate", "destinationOf", "follow", "inspect", "openWindow", "reveal", "provide", "exposed", "watchExposed"],
+  App: ["postToHost", "navigate", "destinationOf", "followLink", "inspect", "openWindow", "reveal", "provideHostValue", "exposed", "watchExposed"],
   Text: [],
   Image: [],
   Media: ["play"],
@@ -33,7 +33,7 @@ export const RUNTIME_METHODS: Readonly<Record<string, readonly string[]>> = {
   // (islands.md): the provides list going down, the exposed values coming up,
   // and the verbs both ways — so they are listed on the concrete island.
   DOMIsland: ["exposed", "post"],
-  Editor: ["commit", "revert", "judge"],
+  EditControl: ["commit", "revert", "judge"],
   TextInput: ["select"],
   RichText: [],
   Markdown: [],
@@ -66,8 +66,8 @@ export const RUNTIME_METHODS: Readonly<Record<string, readonly string[]>> = {
  *  schema, as above; PINNED by test/override-runtime.test.mjs, which constructs
  *  each class and recomputes the lists (minus `$`-names and attributes). */
 export const RUNTIME_FIELDS: Readonly<Record<string, readonly string[]>> = {
-  View: ["_navLink", "exposes", "extentRelistQueued", "insetX", "insetY", "maskUsers", "scrollsOn", "travelHost", "visH", "visMode", "visOn", "visScale", "visW", "visX", "visY"],
-  App: ["demoSources", "departArmed", "hostServices", "hostSink", "hostValues", "lastRevealLocation", "liveReport", "pageScroll", "pageWeight", "pendingAnchor", "pendingHistoryVerb", "pendingInspect", "pendingNav", "pendingOpen", "pumpOn", "pumpRetireHooked", "readyDelivered", "revealPump", "sourceLines"],
+  View: ["exposes"],
+  App: ["demoSources", "liveReport"],
   Image: ["bitmap", "loadSeq", "natural"],
   Media: ["el", "loadSeq"],
   Video: ["natural"],
@@ -85,7 +85,7 @@ export const RUNTIME_FIELDS: Readonly<Record<string, readonly string[]>> = {
   Tooltips: ["wired"],
   Stream: ["gen", "handle", "timer", "wasOpen", "wired"],
   State: ["builtChildren", "childTemplates", "installed", "materialize", "overrides", "priority", "retired"],
-  Node: ["children", "classroot", "exParent", "parent", "root", "structure"],
+  Node: ["children", "classroot", "parent"],
   RichText: ["built", "laid", "slotHost"],
 };
 

@@ -596,8 +596,8 @@ export class Replicator {
     if (changed) {
       // Re-link the block in data order at its slot among the siblings.
       let at = this.start();
-      for (const v of this.views) this.parent.removeChild(v);
-      for (const v of next) this.parent.insertChild(v, at++);
+      for (const v of this.views) this.parent.$removeChild(v);
+      for (const v of next) this.parent.$insertChild(v, at++);
       for (const v of removed) v.discard();
       // Provisions land LINKED and BEFORE attach — the order every creation
       // path keeps (instantiate's partitionPending). Linked, because a

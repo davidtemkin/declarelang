@@ -1618,7 +1618,7 @@ class CanvasSurface implements Surface, SceneSurface {
     return this.backdrop === null ? 0 : Math.ceil(3.5 * filterBlur(this.backdrop) * dpr) + 4;
   }
 
-  /** `scaling` (backend.ts): this surface's own setting; the subtree's is the
+  /** `imageSmoothing` (backend.ts): this surface's own setting; the subtree's is the
    *  nearest ancestor's that set one (pixelated()). Images then draw unsmoothed
    *  and drawings rasterize at one pixel per unit, enlarged unsmoothed
    *  (paintDrawingPixelated) — the DOM backend's picture, made by hand. */
@@ -3402,7 +3402,7 @@ class CanvasSurface implements Surface, SceneSurface {
       const smooth = (ctx as { imageSmoothingQuality: ImageSmoothingQuality }).imageSmoothingQuality;
       ctx.imageSmoothingQuality = "high";
       const pixelated = this.pixelated();
-      if (pixelated) ctx.imageSmoothingEnabled = false;          // scaling = pixelated: every pixel a solid block
+      if (pixelated) ctx.imageSmoothingEnabled = false;          // imageSmoothing = pixelated: every pixel a solid block
       if (st === "cover" || st === "contain") {
         // Aspect-preserving: one scale for both axes — max fills-and-crops
         // (cover), min letterboxes (contain) — centered either way; cover

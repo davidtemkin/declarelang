@@ -256,8 +256,8 @@ export function linkIslandTenant(island: Island, tenant: App, box: IslandBox | n
   const undo: Array<() => void> = [];
   undo.push(syncNamed(
     () => islandProvisions(island),
-    (n, v) => tenant.provide(n, v),
-    (n) => tenant.provide(n, undefined),
+    (n, v) => tenant.provideHostValue(n, v),
+    (n) => tenant.provideHostValue(n, undefined),
     "link:provides"));
   undo.push(syncNamed(
     () => {
@@ -276,14 +276,14 @@ export function linkIslandTenant(island: Island, tenant: App, box: IslandBox | n
   // WHERE THE TENANT IS — an island that declares `location` (AppIsland)
   // carries its tenant's location both ways. The host's value seeds the
   // tenant before its first settle, and a later write sends it there (as a
-  // follow, so the tenant's onFollow applies); the tenant's own navigation is
+  // follow, so the tenant's onFollowLink applies); the tenant's own navigation is
   // reflected back up. What the host does with it — show it, keep it, walk it
   // back — is the host's: Back across an island is the host's to give.
   const host = island as unknown as { location?: unknown; place?: unknown; departedPlace?: unknown };
   if (typeof host.location === "string") {
     if (host.location !== "" && tenant.location !== host.location) tenant.location = host.location;
     undo.push(observe(() => tenant.location, (v) => { if (host.location !== v) host.location = v; }, "link:location-up"));
-    undo.push(observe(() => host.location as string, (v) => { if (tenant.location !== v) tenant.follow("#" + v); }, "link:location-down"));
+    undo.push(observe(() => host.location as string, (v) => { if (tenant.location !== v) tenant.followLink("#" + v); }, "link:location-down"));
   }
   // WHERE IN IT the tenant was — its panes' scroll by path and its box's own
   // (runtime scroll-places) — published as `departedPlace` the moment it
@@ -304,12 +304,12 @@ export function linkIslandTenant(island: Island, tenant: App, box: IslandBox | n
   }
   // verbs, both directions
   island.tenantSink = {
-    message: (topic, payload) => fireEvent(tenant, "post", { topic, payload }),
+    message: (topic, payload) => fireEvent(tenant, "hostMessage", { topic, payload }),
   };
-  tenant.hostSink = { message: (topic, payload) => island.$receiveMessage(topic, payload) };
+  tenant.$hostSink = { message: (topic, payload) => island.$receiveMessage(topic, payload) };
   island.$tenant = tenant;
   tenant.$hostIsland = island;
-  undo.push(() => { island.tenantSink = null; tenant.hostSink = null; island.$tenant = null; tenant.$hostIsland = null; });
+  undo.push(() => { island.tenantSink = null; tenant.$hostSink = null; island.$tenant = null; tenant.$hostIsland = null; });
   // what the program had in its host goes with it: its overlays open in the
   // host's layers, and the keyboard they held (run first: undo runs in order)
   undo.unshift(() => { withdrawPaintGuests(tenant); withdrawOpen(tenant); Keys.releaseProgram(tenant); });

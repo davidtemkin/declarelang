@@ -2,7 +2,7 @@
  *  subclass should extend instead. */
 export const ABSTRACT_CONCRETE: Readonly<Record<string, string>> = {
   Media: "Video, Audio",
-  Editor: "TextInput",
+  EditControl: "TextInput",
   Stream: "EventStream, Socket",
 };
 /** The schemas NO runtime class implements — the abstract family bases. They
@@ -12,7 +12,7 @@ export const ABSTRACT_CONCRETE: Readonly<Record<string, string>> = {
  *  concrete members). Every other schema is a base a program class may
  *  extend. A test pins this set against the registry (SCHEMAS − REGISTRY_NAMES),
  *  so it cannot drift when a class joins either table. */
-export const ABSTRACT_SCHEMAS: ReadonlySet<string> = new Set(["Media", "Editor", "Stream"]);
+export const ABSTRACT_SCHEMAS: ReadonlySet<string> = new Set(["Media", "EditControl", "Stream"]);
 // Class schemas — the typed-attribute declarations of the built-in
 // classes, shared by the checker (check.ts) and the runtime bridge
 // (instantiate.ts). A schema is pure data: the class's name, its base
@@ -235,7 +235,7 @@ const ViewSchema: ClassSchema = {
     // to each unit of the view), so pixel art stays sharp under any scale
     // above it. The whole subtree follows, as it follows a transform. Paint
     // only, never input.
-    scaling: enumType("Scaling", "smooth", "pixelated"),
+    imageSmoothing: enumType("ImageSmoothing", "smooth", "pixelated"),
     // The frost (compositing.md §3.2): sample what has already painted
     // beneath this view's own painted shape — box, cornerRadius, or shape
     // clip, over-scanned by the blur radius so edges do not bleed dry —
@@ -276,12 +276,12 @@ const ViewSchema: ClassSchema = {
     // `x`/`y`, scoping the claim to one axis so the cross axis stays the
     // enclosing scroll regime's. The forcing cases: a grid column's header
     // drag and edge-resize on touch.
-    claim: enumType("Claim", "both", "x", "y"),
+    claim: enumType("ClaimAxis", "both", "x", "y"),
     // the tooltip text — planes.md tier 1; "" (the default) = no tip
     tooltipLabel: { kind: "string" },
     // A class names one of its own children; the children its subclasses and
     // use sites write go there (instantiate.ts DEFAULT PLACEMENT).
-    defaultplacement: { kind: "slotref" },
+    defaultPlacement: { kind: "slotref" },
     scrollY: { kind: "number" },
     scrollX: { kind: "number" },
     // A DECLARED STARTING OFFSET — applied once at first layout, then the
@@ -319,7 +319,7 @@ const ViewSchema: ClassSchema = {
     // strong letter); "inherit" (the default) takes the nearest ancestor's.
     // A right-to-left paragraph is laid out from the right — its line starts
     // there unless textAlign says otherwise — and a field types from the right.
-    direction: enumType("Direction", "inherit", "ltr", "rtl", "auto"),
+    direction: enumType("TextDirection", "inherit", "ltr", "rtl", "auto"),
     // R7: how the view arranges its children — a class-typed slot
     // (language §5: "a reactive Layout attribute you set on the view",
     // Appendix A: "Layout is an attribute, not a child"), written as the
@@ -486,8 +486,8 @@ const AppSchema: ClassSchema = {
     hovering: { kind: "boolean" },
     pointerOverText: { kind: "boolean" },
     // the OS color-scheme, `prefers-color-scheme: dark` — the runtime feeds it and
-    // keeps it live as the system theme flips, so an app themes off `app.dark`.
-    dark: { kind: "boolean" },
+    // keeps it live as the system theme flips, so an app themes off `app.systemDark`.
+    systemDark: { kind: "boolean" },
     // the person's accessibility preferences, fed live by the host — reduceMotion
     // (prefers-reduced-motion), increaseContrast (prefers-contrast: more),
     // reduceTransparency (prefers-reduced-transparency), textScale — and read
@@ -530,7 +530,7 @@ const AppSchema: ClassSchema = {
     // the insets become live numbers — pinned chrome then places itself with
     // them (`y = { app.safeTop }`, a bottom bar's height + `app.safeBottom`).
     // Read at mount: `edges` is a fact about the app, not a runtime toggle.
-    edges: enumType("Edges", "safe", "cover"),
+    edges: enumType("SafeAreaMode", "safe", "cover"),
     // The live safe-area insets, in pixels — 0 while letterboxed (edges=safe,
     // or any desktop browser), the device's real insets under `edges = cover`,
     // re-read on rotation. Fed by the runtime (boot.ts wireSafeArea).
@@ -622,8 +622,8 @@ const AppSchema: ClassSchema = {
   // them). `scrollY` here is App's OWN spec (view.ts) — a dead write before
   // this listing: App's spec shadows View's pusher, so assigning it never
   // moved the page anyway.
-  readOnly: ["hostWidth", "hostHeight", "dark", "pageVisible", "touchDevice", "hasTouch", "hasPointer", "lastPointerType", "safeTop", "safeBottom", "safeLeft", "safeRight", "underlapBottom", "keyboardHeight", "scrollY", "pointerX", "pointerY", "pointerDown", "hovering", "pointerOverText"],
-  // `onFollow(ref) -> ref'` — the app-scoped arrival hook (location.md §0.6):
+  readOnly: ["hostWidth", "hostHeight", "systemDark", "pageVisible", "touchDevice", "hasTouch", "hasPointer", "lastPointerType", "safeTop", "safeBottom", "safeLeft", "safeRight", "underlapBottom", "keyboardHeight", "scrollY", "pointerX", "pointerY", "pointerDown", "hovering", "pointerOverText"],
+  // `onFollowLink(ref) -> ref'` — the app-scoped arrival hook (location.md §0.6):
   // follow() applies it ONCE to every arrival — a linked view, a prose href, a
   // cold URL, back/forward — before routing. Return the reference to proceed
   // with; "" vetoes. Declared as an EVENT so the checker admits the handler;
@@ -635,7 +635,7 @@ const AppSchema: ClassSchema = {
   // is the one transaction with no app handler in it, so its close is
   // DELIVERED; a handler's own change asks inline with afterSettle instead.
   //
-  // `onArrive(target)` — the landing to onFollow's door (location.md §0.5.3-5):
+  // `onArrive(target)` — the landing to onFollowLink's door (location.md §0.5.3-5):
   // the view the followed address names, delivered once it exists and has its
   // geometry — immediately if standing, or settles later when data builds it.
   // Declaring it replaces the built-in scroll landing; `reveal(target)` is
@@ -644,7 +644,7 @@ const AppSchema: ClassSchema = {
   // island's post(topic, payload) lands on an embedded tenant app as
   // onPost({ topic, payload }). Fires only on linked tenants. (`message`
   // belongs to the stream family — one event name, one payload shape.)
-  events: ["follow", "ready", "arrive", "post"],
+  events: ["followLink", "ready", "arrive", "hostMessage"],
 };
 
 // The text FACE attributes — the ones a text-rendering leaf needs and a
@@ -790,7 +790,7 @@ const ImageSchema: ClassSchema = {
     // `cover`/`contain` (2026-08-06, assessment 1.1): the aspect-PRESERVING
     // fits — contain letterboxes inside the box, cover fills and crops it —
     // beside the axis stretches, which distort by design.
-    stretches: enumType("Stretch", "none", "width", "height", "both", "cover", "contain"),
+    stretches: enumType("MediaFit", "none", "width", "height", "both", "cover", "contain"),
     // Where an aspect-preserving fit sits in the box (graphics-pass.md §4):
     // `contain` letterboxes on one axis and `cover` crops on one — this says
     // which end the picture keeps. `center` (the default) is what the fits
@@ -817,7 +817,7 @@ const ImageSchema: ClassSchema = {
   },
   readOnly: ["loaded", "failed", "naturalWidth", "naturalHeight"],
 };
-// Media (2026-08): the transport family's abstract base — the Editor/Stream
+// Media (2026-08): the transport family's abstract base — the EditControl/Stream
 // arrangement (documented, inheritable, uninstantiable; in this table, not the
 // tag registry). The transport is ATTRIBUTES rather than controls: `playing`
 // and `position` are the two-way pair (author writes, runtime writes back, on
@@ -852,7 +852,7 @@ const VideoSchema: ClassSchema = {
   name: "Video",
   base: MediaSchema,
   attrs: {
-    stretches: enumType("Stretch", "none", "width", "height", "both", "cover", "contain"),
+    stretches: enumType("MediaFit", "none", "width", "height", "both", "cover", "contain"),
   },
 };
 
@@ -913,16 +913,16 @@ const DOMIslandSchema: ClassSchema = {
 // caret/selection/IME/a11y are native (D-5). Two-way bound with `text <-> :path`:
 // the draft reads the datapath and commits edits back into the dataset. Fires
 // `input` on each edit and `enter` on a single-line submit.
-// Editor (language §9, the leaf-input exception): the base for a class that
+// EditControl (language §9, the leaf-input exception): the base for a class that
 // two-way edits a dataset value via `<->`. Carries the edit-session surface — the
 // draft's validity/error/dirtiness and WHEN it commits — so any editor (TextInput
 // today, a Picker/DatePopup tomorrow) inherits it. Not written directly.
 const EditorSchema: ClassSchema = {
-  name: "Editor",
+  name: "EditControl",
   base: ViewSchema,
   attrs: {
     commitOn: { kind: "string" }, // "input" (live) | "blur" | "enter" | "manual"
-    judgeOn: enumType("EditorJudgeOn", "edit", "leave"), // when `error` first speaks: at every edit, or once the field has been left
+    judgeOn: enumType("EditControlJudgeOn", "edit", "leave"), // when `error` first speaks: at every edit, or once the field has been left
     error: { kind: "string" },    // the current validation error, "" when valid
     valid: { kind: "boolean" },   // does the draft pass validate()?
     dirty: { kind: "boolean" },   // does the draft differ from the committed value?
@@ -945,7 +945,7 @@ const TextInputSchema: ClassSchema = {
     enterSubmits: { kind: "boolean" },
     spellcheck: { kind: "boolean" },
     // what the field holds, told to the platform: autofill, keyboard, capitalization (purpose.ts)
-    purpose: enumType("Purpose", ...PURPOSE_NAMES),
+    purpose: enumType("InputPurpose", ...PURPOSE_NAMES),
     concealed: { kind: "boolean" },
     wrap: { kind: "boolean" },
     padding: { kind: "inset" },
@@ -1034,7 +1034,7 @@ const HTMLTextSchema: ClassSchema = {
   base: RichTextSchema,
   attrs: {
     html: { kind: "string" },
-    unsupported: enumType("Unsupported", "strip", "error"),
+    unsupported: enumType("UnsupportedTags", "strip", "error"),
   },
 };
 
@@ -1075,7 +1075,7 @@ const TweenLayoutSchema: ClassSchema = {
 // dep-gated, and keyed replication turns the new value into O(changed) view
 // work). A DataSource is a Dataset whose value arrives from `url`. Their
 // lifecycle state is DECLARED, and marked `readOnly` — read-only is exactly
-// what that field is for (View.hovered, App.dark and Stream.status all do
+// what that field is for (View.hovered, App.systemDark and Stream.status all do
 // this). It was once omitted instead, reasoning that "not author-settable"
 // meant "absent"; the cost was that `.value`, `.loaded` and the rest reached
 // no generated reference at all, so declare-model.json denied attributes the
@@ -1142,7 +1142,7 @@ const DataSourceSchema: ClassSchema = {
     // data.ts maps `sameOrigin` to the wire's `same-origin`, exactly as `blend`
     // maps colorDodge → color-dodge: a hyphen cannot be a token (it is
     // subtraction), and the language spells closed sets as tokens, not strings.
-    credentials: enumType("Credentials", "omit", "sameOrigin", "include"),
+    credentials: enumType("RequestCredentials", "omit", "sameOrigin", "include"),
     // Request headers — a plain record, merged over what the source sets for
     // itself (a JSON body's Content-Type). Reactive, so an auth token that
     // lands later is an ordinary value change: the API-keyed and Bearer-token
@@ -1233,7 +1233,7 @@ const AnimatorGroupSchema: ClassSchema = {
     duration: { kind: "number" },
     repeat: { kind: "number" },
     motion: { kind: "motion" },
-    process: enumType("Process", "sequential", "simultaneous"),
+    process: enumType("AnimatorOrder", "sequential", "simultaneous"),
     relative: { kind: "boolean" },
     started: { kind: "boolean" },
     paused: { kind: "boolean" },
@@ -1272,7 +1272,7 @@ const TimeSchema: ClassSchema = {
   name: "Time",
   base: NodeSchema,
   attrs: {
-    tick: numericEnumType("Tick", [1, 2_147_483_647], "frame", "second", "minute", "hour", "day"),
+    tick: numericEnumType("ClockTick", [1, 2_147_483_647], "frame", "second", "minute", "hour", "day"),
     running: { kind: "boolean" },
     now: { kind: "number" },
     year: { kind: "number" },
@@ -1320,7 +1320,7 @@ const TooltipsSchema: ClassSchema = {
 // Streams (docs/system-design/streams.md, RULED 2026-07-29) — SSE and
 // WebSocket as sources. One family, three names: the abstract `Stream` base
 // carries the whole shared surface, and sits in this table but NOT the tag
-// registry — documented, inheritable, uninstantiable, exactly the Editor
+// registry — documented, inheritable, uninstantiable, exactly the EditControl
 // arrangement. `EventStream` is SSE; `Socket` is WebSocket plus send().
 // status/error/open/last are READ-ONLY lifecycle intrinsics, as a
 // DataSource's loaded/loading/failed are — computed for you, a compile
@@ -1360,7 +1360,7 @@ const EventStreamSchema: ClassSchema = {
     method: literalUnion("GET", "POST", "PUT", "PATCH", "DELETE"),
     headers: { kind: "object" },
     body: { kind: "object" },
-    credentials: enumType("Credentials", "omit", "sameOrigin", "include"),
+    credentials: enumType("RequestCredentials", "omit", "sameOrigin", "include"),
   },
 };
 
@@ -1396,7 +1396,7 @@ const FontSchema: ClassSchema = {
   attrs: {
     family: { kind: "string" },
     wait: { kind: "number" },
-    late: enumType("FontLate", "swap", "keep"),
+    late: enumType("FontLoadBehavior", "swap", "keep"),
     loaded: { kind: "boolean" },
     failed: { kind: "boolean" },
   },
@@ -1426,7 +1426,7 @@ export const SCHEMAS: Readonly<Record<string, ClassSchema>> = {
   // Media — the abstract transport base Video and Audio extend (playing/
   // position/duration/volume live here). In the table so the reference can
   // give it a page and the leaves inherit from a documented class; NOT in the
-  // tag registry, so it stays uninstantiable — exactly Editor's arrangement.
+  // tag registry, so it stays uninstantiable — exactly EditControl's arrangement.
   Media: MediaSchema,
   Video: VideoSchema,
   Audio: AudioSchema,
@@ -1435,11 +1435,11 @@ export const SCHEMAS: Readonly<Record<string, ClassSchema>> = {
   Markdown: MarkdownSchema,
   HTMLText: HTMLTextSchema,
   Layout: LayoutSchema,
-  // Editor — the abstract editing base TextInput extends (commitOn/error/valid/
+  // EditControl — the abstract editing base TextInput extends (commitOn/error/valid/
   // dirty and commit()/revert() live here). In the table so the reference can
   // give it a page and TextInput can inherit from a documented class; NOT in the
   // tag registry, so it stays uninstantiable — exactly Layout's arrangement.
-  Editor: EditorSchema,
+  EditControl: EditorSchema,
   TweenLayout: TweenLayoutSchema,
   Dataset: DatasetSchema,
   DataSource: DataSourceSchema,
@@ -1455,7 +1455,7 @@ export const SCHEMAS: Readonly<Record<string, ClassSchema>> = {
   // Stream — the abstract base EventStream/Socket extend (url/active/retry +
   // the read-only lifecycle intrinsics live here). In the table so the
   // reference documents it once and subclasses inherit checkably; NOT in the
-  // tag registry, so it stays uninstantiable — the Editor arrangement.
+  // tag registry, so it stays uninstantiable — the EditControl arrangement.
   Stream: StreamSchema,
   EventStream: EventStreamSchema,
   Socket: SocketSchema,
@@ -1533,16 +1533,17 @@ export const EVENT_PAYLOAD: Readonly<Record<string, string>> = {
   navClaim: "boolean",                             // Keys: an overlay took/released the nav keys
   commandHeld: "boolean",                          // Keys: the command key held alone (true), let go (false)
   link: "string",                                  // RichText: the href
-  follow: "string",                                // App: the reference being followed (onFollow returns the one to proceed with; "" vetoes)
+  followLink: "string",                            // App: the reference being followed (onFollowLink returns the one to proceed with; "" vetoes)
   arrive: "View",                                  // App: the landed-on view — the destination the followed address names, measured
   tick: "number",                                  // Time: dt — seconds since the previous tick, clamped
   focusChange: "View",                             // Focus: the newly focused view
   geometry: "FocusGeometry",
   tooltip: "TooltipEvent",
   message: "StreamMessage",                        // Stream: data/type/id (streams.ts)
-  filesOver: "FilesOver",                          // View: files dragged over it — how many, where (files.ts)
-  filesDrop: "FilesDrop",                          // View: the files dropped on it, and where
+  filesOver: "FilesOverEvent",                          // View: files dragged over it — how many, where (files.ts)
+  filesDrop: "FilesDropEvent",                          // View: the files dropped on it, and where
   post: "IslandPost",                              // Island bridge: { topic, payload } (view.ts)
+  hostMessage: "IslandPost",                       // App: a message from the host island, { topic, payload } (view.ts postToHost's other half)
   navigate: "IslandNavigation",                    // Island: a hosted program's navigation (island.ts)
   // payload-free: focus, blur, outsidePress, init, enter, load, ready,
   // start, stop, repeat, apply, remove, open, close, error

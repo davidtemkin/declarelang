@@ -25,7 +25,7 @@ to a stranger?*):
 
 Around those three: every tile and cross-reference is a `link` (a real <a> —
 hover preview, ⌘-click, the crawler's edge), so the crawl walks the shelf to
-all fifty pages with no route table and no server; `onFollow` is the
+all fifty pages with no route table and no server; `onFollowLink` is the
 renamed-pages door — Audubon's own names ("carolina-parrot",
 "great-footed-hawk") redirect to today's slugs, so a 150-year-old citation
 still lands; and `appName` derives per place, so the history menu lists real
@@ -175,15 +175,15 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
     bird:    Bird? = { app.birdIndex < 0 ? null : app.birds[app.birdIndex] },
     atShelf: boolean = { app.dest != "quiz" && app.bird == null },
 
-    // Audubon's own names still resolve — the renamed-pages door (onFollow).
+    // Audubon's own names still resolve — the renamed-pages door (onFollowLink).
     // A 150-year-old citation lands on today's slug; everything else passes.
 
-    onFollow(ref: string) -> string {
+    onFollowLink(ref: string) -> string {
         const old = ({ "carolina-parrot": "carolina-parakeet", "great-footed-hawk": "peregrine-falcon",
             "mocking-bird": "northern-mockingbird", "white-headed-eagle": "bald-eagle" }) as any
         const renamed = ref.slice(0, 3) == "#b/" ? old[ref.slice(3)] : undefined
         // The return flight is armed here, not in a click handler: every
-        // arrival passes through onFollow, Back included, and Back runs no
+        // arrival passes through onFollowLink, Back included, and Back runs no
         // handler. The shelf links and a traversal home all arrive as "#", so
         // leaving a bird on "#" sends its plate back to its tile.
         if (ref == "#" && app.bird != null) app.armReturn()
@@ -269,7 +269,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
         app.page.fly.start()
         },
     armReturn() {
-        // the inverse journey (see onFollow): remember who is going home, and
+        // the inverse journey (see onFollowLink): remember who is going home, and
         // fly. The flyer below derives both endpoints — the page's resting
         // plate and the bird's own tile — so nothing else needs capturing.
         app.retSlug = app.bird?.slug ?? ""
@@ -331,7 +331,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
 
     // Esc closes a bird's page — the same follow as its close box
 
-    pageKeys: Keys [ onKeyUp(e: KeyEvent) { if (e.key == "Escape" && app.bird != null) app.follow("#") }
+    pageKeys: Keys [ onKeyUp(e: KeyEvent) { if (e.key == "Escape" && app.bird != null) app.followLink("#") }
         ],
 
     page: View [ x = { app.colX }, y = 84, width = { app.colW }, visible = { app.bird != null },

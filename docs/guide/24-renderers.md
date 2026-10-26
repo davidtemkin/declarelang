@@ -53,7 +53,7 @@ is a `<div>` whose geometry Declare drives directly; hit-testing is the
 browser's own, with the runtime resolving to the nearest handler-bearing view.
 **Canvas**: one shared surface and a scene walk — paint order is child order,
 hit-testing is the same walk in reverse, with the identical subtraction for a
-Shape [`clip`](declare-docs:View.clip) that the DOM realization promises. **Mac**: the same scene, as a
+ClipPath [`clip`](declare-docs:View.clip) that the DOM realization promises. **Mac**: the same scene, as a
 tree of native layers, with input walked by the same rules on the runtime's
 side of the bridge.
 

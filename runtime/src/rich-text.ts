@@ -723,8 +723,8 @@ export class TextFlow extends View {
       const h = (n as unknown as { onLink?: (href: string) => void }).onLink;
       if (typeof h === "function") { h.call(n, href); return; }
     }
-    const app = this.root as unknown as { follow?: (ref: string) => void } | null;
-    app?.follow?.(href);
+    const app = this.$root as unknown as { followLink?: (ref: string) => void } | null;
+    app?.followLink?.(href);
   };
   private manual: View[] = [];
   /** The first line's baseline inside this flow (the RichText's `baseline`
@@ -843,7 +843,7 @@ export class TextFlow extends View {
   }
 
   private clearManual(): void {
-    for (const v of this.manual) { this.removeChild(v); v.discard(); }
+    for (const v of this.manual) { this.$removeChild(v); v.discard(); }
     this.manual = [];
   }
 
@@ -942,11 +942,11 @@ export class TextFlow extends View {
       this.clampLines > 0 ? { keep: this.clampLines } : undefined);
     this.publishSlots(slots);
     // Prune image children the content no longer references (a re-pointed `text`).
-    for (const [key, im] of this.imageViews) if (!this.imageUsed.has(key)) { this.removeChild(im); im.discard(); this.imageViews.delete(key); }
+    for (const [key, im] of this.imageViews) if (!this.imageUsed.has(key)) { this.$removeChild(im); im.discard(); this.imageViews.delete(key); }
     this.anchorYs = anchors;
     this.firstBaseline = firstBaseline;
     let at = 0;
-    for (const v of views) { this.insertChild(v, at++); this.manual.push(v); if (this.$backend !== null) v.$attach(this.$backend, this.$surface); }
+    for (const v of views) { this.$insertChild(v, at++); this.manual.push(v); if (this.$backend !== null) v.$attach(this.$backend, this.$surface); }
     this.height = height;
     this.$childrenMutated();
   }
@@ -1299,8 +1299,8 @@ export abstract class RichText extends View {
     if (typeof (this as unknown as Record<string, unknown>).onLink === "function") { fireEvent(this, "link", href); return; }
     let r: unknown = this;
     while (r instanceof View && r.parent !== null) r = r.parent;
-    const app = r as unknown as { follow?: (ref: string) => void; navigate?: (to: string) => void };
-    if (typeof app.follow === "function") app.follow(href);
+    const app = r as unknown as { followLink?: (ref: string) => void; navigate?: (to: string) => void };
+    if (typeof app.followLink === "function") app.followLink(href);
     else app.navigate?.(href);   // a non-App root: external links keep working
   }
 
@@ -1400,7 +1400,7 @@ export abstract class RichText extends View {
     if (!whole) startBudget(this.maxLines);
     SCALE = this.fontScale || 1;                      // font-size multiplier for this render
     STYLES = this.$stylesOf();                         // named styles for this render
-    for (const v of this.built) { this.removeChild(v); v.discard(); }
+    for (const v of this.built) { this.$removeChild(v); v.discard(); }
     this.built = [];
     const width = this.$ownWidth() || !(this.width > 0) ? this.$wrapAt() : this.width;
     // The family a flow's value names now — held while a newly chosen font is
@@ -1426,7 +1426,7 @@ export abstract class RichText extends View {
     CODEBG = this.codeBackground;
     CODERULE = this.codeRule;
     LAYOUT = this.richTextLayout ?? {};
-    RESOLVE_SRC = (src) => resolveAsset(src, this.root);
+    RESOLVE_SRC = (src) => resolveAsset(src, this.$root);
     const ctx: Ctx = { family, lead, onLink: (href) => this.$dispatchLink(href) };
 
     // THE INLINE VIEWS of this build. The host is the identity across content
@@ -1453,7 +1453,7 @@ export abstract class RichText extends View {
     }
     let at = 0;
     for (const e of children) {
-      this.insertChild(e.view, at++);
+      this.$insertChild(e.view, at++);
       this.built.push(e.view);
       if (this.$backend !== null) e.view.$attach(this.$backend, this.$surface);
     }

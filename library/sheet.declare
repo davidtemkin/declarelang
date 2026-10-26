@@ -78,7 +78,7 @@ class Sheet extends Floating [
     scrollPolicy = "block",
     takesFocus = true,
     focusScope = modal,
-    defaultplacement = body,
+    defaultPlacement = body,
 
     edge: "bottom" | "end" | "start" = "bottom",
     narrow: boolean = { this.hostW < 600 },

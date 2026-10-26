@@ -35,11 +35,11 @@ export class Node {
   /** The parent a removeChild just unlinked from — a re-link back to the SAME
    *  parent (what replication does to every row of a block on any change) is
    *  not a move, and must not invalidate the provider memos. */
-  private exParent: Node | null = null;
+  private $exParent: Node | null = null;
   /** Landing under a DIFFERENT parent changes this subtree's ancestor chain,
    *  and only this subtree's: clear its provider memos (attributes.ts). */
   private $chainMoved(child: Node): void {
-    if (child.parent === this || child.exParent === this) return;
+    if (child.parent === this || child.$exParent === this) return;
     providedChainMoved(child);
   }
   /** The values this node reports changes to (schema.ts NodeSchema). */
@@ -76,7 +76,7 @@ export class Node {
 
   /** The read behind `provided("name")` — a value an ancestor makes available,
    *  read explicitly here. The compiler rewrites a `provided(…)` call's callee
-   *  to `this.$provided` (like `app` → `this.root`), so `this` is the reading
+   *  to `this.$provided` (like `app` → `this.$root`), so `this` is the reading
    *  node; `providedRead` (attributes.ts) walks the parent chain for the nearest
    *  ancestor that provides `name`. A second argument is the createContext-style
    *  default when nothing above provides it; with none, an unprovided read
@@ -123,7 +123,7 @@ export class Node {
 
   /** The read behind `hostProvided("name", default)` — a value this program's
    *  HOST makes available: an island's `provides` name, a page's
-   *  `app.provide(…)`, the native host's launch parameters. The compiler
+   *  `app.provideHostValue(…)`, the native host's launch parameters. The compiler
    *  rewrites the callee to `this.$hostProvided`; the value lives on the
    *  running App (its host values), so every node in the program reads the
    *  same one. The default types the read and stands in when nothing is
@@ -132,7 +132,7 @@ export class Node {
   $hostProvided(name: string, ...dflt: unknown[]): unknown {
     let top: Node = this;
     while (top.parent !== null) top = top.parent as Node;
-    const hv = (top as unknown as { hostValues?: { read(n: string, h: boolean, d: unknown): unknown } }).hostValues;
+    const hv = (top as unknown as { $hostValues?: { read(n: string, h: boolean, d: unknown): unknown } }).$hostValues;
     if (hv == null) {
       if (dflt.length > 0) return dflt[0];
       throw new Error(`hostProvided("${name}"): this node is not in a running app`);
@@ -166,7 +166,7 @@ export class Node {
    *  replication-populated container's content extent re-derive when rows
    *  ARRIVE — per-child attr reads track the children that exist, and this
    *  cell tracks that the SET of children changed. */
-  private structure: Cell | null = null;
+  private $structure: Cell | null = null;
 
   /** Register the caller's interest in "my child list changed" (no-op when
    *  nothing is tracking). Every reactive read works this way — a cell the
@@ -174,21 +174,21 @@ export class Node {
    *  interest rather than up front, so a tree nobody asks about pays nothing. */
   $watchChildList(): void {
     if (!isTracking()) return;
-    if (this.structure === null) {
-      this.structure = new Cell();
-      this.structure.structural = true;   // wakes carry the re-wire signal
+    if (this.$structure === null) {
+      this.$structure = new Cell();
+      this.$structure.structural = true;   // wakes carry the re-wire signal
     }
-    this.structure.track();
+    this.$structure.track();
   }
 
   protected $childListChanged(): void {
-    this.structure?.changed();
+    this.$structure?.changed();
   }
   /** The child-list cell's kernel id (created on first need) — a native
    *  rule's edge on "the SET of children changed" (the auto-extent rule). */
   $structureCellId(): number {
-    if (this.structure === null) { this.structure = new Cell(); this.structure.structural = true; }
-    return this.structure.cellId();
+    if (this.$structure === null) { this.$structure = new Cell(); this.$structure.structural = true; }
+    return this.$structure.cellId();
   }
 
   /** The scope noun (R6) for members declared in THIS node's body — the
@@ -198,10 +198,10 @@ export class Node {
   classroot: Node | null = null;
 
   /** The top of the tree — the App root. A deeply-nested view reaches
-   *  app-level state and methods through `this.root` instead of a
+   *  app-level state and methods through `this.$root` instead of a
    *  fragile fixed-depth `.parent` chain (the language's one escape from
    *  strict child→parent locality; structure, not reactive). */
-  get root(): Node {
+  get $root(): Node {
     let n: Node = this;
     while (n.parent !== null) n = n.parent;
     return n;
@@ -218,7 +218,7 @@ export class Node {
 
   /** Link `child` at `index` — child order is semantic (tree order is paint
    *  order, and replicated children take their data's order, R8). */
-  insertChild(child: Node, index: number): void {
+  $insertChild(child: Node, index: number): void {
     this.$chainMoved(child);
     child.parent = this;
     this.children.splice(index, 0, child);
@@ -227,8 +227,8 @@ export class Node {
 
   /** Unlink `child`. Model structure only — a live view's surface and
    *  standing computations are the caller's to retire (View.discard). */
-  removeChild(child: Node): void {
-    child.exParent = this;                  // so a re-link back here is not a move
+  $removeChild(child: Node): void {
+    child.$exParent = this;                  // so a re-link back here is not a move
     const i = this.children.indexOf(child);
     if (i >= 0) {
       this.children.splice(i, 1);
@@ -246,7 +246,7 @@ export class Node {
    *  nothing extra — the once-per-burst notify stays the burst's own. */
   discard(): void {
     const p = this.parent;
-    if (p !== null) p.removeChild(this);
+    if (p !== null) p.$removeChild(this);
     this.$teardown();
     if (p !== null) p.$childrenMutated();
   }
@@ -268,7 +268,7 @@ export class Node {
     runRetire(this);
     disposeBindings(this);
     freeCells(this);
-    this.structure?.free();
+    this.$structure?.free();
   }
 
   /** Children were inserted/removed/reordered as a unit — the notification

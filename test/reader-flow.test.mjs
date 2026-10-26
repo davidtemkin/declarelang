@@ -121,7 +121,7 @@ await test("viewer: an include path is a link that views the included file in pl
   assert.ok(hrefs.includes("#reader/apps/weather/weather-art.declare@WindDial"), "a class declared in the include links to its line");
   assert.ok(hrefs.includes("apps/docs/#reference/SimpleLayout"), "a platform class links to its reference page");
   const st = () => page.evaluate(() => { const a = window.__declare.find("app"); return { loc: a.location, file: a.filePath(), isInclude: a.isInclude }; });
-  await page.evaluate(() => window.__declare.find("app").follow("#reader/apps/weather/weather-art.declare"));
+  await page.evaluate(() => window.__declare.find("app").followLink("#reader/apps/weather/weather-art.declare"));
   await settled(page);
   let s = await st();
   assert.equal(s.file, "apps/weather/weather-art.declare", "the included file is viewed in place");
@@ -145,7 +145,7 @@ await test("viewer: an include path is a link that views the included file in pl
 await test("viewer: a class link lands on its declaration's line", async () => {
   await page.goto(`${B}/apps/weather/weather.declare?viewer=reader`, { waitUntil: "networkidle0", timeout: 60000 });
   await settled(page);
-  await page.evaluate(() => window.__declare.find("app").follow("#reader/apps/weather/weather-art.declare@WindDial"));
+  await page.evaluate(() => window.__declare.find("app").followLink("#reader/apps/weather/weather-art.declare@WindDial"));
   await settled(page);
   const at = await page.evaluate(() => {
     const a = window.__declare.find("app");
@@ -197,7 +197,7 @@ await test("viewer: the Sizes tab weighs the program's build, file by file, and 
   // a library file opens in the reader, from where the library is served
   const ring = st.files.find((f) => f.label === "library/focusring.declare").href;
   assert.ok(/^#reader\/(declare\/)?library\/focusring\.declare$/.test(ring), ring);
-  await page.evaluate((h) => window.__declare.find("app").follow(h), ring);
+  await page.evaluate((h) => window.__declare.find("app").followLink(h), ring);
   await page.waitForFunction(() => window.__declare.find("app").segSrc.loaded === true, { timeout: 30000, polling: 100 });
   await settled(page);
   assert.equal(await page.evaluate(() => window.__declare.find("app").baseName()), "focusring.declare");
@@ -215,7 +215,7 @@ await test("viewer: the Sizes tab weighs the program's build, file by file, and 
   await settled(page);
   assert.equal(await page.evaluate(() => window.__declare.find("app").content.weigh.runtime.open), true, "the runtime opens");
   // a followed include keeps the tab, and has no App to build
-  await page.evaluate(() => window.__declare.find("app").follow("#sizes/apps/weather/weather-art.declare"));
+  await page.evaluate(() => window.__declare.find("app").followLink("#sizes/apps/weather/weather-art.declare"));
   await settled(page);
   const inc = await page.evaluate(() => { const a = window.__declare.find("app"); return { url: a.sizesUrl(), status: a.content.weigh.status.text }; });
   assert.equal(inc.url, "", "nothing is built for an include");

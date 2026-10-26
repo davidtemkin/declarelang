@@ -80,7 +80,7 @@ export interface InteractionView {
    *  a minimal test view may omit it, and 0 is the answer then. */
   padding?: Inset;
   parent: unknown;
-  root: unknown;
+  $root: unknown;
   children: readonly unknown[];
 }
 
@@ -408,7 +408,7 @@ function ensureApp(app: InteractionApp): AppInteraction {
 }
 
 function recOf(view: InteractionView): Rec {
-  const root = view.root;
+  const root = view.$root;
   if (root !== null && root !== undefined && isView(root)) {
     const state = ensureApp(root as InteractionApp);
     let r = state.recs.get(view);

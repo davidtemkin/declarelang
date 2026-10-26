@@ -117,7 +117,7 @@ The width of seven days.
 */
 
 /*
-# CalendarDay
+# MonthCalendarDay
 
 One day of a `MonthCalendar`, **made from the calendar's week records — never written
 directly**. A `Control`, so the focus moves from day to day and a screen reader says
@@ -127,7 +127,7 @@ each one, by its full date. Pressing it, or Enter or Space on it, picks it.
 App [ width = 200, height = 64,
     day: Dataset { { "iso": "2026-10-18", "day": 18, "inMonth": true, "selected": true,
                      "name": "Sunday, October 18, 2026" } },
-    CalendarDay [ x = 20, y = 16, datapath = { app.day.value } ]
+    MonthCalendarDay [ x = 20, y = 16, datapath = { app.day.value } ]
     ]
 ```
 
@@ -182,15 +182,15 @@ Dimmed to the theme's `disabledOpacity` when disabled.
 */
 
 /*
-# CalendarArrow
+# MonthCalendarArrow
 
 A month button of a `MonthCalendar`: a quiet control with a chevron, no fill until the
 pointer is over it. The calendar that places it says what pressing it does.
 
 ```declare
 App [ width = 200, height = 64, n: number = 0,
-    CalendarArrow [ x = 20, y = 18, dir = -1, press() { app.n = app.n - 1 } ],
-    CalendarArrow [ x = 52, y = 18, press() { app.n = app.n + 1 } ],
+    MonthCalendarArrow [ x = 20, y = 18, dir = -1, press() { app.n = app.n - 1 } ],
+    MonthCalendarArrow [ x = 52, y = 18, press() { app.n = app.n + 1 } ],
     Text [ x = 100, y = 22, text = { "" + app.n } ]
     ]
 ```
@@ -395,7 +395,7 @@ class MonthCalendar [
 
     cellFor(iso: string) -> View? {
         for (const r of this.grid.children) {
-            for (const c of (r as View).children ?? []) if ((c as CalendarDay).iso === iso) return c as View
+            for (const c of (r as View).children ?? []) if ((c as MonthCalendarDay).iso === iso) return c as View
             }
         return null
         },
@@ -432,11 +432,11 @@ class MonthCalendar [
             Text [ fontSize = 14, fontWeight = semibold, wrap = false, textColor = { provided("theme").text }, text = { classroot.title } ]
             ],
         Spacer [ ],
-        prev: CalendarArrow [ dir = -1, y = center,
+        prev: MonthCalendarArrow [ dir = -1, y = center,
             disabled = { classroot.min != "" && classroot.shown <= classroot.min.slice(0, 7) },
             press() { if (!disabled) classroot.step(-1) }
             ],
-        next: CalendarArrow [ dir = 1, y = center,
+        next: MonthCalendarArrow [ dir = 1, y = center,
             disabled = { classroot.max != "" && classroot.shown >= classroot.max.slice(0, 7) },
             press() { if (!disabled) classroot.step(1) }
             ]
@@ -461,7 +461,7 @@ class MonthCalendar [
         layout: SimpleLayout [ axis = y, spacing = 2 ],
         View [ datapath = :weeks[], accessibilityRole = row,
             layout: SimpleLayout [ axis = x, spacing = 2 ],
-            CalendarDay [ datapath = :days[], width = { classroot.daySize },
+            MonthCalendarDay [ datapath = :days[], width = { classroot.daySize },
                 picked() { classroot.pick(this.iso) },
                 navigate(e: KeyEvent) -> boolean { return classroot.go(this.iso, e) }
                 ]
@@ -470,7 +470,7 @@ class MonthCalendar [
     ]
 
 
-class CalendarDay extends Control [
+class MonthCalendarDay extends Control [
     accessibilityRole = cell,
     accessibilityLabel = { "" + (:name ?? "") },
     accessibilitySelected = { :selected == true },
@@ -509,7 +509,7 @@ class CalendarDay extends Control [
     ]
 
 
-class CalendarArrow extends Control [
+class MonthCalendarArrow extends Control [
     dir: number = 1,
     accessibilityRole = button,
     accessibilityLabel = { dir < 0 ? "Previous month" : "Next month" },

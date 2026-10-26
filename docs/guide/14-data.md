@@ -444,9 +444,9 @@ everything downstream follows.
 
 ## Files
 
-The person's own files come in two ways. `Files.pick` opens the file dialog — call it
+The person's own files come in two ways. `FilePicker.pick` opens the file dialog — call it
 from a press, as a browser allows a dialog only then — and resolves to the files chosen:
-`Files.pick({ accept: ["image/*"], multiple: true })`, or `{ folder: true }` for a whole
+`FilePicker.pick({ accept: ["image/*"], multiple: true })`, or `{ folder: true }` for a whole
 folder. And a view that declares [`onFilesDrop`](declare-docs:View.event.filesDrop) takes files dragged onto it — the view under
 the drag, as with a press — with `onFilesOver` and `onFilesOut` to light it while they are
 over it.
@@ -458,7 +458,7 @@ it, and a `DataSource` body that holds it uploads it, sent as a form:
 
 ```declare-fragment
 chosen: File[] = [],
-well: View [ width = 300, height = 160, onFilesDrop(e: FilesDrop) { app.chosen = e.files } ],
+well: View [ width = 300, height = 160, onFilesDrop(e: FilesDropEvent) { app.chosen = e.files } ],
 upload: DataSource [ url = "/api/photos", method = "POST",
     body = { { album: app.album, photo: app.chosen[0] } } ],
 Button [ label = "Upload", disabled = { app.chosen.length == 0 }, onClick() { app.upload.fetch() } ]
@@ -477,7 +477,7 @@ cannot be read as the field's type never reaches the data.
 
 A form usually wants more: a **draft** the user is editing, validated, that lands only
 when it is good and only when they say so. That is a text field's edit session — it
-belongs to [`Editor`](declare-docs:Editor), the base class `TextInput` extends:
+belongs to [`EditControl`](declare-docs:EditControl), the base class `TextInput` extends:
 
 ```declare
 App [ width = 400, height = 220, fill = white, textColor = black,
@@ -514,10 +514,10 @@ App [ width = 400, height = 220, fill = white, textColor = black,
     ]
 ```
 
-Empty a field and Save disables itself; fix it and Save returns. **[`commitOn`](declare-docs:Editor.commitOn)** decides
+Empty a field and Save disables itself; fix it and Save returns. **[`commitOn`](declare-docs:EditControl.commitOn)** decides
 when a valid draft lands: `"input"` (live, the default), `"blur"`, `"enter"`, or
-`"manual"` — only on [`commit()`](declare-docs:Editor.method.commit). **`validate(v)`** returns `""` for valid or the message
-otherwise. From those, three facts follow — [`valid`](declare-docs:Editor.valid), `error` and [`dirty`](declare-docs:Editor.dirty) — and an invalid
+`"manual"` — only on [`commit()`](declare-docs:EditControl.method.commit). **`validate(v)`** returns `""` for valid or the message
+otherwise. From those, three facts follow — [`valid`](declare-docs:EditControl.valid), `error` and [`dirty`](declare-docs:EditControl.dirty) — and an invalid
 draft never reaches the dataset. `canSave` is an ordinary constraint over them: no form
 object, no submit handler. A field the program fills itself — `text = { … }` with an
 `onInput` — takes the same `validate`, and gets the same `valid` and `error`; it just has

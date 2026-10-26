@@ -201,7 +201,7 @@ include [ "floating.declare" ]
 
 // a dialog button, as data
 
-schema DialogButton [ id: string, label: string, default?: boolean, cancel?: boolean ]
+schema DialogButtonRecord [ id: string, label: string, default?: boolean, cancel?: boolean ]
 
 class Dialog extends Floating [
     kind = "modal",
@@ -209,7 +209,7 @@ class Dialog extends Floating [
     scrollPolicy = "block",
     takesFocus = true,
     focusScope = modal,
-    defaultplacement = content,
+    defaultPlacement = content,
 
     presentation: "center" | "full" = "center",
     title: string = "",
@@ -218,7 +218,7 @@ class Dialog extends Floating [
     accessibilityLabel = { title },
     accessibilityHint = { message },
     tone: string = "",
-    buttons: DialogButton[]? = null,
+    buttons: DialogButtonRecord[]? = null,
     _cb: (id: string) -> void? = null,
 
     hostW: number = { this.host != null ? this.host.width : app.hostWidth > 0 ? app.hostWidth : app.width },     // a window's, else the browser window's

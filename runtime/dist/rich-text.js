@@ -739,8 +739,8 @@ export class TextFlow extends View {
                 return;
             }
         }
-        const app = this.root;
-        app?.follow?.(href);
+        const app = this.$root;
+        app?.followLink?.(href);
     };
     manual = [];
     /** The first line's baseline inside this flow (the RichText's `baseline`
@@ -854,7 +854,7 @@ export class TextFlow extends View {
     }
     clearManual() {
         for (const v of this.manual) {
-            this.removeChild(v);
+            this.$removeChild(v);
             v.discard();
         }
         this.manual = [];
@@ -961,7 +961,7 @@ export class TextFlow extends View {
         // Prune image children the content no longer references (a re-pointed `text`).
         for (const [key, im] of this.imageViews)
             if (!this.imageUsed.has(key)) {
-                this.removeChild(im);
+                this.$removeChild(im);
                 im.discard();
                 this.imageViews.delete(key);
             }
@@ -969,7 +969,7 @@ export class TextFlow extends View {
         this.firstBaseline = firstBaseline;
         let at = 0;
         for (const v of views) {
-            this.insertChild(v, at++);
+            this.$insertChild(v, at++);
             this.manual.push(v);
             if (this.$backend !== null)
                 v.$attach(this.$backend, this.$surface);
@@ -1287,8 +1287,8 @@ export class RichText extends View {
         while (r instanceof View && r.parent !== null)
             r = r.parent;
         const app = r;
-        if (typeof app.follow === "function")
-            app.follow(href);
+        if (typeof app.followLink === "function")
+            app.followLink(href);
         else
             app.navigate?.(href); // a non-App root: external links keep working
     }
@@ -1399,7 +1399,7 @@ export class RichText extends View {
         SCALE = this.fontScale || 1; // font-size multiplier for this render
         STYLES = this.$stylesOf(); // named styles for this render
         for (const v of this.built) {
-            this.removeChild(v);
+            this.$removeChild(v);
             v.discard();
         }
         this.built = [];
@@ -1427,7 +1427,7 @@ export class RichText extends View {
         CODEBG = this.codeBackground;
         CODERULE = this.codeRule;
         LAYOUT = this.richTextLayout ?? {};
-        RESOLVE_SRC = (src) => resolveAsset(src, this.root);
+        RESOLVE_SRC = (src) => resolveAsset(src, this.$root);
         const ctx = { family, lead, onLink: (href) => this.$dispatchLink(href) };
         // THE INLINE VIEWS of this build. The host is the identity across content
         // changes: a tag matched to a view it already made keeps that view (hover, a
@@ -1455,7 +1455,7 @@ export class RichText extends View {
         }
         let at = 0;
         for (const e of children) {
-            this.insertChild(e.view, at++);
+            this.$insertChild(e.view, at++);
             this.built.push(e.view);
             if (this.$backend !== null)
                 e.view.$attach(this.$backend, this.$surface);

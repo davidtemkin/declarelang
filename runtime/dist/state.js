@@ -206,7 +206,7 @@ export class State extends Node {
         const provides = [], finishes = [];
         for (const tmpl of this.childTemplates) {
             const { view, provide, finish } = this.materialize(tmpl.el, tmpl.croot ?? target);
-            target.insertChild(view, index++);
+            target.$insertChild(view, index++);
             if (tmpl.el.name !== null) {
                 this.$bindName(target, tmpl.el.name);
                 this.$named.set(tmpl.el.name, view);

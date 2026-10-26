@@ -26,7 +26,7 @@
 //   2. One `declare class` per schema — built-ins and user classes — with each
 //      attribute typed through the AttrType → TS map, the base wired via
 //      `extends`, and (for user classes) the declared methods. The view-tree
-//      nouns (language §11: parent / classroot / root / children) live on View
+//      nouns (language §11: parent / classroot / $root / children) live on View
 //      and reach every View-derived class through `extends`.
 //
 // ── The settled check-block SHAPE (how a body is checked against this) ───────
@@ -81,7 +81,7 @@ import { runtimeMethodsOf } from "../../runtime/dist/runtime-methods.js";
 /** The fixed value-type prelude — the closed vocabulary of value.ts as TS
  *  types, plus the value constructors in scope for every body. Mirrors
  *  value.ts's runtime shapes exactly (Length/Color/Fill/Stroke/Shadow/
- *  Percent/Gradient and the gradient/stroke/stop/shadow constructors). `Cursor`
+ *  Percent/Gradient and the gradient/stroke/stop/shadow constructors). `DataCursor`
  *  is the deferred schema-typed-`:path` placeholder (see the header). `Theme`
  *  (and every record-typed slot) is DELIBERATELY `Record<string, any>`, not
  *  `unknown`: a record's keys are open by design (no schema construct yet), so
@@ -113,7 +113,7 @@ type Color = number | null;
 /** A clip path, as the \`clip\` slot takes it: an SVG path string in the view's own
  *  coordinates, or \`null\` for the plain rectangle. \`clip = true\` is the box; a shape
  *  is for everything else. */
-type Shape = string | null;
+type ClipPath = string | null;
 /** A gradient value, as \`gradient\`, \`radialGradient\` and \`conicGradient\` build it.
  *  Any \`Fill\` slot takes one, and a drawing can too. Write it through a constructor
  *  rather than by hand: the shape is published so a program can read one back. */
@@ -133,8 +133,8 @@ type BoxStroke = Stroke | readonly [Stroke | null, Stroke | null, Stroke | null,
 /** A stroke around the edges of the GLYPHS, built by \`outline(width, color)\` — the
  *  value \`Text.outline\` takes. It rides under the fill, so a filled letter shows a
  *  thin ring and an unfilled one reads hollow; it is not a box around the run. */
-interface Outline { width: number; color: Color }
-/** A drop shadow, built by \`shadow(dx, dy, blur, color)\`. It is also a \`Filter\`, so
+interface GlyphOutline { width: number; color: Color }
+/** A drop shadow, built by \`shadow(dx, dy, blur, color)\`. It is also a \`ImageFilter\`, so
  *  it composes in a filter list; on \`textShadow\` it shadows the glyphs. */
 interface Shadow { fn: "shadow"; dx: number; dy: number; blur: number; color: Color }
 /** One entry in a filter list: a blur, one of the amount filters, a hue rotation, a
@@ -142,10 +142,10 @@ interface Shadow { fn: "shadow"; dx: number; dy: number; blur: number; color: Co
  *  GROUP (so a subtree blurs together, not child by child); \`backdrop\` applies the
  *  same list to what lies beneath. There is no CSS \`filter\` string: the tokens are
  *  functions, so a misspelling is a compile error rather than a silent no-op. */
-type Filter = { fn: "blur"; radius: number } | { fn: "brightness" | "contrast" | "saturate" | "grayscale" | "invert" | "sepia"; amount: number } | { fn: "hueRotate"; degrees: number } | { fn: "colorize"; color: Color } | Shadow;
+type ImageFilter = { fn: "blur"; radius: number } | { fn: "brightness" | "contrast" | "saturate" | "grayscale" | "invert" | "sepia"; amount: number } | { fn: "hueRotate"; degrees: number } | { fn: "colorize"; color: Color } | Shadow;
 /** What lies BENEATH a view, filtered: the same list \`filter\` takes, applied to
  *  the backdrop instead of the view's own paint. \`frost\` is the common one. */
-type Backdrop = readonly Filter[];
+type FilterList = readonly ImageFilter[];
 /** A token record — every color and metric an app names once. Provided down the
  *  tree (\`provided("theme")\`), spread to override a token, and declared at the top
  *  level with \`theme Name [ … ]\`. Its keys are open by design: a record whose keys
@@ -163,9 +163,9 @@ declare function activeTone(accent: Color, surface: Color): Color;
 /** The data a \`:path\` reads against — a view's place in the bound data, its
  *  \`datapath\` plus its position under replication. You rarely name the type: a
  *  \`:path\` reads through it for you. */
-interface Cursor { readonly data: any; readonly path: readonly string[] }
-/** One message across the island boundary — what \`post\` sends and \`onPost\`
- *  receives between an embedded app and its host. */
+interface DataCursor { readonly data: any; readonly path: readonly string[] }
+/** One message across the island boundary — what \`post\` and \`postToHost\` send and
+ *  \`onPost\` and \`onHostMessage\` receive between an embedded app and its host. */
 interface IslandPost { readonly topic: string; readonly payload: unknown }
 /** A navigation the embedded app asked for — what an island's \`onNavigate\`
  *  receives: \`to\`, the address made absolute; \`program\`, the Declare program it
@@ -186,7 +186,7 @@ declare function conicGradient(cx: number, cy: number, angle: number, ...stops: 
  *  costs no layout. */
 declare function stroke(width: number, color: Color): Stroke;
 /** Build a ring drawn outside the box — what a focus silhouette wears. */
-declare function outline(width: number, color: Color): Outline;
+declare function outline(width: number, color: Color): GlyphOutline;
 /** Place one gradient stop at an exact offset (0 to 1) instead of letting the
  *  colors spread evenly. */
 declare function stop(offset: number, color: Color): { offset: number; color: Color };
@@ -195,28 +195,28 @@ declare function stop(offset: number, color: Color): { offset: number; color: Co
 declare function shadow(dx: number, dy: number, blur: number, color: Color): Shadow;
 /** The frosted-glass backdrop: blur what lies beneath, and lift its saturation a
  *  little so color shows through rather than going grey. \`backdrop = frost(26, 1.5)\`. */
-declare function frost(radius: number, saturation?: number): Backdrop;
+declare function frost(radius: number, saturation?: number): FilterList;
 /** Blur, by radius in the view's own units. \`filter = blur(4)\` blurs this view's
  *  paint; \`backdrop = blur(20)\` blurs what is behind it. */
-declare function blur(radius: number): Filter;
+declare function blur(radius: number): ImageFilter;
 /** Scale brightness — 1 is unchanged, 0 is black, above 1 lightens. */
-declare function brightness(amount: number): Filter;
+declare function brightness(amount: number): ImageFilter;
 /** Scale contrast — 1 is unchanged, 0 is flat grey, above 1 hardens. */
-declare function contrast(amount: number): Filter;
+declare function contrast(amount: number): ImageFilter;
 /** Scale saturation — 1 is unchanged, 0 is grey, above 1 intensifies. */
-declare function saturate(amount: number): Filter;
+declare function saturate(amount: number): ImageFilter;
 /** Remove color, 0 to 1, where 1 is fully grey. */
-declare function grayscale(amount: number): Filter;
+declare function grayscale(amount: number): ImageFilter;
 /** Invert, 0 to 1, where 1 is a full negative. */
-declare function invert(amount: number): Filter;
+declare function invert(amount: number): ImageFilter;
 /** Warm toward sepia, 0 to 1. */
-declare function sepia(amount: number): Filter;
+declare function sepia(amount: number): ImageFilter;
 /** Rotate every hue around the color wheel by an angle in degrees. */
-declare function hueRotate(degrees: number): Filter;
+declare function hueRotate(degrees: number): ImageFilter;
 /** Replace the paint's color while KEEPING its alpha — the one-mask-many-colors
  *  idiom: one bitmap or drawing, recolored per use. \`Image.tint\` is the shorthand
  *  for an image. */
-declare function colorize(color: Color): Filter;
+declare function colorize(color: Color): ImageFilter;
 /** A translucent color in the runtime's own encoding: an \`0xRRGGBB\` and an alpha
  *  from 0 to 255 — the same byte an \`0xRRGGBBAA\` literal carries, which is what the
  *  compiler lowers that literal to. Returns an opaque \`0xRRGGBB\` at 255, so the common
@@ -230,7 +230,7 @@ interface TextStyle {
   letterSpacing?: number; lineHeight?: number; textColor?: Color | null; textShadow?: Shadow | null;
   textTransform?: "none" | "uppercase" | "lowercase" | "capitalize"; smallCaps?: boolean;
   numerals?: "normal" | "lining" | "oldstyle"; numeralWidth?: "normal" | "tabular" | "proportional"; slashedZero?: boolean;
-  textFill?: Fill | null; outline?: Outline | null; underline?: boolean; strike?: boolean;
+  textFill?: Fill | null; outline?: GlyphOutline | null; underline?: boolean; strike?: boolean;
 }
 /** The palette a \`<span class>\` names: style name → that style's fields. The KEYS
  *  are open — content chooses them — and the VALUES are closed, so a misspelled
@@ -252,7 +252,7 @@ interface BlockGeometry { maxWidth?: number; margin?: readonly [number, number];
  *  misspelled field is caught, a block type you invent is not. */
 type RichTextLayout = Readonly<Record<string, BlockGeometry>>;
 /** What measureText reports — a Text's own fact names. */
-interface TextMeasure { readonly width: number; readonly height: number; readonly baseline: number; readonly capHeight: number; readonly lines: number }
+interface TextMetrics { readonly width: number; readonly height: number; readonly baseline: number; readonly capHeight: number; readonly lines: number }
 /** Measure a run of text in a style, with the measurer and wrapping a \`Text\` uses —
  *  one line, or wrapped at \`width\`. Called in a constraint or a drawing, it re-runs
  *  when anything it measured with changes, a font's faces included.
@@ -261,14 +261,14 @@ interface TextMeasure { readonly width: number; readonly height: number; readonl
  *  default, never the face around it. **To measure the way a \`Text\` here would
  *  render, pass \`providedTextStyle(…)\`** — the provided face, with your overrides:
  *  \`measureText(words, providedTextStyle({ lineHeight: 1.3 }), 300).width\`. */
-declare function measureText(text: string, style: TextStyle, width?: number): TextMeasure;
+declare function measureText(text: string, style: TextStyle, width?: number): TextMetrics;
 /** A value this program's HOST provides — the program that embeds it lists the
  *  name in its island's \`provides\`; a page embedding it calls \`app.provide\`.
  *  The default stands in when nothing is provided (the program running on its
  *  own, or the host not listing the name) and states the type: a value of a
  *  different kind is refused at the read, with a warning. The name must be a
  *  literal. Reactive: when the host's value changes, everything that read it
- *  re-derives. \`theme = { hostProvided("theme", app.dark ? SanFranciscoDark : SanFrancisco) }\`. */
+ *  re-derives. \`theme = { hostProvided("theme", app.systemDark ? SanFranciscoDark : SanFrancisco) }\`. */
 declare function hostProvided<T>(name: string, fallback: T): T;
 declare function hostProvided(name: string): any;
 /** Run \`fn\` once, \`ms\` milliseconds from now — never in the frame that asked, so
@@ -425,23 +425,23 @@ interface TooltipEvent { readonly text: string; readonly x: number; readonly y: 
 /** One message from an \`EventStream\` or \`Socket\`: its payload, its type, and its
  *  id. \`onMessage\` receives it, and \`last\` holds the most recent. */
 interface StreamMessage { readonly data: string; readonly type: string; readonly id: string }
-/** A file the person chose (\`Files.pick\`) or dropped (\`onFilesDrop\`): its name, size in
+/** A file the person chose (\`FilePicker.pick\`) or dropped (\`onFilesDrop\`): its name, size in
  *  bytes, MIME type, when it last changed (ms since 1970), its path within a chosen or
  *  dropped folder ("" for a file on its own), and a \`url\` that reads it — an \`Image\`'s
  *  \`source\`, a \`DataSource\`'s \`url\` — or, in a \`DataSource\` body, uploads it. */
 interface File { readonly name: string; readonly size: number; readonly type: string; readonly modified: number; readonly path: string; readonly url: string }
 /** Files dragged over a view: how many (0 when the browser does not say), and where, in
  *  the view's own coordinates. */
-interface FilesOver { readonly count: number; readonly x: number; readonly y: number }
+interface FilesOverEvent { readonly count: number; readonly x: number; readonly y: number }
 /** Files dropped on a view: the files — a dropped folder's, every file in it, each with
  *  its path — and where, in the view's own coordinates. */
-interface FilesDrop { readonly files: File[]; readonly x: number; readonly y: number }
-/** What \`Files.pick\` offers: the types (MIME types or extensions), more than one file,
+interface FilesDropEvent { readonly files: File[]; readonly x: number; readonly y: number }
+/** What \`FilePicker.pick\` offers: the types (MIME types or extensions), more than one file,
  *  or a whole folder. */
-interface PickOptions { accept?: string[]; multiple?: boolean; folder?: boolean }
+interface FilePickOptions { accept?: string[]; multiple?: boolean; folder?: boolean }
 /** The person's files: \`pick\` opens the file dialog — from a press, as a browser allows
  *  one only then — and resolves to the files chosen, none if it was dismissed. */
-declare const Files: { pick(options?: PickOptions): Promise<File[]> };
+declare const FilePicker: { pick(options?: FilePickOptions): Promise<File[]> };
 /** What a program says to assistive technology with no view to say it from —
  *  "Message sent", "3 results": \`announce\` speaks it without moving the focus,
  *  \`polite\` (the default) at the next pause, \`assertive\` at once. A view whose
@@ -598,7 +598,7 @@ export function tsType(t: AttrType): string {
     case "boolean": return t.nullable === true ? "boolean | null" : "boolean";
     case "string": return "string";
     case "color": return "Color";
-    case "shape": return "Shape | boolean | null";   // `clip`: a shape, or true for the view's own box
+    case "shape": return "ClipPath | boolean | null";   // `clip`: a shape, or true for the view's own box
     case "dataschema": return "any"; // the parsed shape declarations — data, not a body-facing type
     // An AUTHORED literal union (`"idle" | "loading"`) carries the union TEXT
     // as its name and is already TypeScript, so it emits inline and needs no
@@ -608,14 +608,14 @@ export function tsType(t: AttrType): string {
     case "enum": return t.name;
     case "class": return t.required === true ? t.of : `${t.of} | null`; // a schema slot's only literal is `null` for "none"; a declared `Menu` is never empty
     case "fn": return `(${t.written.replace(/->/g, "=>")}) | null`; // a callback slot; `null` = none
-    case "cursor": return "Cursor"; // reads see the place; writes are widened in memberSig
+    case "cursor": return "DataCursor"; // reads see the place; writes are widened in memberSig
     case "slotref": return "string"; // a bare slot name, a string at runtime
     case "record": return t.data === true && t.required !== true ? `${t.name} | null` : t.name; // data record (nullable unless declared without `?`) / Theme-class token record
     case "fill": return "Fill";
     case "stroke": return "BoxStroke"; // one Stroke, four clockwise from the top, or null
-    case "outline": return "Outline | null";
+    case "outline": return "GlyphOutline | null";
     case "shadow": return "Shadow | null";
-    case "filter": return "Filter | readonly Filter[] | null";
+    case "filter": return "ImageFilter | readonly ImageFilter[] | null";
     case "mask": return "Gradient | View | null";
     case "motion": return "Motion"; // the token union + MotionCurve brand (prelude)
     case "font": return "string | Font | readonly (string | Font)[] | null"; // a family string, a Font object, or a fallback list of them
@@ -630,7 +630,7 @@ export function tsType(t: AttrType): string {
 /** The event-payload type names, writable in a handler's signature. Declared
  *  in the prelude above; the shapes live in the runtime (events.ts, keys.ts,
  *  tip.ts, focus.ts) and this list is what makes them nameable by an author. */
-const PAYLOAD_TYPES = new Set(["PointerEvent", "PointerUpEvent", "TouchEvent", "WheelEvent", "PinchEvent", "Touch", "KeyEvent", "FocusGeometry", "TooltipEvent", "StreamMessage", "File", "FilesOver", "FilesDrop", "PickOptions", "Draw", "DrawGradient"]);
+const PAYLOAD_TYPES = new Set(["PointerEvent", "PointerUpEvent", "TouchEvent", "WheelEvent", "PinchEvent", "Touch", "KeyEvent", "FocusGeometry", "TooltipEvent", "StreamMessage", "File", "FilesOverEvent", "FilesDropEvent", "FilePickOptions", "Draw", "DrawGradient"]);
 
 /** A WRITTEN signature type name (`f(w: Window) -> number`) → its TypeScript
  *  type. Two sources, the same two an attribute declaration draws on: the
@@ -780,12 +780,12 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
     `  openWindow(to: string): void;`,
     // the island bridge's tenant-side verb (islands design): this app → its
     // host island's onPost. Meaningful only when embedded and linked.
-    `  post(topic: string, payload?: unknown): void;`,
-    // The ONE operation behind every arrival (location.md §0.5): follow(ref)
-    // applies the app's onFollow hook once, then routes — external through
+    `  postToHost(topic: string, payload?: unknown): void;`,
+    // The ONE operation behind every arrival (location.md §0.5): followLink(ref)
+    // applies the app's onFollowLink hook once, then routes — external through
     // navigate, "#…" into a location write + reveal. destinationOf strips the
     // runtime's own trailing `@name`; apps never hand-write that split.
-    `  follow(ref: string, replace?: boolean): void;`,
+    `  followLink(ref: string, replace?: boolean): void;`,
     `  destinationOf(loc: string): string;`,
     // The DEFAULT landing, exposed (view.ts App.reveal): scroll the target
     // into view, revealInset honored — what an arrival does when no onArrive
@@ -872,7 +872,7 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
     `  insertChild(child: View, index: number): void;`,
     // The keyboard-traversal protocol (focus.ts): a view's tabOrder() decides
     // the members Tab descends into — override it to gate traversal (a closed
-    // Accordion Pane contributes none); tabDefault() is the default the
+    // AccordionPane contributes none); tabDefault() is the default the
     // override composes with (visible children, source order).
     `  tabOrder(): View[];`,
     `  tabDefault(): View[];`,
@@ -910,7 +910,7 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
   // intrinsics) flows from the Stream schema's attrs, not from here.
   Socket: [`  send(text: string): void;`],
   // the island bridge's host-side verb: this island → its linked tenant's
-  // onPost. The state channel is the instance's `external` declarations.
+  // onHostMessage. The state channel is the instance's `external` declarations.
   // the island's host-side verb (this island → what it hosts: onPost), and
   // the host's read of a value the hosted side EXPOSES — typed by the default,
   // like hostProvided on the other side (the hosted side compiles separately).
@@ -921,7 +921,7 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
   ],
   // The edit-session VERBS (editor.ts): `dirty`/`valid`/`error` are schema
   // attrs (readable state), but committing/reverting the draft are calls.
-  Editor: [`  commit(): void;`, `  revert(): void;`, `  judge(): void;`],
+  EditControl: [`  commit(): void;`, `  revert(): void;`, `  judge(): void;`],
   // The selection write half (#22): one verb — a caret is a zero-length range.
   // "start" / "end" / "all" are the word forms; numbers clamp; `end` omitted
   // means a caret at `at`.
@@ -960,9 +960,9 @@ export function memberSig(name: string, t: AttrType, nonNullColor = false, readO
   // A cursor slot ACCEPTS a place-bearing VALUE too — `datapath = { d.value.rec }`
   // hands the machinery a container it turns back into a place (toCursor), and
   // a typed dataset value (typed data: `Doc | null`) must stay assignable
-  // exactly as the untyped `any` always was. Reads keep seeing the Cursor.
+  // exactly as the untyped `any` always was. Reads keep seeing the DataCursor.
   // `object` admits every container and refuses primitives — toCursor's rule.
-  if (t.kind === "cursor") return [`  get ${name}(): Cursor;`, `  set ${name}(v: Cursor | object | null);`];
+  if (t.kind === "cursor") return [`  get ${name}(): DataCursor;`, `  set ${name}(v: DataCursor | object | null);`];
   // A color declared with a concrete (non-null) default is a plain color —
   // reads never see null — so it is typed non-null. A `= null` (or absent)
   // default keeps Color's nullability: the inherit / "no paint" slots.
@@ -1010,13 +1010,13 @@ function emitClass(
     // precisely typed; only the member navigation is silenced.
     lines.push(`  parent: any;`);
     lines.push(`  classroot: View;`);
-    // `root` — the App at the top of the tree. The `app` noun compiles to
-    // `this.root`; typing it as THE PROGRAM'S root instance type (the
+    // `$root` — the App at the top of the tree. The `app` noun compiles to
+    // `this.$root`; typing it as THE PROGRAM'S root instance type (the
     // caller-passed `rootType` — the root element's synthesized anonymous
     // subclass when it has inline decls/children/methods, else `App`) makes
     // `app.cardW` and every other root-declared member check, not just the
     // built-in App/stage surface.
-    lines.push(`  root: ${rootType};`);
+    lines.push(`  $root: ${rootType};`);
     lines.push(`  readonly children: View[];`);   // on the ROOT (Node) — every node has children
     // The provided-value read (language §9). `provided("name"[, default])`
     // compiles to `this.$provided(…)`; it returns `any` — a non-local read the
@@ -1181,7 +1181,7 @@ export function generateScaffold(
   const motionLine = `type Motion = ${MOTION_TOKENS.map((t) => JSON.stringify(t)).join(" | ")} | MotionCurve;`;
 
   // The theme names in scope as `Theme` values: the built-in presets plus any
-  // the program declares — a body names one (`theme = { app.dark ? … : … }`).
+  // the program declares — a body names one (`theme = { app.systemDark ? … : … }`).
   const tokens = [...themeTokenTypes(themes, themeKeys)].map(([k, t]) => `readonly ${k}: ${t}`);
   const themeLine = [...new Set([...THEME_PRESET_NAMES, ...themes.map((t) => t.name)])].map((n) => `declare const ${n}: Theme;`).join("\n")
     + `\ntype $ThemeTokens = { ${tokens.join("; ")} };`

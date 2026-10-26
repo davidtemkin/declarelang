@@ -112,7 +112,7 @@ function relinkKernelVis(v: View, f: Feed): void {
  *  slot table — rootTransform ∘ boxThrough ∩ the root's frame, scale × dpr,
  *  the arithmetic of readVisibility term for term — and writes the vis* cells;
  *  a wired JS rule over those cells delivers (or wakes). A 3D transform
- *  anywhere on the chain is beyond the affine walk: the rule writes visMode = 0
+ *  anywhere on the chain is beyond the affine walk: the rule writes $visMode = 0
  *  and the JS walk takes over (fallbackToJS). Returns false when the kernel
  *  path is not available (no kernel; 3D at arm). */
 function installKernelVis(v: View, f: Feed): boolean {
@@ -121,7 +121,7 @@ function installKernelVis(v: View, f: Feed): boolean {
   for (let a: View | null = v; a !== null; a = parentView(a))
     if (a.rotateX !== 0 || a.rotateY !== 0 || a.translateZ !== 0) return false;
   const K = kernel();
-  const root = (v.root ?? v) as View;
+  const root = (v.$root ?? v) as View;
   const rule = K.visAdd(kernelElem(v), kernelElem(root));
   if (rule < 0) return false;
   f.rule = rule;
@@ -132,13 +132,13 @@ function installKernelVis(v: View, f: Feed): boolean {
 /** The delivery rule: wired over the seven output cells. */
 function outputRule(v: View, f: Feed, label: string, land: (on: boolean, rect: Rect | null, scale: number) => void): Constraint {
   const c = new Constraint(label,
-    () => [v.visMode, v.visOn, v.visScale, v.visX, v.visY, v.visW, v.visH] as const,
+    () => [v.$visMode, v.$visOn, v.$visScale, v.$visX, v.$visY, v.$visW, v.$visH] as const,
     (x) => {
       const [mode, on, scale, px, py, w, h] = x as readonly [number, boolean, number, number, number, number, number];
       if (mode === 0) { fallbackToJS(v, f); return; }
       land(on, on ? { x: px, y: py, width: w, height: h } : null, scale);
     });
-  c.wire(() => { void v.visMode; void v.visOn; void v.visScale; void v.visX; void v.visY; void v.visW; void v.visH; });
+  c.wire(() => { void v.$visMode; void v.$visOn; void v.$visScale; void v.$visX; void v.$visY; void v.$visW; void v.$visH; });
   return c;
 }
 
@@ -166,7 +166,7 @@ export function readVisibility(v: View): { on: boolean; rect: Rect | null; scale
     if (!a.visible) return { on: false, rect: null, scale: rootTransform(iv).scale * dpr };
   const t = rootTransform(iv);
   const b = rootFrameBox(iv);
-  const r = (v.root ?? v) as View;
+  const r = (v.$root ?? v) as View;
   const ix = Math.max(b.x, 0), iy = Math.max(b.y, 0);
   const iw = Math.min(b.x + b.width, r.width) - ix, ih = Math.min(b.y + b.height, r.height) - iy;
   if (iw <= 0 || ih <= 0) return { on: false, rect: null, scale: t.scale * dpr };

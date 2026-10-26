@@ -29,7 +29,7 @@ import { THEME_PRESETS, activeTone } from "./themes.js";
 import { Focus } from "./focus.js";
 import { setOutsidePressHook } from "./input.js";
 import { pressOutside, scrollOutside, contextOf, inside as insideAcross, leafAcross } from "./outside.js";
-import { Files } from "./files.js";
+import { FilePicker } from "./files.js";
 import { Inspect } from "./inspect-service.js";
 import { Accessibility } from "./accessibility-service.js";
 import { afterSettle } from "./reactive.js";
@@ -65,7 +65,7 @@ setOutsidePressHook((x, y, rx, ry) => {
     Focus.pressAt(leafAcross(root, x, y, rx, ry));
     return false;
 }, (x, y, rx, ry) => { const root = Focus.getRoot(); return root !== null && scrollOutside(root, x, y, rx, ry); });
-setBodyServices({ Focus, Keys, Files, Inspect, Accessibility, afterSettle, activeTone, measureText, escapeHtml, ...THEME_PRESETS });
+setBodyServices({ Focus, Keys, FilePicker, Inspect, Accessibility, afterSettle, activeTone, measureText, escapeHtml, ...THEME_PRESETS });
 // A focused island is not a control: what its program claims, it claims itself.
 setKeysFocusProbe(() => { const f = Focus.getFocus(); return f !== null && !("$tenant" in f); });
 // The keyboard's view of the program tree (keys.ts KeysPrograms): which

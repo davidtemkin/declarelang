@@ -49,12 +49,12 @@ class Breadcrumb [
 
     rows: Dataset [ contents = { { steps: ((classroot.items ?? []) as any).map((c, i, all) => ({ ...c, i: i, last: i == all.length - 1 })) } } ],
     datapath = { this.rows.value },
-    Crumb [ datapath = :steps[], classFor = { :last == true ? CrumbHere : :location != null ? CrumbLink : Crumb } ]
+    BreadcrumbStep [ datapath = :steps[], classFor = { :last == true ? BreadcrumbCurrent : :location != null ? BreadcrumbLink : BreadcrumbStep } ]
     ]
 
 
 /*
-# Crumb
+# BreadcrumbStep
 
 One step of a `Breadcrumb`, built from its records — not authored directly. Its separator
 comes before it; the first has none.
@@ -88,7 +88,7 @@ Presses.
 
 ## accessibilityRole
 A button: a step with no place hands its `id` to the breadcrumb. (A step with a place is a
-`CrumbLink`, the current one a `CrumbHere`.)
+`BreadcrumbLink`, the current one a `BreadcrumbCurrent`.)
 
 ## accessibilityLabel
 The step's text, so the separator is not read as part of it.
@@ -106,7 +106,7 @@ As tall as the breadcrumb.
 Rings the label, not the separator before it.
 */
 
-class Crumb extends Control [
+class BreadcrumbStep extends Control [
     label: string = { "" + (:label ?? "") },
     current: boolean = { :last == true },
     location: string = { "" + (:location ?? "") },
@@ -135,10 +135,10 @@ class Crumb extends Control [
 
 
 /*
-# CrumbLink
+# BreadcrumbLink
 
 A step of a `Breadcrumb` whose record names a `location`: a link to it, built in place of a
-`Crumb` — not authored directly.
+`BreadcrumbStep` — not authored directly.
 
 ```declare
 App [ width = 400, height = 80,
@@ -151,16 +151,16 @@ App [ width = 400, height = 80,
 A link.
 */
 
-class CrumbLink extends Crumb [
+class BreadcrumbLink extends BreadcrumbStep [
     accessibilityRole = link
     ]
 
 
 /*
-# CrumbHere
+# BreadcrumbCurrent
 
 The last step of a `Breadcrumb` — where you are: its text, in the stronger ink, not
-pressable, read as the end of the path. Built in place of a `Crumb` — not authored directly.
+pressable, read as the end of the path. Built in place of a `BreadcrumbStep` — not authored directly.
 
 ```declare
 App [ width = 400, height = 80,
@@ -176,7 +176,7 @@ None of its own: its text is read as it stands.
 Never: there is nowhere to go from where you are.
 */
 
-class CrumbHere extends Crumb [
+class BreadcrumbCurrent extends BreadcrumbStep [
     accessibilityRole = none,
     focusable = false
     ]

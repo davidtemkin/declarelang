@@ -239,7 +239,7 @@ App [ width = 100, height = 100, m: Model [ ],
     out: Text [ text = { "" + (app.list.value.items.find((o) => o.id == "a")?.v ?? "-") } ],
     ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  assert.ok(!JSON.stringify(r.deps).includes("this.root.n") && !JSON.stringify(r.deps).includes(".m.n"), "Model.find's read did not leak into an array find: " + JSON.stringify(r.deps));
+  assert.ok(!JSON.stringify(r.deps).includes("this.$root.n") && !JSON.stringify(r.deps).includes(".m.n"), "Model.find's read did not leak into an array find: " + JSON.stringify(r.deps));
 });
 
 await test("a callback's parameter over an array built from nodes is read live on a built-in attribute", async () => {
