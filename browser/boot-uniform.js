@@ -386,7 +386,7 @@ export default async function boot(cfg) {
       // The compile's own rendered report — the ONE renderer's output (code,
       // line/col, hint), identical bytes whether the CLI, the server, or the
       // in-browser worker produced it.
-      return showError(out.report || "compile failed", mainUrl.href);
+      return failed(out.report || "compile failed", mainUrl.href);
     }
     programObj = out.program;
     // Only the in-browser compile has a closure to cache; a server compile is
@@ -410,10 +410,10 @@ export default async function boot(cfg) {
   // (gpu/). Loaded by address, so none of it is in this bundle; it is built on each machine
   // (`node gpu/build.mjs`), so a tree may not have it. The error page itself runs in the DOM.
   if (!showingErrorPage && new URLSearchParams(location.search).get("render") === "gpu") {
-    if (!("gpu" in navigator)) return showError("render=gpu draws with WebGPU, which this browser does not offer.", mainUrl.href);
+    if (!("gpu" in navigator)) return failed("render=gpu draws with WebGPU, which this browser does not offer.", mainUrl.href);
     let shell;
     try { shell = await import(new URL("../gpu/dist/shell.js", import.meta.url).href); }
-    catch { return showError("render=gpu is not built in this tree. Build it with `node gpu/build.mjs` (it needs Rust; see gpu/README.md), then reload.", mainUrl.href); }
+    catch { return failed("render=gpu is not built in this tree. Build it with `node gpu/build.mjs` (it needs Rust; see gpu/README.md), then reload.", mainUrl.href); }
     return shell.bootGpu({ program: programObj, main: mainUrl.href, host: cfg.host, provides: cfg.provides, externalValue,
       onPost: cfg.onPost, onNavigate: cfg.onNavigate,
       island: { prewarm: (u) => prewarmIsland(u, ROOT), serverCompile, compiler: () => loadCompiler().then(ensureLibrary) } });
@@ -437,11 +437,11 @@ export default async function boot(cfg) {
       compile: window.__declareServer ? (src, origin) => serverCompile(origin, src) : undefined,
       // no build request on the dev server, for the same reason the page boot makes none
       prewarm: window.__declareServer ? undefined : (u) => prewarmIsland(u, ROOT),
-      onError: (msg, subject) => showError(msg, subject),
+      onError: (msg, subject) => failed(msg, subject),
     });
   } catch (e) {
     console.error("[Declare] boot failed:", e);
-    return showError("boot failed — the program compiled but did not come up:\n\n" + ((e && e.stack) || e), mainUrl.href);
+    return failed("boot failed — the program compiled but did not come up:\n\n" + ((e && e.stack) || e), mainUrl.href);
   }
   if (app === null) return null;
   // The stamp lands on the bridge (runtime/src/inspect.ts declares the slot;
@@ -490,6 +490,14 @@ export default async function boot(cfg) {
 // failing error page from recursing into itself, and `panelShown` keeps the
 // nested failure and the outer fallback from stacking two panels.
 let showingErrorPage = false;
+/** A boot that cannot bring its program up shows why — the error page in its
+ *  place — and resolves to null: the page's handle is on ITS program or nothing,
+ *  never on the error page standing in for it. */
+async function failed(msg, subject) {
+  await showError(msg, subject);
+  return null;
+}
+
 async function showError(msg, subject) {
   console.error("[Declare] " + msg);
   const host = document.getElementById("host");

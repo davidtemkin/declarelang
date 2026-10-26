@@ -18,6 +18,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
 import puppeteer from "puppeteer-core";
+import { membersOf } from "./page-api.mjs";
 import { test, summarize } from "./harness.mjs";
 import { createDeclareServer } from "../server/create.mjs";
 import { launchChrome } from "../tools/internal/chrome.mjs";
@@ -112,13 +113,14 @@ await test("the page as host: messages both ways, and what the app exposes", asy
     const t = window.__tenantA;
     t.post("hello", 1);
     return { heard: t.app.heard, posts: window.__posts, sameHandle: document.getElementById("slot-a").__declareTenant === t,
-      clicks: t.exposed("clicks", -1), unlisted: t.exposed("heard", "none") };
+      clicks: t.exposed("clicks", -1), unlisted: t.exposed("heard", "none"), keys: Object.keys(t).sort() };
   });
   assert.equal(out.heard, "hello", "tenant.post arrived as onHostMessage");
   assert.deepEqual(out.posts, [{ topic: "ack", payload: "hello" }], "the app's postToHost reached boot({ onPost })");
   assert.equal(out.sameHandle, true, "the element carries the handle boot() resolved to");
   assert.equal(typeof out.clicks, "number", "an exposed value is readable");
   assert.equal(out.unlisted, "none", "a name the app does not expose is not");
+  assert.deepEqual(out.keys, membersOf("Tenant").sort(), "the handle is what browser/declare-boot.d.ts declares (Tenant)");
 });
 
 await test("input stays in its box — a click in B never reaches A", async () => {

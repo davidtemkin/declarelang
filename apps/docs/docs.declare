@@ -914,7 +914,7 @@ class ClassDetail [ width = 100%,
         eyebrow: View [ layout: SimpleLayout [ axis = x, spacing = 14, align = baseline ],
             // (the source's path is left to VIEW SOURCE where the line is too short for it)
 
-            Eyebrow [ text = { "REFERENCE · " + (:origin == "library" ? "STANDARD LIBRARY" : "BUILT-IN") + (:source != null && app.docked ? " · " + :source : "") } ],
+            Eyebrow [ text = { "REFERENCE · " + (:origin == "library" ? "STANDARD LIBRARY" : :origin == "page" ? "PAGE API" : "BUILT-IN") + (:source != null && app.docked ? " · " + :source : "") } ],
 
             // a library class is Declare like any program: its source opens in
             // the Viewer (`navigate` resolves the path against the distro root)
@@ -934,8 +934,13 @@ class ClassDetail [ width = 100%,
             Mono [ fontSize = { 14 * app.fontScale }, textColor = { provided("theme").sigDim }, text = { "class " + classroot.cname + " extends" } ],
             Link [ datapath = :items[] ]
             ],
-        base: Mono [ fontSize = { 14 * app.fontScale }, textColor = { provided("theme").sigDim }, visible = { :extends == null },
+        base: Mono [ fontSize = { 14 * app.fontScale }, textColor = { provided("theme").sigDim }, visible = { :extends == null && :origin != "page" },
             text = { "class " + classroot.cname + "  (base)" } ],
+
+        // a page-API entry is JavaScript the page calls: its signature, or the handle's name
+
+        pageSig: Mono [ fontSize = { 14 * app.fontScale }, textColor = { provided("theme").sigDim }, visible = { :origin == "page" },
+            text = { :signature != null ? "" + :signature : "interface " + classroot.cname } ],
         subs: View [ width = 100%, visible = { :subclasses.length > 0 },
             layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = baseline ],
             Muted [ fontSize = { 16 * app.fontScale }, text = "Subclasses:" ],

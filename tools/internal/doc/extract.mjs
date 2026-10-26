@@ -889,6 +889,70 @@ for (const c of Object.values(nodes)) {
   }
 }
 
+// ── the PAGE's side of embedding: what a page's own script calls to run a program
+// and talk to it (boot, observe, the Tenant handle, the island element's handle).
+// Not a class a program writes — JavaScript Declare ships for the page — but the
+// other half of a boundary the reference already documents from the program's side
+// (postToHost, hostProvided, exposes, the island's provides/post/onPost). Declared,
+// with a doc comment per member, in browser/declare-boot.d.ts, which also types the
+// bundle for embedders; read here with the TypeScript parser so each member keeps its
+// own prose, and emitted in the SAME node shape (origin "page") so the reference, the
+// rail and declare-help treat it as they treat a class. A function becomes an entry
+// with a signature; an interface's properties become attributes and its methods,
+// methods. `boot`'s options are its attributes. The records it carries
+// (IslandMessage, IslandNavigation) are the Types page's, by the same names.
+const PAGE_API_FILE = "browser/declare-boot.d.ts";
+const PAGE_API = [];
+{
+  const abs = path.join(ROOT, PAGE_API_FILE);
+  const sf = ts.createSourceFile(abs, readFileSync(abs, "utf8"), ts.ScriptTarget.Latest, true);
+  const docOf = (n) => {
+    const tags = ts.getJSDocCommentsAndTags(n).filter(ts.isJSDoc);
+    const text = tags.map((t) => ts.getTextOfJSDocComment(t.comment) ?? "").join("\n\n").trim();
+    return text === "" ? null : text;
+  };
+  const lineOf = (n) => sf.getLineAndCharacterOfPosition(n.getStart(sf)).line + 1;
+  const interfaces = {}, functions = {};
+  for (const st of sf.statements) {
+    if (ts.isInterfaceDeclaration(st)) interfaces[st.name.text] = st;
+    if (ts.isFunctionDeclaration(st) && st.name) functions[st.name.text] = st;
+  }
+  const tps = (n) => n.typeParameters ? `<${n.typeParameters.map((t) => t.getText(sf)).join(", ")}>` : "";
+  const sigOf = (fn) => `${fn.name.text}${tps(fn)}(${fn.parameters.map((p) => p.getText(sf)).join(", ")}): ${fn.type ? fn.type.getText(sf) : "void"}`;
+  // one entry: `members` is an interface whose properties/methods hang off it
+  const emit = async (name, doc, line, signature, members) => {
+    const attributes = [], methods = [];
+    for (const m of members?.members ?? []) {
+      if (!m.name || !ts.isIdentifier(m.name)) continue;
+      const mname = m.name.text, mdoc = docOf(m);
+      if (ts.isMethodSignature(m)) {
+        const id = `${name}.method.${mname}`;
+        nodes[id] = { id, name: mname, kind: "method", doc: mdoc, docSegs: await segmentize(mdoc, id), api: true,
+          source: { file: PAGE_API_FILE, line: lineOf(m) }, parent: name, seeAlso: [],
+          signature: `${mname}${tps(m)}(${m.parameters.map((p) => p.getText(sf)).join(", ")})`, returns: m.type ? m.type.getText(sf) : "void" };
+        methods.push(id);
+      } else if (ts.isPropertySignature(m)) {
+        const id = `${name}.${mname}`;
+        const readOnly = (m.modifiers ?? []).some((x) => x.kind === ts.SyntaxKind.ReadonlyKeyword);
+        nodes[id] = { id, name: mname, kind: "attribute", doc: mdoc, docSegs: await segmentize(mdoc, id), api: true, internal: false,
+          source: { file: PAGE_API_FILE, line: lineOf(m) }, parent: name, seeAlso: [],
+          type: (m.type ? m.type.getText(sf) : "unknown") + (m.questionToken ? " (optional)" : ""), default: null, readOnly, inheritedFrom: null };
+        attributes.push(id);
+      }
+    }
+    nodes[name] = { id: name, name, kind: "class", doc, docSegs: await segmentize(doc, name), api: doc !== null,
+      source: { file: PAGE_API_FILE, line }, parent: null, seeAlso: [],
+      extends: null, abstract: true, subclasses: [], origin: "page", signature,
+      attributes, methods, events: [], example: [] };
+    roots.push(name);
+    PAGE_API.push(name);
+  };
+  const boot = functions.boot;
+  await emit("boot", docOf(boot), lineOf(boot), sigOf(boot), interfaces.BootOptions);
+  await emit("observe", docOf(functions.observe), lineOf(functions.observe), sigOf(functions.observe), null);
+  for (const n of ["Tenant", "IslandHandle"]) await emit(n, docOf(interfaces[n]), lineOf(interfaces[n]), null, interfaces[n]);
+}
+
 // (No buildId here, deliberately. The extractor once baked the id from
 // bundles/version.json into its output — a genuine CYCLE, since stamp-version
 // writes that file after hashing bundles/cache, which prewarm derives from this
@@ -926,7 +990,7 @@ const CLASS_GROUPS = [
   ["Tables",        ["Table", "TableRow", "DataGrid", "DataGridRow", "DataGridHeadingRow", "DataGridHeading", "DataGridCell", "DataGridText", "DataGridEdit"]],
   ["Motion and state", ["Animator", "AnimatorGroup", "Spring", "State", "Time"]],
   ["Services",      ["Keys", "Shortcuts", "Focus", "Tooltips"]],
-  ["Embedding",     ["DOMIsland", "AppIsland"]],
+  ["Embedding",     ["DOMIsland", "AppIsland", "boot", "observe", "Tenant", "IslandHandle"]],
   ["Themes",        ["SanFrancisco", "SanFranciscoDark", "Cupertino", "CupertinoDark", "MountainView", "MountainViewDark", "Redmond", "RedmondDark", "ThemeDefaults"]],
   ["Icons",         ["Icon", "IconHost", "ArrowIcon", "ChevronIcon", "CheckIcon", "CloseIcon", "PlusIcon", "MinusIcon", "LightbulbIcon", "SunIcon", "MoonIcon", "AutoIcon", "TextSizeIcon", "TextSmallIcon", "TextMediumIcon", "TextLargeIcon"]],
 ];
@@ -946,7 +1010,7 @@ const tree = roots.map((id) => {
   const c = nodes[id];
   return {
     id: c.id, name: c.name, kind: c.kind, doc: c.doc, docSegs: c.docSegs, api: c.api,
-    extends: c.extends, chain: c.chain, abstract: c.abstract === true, subclasses: c.subclasses, origin: c.origin,
+    extends: c.extends, chain: c.chain, abstract: c.abstract === true, subclasses: c.subclasses, origin: c.origin, signature: c.signature ?? null,
     appearance: c.appearance, pair: c.pair,
     attributes: c.attributes.map((a) => nodes[a]).filter((n) => n.api),
     events: c.events.map((e) => nodes[e]).filter((n) => n.api),

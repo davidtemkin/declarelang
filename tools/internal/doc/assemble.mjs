@@ -479,13 +479,14 @@ const listDocs = (dir, label) => {
 // the page rather than the raw JSON. This is where the docs consolidation lives.
 function elementDoc(id, ref) {
   const c = ref[id];
-  const kind = c.origin === "library" ? "Class" : c.abstract ? "Abstract element" : "Built-in element";
+  const kind = c.origin === "library" ? "Class" : c.origin === "page" ? "Page API" : c.abstract ? "Abstract element" : "Built-in element";
   const link = (n) => (ref[n] ? `[${n}](declare-docs:${n})` : `\`${n}\``);
   const chain = c.chain ?? [c.name];
   const L = [`# ${c.name}`, ""];
   // the ANCESTRY line: the whole chain, each link live — a reader can walk up
   // from any page, which was impossible while `extends` was prose
   L.push(chain.length > 1 ? `*${kind} — ${chain.slice(1).map(link).join(" → ")}*` : `*${kind}*`, "");
+  if (c.signature) L.push("`" + c.signature + "`", "");      // a page-API function says how it is called
   if (c.abstract) L.push("Extend it; it is not a tag you write.", "");
   if (c.doc) L.push(c.doc.trim(), "");
 
@@ -963,7 +964,7 @@ function buildBrowse(dm, spine, types) {
   // reference/<Name>, language/<form>), so a browser of this tree can open the
   // leaf there; a leaf without one is a document the docs app does not show
   const elementLeaf = (id) => ({ name: ref[id].name, subtitle: ref[id].extends ? "extends " + ref[id].extends : "", kind: "element",
-    label: ref[id].origin === "library" ? "Class" : "Built-in element", loc: "reference/" + id,
+    label: ref[id].origin === "library" ? "Class" : ref[id].origin === "page" ? "Page API" : "Built-in element", loc: "reference/" + id,
     doc: elementDoc(id, ref), preview: preview(ref[id].doc || "") });
   const hydrated = (name, md) => ({ name, subtitle: "", kind: "reference", label: "Reference", doc: md, preview: preview(md) });
   const tenetLeaf = (t) => ({ name: t.name ?? t.title, subtitle: "", kind: "tenet", label: "Tenet", doc: segMd(t.segs), preview: preview(segText(t.segs)) });

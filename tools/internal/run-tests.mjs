@@ -100,6 +100,7 @@ const SUITE = [
   "test/scroll-reach.test.mjs",   // `userScrolling` is the user's hand; the driver reaches views by swiping (native, async)
   "test/history.test.mjs",
   "test/embed.test.mjs",
+  "test/page-api.test.mjs",       // browser/declare-boot.d.ts held to the bundle and the boot
   "test/dep-typed.test.mjs",
   "test/vis-camera.test.mjs",
   "test/reader-flow.test.mjs",

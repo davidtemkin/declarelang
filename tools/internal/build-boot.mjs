@@ -140,6 +140,11 @@ async function main() {
     outfile: path.join(OUT_DIR, "kernel-js.js"),
   });
 
+  // THE BUNDLE'S TYPES, beside it: the page's side of embedding (boot, observe, the
+  // Tenant and IslandHandle handles), declared once in browser/declare-boot.d.ts —
+  // the same file the reference's Embedding section is read from.
+  writeFileSync(path.join(OUT_DIR, "declare-boot.d.ts"), readFileSync(path.join(ROOT, "browser/declare-boot.d.ts"), "utf8"));
+
   const raw = statSync(OUT).size;
   const gz = gzipSync(readFileSync(OUT)).length;
   console.log(`build-boot: wrote bundles/declare-boot.js (+ compile-worker.js, declare-raster-worker.js ${(statSync(RASTER_OUT).size / 1024).toFixed(0)} KB)`);

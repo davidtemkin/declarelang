@@ -60,10 +60,13 @@ The agent's full event stream is `logs/agent.stream.jsonl`. Three readers sit be
 being asked.** Whoever launches it schedules the check at launch (an agent operator: a
 recurring five-minute job running `logs/report.py`), and each report says in a few lines
 the elapsed minutes and turns, what the agent is doing, what it has read of the first
-read, notable debugging or verification episodes, and any reads of `library/` or
-`runtime/` source. When the agent exits, the job stops and the run's report begins.
+read, notable debugging or verification episodes, names the checks refused since the
+last report (and what the platform answered), and any reads of `library/` or `runtime/`
+source. When the agent exits, the job stops and the run's report begins.
 - `tail.py [N]` — every tool call in order, or the last N.
 - `cost.py [N]` — cumulative tokens, and the tool results ranked by size.
+- `names.py <run-dir>` — the names ledger: every name a check refused, the platform's
+  answer, and how it ended (below, report section 4).
 
 A stream quiet for ten minutes is a stall worth a look.
 
@@ -88,10 +91,26 @@ A Declare run's report has, in order:
    its missteps, each with how it should have been written; and the workarounds the
    platform forced, each with how the platform or its docs should handle it. Cite file and
    line.
-4. **The agent's account, verbatim.** Asked after the build by resuming the finished session
+4. **Names.** Where the agent's vocabulary met Declare's, from `names.py` and the idiom
+   read together:
+   - **misses** — every name a check refused (an attribute, a member, a class, a type, a
+     host global, a payload), with the minute, where the instinct came from (CSS, a
+     browser global, another framework, a near-miss of a Declare name, or nowhere known),
+     what the platform answered (a did-you-mean, a foreign-instinct hint, or nothing), and
+     how it ended: resolved, never resolved, or **declared instead** — the foreign name
+     kept by declaring it, rather than Declare's own taken;
+   - **silent misses** — names the compiler accepted that were the wrong word: a CSS or
+     framework habit that happens to be real, or a real attribute used for something else.
+     The ledger cannot see these; the idiom read (section 3) finds them and lists them here;
+   - **collisions** — names of the agent's own refused because Declare holds them;
+   - **lookups that missed** — `declare-help` questions with no entry, and searches of
+     the distribution that found nothing.
+   Each miss without a useful answer, and each silent miss, is a candidate for the
+   instinct tables or a concept synonym.
+5. **The agent's account, verbatim.** Asked after the build by resuming the finished session
    with read-only tools, with the standard questions (the prompt is kept beside the logs as
    `impressions.txt`). Its tokens are counted separately from the build's.
 
-A run with a second phase (a follow-up prompt resuming the same session) gets sections 1, 2
-and 4 again for that phase, appended to the first part's report. The idiom review (3) is
+A run with a second phase (a follow-up prompt resuming the same session) gets sections 1, 2,
+4 and 5 again for that phase, appended to the first part's report. The idiom review (3) is
 written once, upon completion of all phases, over the program as it finally stands.

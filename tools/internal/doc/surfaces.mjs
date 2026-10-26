@@ -165,6 +165,26 @@ export const SURFACES = [
     },
   },
   {
+    id: "page-api",
+    label: "the page's side of embedding — boot, observe, Tenant, IslandHandle",
+    source: "browser/declare-boot.d.ts",
+    docsLive: "the reference, Embedding (origin \"page\")",
+    spineKeys: [],
+    gated: true,
+    async check(model) {
+      // every declaration reaches the reference with prose; that the file matches the
+      // bundle and the handles is page-api.test's, embed.test's and island.test's
+      const holes = [];
+      for (const n of ["boot", "observe", "Tenant", "IslandHandle"]) {
+        const e = model.reference[n];
+        if (!e) { holes.push(`${n} — absent from the reference`); continue; }
+        if (!e.doc) holes.push(`${n} — no prose`);
+        for (const id of [...(e.attributes ?? []), ...(e.methods ?? [])]) if (!model.reference[id]?.doc) holes.push(`${id} — no prose`);
+      }
+      return holes;
+    },
+  },
+  {
     id: "theme-tokens",
     label: "every theme token the library reads",
     source: "measured from library/*.declare",

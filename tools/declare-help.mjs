@@ -29,7 +29,7 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CSS_ATTRIBUTE_HINTS, cssAttributeHint, hintedForeignName, hostGlobalHint, nearestName } from "../runtime/dist/teach.js";
+import { CSS_ATTRIBUTE_HINTS, cssAttributeHint, hintedForeignName, hostGlobalHint, memberHint, nearestName } from "../runtime/dist/teach.js";
 import { readBriefs, findBrief, briefIndex } from "./internal/doc/briefs.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -256,7 +256,9 @@ function firstSentence(md) {
 
 /** Print one reference entry — the dotted-exact answer (§3 row 1). */
 function sayEntry(e) {
-  const bits = [e.kind ?? "entry"];
+  // the page's side of embedding (origin "page", browser/declare-boot.d.ts) is
+  // JavaScript a page calls, not a class a program writes — say which it is
+  const bits = [e.origin === "page" && e.kind === "class" ? (e.signature ? "page API function" : "page API handle") : e.kind ?? "entry"];
   if (e.type) bits.push(`type ${e.type}`);
   if (e.default !== undefined && e.default !== null && e.default !== "") bits.push(`default ${String(e.default)}`);
   if (e.readOnly) bits.push("read-only");
@@ -264,10 +266,17 @@ function sayEntry(e) {
   say(`${e.id} — ${bits.join(" · ")}`);
   // a method's whole signature, as the runtime declares it: the argument order
   // and types prose cannot be trusted to carry
-  if (e.kind === "method" && e.signature) say(`  ${e.signature}`);
+  if ((e.kind === "method" || e.origin === "page") && e.signature) say(`  ${e.signature}`);
   // the marks that ship come before how to write one: most who ask want one of them
   if (e.id === "Icon") sayIcons();
   for (const line of (e.doc ?? "").split("\n")) say(`  ${line}`);
+  // a page-API entry lists its members — boot's options, a handle's properties and verbs
+  if (e.origin === "page" && e.kind === "class") {
+    for (const id of [...(e.attributes ?? []), ...(e.methods ?? [])]) {
+      const m = REF[id];
+      if (m) say(`  ${id} — ${(m.doc ?? "").split("\n")[0]}`);
+    }
+  }
   if (e.source?.file) say(`  source: ${e.source.file}${e.source.line ? ":" + e.source.line : ""}`);
   if (Array.isArray(e.seeAlso) && e.seeAlso.length > 0) say(`  see also: ${e.seeAlso.join(", ")}`);
 }
@@ -444,6 +453,14 @@ function answer() {
   if (dot) {
     const [, cls, member] = dot;
     if (schemaOf(cls) !== null) return answerDotted(cls, member);
+    // a page-API handle's member (Tenant.post, IslandHandle.watchProvided, boot.host)
+    if (REF[cls]?.origin === "page") {
+      const hit = REF[`${cls}.${member}`] ?? REF[`${cls}.method.${member}`];
+      if (hit) { sayEntry(hit); json = { kind: "entry", entry: hit }; return true; }
+      say(`no '${member}' on ${cls} — declare-help ${cls} lists what it has`);
+      json = { kind: "miss", name: query };
+      return true;
+    }
     const nearCls = nearestName(cls, CLASS_NAMES);
     if (nearCls !== null) { say(`no class '${cls}' — did you mean '${nearCls}'? (then: declare-help ${nearCls}.${member})`); json = { kind: "near-miss", name: cls, suggestion: nearCls }; return true; }
     return false;
@@ -528,6 +545,15 @@ function answer() {
   if (Object.hasOwn(CSS_ATTRIBUTE_HINTS, query) && !isRealName(query)) {
     say(`'${query}' is not a Declare name${cssAttributeHint(query)}`);
     json = { kind: "foreign", name: query, hint: cssAttributeHint(query) };
+    return true;
+  }
+  // a member a newcomer reads or calls on a node (teach.ts MEMBER_HINTS) — the
+  // same answer the compiler gives when a body writes it
+  // (`root` is also TooltipEvent's: a name some record really carries is not denied)
+  const onARecord = (SPINE.types?.shared?.interfaces ?? []).some((i) => i.members.some((m) => new RegExp(`^(readonly\\s+)?${query}\\??\\s*[:(]`).test(m)));
+  if (memberHint(query) !== "" && !isRealName(query) && !onARecord) {
+    say(`'${query}' is not a Declare name — ${memberHint(query)}`);
+    json = { kind: "foreign", name: query, hint: memberHint(query) };
     return true;
   }
 

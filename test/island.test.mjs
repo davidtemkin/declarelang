@@ -17,6 +17,7 @@ import { compile } from "../compiler/dist/compile-node.js";
 import { parseProgram } from "../runtime/dist/parser.js";
 import { instantiate, settle, observe, linkIslandTenant, islandProvisions, withHostProvides } from "../runtime/dist/index.js";
 import { applyDeps } from "../runtime/dist/deps.js";
+import { membersOf } from "./page-api.mjs";
 
 async function boot(src, { settled = true } = {}) {
   const r = await compile(src, {});
@@ -147,6 +148,7 @@ await test("foreign handle: provides, hostProvided, watchProvided, expose, verbs
   const host = await boot(HOST);
   try {
     const h = host.isl.$foreignHandle();
+    assert.deepEqual(Object.keys(h).sort(), membersOf("IslandHandle").sort(), "the handle is what browser/declare-boot.d.ts declares (IslandHandle)");
     assert.deepEqual(h.provides(), ["volume"], "discovery lists what the host provides");
     assert.equal(h.hostProvided("volume"), 0.7);
     const w = await warnings(() => assert.equal(h.hostProvided("secret"), undefined, "an unlisted name reads undefined"));

@@ -75,19 +75,20 @@ its [`location`](declare-docs:App.location) moves neither the URL nor the page's
 page books **zero animation frames** — the host is notified when an app
 writes; nothing polls.
 
-**The page is a host, in an island's words.** `boot()` resolves to the page's handle on
-the app — call it the tenant — and the host element carries it too (`el.__declareTenant`):
+**The page is a host, in an island's words.** [`boot()`](declare-docs:boot) resolves to a
+[`Tenant`](declare-docs:Tenant) — the page's handle on the app — and the host element carries
+it too (`el.__declareTenant`):
 
 - **values in** — `boot({ provides: {…} })`, then `tenant.provide(name, value)` any time
   later; everything reading it with `hostProvided` re-derives (below), and `undefined`
   withdraws it. The page-visibility fact ([`app.pageVisible`](declare-docs:App.pageVisible)) arrives on its own;
 - **values out** — `tenant.exposed(name, default)` reads one the App lists in
-  [`exposes`](declare-docs:App.exposes), and `observe(() => tenant.exposed("total", 0), v => …)`
-  (a runtime export) runs your callback once per settle in which it changed;
+  [`exposes`](declare-docs:App.exposes), and [`observe`](declare-docs:observe)`(() => tenant.exposed("total", 0), v => …)`
+  (the bundle's other export) runs your callback once per settle in which it changed;
 - **messages both ways** — `boot({ onPost: ({ topic, payload }) => … })` hears the app's
   [`postToHost`](declare-docs:App.method.postToHost), and `tenant.post(topic, payload)` arrives as its
   [`onHostMessage`](declare-docs:App.event.hostMessage);
-- **navigation** — `boot({ onNavigate: ({ to, newWindow }) => router.push(to) })` carries
+- **navigation** — [`boot({ onNavigate })`](declare-docs:boot.onNavigate), as in `boot({ onNavigate: ({ to, newWindow }) => router.push(to) })`, carries
   out every link the app follows out and every window it opens, synchronously inside the
   click (so it may open a window itself); without it, the browser does.
 
@@ -266,8 +267,9 @@ or call `tenant.provide("dark", false)` any time later. Reading back out is
 `tenant.exposed(name, default)`, over the names the App's `exposes` lists.
 
 **Foreign tenants reach the same boundary.** A raw-JS tenant in a `DOMIsland`
-reaches it through the island element's one sanctioned handle, whose verbs keep
-the island's own names (`post`, `onPost`):
+reaches it through the island element's one sanctioned handle, an
+[`IslandHandle`](declare-docs:IslandHandle), whose verbs keep the island's own names
+(`post`, `onPost`):
 
 ```js
 const h = box.__declareIsland;         // the island's element, after mount
