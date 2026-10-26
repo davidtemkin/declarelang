@@ -9,12 +9,11 @@ App [ width = 460, height = 240, fill = white, textColor = black,
     chosen: number = 0,
     head: Text [ x = 20, y = 12, textColor = 0x666666,
         text = { app.chosen + " selected of " + (d.value.rows).length } ],
-    g: DataGrid [ x = 20, y = 66, width = 420, height = 150, datapath = { d.value },
-        selects = "multi",
-        input(sel: object) { app.chosen = (sel ?? []).length },
-        Column [ title = "ID",    field = "id",    width = 60 ],
-        Column [ title = "Title", field = "title", width = 220 ],
-        Column [ title = "State", field = "state", width = 120 ],
-        GridRow [ datapath = :rows[], virtualize = true ]
+    g: DataGrid [ x = 20, y = 66, width = 420, height = 150, selects = "multi",
+        items = { app.d.value.rows },
+        columns = { [ { id: "id",    title: "ID",    width: 60 },
+                      { id: "title", title: "Title", width: 220 },
+                      { id: "state", title: "State", width: 120 } ] },
+        input(sel: object) { app.chosen = (sel ?? []).length }
         ]
     ]

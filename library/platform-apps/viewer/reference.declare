@@ -8,18 +8,17 @@ script {
     const REFERENCE_CLASSES: string[] = [
         "Accordion", "Animator", "AnimatorGroup", "App", "AppIsland", "AppearanceSwitch", "ArrowIcon", "Audio",
         "AutoIcon", "Breadcrumb", "Button", "CalendarArrow", "CalendarDay", "Card", "Carousel", "CarouselLayout",
-        "CheckCell", "CheckIcon", "Checkbox", "ChevronIcon", "CloseIcon", "Column", "Combobox", "ContextMenu",
-        "Control", "Crumb", "CrumbHere", "CrumbLink", "DOMIsland", "DataGrid", "DataSource", "Dataset",
-        "DatePicker", "Dialog", "Disclosure", "Divider", "EditCell", "EventStream", "Field", "Floating",
-        "Focus", "FocusRing", "Font", "FontFace", "Gauge", "GridCell", "GridRow", "HTMLText",
-        "Icon", "IconHost", "Image", "Keys", "Layout", "LightbulbIcon", "Markdown", "Menu",
-        "MenuBar", "MinusIcon", "MonthCalendar", "MoonIcon", "Node", "OverlayStrata", "Pane", "PlusIcon",
-        "Popover", "ProgressBar", "Radio", "RadioGroup", "ResponsiveLayout", "SearchField", "Segmented", "SegmentedItem",
-        "SegmentedTab", "SelectCell", "Sheet", "Shortcuts", "SimpleLayout", "Slider", "Socket", "Spacer",
+        "CheckIcon", "Checkbox", "ChevronIcon", "CloseIcon", "Combobox", "ContextMenu", "Control", "Crumb",
+        "CrumbHere", "CrumbLink", "DOMIsland", "DataGrid", "DataGridCell", "DataGridEdit", "DataGridHeading", "DataGridHeadingRow",
+        "DataGridRow", "DataGridText", "DataSource", "Dataset", "DatePicker", "Dialog", "Disclosure", "Divider",
+        "EventStream", "Field", "Floating", "Focus", "FocusRing", "Font", "FontFace", "Gauge",
+        "HTMLText", "Icon", "IconHost", "Image", "Keys", "Layout", "LightbulbIcon", "Markdown",
+        "Menu", "MenuBar", "MinusIcon", "MonthCalendar", "MoonIcon", "Node", "OverlayStrata", "Pane",
+        "PlusIcon", "Popover", "ProgressBar", "Radio", "RadioGroup", "ResponsiveLayout", "SearchField", "Segmented",
+        "SegmentedItem", "SegmentedTab", "Sheet", "Shortcuts", "SimpleLayout", "Slider", "Socket", "Spacer",
         "Splitter", "Spring", "State", "Stepper", "SunIcon", "Switch", "TabBar", "Table",
-        "TableRow", "Text", "TextCell", "TextInput", "TextLabel", "TextLargeIcon", "TextMediumIcon", "TextSizeIcon",
-        "TextSizeSwitch", "TextSmallIcon", "Time", "Toast", "ToolButton", "Toolbar", "ToolbarDivider", "Tooltip",
-        "Tooltips", "Tree", "TreeRow", "TweenLayout", "Video", "View", "Window", "WindowClose",
-        "WrappingLayout"
+        "TableRow", "Text", "TextInput", "TextLabel", "TextLargeIcon", "TextMediumIcon", "TextSizeIcon", "TextSizeSwitch",
+        "TextSmallIcon", "Time", "Toast", "ToolButton", "Toolbar", "ToolbarDivider", "Tooltip", "Tooltips",
+        "Tree", "TreeRow", "TweenLayout", "Video", "View", "Window", "WindowClose", "WrappingLayout"
         ]
     }

@@ -54,7 +54,14 @@ The briefs name no technology, so one brief serves every platform.
 The agent's full event stream is `logs/agent.stream.jsonl`. Three readers sit beside it:
 
 - `report.py` — what the agent read, wrote, and ran since the last report, with elapsed
-  time, turns and tokens. The run is reported every five minutes.
+  time, turns and tokens.
+
+**The run is reported every five minutes, from launch until the agent exits, without
+being asked.** Whoever launches it schedules the check at launch (an agent operator: a
+recurring five-minute job running `logs/report.py`), and each report says in a few lines
+the elapsed minutes and turns, what the agent is doing, what it has read of the first
+read, notable debugging or verification episodes, and any reads of `library/` or
+`runtime/` source. When the agent exits, the job stops and the run's report begins.
 - `tail.py [N]` — every tool call in order, or the last N.
 - `cost.py [N]` — cumulative tokens, and the tool results ranked by size.
 
