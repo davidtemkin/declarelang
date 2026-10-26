@@ -3,6 +3,7 @@
   "files": [],
   "references": [
     { "path": "./runtime" },
-    { "path": "./compiler" }
+    { "path": "./compiler" },
+    { "path": "./plugins/css" }
   ]
 }
