@@ -1,0 +1,451 @@
+script {
+    type FactorRecord = {
+        id: string
+        label: string
+        kind: string
+        unit: string
+        base: number
+        min?: number
+        max?: number
+        step?: number
+        column: number
+        rowY: number
+        shown: boolean
+        description: string
+        formula: string
+    }
+
+    type DependencyRecord = { from: string, to: string }
+    type ModelDocument = { factors: FactorRecord[], dependencies: DependencyRecord[] }
+    type ScenarioRecord = { id: string, label: string, description: string,
+        assumptions: Record<string, number> }
+    type ScenarioDocument = { scenarios: ScenarioRecord[] }
+    type AssumptionDocument = { assumptions: Record<string, number> }
+    type ValueMap = Record<string, number>
+    type ContributionRecord = {
+        id: string
+        label: string
+        value: number
+        formatted: string
+        absoluteValue: number
+    }
+    type ContributionWork = { row: ContributionRecord, order: number }
+
+    const CARD_W = 174
+    const CARD_H = 68
+
+    function asDocument(value: object): ModelDocument {
+        return value as ModelDocument
+    }
+
+    function asScenarios(value: object): ScenarioDocument {
+        return value as ScenarioDocument
+    }
+
+    function asAssumptions(value: object): AssumptionDocument {
+        return value as AssumptionDocument
+    }
+
+    function scenarioExists(value: object, id: string): boolean {
+        return asScenarios(value).scenarios.some(s => s.id == id)
+    }
+
+    function scenarioLabel(value: object, id: string): string {
+        if (id == "working") return "Working scenario"
+        return asScenarios(value).scenarios.find(s => s.id == id)?.label ?? id
+    }
+
+    function scenarioAssumptions(modelValue: object, scenarioValue: object,
+        workingValue: object, id: string): object {
+        const defaults: Record<string, number> = {}
+        for (const f of asDocument(modelValue).factors) {
+            if (f.kind == "assumption") defaults[f.id] = f.base
+            }
+        const overrides = id == "working"
+            ? asAssumptions(workingValue).assumptions
+            : asScenarios(scenarioValue).scenarios.find(s => s.id == id)?.assumptions ?? {}
+        return { assumptions: { ...defaults, ...overrides } }
+    }
+
+    function assumptionMap(modelValue: object, scenarioValue: object,
+        workingValue: object, id: string): ValueMap {
+        return asAssumptions(scenarioAssumptions(modelValue, scenarioValue,
+            workingValue, id)).assumptions
+    }
+
+    function assumptionAt(modelValue: object, scenarioValue: object, workingValue: object,
+        scenarioId: string, factorId: string): number {
+        const assumptions = asAssumptions(scenarioAssumptions(modelValue,
+            scenarioValue, workingValue, scenarioId)).assumptions
+        return assumptions[factorId] ?? 0
+    }
+
+    function withAssumption(modelValue: object, scenarioValue: object, workingValue: object,
+        scenarioId: string, factorId: string, value: number): object {
+        const current = asAssumptions(scenarioAssumptions(modelValue,
+            scenarioValue, workingValue, scenarioId)).assumptions
+        return { assumptions: { ...current, [factorId]: value } }
+    }
+
+    function computeScenarioModel(modelValue: object, scenarioValue: object,
+        workingValue: object, scenarioId: string): object {
+        return computeModel(modelValue, assumptionMap(modelValue, scenarioValue,
+            workingValue, scenarioId))
+    }
+
+    function computeModel(value: object, assumptions: Record<string, number>): object {
+        const d = asDocument(value)
+        const v: ValueMap = {}
+        for (const f of d.factors) v[f.id] = f.base
+        for (const id of Object.keys(assumptions)) v[id] = assumptions[id]
+
+        v.revenue = v.baseRevenue * (1 + v.demandGrowth) * (1 + v.averageFareGrowth)
+        v.fuelExpense = v.baseFuelGallons * (1 + v.capacityGrowth) * v.jetFuelPrice
+        v.laborExpense = v.baseLaborExpense * (1 + v.laborCostGrowth)
+        v.otherExpense = v.baseOtherExpense * (1 + v.capacityGrowth) * (1 + v.nonFuelInflation)
+        v.operatingExpense = v.fuelExpense + v.laborExpense + v.otherExpense
+        v.operatingIncome = v.revenue - v.operatingExpense
+        v.operatingMargin = v.revenue != 0 ? v.operatingIncome / v.revenue : Number.NaN
+        return v
+    }
+
+    function numberAt(values: object, id: string): number {
+        const n = (values as ValueMap)[id]
+        return typeof n == "number" ? n : Number.NaN
+    }
+
+    function factorAt(value: object, id: string): FactorRecord | undefined {
+        return asDocument(value).factors.find(f => f.id == id)
+    }
+
+    function textAt(value: object, id: string, key: string): string {
+        const f = factorAt(value, id)
+        if (!f) return ""
+        const v = (f as unknown as Record<string, unknown>)[key]
+        return typeof v == "string" ? v : ""
+    }
+
+    function numericFieldAt(value: object, id: string, key: string): number {
+        const f = factorAt(value, id)
+        if (!f) return 0
+        const v = (f as unknown as Record<string, unknown>)[key]
+        return typeof v == "number" ? v : 0
+    }
+
+    function materiallyDifferent(a: number, b: number): boolean {
+        return Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) > 0.0000001
+    }
+
+    function allShownFinite(value: object, values: object): boolean {
+        for (const factor of asDocument(value).factors) {
+            if (factor.shown && !Number.isFinite(numberAt(values, factor.id))) return false
+        }
+        return true
+    }
+
+    function modelCalculationStatus(value: object, active: object, comparison: object): string {
+        return allShownFinite(value, active) && allShownFinite(value, comparison)
+            ? "ok" : "unavailable"
+    }
+
+    function formatValue(value: number, unit: string): string {
+        if (!Number.isFinite(value)) return "Unavailable"
+        if (unit == "percent") return (value * 100).toFixed(1) + "%"
+        if (unit == "usdPerGallon") return "$" + value.toFixed(2)
+        if (unit == "millionGallons") return value.toLocaleString("en-US", { maximumFractionDigits: 0 }) + "m gal"
+        if (unit == "usdMillions") return "$" + value.toLocaleString("en-US", { maximumFractionDigits: 0 }) + "m"
+        return value.toLocaleString("en-US", { maximumFractionDigits: 1 })
+    }
+
+    function formatDelta(value: number, unit: string): string {
+        const sign = value >= 0 ? "+" : "−"
+        if (unit == "percent") return sign + (Math.abs(value) * 100).toFixed(1) + " pp"
+        return sign + formatValue(Math.abs(value), unit)
+    }
+
+    function parseNumericAssumption(text: string, unit: string,
+        minimum: number, maximum: number): object {
+        const cleaned = text.trim().replace(/,/g, "")
+        if (cleaned == "") return { ok: false, value: Number.NaN, message: "Enter a value." }
+        const percent = unit == "percent"
+        const normalized = percent && cleaned.endsWith("%")
+            ? cleaned.slice(0, -1).trim() : cleaned
+        if (normalized == "" || (percent && cleaned.includes("%") && !cleaned.endsWith("%"))) {
+            return { ok: false, value: Number.NaN, message: "Enter a complete number." }
+        }
+        const currency = unit == "usdPerGallon"
+        const numberText = currency && normalized.startsWith("$")
+            ? normalized.slice(1).trim() : normalized
+        if (numberText == "" || (currency && normalized.includes("$") && !normalized.startsWith("$"))
+            || !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/.test(numberText)) {
+            return { ok: false, value: Number.NaN, message: "Enter a complete number." }
+        }
+        const parsed = Number(numberText) / (percent ? 100 : 1)
+        if (!Number.isFinite(parsed)) return { ok: false, value: Number.NaN, message: "Enter a finite number." }
+        if (parsed < minimum || parsed > maximum) {
+            return { ok: false, value: Number.NaN,
+                message: "Enter a value from " + formatValue(minimum, unit) + " to "
+                    + formatValue(maximum, unit) + "." }
+        }
+        return { ok: true, value: parsed, message: "" }
+    }
+
+    function factorial(n: number): number {
+        let result = 1
+        for (let i = 2; i <= n; i = i + 1) result = result * i
+        return result
+    }
+
+    function bitCount(mask: number, width: number): number {
+        let count = 0
+        for (let i = 0; i < width; i = i + 1) {
+            if ((mask & (1 << i)) != 0) count = count + 1
+        }
+        return count
+    }
+
+    function subsetAssumptions(comparison: ValueMap, active: ValueMap,
+        changed: FactorRecord[], mask: number): ValueMap {
+        const result: ValueMap = { ...comparison }
+        for (let i = 0; i < changed.length; i = i + 1) {
+            if ((mask & (1 << i)) != 0) {
+                const id = changed[i].id
+                result[id] = active[id]
+            }
+        }
+        return result
+    }
+
+    function subsetValue(modelValue: object, comparison: ValueMap, active: ValueMap,
+        changed: FactorRecord[], mask: number, selectedId: string): number {
+        return numberAt(computeModel(modelValue,
+            subsetAssumptions(comparison, active, changed, mask)), selectedId)
+    }
+
+    function buildContributionData(modelValue: object, scenarioValue: object,
+        workingValue: object, activeScenarioId: string, comparisonScenarioId: string,
+        selectedId: string): object {
+        const selected = factorAt(modelValue, selectedId)
+        if (!selected || selected.kind != "derived") {
+            return { rows: [], total: 0, residual: 0 }
+        }
+
+        const active = assumptionMap(modelValue, scenarioValue, workingValue,
+            activeScenarioId)
+        const comparison = assumptionMap(modelValue, scenarioValue, workingValue,
+            comparisonScenarioId)
+        const activeResult = numberAt(computeModel(modelValue, active), selectedId)
+        const comparisonResult = numberAt(computeModel(modelValue, comparison), selectedId)
+        if (!Number.isFinite(activeResult) || !Number.isFinite(comparisonResult)) {
+            return { rows: [], total: Number.NaN, residual: Number.NaN }
+        }
+
+        const changed: FactorRecord[] = []
+        for (const f of asDocument(modelValue).factors) {
+            if (f.kind == "assumption" && materiallyDifferent(active[f.id], comparison[f.id])) {
+                changed.push(f)
+            }
+        }
+        if (changed.length == 0) return { rows: [], total: 0, residual: 0 }
+
+        const n = changed.length
+        const subsetCount = 1 << n
+        const denominator = factorial(n)
+        const work: ContributionWork[] = []
+        let total = 0
+        for (let i = 0; i < n; i = i + 1) {
+            const bit = 1 << i
+            let value = 0
+            let valid = true
+            for (let mask = 0; mask < subsetCount; mask = mask + 1) {
+                if ((mask & bit) != 0) continue
+                const size = bitCount(mask, n)
+                const before = subsetValue(modelValue, comparison, active,
+                    changed, mask, selectedId)
+                const after = subsetValue(modelValue, comparison, active,
+                    changed, mask | bit, selectedId)
+                if (!Number.isFinite(before) || !Number.isFinite(after)) {
+                    valid = false
+                    break
+                }
+                const weight = factorial(size) * factorial(n - size - 1) / denominator
+                value = value + weight * (after - before)
+            }
+            if (!valid || !Number.isFinite(value)) {
+                return { rows: [], total: Number.NaN, residual: Number.NaN }
+            }
+            const row: ContributionRecord = {
+                id: changed[i].id,
+                label: changed[i].label,
+                value,
+                formatted: formatDelta(value, selected.unit),
+                absoluteValue: Math.abs(value)
+            }
+            work.push({ row, order: i })
+            total = total + value
+        }
+        work.sort((a, b) => b.row.absoluteValue - a.row.absoluteValue || a.order - b.order)
+        return {
+            rows: work.map(entry => entry.row),
+            total,
+            residual: activeResult - comparisonResult - total
+        }
+    }
+
+    function dependencyRows(value: object, selectedId: string, values: object,
+        comparisonValues: object): object {
+        const d = asDocument(value)
+        const rows = d.dependencies
+            .filter(edge => edge.to == selectedId)
+            .map(edge => {
+                const f = factorAt(value, edge.from)
+                return {
+                    id: edge.from,
+                    label: f?.label ?? edge.from,
+                    kind: f?.kind ?? "input",
+                    formatted: formatValue(numberAt(values, edge.from), f?.unit ?? "")
+                    }
+                })
+        return { rows }
+    }
+
+    function dependencyCount(value: object): number {
+        const rows = (value as { rows?: object[] }).rows
+        return rows?.length ?? 0
+    }
+
+    function graphColumnX(column: number, width: number): number {
+        const gap = Math.max(34, (width - CARD_W * 4) / 3)
+        return column * (CARD_W + gap)
+    }
+
+    function visibleFactor(document: ModelDocument, id: string): FactorRecord | undefined {
+        const f = document.factors.find(row => row.id == id)
+        return f?.shown ? f : undefined
+    }
+
+    function visibleFactorIds(value: object): string[] {
+        return asDocument(value).factors.filter(f => f.shown).map(f => f.id)
+    }
+
+    function nextFactorId(value: object, currentId: string, key: string): string {
+        const document = asDocument(value)
+        const factors = document.factors.filter(f => f.shown)
+        const currentIndex = factors.findIndex(f => f.id == currentId)
+        if (currentIndex < 0) return ""
+        if (key == "ArrowDown") {
+            return currentIndex + 1 < factors.length ? factors[currentIndex + 1].id : ""
+        }
+        if (key == "ArrowUp") {
+            return currentIndex > 0 ? factors[currentIndex - 1].id : ""
+        }
+        if (key != "ArrowLeft" && key != "ArrowRight") return ""
+
+        const current = factors[currentIndex]
+        let bestIndex = -1
+        let bestColumnDistance = 1e99
+        let bestDistance = 1e99
+        // Horizontal model distance chooses the adjacent dependency column;
+        // rowY chooses within that column, and the factor walk supplies the
+        // document-order tie break without consulting rendered coordinates.
+        for (let i = 0; i < factors.length; i = i + 1) {
+            const candidate = factors[i]
+            const connected = key == "ArrowRight"
+                ? document.dependencies.some(edge => edge.from == current.id && edge.to == candidate.id)
+                : document.dependencies.some(edge => edge.from == candidate.id && edge.to == current.id)
+            if (!connected) continue
+            const columnDistance = key == "ArrowRight"
+                ? candidate.column - current.column : current.column - candidate.column
+            if (columnDistance < 0) continue
+            const distance = Math.abs(candidate.rowY - current.rowY)
+            if (columnDistance < bestColumnDistance
+                || columnDistance == bestColumnDistance && distance < bestDistance) {
+                bestIndex = i
+                bestColumnDistance = columnDistance
+                bestDistance = distance
+            }
+        }
+        return bestIndex < 0 ? "" : factors[bestIndex].id
+    }
+
+    // Reachability is intentionally iterative. The model is a DAG today, but a
+    // malformed or future cyclic document must not make path highlighting recurse
+    // forever. The visited list is checked before expanding each node, so every
+    // adjacency edge is still considered independently.
+    function reachable(value: object, fromId: string, toId: string): boolean {
+        if (fromId == toId) return true
+        const document = asDocument(value)
+        const pending: string[] = [fromId]
+        const visited: string[] = []
+        let index = 0
+        while (index < pending.length) {
+            const current = pending[index]
+            index = index + 1
+            if (current == toId) return true
+            if (visited.some(id => id == current)) continue
+            visited.push(current)
+            for (const edge of document.dependencies) {
+                if (edge.from == current && !visited.some(id => id == edge.to)) {
+                    pending.push(edge.to)
+                }
+            }
+        }
+        return false
+    }
+
+    // An edge is on a contribution path when its source can be reached from the
+    // attributed root and its destination can reach the selected result. This
+    // predicate is evaluated for each edge rather than returning one discovered
+    // path, which preserves fan-out, fan-in, and reconverging branches.
+    function edgeOnContributionPath(value: object, rootId: string, targetId: string,
+        fromId: string, toId: string): boolean {
+        if (rootId == "" || targetId == "") return false
+        if (!asDocument(value).dependencies.some(edge =>
+            edge.from == fromId && edge.to == toId)) return false
+        return reachable(value, rootId, fromId) && reachable(value, toId, targetId)
+    }
+
+    function factorOnContributionPath(value: object, rootId: string, targetId: string,
+        factorId: string): boolean {
+        if (rootId == "" || targetId == "") return false
+        if (!reachable(value, rootId, targetId)) return false
+        if (factorId == rootId || factorId == targetId) return true
+        return asDocument(value).dependencies.some(edge =>
+            edgeOnContributionPath(value, rootId, targetId, edge.from, edge.to)
+            && (edge.from == factorId || edge.to == factorId))
+    }
+
+    function drawEdges(d: Draw, width: number, value: object, values: object,
+        comparisonValues: object, selectedId: string,
+        selectedContributionFactorId: string): void {
+        const document = asDocument(value)
+        for (const edge of document.dependencies) {
+            const from = visibleFactor(document, edge.from)
+            const to = visibleFactor(document, edge.to)
+            if (!from || !to) continue
+
+            const x0 = graphColumnX(from.column, width) + CARD_W
+            const y0 = from.rowY + CARD_H / 2
+            const x1 = graphColumnX(to.column, width)
+            const y1 = to.rowY + CARD_H / 2
+            const bend = Math.max(28, (x1 - x0) * 0.46)
+            const contributionPath = edgeOnContributionPath(document,
+                selectedContributionFactorId, selectedId, edge.from, edge.to)
+            const selected = edge.to == selectedId || edge.from == selectedId
+            const changed = materiallyDifferent(numberAt(values, edge.from),
+                numberAt(comparisonValues, edge.from))
+                && materiallyDifferent(numberAt(values, edge.to),
+                    numberAt(comparisonValues, edge.to))
+
+            d.beginPath()
+            d.moveTo(x0, y0)
+            d.bezierCurveTo(x0 + bend, y0, x1 - bend, y1, x1, y1)
+            d.strokeStyle = contributionPath ? "#F2C46D"
+                : selected ? "#75D6FF" : changed ? "#D3A650" : "#2B3B43"
+            d.lineWidth = contributionPath ? 3 : selected || changed ? 2 : 1
+            d.globalAlpha = contributionPath ? 0.98 : selected ? 0.92 : changed ? 0.82 : 0.72
+            d.stroke()
+            }
+        d.globalAlpha = 1
+    }
+    }
