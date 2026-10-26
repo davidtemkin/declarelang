@@ -3,7 +3,7 @@
 App [ fill = white,
     SunIcon [ x = 20, y = 20, width = 160, ink = #445566, weight = 12 ],
     View [ x = 220, y = 20, width = 300, height = 160,
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             d.lineWidth = 16
             d.strokeStyle = "#cc3344"
             d.lineCap = "butt";   d.beginPath(); d.moveTo(20, 30);  d.lineTo(120, 30);  d.stroke()

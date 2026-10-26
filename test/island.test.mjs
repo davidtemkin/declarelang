@@ -9,13 +9,13 @@
 //   - a read with no default and nothing provided throws, naming it;
 //   - verbs cross both ways with { topic, payload };
 //   - the foreign handle: hostProvided/watchProvided/expose/post/onPost/provides;
-//   - the page is the topmost host: App.provide / exposed / watchExposed;
+//   - the page is the topmost host: what it provides and what the app exposes;
 //   - `external` is gone, with a migration error that names the new words.
 import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
 import { compile } from "../compiler/dist/compile-node.js";
 import { parseProgram } from "../runtime/dist/parser.js";
-import { instantiate, settle, linkIslandTenant, islandProvisions, withHostProvides } from "../runtime/dist/index.js";
+import { instantiate, settle, observe, linkIslandTenant, islandProvisions, withHostProvides } from "../runtime/dist/index.js";
 import { applyDeps } from "../runtime/dist/deps.js";
 
 async function boot(src, { settled = true } = {}) {
@@ -44,7 +44,7 @@ const HOST = `App [ width = 200, height = 100,
         provides = ["volume"],
         volume: number = { app.vol },
         secret: number = 99,
-        onPost(m: IslandPost) { app.log = app.log + m.topic + ":" + m.payload + ";" }
+        onPost(m: IslandMessage) { app.log = app.log + m.topic + ":" + m.payload + ";" }
         ],
     readout: Text [ text = { "" + app.isl.exposed("pos", 0) } ],
     ]`;
@@ -56,7 +56,7 @@ const TENANT = `App [ width = 10, height = 10,
     pos: number = 5,
     hidden: number = 8,
     heard: string = "",
-    onHostMessage(m: IslandPost) { app.heard = app.heard + m.topic },
+    onHostMessage(m: IslandMessage) { app.heard = app.heard + m.topic },
     bump() { this.pos = this.pos + 1 },
     ]`;
 
@@ -176,7 +176,7 @@ await test("foreign handle: provides, hostProvided, watchProvided, expose, verbs
   } finally { host.discard(); }
 });
 
-await test("the page is the topmost host: provide, exposed, watchExposed", async () => {
+await test("the page is the topmost host: what it provides arrives, and what the app exposes is readable", async () => {
   const app = await boot(`App [ width = 10,
       exposes = ["total"],
       theme2: string = { hostProvided("mode", "light") },
@@ -185,13 +185,14 @@ await test("the page is the topmost host: provide, exposed, watchExposed", async
   try {
     assert.equal(app.theme2, "light", "unprovided: the default");
     const seen = [];
-    const un = app.watchExposed("total", (v) => seen.push(v));
-    app.provideHostValue("mode", "dark");
+    const un = observe(() => app.$exposed("total"), (v) => seen.push(v));
+    seen.push(app.$exposed("total"));
+    app.$provideHostValue("mode", "dark");
     settle();
     assert.equal(app.theme2, "dark", "a page provide reaches hostProvided");
-    assert.equal(app.exposed("total"), 2);
-    assert.equal(app.exposed("theme2"), undefined, "a name not in `exposes` is not readable from the page");
-    app.provideHostValue("mode", undefined);
+    assert.equal(app.$exposed("total"), 2);
+    assert.equal(app.$exposed("theme2"), undefined, "a name not in `exposes` is not readable from the page");
+    app.$provideHostValue("mode", undefined);
     settle();
     assert.equal(app.theme2, "light", "providing undefined withdraws it");
     un();

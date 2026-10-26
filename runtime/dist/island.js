@@ -11,6 +11,7 @@ import { scrollPlaces, holdScrollPlaces } from "./scroll-places.js";
 import { withdrawPaintGuests } from "./view.js";
 import { withdrawOpen } from "./outside.js";
 import { Keys } from "./keys.js";
+import { navigationOf } from "./navigation.js";
 /** The value an island provides under `name` — the `provided("name")` read AT
  *  the island: its own provision or declared slot first, then its ancestors.
  *  Undefined when nothing provides it. Tracked (the readers of a provision
@@ -89,7 +90,7 @@ export class Island extends View {
         this.tenantSink.message(topic, payload);
     }
     /** @internal tenant → host verb arrival: fire the declared onPost with the
-     *  one-record payload `{ topic, payload }` (IslandPost). */
+     *  one-record payload `{ topic, payload }` (IslandMessage). */
     $receiveMessage(topic, payload) {
         fireEvent(this, "post", { topic, payload });
     }
@@ -105,8 +106,9 @@ export class Island extends View {
     }
     /** The foreign content's handle — built once, attached to the island's
      *  element by the DOM backend (`el.__declareIsland`). The whole sanctioned
-     *  surface for non-Declare content, in the same words a Declare tenant
-     *  uses: read what the host provides, expose values up, and the verbs. */
+     *  surface for non-Declare content, reaching what a Declare tenant reaches:
+     *  read what the host provides, expose values up, and the verbs (named as
+     *  the island's: post / onPost). */
     handle = null;
     $foreignHandle() {
         if (this.handle !== null)
@@ -166,6 +168,12 @@ function syncNamed(read, put, drop, label) {
     // is compared here, name by name, so identical values deliver nothing
     return observe(() => { const r = read(); return Object.keys(r).sort().flatMap((k) => [k, r[k]]); }, () => apply(read()), label);
 }
+/** One navigation an embedded app asked for — its `navigate(to)` or
+ *  `openWindow(to)` — as its island's `onNavigate` receives it: the address
+ *  made absolute, the Declare program it names (its `.declare` path without
+ *  the extension, a directory taken as its same-named program; "" when it
+ *  names none) and the location after its `#`, and whether it asked for a
+ *  window of its own. */
 /** An embedded app's navigation verbs, answered by the island that hosts it
  *  when that island declares `onNavigate` — the hosting program decides what
  *  a link inside it means (a desktop opens a window) — and by `fallback`, the
@@ -186,23 +194,6 @@ export function islandNavigation(island, resolve, fallback) {
             fallback.openWindow(u); },
     };
 }
-function navigationOf(to, newWindow) {
-    let program = "", location = "";
-    try {
-        const u = new URL(to);
-        location = decodeURIComponent(u.hash.slice(1));
-        const path = (u.origin === "null" ? u.protocol + "//" : u.origin) + u.pathname; // a file: URL's origin is "null"
-        if (u.pathname.endsWith(".declare"))
-            program = path.slice(0, -".declare".length);
-        else if (u.pathname.endsWith("/")) {
-            const dir = u.pathname.split("/").filter((s) => s !== "").pop();
-            if (dir !== undefined)
-                program = path + dir;
-        }
-    }
-    catch { /* not a URL: it names no program */ }
-    return { to, program, location, newWindow };
-}
 /** Link an Island to a DECLARE tenant (host-client renderChild, the canvas
  *  island service, the mac runner). DOWN: every name on the island's
  *  `provides` list, resolved at the island, is provided to the tenant (what
@@ -214,7 +205,7 @@ function navigationOf(to, newWindow) {
  *  before its first settle. Returns the unlink. */
 export function linkIslandTenant(island, tenant, box = null) {
     const undo = [];
-    undo.push(syncNamed(() => islandProvisions(island), (n, v) => tenant.provideHostValue(n, v), (n) => tenant.provideHostValue(n, undefined), "link:provides"));
+    undo.push(syncNamed(() => islandProvisions(island), (n, v) => tenant.$provideHostValue(n, v), (n) => tenant.$provideHostValue(n, undefined), "link:provides"));
     undo.push(syncNamed(() => {
         const out = {};
         const list = tenant.exposes;
@@ -266,7 +257,7 @@ export function linkIslandTenant(island, tenant, box = null) {
     }
     // verbs, both directions
     island.tenantSink = {
-        message: (topic, payload) => fireEvent(tenant, "hostMessage", { topic, payload }),
+        message: (topic, payload) => tenant.$receiveHostMessage(topic, payload),
     };
     tenant.$hostSink = { message: (topic, payload) => island.$receiveMessage(topic, payload) };
     island.$tenant = tenant;

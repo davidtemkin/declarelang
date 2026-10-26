@@ -146,13 +146,13 @@ export function installScrollAnchor(s: View): void {
   // there would pick wherever the content had got to by then — content still
   // moving above the reader would be taken as the new place, and the move it
   // made since the correction never paid back.)
-  const onScroll = new Constraint(`${s.constructor.name}.scrollAnchor.scroll`, () => `${s.scrollY}|${s.scrolling}`, () => {
-    if (s.scrolling && st.wantEnd && !atEndOf(s)) st.wantEnd = false;   // the reader left the end mid-travel
-    if (!s.scrolling) st.held = false;                                  // the scroll is over: take the place as it is now
+  const onScroll = new Constraint(`${s.constructor.name}.scrollAnchor.scroll`, () => `${s.scrollY}|${s.userScrolling}`, () => {
+    if (s.userScrolling && st.wantEnd && !atEndOf(s)) st.wantEnd = false;   // the reader left the end mid-travel
+    if (!s.userScrolling) st.held = false;                                  // the scroll is over: take the place as it is now
     // (it lands twice — the model's own write, then the engine's echo, which
     // an engine holding the offset to whole pixels reports less its fraction —
     // so the mark holds until a move that is not it)
-    if (!s.scrolling && st.corrected !== null && Math.abs(s.scrollY - st.corrected) < 1) return;
+    if (!s.userScrolling && st.corrected !== null && Math.abs(s.scrollY - st.corrected) < 1) return;
     st.corrected = null;
     // moved away from where the anchor put an end pane: it has left the end
     // NOW — content landing in this same settle (rows built where the pane
@@ -174,7 +174,7 @@ export function installScrollAnchor(s: View): void {
     afterSettle(() => {
       // A WAITING REQUEST goes as far as the content now reaches; arrived, it
       // is done, and the place it reached is the one to keep.
-      if (st.wantY !== null && !s.scrolling) {
+      if (st.wantY !== null && !s.userScrolling) {
         const end = Math.max(0, s.contentHeight - s.height);
         correct(s, Math.min(st.wantY, end), st);
         if (end >= st.wantY - 0.5) { st.wantY = null; repick(); }
@@ -186,7 +186,7 @@ export function installScrollAnchor(s: View): void {
       // offset written now would stop its momentum. Hold the correction; when
       // the scroll is over the place is taken afresh (one visible shift, no
       // second jump back).
-      if (s.scrolling && s.$surface?.userScrollByTouch?.() === true) { st.held = true; return; }
+      if (s.userScrolling && s.$surface?.userScrollByTouch?.() === true) { st.held = true; return; }
       if (m === "end") {
         const fits = s.contentHeight <= s.height;
         if (!st.opened && !fits) { st.opened = true; st.atEnd = true; }

@@ -147,7 +147,7 @@ await test("scaffold: the fixed value prelude mirrors value.ts", () => {
 
 await test("scaffold: enum-typed attributes emit named string-literal unions", () => {
   const s = scaffoldFor(PROGRAM);
-  assert.ok(s.includes(`type MediaFit = "none" | "width" | "height" | "both" | "cover" | "contain";`), "MediaFit enum alias");
+  assert.ok(s.includes(`type ImageFit = "none" | "width" | "height" | "both" | "cover" | "contain";`), "ImageFit enum alias");
   assert.ok(s.includes(`type FontWeight = "thin" | "extralight" | "light" | "regular" | "normal" | "medium" | "semibold" | "bold" | "extrabold" | "black" | number;`), "FontWeight enum alias — keywords or a number 1–1000");
   // Axis reaches the scaffold through a DECLARED enum now (the built-in value
   // enums are declarable — library SimpleLayout's `axis: Axis = y`):

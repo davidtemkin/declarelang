@@ -5,7 +5,7 @@
 
 App [ width = 600, height = 400, fill = #202020,
     glow: View [ x = 100, y = 100, width = 100, height = 100,
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             d.shadowColor = "#00FF00"
             d.shadowBlur = 28
             d.fillStyle = "#0088FF"

@@ -18,19 +18,19 @@ App [ width = 800, height = 600, fill = #0B0E12,
     shown: number = 0,
 
     a: View [ x = 0, y = 0, width = 800, height = 600, visible = { app.shown == 0 },
-        draw(d: Draw) { app.wash(d, d.w, d.h, 0) }
+        draw(d: DrawContext) { app.wash(d, d.w, d.h, 0) }
         ],
     b: View [ x = 0, y = 0, width = 800, height = 600, visible = { app.shown == 1 },
-        draw(d: Draw) { app.wash(d, d.w, d.h, 90) }
+        draw(d: DrawContext) { app.wash(d, d.w, d.h, 90) }
         ],
     c: View [ x = 0, y = 0, width = 800, height = 600, visible = { app.shown == 2 },
-        draw(d: Draw) { app.wash(d, d.w, d.h, 180) }
+        draw(d: DrawContext) { app.wash(d, d.w, d.h, 180) }
         ],
     e: View [ x = 0, y = 0, width = 800, height = 600, visible = { app.shown == 3 },
-        draw(d: Draw) { app.wash(d, d.w, d.h, 270) }
+        draw(d: DrawContext) { app.wash(d, d.w, d.h, 270) }
         ],
 
-    wash(d: Draw, W: number, H: number, hue: number) {
+    wash(d: DrawContext, W: number, H: number, hue: number) {
         d.fillStyle = "#0D1420"
         d.fillRect(0, 0, W, H)
         const spots = [[0.17, 0.24], [0.82, 0.20], [0.50, 0.54], [0.20, 0.82], [0.83, 0.80]]

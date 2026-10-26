@@ -18,7 +18,6 @@ import { provideTransport, DataSource } from "../runtime/dist/data.js";
 import { SCHEMAS, RichTextSchema } from "../runtime/dist/schema.js";
 import * as reg from "../runtime/dist/registry.js";
 import { Media } from "../runtime/dist/media.js";
-import { EditControl } from "../runtime/dist/editor.js";
 import { Stream } from "../runtime/dist/streams.js";
 import { RichText } from "../runtime/dist/rich-text.js";
 import { RUNTIME_METHODS, RUNTIME_FIELDS, runtimeMethodsOf, runtimeFieldsOf } from "../runtime/dist/runtime-methods.js";
@@ -54,7 +53,7 @@ class Fetcher extends DataSource [ log: string = "",
     fetch() { log = log + "before;"; super.fetch() } ]
 App [ width = 1, height = 1, log: string = "",
     f: Fetcher [ url = "/f.json" ],
-    g: Fetcher [ auto = true ],
+    g: Fetcher [ autoFetch = true ],
     d: DataSource [ url = "/d.json", n: number = 0, fetch() { n = n + 1; super.fetch() } ] ]`);
     await test("class override with super: the body runs, then the runtime's fetch lands the data", async () => {
       assert.ok(app.f instanceof DataSource);
@@ -65,7 +64,7 @@ App [ width = 1, height = 1, log: string = "",
       assert.equal(app.f.loaded, true, "and super.fetch() reached DataSource.fetch");
       assert.deepEqual(app.f.value, ROWS);
     });
-    await test("the runtime's own internal call reaches the override: auto = true routes maybeAuto → this.fetch() through it", async () => {
+    await test("the runtime's own internal call reaches the override: autoFetch = true routes maybeAuto → this.fetch() through it", async () => {
       // (the headless settle window refuses network by design, so the url
       // arrives after boot — the reactive-address case auto exists for)
       assert.equal(app.g.log, "", "an empty url fetches nothing");
@@ -194,7 +193,7 @@ App [ width = 1, height = 1, f: F [ url = "/x" ], v: View [ s: S [ attribute = x
     try {
       const app = await build(`
 class F extends DataSource [ n: number = 0, maybeAuto() { n = n + 1 } ]
-App [ width = 1, height = 1, f: F [ auto = true ] ]`);
+App [ width = 1, height = 1, f: F [ autoFetch = true ] ]`);
       app.f.url = "/f.json";
       await landed();
       assert.equal(app.f.loaded, true, "auto still fetched: the runtime's own internal ran");
@@ -216,7 +215,7 @@ App [ width = 1, height = 1, s: Spring [ attribute = x, to = 1 ], onInit() { thi
 
 // ── The table is pinned against the runtime classes ───────────────────────────
 await (async () => {
-  const classes = { ...reg.TAGS, ...reg.LAYOUT_BASES, ...reg.DATA, ...reg.ANIMATORS, ...reg.ANIMATOR_GROUPS, ...reg.SOURCES, ...reg.STATES, Media, EditControl, Stream, RichText };
+  const classes = { ...reg.TAGS, ...reg.LAYOUT_BASES, ...reg.DATA, ...reg.ANIMATORS, ...reg.ANIMATOR_GROUPS, ...reg.SOURCES, ...reg.STATES, Media, Stream, RichText };
   const schemas = { ...SCHEMAS, RichText: RichTextSchema };
   // Every function on the prototype chain below Object.prototype, minus
   // `constructor` and `$`-names — the runtime's own rule (instantiate.ts

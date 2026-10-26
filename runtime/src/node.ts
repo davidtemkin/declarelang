@@ -123,7 +123,7 @@ export class Node {
 
   /** The read behind `hostProvided("name", default)` — a value this program's
    *  HOST makes available: an island's `provides` name, a page's
-   *  `app.provideHostValue(…)`, the native host's launch parameters. The compiler
+   *  a page's `tenant.provide(…)`, the native host's launch parameters. The compiler
    *  rewrites the callee to `this.$hostProvided`; the value lives on the
    *  running App (its host values), so every node in the program reads the
    *  same one. The default types the read and stands in when nothing is

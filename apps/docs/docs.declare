@@ -39,7 +39,7 @@ class Mono extends Text [ fontFamily = { app.mono } ]
 // (`app.selected`, the class name); a tab lights when it matches and writes
 // the location on click, so the whole navigator is one string
 
-class ClassTab [ width = 100%, height = { app.touchDevice ? 44 : 30 }, cornerRadius = 6,
+class ClassTab [ width = 100%, height = { app.touchFirst ? 44 : 30 }, cornerRadius = 6,
     cname:   string = "",
     lit: boolean = { app.mode == "reference" && app.selected == classroot.cname },
     fill = { lit ? provided("theme").sel : hovered ? provided("theme").control : null },
@@ -70,7 +70,7 @@ class ClassTab [ width = 100%, height = { app.touchDevice ? 44 : 30 }, cornerRad
    One class serves the guide's parts, the language's form groups, and the class
    groups alike. */
 
-class FoldHead extends Control [ width = 100%, height = { app.touchDevice ? 44 : 28 }, cornerRadius = 6, cursor = "pointer",
+class FoldHead extends Control [ width = 100%, height = { app.touchFirst ? 44 : 28 }, cornerRadius = 6, cursor = "pointer",
     label:    string  = "",
     accessibilityExpanded = { this.open },
     contains: boolean = false,             // does this group hold the current page?
@@ -540,7 +540,7 @@ class ReadStrip [ width = 100%, cornerRadius = 10, visible = { :n > 0 },
     cname: string = { "" + :name },
     fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) },
     layout: SimpleLayout [ axis = y, spacing = 0 ],
-    head: Control [ width = 100%, height = { app.touchDevice ? 44 : 40 }, cursor = "pointer", cornerRadius = 10,
+    head: Control [ width = 100%, height = { app.touchFirst ? 44 : 40 }, cursor = "pointer", cornerRadius = 10,
         accessibilityExpanded = { classroot.open },
         fill = { hovered ? provided("theme").chipBg : null },
         padding = [10, 16, 10, 16],
@@ -688,7 +688,7 @@ class Example [ width = 100%,
 
         // (on touch the control is a finger's height around the same pill)
 
-        rev: Control [ y = { app.touchDevice ? 3 : 5 }, height = { app.touchDevice ? 44 : 20 }, cornerRadius = 6,
+        rev: Control [ y = { app.touchFirst ? 3 : 5 }, height = { app.touchFirst ? 44 : 20 }, cornerRadius = 6,
             x = { parent.tag.x - this.width - 10 },
             width = { this.pill.width },
             press() { classroot.panel.field.text = classroot.esrc
@@ -796,7 +796,7 @@ class RunIsland [ width = 100%,
 
         // (on touch the control is a finger's height around the same pill)
 
-        rev: Control [ y = { app.touchDevice ? 1 : 5 }, height = { app.touchDevice ? 44 : 20 }, cornerRadius = 6,
+        rev: Control [ y = { app.touchFirst ? 1 : 5 }, height = { app.touchFirst ? 44 : 20 }, cornerRadius = 6,
             x = { parent.width - this.width - 10 },
             width = { this.pill.width },
             press() { classroot.editor.field.text = classroot.rsrc
@@ -1053,7 +1053,7 @@ shows the index: every form, grouped, one line each.
 
 // a form tab in the rail — the form's display name, lit when it is the location's cursor
 
-class FormTab [ width = 100%, height = { app.touchDevice ? 44 : 28 }, cornerRadius = 6,
+class FormTab [ width = 100%, height = { app.touchFirst ? 44 : 28 }, cornerRadius = 6,
     slug: string = "",
     lit: boolean = { app.mode == "language" && app.form == classroot.slug },
     fill = { lit ? provided("theme").sel : hovered ? provided("theme").control : null },
@@ -1240,7 +1240,7 @@ return it. All of it derived from the model; nothing on the page is hand-listed.
 
 // a type tab in the rail — lit when it is the location's cursor
 
-class TypeTab [ width = 100%, height = { app.touchDevice ? 44 : 28 }, cornerRadius = 6,
+class TypeTab [ width = 100%, height = { app.touchFirst ? 44 : 28 }, cornerRadius = 6,
     tname: string = "",
     lit: boolean = { app.mode == "type" && app.tname == classroot.tname },
     fill = { lit ? provided("theme").sel : hovered ? provided("theme").control : null },
@@ -1344,7 +1344,7 @@ control for the content pane; the rail keeps its designed sizes.
 
 // one chapter link in the guide rail — lights when it is the current chapter
 
-class ChapterTab [ width = 100%, height = { app.touchDevice ? 44 : 32 }, cornerRadius = 6,
+class ChapterTab [ width = 100%, height = { app.touchFirst ? 44 : 32 }, cornerRadius = 6,
     cid: string = { :id },
     cnum: number = { :num },
     ctitle: string = { :short },
@@ -1414,7 +1414,7 @@ class ChapterDetail [ width = 100%,
     // costs the model plus exactly one chapter.
 
     wanted: boolean = { classroot.pageLive || classroot.src.loaded },
-    src: DataSource [ auto = true,
+    src: DataSource [ autoFetch = true,
         url = { classroot.wanted ? app.base + "chapters/" + classroot.cid + ".json" : "" } ],
 
     loading: Text [ visible = { classroot.src.loading }, fontSize = { 14 * app.fontScale }, textColor = { provided("theme").textMuted }, text = "Loading the chapter…" ],
@@ -1471,7 +1471,7 @@ class NavColumn [ width = 100%,
     // locations (`language/<form>`, `type/<Name>`) but live in the
     // reference rail, so the Reference tab lights for them too.
 
-    modes: TabBar [ width = 100%, height = { app.touchDevice ? 44 : 30 },
+    modes: TabBar [ width = 100%, height = { app.touchFirst ? 44 : 30 },
         value = { app.mode == "guide" ? "guide" : "reference" },
         input(v: object) { if (("" + v) == "guide") app.goGuide(app.guideAt); else app.goRef(app.refAt) },
 
@@ -1508,7 +1508,7 @@ class NavColumn [ width = 100%,
         layout: SimpleLayout [ axis = y, spacing = 2 ],
         langEyebrow: Mono [ fontSize = 12, letterSpacing = 1.4, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "LANGUAGE" ],
         g2:    View [ height = 4 ],
-        idx: View [ width = 100%, height = { app.touchDevice ? 44 : 28 }, cornerRadius = 6,
+        idx: View [ width = 100%, height = { app.touchFirst ? 44 : 28 }, cornerRadius = 6,
             lit: boolean = { app.mode == "language" && app.form == "" },
             fill = { lit ? provided("theme").sel : hovered ? provided("theme").control : null },
             link = "#language/",
@@ -1588,7 +1588,7 @@ them — a finger's size on touch.
 
 class MenuIcon extends Icon [
     accessibilityLabel = "Contents",
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         d.scale(unit, unit)
         d.strokeStyle = ink
         d.lineWidth = weight / unit
@@ -1604,7 +1604,7 @@ class MenuIcon extends Icon [
 
 class SearchIcon extends Icon [
     accessibilityLabel = "Search",
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         d.scale(unit, unit)
         d.strokeStyle = ink
         d.lineWidth = weight / unit
@@ -1618,7 +1618,7 @@ class SearchIcon extends Icon [
 
 
 class BarButton extends Control [
-    width = { app.touchDevice ? 44 : 32 },
+    width = { app.touchFirst ? 44 : 32 },
     height = { this.width },
     cornerRadius = { Math.min(provided("theme").controlCornerRadius, height / 2) },
     fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
@@ -1788,7 +1788,7 @@ App [ fill = { provided("theme").background }, appName = "Declare Docs",
     searchQ: string = "",
     searchSel: number = -1,                    // the focused result row (-1 = the field itself holds focus)
     searchOpen: boolean = false,               // undocked, the field is open across the bar
-    searchIdx: DataSource [ auto = true,
+    searchIdx: DataSource [ autoFetch = true,
         url = { app.searchQ != "" || this.loaded ? app.base + "search-index.json" : "" } ],
     searchHits: array = { app.findDocs(app.searchQ, app.searchIdx.value) },
     hits: Dataset [ contents = { { items: app.searchHits } } ],   // the same list as declared data — the results page's cursor root (the navSource idiom)
@@ -2056,7 +2056,7 @@ App [ fill = { provided("theme").background }, appName = "Declare Docs",
            then runs across the bar from the start edge to that button, which
            has become the way to close it. */
 
-        search: TextInput [ y = center, height = { app.touchDevice ? 44 : 32 }, cornerRadius = { this.height / 2 },
+        search: TextInput [ y = center, height = { app.touchFirst ? 44 : 32 }, cornerRadius = { this.height / 2 },
             visible = { app.docked || app.searchOpen },
             lo: number = { app.docked ? parent.brand.x + parent.brand.width + 16 : 12 },
             hi: number = { app.docked ? (app.compact ? parent.themeSwitch.x : parent.size.x) - 16 : parent.find.x - 8 },
@@ -2091,7 +2091,7 @@ App [ fill = { provided("theme").background }, appName = "Declare Docs",
         // then `themeMode` stays "auto" and the OS decides
 
         themeSwitch: AppearanceSwitch [ y = center, x = { app.width - this.width - (app.docked ? 16 : 8) },
-            width = { app.touchDevice ? 44 : provided("theme").appearanceSwitchSize },
+            width = { app.touchFirst ? 44 : provided("theme").appearanceSwitchSize },
             dark = { app.darkUI },
             input(v: boolean) { app.themeMode = v ? "dark" : "light" }
             ],

@@ -141,7 +141,7 @@ TextInput [ width = 240, placeholder = "Search",
         afterDelay(300, () => { if (app.query == v) app.searched = v })
         }
     ],
-results: DataSource [ auto = true, url = { "/api/search?q=" + encodeURIComponent(app.searched) } ]
+results: DataSource [ autoFetch = true, url = { "/api/search?q=" + encodeURIComponent(app.searched) } ]
 ```
 
 Each keystroke schedules a check; only the one whose text is still current when its
@@ -249,7 +249,7 @@ aftermath is not.
 
 It is **not** meant for use in conjunction with animation. A spring's `running` and `arrived`
 are facts for constraints to read, not moments to catch. The same caution covers the other
-moment-to-moment facts: [`scrolling`](declare-docs:View.scrolling), [`hovered`](declare-docs:View.hovered) and [`pressed`](declare-docs:View.pressed) flicker by nature — a trackpad's
+moment-to-moment facts: [`userScrolling`](declare-docs:View.userScrolling), [`hovered`](declare-docs:View.hovered) and [`pressed`](declare-docs:View.pressed) flicker by nature — a trackpad's
 momentum has pauses, a mouse wheel's notches are pauses — and a handler on that edge fires on
 every stop and every restart, which is rarely what the program meant.
 

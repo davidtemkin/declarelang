@@ -487,7 +487,7 @@ export class GpuHost {
    *  nothing did. */
   wheel(x: number, y: number, dx: number, dy: number, pinch: boolean, notch = false): "claim" | "scroll" | null {
     const r = this.engine.host_wheel(x, y, dx, dy, pinch, notch);
-    // a browser's wheel has no phases: `scrolling` settles 120 ms after the last delta
+    // a browser's wheel has no phases: `userScrolling` settles 120 ms after the last delta
     for (let i = 1; i < r.length && r[0] === 2; i++) {
       const id = r[i];
       const t = this.quiet.get(id);

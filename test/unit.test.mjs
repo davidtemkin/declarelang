@@ -287,7 +287,7 @@ await test("a datapath { } that is a literal is refused in the source — no Dat
 
 await test("a word kept in a local before it is passed is said plainly, with the language's two fixes", async () => {
   const style = await compile(`App [ width = 100, height = 100, v: View [ width = 100, height = 100,
-    draw(d: Draw) { const tag = { fontSize: 12, fontWeight: "semibold" }; d.fillText("x", 0, 10, tag) } ] ]`);
+    draw(d: DrawContext) { const tag = { fontSize: 12, fontWeight: "semibold" }; d.fillText("x", 0, 10, tag) } ] ]`);
   const e = (style.errors ?? []).find((x) => x.code === "DECLARE6001");
   assert.ok(e, "refused");
   assert.match(e.message, /a FontWeight is one of a fixed set of words/);
@@ -298,7 +298,7 @@ await test("a word kept in a local before it is passed is said plainly, with the
   assert.ok(!/style Tag/.test(w.message), "the style advice only where a text style is meant");
   const fine = await compile(`style Tag [ fontSize = 12, fontWeight = semibold ]
     App [ width = 100, height = 100, v: View [ width = 100, height = 100,
-      draw(d: Draw) { d.fillText("x", 0, 10, Tag); d.fillText("y", 0, 30, { fontWeight: "semibold" }) } ] ]`);
+      draw(d: DrawContext) { d.fillText("x", 0, 10, Tag); d.fillText("y", 0, 30, { fontWeight: "semibold" }) } ] ]`);
   assert.deepEqual((fine.errors ?? []).map((x) => x.message), [], "both fixes check");
 });
 
@@ -657,7 +657,7 @@ await test("check() rejects bad Text/Image values with pointed messages", () => 
     ["Text [ fontWeight=heavy ]", /Text\.fontWeight expects a FontWeight \(one of .*\bmedium\b.*\bbold\b.*\), got 'heavy'/],
     ["Text [ text=42 ]", /Text\.text expects a string, got the number 42/],
     ['Text [ fontSize="big" ]', /Text\.fontSize expects a number, got the string "big"/],
-    ["Image [ stretches=sideways ]", /Image\.stretches expects a MediaFit \(one of none \| width \| height \| both \| cover \| contain\), got 'sideways'/],
+    ["Image [ stretches=sideways ]", /Image\.stretches expects an ImageFit \(one of none \| width \| height \| both \| cover \| contain\), got 'sideways'/],
     ["Image [ source=7 ]", /Image\.source expects a string, got the number 7/],
   ];
   for (const [src, want] of cases) {
@@ -1363,8 +1363,8 @@ await test("a declared attribute may be typed by a CLASS", async () => {
   await no(`App [ width=1, height=1, t: DelayHandle? = null, go() { t?.cancell() } ]`, /cancell/);
 });
 
-await test("scaffold: the Draw surface mirrors draw.ts — every member, no drift", async () => {
-  // `draw(d: Draw)` is only as good as this mirror. The prelude is a hand-written
+await test("scaffold: the DrawContext surface mirrors draw.ts — every member, no drift", async () => {
+  // `draw(d: DrawContext)` is only as good as this mirror. The prelude is a hand-written
   // string (the scaffold runs in the browser and cannot read the filesystem), so
   // it can drift from the runtime in EITHER direction, and the two fail differently:
   //
@@ -1386,7 +1386,7 @@ await test("scaffold: the Draw surface mirrors draw.ts — every member, no drif
   // calling it from a top-level function reported a phantom drift (replayDirect,
   // 2026-08-24). Bounded here; verified to change nothing else, the same 56
   // members either way.
-  const fromClass = src.slice(src.indexOf("export class Draw {"));
+  const fromClass = src.slice(src.indexOf("export class DrawContext {"));
   const body = fromClass.slice(0, fromClass.indexOf("\n}") + 2);
   const real = new Set();
   for (const m of body.matchAll(/^  (?:get|set) ([a-zA-Z]\w*)\(/gm)) real.add(m[1]);
@@ -1402,7 +1402,7 @@ await test("scaffold: the Draw surface mirrors draw.ts — every member, no drif
   const { programSchemas } = await import("../runtime/dist/program-schema.js");
   const prog = parseProgram("App [ ]");
   const scaffold = generateScaffold(programSchemas(prog.classes).schemas, prog.classes, "App");
-  const iface = scaffold.slice(scaffold.indexOf("interface Draw {"));
+  const iface = scaffold.slice(scaffold.indexOf("interface DrawContext {"));
   const declared = new Set([...iface.slice(0, iface.indexOf("\n}")).matchAll(/^  ([a-zA-Z]\w*)[(:]/gm)].map((m) => m[1]));
 
   const missing = [...real].filter((n) => !declared.has(n));
@@ -1412,9 +1412,9 @@ await test("scaffold: the Draw surface mirrors draw.ts — every member, no drif
   // `undefined` in every program that touches it.
   const phantom = [...declared].filter((n) => !real.has(n) && !INTERNAL.includes(n));
   assert.deepEqual(phantom, [],
-    `the scaffold prelude declares Draw members the runtime does not supply: ${phantom.join(", ")}\n` +
+    `the scaffold prelude declares DrawContext members the runtime does not supply: ${phantom.join(", ")}\n` +
     `      A program can reference these, typecheck, and read undefined at runtime.\n` +
-    `      Either implement them on class Draw (runtime/src/draw.ts) or delete them from the prelude.`);
+    `      Either implement them on class DrawContext (runtime/src/draw.ts) or delete them from the prelude.`);
 });
 
 await test("parse() reads a TYPED signature — language §4's canonical form", () => {
@@ -1877,7 +1877,7 @@ await test("raw touch: a view declaring the family gets the finger list, ids sta
 });
 
 await test("draw(d) { … } — the language surface — rides the recorded-draw machinery", async () => {
-  const app = buildProgram(await compiled("App [ width=100, height=60, View [ width=8, height=10, draw(d: Draw) { d.fillRect(0, 0, this.width, 5) } ] ]"));
+  const app = buildProgram(await compiled("App [ width=100, height=60, View [ width=8, height=10, draw(d: DrawContext) { d.fillRect(0, 0, this.width, 5) } ] ]"));
   const log = [];
   app.$attach(mockBackend(log), null);
   settle();
@@ -2253,7 +2253,7 @@ await test("exists: a drawing in the subtree it takes away does not draw again",
   const app = buildProgram(await compiled(`class Holder extends Node [ n: number = 3 ]
     App [ width = 300, height = 200, show: boolean = true, holder: Holder [ ],
       screen: View [ width = 300, height = 200, exists = { app.show },
-        View [ width = 300, height = 200, draw(d: Draw) { const k = app.show ? app.holder.n : app.holder.n * 2; d.fillRect(0, 0, k, 20) } ] ] ]`));
+        View [ width = 300, height = 200, draw(d: DrawContext) { const k = app.show ? app.holder.n : app.holder.n * 2; d.fillRect(0, 0, k, 20) } ] ] ]`));
   try {
     app.$attach(mockBackend([]), null);
     settle();
@@ -4199,7 +4199,7 @@ await test("DataSource auto: fetches once per distinct address, never for a re-d
     globalThis.fetch = async (url) => { hits.push(url); return { ok: true, json: async () => ({ from: url }) }; };
     const app = buildProgram(await compiled(`App [ width=10, height=10,
       zip: string = "",
-      s: DataSource [ url = { parent.zip != "" ? "/w/" + parent.zip : "" }, auto = true ],
+      s: DataSource [ url = { parent.zip != "" ? "/w/" + parent.zip : "" }, autoFetch = true ],
       ]`));
     settle();
     assert.deepEqual(hits, [], "an empty url is not an address — nothing fetches");
@@ -4888,15 +4888,15 @@ await test("graphics pass: a 3D view's homography inverts on the plane and knows
 });
 
 await test("graphics pass: drawImage records a handle op from an Image view, and nothing before it loads", async () => {
-  const { Draw } = await import("../runtime/dist/draw.js");
+  const { DrawContext } = await import("../runtime/dist/draw.js");
   const { drawImageBitmap, drawImageHandles } = await import("../runtime/dist/draw-image.js");
   const el = { naturalWidth: 40, naturalHeight: 20 };          // stands in for the loaded element
   const pic = { loaded: false, bitmap: null, naturalWidth: 0, naturalHeight: 0 };
-  let d = new Draw();
+  let d = new DrawContext();
   d.drawImage(pic, 5, 5);
   assert.equal(d.list().ops.length, 0, "an unloaded source records nothing (the read of `loaded` re-records later)");
   Object.assign(pic, { loaded: true, bitmap: el, naturalWidth: 40, naturalHeight: 20 });
-  d = new Draw();
+  d = new DrawContext();
   d.drawImage(pic, 5, 5);                                       // 3-arg: natural size
   d.drawImage(pic, 0, 0, 100, 50);                              // 5-arg: scaled
   d.drawImage(pic, 20, 0, 20, 20, 60, 60, 10, 10);              // 9-arg: a crop
@@ -5839,6 +5839,45 @@ await test("AnimatorGroup: a reactive `started` drives the whole group (issue #1
   sched.frame(100);
   assert.equal(v.x, 10, "member x ran under the group");
   assert.equal(v.y, 20, "member y ran under the group");
+});
+
+await test("Animator: start() and stop() write `started` — it reads what was last asked for", async () => {
+  const sched = fakeScheduler();
+  setClock(new Clock(sched));
+  const app = buildProgram(await compiled(`App [ width=100, height=100,
+    v: View [ open: boolean = false,
+      anim: Animator [ attribute=x, to=100, duration=100, motion=linear ],
+      gated: Animator [ attribute=y, to=100, duration=100, motion=linear, started = { parent.open } ] ] ]`));
+  const v = app.v;
+  v.anim.start();
+  assert.equal(v.anim.started, true, "start() asked for a run, and `started` says so");
+  sched.frame(0); sched.frame(100);
+  assert.equal(v.anim.arrived, true);
+  assert.equal(v.anim.started, true, "a run that lands on its own does not withdraw the request");
+  v.anim.stop();
+  assert.equal(v.anim.started, false, "stop() withdraws it");
+  v.gated.start();
+  assert.equal(v.gated.started, false, "a { } gate owns `started`: the verb runs it and leaves the gate's value alone");
+  assert.equal(v.gated.running, true);
+});
+
+await test("AnimatorGroup: `arrived` comes true when a run finishes on its own, and start()/stop() write `started`", async () => {
+  const sched = fakeScheduler();
+  setClock(new Clock(sched));
+  const app = buildProgram(await compiled(`App [ width=100, height=100,
+    v: View [ grp: AnimatorGroup [ process=simultaneous, duration=100, motion=linear,
+        Animator [ attribute=x, to=10 ] ] ] ]`));
+  const v = app.v;
+  v.grp.start();
+  assert.equal(v.grp.started, true);
+  sched.frame(0); sched.frame(150);
+  assert.equal(v.grp.running, false);
+  assert.equal(v.grp.arrived, true, "finished on its own: arrived");
+  v.grp.start();
+  sched.frame(200);
+  v.grp.stop();
+  assert.equal(v.grp.arrived, false, "stopped partway: not arrived");
+  assert.equal(v.grp.started, false);
 });
 
 await test("buildProgram(): the target is the parent — a user-declared numeric slot animates too", async () => {
@@ -7403,23 +7442,23 @@ await test("createView/discard notify: auto-size engages on an EMPTY parent; lay
   app.discard();
 });
 
-await test("tooltipLabel: the attribute auto-provides the TooltipLayer singleton (the FocusRing mechanism)", async () => {
+await test("tooltipLabel: the attribute auto-provides the Tooltip singleton (the FocusRing mechanism)", async () => {
   const r = await compile(`App [ width=100, height=100, b: View [ tooltipLabel = "hello", onClick() { } ] ]`);
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
-  assert.ok(r.source.includes("class TooltipLayer"), "the library file was auto-included");
-  assert.ok(r.source.includes("TooltipLayer [ ],"), "the singleton was spliced as the LAST App child (source order stacks)");
+  assert.ok(r.source.includes("class Tooltip"), "the library file was auto-included");
+  assert.ok(r.source.includes("Tooltip [ ],"), "the singleton was spliced as the LAST App child (source order stacks)");
   const none = await compile(`App [ width=100, height=100, b: View [ onClick() { } ] ]`);
-  assert.ok(!none.source.includes("class TooltipLayer"), "no tip anywhere -> no TooltipLayer");
-  const own = await compile(`App [ width=100, height=100, b: View [ tooltipLabel = "x", onClick() { } ], t: TooltipLayer [ ] ]`);
-  assert.equal(own.errors.length, 0, "an app-declared TooltipLayer compiles (bare-tag auto-include)");
-  assert.ok(!own.source.includes("// the tooltip singleton — provided"), "an app-declared TooltipLayer suppresses the auto splice");
+  assert.ok(!none.source.includes("class Tooltip"), "no tip anywhere -> no Tooltip");
+  const own = await compile(`App [ width=100, height=100, b: View [ tooltipLabel = "x", onClick() { } ], t: Tooltip [ ] ]`);
+  assert.equal(own.errors.length, 0, "an app-declared Tooltip compiles (bare-tag auto-include)");
+  assert.ok(!own.source.includes("// the tooltip singleton — provided"), "an app-declared Tooltip suppresses the auto splice");
   // The trigger is SCOPED to View descendants (the manifest's onBase): a
   // Node-descended class owns its own attribute names — an attr named `tooltipLabel`
   // there is the author's slot, never a tooltip.
   const node = await compile(`class Meter extends Node [ tooltipLabel: number = 15 ]
 App [ width=100, height=100, m: Meter [ tooltipLabel = 20 ], t: Text [ text = "x" ] ]`);
   assert.equal(node.errors.length, 0, node.errors.map((e) => e.message).join("; "));
-  assert.ok(!node.source.includes("class TooltipLayer"), "tooltipLabel on a NON-View node does not summon the TooltipLayer");
+  assert.ok(!node.source.includes("class Tooltip"), "tooltipLabel on a NON-View node does not summon the Tooltip");
 });
 
 await test("tooltips: the service's platform conventions — delay, warm retarget, press cools", async () => {
@@ -7757,7 +7796,7 @@ await test("include resolution agrees across hosts: a `..` path names the SAME f
 
 await test("$provide reaches the fetch host: a Control program compiles in-browser, FocusRing and all", async () => {
   // The $provide rules (library/autoincludes.json) splice a component the program
-  // never names: FocusRing whenever anything descends from Control, TooltipLayer
+  // never names: FocusRing whenever anything descends from Control, Tooltip
   // whenever `tooltipLabel` is used. compile.ts reached the host for those through a LOCAL
   // CAST that declared resolveLibrary synchronous — so when the include seam went
   // async the cast lied, `lib` was a Promise, `lib.canonical` undefined, and
@@ -7923,7 +7962,7 @@ await test("hovered: the hit chain — leaf and ancestors, updated by pointer wr
     b: View [ x = 50, y = 50, width = 60, height = 40,
         t: Text [ x = 10, y = 10, text = "hi" ] ],
     ]`));
-  app.hovering = true; settle();
+  app.pointerHovering = true; settle();
   assert.equal(app.hb, false, "no pointer yet");
   app.pointerX = 60; app.pointerY = 60; settle();
   assert.equal(app.hb, true, "chain includes b (leaf is the Text inside)");
@@ -7938,7 +7977,7 @@ await test("hovered: occlusion — a covering view suppresses the chain; pointer
     b: View [ x = 50, y = 50, width = 60, height = 40 ],
     glass: View [ width = 200, height = 200, visible = { parent.glassOn } ],
     ]`));
-  app.hovering = true; app.pointerX = 60; app.pointerY = 60; settle();
+  app.pointerHovering = true; app.pointerX = 60; app.pointerY = 60; settle();
   assert.equal(app.hb, false, "glass over b: b is not on the chain");
   app.glass.pointerEvents = "none"; settle();
   assert.equal(app.hb, true, "pointer-transparent glass: the walk falls through");
@@ -7951,7 +7990,7 @@ await test("pressed: down arms the chain snapshot; drag-off releases; drag-back 
     pb: boolean = { this.b.pressed },
     b: View [ x = 50, y = 50, width = 60, height = 40 ],
     ]`));
-  app.hovering = true; app.pointerX = 60; app.pointerY = 60; settle();
+  app.pointerHovering = true; app.pointerX = 60; app.pointerY = 60; settle();
   app.pointerDown = true; settle();
   assert.equal(app.pb, true, "pressed on down over b");
   app.pointerX = 5; settle();
@@ -7967,7 +8006,7 @@ await test("hovered: geometry moving under a STATIONARY pointer re-fires (the wa
     hb: boolean = { this.b.hovered },
     b: View [ x = 50, y = 50, width = 60, height = 40 ],
     ]`));
-  app.hovering = true; app.pointerX = 60; app.pointerY = 60; settle();
+  app.pointerHovering = true; app.pointerX = 60; app.pointerY = 60; settle();
   assert.equal(app.hb, true);
   app.b.x = 150; settle();                       // the view leaves; the pointer never moved
   assert.equal(app.hb, false, "the chain re-derived from the geometry change alone");
@@ -7981,7 +8020,7 @@ await test("interaction on touch: no hover, but pressed works while down", async
     pb: boolean = { this.b.pressed },
     b: View [ x = 50, y = 50, width = 60, height = 40 ],
     ]`));
-  app.hovering = false;                           // a touch has no hover
+  app.pointerHovering = false;                           // a touch has no hover
   app.pointerX = 60; app.pointerY = 60; settle();
   assert.equal(app.hb, false, "no hover on touch");
   app.pointerDown = true; settle();
@@ -7997,7 +8036,7 @@ await test("hovered: an ignoreClip child hits OUTSIDE its clipping parent's box 
     win: View [ x = 50, y = 50, width = 60, height = 40, clip = true,
         halo: View [ ignoreClip = true, x = -10, y = -10, width = 80, height = 60 ] ],
     ]`));
-  app.hovering = true;
+  app.pointerHovering = true;
   app.pointerX = 45; app.pointerY = 45; settle();   // outside win's box, inside the halo's reach
   assert.equal(app.hh, true, "the opted-out chrome still hits beyond the clip");
   assert.equal(app.hw, true, "its parent is on the chain");
@@ -8018,7 +8057,7 @@ await test("hovered/pressed under the PAGE scroll — the walk's transform carri
     bar: View [ ignoreScroll = true, width = 200, height = 20 ],
     deep: View [ x = 50, y = 900, width = 60, height = 40 ],
     ]`));
-  app.hovering = true; app.scrollY = 880; settle();
+  app.pointerHovering = true; app.scrollY = 880; settle();
   app.pointerX = 60; app.pointerY = 40; settle();       // viewport 40 = content 920 → inside deep
   assert.equal(app.hd, true, "a below-the-fold view hovers at its painted position");
   app.pointerDown = true; settle();
@@ -8036,7 +8075,7 @@ await test("hovered: scrolling under a STATIONARY pointer re-fires (the offset i
     hd: boolean = { this.deep.hovered },
     deep: View [ x = 50, y = 250, width = 60, height = 40 ],
     ]`));
-  app.hovering = true; app.pointerX = 60; app.pointerY = 100; settle();
+  app.pointerHovering = true; app.pointerX = 60; app.pointerY = 100; settle();
   assert.equal(app.hd, false, "below the fold, unscrolled");
   app.scrollY = 170; settle();                          // content 270 slides under the pointer
   assert.equal(app.hd, true, "the scroll alone re-derived the chain");
@@ -8049,7 +8088,7 @@ await test("hovered in a scrolled PANE — frame-space at every level, and the p
         inner: View [ x = 0, y = 400, width = 100, height = 40 ],
         tall: View [ x = 0, y = 800, width = 100, height = 10 ] ],
     ]`));
-  app.hovering = true;
+  app.pointerHovering = true;
   app.pointerX = 60; app.pointerY = 50; settle();       // pane-frame (40,30); content 30 → nothing
   assert.equal(app.hi, false, "unscrolled: inner is 400px down the pane's content");
   app.pane.scrollY = 390; settle();                     // content 30+390 = 420 → inside inner
@@ -8832,9 +8871,9 @@ summarize("unit");
 
 await test("device profile: the facts are read-only, and a hybrid is expressible", async () => {
   const app = buildProgram(await compiled(`App [ width = 100, height = 100,
-    touchy: boolean = { this.touchDevice },
+    touchy: boolean = { this.touchFirst },
     floor:  boolean = { this.hasTouch },
-    fine:   boolean = { this.hasPointer },
+    fine:   boolean = { this.hasMouse },
     live:   string  = { this.lastPointerType },
     ]`));
   settle();
@@ -8845,7 +8884,7 @@ await test("device profile: the facts are read-only, and a hybrid is expressible
 
   // A WINDOWS TOUCH LAPTOP: has both, primary is the trackpad — the case a
   // single boolean cannot answer, and the reason hasTouch exists.
-  app.touchDevice = false; app.hasTouch = true; app.hasPointer = true;
+  app.touchFirst = false; app.hasTouch = true; app.hasMouse = true;
   settle();
   assert.equal(app.touchy, false, "sizing stays desktop — the trackpad IS primary");
   assert.equal(app.floor, true, "but a finger may still arrive: the hit-target floor applies");
@@ -8856,13 +8895,45 @@ await test("device profile: the facts are read-only, and a hybrid is expressible
 });
 
 await test("device profile: an app may not WRITE the profile (the runtime owns it)", () => {
-  const errs = check(parse(`App [ width = 100, height = 100, touchDevice = true ]`));
+  const errs = check(parse(`App [ width = 100, height = 100, touchFirst = true ]`));
   assert.equal(errs.length, 1);
   assert.match(errs[0].message, /read-only/);
-  for (const name of ["hasTouch", "hasPointer", "lastPointerType"]) {
+  for (const name of ["hasTouch", "hasMouse", "lastPointerType"]) {
     const e = check(parse(`App [ width = 100, height = 100, ${name} = ${name === "lastPointerType" ? '"touch"' : "true"} ]`));
     assert.equal(e.length, 1, `${name} must be read-only`);
   }
+});
+
+// ── The shared control vocabulary: TextInput is a runtime primitive and Control a
+// library class (written in Declare, so nothing in the library is privileged).
+// A word they share must mean one thing on both — this keeps them in step. ──
+
+await test("TextInput and Control share their vocabulary: `disabled` is the same boolean on both", async () => {
+  const { readFileSync } = await import("node:fs");
+  const control = readFileSync(new URL("../library/control.declare", import.meta.url), "utf8");
+  const SHARED = ["disabled"];
+  for (const name of SHARED) {
+    assert.match(control, new RegExp(`^\\s*${name}: boolean = false,`, "m"), `library Control declares ${name}: boolean = false`);
+    assert.equal(SCHEMAS.TextInput.attrs[name]?.kind, "boolean", `TextInput's schema declares ${name} as a boolean`);
+  }
+});
+
+await test("TextInput.disabled: no focus, no edits, and announced", async () => {
+  const log = [];
+  const app = buildProgram(await compiled(`App [ width=200, height=100, off: boolean = true,
+    f: TextInput [ width=100, text = "kept", disabled = { app.off } ] ]`));
+  app.$attach(mockBackend(log), null);
+  settle();
+  assert.equal(app.f.focusable, false, "a disabled field is not a tab stop");
+  assert.equal(lastSpec(log).disabled, true, "the native field is told");
+  lastSpec(log).onInput("typed anyway");
+  assert.equal(app.f.text, "kept", "an edit that reaches a disabled field does not land");
+  app.off = false; settle();
+  assert.equal(app.f.focusable, true, "and is one again once enabled");
+  assert.equal(lastSpec(log).disabled, false);
+  const own = buildProgram(await compiled(`App [ width=200, height=100, f: TextInput [ width=100, disabled = true, focusable = true ] ]`));
+  own.$attach(mockBackend([]), null);
+  assert.equal(own.f.focusable, true, "an explicit focusable is the author's");
 });
 
 // ── Time: the clock as a component (time.ts) — the per-frame door ─────────────

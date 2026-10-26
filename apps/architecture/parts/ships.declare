@@ -174,7 +174,7 @@ class Dim [ width = 100%,
     kb: number = 0,
     hue: Color = gray,
     ty: number = 0,
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         d.strokeStyle = this.hue
         d.lineWidth = 1.5
         d.beginPath()

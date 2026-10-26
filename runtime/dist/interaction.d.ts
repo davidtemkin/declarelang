@@ -41,7 +41,7 @@ export interface InteractionApp extends InteractionView {
     pointerX: number;
     pointerY: number;
     pointerDown: boolean;
-    hovering: boolean;
+    pointerHovering: boolean;
 }
 /** One decision the hit walk made, for `traceHitAt` below. Carries the VIEW
  *  rather than a name: this module is deliberately view-free (structural

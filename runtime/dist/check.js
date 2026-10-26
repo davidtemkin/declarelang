@@ -261,6 +261,20 @@ function checkSignatureTypes(el, errors, schemas) {
                 errors.push(new DeclareError(`'${m.name}' receives a ${payload} — write '${m.name}(${first.name}: ${payload})', not '${first.type}'`, first.typePos ?? m.pos));
             }
         }
+        // A view's `draw` receives the drawing context, as a handler receives its
+        // payload: any other type is the same mismatch, caught here with a position.
+        // Canvas code arrives writing `ctx: CanvasRenderingContext2D`.
+        if (m.name === "draw" && schema !== undefined && descendsFrom(schema, "View")) {
+            const first = m.params[0];
+            if (first !== undefined && first.type !== undefined && first.type !== "DrawContext") {
+                errors.push(new DeclareError(`'draw' receives a DrawContext — write 'draw(${first.name}: DrawContext)', not '${first.type}'`, first.typePos ?? m.pos));
+                continue;
+            }
+            if (first !== undefined && first.type === undefined) {
+                errors.push(new DeclareError(`'${first.name}' needs its type — write 'draw(${first.name}: DrawContext)'`, m.pos));
+                continue;
+            }
+        }
         for (const prm of m.params) {
             // A parameter with NO written type is an error (ruled 2026-07-28: the
             // language leans into typing and static analysis — an untyped parameter
@@ -1614,7 +1628,7 @@ export function checkAttr(schema, attr) {
         // The scroll facts get their own message: the natural mistake is to treat
         // the offset as a slot Declare controls (everything else is), and the fix
         // is a VERB (a request to the scroll process) or the declared start.
-        const scroll = attr.name === "scrollY" || attr.name === "scrollX" || attr.name === "scrolling";
+        const scroll = attr.name === "scrollY" || attr.name === "scrollX" || attr.name === "userScrolling";
         const msg = scroll
             ? `${schema.name}.${attr.name} is a fact the platform reports — nothing may set it. To move the scroller, call ${attr.name === "scrollX" ? "scrollToX(x" : "scrollTo(y"}[, { duration, motion }]); for a declared starting offset use ${attr.name === "scrollX" ? "scrollStartX" : "scrollStartY"}`
             : `${schema.name}.${attr.name} is read-only — it is computed, so a constraint may read it but nothing may set it`;
@@ -1623,18 +1637,18 @@ export function checkAttr(schema, attr) {
     // An App is clipped by definition (ruled 2026-07-29): a program owns its
     // rectangle. `clip = false` would promise an un-clipping no realization
     // provides — refused with the rule named. (`clip = true` is legal and
-    // redundant; a Shape clip keeps its meaning.)
+    // redundant; a path clip keeps its meaning.)
     if (attr.name === "clip" && descendsFrom(schema, "App") &&
         attr.value.kind === "ident" && attr.value.name === "false") {
-        return { ok: false, error: new DeclareError(`${schema.name}.clip = false: an App is clipped by definition — overflow along a declared scroll axis is the page's scroll range, and everything else is out of frame. Remove the attribute (a Shape clip is still legal).`, attr.pos) };
+        return { ok: false, error: new DeclareError(`${schema.name}.clip = false: an App is clipped by definition — overflow along a declared scroll axis is the page's scroll range, and everything else is out of frame. Remove the attribute (a path clip is still legal).`, attr.pos) };
     }
     if (attr.bind === "two") {
         // `name <-> :path` — a two-way binding (language §9, the leaf-input
-        // exception): only on an EDITOR's value slot, and only to a single writable
+        // exception): only on a field's draft (a TextInput's `text`), and only to a single writable
         // datapath. Caught here so misuse is a clear compile error, not a silent
         // one-way (or literal) degrade.
-        if (!descendsFrom(schema, "EditControl")) {
-            return { ok: false, error: new DeclareError(`${schema.name}.${attr.name} <-> …: the two-way arrow edits a dataset value through an editor's value (e.g. 'TextInput.text') — ${schema.name} is not an editor. A control shows a value and hands its edits to input(v): write '${attr.name} = ${twoWayField(attr.value)}, input(v) { ${twoWayField(attr.value)} = v }'`, attr.pos) };
+        if (!descendsFrom(schema, "TextInput")) {
+            return { ok: false, error: new DeclareError(`${schema.name}.${attr.name} <-> …: the two-way arrow edits a dataset value through a field's draft ('TextInput.text') — ${schema.name} holds no draft. A control shows a value and hands its edits to input(v): write '${attr.name} = ${twoWayField(attr.value)}, input(v) { ${twoWayField(attr.value)} = v }'`, attr.pos) };
         }
         // The bound field: a static datapath (`:field`) or a `{ }` that NAMES one at
         // runtime (a generic editor over `classroot.field`). Not a literal.

@@ -37,7 +37,7 @@ App [ width = 900, height = 600, fill = #101418,
     tick: number = 0,            // bump to re-record with the same geometry
 
     art: View [ x = 0, y = 0, width = { app.width }, height = { app.height },
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             const W = d.w
             const H = d.h
             const n = Math.max(1, Math.round(app.ops))

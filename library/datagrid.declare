@@ -119,13 +119,6 @@ The column ids in their present order.
 ## colWidthOf()
 The present width of a column by id.
 
-## colData
-The column model as a dataset, which the header and every row read.
-
-## _rowsData
-**Internal.** The items, as the dataset the rows replicate over. It holds the records it
-is given, so a write through a row lands in their source.
-
 ## _dragCol
 **Internal.** The column id currently being dragged.
 
@@ -168,6 +161,10 @@ one is given); in any other cell, its first control does, or — for Space — i
 ## onKeyDown
 Left and Right move the active cell; Enter, F2 or a typed character edits a text column;
 Enter or F2 moves into a cell's control, and Space presses it; the rest is Table's.
+
+## datapath
+The grid's own rows: its `items`, wrapped so each record becomes a row. Set by the grid; not
+yours to point elsewhere.
 */
 
 include [ "table.declare" ]
@@ -242,11 +239,16 @@ class DataGrid extends Table [
 
     currentOrder() -> array { return this.colData.value.cols.map((r) => r.id) },
 
+    // the column model as a dataset, which the header and every row read
+
     colData: Dataset [ contents = { { cols: classroot.columnRecords(classroot.columns, classroot.order, classroot.widths) } } ],
 
     // the rows: one per item, replicated over the items as a dataset that holds
     // them (so a row's write lands in their source); a heading record is a
     // heading row
+
+    // the items, as the dataset the rows replicate over; it holds the records it is
+    // given, so a write through a row lands in their source
 
     _rowsData: Dataset [ contents = { { rows: classroot.items ?? [] } } ],
     datapath = { this._rowsData.value },
@@ -574,10 +576,6 @@ The row's record, as a derived attribute, so its cells follow the record's chang
 ## _grid
 **Internal.** The `DataGrid` it belongs to.
 
-## _cellData
-**Internal.** The row's cells as a dataset: for each column, its place and what it draws, with the row's
-record — the record itself, so a cell's write lands in it.
-
 ## cellAt()
 The cell in a column, by its place in the column model.
 
@@ -604,6 +602,9 @@ class DataGridRow extends TableRow [
     // one cell per column: its place and what it draws, and the row's record
     // in a list of its own — the record itself, never a copy, so what a cell
     // writes lands in the record
+
+    // the row's cells as a dataset: for each column, its place and what it draws, with
+    // the row's record — the record itself, so a cell's write lands in it
 
     _cellData: Dataset [ contents = { { cells: classroot._grid == null ? [] : classroot._grid.colData.value.cols.map((c) =>
         ({ id: c.id, title: c.title, x: c.x, width: c.width, cell: c.cell, edit: c.edit, i: c.i, row: [classroot.rec] })) } } ],
@@ -632,11 +633,15 @@ The heading record.
 ## _grid
 **Internal.** The `DataGrid` it belongs to.
 
-## _headData
-**Internal.** The heading record in a list of its own, for the class that draws it.
-
 ## _isGridHeading
 **Internal.** The marker identifying a heading row — not API.
+
+## height
+The theme's `gridRowHeight`, the same as an ordinary row.
+
+## _kind
+**Internal.** The class the heading row draws: the grid's `headingClass`, else
+`DataGridHeading`.
 */
 
 class DataGridHeadingRow extends TableRow [
@@ -648,6 +653,9 @@ class DataGridHeadingRow extends TableRow [
     rec: object = { this.datapath != null ? :@ : null },
     _grid: DataGrid? = { (this.parent as DataGrid)._isDataGrid === true ? this.parent as DataGrid : null },
     _kind: string = { this._grid != null && this._grid.headingClass != "" ? this._grid.headingClass : "DataGridHeading" },
+
+    // the heading record in a list of its own, for the class that draws it
+
     _headData: Dataset [ contents = { { one: [classroot.rec] } } ],
     View [ width = 100%, height = 100%, datapath = { classroot._headData.value },
         kind: string = { classroot._kind },
@@ -731,6 +739,13 @@ The outline that marks the active cell.
 
 ## cornerRadius
 From the theme's `gridCellCornerRadius` (3 by default): the active cell's outline.
+
+## row
+The `DataGridRow` this cell is drawn in, or null outside one.
+
+## gridFocused
+Whether the grid holds keyboard focus in its body (not its header), so a cell can show
+where the keyboard is.
 */
 
 class DataGridCell [ x = { :x }, width = { :width }, height = 100%, clip = true,

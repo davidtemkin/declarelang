@@ -2,7 +2,7 @@
 
 App [ width = 900, height = 420, fill = #202124, textColor = whitesmoke,
     stripes: View [ width = 900, height = 420,
-        draw(d: Draw) { for (let x = 0; x < 900; x += 24) { d.fillStyle = x % 48 == 0 ? "#3a4a5a" : "#151a20"; d.fillRect(x, 0, 24, 420) } }
+        draw(d: DrawContext) { for (let x = 0; x < 900; x += 24) { d.fillStyle = x % 48 == 0 ? "#3a4a5a" : "#151a20"; d.fillRect(x, 0, 24, 420) } }
         ],
 
     // the badge site's fade: transparent at the top, solid from 11.5% down
@@ -27,7 +27,7 @@ App [ width = 900, height = 420, fill = #202124, textColor = whitesmoke,
     d: View [ x = 700, y = 20, width = 180, height = 260, fill = #2EC4B6,
         mask = { hole },
         hole: View [ visible = false, x = 10, y = 60, width = 160, height = 140,
-            draw(d: Draw) { d.fillStyle = "#000"; d.beginPath(); d.arc(80, 70, 60, 0, Math.PI * 2); d.fill(); d.font = "bold 40px sans-serif"; d.fillText("MASK", 10, 130) }
+            draw(d: DrawContext) { d.fillStyle = "#000"; d.beginPath(); d.arc(80, 70, 60, 0, Math.PI * 2); d.fill(); d.font = "bold 40px sans-serif"; d.fillText("MASK", 10, 130) }
             ]
         ],
 

@@ -37,14 +37,14 @@ App [ width = 360, height = 400, fill = white,
 - A pane keeps the reader's place by itself as content changes size (`scrollAnchor =
   content`, the default); `scrollAnchor = end` follows the end while the reader is there.
   Never read `scrollY` and write it back to hold a place — that is `scrollAnchor`'s job.
-- `scrolling` is the user's scroll only; a request made during it waits until it is over.
+- `userScrolling` is the user's scroll only; a request made during it waits until it is over.
 - A long list: `virtualize = true` on the replicated row — the place holds there too.
 - A drag that reaches a scroller's edge scrolls it; `onPointerMove` keeps hearing moves.
   The dragged view sizes its container from where it was picked up, so scrolling stops at
   the real end; clamp what you write to keep it in range, or spring it home on release.
 - Inside `{ }` the axis is a string: `scrolls == "y"`.
 
-**Look up** `View.scrolls`, `View.scrollY`, `View.scrolling`, `View.scrollAnchor`,
+**Look up** `View.scrolls`, `View.scrollY`, `View.userScrolling`, `View.scrollAnchor`,
 `View.scrollTo`, `View.scrollIntoView`, `View.ignoreScroll`, `View.scrollStartY`,
 `View.virtualize`.
 

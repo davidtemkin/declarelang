@@ -560,10 +560,10 @@ function answer() {
   }
 
   // the shared { } vocabulary — interfaces, aliases, functions, namespaces the
-  // checker declares into every program (Draw, Length, stroke(), Themes…).
+  // checker declares into every program (DrawContext, Length, stroke(), Themes…).
   // Consulted after the attribute-owners answer below, so `stroke` (an
   // attribute AND a constructor) keeps its attribute reading first — with the
-  // constructor cross-referenced — while `Draw` answers as the tier it is.
+  // constructor cross-referenced — while `DrawContext` answers as the tier it is.
   const sharedHit = (kind, list, render) => {
     const hit = (SPINE.types.shared[list] ?? []).find((x) => x.name.toLowerCase() === query.toLowerCase());
     if (!hit) return false;
@@ -595,7 +595,7 @@ function answer() {
     if (hits.length === 0) return false;
     for (const h of hits) {
       say(`${h.mline.trim()} — a member of ${h.cls}, a shared interface every { } body may name`);
-      if (h.cls === "Draw") say(`  the drawing surface: a \`draw(d: Draw)\` member receives it — declare-help View.method.draw`);
+      if (h.cls === "DrawContext") say(`  the drawing surface: a \`draw(d: DrawContext)\` member receives it — declare-help View.method.draw`);
     }
     json = { kind: "shared-member", name: query, on: hits.map((h) => h.cls) };
     return true;
@@ -611,7 +611,7 @@ function answer() {
 
   const answerShared = () =>
     sharedHit("shared-interface", "interfaces", (i) => {
-      say(`${i.name} — a shared interface: every { } body may name it${i.name === "Draw" ? " (the argument of a draw(d: Draw) member — declare one on any view for custom drawing)" : ""}${i.extends ? ` · extends ${i.extends}` : ""}`);
+      say(`${i.name} — a shared interface: every { } body may name it${i.name === "DrawContext" ? " (the argument of a draw(d: DrawContext) member — declare one on any view for custom drawing)" : ""}${i.extends ? ` · extends ${i.extends}` : ""}`);
       const cap = ALL ? Infinity : BUDGET_LINES - 4;
       for (const mline of i.members.slice(0, cap)) say(`  ${mline}`);
       if (i.members.length > cap) say(`  …and ${i.members.length - cap} more — declare-help ${i.name} --all`);
@@ -727,7 +727,7 @@ function answer() {
 
   // A MEMBER of a shared interface, by its bare name — `fillText`, `beginPath`,
   // `addColorStop`. The drawing surface is reached through a PARAMETER
-  // (`draw(d: Draw)`), so its members carry no dotted id in the reference and no
+  // (`draw(d: DrawContext)`), so its members carry no dotted id in the reference and no
   // spelling answered them: `fillText` fell through to the generic miss while
   // `measureText` beside it answered cleanly.
   //

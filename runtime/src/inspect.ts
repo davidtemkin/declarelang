@@ -508,9 +508,10 @@ export function bridgeFor(root: Node): Record<string, unknown> {
     bootCheck: (opts: BootCheckOptions) => bootCheck(root, opts),
     /** Where a point in a view's own units lands in root space — through every
      *  scale, rotation and scroll above it, by the walk the pointer is routed
-     *  by. What a driver presses at to reach "(x, y) inside this view". */
-    rootPoint: (path: string, x: number, y: number) => {
-      const n = find(root, path);
+     *  by. What a driver presses at to reach "(x, y) inside this view". Takes
+     *  a path, or the view itself (a driver walking up to a scroller). */
+    rootPoint: (path: string | View, x: number, y: number) => {
+      const n = typeof path === "string" ? find(root, path) : path;
       if (!(n instanceof View)) return null;
       const [rx, ry] = applyAffine(rootTransform(n as unknown as InteractionView).matrix, x, y);
       return { x: rx, y: ry };

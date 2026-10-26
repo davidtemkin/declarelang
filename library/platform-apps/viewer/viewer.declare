@@ -179,7 +179,7 @@ class SizeGroup extends Disclosure [ width = 100%,
     // the band under the line, drawn beneath it: the page's backdrop, so it
     // recedes in either appearance as a recess, not a raised card
 
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const h = this.line.height, r = 8
         d.fillStyle = provided("theme").background
         d.beginPath()
@@ -243,7 +243,7 @@ App [ fill = { provided("theme").background },
     // sources fetch it — the seeds keep serving only the file the page was
     // opened on.
 
-    segSrc: DataSource [ format = "text", auto = true, url = { app.srcUrl("?segments") },
+    segSrc: DataSource [ format = "text", autoFetch = true, url = { app.srcUrl("?segments") },
         // the program's class index comes with the file it was opened on, and
         // stays while the reader follows links to other files
 
@@ -254,7 +254,7 @@ App [ fill = { provided("theme").background },
     // publish it on the live channel: the edit pane's island then runs the
     // viewed program as soon as the tab opens — no first keystroke needed
 
-    rawSrc: DataSource [ format = "text", auto = true, url = { app.srcUrl("?file") },
+    rawSrc: DataSource [ format = "text", autoFetch = true, url = { app.srcUrl("?file") },
         onLoad() { if (app.liveCard == "" && app.fileRel == "") { app.liveCard = "__raw__"; app.liveSource = "" + (this.value || "") } }
         ],
 
@@ -358,7 +358,7 @@ App [ fill = { provided("theme").background },
     // with no App is no program and has no build. The report names its files from
     // the program's folder, and the library's from the library.
 
-    sizes: DataSource [ auto = true, schema = SizeReport, url = { app.sizesUrl() } ],
+    sizes: DataSource [ autoFetch = true, schema = SizeReport, url = { app.sizesUrl() } ],
     sizesUrl() -> string {
         if (app.mode != "sizes" || app.isInclude) return ""
         if (app.fileRel != "") return app.srcUrl("?sizes")

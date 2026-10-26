@@ -186,7 +186,7 @@ export interface DrawImageSource {
 // The image handle store (register / resolve / list a recording's handles) is
 // draw-image.ts — carried by a production build only when a program calls drawImage.
 
-export class Draw {
+export class DrawContext {
   private readonly ops: DrawOp[] = [];
   /** parallel to `ops` — see DisplayList.extents */
   private readonly extents: (Bounds | null)[] = [];
@@ -488,7 +488,7 @@ export class Draw {
     this.mark(op.dx, op.dy, op.dx + op.dw, op.dy + op.dh);
   }
   /** The run's box from the mirrored text state. With no measurer at all (a
-   *  bare Node test constructing a Draw — headless verify provides one) this
+   *  bare Node test constructing a DrawContext — headless verify provides one) this
    *  falls back to the anchor point, which is what every call did before. */
   private textExtent(text: string, x: number, y: number, maxWidth: number | undefined, pen: number): void {
     let w: number, asc: number, desc: number;
@@ -555,7 +555,7 @@ export class Draw {
   }
   resetTransform(): void { this.ctm = [1, 0, 0, 1, 0, 0]; this.push({ op: "resetTransform" }); }
 
-  /** The finished recording. Called by record(); a Draw is single-use. */
+  /** The finished recording. Called by record(); a DrawContext is single-use. */
   list(): DisplayList {
     return { ops: this.ops, bounds: this.ink, exact: this.exactBounds, extents: this.extents, probes: this.probes };
   }
@@ -608,8 +608,8 @@ function union(b: Bounds | null, x0: number, y0: number, x1: number, y1: number)
 }
 
 /** Run a draw method against a fresh recorder and return its display list. */
-export function record(fn: (d: Draw) => void, boxW?: () => number, boxH?: () => number): DisplayList {
-  const d = new Draw(boxW, boxH);
+export function record(fn: (d: DrawContext) => void, boxW?: () => number, boxH?: () => number): DisplayList {
+  const d = new DrawContext(boxW, boxH);
   fn(d);
   return d.list();
 }

@@ -2,7 +2,6 @@
  *  subclass should extend instead. */
 export const ABSTRACT_CONCRETE: Readonly<Record<string, string>> = {
   Media: "Video, Audio",
-  EditControl: "TextInput",
   Stream: "EventStream, Socket",
 };
 /** The schemas NO runtime class implements — the abstract family bases. They
@@ -12,7 +11,7 @@ export const ABSTRACT_CONCRETE: Readonly<Record<string, string>> = {
  *  concrete members). Every other schema is a base a program class may
  *  extend. A test pins this set against the registry (SCHEMAS − REGISTRY_NAMES),
  *  so it cannot drift when a class joins either table. */
-export const ABSTRACT_SCHEMAS: ReadonlySet<string> = new Set(["Media", "EditControl", "Stream"]);
+export const ABSTRACT_SCHEMAS: ReadonlySet<string> = new Set(["Media", "Stream"]);
 // Class schemas — the typed-attribute declarations of the built-in
 // classes, shared by the checker (check.ts) and the runtime bridge
 // (instantiate.ts). A schema is pure data: the class's name, its base
@@ -235,7 +234,7 @@ const ViewSchema: ClassSchema = {
     // to each unit of the view), so pixel art stays sharp under any scale
     // above it. The whole subtree follows, as it follows a transform. Paint
     // only, never input.
-    imageSmoothing: enumType("ImageSmoothing", "smooth", "pixelated"),
+    imageRendering: enumType("ImageRendering", "smooth", "pixelated"),
     // The frost (compositing.md §3.2): sample what has already painted
     // beneath this view's own painted shape — box, cornerRadius, or shape
     // clip, over-scanned by the blur radius so edges do not bleed dry —
@@ -294,7 +293,7 @@ const ViewSchema: ClassSchema = {
     // the platform's own report (DOM scroll/scrollend, the host's gesture
     // phases). A glide the program asked for is not the user's scroll.
     // Read-only, like the offsets: the arbitration fact.
-    scrolling: { kind: "boolean" },
+    userScrolling: { kind: "boolean" },
     // How this scroller keeps the reader's place as content changes size
     // (scroll-anchor.ts): `content` keeps the view at the top edge still,
     // `end` stays at the end while there, `none` does nothing.
@@ -430,7 +429,7 @@ const ViewSchema: ClassSchema = {
     classFor: { kind: "string" },
     contentHeight: { kind: "length" },
   },
-  // `scrollX`, `scrollY` and `scrolling` are PLATFORM FACTS (platform-
+  // `scrollX`, `scrollY` and `userScrolling` are PLATFORM FACTS (platform-
   // authorship.md; ruled 2026-09-10): the scroll process — a native scroller,
   // or the runtime provider — owns the offset and reports it; the program
   // reads the fact and REQUESTS movement with the verbs (`scrollTo(y)`,
@@ -439,7 +438,7 @@ const ViewSchema: ClassSchema = {
   // Nothing writes the facts — not an assignment, not an Animator (an animator
   // drives a slot; a fact is not one — the checker refuses both, naming the
   // verb). This is what makes "who scrolls" invisible to a program.
-  readOnly: ["contentWidth", "contentHeight", "childViews", "virtualized", "rowIndex", "firstVisibleRow", "lastVisibleRow", "hovered", "pressed", "focused", "onScreen", "visibleRect", "apparentScale", "scrollX", "scrollY", "scrolling"],
+  readOnly: ["contentWidth", "contentHeight", "childViews", "virtualized", "rowIndex", "firstVisibleRow", "lastVisibleRow", "hovered", "pressed", "focused", "onScreen", "visibleRect", "apparentScale", "scrollX", "scrollY", "userScrolling"],
   // R5: the pointer trio (click = press and release on the same view — the
   // shared router's rule, input.ts) plus the construction-complete lifecycle
   // event `init` (Appendix A's onInit). Hover (pointerOver/Out) waits for its
@@ -483,7 +482,7 @@ const AppSchema: ClassSchema = {
     pointerX: { kind: "number" },
     pointerY: { kind: "number" },
     pointerDown: { kind: "boolean" },
-    hovering: { kind: "boolean" },
+    pointerHovering: { kind: "boolean" },
     pointerOverText: { kind: "boolean" },
     // the OS color-scheme, `prefers-color-scheme: dark` — the runtime feeds it and
     // keeps it live as the system theme flips, so an app themes off `app.systemDark`.
@@ -504,18 +503,17 @@ const AppSchema: ClassSchema = {
     // Chrome and the mac host do.) Same fact for an embedded app: visibility
     // is per-document, so an island inherits its page's.
     pageVisible: { kind: "boolean" },
-    // "am I running on a touch device?" — true when the device's PRIMARY pointer
-    // is coarse (`pointer: coarse`), a phone or tablet. A stable device fact (kept
-    // live if the input changes), distinct from the transient `hovering`:
-    // mouse-only affordances (a cursor-chasing dot, a hover reveal) switch off with
-    // `visible = { !app.touchDevice }`.
-    touchDevice: { kind: "boolean" },
-    // The rest of the device profile (boot.ts wireTouchDevice). `hasTouch` /
-    // `hasPointer` are what the device HAS (`any-pointer`), not what is
-    // primary: a touch laptop is both, with touchDevice false. Size from
-    // `touchDevice`; use `hasTouch` for a hit-target FLOOR on hybrids.
+    // "is this device built for touch?" — true when the device's PRIMARY pointer
+    // is coarse (`pointer: coarse`): a phone or tablet, keyboard or not. A stable device fact (kept
+    // live if the input changes) to size from; a hover reveal keys on
+    // `lastPointerType`, and what follows the pointer on `pointerHovering`.
+    touchFirst: { kind: "boolean" },
+    // The rest of the device profile (boot.ts wireInputFacts). `hasTouch` /
+    // `hasMouse` are what the device HAS (`any-pointer`), not what is
+    // primary: a touch laptop is both, with touchFirst false. Size from
+    // `touchFirst`; use `hasTouch` for a hit-target FLOOR on hybrids.
     hasTouch: { kind: "boolean" },
-    hasPointer: { kind: "boolean" },
+    hasMouse: { kind: "boolean" },
     // What the user JUST used — "mouse" | "touch" | "pen", live. The honest
     // answer on a hybrid, where the truth changes per gesture: drive hover-only
     // affordances from it, never layout.
@@ -622,7 +620,7 @@ const AppSchema: ClassSchema = {
   // them). `scrollY` here is App's OWN spec (view.ts) — a dead write before
   // this listing: App's spec shadows View's pusher, so assigning it never
   // moved the page anyway.
-  readOnly: ["hostWidth", "hostHeight", "systemDark", "pageVisible", "touchDevice", "hasTouch", "hasPointer", "lastPointerType", "safeTop", "safeBottom", "safeLeft", "safeRight", "underlapBottom", "keyboardHeight", "scrollY", "pointerX", "pointerY", "pointerDown", "hovering", "pointerOverText"],
+  readOnly: ["hostWidth", "hostHeight", "systemDark", "pageVisible", "touchFirst", "hasTouch", "hasMouse", "lastPointerType", "safeTop", "safeBottom", "safeLeft", "safeRight", "underlapBottom", "keyboardHeight", "scrollY", "pointerX", "pointerY", "pointerDown", "pointerHovering", "pointerOverText"],
   // `onFollowLink(ref) -> ref'` — the app-scoped arrival hook (location.md §0.6):
   // follow() applies it ONCE to every arrival — a linked view, a prose href, a
   // cold URL, back/forward — before routing. Return the reference to proceed
@@ -790,7 +788,7 @@ const ImageSchema: ClassSchema = {
     // `cover`/`contain` (2026-08-06, assessment 1.1): the aspect-PRESERVING
     // fits — contain letterboxes inside the box, cover fills and crops it —
     // beside the axis stretches, which distort by design.
-    stretches: enumType("MediaFit", "none", "width", "height", "both", "cover", "contain"),
+    stretches: enumType("ImageFit", "none", "width", "height", "both", "cover", "contain"),
     // Where an aspect-preserving fit sits in the box (graphics-pass.md §4):
     // `contain` letterboxes on one axis and `cover` crops on one — this says
     // which end the picture keeps. `center` (the default) is what the fits
@@ -817,7 +815,7 @@ const ImageSchema: ClassSchema = {
   },
   readOnly: ["loaded", "failed", "naturalWidth", "naturalHeight"],
 };
-// Media (2026-08): the transport family's abstract base — the EditControl/Stream
+// Media (2026-08): the transport family's abstract base — the Stream
 // arrangement (documented, inheritable, uninstantiable; in this table, not the
 // tag registry). The transport is ATTRIBUTES rather than controls: `playing`
 // and `position` are the two-way pair (author writes, runtime writes back, on
@@ -852,7 +850,7 @@ const VideoSchema: ClassSchema = {
   name: "Video",
   base: MediaSchema,
   attrs: {
-    stretches: enumType("MediaFit", "none", "width", "height", "both", "cover", "contain"),
+    stretches: enumType("ImageFit", "none", "width", "height", "both", "cover", "contain"),
   },
 };
 
@@ -913,29 +911,21 @@ const DOMIslandSchema: ClassSchema = {
 // caret/selection/IME/a11y are native (D-5). Two-way bound with `text <-> :path`:
 // the draft reads the datapath and commits edits back into the dataset. Fires
 // `input` on each edit and `enter` on a single-line submit.
-// EditControl (language §9, the leaf-input exception): the base for a class that
-// two-way edits a dataset value via `<->`. Carries the edit-session surface — the
-// draft's validity/error/dirtiness and WHEN it commits — so any editor (TextInput
-// today, a Picker/DatePopup tomorrow) inherits it. Not written directly.
-const EditorSchema: ClassSchema = {
-  name: "EditControl",
+const TextInputSchema: ClassSchema = {
+  name: "TextInput",
   base: ViewSchema,
   attrs: {
+    // Inert, as a Control's `disabled` (library control.declare): no focus,
+    // no edits, and announced as disabled. The same word on both, kept in step
+    // by a test (the shared control vocabulary).
+    disabled: { kind: "boolean" },
+    // The edit session (language §9, the leaf-input exception; editor.ts):
+    // `text` is the draft — its validity/error/dirtiness and WHEN it commits.
     commitOn: { kind: "string" }, // "input" (live) | "blur" | "enter" | "manual"
-    judgeOn: enumType("EditControlJudgeOn", "edit", "leave"), // when `error` first speaks: at every edit, or once the field has been left
+    judgeOn: enumType("JudgeOn", "edit", "leave"), // when `error` first speaks: at every edit, or once the field has been left
     error: { kind: "string" },    // the current validation error, "" when valid
     valid: { kind: "boolean" },   // does the draft pass validate()?
     dirty: { kind: "boolean" },   // does the draft differ from the committed value?
-  },
-  // The edit session's facts (editor.ts maintains them; user code reads and
-  // derives — a write would silently be recomputed on the next keystroke).
-  readOnly: ["error", "valid", "dirty"],
-};
-
-const TextInputSchema: ClassSchema = {
-  name: "TextInput",
-  base: EditorSchema,
-  attrs: {
     ...FACE_ATTRS,
     ...SELECTABLE_ATTR,
     text: { kind: "string" },
@@ -963,7 +953,8 @@ const TextInputSchema: ClassSchema = {
     selectionStart: { kind: "number" },
     selectionEnd: { kind: "number" },
   },
-  readOnly: ["selectionStart", "selectionEnd"],
+  // the session's facts (editor.ts maintains them; a write would be recomputed on the next keystroke)
+  readOnly: ["selectionStart", "selectionEnd", "error", "valid", "dirty"],
   events: ["input", "enter"],
 };
 
@@ -1136,7 +1127,7 @@ const DataSourceSchema: ClassSchema = {
     body: { kind: "object" },
     // auto-fetch on url arrival/change (data.ts maybeAuto) — the opt-in for
     // REACTIVE addresses; explicit fetch() stays the default discipline.
-    auto: { kind: "boolean" },
+    autoFetch: { kind: "boolean" },
     // How the browser handles cookies, TLS client certs and auth headers —
     // the Fetch API's three credentials modes. Tokens are camelCase, and
     // data.ts maps `sameOrigin` to the wire's `same-origin`, exactly as `blend`
@@ -1320,7 +1311,7 @@ const TooltipsSchema: ClassSchema = {
 // Streams (docs/system-design/streams.md, RULED 2026-07-29) — SSE and
 // WebSocket as sources. One family, three names: the abstract `Stream` base
 // carries the whole shared surface, and sits in this table but NOT the tag
-// registry — documented, inheritable, uninstantiable, exactly the EditControl
+// registry — documented, inheritable, uninstantiable, exactly the Media
 // arrangement. `EventStream` is SSE; `Socket` is WebSocket plus send().
 // status/error/open/last are READ-ONLY lifecycle intrinsics, as a
 // DataSource's loaded/loading/failed are — computed for you, a compile
@@ -1396,7 +1387,7 @@ const FontSchema: ClassSchema = {
   attrs: {
     family: { kind: "string" },
     wait: { kind: "number" },
-    late: enumType("FontLoadBehavior", "swap", "keep"),
+    late: enumType("FontLate", "swap", "keep"),
     loaded: { kind: "boolean" },
     failed: { kind: "boolean" },
   },
@@ -1426,7 +1417,7 @@ export const SCHEMAS: Readonly<Record<string, ClassSchema>> = {
   // Media — the abstract transport base Video and Audio extend (playing/
   // position/duration/volume live here). In the table so the reference can
   // give it a page and the leaves inherit from a documented class; NOT in the
-  // tag registry, so it stays uninstantiable — exactly EditControl's arrangement.
+  // tag registry, so it stays uninstantiable — exactly Stream's arrangement.
   Media: MediaSchema,
   Video: VideoSchema,
   Audio: AudioSchema,
@@ -1435,11 +1426,6 @@ export const SCHEMAS: Readonly<Record<string, ClassSchema>> = {
   Markdown: MarkdownSchema,
   HTMLText: HTMLTextSchema,
   Layout: LayoutSchema,
-  // EditControl — the abstract editing base TextInput extends (commitOn/error/valid/
-  // dirty and commit()/revert() live here). In the table so the reference can
-  // give it a page and TextInput can inherit from a documented class; NOT in the
-  // tag registry, so it stays uninstantiable — exactly Layout's arrangement.
-  EditControl: EditorSchema,
   TweenLayout: TweenLayoutSchema,
   Dataset: DatasetSchema,
   DataSource: DataSourceSchema,
@@ -1455,7 +1441,7 @@ export const SCHEMAS: Readonly<Record<string, ClassSchema>> = {
   // Stream — the abstract base EventStream/Socket extend (url/active/retry +
   // the read-only lifecycle intrinsics live here). In the table so the
   // reference documents it once and subclasses inherit checkably; NOT in the
-  // tag registry, so it stays uninstantiable — the EditControl arrangement.
+  // tag registry, so it stays uninstantiable — the Media arrangement.
   Stream: StreamSchema,
   EventStream: EventStreamSchema,
   Socket: SocketSchema,
@@ -1542,8 +1528,8 @@ export const EVENT_PAYLOAD: Readonly<Record<string, string>> = {
   message: "StreamMessage",                        // Stream: data/type/id (streams.ts)
   filesOver: "FilesOverEvent",                          // View: files dragged over it — how many, where (files.ts)
   filesDrop: "FilesDropEvent",                          // View: the files dropped on it, and where
-  post: "IslandPost",                              // Island bridge: { topic, payload } (view.ts)
-  hostMessage: "IslandPost",                       // App: a message from the host island, { topic, payload } (view.ts postToHost's other half)
+  post: "IslandMessage",                              // Island bridge: { topic, payload } (view.ts)
+  hostMessage: "IslandMessage",                       // App: a message from the host island, { topic, payload } (view.ts postToHost's other half)
   navigate: "IslandNavigation",                    // Island: a hosted program's navigation (island.ts)
   // payload-free: focus, blur, outsidePress, init, enter, load, ready,
   // start, stop, repeat, apply, remove, open, close, error
@@ -1555,7 +1541,7 @@ export const PAYLOAD_TYPE_NAMES: ReadonlySet<string> = new Set([
   ...Object.values(EVENT_PAYLOAD),
   "Touch",                      // reachable through TouchEvent.touches
   "ValueChange",                // reachable through ChangeEvent.changed
-  "Draw", "DrawGradient",       // the `draw(d: Draw)` context (draw.ts)
+  "DrawContext", "DrawGradient",       // the `draw(d: DrawContext)` context (draw.ts)
 ]);
 
 /** Every event `schema` answers, base-first — the inheritance walk of

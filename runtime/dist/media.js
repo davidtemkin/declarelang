@@ -1,7 +1,7 @@
 // Media — the transport, with no face on it. Video and Audio share every fact
 // that matters about a clip in time — `source`, `playing`, `position`,
 // `duration`, `volume` — and differ only in whether there is a picture. So the
-// transport lives here once, on the EditControl/Stream arrangement: an abstract,
+// transport lives here once, on the Stream arrangement: an abstract,
 // documented base that a program can read about and inherit from but never
 // instantiate, with the two concrete leaves each adding exactly what they are.
 //

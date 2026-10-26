@@ -2,7 +2,7 @@ App [ width = 340, height = 200, fill = white, textColor = black,
     level: number = 62,
 
     gauge: View [ x = 20, y = 16, width = 160, height = 92,
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             const frac = app.level / 100
             d.lineWidth = 12
             d.lineCap = "round"

@@ -92,14 +92,14 @@ class EffectsSection extends Section [ title = "Effects",
         Swatch [ name = "drawn stencil · circle",
             s: Subject [ x = 36, y = 16, mask = { this.st },
                 st: View [ visible = false, x = 26, y = 0, width = 88, height = 88,
-                    draw(d: Draw) { d.fillStyle = 0x000000; d.beginPath(); d.arc(44, 44, 44, 0, 6.2832); d.fill() }
+                    draw(d: DrawContext) { d.fillStyle = 0x000000; d.beginPath(); d.arc(44, 44, 44, 0, 6.2832); d.fill() }
                     ]
                 ]
             ],
         Swatch [ name = "drawn stencil · text",
             s: Subject [ x = 36, y = 16, content = "image", mask = { this.st },
                 st: View [ visible = false, width = 140, height = 88,
-                    draw(d: Draw) { d.fillStyle = 0x000000; d.font = "bold 44px Helvetica"; d.textAlign = "center"; d.fillText("MASK", 70, 60) }
+                    draw(d: DrawContext) { d.fillStyle = 0x000000; d.font = "bold 44px Helvetica"; d.textAlign = "center"; d.fillText("MASK", 70, 60) }
                     ]
                 ]
             ],

@@ -344,7 +344,7 @@ if (!CHROME) {
         trackChanges = ["opacity"], onChange(e: ChangeEvent) { } ],
       b: View [ y = 50, width = 40, height = 40, fill = red, mask = gradient(#000000, #00000000) ],
       c: Text [ y = 100, text = "12", numerals = lining, width = { measureText("12", { fontSize: 13 }).width + 4 } ],
-      e: View [ y = 130, width = 60, height = 20, draw(d: Draw) { d.fillText("hi", 2, 14, { fontSize: 12 }) } ],
+      e: View [ y = 130, width = 60, height = 20, draw(d: DrawContext) { d.fillText("hi", 2, 14, { fontSize: 12 }) } ],
       k: any = { blur },
     ]`;
     assert.ok(modsOf(await buildProduction(src, {}))["effects.js"] > STUBBED, "a program naming a constructor keeps effects.js");

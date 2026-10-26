@@ -4,7 +4,7 @@
 
 import { Node } from "./node.js";
 import { sharedClock, DEFAULT_MOTION, type Motion } from "./animate.js";
-import { defineAttributes, disposeBindings, setBound } from "./attributes.js";
+import { defineAttributes, disposeBindings, ownerOf, setBound } from "./attributes.js";
 import { Animator, type Animatable } from "./animator.js";
 
 /** AnimatorGroup — coordinates several animators (or nested groups) in
@@ -67,9 +67,17 @@ export class AnimatorGroup extends Node implements Animatable {
    *  Animator.startedChanged) — the group is the driver, so a change here
    *  starts or stops the whole group, members included. */
   $startedChanged(v: boolean): void {
-    if (!this.autoStarted || this.grouped) return;
+    if (this.$requesting || !this.autoStarted || this.grouped) return;
     if (v) this.start();
     else this.stop();
+  }
+
+  /** The verbs write the request, as an Animator's do (Animator.$request). */
+  private $requesting = false;
+  private $request(v: boolean): void {
+    if (this.started === v || this.grouped || ownerOf(this, "started") !== null) return;
+    this.$requesting = true;
+    try { setBound(this, "started", v); } finally { this.$requesting = false; }
   }
 
   /** The group's own pause is clock membership too (see Animator.pausedChanged):
@@ -99,6 +107,7 @@ export class AnimatorGroup extends Node implements Animatable {
    *  becomes active (so a sequential member samples its `from` only once the
    *  members before it have moved the slot). */
   start(): void {
+    this.$request(true);
     if (this.live) return;
     this.live = true;
     setBound(this, "running", true);
@@ -114,6 +123,12 @@ export class AnimatorGroup extends Node implements Animatable {
   /** Stop the group (LZX stop): halt every still-running member in place, drop
    *  the group ticker, fire onStop. Idempotent. */
   stop(): void {
+    this.$request(false);
+    this.$halt();
+  }
+
+  /** Stop the run without touching the request — teardown's path. */
+  private $halt(): void {
     if (!this.live) return;
     if (!this.grouped) sharedClock.remove(this);
     for (const m of this.active) if (m.running) m.stop();
@@ -124,7 +139,7 @@ export class AnimatorGroup extends Node implements Animatable {
    *  recurse so each member animator disposes its own bindings too. */
   override $teardown(): void {
     disposeBindings(this);
-    this.stop();
+    this.$halt();
     super.$teardown();
   }
 
@@ -172,6 +187,7 @@ export class AnimatorGroup extends Node implements Animatable {
       this.active = this.$members();
       return true;
     }
+    setBound(this, "arrived", true);   // finished on its own — BEFORE onStop, as an Animator's run does
     this.$endGroup();
     return this.live; // an onStop that restarted the group keeps the ticker alive
   }

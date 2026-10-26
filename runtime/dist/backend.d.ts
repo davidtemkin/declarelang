@@ -286,6 +286,8 @@ export interface EditableSpec {
     onEnter?: () => void;
     /** A multi-line field whose Return submits (`TextInput.enterSubmits`). */
     enterSubmits?: boolean;
+    /** The field takes no focus and no edits (`TextInput.disabled`). */
+    disabled?: boolean;
     /** The native selection moved — the caret is a zero-length range. */
     onSelect?: (start: number, end: number) => void;
 }

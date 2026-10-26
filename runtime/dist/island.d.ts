@@ -46,7 +46,7 @@ export declare class Island extends View {
      *  when no tenant is linked — a verb has no meaning without a receiver. */
     post(topic: string, payload?: unknown): void;
     /** @internal tenant → host verb arrival: fire the declared onPost with the
-     *  one-record payload `{ topic, payload }` (IslandPost). */
+     *  one-record payload `{ topic, payload }` (IslandMessage). */
     $receiveMessage(topic: string, payload: unknown): void;
     /** The value this island provides under `name`, if `name` is on its
      *  `provides` list — else undefined, with a warning (the host did not offer
@@ -54,8 +54,9 @@ export declare class Island extends View {
     $providedValue(name: string): unknown;
     /** The foreign content's handle — built once, attached to the island's
      *  element by the DOM backend (`el.__declareIsland`). The whole sanctioned
-     *  surface for non-Declare content, in the same words a Declare tenant
-     *  uses: read what the host provides, expose values up, and the verbs. */
+     *  surface for non-Declare content, reaching what a Declare tenant reaches:
+     *  read what the host provides, expose values up, and the verbs (named as
+     *  the island's: post / onPost). */
     private handle;
     $foreignHandle(): Record<string, unknown>;
 }
@@ -65,12 +66,6 @@ export declare class Island extends View {
  *  the extension, a directory taken as its same-named program; "" when it
  *  names none) and the location after its `#`, and whether it asked for a
  *  window of its own. */
-export interface IslandNavigation {
-    to: string;
-    program: string;
-    location: string;
-    newWindow: boolean;
-}
 /** An embedded app's navigation verbs, answered by the island that hosts it
  *  when that island declares `onNavigate` — the hosting program decides what
  *  a link inside it means (a desktop opens a window) — and by `fallback`, the

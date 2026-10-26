@@ -6,7 +6,7 @@
 
 App [ width = 600, height = 400, fill = #000000,
     field: View [ x = 0, y = 0, width = 600, height = 400,
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             d.fillStyle = "#0B0710"
             d.fillRect(0, 0, 600, 400)
             d.save()

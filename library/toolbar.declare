@@ -128,6 +128,10 @@ A hairline in the theme's `line` around a toggle that is on, as around a segment
 
 ## opacity
 Disabled dims the button, to the theme's `disabledOpacity`.
+
+## stateFill
+The ground for the pressed or hovered state, or none at rest; `fill` uses it when the button
+is not `on`.
 */
 
 class ToolButton extends Control [

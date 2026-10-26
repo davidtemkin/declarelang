@@ -55,7 +55,7 @@
 // and the three-throws stop are its, verbatim.
 import { Node, onDiscard, authoredName } from "./node.js";
 import { sharedClock } from "./animate.js";
-import { defineAttributes, setBound } from "./attributes.js";
+import { defineAttributes, ownerOf, setBound } from "./attributes.js";
 import { noteOrigin, observe } from "./reactive.js";
 import { timeHost } from "./wallclock.js";
 export const TICKS = ["frame", "second", "minute", "hour", "day"];
@@ -301,7 +301,13 @@ export class Time extends Node {
             this.#throws++;
             console.error(`[Declare] onTick on ${who} threw: ${e?.message ?? e}`, e);
             if (this.#throws >= 3) {
-                console.error(`[Declare] ${who} stopped — onTick threw ${this.#throws} ticks in a row; set running = true to restart it`);
+                // The restart a program can make depends on who owns `running`: a
+                // constrained gate cannot be written, but it runs again the next time
+                // what it reads changes (the write below is a runtime write it overrides).
+                const how = ownerOf(this, "running") !== null
+                    ? "`running` is constrained, so it starts again the next time what that constraint reads changes"
+                    : "set running = true to restart it";
+                console.error(`[Declare] ${who} stopped — onTick threw ${this.#throws} ticks in a row; ${how}`);
                 this.#throws = 0;
                 setBound(this, "running", false); // through the write path: a constraint-owned slot yields
             }

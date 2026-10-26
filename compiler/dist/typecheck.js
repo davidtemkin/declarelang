@@ -64,6 +64,7 @@ import { fillDatapaths } from "../../runtime/dist/datapath.js";
  *  not a fix (there is no slot to add to a `number`). */
 const PRIMITIVE_TYPES = new Set(["number", "string", "boolean", "any[]", "Length", "Color"]);
 import { Diag, extensionsOf, nearestName } from "../../runtime/dist/diagnostics.js";
+import { memberHint } from "../../runtime/dist/teach.js";
 import { DeclareError, insetOrRadiusShape, strokeShapeMessage } from "../../runtime/dist/errors.js";
 /** Typecheck every `{ }` body of a program whose bodies are scope-resolved
  *  (bare names already paths). `text` is the source its positions index into —
@@ -445,6 +446,12 @@ function explainTs(d, u, synthTags) {
             m = msg.match(/Property '(.+?)' does not exist on type '(.+?)'\. Did you mean '(.+?)'\?/s);
             if (m !== null && m[2] === "Theme")
                 return themeTokenMiss(m[1], m[3]);
+            if (m !== null && memberHint(m[1]) !== "")
+                return `'${m[1]}' is not a member of ${quoteType(m[2])} — ${memberHint(m[1])}`;
+            // tsc's nearest name may be runtime machinery a program cannot write ($root,
+            // $provided): say what is true without offering it
+            if (m !== null && m[3].startsWith("$"))
+                return `'${m[1]}' is not a member of ${quoteType(m[2])} — declare it (${m[1]}: <type> = …) or fix the name`;
             if (m !== null)
                 return `'${m[1]}' is not a member of ${quoteType(m[2])} — did you mean '${m[3]}'?`;
             return msg;
@@ -452,6 +459,8 @@ function explainTs(d, u, synthTags) {
             m = msg.match(/Property '(.+?)' does not exist on type '(.+?)'/s);
             if (m !== null && m[2] === "Theme")
                 return themeTokenMiss(m[1], null);
+            if (m !== null && memberHint(m[1]) !== "")
+                return `'${m[1]}' is not a member of ${quoteType(m[2])} — ${memberHint(m[1])}`;
             if (m !== null) {
                 // A `:path` LOWERS to `this.$data(…)`, so a path written on a non-view
                 // node surfaces here as a missing `$data` member — and the generic advice
@@ -463,7 +472,7 @@ function explainTs(d, u, synthTags) {
                 if (m[1] === "$setData") {
                     const t = quoteType(m[2]);
                     return `a two-way ':path' WRITES the enclosing view's data, and ${t} is not a view. Reading a path here is fine; ` +
-                        `an edit belongs to the leaf that owns it (a TextInput, an EditControl) — bind the path there, and read it from here.`;
+                        `an edit belongs to the leaf that owns it (a TextInput) — bind the path there, and read it from here.`;
                 }
                 // Reading INTO a stroke. The slot holds one Stroke or four, so `width`
                 // and `color` are there only in the uniform form; TypeScript prints the

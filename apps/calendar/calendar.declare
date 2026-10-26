@@ -506,7 +506,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
        address resolves through it. `auto` fetches whenever the url changes,
        so a base that arrives late still loads the right file. */
 
-    events: Events [ auto = true, url = { hostProvided("base", "") + "data/events.json" } ],
+    events: Events [ autoFetch = true, url = { hostProvided("base", "") + "data/events.json" } ],
 
     /* The model is derived, not built: `cal.contents` recomputes when the visible
        month or the events change, and keyed replication (`:key`, `:id`) makes each

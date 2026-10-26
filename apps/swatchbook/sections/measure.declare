@@ -67,7 +67,7 @@ class MeasureSection extends Section [ title = "Measure",
     Grid [ visible = { classroot.showing("fit") },
         Swatch [ name = "measureText · plate",
             plate: View [ x = 16, y = 12, width = 180, height = 96,
-                draw(d: Draw) {
+                draw(d: DrawContext) {
                     const st = { fontSize: 20, fontWeight: 600 }
                     const m = measureText("日本語 mixed", st)
                     d.fillStyle = 0xE7EBF1; d.fillRect((d.w - m.width) / 2 - 8, 26, m.width + 16, 44)

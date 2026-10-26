@@ -117,6 +117,14 @@ run — put the work here, not in `press()`.
 
 ## textColor
 Follows `inkColor`, the button's one ink decision, so the label and the icon can never disagree. Override `inkColor`, not this.
+
+## primaryFill
+The primary look's ground for the current state: the theme's accent, its hovered or pressed
+shade, and pressed while its menu is open. `fill` picks it when `primary`.
+
+## plainFill
+The plain look's ground for the current state: the theme's control colour and its hovered and
+pressed shades. `fill` picks it when not `primary`.
 */
 
 include [ "control.declare", "icons/icon.declare" ]

@@ -25,7 +25,7 @@ dive, where the camera moves, it is re-drawn every frame.
 class Web [ width = 100%, height = 100%,
     lit: number = -1,              // the lane to light, the claw's, or −1
 
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const tube = app.tube
         const n = tube.rim.length
         const near = tube.nearDepth()
@@ -108,7 +108,7 @@ class FoeView extends Sprite [
 class Flipper extends FoeView [
     turn = { 180 * app.field.flipOf(:@, app.t) },
     ink = { provided("theme").flipper },
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         glowPen(d, ink, 2.4)
         d.beginPath()
         d.moveTo(1, 13)
@@ -130,7 +130,7 @@ class Flipper extends FoeView [
 class Tanker extends FoeView [
     cargo: string = { :cargo ?? "flipper" },
     ink = { provided("theme").tanker },
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const th = provided("theme")
         glowPen(d, ink, 2.4)
         d.beginPath()
@@ -170,7 +170,7 @@ class Tanker extends FoeView [
 class Spiker extends FoeView [
     turn = { app.t * 540 },
     ink = { provided("theme").spiker },
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         glowPen(d, ink, 2.2)
         d.beginPath()
         for (let k = 0; k <= 26; k++) {
@@ -188,7 +188,7 @@ class Spiker extends FoeView [
 
 class Fuseball extends FoeView [
     turn = { Math.sin(app.t * 7) * 40 },
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const th = provided("theme")
         const inks = [th.flipper, th.spiker, th.pulsar, th.claw, th.tanker]
         for (let k = 0; k < 5; k++) {
@@ -209,7 +209,7 @@ class Fuseball extends FoeView [
 class Pulsar extends FoeView [
     pulse: boolean = { app.field.pulsing(:@, app.t) },
     ink = { provided("theme").pulsar },
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const amp = pulse ? 11 : 4
         glowPen(d, ink, pulse ? 3 : 2)
         d.beginPath()
@@ -226,7 +226,7 @@ class ShotView extends Sprite [
     laneAt = :lane,
     depth = { app.field.shotDepth(:@, app.t) },
     ink = { provided("theme").shot },
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         glowPen(d, ink, 2.6)
         d.beginPath()
         d.moveTo(20, 13)
@@ -244,7 +244,7 @@ class FoeShotView extends Sprite [
     depth = { app.field.foeShotDepth(:@, app.t) },
     turn = { app.t * 720 },
     ink = { provided("theme").foeShot },
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         glowPen(d, ink, 2.6)
         d.beginPath()
         d.moveTo(14, 14)
@@ -272,7 +272,7 @@ class Burst extends Remains [
     scale = { spot.w / 40 * (0.5 + age * 5) * (big ? 1.6 : 1) },
     opacity = { clamp(1 - age / app.field.blastLife, 0, 1) },
     ink = { big ? provided("theme").claw : provided("theme").blast },
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         glowPen(d, ink, 2)
         d.beginPath()
         for (let k = 0; k < 12; k++) {
@@ -332,7 +332,7 @@ because the spare lives in the score panel are the same mark.
 */
 
 class ClawMark [ width = 40, height = 40,
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         glowPen(d, provided("theme").claw, 2.4)
         d.beginPath()
         d.moveTo(0, 26)

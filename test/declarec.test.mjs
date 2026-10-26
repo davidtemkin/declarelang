@@ -337,7 +337,7 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // 88 (2026-09-12, the day's runtime surface): measured 86.00 — 88,064 bytes,
   // one byte over the old ceiling, which is what surfaced it. Six additions,
   // every one reachable by a shipped app: the derived-dataset structural merge
-  // (a recompute keeps row identity instead of rebuilding the list), `scrolling`
+  // (a recompute keeps row identity instead of rebuilding the list), `userScrolling`
   // held through wheel activity, the motion facts `running`/`arrived` in place
   // of `atRest`, `Text.maxLines` (a measured line clamp with an ellipsis, in the
   // measurer so every renderer paints the same lines), the change event
@@ -575,8 +575,12 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // viewport lock, draw text and draw image +1.9; core +1.5 (scroll places' paths
   // and the filter spelling moved in, the permitted-class cut, the registry's
   // getters); the effects constructors, no longer brought in by a fill, −0.5.
+  // 153 → 154 KB (2026-10-25, the user's scroll is the user's hand): `userScrolling`
+  // comes on only while a hand can be scrolling (a finger, one that just
+  // travelled, a wheel, a scrolling key outside a text field, the bar), and the
+  // scroll watcher's timers run on the platform's time — measured 153.2 KB.
   const wire = out.files.reduce((n, f) => n + gzipSync(Buffer.from(f.contents)).length, 0);
-  assert.ok(wire > 20 * 1024 && wire < 153 * 1024,
+  assert.ok(wire > 20 * 1024 && wire < 154 * 1024,
     `unexpected FIRST-LOAD size ${(wire / 1024).toFixed(1)} KB — ` +
     out.files.map((f) => `${f.name} ${(gzipSync(Buffer.from(f.contents)).length / 1024).toFixed(1)}`).join(", "));
 

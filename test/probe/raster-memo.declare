@@ -6,7 +6,7 @@ App [ width = 600, height = 400, fill = #FFFFFF,
     hue: number = 120,
     tick: number = 0,
     art: View [ x = 40, y = 40, width = 320, height = 240,
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             const t = app.tick
             d.filter = "blur(6px)"
             d.fillStyle = "hsl(" + app.hue + ", 70%, 60%)"

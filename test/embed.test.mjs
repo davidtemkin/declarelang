@@ -6,8 +6,8 @@
 //   - both apps mount and lay out, each in its own box (multi-mount);
 //   - an embedded app's appName does NOT retitle the page;
 //   - an embedded app's location moves NEITHER the URL nor history;
-//   - the verbs work: navigate() routes through the app's own hostServices
-//     (and an embedder can replace the table — the interception seam);
+//   - the page hosts the app in an island's words: boot({ onNavigate }) takes
+//     its navigation, and messages and exposed values cross through the handle;
 //   - input stays in its box: a click in B never reaches A;
 //   - the page is IDLE: zero rAF while nobody touches it (the loops are gone);
 //   - `pageVisible` reaches embedded apps and flips with the document.
@@ -98,16 +98,27 @@ await test("an embedded location moves neither the URL nor history", async () =>
   assert.equal(after.hlen, before.hlen, "no history entry was minted");
 });
 
-await test("navigate() routes through hostServices — and an embedder can intercept", async () => {
-  await page.evaluate(() => {
-    const a = document.getElementById("slot-a").__declareApp;
-    window.__navCalls = [];
-    a.$hostServices = { ...a.$hostServices, navigate: (to) => window.__navCalls.push(to) };
-  });
+await test("the page as host: boot({ onNavigate }) takes the app's navigation", async () => {
   await clickIn("slot-a", 90, 122);           // the "navigate out" button
-  const calls = await page.evaluate(() => window.__navCalls);
-  assert.deepEqual(calls, ["https://example.com/away"], "the verb reached the service, synchronously");
+  const navs = await page.evaluate(() => window.__navs);
+  assert.equal(navs.length, 1, "the navigation reached the page, synchronously");
+  assert.equal(navs[0].to, "https://example.com/away");
+  assert.equal(navs[0].newWindow, false);
   assert.equal(page.url().startsWith(`${B}/test/probe/embed-page.html`), true, "the page itself never navigated");
+});
+
+await test("the page as host: messages both ways, and what the app exposes", async () => {
+  const out = await page.evaluate(() => {
+    const t = window.__tenantA;
+    t.post("hello", 1);
+    return { heard: t.app.heard, posts: window.__posts, sameHandle: document.getElementById("slot-a").__declareTenant === t,
+      clicks: t.exposed("clicks", -1), unlisted: t.exposed("heard", "none") };
+  });
+  assert.equal(out.heard, "hello", "tenant.post arrived as onHostMessage");
+  assert.deepEqual(out.posts, [{ topic: "ack", payload: "hello" }], "the app's postToHost reached boot({ onPost })");
+  assert.equal(out.sameHandle, true, "the element carries the handle boot() resolved to");
+  assert.equal(typeof out.clicks, "number", "an exposed value is readable");
+  assert.equal(out.unlisted, "none", "a name the app does not expose is not");
 });
 
 await test("input stays in its box — a click in B never reaches A", async () => {

@@ -50,7 +50,7 @@ The width and height of a day, 32 by default.
 ## today
 Today, `"YYYY-MM-DD"`, from the calendar's own clock, so it turns over at midnight.
 
-## shown
+## shownMonth
 The month on screen, `"YYYY-MM"`: the value's month, else today's, until the month
 buttons, the keys or a pick move it. Set it to show another month.
 
@@ -179,6 +179,12 @@ A ring in the accent on today.
 
 ## opacity
 Dimmed to the theme's `disabledOpacity` when disabled.
+
+## accentFill
+The chosen day's ground: the theme's accent, or its hovered or pressed shade.
+
+## plainFill
+Any other day's ground: the control's hovered or pressed shade, or none at rest.
 */
 
 /*
@@ -319,8 +325,8 @@ class MonthCalendar [
 
     clock: Time [ tick = day ],
     today: string = { this.isoOf(this.clock.year, this.clock.month, this.clock.day) },
-    shown: string = { (value != "" ? value : today).slice(0, 7) },
-    title: string = { this.dateOf(shown).toLocaleDateString(app.language, ({ month: "long", year: "numeric" })) },
+    shownMonth: string = { (value != "" ? value : today).slice(0, 7) },
+    title: string = { this.dateOf(shownMonth).toLocaleDateString(app.language, ({ month: "long", year: "numeric" })) },
     gridW: number = { 7 * daySize + 12 },
     width = { this.gridW },
 
@@ -351,7 +357,7 @@ class MonthCalendar [
     // ── the six weeks on screen, as data ──────────────────────────────────
 
     weeks() -> array {
-        const first = this.dateOf(shown + "-01")
+        const first = this.dateOf(shownMonth + "-01")
         const lead = (first.getDay() - weekStart + 7) % 7
         const named = new Intl.DateTimeFormat(app.language, ({ weekday: "long", year: "numeric", month: "long", day: "numeric" }))
         const out = []
@@ -379,17 +385,17 @@ class MonthCalendar [
 
     // ── what the buttons and keys do ──────────────────────────────────────
 
-    step(n: number) { shown = this.addMonths(shown + "-01", n).slice(0, 7) },
+    step(n: number) { shownMonth = this.addMonths(shownMonth + "-01", n).slice(0, 7) },
 
     pick(iso: string) {
-        const moved = iso.slice(0, 7) != shown
-        shown = iso.slice(0, 7)
+        const moved = iso.slice(0, 7) != shownMonth
+        shownMonth = iso.slice(0, 7)
         if (moved && Focus.holds(this.grid)) afterSettle(() => { const c = this.cellFor(iso); if (c != null) Focus.focus(c) })
         input(iso)
         },
 
     entryDay() -> string {
-        const d = value.startsWith(shown) ? value : today.startsWith(shown) ? today : shown + "-01"
+        const d = value.startsWith(shownMonth) ? value : today.startsWith(shownMonth) ? today : shownMonth + "-01"
         return this.clamp(d)
         },
 
@@ -418,7 +424,7 @@ class MonthCalendar [
         },
 
     moveTo(iso: string) {
-        shown = iso.slice(0, 7)
+        shownMonth = iso.slice(0, 7)
         afterSettle(() => { const c = this.cellFor(iso); if (c != null) Focus.focus(c) })
         },
 
@@ -433,11 +439,11 @@ class MonthCalendar [
             ],
         Spacer [ ],
         prev: MonthCalendarArrow [ dir = -1, y = center,
-            disabled = { classroot.min != "" && classroot.shown <= classroot.min.slice(0, 7) },
+            disabled = { classroot.min != "" && classroot.shownMonth <= classroot.min.slice(0, 7) },
             press() { if (!disabled) classroot.step(-1) }
             ],
         next: MonthCalendarArrow [ dir = 1, y = center,
-            disabled = { classroot.max != "" && classroot.shown >= classroot.max.slice(0, 7) },
+            disabled = { classroot.max != "" && classroot.shownMonth >= classroot.max.slice(0, 7) },
             press() { if (!disabled) classroot.step(1) }
             ]
         ],
@@ -556,7 +562,7 @@ class DatePicker extends Control [
     open() {
         if (this.pop.shown || disabled) return
         const c = this.pop.cal
-        if (c != null) c.shown = (value != "" ? value : c.today).slice(0, 7)
+        if (c != null) c.shownMonth = (value != "" ? value : c.today).slice(0, 7)
         this.pop.showFor(this)
         },
 

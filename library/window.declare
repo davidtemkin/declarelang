@@ -356,7 +356,7 @@ class Window [ width = 360, height = 240,
             onPointerDown(e: PointerEvent) { classroot._sizeStart() },
             onPointerMove(e: PointerEvent) { classroot._sizeBy("rb", e.deltaX, e.deltaY) },
             onPointerUp(e: PointerUpEvent) { classroot._sizeEnd(e.canceled) },
-            draw(d: Draw) {
+            draw(d: DrawContext) {
                 d.strokeStyle = provided("theme").textFaint
                 d.lineWidth = 1
                 d.lineCap = "round"

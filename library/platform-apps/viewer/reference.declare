@@ -18,7 +18,7 @@ script {
         "SegmentedItem", "Sheet", "Shortcuts", "SimpleLayout", "Slider", "Socket", "Spacer", "Splitter",
         "Spring", "State", "Stepper", "SunIcon", "Switch", "TabBar", "TabBarTab", "Table",
         "TableRow", "Text", "TextInput", "TextLabel", "TextLargeIcon", "TextMediumIcon", "TextSizeIcon", "TextSizeSwitch",
-        "TextSmallIcon", "Time", "Toast", "ToolButton", "Toolbar", "ToolbarDivider", "TooltipLayer", "Tooltips",
+        "TextSmallIcon", "Time", "Toast", "ToolButton", "Toolbar", "ToolbarDivider", "Tooltip", "Tooltips",
         "Tree", "TreeRow", "TweenLayout", "Video", "View", "Window", "WindowClose", "WrappingLayout"
         ]
     }

@@ -53,7 +53,7 @@ App [ fill = #0B0E12,
             ? Math.max(app.width / app.refW, app.height / app.refH)
             : 1 },
 
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             const W = d.w
             const H = d.h
             const n = Math.max(1, Math.round(app.weight))

@@ -1,5 +1,6 @@
 import { shellMedia } from "./shell-media.js";
 import { applyPurpose } from "../../runtime/dist/purpose.js";
+import { navigationOf, type IslandNavigation } from "../../runtime/dist/navigation.js";
 // shell — the page's side of render=gpu.
 //
 // The ordinary boot resolves the program (an artifact, a cached compile, or the dev
@@ -57,7 +58,9 @@ async function compileIsland(c: IslandCompile, url: string): Promise<unknown> {
  *  the page's stand-in for the app: reads answer its values (tracked, when the page's runtime
  *  handed over `externalValue`, so `observe` follows them) and writes go to it. */
 export async function bootGpu(cfg: { program: unknown; main: string; host?: HTMLElement | null; provides?: Record<string, unknown>;
-  externalValue?: ExternalValue; island?: IslandCompile }): Promise<unknown> {
+  externalValue?: ExternalValue; island?: IslandCompile;
+  /** the page as a host (host-client's boot options): the app's postToHost, and its navigation */
+  onPost?: (m: { topic: string; payload: unknown }) => void; onNavigate?: (nav: IslandNavigation) => void }): Promise<unknown> {
   const shellStart = performance.timeOrigin + performance.now();
   const doc = document;
   const embedded = cfg.host != null;
@@ -98,9 +101,12 @@ export async function bootGpu(cfg: { program: unknown; main: string; host?: HTML
 
   const darkQ = matchMedia("(prefers-color-scheme: dark)");
   const coarseQ = matchMedia("(pointer: coarse)");
+  // what the device HAS, apart from what is primary: the app's hasTouch / hasMouse
+  const anyCoarseQ = matchMedia("(any-pointer: coarse)");
+  const anyFineQ = matchMedia("(any-pointer: fine)");
   const page = () => ({
     width: embedded ? box.clientWidth : doc.documentElement.clientWidth, height: embedded ? box.clientHeight : doc.documentElement.clientHeight,
-    dpr: devicePixelRatio || 1, dark: darkQ.matches, coarse: coarseQ.matches,
+    dpr: devicePixelRatio || 1, dark: darkQ.matches, coarse: coarseQ.matches, anyCoarse: anyCoarseQ.matches, anyFine: anyFineQ.matches,
   });
 
   const worker = new Worker(new URL("./worker.js", import.meta.url), { type: "module" });
@@ -147,6 +153,8 @@ export async function bootGpu(cfg: { program: unknown; main: string; host?: HTML
   if (embedded) new ResizeObserver(sendPage).observe(box); else addEventListener("resize", sendPage);
   darkQ.addEventListener("change", sendPage);
   coarseQ.addEventListener("change", sendPage);
+  anyCoarseQ.addEventListener("change", sendPage);
+  anyFineQ.addEventListener("change", sendPage);
   doc.addEventListener("visibilitychange", () => post({ t: "visible", v: doc.visibilityState === "visible" }));
 
   // ── input ──────────────────────────────────────────────────────────────────
@@ -385,10 +393,10 @@ export async function bootGpu(cfg: { program: unknown; main: string; host?: HTML
     }
     return f;
   };
-  // a later change to what the page provides (host-client's el.__declareApp.provide)
+  // a later change to what the page provides (the tenant handle's provide, below)
   const provide = (name: string, v: unknown): void => post({ t: "provide", name, v });
   const standIn = new Proxy({} as Record<string, unknown>, {
-    get: (_t, name) => typeof name !== "string" || name === "then" ? undefined : name === "provide" ? provide : fact(name).get(),
+    get: (_t, name) => typeof name !== "string" || name === "then" ? undefined : fact(name).get(),
     set: (_t, name, v) => { if (typeof name !== "string") return false; fact(name).set(v); post({ t: "app-set", name, v }); return true; },
   });
   let resolveReady: (v: unknown) => void = () => {};
@@ -401,7 +409,18 @@ export async function bootGpu(cfg: { program: unknown; main: string; host?: HTML
         if (!embedded && typeof m.title === "string" && m.title !== "") doc.title = m.title;
         for (const [k, v] of Object.entries((m.values ?? {}) as Record<string, unknown>)) known.set(k, v);
         if (embedded) (box as HTMLElement & { __declareApp?: unknown }).__declareApp = standIn;
-        resolveReady(standIn);
+        {
+          // the page's handle on the app, as host-client's: the app's values through
+          // the stand-in, the verbs as messages to the worker
+          const tenant = Object.freeze({
+            app: standIn,
+            post: (topic: string, payload?: unknown) => post({ t: "host-post", topic: String(topic), payload }),
+            provide,
+            exposed: (name: string, ...dflt: unknown[]) => { const v = standIn[name]; return v === undefined && dflt.length > 0 ? dflt[0] : v; },
+          });
+          (box as HTMLElement & { __declareTenant?: unknown }).__declareTenant = tenant;
+          resolveReady(tenant);
+        }
         {
           // the startup timeline, ms from navigation: the boot handing over, then the worker's milestones
           const rel = (t: number) => +(t - performance.timeOrigin).toFixed(1);
@@ -451,7 +470,15 @@ export async function bootGpu(cfg: { program: unknown; main: string; host?: HTML
         return;
       }
       // a program's navigation verbs, carried out by the page (host-client's navServices)
-      case "navigate": if (m.newWindow === true) window.open(m.url as string, "_blank"); else location.href = m.url as string; return;
+      case "navigate":
+        if (cfg.onNavigate !== undefined) cfg.onNavigate(navigationOf(m.url as string, m.newWindow === true));
+        else if (m.newWindow === true) window.open(m.url as string, "_blank"); else location.href = m.url as string;
+        return;
+      // the app's postToHost, to a page that listens (boot({ onPost }))
+      case "tenant-post":
+        if (cfg.onPost !== undefined) cfg.onPost({ topic: m.topic as string, payload: m.payload });
+        else console.warn(`[Declare] app.postToHost("${m.topic as string}"): the page passed no onPost to boot() — message dropped`);
+        return;
       case "places": try { sessionStorage.setItem(PLACES, JSON.stringify(m.places)); } catch { /* storage refused: in-page Back still works */ } return;
       case "island": {
         const id = m.id as number, slot = m.slot as string;

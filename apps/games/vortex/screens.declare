@@ -110,13 +110,13 @@ class TitleScreen [ x = center, y = center,
     title: Text [ fontSize = 72, fontWeight = bold, letterSpacing = 18,
         textColor = { provided("theme").title },
         textShadow = { shadow(0, 0, 18, provided("theme").title) }, text = "VORTEX" ],
-    keys: View [ padding = [18, 0, 18, 0], datapath = { app.help.value }, visible = { !app.touchDevice },
+    keys: View [ padding = [18, 0, 18, 0], datapath = { app.help.value }, visible = { !app.touchFirst },
         layout: SimpleLayout [ axis = y, spacing = 8 ],
         KeyRow [ datapath = :keys[] ]
         ],
     start: Text [ fontSize = 20, letterSpacing = 6, textColor = { provided("theme").claw },
         opacity = { Math.floor(classroot.blink.now / 500) % 2 == 0 ? 1 : 0.25 },
-        text = { app.touchDevice ? "PRESS START" : "PRESS RETURN TO START" } ]
+        text = { app.touchFirst ? "PRESS START" : "PRESS RETURN TO START" } ]
     ]
 
 
@@ -131,7 +131,7 @@ the middle; a ten-second clock runs out at the bottom.
 
 class TubeIcon [ width = 56, height = 56,
     level: number = 1,
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const shape = app.tubes.value.shapes[mod(level - 1, 16)]
         if (shape == null) return
         glowPen(d, app.paletteFor(level).icon, 2.4)

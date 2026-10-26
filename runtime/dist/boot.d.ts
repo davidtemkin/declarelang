@@ -16,14 +16,14 @@ import type { Program } from "./parser.js";
  *  where the decision lives — on the page, not in a boot flag. `closest`
  *  matches the host itself, so one selector answers both. */
 export declare function isEmbedded(host: HTMLElement): boolean;
-/** The host's service table for the app→host verbs (App.hostServices): install
+/** The host's service table for the app→host verbs (App.$hostServices): install
  *  it at mount and `navigate`/`openWindow`/`inspect` call it SYNCHRONOUSLY —
  *  inside the click's transient user activation — instead of parking intents
  *  on the pending* channels for a poll that no longer exists. Per-app, so a
- *  page hosting several apps routes each to its own services, and a FOREIGN
- *  page embedding a widget can supply its own (route `navigate` into an SPA
- *  router). The tenancy contract lives here by construction: an embedded app
- *  simply never gets the page-scoped services installed. */
+ *  page hosting several apps routes each to its own services, and an embedding
+ *  page takes the navigation verbs over with `boot({ onNavigate })` (host-client).
+ *  The tenancy contract lives here by construction: an embedded app simply
+ *  never gets the page-scoped services installed. */
 export interface HostServices {
     navigate?: (to: string) => void;
     openWindow?: (to: string) => void;

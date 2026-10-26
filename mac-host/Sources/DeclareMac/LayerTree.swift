@@ -84,7 +84,7 @@ final class Node {
     // ── the scroll process's state (scrolling.md "The scroll process") ──
     /// This view claims the wheel (`onWheel`): the walk hands it the stream.
     var wantsWheel = false
-    /// The `scrolling` fact: a stream, its momentum, a bar drag or a glide is
+    /// The `userScrolling` fact: a stream, its momentum, a bar drag or a glide is
     /// moving this scroller. Reported to the runtime once per frame.
     var scrollingLive = false
     /// A GESTURE owns the offset (trackpad stream through its momentum, a bar
@@ -718,7 +718,7 @@ final class LayerTree {
             if vertical { n.glideY = g } else { n.glideX = g }
             gliding.insert(n.id)
             if LayerTree.scrollDebug { NSLog("[scroll] glide #%d %@ %.0f -> %.0f over %.0fms", n.id, vertical ? "y" : "x", g.from, g.to, g.duration * 1000) }
-            // a glide is the PROGRAM's motion: `scrolling` is the user's scroll
+            // a glide is the PROGRAM's motion: `userScrolling` is the user's scroll
             // alone, so it stays as it was (a request waits on the user's, not this)
             bridge.needsFrame()
         case 23: // CURSOR
@@ -2334,7 +2334,7 @@ final class LayerTree {
     }
 
     /// A plain request or a gesture cancels the glide on its axis; when
-    /// nothing else keeps the scroller live, `scrolling` settles with it.
+    /// nothing else keeps the scroller live, `userScrolling` settles with it.
     private func cancelGlide(_ n: Node, vertical: Bool) {
         if vertical { n.glideY = nil } else { n.glideX = nil }
         guard n.glideY == nil, n.glideX == nil else { return }
@@ -2426,7 +2426,7 @@ final class LayerTree {
         }
     }
 
-    /// Stream bookkeeping for one scroller: `scrolling` rises with the first
+    /// Stream bookkeeping for one scroller: `userScrolling` rises with the first
     /// delta and settles when the platform says the stream ended (momentum
     /// .ended/.cancelled), or when it goes quiet — 80ms after a lifted finger
     /// that no momentum followed, 120ms after the last legacy wheel tick.

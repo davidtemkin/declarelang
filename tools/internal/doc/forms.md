@@ -182,15 +182,15 @@ the base is `Node` — a model class with no box.
 `extends` is not a top-level form in its own right: it is part of a `class` declaration.
 The base may be declared later in the file, or in an included one. Any concrete built-in is
 a base — `View`, `Node`, `Layout` and `TweenLayout`, `Dataset`, `Spring`, `Keys`, `State` and
-the rest — as is any class descending from one; only the abstract bases (`Stream`, `Media`,
-`EditControl`) are refused.
+the rest — as is any class descending from one; only the abstract bases (`Stream`, `Media`)
+are refused.
 
 ### rules
 
 - The base must be a class: a built-in or a declared one.
   > says: unknown base 'Widget' — a class extends a library class or one declared in this program
   > probe: class Chip extends Widget [ ]\nApp [ Chip [ ] ]
-- Any built-in class is a base — View, Layout, Node, Dataset, Spring, Keys, State alike; only an abstract base (Stream, Media, EditControl), which no runtime class implements, is refused.
+- Any built-in class is a base — View, Layout, Node, Dataset, Spring, Keys, State alike; only an abstract base (Stream, Media), which no runtime class implements, is refused.
   > says: 'Stream' is an abstract base — it names no class to construct; extend one of its concrete members (EventStream, Socket)
   > probe: class S extends Stream [ ]\nApp [ ]
 - A subclass may not take a built-in's name.
@@ -737,7 +737,7 @@ so data flow stays traceable. One-way `:path` everywhere else.
 ### rules
 
 - The left side is an editor's value; a Text is not an editor.
-  > says: the two-way arrow edits a dataset value through an editor's value (e.g. 'TextInput.text') — Text is not an editor
+  > says: the two-way arrow edits a dataset value through a field's draft ('TextInput.text') — Text holds no draft
   > probe: App [ d: Dataset { { "title": "x" } }, datapath = { d.value }, t: Text [ text <-> :title ] ]
 - There must be data to edit: a `datapath` above the editor.
   > says: has no data to edit — a two-way binding writes into a dataset through the nearest enclosing 'datapath', and nothing above this declares one
@@ -749,7 +749,7 @@ so data flow stays traceable. One-way `:path` everywhere else.
 ### related
 
 forms: datapath, set
-classes: TextInput, EditControl, Dataset
+classes: TextInput, Dataset
 guide: 14-data · Data, 08-controls · Controls
 
 ## constructors
@@ -869,9 +869,8 @@ the code is written on; **`parent`**; **`classroot`**, the instance of the class
 defined, from any depth inside it; and **`app`**, the running application, from anywhere.
 
 Built-ins never resolve outward: every view carries `width`, so a bare `width` is always
-*this* node's. `classroot` is legal only inside a `class` body. Two structural members every
-View carries, `root` (what `app` compiles to) and `children`, are reserved as well — a child
-or attribute named `root` would shadow every `app.…` in the same class.
+*this* node's. `classroot` is legal only inside a `class` body. One structural member every
+View carries, `children`, is reserved as well.
 
 ### rules
 

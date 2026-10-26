@@ -37,7 +37,7 @@ App [ width = 1200, height = 750, fill = #202024,
         ],
 
     grid: View [ x = 0, y = 0, width = { app.width }, height = { app.height },
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             const list = app.cells
             for (let i = 0; i < list.length; i = i + 1) {
                 const cx = (i % app.cols) * app.cellW
@@ -55,7 +55,7 @@ App [ width = 1200, height = 750, fill = #202024,
 
     // One feature per branch. Coordinates are cell-local (the caller translated).
 
-    cell(d: Draw, k: string) {
+    cell(d: DrawContext, k: string) {
         const W = this.cellW
         const H = this.cellH
         if (k == "fillRect") {

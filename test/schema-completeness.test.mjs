@@ -36,15 +36,8 @@ import { SCHEMAS } from "../runtime/dist/schema.js";
 const EXEMPT = new Map([
   ["TweenLayout.from", "retarget() overwrites it from the children's live geometry every transition"],
   ["TweenLayout.to", "same — the destination boxes, recomputed per retarget, read by no program"],
-  ["App.pageWeight", "a host-client write with no Declare surface (schema.ts notes this)"],
-  ["App.sourceLines", "same — measured by the host, never authored"],
   ["App.demoSources", "an interim host channel the docs app reads (schema.ts notes this)"],
   ["App.liveReport", "same — the last live recompile's rendered report"],
-  ["View.$scrollsOn", "kernel-facing: a numeric mirror of `scrolls` for the native visibility rule; authored nowhere"],
-  ["View.$visOn", "kernel-facing: an output of the native visibility rule, read by the runtime, authored nowhere"],
-  ["View.$visMode", "same — the visibility rule's mode word, set by the runtime"],
-  ["View.$insetX", "the content box's horizontal inset total, maintained by `padding`'s push for kernel reads; `padding` is the surface"],
-  ["View.$insetY", "same — the vertical total"],
   ["View.exposes", "declared on App, the only class a program may set it on (what a tenant offers up); the runtime stores it on View"],
 ]);
 
@@ -60,12 +53,14 @@ function declared(schema) {
 
 /** What the runtime actually publishes: `defineAttributes` keys, plus public
  *  getters (the derived form — `get loaded()` off `status` — which is how four
- *  of DataSource's nine missing slots were spelled). */
+ *  of DataSource's nine missing slots were spelled). A `$` name is machinery by
+ *  construction — a program cannot declare one, and no reference lists it — so
+ *  it is not surface and needs no exemption. */
 function published() {
   const out = new Map();
   const add = (cls, name) => out.set(cls, (out.get(cls) ?? new Set()).add(name));
   for (const m of SRC.matchAll(/defineAttributes\(\s*(\w+)\s*,\s*\{([\s\S]*?)\n\}\);/g)) {
-    for (const k of m[2].matchAll(/^\s{2}(\w+)\s*:\s*\{/gm)) add(m[1], k[1]);
+    for (const k of m[2].matchAll(/^\s{2}([\w$]+)\s*:\s*\{/gm)) if (!k[1].startsWith("$")) add(m[1], k[1]);
   }
   for (const m of SRC.matchAll(/^export class (\w+)[\s\S]*?(?=\n(?:export )?class |\n\/\/ ──|$)/gm)) {
     for (const g of m[0].matchAll(/^  get (\w+)\(/gm)) add(m[1], g[1]);

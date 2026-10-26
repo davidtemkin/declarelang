@@ -133,7 +133,7 @@ export declare class DataSource extends Dataset {
      *  explicit entry may override). REACTIVE like any other slot, which is the
      *  point: `headers = { ({ Authorization: "Bearer " + app.token }) }` re-reads
      *  when the token lands, so an authenticated source needs no imperative
-     *  re-plumbing — and with `auto = true` a changed address refetches with the
+     *  re-plumbing — and with `autoFetch = true` a changed address refetches with the
      *  current header. A header whose value is empty (or null) is NOT sent —
      *  `Authorization: signedIn ? "Bearer " + t : ""` is the whole conditional-
      *  header idiom, with no branch to write.
@@ -173,13 +173,13 @@ export declare class DataSource extends Dataset {
      *  document until the new one lands), until `clear()`. A tracked read of
      *  `value`, so a constraint on it wakes exactly when presence changes. */
     get loaded(): boolean;
-    /** `auto = true`: fetch whenever a NON-EMPTY url arrives or changes — the
+    /** `autoFetch = true`: fetch whenever a NON-EMPTY url arrives or changes — the
      *  reactive-address case, where the url derives from late-landing state
      *  (`url = { hostProvided("program", "") != "" ? … : "" }`) and no handler exists to call
-     *  fetch() at the right moment. Push-driven off the url/auto slots; a
+     *  fetch() at the right moment. Push-driven off the url/autoFetch slots; a
      *  re-derive to the SAME address never refetches. Resolves the recorded
-     *  auto-fetch question: explicit fetch() stays the default, auto is opt-in. */
-    auto: boolean;
+     *  auto-fetch question: explicit fetch() stays the default, autoFetch is opt-in. */
+    autoFetch: boolean;
     private autoUrl;
     $maybeAuto(): void;
     /** Discards a superseded request: only the latest fetch/clear may land
@@ -197,7 +197,7 @@ export declare class DataSource extends Dataset {
      *  since it's independent of the verb. */
     private $requestInit;
     /** Fetch `url` over HTTP. Explicit by design — the weather app's entry screen
-     *  decides when (`doEnterDown() { weatherData.fetch() }`); `auto = true` is the
+     *  decides when (`doEnterDown() { weatherData.fetch() }`); `autoFetch = true` is the
      *  opt-in for reactive addresses (above). A non-GET `method` sends `body`. */
     fetch(): Promise<void>;
     /** As if never fetched (the doc's "back to the entry screen —

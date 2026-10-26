@@ -17,8 +17,8 @@ then its ancestors' provisions. A Declare tenant reads one with
 host reads them with `island.exposed("pos", 0)`. Each value has one owner — the tenant
 cannot write what the island provides, the host cannot write what the tenant exposes —
 and only data crosses (numbers, strings, booleans, arrays, plain objects): a class is
-an identity in one program's graph and cannot cross. A foreign (raw-JS) tenant speaks
-the same words through the element's one sanctioned handle, `el.__declareIsland` —
+an identity in one program's graph and cannot cross. A foreign (raw-JS) tenant reaches
+the same boundary through the element's one sanctioned handle, `el.__declareIsland` —
 `provides()`, `hostProvided(name)`, `watchProvided(name, cb)`, `expose(name, value)`,
 `post`, `onPost`.
 
@@ -54,7 +54,7 @@ tenant is linked. Verbs are consumed once and never re-readable — "do this", n
 
 ## onPost
 The verb's inbound half: the tenant's `post(topic, payload)` (a Declare tenant's
-`app.postToHost`, a foreign tenant's handle `.post`) lands here as `onPost(m: IslandPost)`,
+`app.postToHost`, a foreign tenant's handle `.post`) lands here as `onPost(m: IslandMessage)`,
 with `m.topic` and `m.payload`. Declare it like any event handler.
 
 ## onNavigate

@@ -127,7 +127,7 @@ if (!isMainThread) {
     const { setBound } = await import("../../runtime/dist/attributes.js");
     setBound(app, "hostWidth", hostW);
     setBound(app, "hostHeight", hostH);
-    if (touch) setBound(app, "touchDevice", true);
+    if (touch) setBound(app, "touchFirst", true);
     settle();
     record.ms = Math.round((performance.now() - t0) * 10) / 10;
     // what rung 4 asks of the booted program — the same questions, in the

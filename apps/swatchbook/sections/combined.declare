@@ -29,7 +29,7 @@ class ComboSwatch extends Swatch [ name = :name,
             ],
         asDrawing: State [ applied = { :content == "drawing" },
             art: View [ width = 140, height = 88,
-                draw(d: Draw) {
+                draw(d: DrawContext) {
                     d.fillStyle = 0xFDE68A
                     d.fillRect(0, 0, 140, 88)
                     d.strokeStyle = 0xE4572E
@@ -140,13 +140,13 @@ class CombinedSection extends Section [ title = "Combined",
             ],
         Swatch [ name = "frost over a rotated drawing",
             View [ x = 30, y = 20, width = 150, height = 80, rotation = -10,
-                draw(d: Draw) { d.fillStyle = 0xE4572E; d.beginPath(); d.arc(40, 40, 36, 0, 6.2832); d.fill(); d.fillStyle = 0x2E6FE0; d.fillRect(80, 10, 60, 60) }
+                draw(d: DrawContext) { d.fillStyle = 0xE4572E; d.beginPath(); d.arc(40, 40, 36, 0, 6.2832); d.fill(); d.fillStyle = 0x2E6FE0; d.fillRect(80, 10, 60, 60) }
                 ],
             View [ x = 56, y = 36, width = 100, height = 48, cornerRadius = 12, backdrop = frost(8), fill = #FFFFFF55 ]
             ],
         Swatch [ name = "drawing under opacity and a mask",
             View [ x = 16, y = 12, width = 180, height = 96, opacity = 0.7, mask = radialGradient(0.5, 0.5, 0.6, #000000, #00000000),
-                draw(d: Draw) { const g = d.createLinearGradient(0, 0, 180, 0); g.addColorStop(0, 0x2E6FE0); g.addColorStop(1, 0xE4572E); d.fillStyle = g; d.fillRect(0, 0, 180, 96) }
+                draw(d: DrawContext) { const g = d.createLinearGradient(0, 0, 180, 0); g.addColorStop(0, 0x2E6FE0); g.addColorStop(1, 0xE4572E); d.fillStyle = g; d.fillRect(0, 0, 180, 96) }
                 ]
             ]
         ],

@@ -6,7 +6,7 @@
 // history verbs (shell.ts): the URL's fragment carries the address, the entry's state object
 // the step; one entry per settle that changed either; a clean URL at the declared initial;
 // an ARRIVAL rebuilds from the URL, a TRAVERSAL restores the entry's pair; Back and Forward
-// write both back through `follow`. Where the user was on each entry (its scroll places) is
+// write both back through `followLink`. Where the user was on each entry (its scroll places) is
 // noted when the app leaves the entry and landed when a traversal comes back to it; the table
 // lives in the page's sessionStorage (the shell keeps it), so a reload and Back still find it.
 
@@ -27,8 +27,8 @@ export interface AddressSeed {
 interface App {
   location: string;
   waypoint: string;
-  follow?: (ref: string) => void;
-  pendingHistoryVerb?: string;
+  followLink?: (ref: string) => void;
+  $pendingHistoryVerb?: string;
   scrollY: number;
   scrollTo?: (y: number) => void;
   $onDepart?: (() => void) | null;
@@ -53,7 +53,7 @@ export function seedAddress(app: App, seed: AddressSeed): string {
   const step = seed.traversed ? stepOf(seed.state) : "";
   if (step !== "" && app.waypoint !== step) app.waypoint = step;
   if (seed.fragment) {
-    if (typeof app.follow === "function") app.follow("#" + seed.fragment);
+    if (typeof app.followLink === "function") app.followLink("#" + seed.fragment);
     else app.location = seed.fragment;
   }
   if (seed.fragment || step !== "") settle();
@@ -104,8 +104,8 @@ export function wireAddress(app: App, initial: string, seed: AddressSeed, post: 
   // which is in the URL, lands instead)
   if (seed.traversed && seed.fragment.indexOf("@") < 0) land(entryId);
   return {
-    // A traversal: the place just left noted, the step, then the address through follow;
-    // whatever follow decides is squared to this entry by replace — a traversal never pushes.
+    // A traversal: the place just left noted, the step, then the address through followLink;
+    // whatever followLink decides is squared to this entry by replace — a traversal never pushes.
     pop(state: unknown, fragment: string): void {
       note(entryId, live());
       dropScrollPlaces(app as never);
@@ -115,7 +115,7 @@ export function wireAddress(app: App, initial: string, seed: AddressSeed, post: 
         const w = stepOf(state);
         if (app.waypoint !== w) app.waypoint = w;
         const ref = fragment || initial;
-        if (typeof app.follow === "function") app.follow("#" + ref);
+        if (typeof app.followLink === "function") app.followLink("#" + ref);
         else app.location = ref;
         settle();
       } finally { traversing = false; }

@@ -52,7 +52,7 @@ settles. When a face's `src` changes, text keeps the old face until the new one 
 A face that fails ends the wait at once. `0` never holds.
 
 ## late
-What a face arriving after the wait does: `swap` (the default) changes text to it — one
+What the font's faces arriving after the wait do (they load and settle together): `swap` (the default) changes text to it — one
 redraw; `keep` leaves the fallback for the rest of the run, and `loaded` stays `false`.
 
 ## loaded

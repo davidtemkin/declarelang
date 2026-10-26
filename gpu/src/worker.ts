@@ -65,7 +65,7 @@ const navServices = {
   openWindow: (u: string) => post({ t: "navigate", url: new URL(u, DISTRO_ROOT).href, newWindow: true }),
 };
 const resolveNav = (u: string): string => new URL(u, DISTRO_ROOT).href;
-type IslandHost = { root?: unknown; post?: unknown; __childApp?: unknown; $surface?: unknown };
+type IslandHost = { $root?: unknown; post?: unknown; __childApp?: unknown; $surface?: unknown };
 async function mountAppIsland(id: number, slot: string, mainDir: URL): Promise<void> {
   const view = islandViewById(id) as IslandHost | undefined;
   if (view === undefined || view.__childApp != null || mountingIslands.has(view)) return;
@@ -357,6 +357,8 @@ async function boot(m: Msg): Promise<void> {
   flushOps();
   if (m.embedded !== true) address = wireAddress(built as never, initial, seed, post);
   provideHostServices(built as never, navServices);
+  // the app's postToHost goes to the page, which hands it to boot({ onPost })
+  (built as unknown as { $hostSink: unknown }).$hostSink = { message: (topic: string, payload: unknown) => post({ t: "tenant-post", topic, payload: plain(payload) }) };
   mark("firstFrameSubmitted");
   const tUp = performance.now();
   // the page hears the program is up once the compositor is too (it draws the first frame)
@@ -430,7 +432,9 @@ function onMessage(m: Msg): void {
       observe(read, send, "gpu:page-watch");
       return;
     }
-    case "provide": if (app !== null) { (app as unknown as { provide(n: string, v: unknown): void }).provide(String(m.name), m.v); settle(); flushOps(); } return;
+    case "provide": if (app !== null) { (app as unknown as { $provideHostValue(n: string, v: unknown): void }).$provideHostValue(String(m.name), m.v); settle(); flushOps(); } return;
+    // the page's message to the app (the tenant handle's post): its onHostMessage
+    case "host-post": if (app !== null) { (app as unknown as { $receiveHostMessage(t: string, p: unknown): void }).$receiveHostMessage(String(m.topic), m.payload); settle(); flushOps(); } return;
     case "island-program": { const f = islandWaits.get(m.req as number); islandWaits.delete(m.req as number); f?.(m.result); return; }
     case "app-set": if (app !== null) { (app as Record<string, unknown>)[String(m.name)] = m.v; settle(); flushOps(); } return;
     // a DOMIsland's foreign content, on the page, speaking through its handle

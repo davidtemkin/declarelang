@@ -77,7 +77,7 @@ arrives, makes the next target appear, and every later one animates:
 stock: number = { app.inventory.value?.count ?? 0 },   // the truth
 shown: number = 0,                                     // what the screen reads
 counter: Spring [ attribute = shown, to = { app.stock } ],
-inventory: DataSource [ url = "/api/inventory", auto = true, onLoad() { app.counter.arrive() } ]
+inventory: DataSource [ url = "/api/inventory", autoFetch = true, onLoad() { app.counter.arrive() } ]
 ```
 
 A delivery then rolls the count over; opening the app does not.

@@ -103,7 +103,7 @@ await test("a wordless control is named by its tip, else by the mark it shows; w
 });
 
 await test("a drawn view that takes the focus and says nothing is a warning", async () => {
-  const b = await compile(`class Dial extends View [ focusable = true, draw(d: Draw) { } ]\nApp [ Dial [ ] ]`);
+  const b = await compile(`class Dial extends View [ focusable = true, draw(d: DrawContext) { } ]\nApp [ Dial [ ] ]`);
   assert.deepEqual(codes(b.warnings), ["DECLARE4018"]);
 });
 
@@ -294,7 +294,7 @@ await test("expanded: a menu button and an accordion header say whether what the
   const app = await boot(`App [ width = 400, height = 400, layout: SimpleLayout [ axis = y ],
     opts: Button [ label = "Options", menu = { app.m } ],
     m: Menu [ items = { [ ({ id: "a", label: "Copy" }) ] } ],
-    Accordion [ width = 300, AccordionPane [ label = "First", initial = true, Text [ text = "inside" ] ], AccordionPane [ label = "Second" ] ] ]`);
+    Accordion [ width = 300, AccordionPane [ label = "First", initiallyOpen = true, Text [ text = "inside" ] ], AccordionPane [ label = "Second" ] ] ]`);
   const line = (name) => tree(app).split("\n").find((l) => l.includes(`"${name}"`)) ?? "";
   assert.match(line("Options"), /\[collapsed\]/);
   assert.match(tree(app), /button "First" \[expanded\]/);

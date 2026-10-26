@@ -46,7 +46,7 @@ export { settle, afterSettle, observe, kernelReady, kernelReadySync, kernelLoade
 export { inspect, find, explain, stats, clock, bridgeFor } from "./inspect.js";
 export { pathOf } from "./node-path.js";
 export { scrollPlaces, holdScrollPlaces, dropScrollPlaces } from "./scroll-places.js";
-export { Draw, record, replay } from "./draw.js";
+export { DrawContext, record, replay } from "./draw.js";
 export { Font, FontFace, fontsReady, setFontHost, FONT_WEIGHTS } from "./font.js";
 export { fontString, textWidth, fontMetrics, provideMeasurer } from "./measure.js";
 export { measureText } from "./text-measure.js";

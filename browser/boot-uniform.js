@@ -415,6 +415,7 @@ export default async function boot(cfg) {
     try { shell = await import(new URL("../gpu/dist/shell.js", import.meta.url).href); }
     catch { return showError("render=gpu is not built in this tree. Build it with `node gpu/build.mjs` (it needs Rust; see gpu/README.md), then reload.", mainUrl.href); }
     return shell.bootGpu({ program: programObj, main: mainUrl.href, host: cfg.host, provides: cfg.provides, externalValue,
+      onPost: cfg.onPost, onNavigate: cfg.onNavigate,
       island: { prewarm: (u) => prewarmIsland(u, ROOT), serverCompile, compiler: () => loadCompiler().then(ensureLibrary) } });
   }
 

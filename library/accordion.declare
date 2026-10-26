@@ -21,7 +21,7 @@ room around a pane's content is the content's own `padding`:
 
 ```declare
 Accordion [ x = 20, y = 20, width = 260,
-    AccordionPane [ label = "Account", initial = true,
+    AccordionPane [ label = "Account", initiallyOpen = true,
         View [ width = 100%, padding = 12,
             Text [ width = 100%, wrap = true,
                 text = "Panes slide on a spring; the content rides the whole way." ]
@@ -66,7 +66,7 @@ whole way and revealed by the pane's own clip.
 ```declare
 App [ width = 300, height = 180, fill = white, textColor = black,
     Accordion [ x = 20, y = 20, width = 260,
-        AccordionPane [ label = "Details", initial = true,
+        AccordionPane [ label = "Details", initiallyOpen = true,
             Text [ width = 100%, padding = 12, text = { "open: " + parent.open } ]
             ],
         AccordionPane [ label = "More", Text [ padding = 12, text = "Press a header." ] ]
@@ -82,8 +82,8 @@ This pane's identity, defaulting to its `label`. **Set it when two panes share a
 or when the label is user-facing copy you expect to change**, so the group's `value`
 does not move under you when the wording does.
 
-## initial
-Seeds the group: the first pane declaring `initial = true` opens if nothing else has
+## initiallyOpen
+Seeds the group: the first pane declaring `initiallyOpen = true` opens if nothing else has
 claimed `value` yet. A one-shot at init, not a constraint — **to drive which pane is open
 from state, constrain the group's `value` instead**.
 
@@ -110,7 +110,7 @@ Opens this pane by writing its `name` to the group. Called by a click and by
 Space/Enter on the header.
 
 ## onInit
-Applies `initial`. Fires once per pane.
+Applies `initiallyOpen`. Fires once per pane.
 
 ## width
 A pane is as wide as its accordion; only its height is its own.
@@ -139,11 +139,11 @@ class AccordionPane extends Control [ width = 100%, clip = true,
     accessibilityRole = group,
     accessibilityLabel = { label },
     name:  string = { label },
-    initial: boolean = false,                     // seed the open pane: first AccordionPane sets initial = true
+    initiallyOpen: boolean = false,               // seed the open pane: the first AccordionPane with initiallyOpen = true
 
     open: boolean = { (parent as Accordion).value == name && name != "" },
 
-    onInit() { if (initial && (parent as Accordion).value == "") (parent as Accordion).value = name },
+    onInit() { if (initiallyOpen && (parent as Accordion).value == "") (parent as Accordion).value = name },
 
     // the slide: height springs between the bare header and the content's own
     // wanted extent; `clip = true` is what carries the content through the

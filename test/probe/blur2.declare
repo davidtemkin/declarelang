@@ -8,7 +8,7 @@
 App [ width = 400, height = 200, fill = #000000,
     field: View [ x = 0, y = 0, width = 800, height = 400,
         pivotX = 0, pivotY = 0, scale = 0.5,
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             d.fillStyle = "#000000"
             d.fillRect(0, 0, 800, 400)
             d.filter = "blur(40px)"

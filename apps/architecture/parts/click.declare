@@ -45,7 +45,7 @@ class Lanes [ height = 330,
 
     // lane grounds, names and the path through the steps
 
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const soft = [provided("theme").hostSoft, provided("theme").runSoft0, provided("theme").appSoft, provided("theme").kerSoft]
         for (let l = 0; l < 4; l++) {
             d.fillStyle = soft[l]

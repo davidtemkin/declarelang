@@ -38,6 +38,7 @@ import { lockFocusZoom } from "./viewport-lock.js";
 import { observeVisibility, refreshObserved, type VisibilityCb } from "./dom-visibility.js";
 import { installDomSemantics } from "./semantics-dom.js";
 import { applyPurpose } from "./purpose.js";
+import { platformTimeout, clearPlatformTimeout, type PlatformTimer } from "./platform-time.js";
 
 /** A child is being moved (insertChild): a native blur it causes is not the
  *  person leaving the field. */
@@ -357,7 +358,7 @@ function ensureScrollFrame(scrollerEl: HTMLElement): HTMLElement {
   return frame;
 }
 
-/** Surfaces that carry BOTH a Shape clip and a sink. The browser must never
+/** Surfaces that carry BOTH a path clip and a sink. The browser must never
  *  see such an element as a pointer target: a clip-path'd hittable overlay
  *  blocks native wheel scrolling and selection UNDERNEATH it — across the
  *  whole element box, even where the clip cuts the overlay away (the engines'
@@ -825,7 +826,7 @@ function ensureClipBoxFor(el: HTMLElement): HTMLElement {
   return box;
 }
 
-/** Each drawing's canvas → the surface that rasters it: an `imageSmoothing` change on an
+/** Each drawing's canvas → the surface that rasters it: an `imageRendering` change on an
  *  ancestor re-rasters the drawings inside (setScaling). */
 const DRAWING_OF = new WeakMap<HTMLCanvasElement, DomSurface>();
 
@@ -1235,7 +1236,7 @@ export class DomSurface implements Surface {
     this.element.style.transform = "translate(" + this.posX + "px," + this.posY + "px) " + (t3?.css ?? "") + cssMatrix(this.xform);
   }
 
-  /** `imageSmoothing` (backend.ts). CSS's `image-rendering` is INHERITED, so one
+  /** `imageRendering` (backend.ts). CSS's `image-rendering` is INHERITED, so one
    *  declaration here reaches every <img>, tint mask and drawing canvas in the
    *  subtree — the platform's own cascade, as a transform's is. A drawing's
    *  density is this backend's to choose, so the subtree's drawings re-raster:
@@ -1318,7 +1319,7 @@ export class DomSurface implements Surface {
     this.updateCarved();
   }
 
-  /** The Shape clip's path data / lazily-built Path2D (carved-hit testing). */
+  /** The path clip's path data / lazily-built Path2D (carved-hit testing). */
   private clipData: string | null = null;
   private clipObj: Path2D | null = null;
 
@@ -1384,7 +1385,7 @@ export class DomSurface implements Surface {
     return carveHitCtx().isPointInPath(this.clipObj, (cx - r.left) / k, (cy - r.top) / k);
   }
 
-  /** Whether a point in the view's own frame is inside its Shape clip, for the
+  /** Whether a point in the view's own frame is inside its path clip, for the
    *  hit walk (interaction.ts): the same path the browser clips hits by. */
   insideClip(lx: number, ly: number): boolean {
     if (this.clipData === null) return lx >= 0 && ly >= 0 && lx < this.element.offsetWidth && ly < this.element.offsetHeight;
@@ -1848,30 +1849,43 @@ export class DomSurface implements Surface {
         // makes Chrome zero it and announce that as a scroll, which would
         // overwrite the model with a number the user never scrolled to (the
         // reciprocal of the write a hidden pane refuses — see setVisible).
-        // The `scrolling` fact — the user's scroll, start to finish — is
+        // The `userScrolling` fact — the user's scroll, start to finish — is
         // watchScrolling's (below), shared with the page scroll (boot.ts).
         // The watcher hears each scroll FIRST: the offset the mirror reports
         // must arrive already knowing whose scroll it is, or the settle it
         // starts takes a finger's scroll for rest and writes against it.
-        this.scrollWatch = onScrolling !== undefined ? watchScrolling(el, onScrolling) : undefined;
-        if (this.scrollWatch !== undefined) PANE_WATCH.set(el, this.scrollWatch);
+        if (onScrolling !== undefined) this.scrollingReport = onScrolling;
+        this.syncScrollWatch();
         this.scrollReport = onScroll;
         this.scrollListener = () => { if (el.clientHeight > 0) onScroll(el.scrollTop); };
         el.addEventListener("scroll", this.scrollListener, { passive: true });
       }
     } else if (this.scrollListener !== undefined) {
       el.removeEventListener("scroll", this.scrollListener);
-      this.scrollWatch?.stop();
-      PANE_WATCH.delete(el);
-      this.scrollWatch = undefined;
+      this.syncScrollWatch();                 // kept while the other axis still scrolls
       this.scrollListener = undefined;
       this.scrollReport = undefined;
     }
     this.applyScrollStyle();
   }
 
-  // The `scrolling` fact's plumbing (setScroll → watchScrolling).
+  // The `userScrolling` fact's plumbing (setScroll / setScrollX → watchScrolling):
+  // one watch per scroller, standing while either axis scrolls — the element's
+  // scroll events are the same for both.
   private scrollWatch: ScrollWatch | undefined;
+  private scrollingReport: ((active: boolean) => void) | undefined;
+  private syncScrollWatch(): void {
+    const el = this.element;
+    const want = (this.scrollYOn || this.scrollXOn) && this.scrollingReport !== undefined;
+    if (want && this.scrollWatch === undefined) {
+      this.scrollWatch = watchScrolling(el, this.scrollingReport!);
+      PANE_WATCH.set(el, this.scrollWatch);
+    } else if (!want && this.scrollWatch !== undefined) {
+      this.scrollWatch.stop();
+      PANE_WATCH.delete(el);
+      this.scrollWatch = undefined;
+    }
+  }
   /** Is the user's scroll of this scroller (or of the page, for the root)
    *  finger-driven right now? (scroll-anchor.ts holds corrections then.) */
   userScrollByTouch(): boolean { return this.pageScroller() !== null ? (PAGE_WATCH?.touchDriven() ?? false) : (this.scrollWatch?.touchDriven() ?? false); }
@@ -1879,9 +1893,11 @@ export class DomSurface implements Surface {
 
   private wheelXListener: ((e: WheelEvent) => void) | undefined;
   private scrollXListener: (() => void) | undefined;
-  setScrollX(on: boolean, onScroll?: (x: number) => void, _onScrolling?: (active: boolean) => void): void {
+  setScrollX(on: boolean, onScroll?: (x: number) => void, onScrolling?: (active: boolean) => void): void {
     const el = this.element;
     this.scrollXOn = on;
+    if (onScrolling !== undefined) this.scrollingReport = onScrolling;
+    this.syncScrollWatch();                   // a pane that scrolls only across reports the user's scroll too
     if (on) {
       if (this.wheelXListener === undefined) {
         // Absolute-positioned content: a PLAIN vertical wheel won't drive a
@@ -2282,6 +2298,7 @@ export class DomSurface implements Surface {
       el.style.overflow = "auto";
     }
     if (prev === null || prev.placeholder !== spec.placeholder) (el as HTMLInputElement).placeholder = spec.placeholder;
+    if (prev === null || (prev.disabled === true) !== (spec.disabled === true)) el.disabled = spec.disabled === true;
     if (prev === null || !editStyleEq(prev.style, spec.style)) applyEditStyle(el, spec.style);
     applyEditScheme(el, this.fillV);
   }
@@ -2855,7 +2872,7 @@ function naturalSize(el: Bitmap): { width: number; height: number } {
 }
 
 
-/** THE USER'S SCROLL, reported as one fact (`scrolling`): true from the first
+/** THE USER'S SCROLL, reported as one fact (`userScrolling`): true from the first
  *  movement until the scroll is completely over — the finger lifted or the
  *  scrollbar thumb let go, and any momentum after it come to rest. A finger
  *  resting on the pane partway through is still scrolling.
@@ -2897,12 +2914,19 @@ export function watchScrolling(target: HTMLElement | Window, report: (active: bo
   const endsItself = "onscrollend" in target;
   let active = false, touches = 0, wheelLast = -1e9, held = false;
   let program = false, byTouch = false;
-  let programTimer: ReturnType<typeof setTimeout> | undefined;
-  const programEnds = (): void => { program = false; if (programTimer !== undefined) { clearTimeout(programTimer); programTimer = undefined; } };
-  let timer: ReturnType<typeof setTimeout> | undefined;
-  const arm = (ms: number): void => { if (timer !== undefined) clearTimeout(timer); timer = setTimeout(settle, ms); };
+  // A FINGER: while one is down, whatever moves the scroller is the user's (the
+  // browser may scroll before the page hears a touchmove). Past the lift, only
+  // one that TRAVELLED may still be scrolling it — the first frames of a fling;
+  // a tap's lift is not a scroll, and what moves after it (the page clamping as
+  // the tap's change shrinks it) is not the user's.
+  let moved = false, liftLast = -1e9, movedLast = false;
+  const LIFT_GRACE = 250;
+  let programTimer: PlatformTimer | undefined;
+  const programEnds = (): void => { program = false; if (programTimer !== undefined) { clearPlatformTimeout(programTimer); programTimer = undefined; } };
+  let timer: PlatformTimer | undefined;
+  const arm = (ms: number): void => { if (timer !== undefined) clearPlatformTimeout(timer); timer = platformTimeout(settle, ms); };
   const settle = (): void => {
-    if (timer !== undefined) { clearTimeout(timer); timer = undefined; }
+    if (timer !== undefined) { clearPlatformTimeout(timer); timer = undefined; }
     if (touches > 0 || held) return;                      // a finger, or a hand on the scrollbar: the release settles
     const since = performance.now() - wheelLast;
     if (since < WHEEL_QUIET) { arm(WHEEL_QUIET - since); return; }
@@ -2913,41 +2937,63 @@ export function watchScrolling(target: HTMLElement | Window, report: (active: bo
     const wheel = performance.now() - wheelLast < WHEEL_QUIET;
     arm(endsItself && !wheel ? BACKSTOP : QUIET);
   };
-  // THE ENGINE'S CLAMP: content shrinking under the offset moves it to the new
-  // end and fires `scroll` — and no `scrollend`. No hand is on it (no wheel,
-  // finger, bar or key), so it is not the user's scroll: marking it live would
-  // hold every program write until the backstop.
-  // (the range shrinks either way: content shrinking, or the box growing)
-  let lastHeight = target instanceof HTMLElement ? target.scrollHeight : 0, keyLast = -1e9;
-  let lastBox = target instanceof HTMLElement ? target.clientHeight : 0;
-  const onKey = (): void => { keyLast = performance.now(); };
-  const clamped = (): boolean => {
-    if (!(target instanceof HTMLElement)) return false;
-    const h = target.scrollHeight, box = target.clientHeight, was = lastHeight - lastBox;
-    lastHeight = h;
-    lastBox = box;
+  // THE USER'S HAND: a scroll is the user's only while a hand can be driving
+  // it — a finger that moved (or just lifted from moving), a wheel, a key, the
+  // scrollbar. Everything else that moves the offset is not a scroll the user
+  // is making, and marking it live would hold every program request until the
+  // backstop: the ENGINE'S CLAMP (content shrinking under the offset moves it
+  // to the new end, with no `scrollend`), the browser bringing a focused field
+  // into view, scroll anchoring. The page's scroller is the window, so this is
+  // decided by the hand, not by measuring the element.
+  // A key is a hand on the scroller only when it scrolls: the arrows, the page
+  // keys, Home/End and Space — and not while a text field takes them. Typing a
+  // name is not scrolling the page.
+  let keyLast = -1e9;
+  const SCROLL_KEYS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Home", "End", " "]);
+  const onKey = (e: Event): void => {
+    const k = e as KeyboardEvent, t = k.target;
+    if (!SCROLL_KEYS.has(k.key)) return;
+    if (t instanceof HTMLElement && (t.isContentEditable || t.tagName === "INPUT" || t.tagName === "TEXTAREA" || t.tagName === "SELECT")) return;
+    keyLast = performance.now();
+  };
+  const handOn = (): boolean => {
     const now = performance.now();
-    if (touches > 0 || held || now - wheelLast < WHEEL_QUIET || now - keyLast < 1000) return false;
-    return h - box < was - 0.5 && target.scrollTop >= h - box - 1;
+    return touches > 0 || (movedLast && now - liftLast < LIFT_GRACE) || held
+      || now - wheelLast < WHEEL_QUIET || now - keyLast < 1000;
+  };
+  // During the user's scroll (momentum after the lift, no hand on it any more)
+  // a clamp still ends nothing: it is not the user's motion, so it re-arms
+  // nothing either. Read from the scroller's own range, the window's included.
+  const range = (): { h: number; box: number; top: number } => target instanceof HTMLElement
+    ? { h: target.scrollHeight, box: target.clientHeight, top: target.scrollTop }
+    : { h: document.documentElement.scrollHeight, box: document.documentElement.clientHeight, top: window.scrollY };
+  let last = range();
+  const clamped = (): boolean => {
+    const r = range(), was = last.h - last.box;
+    last = r;
+    if (handOn()) return false;
+    return r.h - r.box < was - 0.5 && r.top >= r.h - r.box - 1;
   };
   const onScroll = (): void => {
     if (touches > 0) programEnds();                       // a finger is down: whatever moved, the user did
     if (program) {
       // the program's own motion: not the user's scroll. Without scrollend a
       // quiet spell ends the mark (the motion has stopped).
-      if (!endsItself) { if (programTimer !== undefined) clearTimeout(programTimer); programTimer = setTimeout(programEnds, QUIET); }
-      lastHeight = target instanceof HTMLElement ? target.scrollHeight : 0;
-      lastBox = target instanceof HTMLElement ? target.clientHeight : 0;
+      if (!endsItself) { if (programTimer !== undefined) clearPlatformTimeout(programTimer); programTimer = platformTimeout(programEnds, QUIET); }
+      last = range();
       return;
     }
     if (clamped()) return;
+    if (!active && !handOn()) return;                     // no hand on it: moved, not scrolled by the user
     live();
   };
   const onWheel = (): void => { programEnds(); wheelLast = performance.now(); live(); };
   const onTouch = (e: Event): void => {
     programEnds();
     touches = (e as TouchEvent).touches?.length ?? 0;
-    if (e.type === "touchstart") followTouch(e.target);
+    if (e.type === "touchstart") { if (touches === 1) moved = false; followTouch(e.target); }
+    if (e.type === "touchmove") moved = true;
+    if (touches === 0 && e.type !== "touchmove") { liftLast = performance.now(); movedLast = moved; moved = false; }
     if (touches === 0 && active) arm(endsItself ? BACKSTOP : QUIET);
   };
   // A touch's later events go to the element it began on, wherever that element
@@ -2995,7 +3041,7 @@ export function watchScrolling(target: HTMLElement | Window, report: (active: bo
   target.addEventListener("scroll", onScroll, opts);
   target.addEventListener("wheel", onWheel, opts);
   target.addEventListener("scrollend", onEnd, opts);
-  for (const t of ["touchstart", "touchend", "touchcancel"]) target.addEventListener(t, onTouch, opts);
+  for (const t of ["touchstart", "touchmove", "touchend", "touchcancel"]) target.addEventListener(t, onTouch, opts);
   target.addEventListener("pointerdown", onPress, opts);
   addEventListener("keydown", onKey, { capture: true, passive: true });
   return {
@@ -3004,10 +3050,10 @@ export function watchScrolling(target: HTMLElement | Window, report: (active: bo
       target.removeEventListener("scroll", onScroll);
       target.removeEventListener("wheel", onWheel);
       target.removeEventListener("scrollend", onEnd);
-      for (const t of ["touchstart", "touchend", "touchcancel"]) target.removeEventListener(t, onTouch);
+      for (const t of ["touchstart", "touchmove", "touchend", "touchcancel"]) target.removeEventListener(t, onTouch);
       target.removeEventListener("pointerdown", onPress);
       if (held) onRelease();
-      if (timer !== undefined) clearTimeout(timer);
+      if (timer !== undefined) clearPlatformTimeout(timer);
       programEnds();
       if (active) { active = false; report(false); }
     },
@@ -3016,8 +3062,8 @@ export function watchScrolling(target: HTMLElement | Window, report: (active: bo
     program: () => {
       if (active || touches > 0) return;               // the user holds it: their scroll, not ours
       program = true;
-      if (programTimer !== undefined) clearTimeout(programTimer);
-      programTimer = setTimeout(programEnds, endsItself ? BACKSTOP : QUIET);
+      if (programTimer !== undefined) clearPlatformTimeout(programTimer);
+      programTimer = platformTimeout(programEnds, endsItself ? BACKSTOP : QUIET);
     },
   };
 }

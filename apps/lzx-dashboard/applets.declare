@@ -154,7 +154,7 @@ class ContactsPanel [
         // flat sage with a rule at its foot — the sunken well belongs to the
         // cap art on the right, not to the strip the pill sits on
 
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             d.fillStyle = 0x8CB29C; d.fillRect(0, 0, width, 24)
             d.fillStyle = 0x47735D; d.fillRect(0, 24, width, 1)
             },
@@ -305,7 +305,7 @@ class ContactsPanel [
     sbar: View [ x = { parent.width - 16 }, y = { 25 + form.height }, width = 16,
         height = { parent.height - 25 - form.height },
 
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             d.fillStyle = 0xB6CCC1; d.fillRect(0, 0, 2, height)     // rail against the list
             d.fillStyle = 0x64716B; d.fillRect(2, 0, 1, height)     // track's left edge (a0)
             d.fillStyle = 0x798780; d.fillRect(3, 0, 12, height)    // the track itself (c0)
@@ -314,7 +314,7 @@ class ContactsPanel [
 
         // one arrow: the pale face, a dark chevron, a shadowed foot
 
-        button(d: Draw, w: number, h: number, up: boolean) {
+        button(d: DrawContext, w: number, h: number, up: boolean) {
             const g = d.createLinearGradient(0, 0, 0, h)
             g.addColorStop(0, "#98AAA1"); g.addColorStop(1, "#67736D")
             d.fillStyle = g; d.fillRect(0, 0, w, h)
@@ -329,11 +329,11 @@ class ContactsPanel [
             },
 
         upBtn: View [ x = 2, width = 14, height = 13,
-            draw(d: Draw) { classroot.sbar.button(d, width, height, true) },
+            draw(d: DrawContext) { classroot.sbar.button(d, width, height, true) },
             onClick() { classroot.scrollList(-34) }
             ],
         downBtn: View [ x = 2, y = { parent.height - 13 }, width = 14, height = 13,
-            draw(d: Draw) { classroot.sbar.button(d, width, height, false) },
+            draw(d: DrawContext) { classroot.sbar.button(d, width, height, false) },
             onClick() { classroot.scrollList(34) }
             ],
 
@@ -356,7 +356,7 @@ class ContactsPanel [
             y = { 13 + (trackH() - this.height)
                 * (classroot.scrollPos / Math.max(1, classroot.maxScroll())) },
 
-            draw(d: Draw) {
+            draw(d: DrawContext) {
                 const g = d.createLinearGradient(0, 0, 0, height)
                 g.addColorStop(0, "#90A299"); g.addColorStop(1, "#6F7C75")   // e6 → b0
                 d.fillStyle = g; d.fillRect(0, 0, 14, height)

@@ -199,17 +199,17 @@ function wireSafeArea(app, w) {
     w.addEventListener("resize", measure);
     w.visualViewport?.addEventListener("resize", measure); // Safari's bars change the bottom inset
 }
-/** Feed `app.touchDevice` — "am I running on a touch device?" — from the device's
+/** Feed `app.touchFirst` — "is this device built for touch?" — from the device's
  *  primary pointer: true on a phone or tablet (`(pointer: coarse)`), so mouse-only
  *  affordances (a cursor-chasing dot, a hover reveal) switch off. A stable device
- *  fact, kept live if the input changes; distinct from the transient `hovering`.
+ *  fact, kept live if the input changes; distinct from the transient `pointerHovering`.
  *  Returns an unsubscribe so an embedded app's re-render can drop the listener. */
-function wireTouchDevice(app) {
+function wireInputFacts(app) {
     // THE DEVICE PROFILE — three independent facts, none of them a guess.
-    //   touchDevice: the PRIMARY pointer is coarse ("is this a phone/tablet?") —
+    //   touchFirst: the PRIMARY pointer is coarse ("is this a phone/tablet?") —
     //     the sizing decision, deliberately stable across a session.
-    //   hasTouch / hasPointer: what the device HAS at all (`any-pointer`). A
-    //     Windows touch laptop is `hasTouch && hasPointer` with touchDevice
+    //   hasTouch / hasMouse: what the device HAS at all (`any-pointer`). A
+    //     Windows touch laptop is `hasTouch && hasMouse` with touchFirst
     //     false — its trackpad really is primary — which is the case a single
     //     boolean cannot answer. Use these for a hit-target FLOOR, not a switch.
     //   lastPointerType: what the user just used, live. The only correct answer
@@ -220,9 +220,9 @@ function wireTouchDevice(app) {
     const anyCoarse = window.matchMedia("(any-pointer: coarse)");
     const anyFine = window.matchMedia("(any-pointer: fine)");
     const update = () => {
-        app.touchDevice = primary.matches;
+        app.touchFirst = primary.matches;
         app.hasTouch = anyCoarse.matches;
-        app.hasPointer = anyFine.matches;
+        app.hasMouse = anyFine.matches;
     };
     update();
     primary.addEventListener("change", update);
@@ -247,7 +247,7 @@ function wireEnvironment(app, host, embedded) {
     wireColorScheme(app); // top-level app lives for the page — no teardown needed
     wireAccessibilitySettings(app); // the person's preferences — likewise page-lived
     wireVisibility(app); // page visibility fact — likewise page-lived
-    wireTouchDevice(app); // device pointer kind — likewise page-lived
+    wireInputFacts(app); // device pointer kind — likewise page-lived
     wireSafeArea(app, w); // notch/home-indicator insets — likewise page-lived
     // The LAYOUT viewport, never the visual one: on iOS/iPadOS `window.inner*`
     // track the VISUAL viewport and a pinch-zoom fires `resize`, so sizing from
@@ -302,10 +302,10 @@ function wireEnvironment(app, host, embedded) {
         // A mouse that merely MOVES (never presses) must flip hover affordances
         // back on — so the live fact updates here too, not only at press.
         app.lastPointerType = e.pointerType === "touch" || e.pointerType === "pen" ? e.pointerType : "mouse";
-        // A touch has no hover — keep `hovering` false for it so a desktop custom
+        // A touch has no hover — keep `pointerHovering` false for it so a desktop custom
         // cursor (which reads it) stays off mobile; the coordinates still update so a
         // drag can track the finger.
-        app.hovering = e.pointerType !== "touch";
+        app.pointerHovering = e.pointerType !== "touch";
         // Over a native text field the app's custom cursor should yield to the
         // I-beam (see App.pointerOverText).
         const t = e.target;
@@ -313,7 +313,7 @@ function wireEnvironment(app, host, embedded) {
             t instanceof HTMLElement && (t.isContentEditable || t.tagName === "INPUT" || t.tagName === "TEXTAREA");
     };
     const out = (e) => { if (e.relatedTarget === null) {
-        app.hovering = false;
+        app.pointerHovering = false;
         app.pointerOverText = false;
     } };
     // The press half of the interaction intrinsics: coordinates land first (a
@@ -321,7 +321,7 @@ function wireEnvironment(app, host, embedded) {
     const down = (e) => {
         app.pointerX = e.clientX;
         app.pointerY = e.clientY;
-        app.hovering = e.pointerType !== "touch";
+        app.pointerHovering = e.pointerType !== "touch";
         app.lastPointerType = e.pointerType === "touch" || e.pointerType === "pen" ? e.pointerType : "mouse";
         app.pointerDown = true;
         if (e.pointerType === "touch")
@@ -339,7 +339,7 @@ function wireEnvironment(app, host, embedded) {
     // window resize — hostHeight must track it (the widening above reads it).
     w.visualViewport?.addEventListener("resize", size);
     w.visualViewport?.addEventListener("scroll", size); // the keyboard pans it: its bottom edge moves
-    // the page scroll's `scrolling` — the same user-scroll fact every pane
+    // the page scroll's `userScrolling` — the same user-scroll fact every pane
     // reports — hears each scroll before the offset mirror (dom-backend setScroll)
     setPageScrollWatch(watchScrolling(w, (a) => { app.$scrollingChanged(a); }));
     w.addEventListener("scroll", scroll, { passive: true });
@@ -379,21 +379,21 @@ function wireEnvironmentEmbedded(app, host) {
         const p = localPoint(host, e.clientX, e.clientY);
         app.pointerX = p.x;
         app.pointerY = p.y;
-        app.hovering = e.pointerType !== "touch"; // a touch has no hover (see wireEnvironment)
+        app.pointerHovering = e.pointerType !== "touch"; // a touch has no hover (see wireEnvironment)
         const t = e.target;
         app.pointerOverText =
             t instanceof HTMLElement && (t.isContentEditable || t.tagName === "INPUT" || t.tagName === "TEXTAREA");
     };
-    const leave = () => { app.hovering = false; app.pointerOverText = false; };
+    const leave = () => { app.pointerHovering = false; app.pointerOverText = false; };
     const unTheme = wireColorScheme(app); // re-rendered embedded apps must drop the mq listener
     const unSettings = wireAccessibilitySettings(app);
     const unVisible = wireVisibility(app); // …and the visibilitychange listener
-    const unPointer = wireTouchDevice(app);
+    const unPointer = wireInputFacts(app);
     const down = (e) => {
         const p = localPoint(host, e.clientX, e.clientY);
         app.pointerX = p.x;
         app.pointerY = p.y;
-        app.hovering = e.pointerType !== "touch";
+        app.pointerHovering = e.pointerType !== "touch";
         app.pointerDown = true;
         if (e.pointerType === "touch")
             noteFinger(app, "down", p.x, p.y);

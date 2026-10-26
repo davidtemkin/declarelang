@@ -54,7 +54,7 @@ class Tool [ height = 22, cornerRadius = 6,
 class Twisty [ width = 18, height = 19,
     open: boolean = false,
     shown: boolean = true,
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         if (!classroot.shown) return
         d.fillStyle = classroot.hovered ? app.c.text : app.c.faint
         d.beginPath()
@@ -861,7 +861,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
             onPointerDown() { app.beginSize("rb") },
             onPointerMove() { app.moveSize() },
             onPointerUp() { app.endSize() },
-            draw(d: Draw) {
+            draw(d: DrawContext) {
                 d.strokeStyle = app.c.faint
                 d.lineWidth = 1
                 d.beginPath()

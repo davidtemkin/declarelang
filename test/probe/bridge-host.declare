@@ -13,7 +13,7 @@ App [ width = 400, height = 300, fill = #101820,
         program = "bridge-tenant",
         provides = ["volume"],
         volume: number = { app.vol },
-        onPost(m: IslandPost) { app.log = app.log + m.topic + ";" },
+        onPost(m: IslandMessage) { app.log = app.log + m.topic + ";" },
         onInit() { this.location = "start" },
         onNavigate(n: IslandNavigation) { app.nav = n.program.split("/").pop() + "|" + n.location + "|" + n.newWindow }
         ],
@@ -27,7 +27,7 @@ App [ width = 400, height = 300, fill = #101820,
     note: DOMIsland [ x = 10, y = 180, width = 200, height = 40, slot = "note",
         provides = ["volume"],
         volume: number = { app.vol },
-        onPost(m: IslandPost) { app.log = app.log + "note:" + m.topic + ";" }
+        onPost(m: IslandMessage) { app.log = app.log + "note:" + m.topic + ";" }
         ],
     noteOut: Text [ x = 10, y = 230, textColor = #9CB2C5, text = { app.note.exposed("txt", "") } ]
     ]

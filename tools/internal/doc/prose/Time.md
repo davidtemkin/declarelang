@@ -87,7 +87,8 @@ The local-zone hour, 0–23.
 `onTick(dt)` — one call per tick while `running`, with the seconds elapsed since the
 previous tick, clamped to about one tick (≈1/15 s at `frame`; one period on the
 calendar tiers, so a page returning from an hour hidden gets 60, not 3600). Three
-consecutive throws stop the Time, loudly, naming the node; `running = true` restarts it.
+consecutive throws stop the Time, loudly, naming the node. `running = true` restarts it; a
+`running` that is constrained starts again the next time what the constraint reads changes.
 
 **A clock is not a way to hear about a change.** A `Time` gated on a condition, whose handler
 does its work and closes its own gate, is asking to be told that something crossed into a new

@@ -146,7 +146,7 @@ export function programSchemas(classes: readonly ClassDecl[], shapes: ReadonlySe
     // attributes and behaviour plus its own declared attributes, constraints
     // and methods; the runtime builds every family through the one class-chain
     // install (instantiate.ts). The single refusal is an ABSTRACT base: a
-    // schema no runtime class implements (Stream, Media, EditControl) has nothing
+    // schema no runtime class implements (Stream, Media) has nothing
     // to construct, so a class extends a concrete member of that family.
     if (ABSTRACT_SCHEMAS.has(decl.base)) {
       errors.push(new DeclareError(

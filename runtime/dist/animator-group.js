@@ -3,7 +3,7 @@
 // capability, compiler/src/capabilities.ts).
 import { Node } from "./node.js";
 import { sharedClock, DEFAULT_MOTION } from "./animate.js";
-import { defineAttributes, disposeBindings, setBound } from "./attributes.js";
+import { defineAttributes, disposeBindings, ownerOf, setBound } from "./attributes.js";
 import { Animator } from "./animator.js";
 /** AnimatorGroup — coordinates several animators (or nested groups) in
  *  `sequential` or `simultaneous` order (animation.md §1, LzAnimatorGroup.lzs).
@@ -40,12 +40,25 @@ export class AnimatorGroup extends Node {
      *  Animator.startedChanged) — the group is the driver, so a change here
      *  starts or stops the whole group, members included. */
     $startedChanged(v) {
-        if (!this.autoStarted || this.grouped)
+        if (this.$requesting || !this.autoStarted || this.grouped)
             return;
         if (v)
             this.start();
         else
             this.stop();
+    }
+    /** The verbs write the request, as an Animator's do (Animator.$request). */
+    $requesting = false;
+    $request(v) {
+        if (this.started === v || this.grouped || ownerOf(this, "started") !== null)
+            return;
+        this.$requesting = true;
+        try {
+            setBound(this, "started", v);
+        }
+        finally {
+            this.$requesting = false;
+        }
     }
     /** The group's own pause is clock membership too (see Animator.pausedChanged):
      *  off the clock while paused — members freeze because nothing ticks them —
@@ -74,6 +87,7 @@ export class AnimatorGroup extends Node {
      *  becomes active (so a sequential member samples its `from` only once the
      *  members before it have moved the slot). */
     start() {
+        this.$request(true);
         if (this.live)
             return;
         this.live = true;
@@ -90,6 +104,11 @@ export class AnimatorGroup extends Node {
     /** Stop the group (LZX stop): halt every still-running member in place, drop
      *  the group ticker, fire onStop. Idempotent. */
     stop() {
+        this.$request(false);
+        this.$halt();
+    }
+    /** Stop the run without touching the request — teardown's path. */
+    $halt() {
         if (!this.live)
             return;
         if (!this.grouped)
@@ -103,7 +122,7 @@ export class AnimatorGroup extends Node {
      *  recurse so each member animator disposes its own bindings too. */
     $teardown() {
         disposeBindings(this);
-        this.stop();
+        this.$halt();
         super.$teardown();
     }
     /** One group frame: drive the active members with the shared `now`, retire
@@ -159,6 +178,7 @@ export class AnimatorGroup extends Node {
             this.active = this.$members();
             return true;
         }
+        setBound(this, "arrived", true); // finished on its own — BEFORE onStop, as an Animator's run does
         this.$endGroup();
         return this.live; // an onStop that restarted the group keeps the ticker alive
     }

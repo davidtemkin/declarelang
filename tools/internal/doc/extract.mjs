@@ -42,7 +42,7 @@ const DOC_SCHEMAS = { ...SCHEMAS, RichText: RichTextSchema };
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const TARGETS = [                                        // the documented class surface
   "View", "App", "Text", "Font", "FontFace", "Image", "Media", "Video", "Audio", "RichText", "Markdown", "HTMLText", "DOMIsland", "TextInput",
-  "Layout", "TweenLayout", "EditControl",
+  "Layout", "TweenLayout",
   "Dataset", "DataSource",
   "Animator", "AnimatorGroup", "Spring", "Time", "Keys", "Focus", "Tooltips",
   "Stream", "EventStream", "Socket",
@@ -259,6 +259,20 @@ function readDecorations(files) {
 // advertised none of them. Skips the constructor, `private`/`protected`, and
 // `_`-prefixed internals. Inherited members are reached through the `extends`
 // edge (per-declaration model), exactly like attributes.
+/** The `$` methods the prose documents (`## $data()`): every other `$` name is
+ *  machinery a program cannot write, and stays out of the reference. */
+let dollarDocumented = null;
+function DOCUMENTED_DOLLAR() {
+  if (dollarDocumented !== null) return dollarDocumented;
+  dollarDocumented = new Set();
+  const dir = path.join(ROOT, "tools/internal/doc/prose");
+  for (const f of readdirSync(dir)) {
+    if (!f.endsWith(".md")) continue;
+    for (const m of readFileSync(path.join(dir, f), "utf8").matchAll(/^## (\$\w+)\(\)/gm)) dollarDocumented.add(m[1]);
+  }
+  return dollarDocumented;
+}
+
 function readMethods(files) {
   const byClass = {};                                   // className → { method → { signature, params, returns, file, line } }
   for (const rel of files) {
@@ -275,6 +289,9 @@ function readMethods(files) {
           if (mods.some((x) => x.kind === ts.SyntaxKind.PrivateKeyword || x.kind === ts.SyntaxKind.ProtectedKeyword)) continue;
           const name = m.name.text;
           if (name.startsWith("_")) continue;
+          // a `$` method is internal unless the reference documents it ($data,
+          // $setData, $cell — the data access the library and apps use)
+          if (name.startsWith("$") && !DOCUMENTED_DOLLAR().has(name)) continue;
           if (table[name] !== undefined) continue;      // first declaration wins (a get/set pair)
           const returns = m.type ? m.type.getText(sf) : "void";
           if (isGetter) {
@@ -360,7 +377,7 @@ const METHODS = readMethods([
   "runtime/src/streams.ts", "runtime/src/media.ts", "runtime/src/audio.ts",
 ]);
 // A class is ABSTRACT when no registry can instantiate it by name: Layout,
-// TweenLayout, RichText and EditControl are bases you extend, never tags you write.
+// TweenLayout and RichText are bases you extend, never tags you write.
 // Derived from the registries rather than a hand list, so it cannot drift.
 const INSTANTIABLE = new Set([TAGS, LAYOUTS, DATA, ANIMATORS, SOURCES, ANIMATOR_GROUPS, STATES]
   .flatMap((r) => Object.keys(r)));
@@ -415,15 +432,15 @@ for (const [cls, lines] of Object.entries(LANGUAGE_STATICS)) {
   }
 }
 
-// `draw(d: Draw)` is an ordinary method with a RESERVED name a view may define
+// `draw(d: DrawContext)` is an ordinary method with a RESERVED name a view may define
 // (declare.md §3: View calls it from a constraint of its own) — author-declared,
 // so tsc's surface never lists it on View. It enters through the callable door, so the
 // View page carries it (`## draw()` prose, View.md) and `declare-help View.draw`
-// answers. The Draw interface itself is on the Types page.
-(CALLABLE.View ??= new Map()).set("draw", { signature: "draw(d: Draw): void", isStatic: false });
-// `validate(v)` likewise: a reserved method an editor may define, called by its edit
-// session (editor.ts runValidate) — so `declare-help EditControl.validate` answers.
-(CALLABLE.EditControl ??= new Map()).set("validate", { signature: "validate(v): string | boolean", isStatic: false });
+// answers. The DrawContext interface itself is on the Types page.
+(CALLABLE.View ??= new Map()).set("draw", { signature: "draw(d: DrawContext): void", isStatic: false });
+// `validate(v)` likewise: a reserved method a field may define, called by its edit
+// session (editor.ts runValidate) — so `declare-help TextInput.validate` answers.
+(CALLABLE.TextInput ??= new Map()).set("validate", { signature: "validate(v): string | boolean", isStatic: false });
 
 const RUNTIME_NAME = {};                                // doc id → runtime class name (no mismatches since the DOMIsland rename)
 
@@ -894,7 +911,7 @@ const CLASS_GROUPS = [
   ["Text",          ["Text", "TextLabel", "Font", "FontFace", "RichText", "Markdown", "HTMLText"]],
   ["Media",         ["Image", "Media", "Video", "Audio"]],
   ["Layout",        ["Layout", "SimpleLayout", "WrappingLayout", "ResponsiveLayout", "TweenLayout", "Spacer"]],
-  ["Controls",      ["Control", "Button", "Checkbox", "Switch", "Slider", "RadioGroup", "Radio", "Field", "EditControl", "TextInput", "SearchField", "Combobox", "Segmented", "SegmentedItem", "TabBar", "TabBarTab", "Stepper", "DatePicker", "MonthCalendar", "MonthCalendarDay", "MonthCalendarArrow", "Toolbar", "ToolButton", "ToolbarDivider", "Splitter", "ProgressBar", "FocusRing", "AppearanceSwitch", "TextSizeSwitch"]],
+  ["Controls",      ["Control", "Button", "Checkbox", "Switch", "Slider", "RadioGroup", "Radio", "Field", "TextInput", "SearchField", "Combobox", "Segmented", "SegmentedItem", "TabBar", "TabBarTab", "Stepper", "DatePicker", "MonthCalendar", "MonthCalendarDay", "MonthCalendarArrow", "Toolbar", "ToolButton", "ToolbarDivider", "Splitter", "ProgressBar", "FocusRing", "AppearanceSwitch", "TextSizeSwitch"]],
   // "Structure", not "Chrome": the word is the browser the gates drive, and the
   // reference is read by agents as often as by people, so the collision was one
   // we would have been adding on purpose. It is also the word the language file's
@@ -902,7 +919,7 @@ const CLASS_GROUPS = [
   ["Structure",     ["Gauge", "Card", "Divider", "MenuBar", "Accordion", "AccordionPane", "Carousel", "CarouselLayout", "Disclosure", "Tree", "TreeRow", "Breadcrumb", "BreadcrumbStep", "BreadcrumbLink", "BreadcrumbCurrent", "Window", "WindowClose"]],
   // what paints above everything in its context (planes.md §3.3): one base, the
   // objects every platform converges on, and the layers they paint in
-  ["Overlays",      ["Floating", "Menu", "ContextMenu", "Popover", "Dialog", "Sheet", "Toast", "TooltipLayer", "OverlayStrata"]],
+  ["Overlays",      ["Floating", "Menu", "ContextMenu", "Popover", "Dialog", "Sheet", "Toast", "Tooltip", "OverlayStrata"]],
   // Data holds what STORES or FETCHES data and paints nothing. The tables are
   // views that display it — a different kind of thing, filed with their kind.
   ["Data",          ["Dataset", "DataSource", "Stream", "EventStream", "Socket"]],

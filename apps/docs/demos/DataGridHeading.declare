@@ -1,0 +1,17 @@
+// The heading's own look, or yours
+// A heading row draws DataGridHeading — the record's `heading`, semibold and muted — unless
+// `headingClass` names a class of your own, whose data is the heading record.
+
+class Band [ width = 100%, height = 100%, fill = #EEF3F8,
+    Text [ x = 8, y = center, fontSize = 12, fontWeight = bold, textColor = #2F5A7A, text = { "" + (:heading ?? "") } ]
+    ]
+
+
+App [ width = 420, height = 170,
+    d: Dataset { { "rows": [ { "id": "a", "heading": "Fruit" }, { "id": 1, "name": "Pear" },
+                             { "id": "b", "heading": "Vegetables" }, { "id": 2, "name": "Leek" } ] } },
+    DataGrid [ x = 20, y = 20, width = 180, height = 130,
+        items = { app.d.value.rows }, columns = { [ { id: "name", title: "Default", width: 160 } ] } ],
+    DataGrid [ x = 220, y = 20, width = 180, height = 130, headingClass = "Band",
+        items = { app.d.value.rows }, columns = { [ { id: "name", title: "headingClass", width: 160 } ] } ]
+    ]

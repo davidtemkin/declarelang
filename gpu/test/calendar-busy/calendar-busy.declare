@@ -399,7 +399,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
        that mode spread over it, so a library control dropped in here finds every
        token it reads. `themeMode` is Light / Dark / Auto — Auto follows the
        environment: what the host provides as `dark` when this app runs embedded
-       (a desktop passing its appearance through), else the OS through `app.dark`. */
+       (a desktop passing its appearance through), else the OS through `app.systemDark`. */
 
     theme = { { ...(app.isDark ? SanFranciscoDark : SanFrancisco), ...(app.isDark ? CalendarDark : CalendarLight) } },
     themeMode: "auto" | "light" | "dark" = "auto",
@@ -408,7 +408,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
     // embeds the calendar decides dark for it), else the system preference.
 
     isDark: boolean = { app.themeMode == "auto"
-        ? hostProvided("dark", app.dark)
+        ? hostProvided("dark", app.systemDark)
         : app.themeMode == "dark" },
 
     // layout constants
@@ -481,7 +481,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
        `auto` loads it either way: the url is the reactive thing, and when a
        late-landing base changes it the source fetches the right address. */
 
-    events: Events [ auto = true, url = { hostProvided("base", "") + "data/events.json" } ],
+    events: Events [ autoFetch = true, url = { hostProvided("base", "") + "data/events.json" } ],
 
     /* The model is derived, not built: `cal.contents` recomputes when the visible
        month or the events change, and keyed replication (`:key`, `:id`) makes each

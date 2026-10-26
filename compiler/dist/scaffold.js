@@ -138,8 +138,9 @@ interface Shadow { fn: "shadow"; dx: number; dy: number; blur: number; color: Co
  *  same list to what lies beneath. There is no CSS \`filter\` string: the tokens are
  *  functions, so a misspelling is a compile error rather than a silent no-op. */
 type ImageFilter = { fn: "blur"; radius: number } | { fn: "brightness" | "contrast" | "saturate" | "grayscale" | "invert" | "sepia"; amount: number } | { fn: "hueRotate"; degrees: number } | { fn: "colorize"; color: Color } | Shadow;
-/** What lies BENEATH a view, filtered: the same list \`filter\` takes, applied to
- *  the backdrop instead of the view's own paint. \`frost\` is the common one. */
+/** A list of filters, applied in order: what \`filter\` applies to the view's own
+ *  paint and \`backdrop\` to what lies beneath it. \`frost(…)\` builds the common
+ *  backdrop pair. */
 type FilterList = readonly ImageFilter[];
 /** A token record — every color and metric an app names once. Provided down the
  *  tree (\`provided("theme")\`), spread to override a token, and declared at the top
@@ -161,7 +162,7 @@ declare function activeTone(accent: Color, surface: Color): Color;
 interface DataCursor { readonly data: any; readonly path: readonly string[] }
 /** One message across the island boundary — what \`post\` and \`postToHost\` send and
  *  \`onPost\` and \`onHostMessage\` receive between an embedded app and its host. */
-interface IslandPost { readonly topic: string; readonly payload: unknown }
+interface IslandMessage { readonly topic: string; readonly payload: unknown }
 /** A navigation the embedded app asked for — what an island's \`onNavigate\`
  *  receives: \`to\`, the address made absolute; \`program\`, the Declare program it
  *  names ("" when none); \`location\`, the place after its \`#\`; \`newWindow\`, whether
@@ -180,7 +181,7 @@ declare function conicGradient(cx: number, cy: number, angle: number, ...stops: 
 /** Build a border: \`stroke = stroke(1, #B0B0B0)\`. Drawn inside the box, so it
  *  costs no layout. */
 declare function stroke(width: number, color: Color): Stroke;
-/** Build a ring drawn outside the box — what a focus silhouette wears. */
+/** Build a Text's glyph outline: a stroke along the letters' edges, under their fill. */
 declare function outline(width: number, color: Color): GlyphOutline;
 /** Place one gradient stop at an exact offset (0 to 1) instead of letting the
  *  colors spread evenly. */
@@ -258,7 +259,8 @@ interface TextMetrics { readonly width: number; readonly height: number; readonl
  *  \`measureText(words, providedTextStyle({ lineHeight: 1.3 }), 300).width\`. */
 declare function measureText(text: string, style: TextStyle, width?: number): TextMetrics;
 /** A value this program's HOST provides — the program that embeds it lists the
- *  name in its island's \`provides\`; a page embedding it calls \`app.provide\`.
+ *  name in its island's \`provides\`; a page embedding it passes \`boot({ provides })\`
+ *  and calls its tenant handle's \`provide\`.
  *  The default stands in when nothing is provided (the program running on its
  *  own, or the host not listing the name) and states the type: a value of a
  *  different kind is refused at the read, with a warning. The name must be a
@@ -300,9 +302,9 @@ interface DrawGradient { addColorStop(offset: number, color: string | Color): vo
  *  so a subclass of \`Image\` qualifies — you hand over the node, not a URL, because
  *  the node is what knows whether the bytes have arrived. */
 interface DrawImageSource { loaded: boolean; naturalWidth: number; naturalHeight: number }
-/** The canvas drawing context a \`draw(d: Draw)\` body receives — a Canvas2D-
+/** The canvas drawing context a \`draw(d: DrawContext)\` body receives — a Canvas2D-
  *  shaped recorder whose operations every renderer replays (runtime/src/draw.ts). */
-interface Draw {
+interface DrawContext {
   // The view's own SIZE, for a drawing that sizes itself. Reading one opts this
   // drawing into re-recording when the view resizes (draw.ts explains why that
   // is a getter and not a field). There is no \`x\`/\`y\`: a recording's origin IS
@@ -615,7 +617,7 @@ export function tsType(t) {
 /** The event-payload type names, writable in a handler's signature. Declared
  *  in the prelude above; the shapes live in the runtime (events.ts, keys.ts,
  *  tip.ts, focus.ts) and this list is what makes them nameable by an author. */
-const PAYLOAD_TYPES = new Set(["PointerEvent", "PointerUpEvent", "TouchEvent", "WheelEvent", "PinchEvent", "Touch", "KeyEvent", "FocusGeometry", "TooltipEvent", "StreamMessage", "File", "FilesOverEvent", "FilesDropEvent", "FilePickOptions", "Draw", "DrawGradient"]);
+const PAYLOAD_TYPES = new Set(["PointerEvent", "PointerUpEvent", "TouchEvent", "WheelEvent", "PinchEvent", "Touch", "KeyEvent", "FocusGeometry", "TooltipEvent", "StreamMessage", "File", "FilesOverEvent", "FilesDropEvent", "FilePickOptions", "DrawContext", "DrawGradient"]);
 /** A WRITTEN signature type name (`f(w: Window) -> number`) → its TypeScript
  *  type. Two sources, the same two an attribute declaration draws on: the
  *  declarable value vocabulary (`number`, `string`, `array`, `Axis`, …) and the
@@ -850,12 +852,10 @@ export const LANGUAGE_API = {
         // The room inside: the view's extent on `size` less both of its padding's
         // insets on that axis, never below 0 — what `100%` resolves against.
         `  contentBox(size: "width" | "height"): number;`,
-        `  removeChild(child: View): void;`,
         // Tear a runtime-created view down for good: unlink from the parent,
         // unwire constraints, drop the surface, notify the ex-parent's layout and
         // auto-extent — the self-completing pair of createView.
         `  discard(): void;`,
-        `  insertChild(child: View, index: number): void;`,
         // The keyboard-traversal protocol (focus.ts): a view's tabOrder() decides
         // the members Tab descends into — override it to gate traversal (a closed
         // AccordionPane contributes none); tabDefault() is the default the
@@ -907,11 +907,11 @@ export const LANGUAGE_API = {
     ],
     // The edit-session VERBS (editor.ts): `dirty`/`valid`/`error` are schema
     // attrs (readable state), but committing/reverting the draft are calls.
-    EditControl: [`  commit(): void;`, `  revert(): void;`, `  judge(): void;`],
-    // The selection write half (#22): one verb — a caret is a zero-length range.
-    // "start" / "end" / "all" are the word forms; numbers clamp; `end` omitted
-    // means a caret at `at`.
-    TextInput: [`  select(at: number | "start" | "end" | "all", end?: number): void;`],
+    // …and the selection write half (#22): one verb — a caret is a zero-length
+    // range. "start" / "end" / "all" are the word forms; numbers clamp; `end`
+    // omitted means a caret at `at`.
+    TextInput: [`  commit(): void;`, `  revert(): void;`, `  judge(): void;`,
+        `  select(at: number | "start" | "end" | "all", end?: number): void;`],
     // The State verbs (state.ts): drive `applied` imperatively — legal only on
     // an UNGATED state (gate XOR verbs; a gated state throws with the rule named).
     // Implemented and advertised since the start; unreachable from source until

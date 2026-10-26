@@ -22,7 +22,7 @@ class TitleWord [ width = 100%, height = 100%,
     columns: number = 0,
     outlined: number = 0,
     colors: number[] = { app.game.colors },
-    art: DataSource [ url = "art/title.json", auto = true, schema = TitleArt ],
+    art: DataSource [ url = "art/title.json", autoFetch = true, schema = TitleArt ],
     left: number = 28,                  // the pixel the word starts at
 
     // every lit pixel of the word, in the order the columns are drawn: [column drawn, x, y, ink]
@@ -80,7 +80,7 @@ class TitleWord [ width = 100%, height = 100%,
         const rows = Math.floor(halfRows / 2)
         return y - row < rows || (y - row == rows && halfRows % 2 == 1 && Math.floor(x / 2) < 75)
         },
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         for (const p of pixels) {
             if (p[0] >= columns) break
             d.fillStyle = arcadeColor(colors[p[3]])
@@ -140,13 +140,13 @@ class PageWords [ width = 100%, height = 100%,
         { "id": 3, "says": "CREDITS: ##", "font": "large", "px": 124, "py": 224 } ] } },
 
     notices: View [ width = 100%, height = 100%, visible = { classroot.pages.shown == "title" && classroot.pages.noticed },
-        Lettering [ font = "large", ink = 1, px = { app.touchDevice ? 117 : 84 }, py = 120, opaque = false,
-            text = { app.touchDevice ? "PRESS START" : "PRESS RETURN TO START" } ],
-        View [ width = 100%, height = 100%, datapath = { classroot.keyRows.value }, visible = { !app.touchDevice },
+        Lettering [ font = "large", ink = 1, px = { app.touchFirst ? 117 : 84 }, py = 120, opaque = false,
+            text = { app.touchFirst ? "PRESS START" : "PRESS RETURN TO START" } ],
+        View [ width = 100%, height = 100%, datapath = { classroot.keyRows.value }, visible = { !app.touchFirst },
             KeyRow [ datapath = :rows[] ]
             ],
-        Lettering [ ink = 8, px = { app.touchDevice ? 108 : 112 }, py = 184, opaque = false,
-            text = { app.touchDevice ? "GAME SECRETS: PRESS REV" : "GAME SECRETS: PRESS Z" } ],
+        Lettering [ ink = 8, px = { app.touchFirst ? 108 : 112 }, py = 184, opaque = false,
+            text = { app.touchFirst ? "GAME SECRETS: PRESS REV" : "GAME SECRETS: PRESS Z" } ],
         Lettering [ font = "large", ink = 10, px = 27, py = 228, opaque = false, text = "COPYRIGHT © 1981 WILLIAMS ELECTRONICS INC." ]
         ],
     secrets: View [ width = 100%, height = 100%, visible = { classroot.pages.shown == "secrets" && classroot.pages.told },

@@ -5,7 +5,7 @@ so it is also the outermost box — and it **fills its host by default** (its `w
 default to `hostWidth`/`hostHeight`), so a plain app is full-window and an aspect-locked
 one reads the host extent. Two rules distinguish it from a plain View:
 an App is **clipped by definition** — a program owns its rectangle, so `clip = false` is a
-compile error (a ClipPath clip keeps its meaning) — and it **scrolls by default**
+compile error (a path clip keeps its meaning) — and it **scrolls by default**
 (`scrolls = y`), with its scroller being **the page itself**: content taller than the
 window makes the browser's own page scroll, and an app whose content fits simply has
 nothing to scroll (the "fixed window" is that default, idle). Chrome that must not scroll
@@ -61,13 +61,12 @@ hover-at-a-distance: a `Spring` following `app.pointerX` trails the cursor.
 ## pointerY
 **Read-only.** The pointer's vertical position in viewport space — the twin of `pointerX`.
 
-## hovering
-**Read-only.** Whether a **hovering** pointer is present — true for mouse/trackpad,
-**false for touch**. Gate hover-only chrome (a cursor dot, a rollover) on it so a phone
-never shows it, yet an iPad trackpad — which reports a mouse pointer — still does. It
-reports the pointer, not the machine: it is `false` until a pointer first moves, so a
-mouse-driven page that nobody has touched yet starts out `false` — for "what kind of
-device is this?" read `touchDevice`, which is a standing answer.
+## pointerHovering
+**Read-only.** Whether a **hovering** pointer is over the app right now — true for a
+mouse, trackpad or pen, **false for touch**, false once the pointer leaves the window, and
+false until it first moves. Gate what *follows* the pointer on it (a cursor dot, a
+crosshair). To reveal something on hover, use the view's own `hovered` and give a finger
+another way in with `lastPointerType`; to size for the device, read `touchFirst`.
 
 ## pointerOverText
 **Read-only.** True while the pointer is over an editable or selectable text field. Yield
@@ -232,20 +231,22 @@ App [ location = "home",
 `pointerY`. It is the app-wide fact, not a per-view one: use `View.pressed` to style the
 thing being pressed, and this to suppress something globally for the duration of a drag.
 
-## touchDevice
-Whether touch is the **primary** input, live — so it re-settles if the input changes rather
-than being sampled once at boot. This is the one to size from: hit targets, spacing,
-whether a hover reveal exists at all (`visible = { !app.touchDevice }`). Distinct from
+## touchFirst
+Whether the device is built for touch: a phone or a tablet, an iPad with a keyboard and
+trackpad included (its primary pointer is still the finger). Live, so it re-settles if the
+input changes rather than being sampled once at boot. This is the one to size from: hit targets and spacing. (A hover
+reveal keys on `lastPointerType`, since a touch-first iPad can still be driven by a trackpad.) Distinct from
 `hasTouch`: a touch laptop *has* touch while its primary input is still the pointer.
 
 ## hasTouch
 Whether the device **has** a touch input at all (`any-pointer`), regardless of which is
 primary. Use it for a hit-target *floor* on hybrids — a machine someone might reach out and
-tap even though they are mostly using a trackpad. Size from `touchDevice`; raise the floor
+tap even though they are mostly using a trackpad. Size from `touchFirst`; raise the floor
 from this.
 
-## hasPointer
-Whether the device has a fine pointer at all, the mirror of `hasTouch`. Both can be true at
+## hasMouse
+Whether the device has a mouse, trackpad or stylus at all (`any-pointer: fine`), the mirror
+of `hasTouch`. Both can be true at
 once; neither tells you which the user is holding right now — `lastPointerType` does.
 
 ## lastPointerType
@@ -284,6 +285,11 @@ letterboxed (`edges = safe`) and on any desktop; the device's real number under
 reserves it *below* its buttons: `height = { 56 + app.safeBottom }` with the content
 anchored to the bar's top, so the swipe band is the bar's fill rather than dead space.
 
+## keyboardHeight
+**Read-only.** How much of the window's foot an on-screen keyboard covers right now — `0`
+with no keyboard up, and always `0` on a desktop. A bottom sheet or a composer bar rises by
+it so the keyboard never hides what is being typed into.
+
 ## underlapBottom
 **Read-only.** How much of the bottom of `hostHeight` is the browser's own *retractable*
 chrome — `0` while its bars are shown, their height once they retract (and always `0` on
@@ -319,24 +325,10 @@ and the full-width idiom.
 ## exposes
 The names this app offers UP to whatever hosts it — `exposes = ["docH"]`. Each names
 one of the app's own attributes; the host reads it with `island.exposed("docH", 0)`
-(an island hosting this app) or `app.exposed("docH")` (a page). Nothing unlisted is
+(an island hosting this app) or `tenant.exposed("docH", 0)` (a page, through the handle
+`boot()` resolves to). Nothing unlisted is
 readable from outside. The down direction is `hostProvided(name, default)`, which reads
 what the host provides.
-
-## provideHostValue()
-The PAGE's side of the down direction, for a top-level app: `app.provideHostValue(name, value)`
-sets the value this app's `hostProvided(name, …)` reads return, and every constraint over
-them re-derives; `undefined` withdraws it. `boot({ provides })` and a
-`data-declare-provide` JSON attribute on the host element do the same at boot. An
-island-hosted app gets its values from the island's `provides` instead.
-
-## exposed()
-The PAGE's read of a value this app exposes: `app.exposed("docH")` — `undefined` for a
-name the `exposes` list does not carry.
-
-## watchExposed()
-A standing watch over an exposed value, for page script: `app.watchExposed(name, cb)` calls
-`cb(value)` now, then at the close of each settle that changed it; returns the unwatch.
 
 ## language
 The language the program's text is in, as a BCP 47 tag — `"en"` (the default), `"fr"`,
@@ -362,16 +354,16 @@ Opens the Inspector on this app, or on an embedded child app when given its isla
 pass `declarec --debug`.
 
 ## postToHost()
-The island bridge's tenant-side verb: when this app runs **embedded as an island's
-tenant**, `app.postToHost(topic, payload)` delivers to the host island's `onPost({ topic,
-payload })`. Not linked (a top-level app), it drops with a console note — a verb has no
+The tenant's verb to whatever hosts it: `app.postToHost(topic, payload)` delivers to a
+host island's `onPost({ topic, payload })`, or, for an app a page booted, to the page's
+`boot({ onPost })`. With no host listening it drops with a console note — a verb has no
 meaning without a receiver. Continuous values cross as the app's `exposes` names (up)
 and `hostProvided` reads (down); postToHost is for commands and occurrences, never state.
 
 ## onHostMessage
-The inbound half, an event: a host island's `post(topic, payload)` arrives on its
-embedded tenant as `onHostMessage(m: IslandPost)` — `m.topic`, `m.payload`. Fires only on a
-linked tenant. Continuous values cross by name, each saying its direction: this app
+The inbound half, an event: a host island's `post(topic, payload)`, or an embedding
+page's `tenant.post(topic, payload)`, arrives as `onHostMessage(m: IslandMessage)` —
+`m.topic`, `m.payload`. Continuous values cross by name, each saying its direction: this app
 lists what it offers UP in `exposes`, and the host reads one with the island's
 `exposed(name, default)`; the host lists what it offers DOWN in the island's
 `provides`, and this app reads one with `hostProvided(name, default)`. Both reads are

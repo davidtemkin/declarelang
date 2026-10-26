@@ -1388,7 +1388,7 @@ function buildMethodSummaries(): Summaries {
     // dataset's value, a record, a parameter's data) is an ordinary data read.
     if (c.kind === "collection") {
       const el = ctx === null ? undefined : receiverElementDeep(c.receiver, ctx.owner, ctx.classRoot);
-      const isNode = el !== undefined ? !hasOwnMember(el, c.coll) : /^(this|parent|classroot)(\.(root|parent))*$/.test(c.receiver);
+      const isNode = el !== undefined ? !hasOwnMember(el, c.coll) : /^(this|parent|classroot)(\.(\$root|parent))*$/.test(c.receiver);
       return { reads: new Set(), errors: isNode
         ? [new DepError(`aggregation over a reactive node collection (.${c.coll}.${c.m}) — a data-dependent number of attributes; derive from data`, c.at)] : [] };
     }

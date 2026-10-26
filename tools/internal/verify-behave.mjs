@@ -8,6 +8,7 @@
 // Loaded lazily by tools/verify.mjs; also the eval harness's execution seam.
 
 import http from "node:http";
+import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, statSync, mkdirSync } from "node:fs";
 import { join, resolve, dirname, extname, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -184,9 +185,14 @@ bootHost(cfg);
       // …and what the program threw that the runtime caught and logged with
       // its place (`onClick on app.b threw: …`): an error, though not the page's
       const thrown = [];
+      // …and every error the page logged, the last few — what a boot that never
+      // came up is said with when nothing else names its reason
+      const pageSaid = [];
       page.on("console", (m) => {
         if (m.type() !== "error") return;
         const t = m.text().replace(/(?: JSHandle@\w+)+$/, "");
+        pageSaid.push(t.split("\n")[0].slice(0, 300));
+        if (pageSaid.length > 5) pageSaid.shift();
         if (t.startsWith("[Declare] boot failed")) bootSaid.push(consoleText(m));
         else if (/^\[Declare\] .* threw: /.test(t)) thrown.push(t.slice("[Declare] ".length));
       });
@@ -242,6 +248,9 @@ bootHost(cfg);
       await page.evaluateOnNewDocument(() => {
         const realSet = globalThis.setTimeout.bind(globalThis);
         const realClear = globalThis.clearTimeout.bind(globalThis);
+        // the platform's own processes (the user's scroll going quiet) keep real
+        // time: runtime/src/platform-time.ts reads this pair
+        globalThis.__declarePlatformTimers = { set: realSet, clear: realClear };
         let now = 0, seq = 0;
         const pend = new Map();   // id → { due, fn, args, every }
         globalThis.setTimeout = (fn, ms, ...args) => {
@@ -309,34 +318,47 @@ bootHost(cfg);
           if (inflight === 0 && lastChange === seen) return;
         }
       };
-      await watch.during("boot", async () => {
-        await page.goto(`http://127.0.0.1:${port}${built !== null ? baseHref + "index.html" : "/__verify__/"}`, { waitUntil: "load", timeout: 30000 });
-        await page.waitForFunction("!!window.__declare?.inspect", { timeout: 10000, polling: 10 }).catch(async (e) => {
-          const lines = bootFailure(await Promise.all(bootSaid), pageErrors);
-          if (lines.length === 0) throw e;
-          throw Object.assign(new VerifyAssertion(lines.join("\n")), { lines });
+      // THE PAGE ARRIVING — at the start, and again after drive.device() loads it
+      // on another device: up (or said why not), its fonts in, its requests
+      // quiet, its opening motion run, and its deferred time on the driven clock.
+      // One sequence, so a reloaded page is as ready as the first.
+      const arrive = async (load) => {
+        await watch.during("boot", async () => {
+          await load();
+          await page.waitForFunction("!!window.__declare?.inspect", { timeout: 10000, polling: 10 }).catch(async (e) => {
+            const lines = bootFailure(await Promise.all(bootSaid), pageErrors);
+            // nothing named a reason: say what is known, never the bare timeout
+            if (lines.length === 0) {
+              const loaded = await page.evaluate(() => ({ declare: typeof window.__declare, scripts: document.scripts.length })).catch(() => null);
+              lines.push(`boot: the page loaded, but the program never came up within 10 s (${e?.message ?? "no answer"}), and the page reported no error`);
+              if (loaded !== null && loaded.declare === "undefined") lines.push("  the runtime never started on the page: its script did not run (a request for it failed, or it was blocked)");
+              for (const t of pageSaid) lines.push(`  the page logged: ${t}`);
+            }
+            throw Object.assign(new VerifyAssertion(lines.join("\n")), { lines });
+          });
+          // the program's own fonts: a Font starts its faces' loads as the app comes
+          // up, and the browser's document.fonts.ready can resolve before they begin
+          await page.waitForFunction(() => {
+            const pending = (n) => n.$pending === true || (n.children ?? []).some(pending);
+            return !pending(window.__declare.find("app"));
+          }, { timeout: 8000, polling: 20 }).catch(() => {});
+          await quiet();
+          await page.evaluate(() => document.fonts.ready);
+          // …and at rest: motion the app starts as it comes up (a spring settling into
+          // place) is run to its end on the driven clock — a loop that never ends
+          // does not hold it — and two frames go by, for what the page applies after
+          // a settle (its scroll extent among them)
+          await page.evaluate(() => { const c = window.__declare.clock; c?.settleMotion?.(5000); c?.auto?.(); });
+          await frames(page);
         });
-        // the program's own fonts: a Font starts its faces' loads as the app comes
-        // up, and the browser's document.fonts.ready can resolve before they begin
-        await page.waitForFunction(() => {
-          const pending = (n) => n.$pending === true || (n.children ?? []).some(pending);
-          return !pending(window.__declare.find("app"));
-        }, { timeout: 8000, polling: 20 }).catch(() => {});
-        await quiet();
-        await page.evaluate(() => document.fonts.ready);
-        // …and at rest: motion the app starts as it comes up (a spring settling into
-        // place) is run to its end on the driven clock — a loop that never ends
-        // does not hold it — and two frames go by, for what the page applies after
-        // a settle (its scroll extent among them)
-        await page.evaluate(() => { const c = window.__declare.clock; c?.settleMotion?.(5000); c?.auto?.(); });
-        await frames(page);
-      });
-      // Deferred time now rides the driven clock for every stepper — the
-      // asserts' clock.step, settleMotion, and the states' routes alike.
-      await page.evaluate(() => {
-        const c = window.__declare.clock, T = globalThis.__declareTimers;
-        if (c && T && typeof c.onStepped === "function") c.onStepped((ms) => T.advance(ms));
-      });
+        // Deferred time now rides the driven clock for every stepper — the
+        // asserts' clock.step, settleMotion, and the states' routes alike.
+        await page.evaluate(() => {
+          const c = window.__declare.clock, T = globalThis.__declareTimers;
+          if (c && T && typeof c.onStepped === "function") c.onStepped((ms) => T.advance(ms));
+        });
+      };
+      await arrive(() => page.goto(`http://127.0.0.1:${port}${built !== null ? baseHref + "index.html" : "/__verify__/"}`, { waitUntil: "load", timeout: 30000 }));
 
       const log = [];
       const step = (s) => log.push(s);
@@ -345,6 +367,12 @@ bootHost(cfg);
         if (n === null) throw new VerifyAssertion(`no node at '${path}'`);
         return n;
       };
+      // the nearest view above `path` whose own visible is false, by its path
+      const hider = (path) => page.evaluate((p) => {
+        const segs = p.match(/"[^"]*"|[^.]+/g) ?? [];
+        for (let k = segs.length - 1; k > 0; k--) if (window.__declare.find(segs.slice(0, k).join("."))?.visible === false) return segs.slice(0, k).join(".");
+        return "an ancestor";
+      }, path);
       // rootX/rootY is where the view is SEEN (inspect.ts takes every enclosing
       // scroll out). It used to be a plain sum of ancestor x/y, so driving
       // anything below a scrolled pane's fold aimed at the position the view
@@ -361,6 +389,149 @@ bootHost(cfg);
       const center = async (path) => {
         const n = await node(path);
         return pointIn(path, n.width / 2, n.height / 2);
+      };
+
+      // THE SCROLL A PERSON MAKES. Reaching a view off the window (or under a
+      // pane's fold, or under pinned chrome) is a SWIPE — a finger on a touch
+      // device, the wheel elsewhere — sent through Chrome's own gesture
+      // synthesizer, so the browser scrolls natively, as it does for a hand:
+      // touch (or wheel) events, scroll frames, momentum's end, `scrollend`. It is
+      // the platform's process and ASYNC, so the driver never moves a scroll
+      // offset or asks the program to: it swipes, waits until the platform says
+      // the scroll is over, looks where the view is now, and swipes again if it
+      // must — the same split the language has between the scroll position (a
+      // fact the platform reports) and a request to scroll (which may wait).
+      let gestureSession = null;
+      const swipe = async (x, y, dx, dy) => {
+        gestureSession ??= await page.target().createCDPSession();
+        // (the gesture's distance is the finger's travel: content scrolled down,
+        // toward its end, is a finger moving up)
+        await gestureSession.send("Input.synthesizeScrollGesture", {
+          x: Math.round(x), y: Math.round(y), xDistance: Math.round(-dx), yDistance: Math.round(-dy),
+          gestureSourceType: touching() ? "touch" : "mouse", speed: 1200, preventFling: true,
+        });
+      };
+      // over when no scroll event has come for three frames and no scroller
+      // holding the view reports the user's scroll live — in REAL time (the
+      // platform's), at most 2.5 s; answers whether a scroll was still live
+      const scrollOver = (path) => page.evaluate((p) => new Promise((done) => {
+        const until = performance.now() + 2500;
+        let n = 0, seen = -1, still = 0;
+        const count = () => { n++; };
+        addEventListener("scroll", count, true);
+        const live = () => { for (let v = window.__declare.find(p); v != null; v = v.parent) if (v.userScrolling === true) return true; return false; };
+        const frame = () => {
+          still = n === seen ? still + 1 : 0;
+          seen = n;
+          if ((still >= 3 && !live()) || performance.now() > until) { removeEventListener("scroll", count, true); done(live()); }
+          else requestAnimationFrame(frame);
+        };
+        requestAnimationFrame(frame);
+      }), path);
+      // where the view's point is in the window, and every scroller holding it:
+      // its box in the window (clipped to it) and how far it can still go
+      const scrollPlan = (path, at) => page.evaluate((p, at) => {
+        const d = window.__declare, t = d.find(p);
+        if (t == null) return null;
+        const pt = (v, x, y) => d.rootPoint(v, x, y);
+        const c = at !== null ? pt(t, at.x, at.y) : pt(t, t.width / 2, t.height / 2);
+        const scrollers = [];
+        for (let v = t.parent; v != null; v = v.parent) {
+          const ax = v.scrolls;
+          if (ax !== "y" && ax !== "x" && ax !== "both") continue;
+          // its box as it sits in its parent — the point of a view inside it
+          // would carry its own scroll; the root's is the window
+          const a = v.parent == null ? { x: 0, y: 0 } : pt(v.parent, v.x, v.y);
+          const b = v.parent == null ? { x: innerWidth, y: innerHeight } : pt(v.parent, v.x + v.width, v.y + v.height);
+          if (a === null || b === null) continue;
+          scrollers.push({
+            at: scrollers.length, name: v.name ?? v.constructor.name, y: ax !== "x", x: ax !== "y", scrolling: v.userScrolling === true,
+            box: { l: Math.max(0, Math.min(a.x, b.x)), t: Math.max(0, Math.min(a.y, b.y)), r: Math.min(innerWidth, Math.max(a.x, b.x)), b: Math.min(innerHeight, Math.max(a.y, b.y)) },
+            up: Math.max(0, v.scrollY ?? 0), down: Math.max(0, (v.contentHeight ?? 0) - v.height - (v.scrollY ?? 0)),
+            left: Math.max(0, v.scrollX ?? 0), right: Math.max(0, (v.contentWidth ?? 0) - v.width - (v.scrollX ?? 0)),
+          });
+        }
+        return { c, scrollers };
+      }, path, at);
+      // A GESTURE BELONGS TO THE SCROLLER UNDER THE FINGER where it starts — a
+      // swipe begun over a pane inside the page scrolls the pane. So the finger
+      // starts where the nearest scroller is the one meant, with its travel
+      // inside it, as a person puts a thumb on the page and not on the list in it.
+      const startOn = (path, pick, dx, dy) => page.evaluate((p, idx, box, dx, dy) => {
+        const d = window.__declare, t = d.find(p);
+        let want = null;
+        for (let v = t?.parent, k = 0; v != null; v = v.parent) {
+          const ax = v.scrolls;
+          if (ax !== "y" && ax !== "x" && ax !== "both") continue;
+          if (k++ === idx) { want = v; break; }
+        }
+        const owner = (x, y) => {
+          const h = d.at(x, y);
+          if (h === null) return null;
+          for (let v = d.find(h.path); v != null; v = v.parent) if (v.scrolls === "y" || v.scrolls === "x" || v.scrolls === "both") return v;
+          return null;
+        };
+        const xs = [0.5, 0.3, 0.7, 0.15, 0.85, 0.03, 0.97].map((f) => box.l + (box.r - box.l) * f);
+        const ys = [0.5, 0.6, 0.4, 0.7, 0.3, 0.8, 0.2, 0.9, 0.1].map((f) => box.t + (box.b - box.t) * f);
+        for (const sx0 of xs) for (const sy0 of ys) {
+          const sx = Math.min(Math.max(sx0, box.l + 4 + Math.max(0, dx)), box.r - 4 + Math.min(0, dx));
+          const sy = Math.min(Math.max(sy0, box.t + 4 + Math.max(0, dy)), box.b - 4 + Math.min(0, dy));
+          if (owner(sx, sy) === want) return { x: sx, y: sy };
+        }
+        return null;
+      }, path, pick.at, pick.box, dx, dy);
+      // Swipe until the view's point rests inside `band` (a window rectangle)
+      // and inside every pane holding it: the nearest scroller that can still
+      // move it there is the one swiped, at most most of its height per swipe.
+      // Answers the point and what was tried, for a failure that says what the
+      // platform did ("2 swipes up on App moved it 0 px").
+      const scrollInto = async (path, at, band) => {
+        const tried = [];
+        let P = await scrollPlan(path, at);
+        for (let i = 0; P !== null && i < 8; i++) {
+          let pick = null, by = null, short = null;
+          for (const s of P.scrollers) {
+            const lo = Math.max(band.t, s.box.t + 8), hi = Math.min(band.b, s.box.b - 8);
+            const lx = Math.max(band.l, s.box.l + 8), hx = Math.min(band.r, s.box.r - 8);
+            const needY = s.y && lo < hi && (P.c.y < lo || P.c.y > hi) ? P.c.y - (lo + hi) / 2 : 0;
+            const needX = s.x && lx < hx && (P.c.x < lx || P.c.x > hx) ? P.c.x - (lx + hx) / 2 : 0;
+            if (needY === 0 && needX === 0) continue;
+            const ny = needY > 0 ? Math.min(needY, s.down) : Math.max(needY, -s.up);
+            const nx = needX > 0 ? Math.min(needX, s.right) : Math.max(needX, -s.left);
+            if (Math.abs(ny) < 1 && Math.abs(nx) < 1) { short ??= s; continue; }   // at its end that way
+            pick = s; by = { x: nx, y: ny };
+            break;
+          }
+          if (pick === null) return { c: P.c, tried, short };
+          const bw = pick.box.r - pick.box.l, bh = pick.box.b - pick.box.t;
+          const dy = Math.sign(by.y) * Math.min(Math.abs(by.y), bh * 0.7), dx = Math.sign(by.x) * Math.min(Math.abs(by.x), bw * 0.7);
+          // where to start it (startOn), and a shorter swipe where a long one has
+          // nowhere to start: a thumb above the list, not on it
+          let start = null, gx = dx, gy = dy;
+          for (const f of [1, 0.6, 0.35]) {
+            gx = dx * f; gy = dy * f;
+            start = await startOn(path, pick, gx, gy);
+            if (start !== null) break;
+          }
+          if (start === null) { tried.push({ on: pick.name, way: dy > 0 ? "up" : "down", moved: 0, live: false, nowhere: true }); break; }
+          await swipe(start.x, start.y, gx, gy);
+          const live = await scrollOver(path);
+          await page.evaluate(() => window.__declare.clock?.settleMotion?.());
+          const was = P.c;
+          P = await scrollPlan(path, at);
+          if (P === null) break;
+          const moved = Math.round(Math.hypot(P.c.x - was.x, P.c.y - was.y));
+          tried.push({ on: pick.name, way: Math.abs(dy) >= Math.abs(dx) ? (dy > 0 ? "up" : "down") : (dx > 0 ? "left" : "right"), moved, live });
+          if (moved === 0 && tried.length >= 2 && tried[tried.length - 2].moved === 0) break;
+        }
+        return { c: P?.c ?? null, tried, short: null };
+      };
+      const toldTried = (r) => {
+        if (r.tried.some((t) => t.nowhere)) return `no point on '${r.tried.find((t) => t.nowhere).on}' to start a swipe from: what is under a finger there belongs to another scroller`;
+        if (r.tried.length === 0) return r.short !== null ? `'${r.short.name}' is already at its end that way` : "nothing holding it scrolls that way";
+        const by = new Map();
+        for (const t of r.tried) { const k = `${t.way} on '${t.on}'`; const e = by.get(k) ?? { n: 0, moved: 0, live: false }; e.n++; e.moved += t.moved; e.live ||= t.live; by.set(k, e); }
+        return [...by].map(([k, e]) => `${e.n} swipe${e.n === 1 ? "" : "s"} ${k} moved it ${e.moved} px${e.live ? " (its scroll was still live — scrolling = true — when the driver gave up waiting)" : ""}`).join("; ");
       };
 
       // Where a press on a view lands, as a person's would: a view below the fold
@@ -394,11 +565,11 @@ bootHost(cfg);
         let c = await still();
         const vp = page.viewport() ?? { width: 1280, height: 800 };
         const off = (q) => q.x < 0 || q.y < 0 || q.x >= vp.width || q.y >= vp.height;
+        const whole = { l: 0, t: 0, r: vp.width, b: vp.height };
         if (off(c)) {
-          await page.evaluate((p) => { const n = window.__declare.find(p); n?.scrollIntoView?.("nearest"); }, path);
-          await page.evaluate(() => window.__declare.clock?.settleMotion?.());
-          c = await still();   // the platform's scroll lands as an event, frames later
-          if (off(c)) throw new VerifyAssertion(`'${path}' is outside the window at (${Math.round(c.x)}, ${Math.round(c.y)}) and scrolling did not bring it in`);
+          const r = await scrollInto(path, at, whole);
+          c = await still();
+          if (off(c)) throw new VerifyAssertion(`'${path}' is outside the window at (${Math.round(c.x)}, ${Math.round(c.y)}), and swiping did not bring it in: ${toldTried(r)}`);
         }
         // the view a press there reaches must be the target, inside it, or what holds it;
         // one that pinned chrome covers is scrolled clear of it first, as a person would
@@ -418,25 +589,30 @@ bootHost(cfg);
         let hit = await reachesFor();
         // below its pane's fold, though on the screen: scrolled into its pane, as a person would
         if (hit.clipped) {
-          await page.evaluate((p) => { window.__declare.find(p)?.scrollIntoView?.("nearest"); }, path);
-          await page.evaluate(() => window.__declare.clock?.settleMotion?.());
+          await scrollInto(path, at, whole);
           c = await still();
           hit = await reachesFor();
         }
         if (!hit.ok) {
-          // past the covering view: its bottom edge, when it covers from above
-          await page.evaluate((p, cover, y) => {
-            const d = window.__declare, n = d.find(p), k = cover === null ? null : d.inspect(cover);
-            // covered from above (a header): land below its bottom edge; from
-            // below (a bar pinned to the window's foot): bring it to the top
-            const below = k !== null && k.rootY < y ? k.rootY + k.height + 8 : 0;
-            if (below > 0) n?.scrollIntoView?.("start", false, below);
-            else if (k !== null && k.rootY > y - 1) n?.scrollIntoView?.("start", false, 16);
-            else n?.scrollIntoView?.("nearest");
-          }, path, hit.path, c.y);
-          await page.evaluate(() => window.__declare.clock?.settleMotion?.());
-          c = await still();
-          hit = await reachesFor();
+          // past the covering view, as a person scrolls it clear. Which side it
+          // covers from is read in the WINDOW, where the press is: a cover in the
+          // upper half is a header, and the view must come to rest below it; one
+          // lower down is a bar at the window's foot, and the view rests above it.
+          // (the cover is the whole thing in the way — the outermost view over
+          // the hit that does not hold the target: the bar, not its button)
+          const k = hit.path === null ? null : await page.evaluate((p, cover) => {
+            const d = window.__declare, t = d.find(p);
+            let n = d.find(cover);
+            if (n == null) return null;
+            const holds = (a, b) => { for (let v = b; v != null; v = v.parent) if (v === a) return true; return false; };
+            while (n.parent != null && !holds(n.parent, t)) n = n.parent;
+            const a = d.rootPoint(n, 0, 0), b = d.rootPoint(n, n.width, n.height);
+            return a && b ? { t: Math.min(a.y, b.y), b: Math.max(a.y, b.y) } : null;
+          }, path, hit.path);
+          if (k !== null) {
+            const band = (k.t + k.b) / 2 < vp.height / 2 ? { ...whole, t: k.b + 8 } : { ...whole, b: k.t - 8 };
+            if (band.b > band.t) { await scrollInto(path, at, band); c = await still(); hit = await reachesFor(); }
+          }
         }
         if (!hit.ok)
           throw new VerifyAssertion(`a press on '${path}'${at === null ? "" : ` at (${at.x}, ${at.y}) in it`} — (${Math.round(c.x)}, ${Math.round(c.y)}) in the window — would reach ${hit.path === null ? "nothing" : `'${hit.path}'`}: it is covered there, or takes no presses`);
@@ -465,8 +641,7 @@ bootHost(cfg);
           // a control that stays put beside it (a bar pinned to the window's
           // foot): scrolled up clear of it, into the upper third, as a person would
           if (taker !== null) {
-            await page.evaluate((p, inset) => { window.__declare.find(p)?.scrollIntoView?.("start", false, inset); }, path, Math.round(vp.height / 3));
-            await page.evaluate(() => window.__declare.clock?.settleMotion?.());
+            await scrollInto(path, at, { ...whole, t: Math.round(vp.height * 0.2), b: Math.round(vp.height * 0.45) });
             const was = c;
             c = await still();
             if (!off(c) && (await reaches()).ok && (await takerAt(c)) === null) taker = null;
@@ -499,6 +674,18 @@ bootHost(cfg);
       // a pointer held down between press() and release(): where it is, and the finger
       let held = null;
       const drive = {
+        /** Bring a view into sight as a person does — swiping the page (and any
+         *  pane holding it) until it is in the window, waiting each time for the
+         *  platform to say the scroll is over. Nothing is pressed. */
+        async reveal(path) {
+          step(`reveal ${path}`);
+          const vp = page.viewport() ?? { width: 1280, height: 800 };
+          const r = await scrollInto(path, null, { l: 0, t: 0, r: vp.width, b: vp.height });
+          if (r.c === null) throw new VerifyAssertion(`no node at '${path}'`);
+          const c = r.c;
+          if (c.x < 0 || c.y < 0 || c.x >= vp.width || c.y >= vp.height)
+            throw new VerifyAssertion(`'${path}' is outside the window at (${Math.round(c.x)}, ${Math.round(c.y)}), and swiping did not bring it in: ${toldTried(r)}`);
+        },
         async click(path) {
           const c = await reach(path);
           step(`${touching() ? "tap" : "click"} ${path}`);
@@ -512,8 +699,7 @@ bootHost(cfg);
           const vp = page.viewport() ?? { width: 1024, height: 768 };
           step(`device ${width ?? vp.width}x${height ?? vp.height}${touch ? " touch" : ""}`);
           await page.setViewport({ ...vp, width: width ?? vp.width, height: height ?? vp.height, hasTouch: touch, isMobile: touch });
-          await page.reload();
-          await page.waitForFunction(() => window.__declare && typeof window.__declare.find === "function", { timeout: 15000 });
+          await arrive(() => page.reload({ waitUntil: "load", timeout: 30000 }));
         },
         /** Press and hold `ms` (the app's time advances by exactly that), then
          *  release in place — a finger's press-and-hold, or a held mouse button.
@@ -656,6 +842,14 @@ bootHost(cfg);
             };
             requestAnimationFrame(frame);
           }));
+          // …and until the user's scroll is over: the wheel's stream ends when it
+          // goes quiet (real time), and a request made before that would wait
+          await page.evaluate((p) => new Promise((done) => {
+            const until = performance.now() + 1000;
+            const live = () => { for (let n = window.__declare.find(p); n != null; n = n.parent) if (n.userScrolling === true) return true; return false; };
+            const frame = () => { if (!live() || performance.now() > until) done(); else requestAnimationFrame(frame); };
+            frame();
+          }), path);
         },
         /** The requests the program has made so far: { method, url, path, body,
          *  status } each, in order (body parsed when it is JSON). */
@@ -760,13 +954,20 @@ bootHost(cfg);
           step(`request ${method.toUpperCase()} ${path} ✓`);
         },
         async exists(path) { await node(path); },
+        // SHOWN, not just its own slot: a view inside a hidden panel has
+        // `visible` true and is not on screen, so the answer is the view's and
+        // every ancestor's, with a size — and a failure names what hides it
         async visible(path) {
           const n = await node(path);
-          if (!n.visible || n.width <= 0 || n.height <= 0) fail(`expected '${path}' visible — it isn't`);
+          if (n.shown && n.width > 0 && n.height > 0) return;
+          const why = !n.visible ? "its own visible is false"
+            : !n.shown ? `'${await hider(path)}' above it is hidden`
+            : `it has no size (${Math.round(n.width)}×${Math.round(n.height)})`;
+          fail(`expected '${path}' visible — it isn't: ${why}`);
         },
         async hidden(path) {
-          const n = await page.evaluate((p) => window.__declare.inspect(p), path);
-          if (n !== null && n.visible && n.width > 0 && n.height > 0) fail(`expected '${path}' hidden — it is visible`);
+          const n = await node(path);   // a path that names nothing is said, never a pass
+          if (n.shown && n.width > 0 && n.height > 0) fail(`expected '${path}' hidden — it is shown (${Math.round(n.width)}×${Math.round(n.height)} at (${Math.round(n.rootX)}, ${Math.round(n.rootY)}))`);
         },
         async attr(path, name, expected) {
           // find(path)[attr] is the LIVE read — it answers for formula-defaulted
@@ -1035,12 +1236,32 @@ function frames(page) {
   }));
 }
 
+/** Load an assert or states script. A script that does not parse is said
+ *  with its place — Node's import gives a SyntaxError with no line ("missing )
+ *  after argument list"), so the file is checked again to find it. */
+async function importScript(path) {
+  try {
+    return await import(pathToFileURL(resolve(path)).href);
+  } catch (e) {
+    if (!(e instanceof SyntaxError)) throw e;
+    const r = spawnSync(process.execPath, ["--check", resolve(path)], { encoding: "utf8" });
+    // Node names the file by its real path (/private/var/… for /var/…): the
+    // place is the line that ends in the file's name and a line number
+    const said = (r.stderr ?? "").split("\n");
+    const base = path.split(/[\\/]/).pop().replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const at = said.findIndex((l) => new RegExp(`${base}:\\d+$`).test(l));
+    const place = at >= 0 ? `${path}:${said[at].match(/:(\d+)$/)[1]}` : path;
+    const code = at >= 0 ? said.slice(at + 1, at + 3).filter((l) => l.trim() !== "") : [];
+    throw new VerifyAssertion([`${place} — the script does not parse: ${e.message}`, ...code.map((l) => `  ${l}`)].join("\n"));
+  }
+}
+
 export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = null, backendClass = "DomBackend", built = null, budgetMs = 15000 }) {
   return withHost({ compiled, appDir, fixturesDir, backendClass, built, scrollbars: true }, async ({ openApp }) => {
     const failures = [];
     // a script may name the device it runs on — `export const device = { width,
     // height, touch }` — so the app loads once, on it, rather than twice
-    const mod = await import(pathToFileURL(resolve(assertPath)).href);
+    const mod = await importScript(assertPath);
     if (typeof mod.default !== "function") throw new VerifyAssertion(`${assertPath} has no default export function`);
     let app;
     try {
@@ -1197,7 +1418,7 @@ async function diffPng(page, aBase64, bBase64, tolerance = 4, mask = []) {
  *  appearance. `mask` is a list of {x,y,w,h} rectangles excluded from the diff,
  *  for regions that measure the machine (see diffPng). */
 export async function runStates({ compiled, appDir, statesPath, baselinesDir, bless = false, fixturesDir = null, backendClass = "DomBackend", tolerance = 4, built = null, budgetMs = 15000 }) {
-  const mod = await import(pathToFileURL(resolve(statesPath)).href);
+  const mod = await importScript(statesPath);
   const states = mod.default;
   if (!Array.isArray(states)) throw new VerifyAssertion(`${statesPath} must default-export an array of states`);
   const suffix = backendClass === "CanvasBackend" ? "-canvas" : "";

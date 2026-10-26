@@ -40,8 +40,8 @@ schema Piece [
 schema PhraseText [ n: number, says: string, pieces[]: Piece ]
 
 class Letters extends Node [
-    shapes: DataSource [ url = "art/lettering.json", auto = true, schema = LetterShapes ],
-    book: DataSource [ url = "art/phrases.json", auto = true, schema = [ phrases[]: PhraseText ] ],
+    shapes: DataSource [ url = "art/lettering.json", autoFetch = true, schema = LetterShapes ],
+    book: DataSource [ url = "art/phrases.json", autoFetch = true, schema = [ phrases[]: PhraseText ] ],
     ready: boolean = { shapes.loaded && book.loaded },
 
     // The arcade has no keyboard, so its fonts have no apostrophe or semicolon, and they write
@@ -151,7 +151,7 @@ class Lettering [ width = 100%, height = 100%,
         return [...out.values()]
         },
 
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const art = app.letters.art
         if (art == null || !app.letters.ready) return
         for (const [x, y, c] of this.printed(art)) {
@@ -190,7 +190,7 @@ class ScannerFrame [ width = 100%, height = 100%,
     lines: number[][] = { [[0, 43, 88, 1], [216, 43, 96, 1], [87, 7, 1, 36], [216, 7, 1, 36],
         [88, 7, 4, 1], [212, 7, 4, 1], [88, 36, 4, 1], [212, 36, 4, 1]] },
     ticks: number[][] = { [[144, 6, 16, 2], [144, 36, 16, 2], [144, 8, 1, 2], [159, 8, 1, 2], [144, 34, 1, 2], [159, 34, 1, 2]] },
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const inks = provided("inks")
         d.fillStyle = arcadeColor(inks[ink])
         for (const [x, y, w, h] of lines) d.fillRect(x, y, w, h)

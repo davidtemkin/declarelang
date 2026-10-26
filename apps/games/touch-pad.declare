@@ -32,7 +32,7 @@ schema PadKey [ id: string, label: string, side: "left" | "right" | "center", co
 
 schema PlacedKey [ id: string, label: string, icon: string, x: number, y: number, w: number, h: number, faint: boolean ]
 
-class TouchPad [ width = 100%, height = 100%, visible = { app.touchDevice },
+class TouchPad [ width = 100%, height = 100%, visible = { app.touchFirst },
     keys: PadKey[] = [],
     ink: Color = white,
     startInk: Color = { ink },          // the start button's, where it differs
@@ -208,7 +208,7 @@ class PadButton [ x = :x, y = :y, width = :w, height = :h,
     // An arrow three quarters of the way round, open at the top, its head on the end it
     // turns toward.
 
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         if (icon == "") return
         const cw = icon == "cw", r = width * 0.22, cx = width / 2, cy = height / 2 + width * 0.02
         const deg = Math.PI / 180, from = cw ? -50 * deg : 230 * deg, to = cw ? 230 * deg : -50 * deg

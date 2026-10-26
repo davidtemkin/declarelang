@@ -297,7 +297,7 @@ class Segmented [
 
     rules: View [ width = 100%, height = 100%, pointerEvents = "none",
         visible = { provided("theme").segmentDividerColor != null },
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             const s = parent as Segmented
             d.fillStyle = (provided("theme").segmentDividerColor ?? provided("theme").line)
             for (let i = 1; i < s.count; i++) {

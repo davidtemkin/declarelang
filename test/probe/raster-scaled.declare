@@ -20,7 +20,7 @@ App [ width = 600, height = 400, fill = #101014,
     art: View [ x = 40, y = 40, width = 120, height = 80,
         pivotX = 0, pivotY = 0,
         scale = { app.k },
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             // 1px hairlines: a grid, then a ring
             d.strokeStyle = "#7FB3FF"
             d.lineWidth = 1

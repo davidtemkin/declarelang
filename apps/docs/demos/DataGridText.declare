@@ -1,0 +1,12 @@
+// A column's field, as text
+// A column with no `cell` and no `edit` draws its field as text: the grid makes one
+// DataGridText per row of such a column, named by the column's id.
+
+App [ width = 420, height = 160,
+    d: Dataset { { "rows": [ { "id": 1, "city": "Lisbon", "country": "Portugal" },
+                             { "id": 2, "city": "Osaka", "country": "Japan" },
+                             { "id": 3, "city": "Quito", "country": "Ecuador" } ] } },
+    DataGrid [ x = 20, y = 20, width = 380, height = 120,
+        items = { app.d.value.rows },
+        columns = { [ { id: "city", title: "City", width: 180 }, { id: "country", title: "Country", width: 180 } ] } ]
+    ]

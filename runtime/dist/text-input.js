@@ -13,24 +13,32 @@
 // wiring here — deliverKeys (Layer 2) already routes keys to the focused view;
 // the native element consumes character input directly while it holds the
 // caret.
-import { fireEvent, onDiscard } from "./view.js";
+import { View, fireEvent, onDiscard } from "./view.js";
 import { bindDerived, defineAttributes, isSet, ownerOf, providedDefault, providedRead } from "./attributes.js";
 import { Constraint, settle } from "./reactive.js";
 import { Focus } from "./focus.js";
 import { fontMetrics, fontString, wrapEditable } from "./measure.js";
 import { heldFamily } from "./font-value.js";
-import { isTwoWay, edited, commitDraft, judgeDraft, judgeOwnDraft, EditControl } from "./editor.js";
+import { isTwoWay, edited, commitDraft, revertDraft, judgeDraft, judgeOwnDraft } from "./editor.js";
 import { insetSides, stroke } from "./value.js";
 import { hintsOf } from "./purpose.js";
-export class TextInput extends EditControl {
-    // The editor session (commitOn / error / valid / dirty + commit()/revert())
-    // is inherited from EditControl; `text` is this editor's draft slot.
-    $draftSlot() { return "text"; }
+export class TextInput extends View {
+    /** The field's element holds what is typed, the selection and focus. */
+    $eagerSurface() { return true; }
+    /** @api Commit the current draft into the bound dataset field, if it
+     *  validates — for a `commitOn = "manual"` field or a Save button. */
+    commit() { commitDraft(this, "text"); }
+    /** @api Discard edits — reset the field to the committed dataset value. */
+    revert() { revertDraft(this, "text"); }
+    /** @api Say what is wrong with the draft now, without waiting for the field
+     *  to be left — for a Save or a Pay that checks every field. */
+    judge() { judgeDraft(this, "text"); }
     $attach(backend, parentSurface, before = null) {
-        // A text field is a tab stop by default; an explicit `focusable = false`
-        // (was-set) opts out untouched, exactly like Text's auto-size.
+        // A text field is a tab stop by default, and not while disabled; an
+        // explicit `focusable` (was-set or bound) opts out untouched, exactly like
+        // Text's auto-size.
         if (!isSet(this, "focusable") && ownerOf(this, "focusable") === null)
-            this.focusable = true;
+            bindDerived(this, "focusable", () => !this.disabled);
         super.$attach(backend, parentSurface, before);
         // Uncontrolled seed: unless the author bound or hard-set `text`, it
         // follows `initial` via a YIELDING derive — reactive, so a source that
@@ -152,6 +160,7 @@ export class TextInput extends EditControl {
             placeholder: this.placeholder,
             style: this.$editStyle(),
             enterSubmits: this.enterSubmits,
+            disabled: this.disabled,
             onInput: (v) => this.$onNativeInput(v),
             // The native element ECHOES focus the runtime just gave it (Tab →
             // focusChanged → el.focus() → this event). Re-announcing the already-
@@ -189,6 +198,12 @@ export class TextInput extends EditControl {
      *  it, exactly like any author write (attributes.ts set path), so a field can
      *  be seeded from a binding yet stay editable. */
     $onNativeInput(v) {
+        // A disabled field takes no edits, whatever reached the element (a host
+        // that cannot disable its native field yet): put the model's text back.
+        if (this.disabled) {
+            this.$syncEditable();
+            return;
+        }
         const owner = ownerOf(this, "text");
         if (owner !== null && !owner.yielding) {
             // CONTROLLED — the constraint owns the slot, so the keystroke does NOT
@@ -320,7 +335,12 @@ defineAttributes(TextInput, {
     initial: { def: "" },
     selectionStart: { def: 0 },
     selectionEnd: { def: 0 },
-    // commitOn / error / valid / dirty are declared on the EditControl base.
+    disabled: { def: false, push: (t) => t.$syncEditable() },
+    commitOn: { def: "input" },
+    judgeOn: { def: "edit" },
+    error: { def: "" },
+    valid: { def: true },
+    dirty: { def: false },
 });
 // what a TextInput is to assistive technology (View.$leafRole), in a build with the layer
 if (typeof __DECLARE_ACCESSIBILITY__ === "undefined" || __DECLARE_ACCESSIBILITY__)

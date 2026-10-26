@@ -83,7 +83,7 @@ await (async () => {
       v: View [ width = 100, height = 40,
           inSlot: object = { providedTextStyle() },
           inDraw: object = null,
-          draw(d: Draw) { d.font = "12px monospace"; this.inDraw = providedTextStyle() }
+          draw(d: DrawContext) { d.font = "12px monospace"; this.inDraw = providedTextStyle() }
           ]
       ]`);
   test("a value body and that view's own draw() read the same record", () => {
@@ -148,7 +148,7 @@ await (async () => {
 await (async () => {
   const e = await errs(`App [ width = 200, height = 100, fontFamily = "Georgia, serif",
       v: View [ width = 100, height = 40,
-          draw(d: Draw) { d.fillText("hi", 0, 12, providedTextStyle(({ fontSize: 20 }))) }
+          draw(d: DrawContext) { d.fillText("hi", 0, 12, providedTextStyle(({ fontSize: 20 }))) }
           ]
       ]`);
   test("d.fillText takes it as its style", () => assert.deepEqual(e, []));

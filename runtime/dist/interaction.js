@@ -9,7 +9,7 @@
 // view). `pressed` is true for a view on the chain captured at pointer-down
 // while it is STILL on the live chain — drag off a button and it un-presses,
 // drag back and it re-presses, the platform rule. On touch there is no hover
-// (`app.hovering` is the gate), while `pressed` works as the touch feedback.
+// (`app.pointerHovering` is the gate), while `pressed` works as the touch feedback.
 //
 // THE MECHANISM is the language's own: one internal Constraint per app — the
 // DRIVER — whose compute reads `app.pointerX`/`pointerY`/`pointerDown` and
@@ -237,7 +237,7 @@ function chainAt(app, x, y) {
     }
     return chain;
 }
-// THE USER'S SCROLL, anywhere: the scrollers whose `scrolling` fact is on
+// THE USER'S SCROLL, anywhere: the scrollers whose `userScrolling` fact is on
 // (view.ts reports each change). While one is, and the pointer rests, hover
 // holds what it was — the platforms' rule (a browser re-tests hover when the
 // pointer moves or the scroll ends, never on every frame of a fling), and the
@@ -297,7 +297,7 @@ function ensureApp(app) {
         const x = app.pointerX;
         const y = app.pointerY;
         const down = app.pointerDown;
-        const hovering = app.hovering;
+        const hovering = app.pointerHovering;
         // a scroll in progress under a resting pointer: hover holds (above)
         if (USER_SCROLLS.size > 0 && last !== null && last.x === x && last.y === y && last.down === down && last.hovering === hovering)
             return last.result;

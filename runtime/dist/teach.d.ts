@@ -6,6 +6,15 @@ export { nearestName };
  *  fix. Evidence-driven — entries earn their place by appearing in eval
  *  failures or having one true equivalent; vague CSS concepts stay out. */
 export declare const CSS_ATTRIBUTE_HINTS: Readonly<Record<string, string>>;
+/** The MEMBER instincts: names a newcomer reads or calls on a node, from the
+ *  frameworks they arrive from, each with its one true equivalent. Kept to the
+ *  cases where TypeScript's own nearest name would mislead (`scrolling` is
+ *  nearest to `scrolls`, a word list that is always truthy) or where there is
+ *  no near name at all (the DOM's tree verbs). Like the attribute table, it
+ *  keys on what a newcomer brings, never on a former Declare name. */
+export declare const MEMBER_HINTS: Readonly<Record<string, string>>;
+/** The member-instinct hint for a name read on a node, or "". */
+export declare function memberHint(name: string): string;
 /** The CSS-instinct hint for an unknown attribute name, or "" when the miss
  *  isn't a known CSS name. */
 export declare function cssAttributeHint(name: string): string;

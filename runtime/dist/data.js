@@ -826,7 +826,7 @@ export class DataSource extends Dataset {
     get loaded() { return this.value != null; }
     autoUrl = "";
     $maybeAuto() {
-        if (!this.auto)
+        if (!this.autoFetch)
             return;
         if (this.url === "") {
             // Going empty RESETS the memo: the contract is "fetch whenever a
@@ -893,7 +893,7 @@ export class DataSource extends Dataset {
         return Object.keys(init).length > 0 ? init : undefined;
     }
     /** Fetch `url` over HTTP. Explicit by design — the weather app's entry screen
-     *  decides when (`doEnterDown() { weatherData.fetch() }`); `auto = true` is the
+     *  decides when (`doEnterDown() { weatherData.fetch() }`); `autoFetch = true` is the
      *  opt-in for reactive addresses (above). A non-GET `method` sends `body`. */
     async fetch() {
         const seq = ++this.seq;
@@ -1043,10 +1043,10 @@ function sourceLabel(d) {
     return `${d.constructor.name}${nm !== null ? ` '${nm}'` : ""}`;
 }
 defineAttributes(DataSource, {
-    // both pushes route through maybeAuto, so `auto = true` + a url that lands
+    // both pushes route through maybeAuto, so `autoFetch = true` + a url that lands
     // later (or the reverse order) fetches exactly once per distinct address
     url: { def: "", push: (d, _v) => d.$maybeAuto() },
-    auto: { def: false, push: (d, _v) => d.$maybeAuto() },
+    autoFetch: { def: false, push: (d, _v) => d.$maybeAuto() },
     format: { def: "json" },
     method: { def: "GET" },
     body: { def: null },

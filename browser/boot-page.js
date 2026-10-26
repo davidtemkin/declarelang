@@ -12,7 +12,7 @@
 // app has no artifacts to load, no worker file, no server to ask.
 //
 // Relative imports resolve against THIS module's URL (…/browser/) → subpath-portable.
-import { bootHost } from "./host-client.js";
+import { bootHost, tenantOf } from "./host-client.js";
 import { loadCompiler, ensureLibrary, COMPILER_ABOARD } from "./compiler-client.js";
 import { provideTransport, provideAssetBase, mapUrl } from "../runtime/dist/host-api.js";
 
@@ -134,6 +134,7 @@ export async function bootPage(cfg) {
       host: cfg.host,                                              // an explicit mount element — several apps per page, each in its own marked div
       location: cfg.location,
       provides: cfg.provides,                                      // the page as the topmost host: values the app reads with hostProvided("name", …)
+      onPost: cfg.onPost, onNavigate: cfg.onNavigate,              // …and its verbs: the app's postToHost, and its navigation
       mainAssetBase: mainDir.href,                                 // per-app asset AND data base — N tenants, each its own program dir
       pageWeight: cfg.pageWeight, sourceLines: cfg.sourceLines,
       seeds, islandBase, compile: liveCompile, prewarm: prewarmChild,
@@ -159,7 +160,7 @@ export async function bootPage(cfg) {
   // frame's paint has been committed).
   const sFrame = perfStage("first-frame");
   requestAnimationFrame(() => requestAnimationFrame(() => { sFrame.end(); perfDone(cfg.path ?? "page"); }));
-  return app;
+  return tenantOf(app) ?? app;                                     // the page's handle on the app (host-client)
 }
 
 /** The last-resort error panel: needs no compiler, no program, nothing but the

@@ -113,7 +113,7 @@ class DashTab [
 
         onClick() { classroot.parent.select(classroot); app.stage.popup.hide() },
 
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             const bw = Math.min(width, title.width + 11)
             // One gradient with a hard stop per row, rather than eighteen
             // stacked rects: on a retina display the seam between abutting
@@ -248,7 +248,7 @@ class DashWindow [
             },
         onPointerUp() { classroot.dragging = false },
 
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             const f = classroot.frame
             d.fillStyle = 0x939393; d.fillRect(26, 8, width - 26, 2) // the light edge above the bar
             // The bar, rounded into its top-left corner. The icon is a circle
@@ -270,7 +270,7 @@ class DashWindow [
 
             // the title's lozenge, its right end swept into a cap
 
-            draw(d: Draw) {
+            draw(d: DrawContext) {
                 d.fillStyle = classroot.frame
                 d.beginPath()
                 d.moveTo(0, 0); d.lineTo(width - 22, 0)
@@ -322,7 +322,7 @@ class DashWindow [
                 classroot.width = Math.max(classroot.minW, e.rootX - classroot.parent.x - classroot.x)
                 classroot.height = Math.max(classroot.minH, e.rootY - classroot.parent.y - classroot.y)
                 },
-            draw(d: Draw) {                      // the grip's diagonal ridges
+            draw(d: DrawContext) {                      // the grip's diagonal ridges
                 d.fillStyle = 0xFFFFFF44
                 d.fillRect(4, 10, 8, 1); d.fillRect(7, 7, 5, 1); d.fillRect(10, 4, 2, 1)
                 }

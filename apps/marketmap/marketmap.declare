@@ -412,7 +412,7 @@ class Market extends DataSource [
     // desktop) mounts it as an island and provides that home as `base`
 
     url = { hostProvided("base", "") + "marketmap-data.json" },
-    auto = true,
+    autoFetch = true,
     schema = [ days[]: string, stocks[]: Stock, industries[]: Industry, sectors[]: Sector ],
 
     // the decoded tables the view replicates from and the layouts read.
@@ -725,7 +725,7 @@ class StageTile [ cursor = "pointer", clip = true,
 
     // the trailing year, inscribed along the tile's floor; gold marks the probe
 
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         if (!this.mine || !this.big || app.zoom < 0.4) return
         const closes = :closes
         const day = app.day

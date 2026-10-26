@@ -45,7 +45,8 @@ The default offset-vs-absolute mode for members that omit `relative`.
 The default repeat count for members that omit `repeat`.
 
 ## started
-Set true to run the whole group.
+The request to run the whole group, as an Animator's `started`: true starts it, false stops it,
+and `start()`/`stop()` write it. A member's own `started` is ignored — the group drives it.
 
 ## paused
 Freeze/resume the group without resetting.
@@ -61,12 +62,12 @@ place to chain the next thing.
 Fires at each loop of a repeating group (the outer group's repeat, not a member's).
 
 ## start()
-Runs the whole group (sequencing or paralleling its members per `process`) — the imperative
-equivalent of `started = true`.
+Runs the whole group (sequencing or paralleling its members per `process`), and sets
+`started = true` (unless a constraint owns it).
 
 ## stop()
-Halts the group and all its members in place. Members keep their current values; nothing
-rewinds.
+Halts the group and all its members in place, and sets `started = false` (unless a
+constraint owns it). Members keep their current values; nothing rewinds.
 
 ## running
 **Read-only.** True while any member of the group is in flight — the group's own
@@ -78,5 +79,5 @@ them.
 ## arrived
 **Read-only.** True when every member has reached its destination — the pair to
 `running`, and the one to read when the interesting moment is the **end** of a motion
-rather than the change that caused it. An interrupted group never arrives; it simply
-keeps running toward the new target.
+rather than the change that caused it. A group that is stopped partway never arrives:
+`stop()` halts it where it is, and `arrived` stays false until a run finishes on its own.

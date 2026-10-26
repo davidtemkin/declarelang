@@ -42,7 +42,7 @@ change after it travels as usual:
 count: number = { app.feed.value?.total ?? 0 },
 shown: number = 0,
 tally: Spring [ attribute = shown, to = { app.count }, stiffness = 140, damping = 22 ],
-feed: DataSource [ url = "/api/totals", auto = true, onLoad() { app.tally.arrive() } ]
+feed: DataSource [ url = "/api/totals", autoFetch = true, onLoad() { app.tally.arrive() } ]
 ```
 
 It arms for one frame — long enough for the arriving value to reach `to`, short enough that a

@@ -9,7 +9,7 @@
 // as rung 5 of declare-verify — the same browser, server and failure reporting
 // — by writing the equivalent assert script and handing it over. Anything more
 // (a pinch, a timed poll, an assertion to keep) is an assert script of your
-// own: `export default async ({ page, drive }) => { … }`, run with
+// own: `export default async ({ page, drive, expect }) => { … }`, run with
 // `declare-verify app.declare --assert check.mjs`, and it stays as a test.
 
 import { spawnSync } from "node:child_process";
@@ -184,34 +184,37 @@ const step = (x) => {
       for (let k = segs.length - 1; k > 0; k--) {
         let v = d.find(segs.slice(0, k).join("."));
         if (v == null) continue;
-        for (const s of segs.slice(k)) { if (v == null) break; v = v[s.replace(/^"|"$/g, "")]; }
-        return v === undefined ? null : typeof v === "object" && v !== null && v.constructor?.name && "children" in v ? "(a " + v.constructor.name + ")" : v;
+        for (const s of segs.slice(k)) {
+          const name = s.replace(/^"|"$/g, "");
+          if (v == null || typeof v !== "object" || !(name in v)) return { missing: "'" + segs.slice(0, k).join(".") + "' has no '" + name + "'" + (v == null ? " (what came before it is " + v + ")" : "") };
+          v = v[name];
+        }
+        return { v: v === undefined ? null : typeof v === "object" && v !== null && v.constructor?.name && "children" in v ? "(a " + v.constructor.name + ")" : v };
       }
-      return "(no view at " + full + ")";
-    }, ${JSON.stringify(x.label)})));`;
-    case "call": return `{ const r = await page.evaluate((p, m, a) => { const n = window.__declare.find(p); if (n == null) return "(no view at " + p + ")"; if (typeof n[m] !== "function") return "(" + p + " has no method " + m + ")"; const v = n[m](...a); return v === undefined ? null : v; }, ${p}, ${JSON.stringify(x.method)}, ${JSON.stringify(x.args)}); if (typeof r === "string" && r.startsWith("(")) throw new Error(r); }${rest}`;
-    case "set": return `{ const r = await page.evaluate((p, a, v) => { const n = window.__declare.find(p); if (n == null) return "(no view at " + p + ")"; n[a] = v; return null; }, ${p}, ${JSON.stringify(x.attr)}, ${JSON.stringify(x.value)}); if (r !== null) throw new Error(r); }${rest}`;
+      return { missing: "no view at '" + full + "'" };
+    }, ${JSON.stringify(x.label)}).then((r) => { if (r.missing !== undefined) expect.fail("--read " + ${JSON.stringify(x.label)} + ": " + r.missing); return r.v; })));`;
+    case "call": return `{ const r = await page.evaluate((p, m, a) => { const n = window.__declare.find(p); if (n == null) return "(no view at " + p + ")"; if (typeof n[m] !== "function") return "(" + p + " has no method " + m + ")"; const v = n[m](...a); return v === undefined ? null : v; }, ${p}, ${JSON.stringify(x.method)}, ${JSON.stringify(x.args)}); if (typeof r === "string" && r.startsWith("(")) expect.fail(r); }${rest}`;
+    case "set": return `{ const r = await page.evaluate((p, a, v) => { const n = window.__declare.find(p); if (n == null) return "(no view at " + p + ")"; n[a] = v; return null; }, ${p}, ${JSON.stringify(x.attr)}, ${JSON.stringify(x.value)}); if (r !== null) expect.fail(r); }${rest}`;
     case "semantics": return `console.log(await page.evaluate(() => window.__declare.semantics()));`;
-    case "js": return `console.log(${JSON.stringify("js: ")} + JSON.stringify(await page.evaluate(async (src) => await (0, eval)("(async () => (" + src + "))()"), ${JSON.stringify(x.src)})));`;
+    // the app's time is the driver's (a page setTimeout waits for --wait), so an
+    // expression still waiting after five real seconds is said, not hung on
+    case "js": return `console.log(${JSON.stringify("js: ")} + JSON.stringify(await Promise.race([
+      page.evaluate(async (src) => await (0, eval)("(async () => (" + src + "))()"), ${JSON.stringify(x.src)}),
+      new Promise((_, no) => setTimeout(async () => {
+        const waiting = await page.evaluate(() => globalThis.__declareTimers?.pending?.() ?? 0).catch(() => 0);
+        no(new Error("--js is still waiting after 5 s" + (waiting > 0 ? ": " + waiting + " timer" + (waiting === 1 ? " is" : "s are") + " waiting on the app's clock, which moves only with --wait <ms> (a page setTimeout runs on the app's time here)" : " — it never finished")));
+      }, 5000).unref?.()),
+    ]).catch((e) => expect.fail(e.message))));`;
     case "requests": return `for (const q of drive.requests()) console.log("request " + q.method + " " + q.path + (q.body !== null ? " " + JSON.stringify(q.body) : "") + (q.status !== null ? " → " + q.status : ""));`;
     case "shot": return `await page.screenshot({ path: ${JSON.stringify(x.file)} }); console.log(${JSON.stringify("shot: " + x.file)});`;
-    // a view below the fold is scrolled into sight first, as a press on it is
+    // a view below the fold is swiped into sight first, as a press on it is
     case "shotOf": return `{ const box = () => page.evaluate((p) => { const n = window.__declare.inspect(p); return n === null ? null : { x: n.rootX, y: n.rootY, width: n.rootWidth, height: n.rootHeight }; }, ${p});
     let b = await box();
-    if (b === null) throw new Error("(no view at " + ${p} + ")");
+    if (b === null) expect.fail("(no view at " + ${p} + ")");
     const vp = page.viewport() ?? { width: 1280, height: 800 };
-    if (b.x < 0 || b.y < 0 || b.x + b.width > vp.width || b.y + b.height > vp.height) {
-      await page.evaluate((p) => { window.__declare.find(p)?.scrollIntoView?.("nearest"); }, ${p});
-      await drive.settleMotion();
-      // the page's scroll lands as an event a frame or more later: read until the box holds still
-      for (let k = 0; k < 30; k++) {
-        await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
-        const was = b; b = await box();
-        if (b.x === was.x && b.y === was.y) break;
-      }
-    }
+    if (b.x < 0 || b.y < 0 || b.x + b.width > vp.width || b.y + b.height > vp.height) { await drive.reveal(${p}); b = await box(); }
     const x = Math.max(0, b.x), y = Math.max(0, b.y), w = Math.min(vp.width, b.x + b.width) - x, h = Math.min(vp.height, b.y + b.height) - y;
-    if (w <= 0 || h <= 0) throw new Error(${p} + " is outside the window");
+    if (w <= 0 || h <= 0) expect.fail(${p} + " is outside the window");
     // the box is in the window's frame; a clip is in the page's, which the page's scroll offsets
     const sc = await page.evaluate(() => ({ x: window.scrollX, y: window.scrollY }));
     await page.screenshot({ path: ${JSON.stringify(x.file)}, clip: { x: x + sc.x, y: y + sc.y, width: w, height: h } }); console.log(${JSON.stringify("shot: " + x.file)}); }`;
@@ -220,7 +223,7 @@ const step = (x) => {
 
 // the device is the page's from its first load: one load, not a load and a reload
 const script = `export const device = ${JSON.stringify({ width: w ?? 1280, height: h ?? 800, touch, hideScrollbars: !scrollbars, echoConsole: consoleOut, ...(dark ? { scheme: "dark" } : {}) })};
-export default async ({ page, drive }) => {
+export default async ({ page, drive, expect }) => {
   ${settle ? "await drive.settleMotion();" : ""}
   ${actions.map(step).join("\n  ")}
 };
@@ -232,8 +235,13 @@ writeFileSync(assert, script);
 const verify = join(dirname(fileURLToPath(import.meta.url)), "verify.mjs");
 // what was asked for, and only that when it went well: the checking ladder the run
 // climbs on the way (R1–R5, its notes) is said only when something failed
-const r = spawnSync(process.execPath, [verify, file, "--assert", assert, "--rung=5", "--no-boot"], { encoding: "utf8" });
+const LIMIT = 180_000;
+const r = spawnSync(process.execPath, [verify, file, "--assert", assert, "--rung=5", "--no-boot"], { encoding: "utf8", timeout: LIMIT, killSignal: "SIGKILL" });
 rmSync(dir, { recursive: true, force: true });
+if (r.error?.code === "ETIMEDOUT" || r.signal === "SIGKILL") {
+  process.stdout.write((r.stdout ?? "") + `declare-look: gave up after ${LIMIT / 1000} s — the page never finished what was asked (an action that waits on something that never comes)\n`);
+  process.exit(1);
+}
 const said = (r.stdout ?? "") + (r.stderr ?? "");
 if (r.status === 0) {
   const ladder = /^\s+(R\d [✓·]|note |verify: |[a-z].*(synthetic backend|browser's own module|--assert <script))/;

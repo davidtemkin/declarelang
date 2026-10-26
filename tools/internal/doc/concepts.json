@@ -177,6 +177,8 @@
     "drag and drop": "View.method.viewAt",
     "drag-and-drop": "View.method.viewAt",
     "dnd": "View.method.viewAt",
+    "draw": "View.method.draw",
+    "drawing": "View.method.draw",
     "drop target": "View.method.viewAt",
     "drop": "View.method.viewAt",
     "hit test": "View.method.viewAt",
@@ -281,7 +283,7 @@
       "terms": [
         "svg"
       ],
-      "answer": "No SVG element — a vector mark is a `draw(d: Draw)` member (paths, arcs, gradients — a recorded, reactive drawing), the house icons are `Icon` subclasses drawn exactly that way, and an actual `<svg>` you already have lives inside a `DOMIsland`."
+      "answer": "No SVG element — a vector mark is a `draw(d: DrawContext)` member (paths, arcs, gradients — a recorded, reactive drawing), the house icons are `Icon` subclasses drawn exactly that way, and an actual `<svg>` you already have lives inside a `DOMIsland`."
     },
     {
       "terms": [

@@ -106,11 +106,11 @@ schema Removed [ index: number, rec: Task ]
 // ── The records ─────────────────────────────────────────────────────────────
 //
 // A class that `extends DataSource` is a dataset whose data comes from a URL,
-// together with the logic of its records. `auto = true` loads it as soon as
+// together with the logic of its records. `autoFetch = true` loads it as soon as
 // the URL is known; `schema` types what arrives. Views bind to it like any
 // dataset, and nothing copies it.
 
-class Tasks extends DataSource [ url = "tasks.json", auto = true,
+class Tasks extends DataSource [ url = "tasks.json", autoFetch = true,
     schema = [ lists[]: Place, tags[]: Tag, tasks[]: Task ],
 
     // `name: Type = value` DECLARES a new attribute; `name = value` (as `url`
@@ -461,7 +461,7 @@ class TaskCard [ padding = { [0, app.edge, 12, app.edge + app.tap] },
     listId: string = { :list ?? "" },
     layout: SimpleLayout [ axis = y, spacing = 12 ],
 
-    TextInput [ width = 100%, height = 64, fontSize = { app.touchDevice ? 16 : 15 }, multiline = true, wrap = true,
+    TextInput [ width = 100%, height = 64, fontSize = { app.touchFirst ? 16 : 15 }, multiline = true, wrap = true,
         textColor = { provided("theme").textMuted }, placeholder = "Notes",
         fill = null, stroke = null, text <-> :notes ],
 
@@ -557,7 +557,7 @@ class AddForm [ width = 100%,
                 textColor = { classroot.blank ? provided("theme").textFaint : 0xFFFFFF } ]
             ]
         ],
-    TextInput [ width = 100%, height = 30, fontSize = { app.touchDevice ? 16 : 15 }, padding = [0, 0, 0, 32],
+    TextInput [ width = 100%, height = 30, fontSize = { app.touchFirst ? 16 : 15 }, padding = [0, 0, 0, 32],
         placeholder = "Notes", textColor = { provided("theme").textMuted }, fill = null, stroke = null,
         text = { classroot.notes },
         onInput(v: string) { classroot.notes = v }
@@ -614,7 +614,7 @@ App [ appName = "To-do", minWidth = 320,
     pagePad: number = { app.big ? 40 : 28 },
     edge: number = { app.wide ? 0 : 16 },            // a row's inset from the page edge
     rowH: number = { app.wide ? 56 : 62 },
-    tap: number = { app.touchDevice ? 44 : 30 },    // a control's size: finger-sized on touch
+    tap: number = { app.touchFirst ? 44 : 30 },    // a control's size: finger-sized on touch
 
     // ── today, from the clock. A Time member makes the date a live fact.
 
@@ -953,7 +953,7 @@ App [ appName = "To-do", minWidth = 320,
         search: View [ height = 30, width = 30,
             Spring [ attribute = width, to = { app.searchOpen ? 240 : 30 }, stiffness = 300, damping = 28 ],
             field: SearchField [ exists = { app.searchOpen }, width = 100%, height = 30,
-                padding = [0, 12, 0, 30], fontSize = { app.touchDevice ? 16 : 13 },
+                padding = [0, 12, 0, 30], fontSize = { app.touchFirst ? 16 : 13 },
                 placeholder = { "Search " + app.viewName },
                 text = { app.query },
                 onInput(v: string) { app.query = v },

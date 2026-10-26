@@ -41,8 +41,8 @@ include [ "machine.declare", "well.declare", "game.declare", "enemies.declare", 
 defaultFlags [ render = canvas, accessibility = false ]
 
 App [ appName = "Tempest", fill = black,
-    wavesData: DataSource [ url = "waves.json", auto = true, schema = [ waves[]: Wave ] ],
-    picturesData: DataSource [ url = "pictures.json", auto = true ],
+    wavesData: DataSource [ url = "waves.json", autoFetch = true, schema = [ waves[]: Wave ] ],
+    picturesData: DataSource [ url = "pictures.json", autoFetch = true ],
     ready: boolean = { app.wavesData.loaded && app.picturesData.loaded },
     paused: boolean = false,
 

@@ -110,7 +110,7 @@ class Rating extends Control [ width = 140, height = 28, stars: number = 3,
     accessibilityValueText = { stars + " of 5 stars" },
     accessibilityIncrement() { stars = Math.min(5, stars + 1) },
     accessibilityDecrement() { stars = Math.max(0, stars - 1) },
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         for (let i = 0; i < 5; i++) {
             d.fillStyle = i < stars ? 0xF2A516 : 0xDCE1E8
             d.beginPath()

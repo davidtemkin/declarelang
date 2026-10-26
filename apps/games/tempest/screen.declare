@@ -342,8 +342,8 @@ class LogoScreen [ width = 100%, height = 100%,
     // the keys, once the word has come to rest
 
     keys: View [ width = 100%, height = 100%, visible = { app.scene.logoShown[2] == 1 && app.scene.logoShown[0] == app.scene.logoShown[1] },
-        Message [ says = { app.touchDevice ? "pressStart" : "pressReturn" } ],
-        rows: View [ width = 100%, y = { 285 - 2 * 4 * SMALL }, datapath = { classroot.keyLines.value }, visible = { !app.touchDevice },
+        Message [ says = { app.touchFirst ? "pressStart" : "pressReturn" } ],
+        rows: View [ width = 100%, y = { 285 - 2 * 4 * SMALL }, datapath = { classroot.keyLines.value }, visible = { !app.touchFirst },
             layout: SimpleLayout [ axis = y ],
             KeyRow [ datapath = :lines[] ]
             ]

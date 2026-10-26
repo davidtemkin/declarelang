@@ -8,7 +8,7 @@ and a filtered view WITH children.
 App [ width = 900, height = 620, fill = #202124, textColor = whitesmoke,
 
     stripes: View [ width = 900, height = 620,
-        draw(d: Draw) { for (let x = 0; x < 900; x += 24) { d.fillStyle = x % 48 == 0 ? "#3a4a5a" : "#151a20"; d.fillRect(x, 0, 24, 620) } }
+        draw(d: DrawContext) { for (let x = 0; x < 900; x += 24) { d.fillStyle = x % 48 == 0 ? "#3a4a5a" : "#151a20"; d.fillRect(x, 0, 24, 620) } }
         ],
 
     // a plain badge, the reference

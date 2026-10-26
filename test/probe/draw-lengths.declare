@@ -6,7 +6,7 @@
 class Mark [ width = 120, height = 120,
     k: number = 1,                                  // the drawing's own units per view unit
     selfScale: boolean = false,                     // scale inside the drawing instead
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const u = selfScale ? 0.5 : k
         if (selfScale) d.scale(2, 2)
         d.lineWidth = 3 * u

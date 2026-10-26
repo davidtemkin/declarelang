@@ -26,7 +26,7 @@ Renders the letter.
 
 class TextSizeIcon extends Icon [
     glyph: number = 10.5,
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         d.scale(unit, unit)
         d.strokeStyle = ink
         d.lineWidth = weight / unit

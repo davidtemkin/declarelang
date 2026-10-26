@@ -1,9 +1,9 @@
 App [ width = 300, height = 140, fill = black,
-    screen: View [ x = 20, y = 20, scale = 4, imageSmoothing = pixelated,
+    screen: View [ x = 20, y = 20, scale = 4, imageRendering = pixelated,
         // a ten-pixel mark, drawn at one pixel per unit and shown in sharp 4×4 blocks
 
         mark: View [ width = 10, height = 6,
-            draw(d: Draw) { d.fillStyle = "#ffcc00"; d.fillRect(0, 0, 10, 1); d.fillRect(4, 1, 2, 5) }
+            draw(d: DrawContext) { d.fillStyle = "#ffcc00"; d.fillRect(0, 0, 10, 1); d.fillRect(4, 1, 2, 5) }
             ]
         ]
     ]

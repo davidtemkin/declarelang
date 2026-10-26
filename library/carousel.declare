@@ -42,10 +42,6 @@ On: the pages beside the current one are out of view until a drag brings them in
 ## claim
 `x`: a sideways drag is the carousel's, a vertical one stays the page's.
 
-## glide
-The spring that carries `offset` to the current page. While a finger is down its target
-is the offset itself, so it holds still and the drag owns the row.
-
 ## _x0
 **Internal.** The root-space pointer x at pointer-down.
 
@@ -62,7 +58,7 @@ is the offset itself, so it holds still and the drag owns the row.
 **Internal.** The pointer's recent speed in pixels per millisecond, smoothed over the last
 few moves: what tells a flick from a slow drag.
 
-## resist()
+## _resist()
 **Internal.** Past the first or last page the drag meets resistance instead of tracking
 the finger: the pull is compressed toward half a page.
 
@@ -117,6 +113,10 @@ class Carousel extends View [
 
     offset: number = 0,
     dragging: boolean = false,
+
+    // the spring that carries `offset` to the current page; while a finger is down its
+    // target is the offset itself, so it holds still and the drag owns the row
+
     glide: Spring [ attribute = offset, to = { classroot.dragging ? classroot.offset : -classroot.page * classroot.width },
         stiffness = 260, damping = 30, epsilon = 0.4 ],
 
@@ -126,7 +126,7 @@ class Carousel extends View [
     _lastT: number = 0,
     _v: number = 0,
 
-    resist(raw: number) -> number {
+    _resist(raw: number) -> number {
         const last = -(pageCount() - 1) * width
         const limit = width / 2
         if (raw > 0) return raw * limit / (raw + limit)
@@ -149,7 +149,7 @@ class Carousel extends View [
         if (dt > 0) _v = 0.7 * ((app.pointerX - _lastX) / dt) + 0.3 * _v
         _lastX = app.pointerX
         _lastT = now
-        offset = resist(_o0 + app.pointerX - _x0)
+        offset = _resist(_o0 + app.pointerX - _x0)
         },
     onPointerUp(e: PointerUpEvent) {
         if (!dragging) return

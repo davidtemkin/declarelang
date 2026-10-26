@@ -15,7 +15,7 @@ App [ width = 1200, height = 750, fill = #202024,
     cells: array = ["shadowScaled", "shadowRotated", "filterScaled", "dropShadowScaled", "dropShadow"],
 
     grid: View [ x = 0, y = 0, width = { app.width }, height = { app.height },
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             const list = app.cells
             for (let i = 0; i < list.length; i = i + 1) {
                 const cx = (i % app.cols) * app.cellW
@@ -30,7 +30,7 @@ App [ width = 1200, height = 750, fill = #202024,
             }
         ],
 
-    cell(d: Draw, k: string) {
+    cell(d: DrawContext, k: string) {
         if (k == "shadowScaled") {
             d.save()
             d.scale(2, 2)

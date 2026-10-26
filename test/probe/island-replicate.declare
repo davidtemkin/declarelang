@@ -29,7 +29,7 @@ class Cell extends View [ width = { parent.width }, height = 130,
         program = "bridge-tenant",
         provides = ["volume"],
         volume: number = { Number(:vol ?? 0) },
-        onPost(m: IslandPost) { app.log = app.log + classroot.rowId + ":" + m.topic + ";" }
+        onPost(m: IslandMessage) { app.log = app.log + classroot.rowId + ":" + m.topic + ";" }
         ],
     out: Text [ x = 220, y = 10, textColor = whitesmoke,
         text = { classroot.rowId + " pos=" + classroot.isle.exposed("pos", 0) } ]

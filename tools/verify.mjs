@@ -55,7 +55,9 @@ function rungOf(phase) {
 
 // ── args ──────────────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
-const file = args.find((a) => !a.startsWith("--"));
+// the program: the .declare named (a flag's value — `--rung 4`, `--assert s.mjs`
+// — is not it), else the first bare word
+const file = args.find((a) => a.endsWith(".declare")) ?? args.find((a) => !a.startsWith("--"));
 const argVal = (name) => {
   const eq = args.find((a) => a.startsWith(`--${name}=`));
   if (eq !== undefined) return eq.slice(name.length + 3);
@@ -64,7 +66,7 @@ const argVal = (name) => {
 };
 const flags = {
   json: args.includes("--json"),
-  rung: Number((args.find((a) => a.startsWith("--rung=")) ?? "--rung=6").split("=")[1] ?? 6),
+  rung: Number(argVal("rung") ?? 6),
   assert: argVal("assert"),
   fixtures: argVal("fixtures"),
   states: argVal("states"),
@@ -78,7 +80,7 @@ const flags = {
   only: argVal("only"),
   // --boot-budget=ms: how long rung 4 waits for the boot to settle before it
   // stops it and reports what was running (default 15 s)
-  bootBudget: Number((args.find((a) => a.startsWith("--boot-budget=")) ?? "--boot-budget=15000").split("=")[1] ?? 15000),
+  bootBudget: Number(argVal("boot-budget") ?? 15000),
   // --samples: print the sample each data source was fed at rung 4
   samples: args.includes("--samples"),
   // --no-boot: go to the browser rungs without the headless boot — for
@@ -296,7 +298,7 @@ if (failedRung === null && flags.rung >= 5 && flags.assert !== null) {
     behave.log = r.log;
     if (!r.ok) failedRung = 5;
   } catch (e) {
-    behave.failures.push(`behavior harness: ${e?.message ?? e}`);
+    behave.failures.push(e?.constructor?.name === "VerifyAssertion" ? e.message : `behavior harness: ${e?.message ?? e}`);
     failedRung = 5;
   }
 }
@@ -325,7 +327,7 @@ if (failedRung === null && flags.rung >= 6 && flags.states !== null) {
     visual.results = r.results;
     if (!r.ok) failedRung = 6;
   } catch (e) {
-    visual.failures.push(`visual harness: ${e?.message ?? e}`);
+    visual.failures.push(e?.constructor?.name === "VerifyAssertion" ? e.message : `visual harness: ${e?.message ?? e}`);
     failedRung = 6;
   }
 }
@@ -355,6 +357,9 @@ if (flags.json) {
     diagnostics: out.diagnostics,
   }, null, 2));
 } else {
+  // layout findings never fail a rung (a judgement, not an error), so the rung
+  // that found them says how many — a ✓ above them read as "nothing to see"
+  const findings = (n) => n === 0 ? "" : ` — ${n} layout finding${n === 1 ? "" : "s"} below`;
   for (const r of RUNGS) {
     if (r.n > flags.rung) break;
     const optionalIdle = (r.n === 5 && !behave.ran) || (r.n === 6 && !visual.ran);
@@ -364,7 +369,7 @@ if (flags.json) {
       optionalIdle || r.n > effectiveBuilt ? "·" : "✓";
     const note =
       optionalIdle || r.n > effectiveBuilt ? ` — ${r.what}` :
-      r.n === 4 && boot.ran && boot.ok ? ` (${boot.nodes} nodes, in ${boot.where === "chrome" ? "Chrome, real text" : "Node, stand-in text"}${sized ? "" : ", a laptop and a phone"})` :
+      r.n === 4 && boot.ran && boot.ok ? ` (${boot.nodes} nodes, in ${boot.where === "chrome" ? "Chrome, real text" : "Node, stand-in text"}${sized ? "" : ", a laptop and a phone"})${findings(boot.layout.length)}` :
       r.n === 5 && behave.ran && behave.ok ? ` (${behave.log.length} steps, real input)` :
       r.n === 6 && visual.ran && visual.ok ? ` (${visual.results.length} states${flags.bless ? ", blessed" : ""})` : "";
     console.log(`  R${r.n} ${mark} ${r.name}${note}`);
@@ -389,7 +394,8 @@ if (flags.json) {
     // the runtime-tracking path (a residue, or the alias/closure DYNAMIC class)
     const wired = out.deps ? out.deps.filter((d) => d.length > 0).length : 0;
     console.log(`  verify: ${file} — clean through R${climbed}` +
-      (out.deps?.length ? ` (${wired} of ${out.deps.length} constraints statically wired)` : ""));
+      (out.deps?.length ? ` (${wired} of ${out.deps.length} constraints statically wired)` : "") +
+      (boot.layout.length > 0 ? `, with ${boot.layout.length} layout finding${boot.layout.length === 1 ? "" : "s"} to look at (the layout lines)` : ""));
     // WHAT R4 CANNOT SEE. Rungs 1–4 run in a synthetic Node backend, so a clean
     // climb is proof the program is well-formed — not that the browser bundle
     // agrees. A field report (2026-09-04) lost more time to this than to every

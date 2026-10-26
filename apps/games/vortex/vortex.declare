@@ -88,7 +88,7 @@ script {
     }
 
     // a glowing vector pen: the arcade's look, set once per stroke
-    function glowPen(d: Draw, ink: number, width: number) {
+    function glowPen(d: DrawContext, ink: number, width: number) {
         d.strokeStyle = ink
         d.shadowColor = ink
         d.shadowBlur = 7
@@ -155,7 +155,7 @@ App [ appName = "Vortex", fontFamily = ["Menlo", "Consolas", "monospace"],
     // The arcade's waves, one row a level to 98 (waves.json); past them, one of
     // the 65th to 96th, fixed for each level.
 
-    waves: DataSource [ url = "waves.json", auto = true, schema = [ levels[]: Wave ] ],
+    waves: DataSource [ url = "waves.json", autoFetch = true, schema = [ levels[]: Wave ] ],
 
     // The levels a game may start at, as the arcade offers them, and the bonus
     // each earns once its first level is cleared.
@@ -598,7 +598,7 @@ App [ appName = "Vortex", fontFamily = ["Menlo", "Consolas", "monospace"],
 
     demoCard: Notice [ y = { app.height - 110 }, visible = { app.demo },
         Headline [ fontSize = 20, text = "DEMO" ],
-        Subline [ text = { app.touchDevice ? "PRESS START TO PLAY" : "PRESS RETURN TO PLAY" } ]
+        Subline [ text = { app.touchFirst ? "PRESS START TO PLAY" : "PRESS RETURN TO PLAY" } ]
         ],
 
     pauseCard: Notice [ visible = { app.paused },
@@ -609,7 +609,7 @@ App [ appName = "Vortex", fontFamily = ["Menlo", "Consolas", "monospace"],
     overCard: Notice [ visible = { app.mode == "over" },
         Headline [ fontSize = 56, text = "GAME OVER" ],
         Subline [ text = { "SCORE " + app.score + "   ·   LEVEL " + app.level } ],
-        Subline [ text = { app.touchDevice ? "START TO PLAY AGAIN" : "RETURN TO PLAY AGAIN" } ]
+        Subline [ text = { app.touchFirst ? "START TO PLAY AGAIN" : "RETURN TO PLAY AGAIN" } ]
         ],
 
     // On a touch screen, Tempest's controls as its panel has them: spin under the left hand,

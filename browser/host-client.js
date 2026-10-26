@@ -16,7 +16,7 @@
 // Relative import so the whole tree is subpath-portable (GitHub Pages project
 // pages live under /<repo>/): resolved against THIS module's URL, not the page's.
 import { installLiveEdit } from "./live-edit.js";
-import { mapUrl, buildProgram, mountApp, fontsReady, settle, reflectAppName, DomBackend, CanvasBackend, provideTransport, observe, isEmbedded, provideHostServices, setAppAssetBase, setAppDataBase, kernelReady, scrollPlaces, holdScrollPlaces, dropScrollPlaces } from "../runtime/dist/host-api.js";
+import { mapUrl, buildProgram, mountApp, fontsReady, settle, reflectAppName, DomBackend, CanvasBackend, provideTransport, observe, isEmbedded, provideHostServices, navigationOf, setAppAssetBase, setAppDataBase, kernelReady, scrollPlaces, holdScrollPlaces, dropScrollPlaces } from "../runtime/dist/host-api.js";
 import { wireIslands } from "./host-islands.js";
 
 // A compiled program arrives as ONE thing: `program`, the parsed, checked,
@@ -55,6 +55,10 @@ const fragmentOf = () => decodeURIComponent(location.hash.replace(/^#/, ""));
  *   assetBase?: string,          // the same rule for the island child's BITMAPS and web FACES (asset-base.ts): a "__"-named live-edit island (the Viewer's edit pane) has no path of its own, so the host states the viewed program's directory. A named island derives its own from islandBase.
  * }}
  */
+/** The page's handle on an app it booted (`boot()` resolves to it). */
+const TENANTS = new WeakMap();
+export function tenantOf(app) { return TENANTS.get(app) ?? null; }
+
 export async function bootHost(cfg) {
   // The mount point: an explicit element (cfg.host — several apps per page, each
   // in its own marked div) or the page's #host. TENANCY is decided here, once,
@@ -92,8 +96,8 @@ export async function bootHost(cfg) {
   // THE PAGE AS THE TOPMOST HOST (islands.md): values the program reads with
   // `hostProvided("name", …)`, there from its very first evaluation — from a
   // no-script page's `data-declare-provide='{…}'` on the host element, then
-  // `boot({ provides })`, which wins. Later changes come through
-  // `el.__declareApp.provideHostValue(name, value)`.
+  // `boot({ provides })`, which wins. Later changes come through the tenant
+  // handle: `tenant.provide(name, value)` (below).
   const provideAttr = host.getAttribute?.("data-declare-provide");
   let pageProvides = {};
   if (provideAttr) {
@@ -102,7 +106,23 @@ export async function bootHost(cfg) {
   }
   pageProvides = { ...pageProvides, ...(cfg.provides ?? {}) };
   const app = buildApp({ program: cfg.program }, { provides: pageProvides });
-  host.__declareApp = app;                            // the per-box handle (an embedder's way in)
+  host.__declareApp = app;                            // the app itself (tools and tests reach it here)
+  // THE PAGE AS A HOST, in an island's words (islands.md): the page hears the
+  // app's postToHost through `boot({ onPost })`, speaks to its onHostMessage
+  // through `tenant.post`, feeds values with `tenant.provide`, and reads what
+  // the app exposes with `tenant.exposed`. Navigation is `boot({ onNavigate })`,
+  // wired with the service table below. The handle is its own object, so none
+  // of these names is taken from the program.
+  if (typeof cfg.onPost === "function") app.$hostSink = { message: (topic, payload) => cfg.onPost({ topic, payload }) };
+  const tenant = Object.freeze({
+    app,
+    post: (topic, payload) => { app.$receiveHostMessage(String(topic), payload); settle(); },
+    provide: (name, value) => app.$provideHostValue(name, value),
+    // a value the app's `exposes` lists — tracked, so observe(() => tenant.exposed(…)) follows it
+    exposed: (name, ...dflt) => { const v = app.$exposed(name); return v === undefined && dflt.length > 0 ? dflt[0] : v; },
+  });
+  host.__declareTenant = tenant;
+  TENANTS.set(app, tenant);
   // The MAIN app's own directories (boot-uniform passes the program's dir):
   // ASSETS — everything asset-base.ts resolves: bitmaps, media, web font
   // faces — and DATA — DataSource urls — both read "relative means beside MY
@@ -385,12 +405,18 @@ export async function bootHost(cfg) {
   // navigate/openWindow — a widget's outbound link legitimately navigates the
   // page, and a foreign embedder can re-provide its own table to intercept —
   // but never the Inspector, which is the page tenant's tool.
-  const navServices = {
+  // how an address resolves here — what an island's onNavigate is handed
+  const resolveNav = (u) => new URL(u, DISTRO_ROOT).href;
+  // A page that hands `boot({ onNavigate })` carries out every navigation
+  // itself, synchronously inside the click (so it may open a window); without
+  // one, the browser does.
+  const navServices = typeof cfg.onNavigate === "function" ? {
+    navigate: (u) => { if (!stopped) cfg.onNavigate(navigationOf(resolveNav(u), false)); },
+    openWindow: (u) => { if (!stopped) cfg.onNavigate(navigationOf(resolveNav(u), true)); },
+  } : {
     navigate: (u) => { if (!stopped) location.href = new URL(u, DISTRO_ROOT).href; },
     openWindow: (u) => { if (!stopped) window.open(new URL(u, DISTRO_ROOT).href, "_blank"); },
   };
-  // how an address resolves here — what an island's onNavigate is handed
-  const resolveNav = (u) => new URL(u, DISTRO_ROOT).href;
   provideHostServices(app, embedded ? navServices : {
     ...navServices,
     // app.inspect(slot) — open the Inspector on an embedded app (or on this one

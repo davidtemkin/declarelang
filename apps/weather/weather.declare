@@ -529,7 +529,7 @@ class RowSky [ clip = true,
         visible = { classroot.hasPhoto },
         source = { classroot.cond == "cumulus" ? "sky/cumulus.jpg" : "sky/cloudy.jpg" } ],
 
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         if (this.cond == "sunny") artSunnySky(d, d.w, d.h)
         else if (this.cond == "night") artNightSky(d, d.w, d.h)
         // cloudy and cumulus record nothing: the photograph above is the sky
@@ -868,7 +868,7 @@ App [ textColor = whitesmoke, appName = "Weather",
     // A DataSource fetches once (`auto`) and exposes `loaded` and `value` as
     // reactive facts; everything below derives from them.
 
-    data: DataSource [ auto = true, url = "weather.json", schema = [ cities[]: City ] ],
+    data: DataSource [ autoFetch = true, url = "weather.json", schema = [ cities[]: City ] ],
 
     cities: City[] = { data.value?.cities ?? [] },
 

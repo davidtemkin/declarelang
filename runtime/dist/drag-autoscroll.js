@@ -10,7 +10,7 @@
 // frame at the same root point — its local coordinates follow the content, so
 // the dragged thing and a `viewAt` drop test keep up with no code of their own.
 // It stops when the pointer leaves the band, the range ends, or the press ends.
-// The scroll is the program's motion, not the user's scroll: `scrolling` stays
+// The scroll is the program's motion, not the user's scroll: `userScrolling` stays
 // false, and the anchor never holds the dragged view still (scroll-anchor.ts).
 import { View } from "./view.js";
 const BAND = 48; // px from a scroller's edge where scrolling begins

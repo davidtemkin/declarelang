@@ -9,7 +9,7 @@ App [ width = 820, height = 560, fill = white, textColor = #999999, fontSize = 2
     rule: View [ x = { caps.x + caps.width }, y = 56, width = 2, height = 30, fill = #2E6FE0 ],
 
     marks: View [ x = 20, y = 110, width = 380, height = 180,
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             d.strokeStyle = 0x2E6FE0
             d.lineWidth = 1.5
             d.font = "28px Helvetica"

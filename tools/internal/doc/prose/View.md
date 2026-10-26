@@ -236,7 +236,7 @@ explicit (not implied by `cornerRadius`) so clipping is pay-per-use.
 ## tooltipLabel
 The tooltip text — the layer system's floor (one attribute at the use site): a non-empty
 `tooltipLabel` makes this view hover-interactive, and after the theme's delay the auto-provided
-`TooltipLayer` singleton shows the text beside it. Placement, delay, and size are theme data
+`Tooltip` singleton shows the text beside it. Placement, delay, and size are theme data
 (`tooltipPlacement` below | above | pointer, `tooltipDelay`, `tooltipFontSize`) — so Cupertino
 tips appear near the cursor after ~1s at 11px (the Cupertino help tag), Redmond's above the
 control (WinUI), Mountain View's below at ~500ms (M3) — always flipped and clamped inside
@@ -293,7 +293,7 @@ declared twin of a `scrollTo(y)` on arrival (`scrollStartX` for the other axis).
 `scrollY` fact then reports where the platform actually put it. A test fixture that must
 be shot mid-scroll declares this rather than gesturing.
 
-## scrolling
+## userScrolling
 **A fact, not a settable attribute.** True while the **user** is scrolling this scroller: from
 its first movement until the finger has lifted or the scrollbar thumb has been let go, and any
 momentum afterwards has come to rest. A finger resting on the pane partway through is still
@@ -476,9 +476,9 @@ site supplied (`height = { contentHeight }` on a class that takes children).
 
 
 ## draw()
-Custom drawing: define `draw(d: Draw) { … }` on any view, and it paints into its box with
+Custom drawing: define `draw(d: DrawContext) { … }` on any view, and it paints into its box with
 the Canvas2D vocabulary (`d.fillStyle`, `d.beginPath()`, `d.arc(…)`, `d.fill()` — the
-`Draw` interface, on the Types page). It is **an ordinary method**, overridable like any
+`DrawContext` interface, on the Types page). It is **an ordinary method**, overridable like any
 other; what makes it paint is who calls it. `View` holds a standing constraint of its own,
 `drawing = { record(draw) }`, which runs your method through a recorder when the view
 attaches and again whenever something the body read changes — a read of `hovered` or a
@@ -494,7 +494,7 @@ bitmap arrives — a hidden `Image [ visible = false, source = … ]` is the hol
 ```declare-fragment
 gauge: View [ width = 80, height = 80,
     level: number = 0.6,
-    draw(d: Draw) { d.strokeStyle = 0x2E6FE0; d.lineWidth = 6
+    draw(d: DrawContext) { d.strokeStyle = 0x2E6FE0; d.lineWidth = 6
                     d.beginPath(); d.arc(40, 40, 32, -Math.PI / 2, -Math.PI / 2 + level * 2 * Math.PI); d.stroke() }
     ]
 ```
@@ -918,7 +918,7 @@ by a hand that does not pause for the program, so a request can arrive mid-gestu
 overridden by momentum, or worse, fighting it. Two habits keep the two from contending. Ask
 because something *changed by this much* rather than because the offset is near some value:
 a reader who is following the end of a list wants the new content, and a reader who scrolled
-up wants to be left alone, and only the first is expressible as growth. And read `scrolling`
+up wants to be left alone, and only the first is expressible as growth. And read `userScrolling`
 before asking, so a request waits for a hand that is still moving. What does not work is
 re-asserting a position every frame; the gesture will win, and the program will spend the
 whole gesture losing.
@@ -1051,7 +1051,7 @@ A blending view blends **as a unit**, children included; compositing is paint, n
 input — hit-testing and focus are unchanged. A token string in a `{ }` body, like
 `scrolls` — so a blend can be state: `blend = { active ? "multiply" : "normal" }`.
 
-## imageSmoothing
+## imageRendering
 How what is painted inside this view — its **images and drawings**, and everything inside
 it — looks when it is shown larger or smaller. `smooth` (the default) blends neighbouring
 pixels: right for photographs and for an ordinary interface under a zoom. `pixelated`
@@ -1061,10 +1061,10 @@ scene; its whole subtree follows, as it follows that view's `scale`.
 
 ```declare
 App [ width = 300, height = 140, fill = black,
-    screen: View [ x = 20, y = 20, scale = 4, imageSmoothing = pixelated,
+    screen: View [ x = 20, y = 20, scale = 4, imageRendering = pixelated,
         // a ten-pixel mark, drawn at one pixel per unit and shown in sharp 4×4 blocks
         mark: View [ width = 10, height = 6,
-            draw(d: Draw) { d.fillStyle = "#ffcc00"; d.fillRect(0, 0, 10, 1); d.fillRect(4, 1, 2, 5) } ]
+            draw(d: DrawContext) { d.fillStyle = "#ffcc00"; d.fillRect(0, 0, 10, 1); d.fillRect(4, 1, 2, 5) } ]
         ]
     ]
 ```
@@ -1107,8 +1107,9 @@ dematerialization is **not** a departure and never fires it.
 ## hovered
 True while the pointer is over this view — read-only, maintained by the same hit walk that
 routes presses, so it agrees with what a click would reach. Read it in a constraint rather
-than tracking enter/leave by hand: `fill = { hovered ? provided("theme").control : null }`. On a touch
-device there is no hovering, so gate mouse-only affordances on `app.touchDevice`.
+than tracking enter/leave by hand: `fill = { hovered ? provided("theme").control : null }`. A finger
+does not hover, so something revealed on hover needs another way in on touch: `visible = {
+hovered || app.lastPointerType == "touch" }` shows it to the finger that cannot hover.
 
 ## focused
 True while this view holds keyboard focus — read-only, kept by the focus service, so a
@@ -1246,16 +1247,6 @@ The room inside this view on one axis: its `width` or `height` less both of its
 resolves against, and what a layout divides (`Layout.contentExtent` is this, read through
 the view it arranges). A class that spans its parent's content reads it from the parent —
 `parent.contentBox("width")` — where `{ parent.width }` would answer the parent's whole box.
-
-## insertChild()
-Inserts a view you already hold as a child at `index` — the placement primitive beneath
-`createView`. Prefer replication over data for collections; this is for genuinely
-imperative structure. A primitive, not a verb: it does not notify the arrangement — after
-imperative re-ordering, the layout re-packs on the next arrival or removal.
-
-## removeChild()
-Detaches a child from this view. The child is **not** torn down — use `discard()` for
-that; a removed view you keep a reference to can be inserted somewhere else.
 
 ## discard()
 Tears a view down for good, in one verb: unlinks it from its parent, retires its whole

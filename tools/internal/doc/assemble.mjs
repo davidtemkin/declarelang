@@ -144,7 +144,7 @@ function typeSpine() {
 }
 
 /** The SHARED VOCABULARY a `{ }` body may name — every type and global function
- *  the scaffold's PRELUDE declares into each program's check block: `Draw` and
+ *  the scaffold's PRELUDE declares into each program's check block: `DrawContext` and
  *  its gradient, the event payloads a handler receives (`PointerEvent`,
  *  `KeyEvent`, …), the value types (`Color`, `Length`, `Fill`, `Stroke`,
  *  `Shadow`, `Gradient`, `Theme`, `DataCursor`), and the constructors (`stroke()`,
@@ -152,7 +152,7 @@ function typeSpine() {
  *
  *  These are typechecked for every program and were in the reference NOWHERE —
  *  the same defect the callable surface had (library-charter §2a), one layer
- *  down and larger: `draw(d: Draw)` is a first-class member kind, and the only
+ *  down and larger: `draw(d: DrawContext)` is a first-class member kind, and the only
  *  statement of what `d` offers was four examples and an ellipsis in declare.md.
  *  A handler's payload was worse — the reference documented `onKeyDown(e: KeyEvent)`
  *  while nothing said what is ON `e`.
@@ -326,7 +326,6 @@ function enumVocabularies() {
     const t = declaredType(n);
     if (t && t.kind === "enum" && !(n in vocab)) vocab[n] = [...t.tokens];
   }
-  delete vocab.UnsupportedTags; // internal (strip-mode enum) — not author surface
   return vocab;
 }
 
@@ -583,7 +582,7 @@ const requestsDoc = (spine) => {
 // not say. Keyed by name so the page stays generated — a type added to the
 // PRELUDE appears here immediately, with an empty note rather than silently.
 const VOCAB_NOTE = {
-  Draw: "the recorder a `draw(d: Draw)` body receives — Canvas2D-shaped",
+  DrawContext: "the recorder a `draw(d: DrawContext)` body receives — Canvas2D-shaped",
   DrawGradient: "a gradient built inside a drawing, via `d.createLinearGradient(…)`",
   DrawImageSource: "what `d.drawImage(…)` paints from — any `Image` view (its `loaded`, `naturalWidth`, `naturalHeight`)",
   Color: "a packed `0xRRGGBB` number in a `{ }` body — `null` means *no paint*, not black. **Alpha, by context**: a constant carries it in the literal — `0xRRGGBBAA` (or `#RRGGBBAA`), in bare slots and `{ }` bodies alike; a computed alpha calls `colorWithAlpha(rgb, a)` in a body; inside `draw()` the canvas takes its own CSS string (`\"rgba(51,102,153,0.5)\"`). `rgba(…)` is never a slot spelling",
@@ -615,7 +614,7 @@ const VOCAB_NOTE = {
   shadow: "build a `Shadow` — the box's own, glyphs' (`textShadow`), or in a `filter` list the painted alpha's",
   stop: "one colour stop, for `gradient(…)`",
   frost: "the material pair `[blur(radius), saturate(saturation)]` — what lies beneath the view, blurred under its own fill",
-  FilterList: "what a `backdrop` slot holds — a filter list, sampled beneath the view; `frost(…)` builds the common pair",
+  FilterList: "a list of filters, applied in order — to the view's own paint (`filter`) or to what lies beneath it (`backdrop`); `frost(…)` builds the common backdrop pair",
   ImageFilter: "one function of the filter vocabulary, for `filter` (the view's own paint) and `backdrop` (what lies beneath)",
   blur: "a Gaussian blur, radius in view units",
   brightness: "multiply the light: `brightness(0.8)` darkens, `1` is unchanged",
@@ -669,7 +668,7 @@ const sharedTypesDoc = (spine) => {
   const note = (n) => (VOCAB_NOTE[n] ? " — " + VOCAB_NOTE[n] : "");
   const iface = (n) => t.interfaces.find((i) => i.name === n);
   const PAYLOADS = ["PointerEvent", "PointerUpEvent", "WheelEvent", "TouchEvent", "Touch", "KeyEvent", "FocusGeometry", "TooltipEvent", "StreamMessage"];
-  const draw = iface("Draw");
+  const draw = iface("DrawContext");
   const props = (draw?.members ?? []).filter((m) => !m.includes("("));
   const calls = (draw?.members ?? []).filter((m) => m.includes("("));
   const out = ["# Types and functions", "",
@@ -686,8 +685,8 @@ const sharedTypesDoc = (spine) => {
     "attribute the host supplies, never through a bare global. A body is synchronous — there",
     "is no `await`; a value the screen derives from is a `DataSource`.", ""];
 
-  out.push("## `Draw` — what a `draw(d)` method receives", "",
-    "`draw(d: Draw)` is an ordinary method a view defines to paint itself. `View` calls it from a",
+  out.push("## `DrawContext` — what a `draw(d)` method receives", "",
+    "`draw(d: DrawContext)` is an ordinary method a view defines to paint itself. `View` calls it from a",
     "constraint of its own (`drawing = { record(draw) }` — the View page), so it runs on invalidation",
     "and re-runs when what it *read* changes, **never per frame** — the rule every method has when a",
     "constraint calls it. So a drawing composes with attributes and constraints instead of escaping",
@@ -700,7 +699,7 @@ const sharedTypesDoc = (spine) => {
     "makes the recording size-dependent, so an animated size re-records and reallocates its backing",
     "canvas every frame.", "",
     "```declare-fragment",
-    "draw(d: Draw) {",
+    "draw(d: DrawContext) {",
     "    d.fillStyle = provided(\"theme\").accent",
     "    d.beginPath()",
     "    d.arc(width / 2, height / 2, 6, 0, Math.PI * 2, false)",
@@ -727,7 +726,7 @@ const sharedTypesDoc = (spine) => {
     out.push(`| \`${n}\` | ${VOCAB_NOTE[n] ?? ""} | ${shape} |`);
   }
 
-  const valueIfaces = t.interfaces.filter((i) => !PAYLOADS.includes(i.name) && i.name !== "Draw");
+  const valueIfaces = t.interfaces.filter((i) => !PAYLOADS.includes(i.name) && i.name !== "DrawContext");
   out.push("", "## Value types", "", "| type | what it is | shape |", "|---|---|---|");
   for (const a of t.aliases) out.push(`| \`${a.name}\` |${note(a.name).replace(/^ — /, " ")} | ${cell(a.type)} |`);
   for (const i of valueIfaces) out.push(`| \`${i.name}\` |${note(i.name).replace(/^ — /, " ")} | ${i.members.map(cell).join(" · ")} |`);
@@ -763,17 +762,17 @@ const sharedTypesDoc = (spine) => {
 // type exactly once, so a new enum or a new PRELUDE declaration fails the
 // assembly until it is placed.
 const TYPE_GROUPS = [
-  ["Enums", ["AccessibilityLive", "AccessibilityRole", "AccessibilitySort", "Axis", "Backface", "Blend", "ClaimAxis", "RequestCredentials", "CrossAlign", "TextDirection", "SafeAreaMode", "EditControlJudgeOn",
-             "FitAlign", "FocusScope", "FontLoadBehavior", "FontWeight", "Justify", "Motion", "Numerals", "NumeralWidth",
-             "OutsidePress", "AnimatorOrder", "InputPurpose", "ImageSmoothing", "ScrollAnchor", "ScrollBelow", "Scrolls", "StreamStatus", "MediaFit", "TextAlign", "TextTransform", "ClockTick"]],
+  ["Enums", ["AccessibilityLive", "AccessibilityRole", "AccessibilitySort", "Axis", "Backface", "Blend", "ClaimAxis", "RequestCredentials", "CrossAlign", "TextDirection", "SafeAreaMode", "JudgeOn",
+             "FitAlign", "FocusScope", "FontLate", "FontWeight", "Justify", "Motion", "Numerals", "NumeralWidth",
+             "OutsidePress", "AnimatorOrder", "InputPurpose", "ImageRendering", "ScrollAnchor", "ScrollBelow", "Scrolls", "StreamStatus", "ImageFit", "TextAlign", "TextTransform", "UnsupportedTags", "ClockTick"]],
   ["Values", ["Color", "Fill", "Gradient", "Length", "Percent", "Radius", "Inset", "ClipPath", "Stroke", "BoxStroke", "GlyphOutline",
-              "Shadow", "ImageFilter", "FilterList", "Theme", "MotionCurve", "DataCursor", "TextMetrics", "IslandPost", "IslandNavigation", "DelayHandle"]],
+              "Shadow", "ImageFilter", "FilterList", "Theme", "MotionCurve", "DataCursor", "TextMetrics", "IslandMessage", "IslandNavigation", "DelayHandle"]],
   ["Text", ["TextStyle", "TextStyles", "BlockGeometry", "RichTextLayout"]],
   ["Event payloads", ["PointerEvent", "PointerUpEvent", "TouchEvent", "Touch", "WheelEvent", "PinchEvent",
                       "KeyEvent", "FocusGeometry", "TooltipEvent", "StreamMessage", "ChangeEvent", "ValueChange",
                       "FilesOverEvent", "FilesDropEvent"]],
   ["Files", ["File", "FilePickOptions"]],
-  ["Drawing", ["Draw", "DrawGradient", "DrawImageSource"]],
+  ["Drawing", ["DrawContext", "DrawGradient", "DrawImageSource"]],
   ["Inspection", ["TraceSettle", "TraceChange"]],
   ["Host", ["Headers", "AbortSignal", "AbortController", "RequestInit", "Response", "Blob", "FormData",
             "URLSearchParams", "URL"]],

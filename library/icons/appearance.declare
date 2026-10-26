@@ -44,7 +44,7 @@ Renders the disc and its rays.
 class SunIcon extends Icon [
     rays: number = 8,
     solid: boolean = false,         // true = the filled disc; false = the ring
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         d.scale(unit, unit)
         d.fillStyle = ink
         d.strokeStyle = ink
@@ -96,7 +96,7 @@ Renders the crescent.
 
 class MoonIcon extends Icon [
     solid: boolean = false,         // true = the filled crescent; false = the stroked horns
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         d.scale(unit, unit)
         d.beginPath()
         d.arc(8, 8, 5.5, 0.389, 4.323, false)      // outer edge, the long way round
@@ -126,7 +126,7 @@ Renders the half-filled disc.
 */
 
 class AutoIcon extends Icon [
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         d.scale(unit, unit)
         d.strokeStyle = ink
         d.fillStyle = ink

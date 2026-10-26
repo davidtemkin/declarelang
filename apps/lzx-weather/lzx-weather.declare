@@ -55,7 +55,7 @@ class BeveledBar [
     highlight: Color = #FFFFFF,
     lowlight:  Color = #000000,
 
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         d.fillStyle = highlight
         d.fillRect(0, 0, width, 1)
         d.fillStyle = lowlight

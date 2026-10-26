@@ -256,7 +256,7 @@ A **`DataSource`** is a dataset whose data arrives over HTTP, and its lifecycle 
 reactive state:
 
 ```declare-fragment
-weather: DataSource [ url = { `/data/weather/${app.zip}.json` }, auto = true ],
+weather: DataSource [ url = { `/data/weather/${app.zip}.json` }, autoFetch = true ],
 
 splash: View [ visible = { !app.weather.loaded } ],       // nothing has arrived yet
 report: View [ visible = { app.weather.loaded } ],        // stays up while a refresh runs
@@ -271,7 +271,7 @@ showing and the new on its way. When a request fails, `value` keeps the last goo
 data, `error` says why, and [`statusCode`](declare-docs:DataSource.statusCode) and [`errorBody`](declare-docs:DataSource.errorBody) carry what the server said.
 
 **Loading is explicit.** A `DataSource` does not fetch because it was declared. Call
-[`fetch()`](declare-docs:DataSource.method.fetch) — in `onInit`, or on a user action — or set `auto = true` when the address
+[`fetch()`](declare-docs:DataSource.method.fetch) — in `onInit`, or on a user action — or set `autoFetch = true` when the address
 *is* the reactive thing, so a change of `url` means "load it". [`method`](declare-docs:DataSource.method), [`body`](declare-docs:DataSource.body) and
 [`headers`](declare-docs:DataSource.headers) are ordinary attributes, so an authenticated request is declarative: a header
 whose value is empty is not sent, which makes `Authorization: app.token != "" ? "Bearer
@@ -291,7 +291,7 @@ whatever its arrival must do. The class is declared at the top level, beside its
 ```declare-fragment
 schema Quote [ sym: string, price: number ]
 
-class Quotes extends DataSource [ url = "/api/quotes", auto = true, schema = [ rows[]: Quote ],
+class Quotes extends DataSource [ url = "/api/quotes", autoFetch = true, schema = [ rows[]: Quote ],
     priceOf(sym: string) -> number { return this.value?.rows.find((q) => q.sym == sym)?.price ?? 0 },
     expensive: Dataset [ contents = { { rows: (classroot.value?.rows ?? []).filter((q) => q.price > 100) } } ]
     ]
@@ -350,7 +350,7 @@ Four facts make this work without choreography:
   and `clear()` stops one in flight.
 - **A source's value is the server's.** Each successful `fetch()` replaces it. When the
   user edits what was loaded and the source fetches again — on a timer, a changing `url`,
-  `auto` — copy it into a `Dataset` in `onLoad` and edit that — the working copy — so a
+  `autoFetch` — copy it into a `Dataset` in `onLoad` and edit that — the working copy — so a
   refresh does not overwrite work in progress. A source that loads once and is kept
   current by the app (a `Socket` writing into it, say) has nothing to overwrite, and its
   own value can be edited directly.
@@ -477,7 +477,7 @@ cannot be read as the field's type never reaches the data.
 
 A form usually wants more: a **draft** the user is editing, validated, that lands only
 when it is good and only when they say so. That is a text field's edit session — it
-belongs to [`EditControl`](declare-docs:EditControl), the base class `TextInput` extends:
+belongs to [`TextInput`](declare-docs:TextInput):
 
 ```declare
 App [ width = 400, height = 220, fill = white, textColor = black,
@@ -514,10 +514,10 @@ App [ width = 400, height = 220, fill = white, textColor = black,
     ]
 ```
 
-Empty a field and Save disables itself; fix it and Save returns. **[`commitOn`](declare-docs:EditControl.commitOn)** decides
+Empty a field and Save disables itself; fix it and Save returns. **[`commitOn`](declare-docs:TextInput.commitOn)** decides
 when a valid draft lands: `"input"` (live, the default), `"blur"`, `"enter"`, or
-`"manual"` — only on [`commit()`](declare-docs:EditControl.method.commit). **`validate(v)`** returns `""` for valid or the message
-otherwise. From those, three facts follow — [`valid`](declare-docs:EditControl.valid), `error` and [`dirty`](declare-docs:EditControl.dirty) — and an invalid
+`"manual"` — only on [`commit()`](declare-docs:TextInput.method.commit). **`validate(v)`** returns `""` for valid or the message
+otherwise. From those, three facts follow — [`valid`](declare-docs:TextInput.valid), `error` and [`dirty`](declare-docs:TextInput.dirty) — and an invalid
 draft never reaches the dataset. `canSave` is an ordinary constraint over them: no form
 object, no submit handler. A field the program fills itself — `text = { … }` with an
 `onInput` — takes the same `validate`, and gets the same `valid` and `error`; it just has

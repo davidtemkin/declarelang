@@ -1,10 +1,10 @@
+import { View } from "./view.js";
 import type { RenderBackend, Surface } from "./backend.js";
 import { type FontWeight } from "./measure.js";
 import { type FamilyValue } from "./font-value.js";
-import { EditControl } from "./editor.js";
 import { type Color, type Inset } from "./value.js";
 import { type Purpose } from "./purpose.js";
-export declare class TextInput extends EditControl {
+export declare class TextInput extends View {
     textColor: Color;
     fontSize: number;
     /** A family string, a Font, or a list of them. */
@@ -29,7 +29,30 @@ export declare class TextInput extends EditControl {
     wrap: boolean;
     padding: Inset;
     initial: string;
-    protected $draftSlot(): string;
+    /** Inert: not focusable, takes no edits, and says so to assistive technology. */
+    disabled: boolean;
+    /** "input" (live) | "blur" | "enter" | "manual" — when a valid draft commits. */
+    commitOn: string;
+    /** "edit" | "leave" — when `error` first says what is wrong: at every edit,
+     *  or once the field has been left (or judge() asked). `valid` is true to
+     *  the draft either way. */
+    judgeOn: string;
+    /** The current validation message, "" when valid (reactive). */
+    error: string;
+    /** Does the draft pass validate()? (reactive) */
+    valid: boolean;
+    /** Does the draft differ from the committed value? (reactive) */
+    dirty: boolean;
+    /** The field's element holds what is typed, the selection and focus. */
+    protected $eagerSurface(): boolean;
+    /** @api Commit the current draft into the bound dataset field, if it
+     *  validates — for a `commitOn = "manual"` field or a Save button. */
+    commit(): void;
+    /** @api Discard edits — reset the field to the committed dataset value. */
+    revert(): void;
+    /** @api Say what is wrong with the draft now, without waiting for the field
+     *  to be left — for a Save or a Pay that checks every field. */
+    judge(): void;
     $attach(backend: RenderBackend, parentSurface: Surface | null, before?: Surface | null): void;
     protected $flush(s: Surface): void;
     private $editStyle;

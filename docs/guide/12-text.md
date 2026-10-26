@@ -133,7 +133,7 @@ devices that lack them pay for it.
 
 **While a font loads,** the font decides what waiting is worth. [`wait`](declare-docs:Font.wait) (milliseconds,
 default 500) is how long text about to change to this font keeps its current look — at
-startup, how long the first paint waits. [`late`](declare-docs:Font.late) decides what a face arriving after that
+startup, how long the first paint waits. [`late`](declare-docs:Font.late) decides what the font arriving after that
 does: `swap` (the default) changes to it once; `keep` leaves the fallback for the rest of
 the run. A font reports `loaded` and `failed` as facts, for the rare design that depends
 on them. A font inside a view unloads its faces when the view goes away.

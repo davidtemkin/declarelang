@@ -164,7 +164,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
        resolves through it. The url is a constraint, so a base that arrives
        late refetches. */
 
-    data: DataSource [ auto = true, url = { hostProvided("base", "") + "birds.json" }, schema = [ groups[]: Group ] ],
+    data: DataSource [ autoFetch = true, url = { hostProvided("base", "") + "birds.json" }, schema = [ groups[]: Group ] ],
     birds: Bird[] = { (data.value?.groups ?? []).flatMap((g) => g.birds) },
 
     // ── location → the address, parsed (grammar: "" · "b/<slug>" · "quiz") ──

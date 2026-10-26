@@ -408,9 +408,9 @@ export class Windowing {
             return;
         // an end pane at its end is placed by its anchor — unless the hand has
         // just taken it away from the end (the anchor learns that a settle later)
-        if (heldAtEnd(sc) && (sc.scrolling !== true || sc.scrollY >= sc.contentHeight - sc.height - 4))
+        if (heldAtEnd(sc) && (sc.userScrolling !== true || sc.scrollY >= sc.contentHeight - sc.height - 4))
             return;
-        if (sc.scrolling === true) {
+        if (sc.userScrolling === true) {
             this.dev -= d;
             if (this.hand !== null)
                 this.hand.l += d;
@@ -433,7 +433,7 @@ export class Windowing {
         // arriving) re-runs the pass, so the rows below follow it
         for (const r of this.rows.values())
             void r.view.height;
-        const scrolling = scroller.scrolling === true;
+        const scrolling = scroller.userScrolling === true;
         this.bar = scrolling && scroller.$surface?.scrollbarHeld?.() === true;
         const probe = this.rows.values().next().value?.view;
         const h = probe !== undefined ? probe.height + gap : 0;
@@ -754,7 +754,7 @@ export class Windowing {
             // at rest, the member goes back to where the reader saw it — an absolute
             // target, so corrections in a row (cards springing shut above, frame
             // after frame) never add up the fractions a whole-pixel offset drops
-            if (above !== 0 && sc.scrolling !== true && this.anchor !== null && !heldAtEnd(sc)) {
+            if (above !== 0 && sc.userScrolling !== true && this.anchor !== null && !heldAtEnd(sc)) {
                 const top = this.offsetTo(sc) + this.leading + this.ledger.offset(this.anchor.index) + this.dev;
                 const target = Math.max(0, Math.round(top - this.anchorVis));
                 if (Math.abs(target - sc.scrollY) >= 0.5) {
@@ -884,7 +884,7 @@ export class Windowing {
             this.endBooked = true;
             afterSettle(() => {
                 this.endBooked = false;
-                if (!this.atEnd || sc.scrolling === true || heldAtEnd(sc))
+                if (!this.atEnd || sc.userScrolling === true || heldAtEnd(sc))
                     return;
                 const end = Math.max(0, sc.contentHeight - sc.height);
                 if (Math.abs(end - sc.scrollY) < 0.5)

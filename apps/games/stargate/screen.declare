@@ -30,12 +30,12 @@ script {
 // side whose inks are the two halves of one byte, as the arcade writes them.
 
 class Dots [ width = 100%, height = 100%,
-    dot(d: Draw, x: number, y: number, ink: number) {
+    dot(d: DrawContext, x: number, y: number, ink: number) {
         if (ink == 0) return
         d.fillStyle = arcadeColor(provided("inks")[ink])
         d.fillRect(x, y, 1, 1)
         },
-    pair(d: Draw, x: number, y: number, two: number) {
+    pair(d: DrawContext, x: number, y: number, two: number) {
         this.dot(d, x, y, Math.floor(two / 16))
         this.dot(d, x + 1, y, two % 16)
         }
@@ -103,7 +103,7 @@ class GateView [ px: number = { :px },
     py: number = { :py - 4 },
     x = { px }, y = { py }, width = 16, height = 12,      // (its rings' top, four rows above where it is)
     fill = { arcadeColor(provided("inks")[0]) },
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const inks = provided("inks"), rings = provided("rings"), along = Math.floor(px / 32)
         const inner = [8, 8, 7, 6, 5, 4, 3, 2, 1][along] ?? 0
         const center = inner + ([5, 5, 5, 4, 3, 3, 2][along] ?? 1)
@@ -131,7 +131,7 @@ class GateView [ px: number = { :px },
 class EffectLayer [ width = 100%, height = 100%,
     appears: Effect[] = [],
     bursts: Effect[] = [],
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const inks = provided("inks"), top = app.game.top
         for (const e of [...appears, ...bursts]) {
             if (!e.drawn) continue
@@ -190,7 +190,7 @@ class RockDot extends Dot [ visible = :shown, px = :px, py = { Math.floor(:y) },
 // The planet's ground: a pixel in each column of the screen but the four at each side.
 
 class Ground extends Dots [
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const rows = app.game.scenery.rows, at = Math.floor(provided("seen").groundAt) + 2048 - app.game.pages.groundLag
         for (let x = 4; x < 300; x++) this.dot(d, x, rows[(at + x) % 2048], app.game.ink.ground)
         for (const line of (:holes ?? []) as Holes[]) for (const pair of line.pairs) d.clearRect(2 * pair, line.id, 2, 1)
@@ -201,7 +201,7 @@ class Ground extends Dots [
 // What the lasers have left, row by row: each pixel's ink.
 
 class Trails extends Dots [
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         for (const trail of :trails as Trail[]) trail.inks.forEach((ink, x) => this.dot(d, x, trail.id, ink))
         }
     ]
@@ -228,7 +228,7 @@ class ShipView [ width = 100%, height = 100%, datapath = :ship,
     Picture [ px = :px, py = :py, picture = { :facing > 0 ? "ship-right" : "ship-left" },
         mono = { provided("seen").shipGlows ? app.game.ink.glow : -1 } ],
     Dots [ visible = { provided("seen").shipShown },
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             const back = [1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4], down = [1, 2, 3, 4, 5, 2, 3, 4, 2, 3, 4, 3]
             const left = :px - :px % 2
             ;(:flame as number[]).forEach((two, i) =>
@@ -261,7 +261,7 @@ class GateBlip extends Mark [ x = { Math.min(:px, 212) }, width = 3, height = 3,
 
 
 class Scanner extends Dots [ datapath = :scan,
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const small = app.game.scenery.smallGround, ground = :ground as number
         if (ground < 0) return
         for (let k = 0; k < 64; k++) {
@@ -283,7 +283,7 @@ class Scanner extends Dots [ datapath = :scan,
 // turn — so that one block may rub out part of another, as on the arcade's screen.
 
 class Shards [ width = 100%, height = 100%,
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const inks = provided("inks"), shards = :shards as Shard[], lost = :lost as Lost[]
         const block = (x: number, y: number, ink: number) => {
             d.fillStyle = arcadeColor(inks[ink])

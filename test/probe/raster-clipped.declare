@@ -6,7 +6,7 @@
 App [ width = 600, height = 400,
     wide: number = 300,
     chart: View [ x = 40, y = 40, width = { app.wide }, height = 150, clip = true,
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             d.fillStyle = 0xf4f1ea
             d.fillRect(0, 0, 1000, 150)   // no read of d.w: a resize alone must re-raster it
             d.beginPath()

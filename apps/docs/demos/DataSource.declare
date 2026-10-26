@@ -1,9 +1,9 @@
 // A document over HTTP, replicated into rows
-// `auto = true` fetches when the url is set; the rows replicate from `:cities[]` the
+// `autoFetch = true` fetches when the url is set; the rows replicate from `:cities[]` the
 // moment the document lands, and `status` is a fact a caption can read while it is in flight.
 
 App [ height = 200, textColor = 0x172530, fontSize = 14,   // the rows arrive after the fetch, so the stage cannot be measured — declare the height
-    weather: DataSource [ url = "demos/data/cities.json", auto = true ],
+    weather: DataSource [ url = "demos/data/cities.json", autoFetch = true ],
     datapath = { weather.value },
     col: View [ x = 20, y = 16, width = { parent.width - 40 },
         layout: SimpleLayout [ axis = y, spacing = 6 ],

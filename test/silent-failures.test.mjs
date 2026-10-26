@@ -6,6 +6,11 @@
 // program owns is still judged by its validate(); a combobox picks the item
 // autofill fills in; an input handler reads the caret after the keystroke, and
 // a field that regroups as it is typed keeps the caret where the person was.
+// And the tools' own: expect.visible answers what is SHOWN and expect.hidden
+// refuses a path that names nothing; a script that does not parse names its
+// line; --read of nothing and --js waiting on the app's clock are said, not
+// passed or hung; a page loaded again on another device keeps the driven clock;
+// R4 counts the layout findings it prints; `--rung 4` is read either way.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { writeFileSync } from "node:fs";
@@ -107,6 +112,62 @@ await test("an input handler reads the caret after the keystroke; a regrouping f
   assert.equal(r.status, 0, r.out);
   assert.match(r.out, /app\.seen = 3/, "the caret after the x, not before it");
   assert.match(r.out, /js: "4242 4924 2\|7"/, "the 9 lands mid-number and the caret stays after it");
+});
+
+const SHOWN = join(DIR, "shown.declare");
+writeFileSync(SHOWN, `App [ width = 400, height = 300,
+    panel: View [ visible = false, width = 200, height = 100,
+        inner: View [ width = 50, height = 50, fill = #888888 ] ],
+    open: View [ y = 120, width = 50, height = 50, fill = #888888 ]
+    ]`);
+const script = (name, body) => { const f = join(DIR, name); writeFileSync(f, `export default async ({ drive, expect, page }) => {\n${body}\n};\n`); return f; };
+
+await test("expect.visible is what is shown: a view inside a hidden panel is not, and the panel is named", () => {
+  const r = run("verify.mjs", SHOWN, "--assert", script("vis.mjs", `  await expect.visible("app.panel.inner");`), "--rung=5", "--no-boot");
+  assert.notEqual(r.status, 0, r.out);
+  assert.match(r.out, /expected 'app\.panel\.inner' visible — it isn't: 'app\.panel' above it is hidden/, r.out);
+  const ok = run("verify.mjs", SHOWN, "--assert", script("vis2.mjs", `  await expect.visible("app.open");\n  await expect.hidden("app.panel.inner");`), "--rung=5", "--no-boot");
+  assert.equal(ok.status, 0, ok.out);
+});
+
+await test("expect.hidden of a path that names nothing fails — a typo is not a pass", () => {
+  const r = run("verify.mjs", SHOWN, "--assert", script("hid.mjs", `  await expect.hidden("app.panle.inner");`), "--rung=5", "--no-boot");
+  assert.notEqual(r.status, 0, r.out);
+  assert.match(r.out, /no node at 'app\.panle\.inner'/, r.out);
+});
+
+await test("an assert script that does not parse is said with its line, as the script's fault", () => {
+  const r = run("verify.mjs", SHOWN, "--assert", script("bad.mjs", `  await drive.click("app.open";`), "--rung=5", "--no-boot");
+  assert.notEqual(r.status, 0, r.out);
+  assert.match(r.out, /bad\.mjs:2 — the script does not parse: missing \) after argument list/, r.out);
+  assert.doesNotMatch(r.out, /behavior harness/, r.out);
+});
+
+await test("declare-look: --read of nothing fails with the reason; --js waiting on the app's clock is said in seconds", () => {
+  const miss = run("look.mjs", SHOWN, "--read", "app.nothing.here");
+  assert.equal(miss.status, 1, miss.out);
+  assert.match(miss.out, /--read app\.nothing\.here: .*no/, miss.out);
+  const t0 = Date.now();
+  const js = run("look.mjs", SHOWN, "--js", "new Promise((r) => setTimeout(() => r(1), 500))");
+  assert.equal(js.status, 1, js.out);
+  assert.match(js.out, /--js is still waiting after 5 s: 1 timer is waiting on the app's clock/, js.out);
+  assert.ok(Date.now() - t0 < 60_000, "said in seconds, not hung");
+});
+
+await test("drive.device(): the page loaded again on another device keeps its time on the driven clock", () => {
+  const r = run("verify.mjs", SHOWN, "--assert", script("dev.mjs", `  await drive.device({ width: 390, height: 844, touch: true });
+  await page.evaluate(() => { window.__fired = false; setTimeout(() => { window.__fired = true; }, 200); });
+  await drive.wait(250);
+  if (!(await page.evaluate(() => window.__fired))) await expect.fail("a timer in the reloaded page never fired under drive.wait");`), "--rung=5", "--no-boot");
+  assert.equal(r.status, 0, r.out);
+});
+
+await test("verify reads `--rung N` with a space, before or after the file", () => {
+  const before = run("verify.mjs", "--rung", "2", SHOWN);
+  assert.equal(before.status, 0, before.out);
+  assert.match(before.out, /clean through R2/, before.out);
+  const r = spawnSync("node", [join(ROOT, "tools/verify.mjs"), SHOWN, "--rung", "3"], { cwd: ROOT, encoding: "utf8" });
+  assert.match(r.stdout, /clean through R3/, r.stdout);
 });
 
 summarize("silent-failures");

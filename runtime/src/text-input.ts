@@ -14,18 +14,18 @@
 // the native element consumes character input directly while it holds the
 // caret.
 
-import { fireEvent, onDiscard } from "./view.js";
+import { View, fireEvent, onDiscard } from "./view.js";
 import type { RenderBackend, Surface, EditableSpec } from "./backend.js";
 import { bindDerived, defineAttributes, isSet, ownerOf, providedDefault, providedRead } from "./attributes.js";
 import { Constraint, settle } from "./reactive.js";
 import { Focus } from "./focus.js";
 import { fontMetrics, fontString, wrapEditable, type TextStyle, type FontWeight } from "./measure.js";
 import { heldFamily, type FamilyValue } from "./font-value.js";
-import { isTwoWay, edited, commitDraft, judgeDraft, judgeOwnDraft, EditControl } from "./editor.js";
+import { isTwoWay, edited, commitDraft, revertDraft, judgeDraft, judgeOwnDraft } from "./editor.js";
 import { insetSides, stroke, type Color, type Inset } from "./value.js";
 import { hintsOf, type Purpose } from "./purpose.js";
 
-export class TextInput extends EditControl {
+export class TextInput extends View {
   // The FACE slots (off View — docs/system-design/style.md): each defaults to
   // the nearest provided value, so a field inherits its region's text style.
   declare textColor: Color;
@@ -52,14 +52,42 @@ export class TextInput extends EditControl {
   declare wrap: boolean;
   declare padding: Inset;
   declare initial: string;
-  // The editor session (commitOn / error / valid / dirty + commit()/revert())
-  // is inherited from EditControl; `text` is this editor's draft slot.
-  protected override $draftSlot(): string { return "text"; }
+  /** Inert: not focusable, takes no edits, and says so to assistive technology. */
+  declare disabled: boolean;
+
+  // ── the edit session (editor.ts): `text` is the draft ──
+  /** "input" (live) | "blur" | "enter" | "manual" — when a valid draft commits. */
+  declare commitOn: string;
+  /** "edit" | "leave" — when `error` first says what is wrong: at every edit,
+   *  or once the field has been left (or judge() asked). `valid` is true to
+   *  the draft either way. */
+  declare judgeOn: string;
+  /** The current validation message, "" when valid (reactive). */
+  declare error: string;
+  /** Does the draft pass validate()? (reactive) */
+  declare valid: boolean;
+  /** Does the draft differ from the committed value? (reactive) */
+  declare dirty: boolean;
+
+  /** The field's element holds what is typed, the selection and focus. */
+  protected override $eagerSurface(): boolean { return true; }
+
+  /** @api Commit the current draft into the bound dataset field, if it
+   *  validates — for a `commitOn = "manual"` field or a Save button. */
+  commit(): void { commitDraft(this, "text"); }
+
+  /** @api Discard edits — reset the field to the committed dataset value. */
+  revert(): void { revertDraft(this, "text"); }
+
+  /** @api Say what is wrong with the draft now, without waiting for the field
+   *  to be left — for a Save or a Pay that checks every field. */
+  judge(): void { judgeDraft(this, "text"); }
 
   override $attach(backend: RenderBackend, parentSurface: Surface | null, before: Surface | null = null): void {
-    // A text field is a tab stop by default; an explicit `focusable = false`
-    // (was-set) opts out untouched, exactly like Text's auto-size.
-    if (!isSet(this, "focusable") && ownerOf(this, "focusable") === null) this.focusable = true;
+    // A text field is a tab stop by default, and not while disabled; an
+    // explicit `focusable` (was-set or bound) opts out untouched, exactly like
+    // Text's auto-size.
+    if (!isSet(this, "focusable") && ownerOf(this, "focusable") === null) bindDerived(this, "focusable", () => !this.disabled);
     super.$attach(backend, parentSurface, before);
     // Uncontrolled seed: unless the author bound or hard-set `text`, it
     // follows `initial` via a YIELDING derive — reactive, so a source that
@@ -188,6 +216,7 @@ export class TextInput extends EditControl {
       placeholder: this.placeholder,
       style: this.$editStyle(),
       enterSubmits: this.enterSubmits,
+      disabled: this.disabled,
       onInput: (v) => this.$onNativeInput(v),
       // The native element ECHOES focus the runtime just gave it (Tab →
       // focusChanged → el.focus() → this event). Re-announcing the already-
@@ -220,6 +249,9 @@ export class TextInput extends EditControl {
    *  it, exactly like any author write (attributes.ts set path), so a field can
    *  be seeded from a binding yet stay editable. */
   private $onNativeInput(v: string): void {
+    // A disabled field takes no edits, whatever reached the element (a host
+    // that cannot disable its native field yet): put the model's text back.
+    if (this.disabled) { this.$syncEditable(); return; }
     const owner = ownerOf(this, "text");
     if (owner !== null && !owner.yielding) {
       // CONTROLLED — the constraint owns the slot, so the keystroke does NOT
@@ -343,7 +375,12 @@ defineAttributes(TextInput, {
   initial: { def: "" },
   selectionStart: { def: 0 },
   selectionEnd: { def: 0 },
-  // commitOn / error / valid / dirty are declared on the EditControl base.
+  disabled: { def: false, push: (t) => t.$syncEditable() },
+  commitOn: { def: "input" },
+  judgeOn: { def: "edit" },
+  error: { def: "" },
+  valid: { def: true },
+  dirty: { def: false },
 });
 
 // what a TextInput is to assistive technology (View.$leafRole), in a build with the layer

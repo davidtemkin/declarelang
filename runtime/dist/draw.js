@@ -57,7 +57,7 @@ export class DrawGradient {
 const isGradient = (v) => v instanceof DrawGradient;
 // The image handle store (register / resolve / list a recording's handles) is
 // draw-image.ts — carried by a production build only when a program calls drawImage.
-export class Draw {
+export class DrawContext {
     ops = [];
     /** parallel to `ops` — see DisplayList.extents */
     extents = [];
@@ -335,7 +335,7 @@ export class Draw {
         this.mark(op.dx, op.dy, op.dx + op.dw, op.dy + op.dh);
     }
     /** The run's box from the mirrored text state. With no measurer at all (a
-     *  bare Node test constructing a Draw — headless verify provides one) this
+     *  bare Node test constructing a DrawContext — headless verify provides one) this
      *  falls back to the anchor point, which is what every call did before. */
     textExtent(text, x, y, maxWidth, pen) {
         let w, asc, desc;
@@ -421,7 +421,7 @@ export class Draw {
         this.push({ op: "setTransform", m: [a, b, c, d, e, f] });
     }
     resetTransform() { this.ctm = [1, 0, 0, 1, 0, 0]; this.push({ op: "resetTransform" }); }
-    /** The finished recording. Called by record(); a Draw is single-use. */
+    /** The finished recording. Called by record(); a DrawContext is single-use. */
     list() {
         return { ops: this.ops, bounds: this.ink, exact: this.exactBounds, extents: this.extents, probes: this.probes };
     }
@@ -471,7 +471,7 @@ function union(b, x0, y0, x1, y1) {
 }
 /** Run a draw method against a fresh recorder and return its display list. */
 export function record(fn, boxW, boxH) {
-    const d = new Draw(boxW, boxH);
+    const d = new DrawContext(boxW, boxH);
     fn(d);
     return d.list();
 }

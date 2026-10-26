@@ -42,11 +42,12 @@ When true, `to`/`from` are **offsets** from the current value rather than absolu
 "move by", not "move to".
 
 ## started
-Set true to run it — the declarative `start()`. Drive it from a constraint to gate playback
-on state: every change drives the run — true starts, false stops in place, and a fresh true
-is a fresh run from the top. `started` is the **request**, not a status readback: a run that
-completes (or is `stop()`ed) leaves it reading whatever was asked, so ask `arrived` or
-`onStop` for arrival, and `running` for flight — never `started`.
+The **request** to run: true starts it, false stops it in place. Drive it from a constraint
+to gate playback on state, or call `start()` and `stop()`, which write it too — so it reads
+what was last asked for either way. (When a `{ }` owns it, the constraint is the request and
+the verbs leave its value alone.) A run that lands on its own does not withdraw the request:
+`started` stays true, so a constraint must go false and back to true to run it again. It is
+not a report — read `running` for flight and `arrived` or `onStop` for arrival.
 
 ## paused
 Freeze a running animation and resume it without resetting — distinct from `started`, which
@@ -63,13 +64,13 @@ Fires when the run ends (answered by `onStop`) — the hook for chaining or clea
 Fires at each loop of a repeating run (answered by `onRepeat`).
 
 ## start()
-Runs the animation from the current attribute value toward `to` — the imperative trigger,
-equivalent to setting `started = true`. Prefer constraining `started` to a condition when the run
+Runs the animation from the current attribute value toward `to`, and sets `started = true`
+(unless a constraint owns it). A no-op while already running. Prefer constraining `started` to a condition when the run
 is state-driven; call `start()` for a one-shot fired from a handler (`onClick() { fx.start() }`).
 
 ## stop()
 Halts the run where it is and leaves the attribute at its current value — it does **not**
-snap back to `from`. Pair with `start()` for handler-driven control, or drive `started`
+snap back to `from` — and sets `started = false` (unless a constraint owns it). Pair with `start()` for handler-driven control, or drive `started`
 reactively instead.
 
 ## running

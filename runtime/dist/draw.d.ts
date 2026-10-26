@@ -251,7 +251,7 @@ export interface DrawImageSource {
     readonly naturalWidth: number;
     readonly naturalHeight: number;
 }
-export declare class Draw {
+export declare class DrawContext {
     private readonly ops;
     /** parallel to `ops` — see DisplayList.extents */
     private readonly extents;
@@ -392,7 +392,7 @@ export declare class Draw {
     /** Canvas2D's three shapes over an `Image` view (draw-image.ts builds the op). */
     drawImage(image: DrawImageSource, ...a: number[]): void;
     /** The run's box from the mirrored text state. With no measurer at all (a
-     *  bare Node test constructing a Draw — headless verify provides one) this
+     *  bare Node test constructing a DrawContext — headless verify provides one) this
      *  falls back to the anchor point, which is what every call did before. */
     private textExtent;
     save(): void;
@@ -403,7 +403,7 @@ export declare class Draw {
     transform(a: number, b: number, c: number, d: number, e: number, f: number): void;
     setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void;
     resetTransform(): void;
-    /** The finished recording. Called by record(); a Draw is single-use. */
+    /** The finished recording. Called by record(); a DrawContext is single-use. */
     list(): DisplayList;
     private readOnly;
     private extend;
@@ -415,7 +415,7 @@ export declare class Draw {
     private mark;
 }
 /** Run a draw method against a fresh recorder and return its display list. */
-export declare function record(fn: (d: Draw) => void, boxW?: () => number, boxH?: () => number): DisplayList;
+export declare function record(fn: (d: DrawContext) => void, boxW?: () => number, boxH?: () => number): DisplayList;
 /** Replay a recording into a real 2D context — the one interpreter both
  *  backends share, so a recording renders identically wherever it lands.
  *  Style state is saved/restored; the path is cleared on both sides (save/

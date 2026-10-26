@@ -519,7 +519,7 @@ await test("the library raises no warnings in a program that uses it", async () 
     Button [ label = "b" ], Checkbox [ label = "c" ], Switch [ accessibilityLabel = "s" ], Slider [ accessibilityLabel = "v" ], ProgressBar [ accessibilityLabel = "p" ], Gauge [ label = "g" ],
     Segmented [ choices = { [ ({ id: "a", label: "A", location: "a" }) ] } ], Combobox [ placeholder = "o" ], TextInput [ accessibilityLabel = "t" ], AppearanceSwitch [ ],
     RadioGroup [ Radio [ choice = "a", label = "A" ] ], Field [ ], Card [ ], Divider [ ],
-    Accordion [ AccordionPane [ ] ], Menu [ ], MenuBar [ ], ContextMenu [ ], Dialog [ ], TooltipLayer [ ], Icon [ ] ] ]`);
+    Accordion [ AccordionPane [ ] ], Menu [ ], MenuBar [ ], ContextMenu [ ], Dialog [ ], Tooltip [ ], Icon [ ] ] ]`);
   assert.deepEqual((r.errors ?? []).map((e) => e.message), []);
   assert.deepEqual((r.warnings ?? []).map((e) => e.message), []);
 });

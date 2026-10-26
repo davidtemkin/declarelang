@@ -25,7 +25,7 @@ class Figure [
     // saucer (12) stand out, and the rocks and letters (7) are dim. Each stroke is traced once
     // and stroked twice, the bloom and then the core.
 
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const level = intensity / 15
         const px = (sx) => originX + sx * magnify
         const py = (sy) => originY - sy * magnify
@@ -57,7 +57,7 @@ class Figure [
     // times how long it rests, lands in one place, so it is round, and brighter and
     // wider-blooming than any line.
 
-    dot(d: Draw, x: number, y: number, light: number) {
+    dot(d: DrawContext, x: number, y: number, light: number) {
         d.shadowColor = "rgba(110,150,255,0.9)"
         d.beginPath()
         d.arc(x, y, 1 + 3 * Math.min(1, light / 2000), 0, 2 * Math.PI)

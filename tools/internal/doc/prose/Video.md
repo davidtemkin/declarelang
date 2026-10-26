@@ -20,7 +20,9 @@ App [ fill = #F6F8FA, textColor = #6A7883, fontSize = 13,
 
 ## stretches
 How the frame fills a box whose size differs from the clip's natural size: `none`
-(default — natural size, no scaling), `width`, `height`, or `both`.
+(default — natural size, no scaling), `width`, `height` or `both` (which distort), or
+`contain` and `cover` (which keep the aspect: the whole frame letterboxed, or the box
+filled and the overflow cropped). The values are `ImageFit`'s, as on Image.
 
 Two of `Media`'s notes bind tightest here: `muted` defaults **`true`** on this leaf
 (browsers refuse audible video autoplay, so an unmuted default would make the common

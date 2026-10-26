@@ -7,7 +7,7 @@ or icon.
 ```declare
 class LevelMeter [ width = 160, height = 92,
     level: number = 0,                               // 0–100
-    draw(d: Draw) {                                  // re-runs when what it reads changes, never per frame
+    draw(d: DrawContext) {                                  // re-runs when what it reads changes, never per frame
         const frac = this.level / 100
         d.lineWidth = 12
         d.lineCap = "round"
@@ -32,7 +32,7 @@ App [ width = 340, height = 200, fill = white,
 ```
 
 **Rules**
-- A view that paints itself defines `draw(d: Draw)`. It's an ordinary method a
+- A view that paints itself defines `draw(d: DrawContext)`. It's an ordinary method a
   constraint calls: it re-runs when what it read changes, never per frame. No redraw
   call, no animation loop.
 - Draw only the part that is really a shape; the box, position, size and clicks stay
@@ -48,10 +48,10 @@ App [ width = 340, height = 200, fill = white,
 - Small single-colour marks extend `Icon`: author in a 16×16 box, scale by `unit`, stroke
   in `ink` with `weight`. Never a font glyph for an icon.
 
-**Look up** `View.draw`, `Draw`, `Image`, `measureText`, `Icon`, `Icon.ink`.
+**Look up** `View.draw`, `DrawContext`, `Image`, `measureText`, `Icon`, `Icon.ink`.
 
 **Examples** `apps/weather/weather-art.declare`: dials, the moon terminator, drawn skies ·
 `library/icons/`: the shipped icon set · `apps/swatchbook/sections/drawing.declare`: every
-`Draw` operation.
+`DrawContext` operation.
 
 **Guide** Your own views § Custom drawing · § Icons.

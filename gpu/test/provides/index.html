@@ -4,10 +4,10 @@
 <div id="box" style="width:400px;height:120px" data-declare-provide='{"greeting":"from the attribute"}'></div>
 <script type="module">
   import boot, { observe } from "../../../bundles/declare-boot.js";
-  const app = await boot({ main: "./provides.declare", host: document.getElementById("box"), provides: { greeting: "hello" } });
+  const tenant = await boot({ main: "./provides.declare", host: document.getElementById("box"), provides: { greeting: "hello" } });
   const seen = [];
-  observe(() => app.greeting, (v) => seen.push(v));
+  observe(() => tenant.app.greeting, (v) => seen.push(v));
   window.__seen = seen;
-  window.__first = app.greeting;
-  document.getElementById("box").__declareApp.provide("greeting", "bye");
+  window.__first = tenant.app.greeting;
+  tenant.provide("greeting", "bye");
 </script>

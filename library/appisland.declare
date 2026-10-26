@@ -23,7 +23,7 @@ What crosses an island says its direction (the guide's Embedding chapter). DOWN:
 does, the island's own attribute first, then its ancestors' provisions. UP: the
 tenant lists names in its App's `exposes = ["docH"]`, and the host reads them
 with `island.exposed("docH", 0)`. Both are reactive, per settle, with no
-handshake to write. `post(topic, payload)` / `onPost(m: IslandPost)` carry the
+handshake to write. `post(topic, payload)` / `onPost(m: IslandMessage)` carry the
 verbs.
 
 For a host that runs a program the person browses — a documentation reader in a

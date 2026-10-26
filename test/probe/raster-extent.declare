@@ -42,7 +42,7 @@ App [ width = 900, height = 600, fill = #0B0E12,
                 app.height * app.k - this.height))
             : 0 },
 
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             const W = d.w
             const H = d.h
             // re-record without moving a line. A visible hue step, not a

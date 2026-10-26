@@ -345,7 +345,7 @@ class FocusRing [
     // settle closes the sights around the new silhouette. Small targets skip
     // the bracket phase (a ring around a radio dot has no arms to open).
 
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const Q = Math.PI / 2
         const dist = Math.abs(this.x - _tx) + Math.abs(this.y - _ty) + Math.abs(this.width - _tw) + Math.abs(this.height - _th)
         const lw = provided("theme").focusRingWidth

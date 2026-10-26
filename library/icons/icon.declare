@@ -18,7 +18,7 @@ converts it to whatever size the host asked for:
 
 ```declare-fragment
 class SparkIcon extends Icon [
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         d.scale(unit, unit)
         d.strokeStyle = ink; d.lineWidth = weight / unit
         d.beginPath(); d.moveTo(8, 1); d.lineTo(8, 15); d.stroke()

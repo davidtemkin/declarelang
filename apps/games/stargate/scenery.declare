@@ -16,7 +16,7 @@ class Scenery extends Rules [ kinds = ["scanner"],
     // for each 32 pixels round the planet, the scanner's row and the inks of two pairs of
     // pixels, one under the other.
 
-    ground: DataSource [ url = "art/ground.json", auto = true, schema = [ rows[]: number, small[]: SmallGround ] ],
+    ground: DataSource [ url = "art/ground.json", autoFetch = true, schema = [ rows[]: number, small[]: SmallGround ] ],
     rows: number[] = { ground.value?.rows ?? [] },
     smallGround: SmallGround[] = { ground.value?.small ?? [] },
 

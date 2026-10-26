@@ -163,7 +163,7 @@ the traffic is the same in both: facts one way or the other, verbs for the rest.
   // marked elements; `observe` is the notification half of the embedder API —
   // it MUST come from this same bundle (a second runtime instance would track
   // its constraints in a graph these apps never notify).
-  import boot, { observe } from "../../bundles/declare-boot.js?v=a1bc262777d7";
+  import boot, { observe } from "../../bundles/declare-boot.js?v=fd2717b1fc6f";
   import { mountTally } from "./tally.js";
   import { mountOrbit } from "./orbit.js";
 
@@ -174,9 +174,9 @@ the traffic is the same in both: facts one way or the other, verbs for the rest.
   // it, boot probes for a demos.json beside each program and a page like this
   // one opens its console to a 404 per app.)
 
-  const dial  = await boot({ main: "./dial.declare",      host: document.getElementById("dial-box"),  demos: [] });
-  const pulse = await boot({ main: "./pulse.declare",     host: document.getElementById("pulse-box"), demos: [] });
-  const cross = await boot({ main: "./crossings.declare", host: document.getElementById("cross-box"), demos: [] });
+  const dial  = (await boot({ main: "./dial.declare",      host: document.getElementById("dial-box"),  demos: [] })).app;
+  const pulse = (await boot({ main: "./pulse.declare",     host: document.getElementById("pulse-box"), demos: [] })).app;
+  const cross = (await boot({ main: "./crossings.declare", host: document.getElementById("cross-box"), demos: [] })).app;
 
   // ── SCENARIO I WIRING: the page is the bus ─────────────────────────────
   // One shared fact (hue), four parties: the page's range input, dial (which

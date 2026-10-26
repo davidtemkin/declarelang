@@ -591,7 +591,7 @@ class DeskWindow extends Window [ width = 560, height = 400,
         width = { parent.width + 2 * classroot.gutter }, height = { parent.height + 2 * classroot.gutter },
 
         // the halo's own clip is a ring (outer rect wound one way, inner the
-        // other — nonzero rule keeps the band): a ClipPath clip cuts hit-testing
+        // other — nonzero rule keeps the band): a path clip cuts hit-testing
         // along with the pixels, so everything deeper than the band is
         // transparent to the pointer whatever the stacking. The
         // inner cut sits `inset` px inside the frame — the ± resize band —
@@ -676,7 +676,7 @@ class DeskWindow extends Window [ width = 560, height = 400,
 
     grip: View [ x = { parent.width - classroot.corner }, y = { parent.height - classroot.corner }, visible = { !classroot.plain && !classroot.shaded },
         width = { classroot.corner }, height = { classroot.corner },
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             if (!classroot.chrome) return            // custom chrome resizes here too, but unmarked
             d.strokeStyle = provided("theme").textFaint
             d.lineWidth = 1
@@ -747,7 +747,7 @@ class TrafficLight [ y = 0, width = 14, height = 14, cornerRadius = 7,
 
     g: View [ x = 0, y = 0, width = 14, height = 14,
         visible = { classroot.showGlyph && classroot.on },
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             d.strokeStyle = classroot.ink
             d.fillStyle = classroot.ink
             d.lineCap = "round"
@@ -807,7 +807,7 @@ Edit Source.
 
 class BracketIcon extends Icon [
     weight = 1.5,
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         d.scale(unit, unit)
         d.strokeStyle = ink
         d.lineWidth = weight / unit
@@ -823,7 +823,7 @@ class BracketIcon extends Icon [
 
 class CodeIcon extends Icon [
     weight = 1.5,
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         d.scale(unit, unit)
         d.strokeStyle = ink
         d.lineWidth = weight / unit
@@ -863,7 +863,7 @@ class AppGlyph [ width = { this.edge }, height = { this.edge },
         text = { classroot.ap!.glyph } ],
     art: View [ x = 0, y = 0, width = 100%, height = 100%,
         visible = { classroot.ap!.drawn },
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             d.scale(this.width / 48, this.width / 48)
             const a = classroot.ap
             if (a != null) a.face(d)
@@ -881,7 +881,7 @@ any app icon behind it. Drawn in a 48-unit box.
 
 class CautionBadge [ width = { this.edge }, height = { this.edge },
     edge: number = 30,
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         d.scale(this.edge / 48, this.edge / 48)
         const tri = (e, r) => {
             const P = [[24, 5 - e], [44 + e, 41 + e * 0.5], [4 - e, 41 + e * 0.5]]
@@ -933,7 +933,7 @@ class HelpSearch [ height = 40,
 
         mag: View [ x = -18, y = center,
             width = 14, height = 14, pointerEvents = "none",
-            draw(d: Draw) {
+            draw(d: DrawContext) {
                 d.strokeStyle = provided("theme").textFaint
                 d.lineWidth = 1.5
                 d.lineCap = "round"
@@ -1020,7 +1020,7 @@ hairlines.)
 */
 
 class FolderIcon [ width = 17, height = 13,
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         d.fillStyle = 0x4E9FEA
         d.beginPath(); d.roundRect(0, 0, 7.5, 4, 1.5); d.fill()       // the back tab
         d.fillStyle = 0x6AB2F5
@@ -1032,7 +1032,7 @@ class FolderIcon [ width = 17, height = 13,
 
 
 class FileIcon [ width = 13, height = 16,
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         d.fillStyle = 0xFFFFFF
         d.strokeStyle = 0xB4B4BA
         d.lineWidth = 1
@@ -1581,7 +1581,7 @@ class JotWindow extends DeskWindow [ width = 300, height = 250, chrome = false,
             ],
         zoomW: View [ visible = { classroot.active }, x = { parent.width - 33 }, y = 2.25, width = 8, height = 8,
             onClick() { classroot.zoomToggle() },
-            draw(d: Draw) {
+            draw(d: DrawContext) {
                 d.fillStyle = 0xFFF49C
                 d.strokeStyle = 0xDBC501
                 d.lineWidth = 1.4
@@ -1592,7 +1592,7 @@ class JotWindow extends DeskWindow [ width = 300, height = 250, chrome = false,
             ],
         collapseW: View [ visible = { classroot.active }, x = { parent.width - 21 }, y = 2.25, width = 8, height = 8,
             onClick() { classroot.shadeToggle() },   // collapse down to just the strip
-            draw(d: Draw) {
+            draw(d: DrawContext) {
                 d.fillStyle = 0xFFF49C
                 d.fillRect(0.7, 0.7, 6.6, 6.6)
                 d.strokeStyle = 0xDBC501
@@ -1633,7 +1633,7 @@ class LabelPill [ height = 33,
     label: string = "",
     bodyH: number = 22,
     width = { this.t.width + 26 },
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const w = this.width, bh = this.bodyH, dark = app.darkMode
         const r = bh / 2                     // stadium: fully-rounded ends (semicircle caps)
         const th = 7                         // fixed triangle height — does not scale with the name
@@ -1856,7 +1856,7 @@ class DockIcon [
             // (The calendar's live weekday + day are part of its face, so the
             // whole mark scales as one unit and re-records on the flip.)
 
-            draw(d: Draw) {
+            draw(d: DrawContext) {
                 d.scale(this.width / 48, this.width / 48)
                 const a = classroot.ap
                 if (a != null) a.face(d)
@@ -1869,7 +1869,7 @@ class DockIcon [
         // down, like the sheen a glossy rounded tile catches from above.
 
         rim: View [ x = 0, y = 0, width = 100%, height = 100%,
-            draw(d: Draw) {
+            draw(d: DrawContext) {
                 const w = this.width
                 const h = this.height
                 if (w < 3 || h < 3) return       // a freshly replicated tile's first paint can be 0×0 — nothing to rim
@@ -1972,7 +1972,7 @@ class DesktopApp extends Node [
     count: number = 0,                           // open windows (informational)
     alwaysRunning: boolean = false,              // Files: no Quit item
     canOpen: boolean = true,                     // calendar: Open… disabled
-    face(d: Draw) { },                           // drawn icon art, in the 48-unit box
+    face(d: DrawContext) { },                           // drawn icon art, in the 48-unit box
     launch(v: View?) { }                         // what New and a dock click do
     ]
 
@@ -1997,7 +1997,7 @@ class FilesApp extends DesktopApp [ id = "files", label = "Files", title = "File
     hue1 = #59B0F6, hue2 = #1D6FD1, drawn = true,
     running = true, alwaysRunning = true,
     launch(v: View?) { app.launcher.newFiles() },
-    face(d: Draw) {
+    face(d: DrawContext) {
         // the folder — one rendition, wherever the icon appears
         d.fillStyle = 0xD9E7FA
         d.beginPath()
@@ -2032,7 +2032,7 @@ class DocsApp extends HostedApp [ id = "docs", label = "Documentation", title = 
     blurb = "The actual apps/docs — the guide and the reference — hosted as an embedded app.",
     hue1 = #FFA94D, hue2 = #F7811E, drawn = true, backForward = true,
     prog = "../docs/docs", base = "../docs/", src = "../docs/docs.declare",
-    face(d: Draw) {
+    face(d: DrawContext) {
         // an open book, flat and schematic: the page block's edge showing
         // under two white pages that meet at the spine
         d.fillStyle = 0xFCE3C4
@@ -2069,7 +2069,7 @@ class CalendarApp extends HostedApp [ id = "calendar", label = "Calendar", title
     hue1 = #FFFFFF, hue2 = #EFEFF2, drawn = true, canOpen = false,
     prog = "../calendar/calendar", base = "../calendar/", src = "../calendar/calendar.declare",
     place = "clearDock",
-    face(d: Draw) {
+    face(d: DrawContext) {
         d.fillStyle = 0xFFFFFF
         d.fillRect(0, 0, 48, 48)
         d.fillStyle = 0xFB4238
@@ -2094,7 +2094,7 @@ class JotsApp extends DesktopApp [ id = "jots", label = "Jots", title = "Jots",
     blurb = "Small paper notes with their own window chrome — built into this program.",
     hue1 = #FCF4A7, hue2 = #F3E27E, drawn = true,
     launch(v: View?) { app.launcher.newJot("", v) },
-    face(d: Draw) {
+    face(d: DrawContext) {
         // all-yellow paper (the plate's yellow is the background), a
         // saturated strip and faint ruled lines
         d.fillStyle = 0xF3DC49
@@ -2114,7 +2114,7 @@ class BirdsApp extends HostedApp [ id = "birds", label = "50 Birds", title = "50
     blurb = "The actual apps/birds — Audubon's plates as a field guide — hosted as an embedded app.",
     hue1 = #66C95F, hue2 = #2C9243, drawn = true, backForward = true,
     prog = "../birds/birds", base = "../birds/", src = "../birds/birds.declare",
-    face(d: Draw) {
+    face(d: DrawContext) {
         // the bird: a perched songbird facing right — one white
         // silhouette (beak, crown, back, tail, breast), with the eye and
         // the folded wing struck back in the plate's hue.
@@ -2148,7 +2148,7 @@ class MarketMapApp extends HostedApp [ id = "marketmap", label = "Market Map", t
     blurb = "The actual apps/marketmap — the S&P 500 as a treemap through the years — hosted as an embedded app.",
     hue1 = #1C1E22, hue2 = #1C1E22, drawn = true,
     prog = "../marketmap/marketmap", base = "../marketmap/", src = "../marketmap/marketmap.declare",
-    face(d: Draw) {
+    face(d: DrawContext) {
         // the map itself, edge to edge like the calendar's page: one large cap
         // and its neighbours in the day's two colours (the system green and
         // red, a deeper shade for smaller moves), the plate's corners
@@ -2177,7 +2177,7 @@ class TrackerApp extends HostedApp [ id = "tracker", label = "Tracker", title = 
     blurb = "The actual apps/tracker — ten thousand issues to list, filter and edit — hosted as an embedded app.",
     hue1 = #8E7CF0, hue2 = #5B45C9, drawn = true,
     prog = "../tracker/tracker", base = "../tracker/", src = "../tracker/tracker.declare",
-    face(d: Draw) {
+    face(d: DrawContext) {
         // the list: three rows, each a status dot and a title bar, the first
         // one's dot filled — an issue closed
         d.fillStyle = 0xFFFFFF
@@ -2199,7 +2199,7 @@ class TrackerApp extends HostedApp [ id = "tracker", label = "Tracker", title = 
 
 class WriteApp extends InertApp [ id = "write", label = "Write", title = "Write",
     quip = "No.", hue1 = #F49B45, hue2 = #C96B1D, drawn = true,
-    face(d: Draw) {
+    face(d: DrawContext) {
         // the pencil: eraser upper-left, tip lower-right. Body + tip in
         // white; the eraser seam struck back in the plate's hue.
         d.fillStyle = 0xFFFFFF
@@ -2221,7 +2221,7 @@ class WriteApp extends InertApp [ id = "write", label = "Write", title = "Write"
 
 class MailApp extends InertApp [ id = "mail", label = "Mail", title = "Mail",
     quip = "Nope.", hue1 = #1E8CFB, hue2 = #1667D9, drawn = true,
-    face(d: Draw) {
+    face(d: DrawContext) {
         d.fillStyle = 0xFFFFFF
         d.beginPath()
         d.moveTo(9, 15); d.lineTo(39, 15); d.lineTo(39, 34); d.lineTo(9, 34)
@@ -2237,7 +2237,7 @@ class MailApp extends InertApp [ id = "mail", label = "Mail", title = "Mail",
 
 class MusicApp extends InertApp [ id = "music", label = "Music", title = "Music",
     quip = "Nah.", hue1 = #FB5C74, hue2 = #FA233B, drawn = true,
-    face(d: Draw) {
+    face(d: DrawContext) {
         // the eighth note, at the weight of the other faces: a slanted head,
         // a stem, and a flag that swells out and curls back down
         d.fillStyle = 0xFFFFFF
@@ -2257,7 +2257,7 @@ class MusicApp extends InertApp [ id = "music", label = "Music", title = "Music"
 
 class TerminalApp extends InertApp [ id = "terminal", label = "Terminal", title = "Terminal",
     quip = "Never.", hue1 = #3A3D44, hue2 = #16171B, drawn = true,
-    face(d: Draw) {
+    face(d: DrawContext) {
         // the prompt: a chevron, then the cursor bar beside it
         d.strokeStyle = 0xFFFFFF
         d.lineWidth = 3
@@ -2978,7 +2978,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
         x = center, y = center,
         pivotX = { this.refW / 2 }, pivotY = { this.refH / 2 },
         scale = { Math.max(app.width / this.refW, app.height / this.refH) },
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             const W = this.width
             const H = this.height
             const hsl = (h, s, l) => "hsl(" + (((h % 360) + 360) % 360) + "," + s + "%," + l + "%)"
@@ -3328,7 +3328,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
         // icon's crest — so hovering the top of a grown icon doesn't fall out of
         // the band and collapse the dock under the pointer.
         //
-        // `hovering` gates the whole band: when the pointer leaves the browser
+        // `pointerHovering` gates the whole band: when the pointer leaves the browser
         // window it clears, so the dock cools instead of staying magnified at
         // the pointer's last known column.
 
@@ -3341,7 +3341,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
         // leave smoothing (no double-spring). `hot` is the sprung version — the
         // mini section (a shared pointer-spring layout) still eases through it.
 
-        hotGate: number = { app.hovering && app.pointerY > app.height - (this.hot > 0.5 ? this.holdBand : this.armBand) ? 1 : 0 },
+        hotGate: number = { app.pointerHovering && app.pointerY > app.height - (this.hot > 0.5 ? this.holdBand : this.armBand) ? 1 : 0 },
 
         heat: Spring [ attribute = hot, to = { parent.hotGate }, stiffness = 3600, damping = 120, epsilon = 0.002 ],
 
@@ -3361,7 +3361,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
         // wallpaper.
 
         plateRim: View [ x = 0, y = { parent.height - 88 }, height = 88, width = { parent.plate.width },
-            draw(d: Draw) {
+            draw(d: DrawContext) {
                 const w = this.width
                 const h = this.height
                 const r = 27

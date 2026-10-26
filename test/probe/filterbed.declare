@@ -12,7 +12,7 @@
 
 class Swatch extends View [ width = 150, height = 110, cornerRadius = 12, clip = true,
     fx: string = "none",
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const g = d.createLinearGradient(0, 0, 150, 110)
         g.addColorStop(0, "#FF5E3A")
         g.addColorStop(0.5, "#FFD23F")
@@ -37,7 +37,7 @@ App [ width = 1200, height = 800, fill = #0B0710,
     // 1a. the wide field: five full-canvas radial fills under one big blur, lightened together
 
     field: View [ x = 0, y = 0, width = 1200, height = 800,
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             d.fillStyle = "#120A1E"
             d.fillRect(0, 0, 1200, 800)
             const xs = [180, 980, 600, 240, 1000]

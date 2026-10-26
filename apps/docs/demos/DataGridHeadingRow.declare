@@ -1,0 +1,14 @@
+// Heading rows between the rows
+// A record with a `heading` field is a heading row: it spans the grid, and selection and the
+// arrow keys pass over it.
+
+App [ width = 420, height = 190,
+    d: Dataset { { "rows": [ { "id": "due", "heading": "Due this week" },
+                             { "id": 1, "task": "File the report" },
+                             { "id": 2, "task": "Book the room" },
+                             { "id": "later", "heading": "Later" },
+                             { "id": 3, "task": "Plan the offsite" } ] } },
+    DataGrid [ x = 20, y = 20, width = 380, height = 150,
+        items = { app.d.value.rows },
+        columns = { [ { id: "task", title: "Task", width: 360 } ] } ]
+    ]

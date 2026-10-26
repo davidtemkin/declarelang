@@ -40,7 +40,7 @@ const browser = await launchChrome({ args: ["--no-sandbox"] });
 const rows = JSON.stringify({ rows: Array.from({ length: 3000 }, (_, n) => ({ n, chips: Array.from({ length: n % 4 }, (_, k) => ({ k })) })) });
 const SOURCE = `
 class Swatch extends View [ width = 12, height = 12,
-    draw(d: Draw) { d.fillStyle = "#3366CC"; d.fillRect(0, 0, 12, 12) } ]
+    draw(d: DrawContext) { d.fillStyle = "#3366CC"; d.fillRect(0, 0, 12, 12) } ]
 App [ width = 300, height = 400,
   d: Dataset { ${rows} },
   list: View [ width = 300, height = 400, scrolls = y, datapath = { d.value },

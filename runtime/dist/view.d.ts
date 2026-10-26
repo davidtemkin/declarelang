@@ -40,7 +40,7 @@ export interface InlineViewHost {
 export declare function provideInlineViewHost(fn: (root: Node) => InlineViewHost | null): void;
 /** The class table for the program `v` belongs to, or null (no program). */
 export declare function inlineViewHost(v: View): InlineViewHost | null;
-import { type Draw } from "./draw.js";
+import { type DrawContext } from "./draw.js";
 import { Constraint } from "./reactive.js";
 import { type Affine } from "./affine.js";
 import { type AttrType } from "./value.js";
@@ -253,7 +253,7 @@ export declare class View extends Node {
      *  drawing's pixels being one to each unit of the view, so pixel art stays
      *  sharp under any scale above it. The whole subtree follows, as it follows
      *  a transform; paint only — hit testing and focus never change. */
-    imageSmoothing: "smooth" | "pixelated";
+    imageRendering: "smooth" | "pixelated";
     /** The frost (`frost(radius, saturation?)`; null = none): what has already
      *  painted beneath this view, sampled through a blur within the view's own
      *  painted shape — the view's `fill` then paints OVER the frosted sample,
@@ -293,7 +293,7 @@ export declare class View extends Node {
     claim: "both" | "x" | "y";
     /** The tooltip text (planes.md tier 1 — one attribute at the use site). A
      *  non-empty tip wires this view's hover into the Tooltips service; the
-     *  auto-included TooltipLayer singleton renders it. "" = no tip. */
+     *  auto-included Tooltip singleton renders it. "" = no tip. */
     tooltipLabel: string;
     defaultPlacement: string;
     scrollY: number;
@@ -305,7 +305,7 @@ export declare class View extends Node {
     $shownX?: number;
     scrollStartY: number;
     scrollStartX: number;
-    scrolling: boolean;
+    userScrolling: boolean;
     scrollAnchor: string;
     /** A scrolling view that draws no scrollbars, on either axis (default false); it scrolls
      *  the same. */
@@ -375,7 +375,7 @@ export declare class View extends Node {
      *  something provides a draw — which is also what lets the language's
      *  `draw(d) { … }` member install here through the ordinary method path
      *  (instantiate's built-in-member guard sees an absent slot). */
-    draw?: (d: Draw) => void;
+    draw?: (d: DrawContext) => void;
     /** The enclosing class instance — the node this view was *written* inside
      *  (a named class's root, or the App root, whose whole tree is the
      *  anonymous App class, language §5/§11): a class-body child points at its
@@ -988,7 +988,7 @@ export declare class App extends View {
     scrollY: number;
     pointerX: number;
     pointerY: number;
-    hovering: boolean;
+    pointerHovering: boolean;
     /** True while a pointer (mouse button or touch) is down anywhere in the app —
      *  the press half of the interaction intrinsics (interaction.ts); fed at mount
      *  like the pointer coordinates. Read-only to user code. */
@@ -1014,20 +1014,20 @@ export declare class App extends View {
      *  page books nothing. Read-only to user code; schema.ts has the caveats
      *  (Safari does not report window occlusion). */
     pageVisible: boolean;
-    /** "Am I running on a touch device?" — true when the device's primary pointer
-     *  is coarse (`pointer: coarse`), a phone or tablet. A stable device fact fed
-     *  live by the runtime, distinct from the transient `hovering`: switch mouse-only
-     *  affordances off with `visible = { !app.touchDevice }`. Read-only to user code. */
-    touchDevice: boolean;
+    /** "Is this device built for touch?" — true when the device's primary pointer
+     *  is coarse (`pointer: coarse`): a phone or tablet, keyboard or not. A stable device fact fed
+     *  live by the runtime, to size from; a hover reveal keys on `lastPointerType`, and
+     *  what follows the pointer on `pointerHovering`. Read-only to user code. */
+    touchFirst: boolean;
     /** Does this device HAVE a touch digitizer at all (`any-pointer: coarse`)?
      *  True on a phone, a tablet, AND a touch laptop whose primary pointer is a
-     *  trackpad — the case `touchDevice` deliberately answers false. Use it for a
+     *  trackpad — the case `touchFirst` deliberately answers false. Use it for a
      *  hit-target floor (a finger may still arrive), not to switch layout.
      *  Read-only to user code. */
     hasTouch: boolean;
-    /** Does this device have a FINE pointer (`any-pointer: fine`) — a mouse,
-     *  trackpad, or stylus? Read-only to user code. */
-    hasPointer: boolean;
+    /** Does this device have a mouse, trackpad, or stylus at all (`any-pointer:
+     *  fine`)? Both this and `hasTouch` can be true. Read-only to user code. */
+    hasMouse: boolean;
     /** What the user JUST used: "mouse" | "touch" | "pen", updated live on every
      *  move and press. The honest signal on a hybrid device, where the answer
      *  changes per gesture: reveal hover-only affordances with
@@ -1113,10 +1113,14 @@ export declare class App extends View {
     /** @internal an EMBEDDED tenant's host island (linkIslandTenant installs it):
      *  where this program's tree joins its host's, for focus and the keyboard. */
     $hostIsland: View | null;
+    /** @internal A message from this app's host — an island's `post`, or the
+     *  embedding page's `tenant.post` — delivered as onHostMessage({ topic, payload }). */
+    $receiveHostMessage(topic: string, payload: unknown): void;
     /** postToHost(topic, payload) — the tenant's message VERB, this app → its host
-     *  island's onPost. The other half of the bridge from the facts: consumed
-     *  once, ordered, never re-readable — for "do this", not "this is so"
-     *  (islands design; the state channel is the `external` attributes). */
+     *  (an island's onPost, or an embedding page's boot({ onPost })). The other half
+     *  of the bridge from the facts: consumed once, ordered, never re-readable — for
+     *  "do this", not "this is so" (islands design; the state channel is the
+     *  `external` attributes). */
     postToHost(topic: string, payload?: unknown): void;
     /** navigate(to) — the navigation SERVICE ACTION (capabilities.md §6). A link or
      *  button calls `app.navigate(url)` in an activation handler; the compiler reads
@@ -1207,19 +1211,17 @@ export declare class App extends View {
     /** The HOST's write: make `value` available to this app under `name` — what
      *  a `hostProvided("name", …)` read in the program returns. Called by the
      *  island bridge for each name the island `provides`, by a page embedding
-     *  this app (`el.__declareApp.provideHostValue(…)`, or `boot({ provides })`), and by
-     *  the native host for its launch parameters. Equality-gated; a change
+     *  this app (its tenant handle's `provide(…)`, or `boot({ provides })`), and by
+     *  the native host for its launch parameters. Internal: the page's door is the
+     *  tenant handle, so the name stays the program's. Equality-gated; a change
      *  re-derives every reader. `undefined` withdraws the value (readers fall to
      *  their defaults). Data only — a host never hands over a node. */
-    provideHostValue(name: string, value: unknown): void;
+    $provideHostValue(name: string, value: unknown): void;
     /** The value this app exposes under `name` — one of its `exposes` names — or
-     *  undefined when it exposes no such name. The page's read (an island reads
-     *  through its own `exposed`); tracked, so an `observe` over it follows. */
-    exposed(name: string): unknown;
-    /** A page's standing watch over one exposed value: `cb` runs now with the
-     *  current value and again at the close of every settle that changed it.
-     *  Returns the unwatch. */
-    watchExposed(name: string, cb: (value: unknown) => void): () => void;
+     *  undefined when it exposes no such name. Behind the page's read (the tenant
+     *  handle's `exposed`; an island reads through its own); tracked, so an
+     *  `observe` over it follows. */
+    $exposed(name: string): unknown;
     /** The DEFAULT landing, exposed — what the platform does with an arrival
      *  when no `onArrive` is declared: scroll the target into view, honoring
      *  `revealInset` (the App itself starts at its top). A document app that
@@ -1306,7 +1308,7 @@ export declare class App extends View {
      *  rectangle. The boolean form of `clip` is absorbed here — the per-axis
      *  realization (overflow along a declared scroll axis is the page's range;
      *  overflow along any other axis is out of frame) lives in the backend's
-     *  root scroll styling, composed with `scrolls`. A Shape clip keeps its
+     *  root scroll styling, composed with `scrolls`. A path clip keeps its
      *  paint+hit meaning; `clip = false` is refused at compile time (check.ts). */
     $applyClip(clip: string | boolean | null): void;
     /** Derive "can the page scroll right now?" from the model — a declared

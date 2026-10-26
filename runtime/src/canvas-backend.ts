@@ -28,6 +28,7 @@
 // so the hit walk tells the truth about a turned or scaled surface).
 
 import { watchSelection } from "./edit-selection.js";
+import { platformTimeout, clearPlatformTimeout, type PlatformTimer } from "./platform-time.js";
 import { DeclareError } from "./errors.js";
 import { applyH, frontFacing, homography, inFront, invertH, type Homography } from "./projective.js";
 const FIT_FRAC: Record<string, number> = { start: 0, center: 0.5, end: 1 };
@@ -380,7 +381,7 @@ function evictLeastValuable(except: CanvasSurface): boolean {
 // Offsets land on the surfaces, the frame PAINTS (a translate of cached
 // rasters), and only then are the FACTS written — once per frame — so the
 // settle that follows can never delay the motion (its own paint lands a frame
-// later: the documented ≤1-frame lag). `scrolling` is the USER's scroll: true
+// later: the documented ≤1-frame lag). `userScrolling` is the USER's scroll: true
 // while a wheel stream or a touch is live (plus a short quiet tail after a
 // wheel stream) — a glide, the program's own motion, never raises it.
 type Glide = { duration?: number; motion?: string };
@@ -406,7 +407,7 @@ class ScrollLoop {
   touch: TouchSession | null = null;
   private readonly moved = new Set<CanvasSurface>();
   private readonly active = new Set<CanvasSurface>();
-  private readonly quiet = new Map<CanvasSurface, ReturnType<typeof setTimeout>>();
+  private readonly quiet = new Map<CanvasSurface, PlatformTimer>();
   constructor(private readonly comp: Compositor) {}
 
   /** An offset moved: a fact to report after paint, and damage of the
@@ -415,7 +416,7 @@ class ScrollLoop {
   private mark(s: CanvasSurface, touch = false): void { this.moved.add(s); this.comp.mark(s); s.barShows(touch); }
   private begin(s: CanvasSurface): void {
     const q = this.quiet.get(s);
-    if (q !== undefined) { clearTimeout(q); this.quiet.delete(s); }
+    if (q !== undefined) { clearPlatformTimeout(q); this.quiet.delete(s); }
     if (!this.active.has(s)) { this.active.add(s); s.reportScrolling(true); }
   }
   private settle(s: CanvasSurface): void {
@@ -441,7 +442,7 @@ class ScrollLoop {
     const list = (this.tweens.get(s) ?? []).filter((t) => t.axis !== axis);
     list.push({ axis, from, to, start: performance.now(), duration: Math.max(1, g.duration ?? 260), curve });
     this.tweens.set(s, list);
-    // no begin(): a glide is the PROGRAM's motion, and `scrolling` is the user's
+    // no begin(): a glide is the PROGRAM's motion, and `userScrolling` is the user's
     this.comp.invalidate(s);
   }
   cancelGlides(s: CanvasSurface): void {
@@ -512,8 +513,8 @@ class ScrollLoop {
       }
       // a wheel stream ends when it goes quiet
       const q = this.quiet.get(s);
-      if (q !== undefined) clearTimeout(q);
-      this.quiet.set(s, setTimeout(() => { this.quiet.delete(s); if (this.idle(s)) this.settle(s); }, 120));
+      clearPlatformTimeout(q);
+      this.quiet.set(s, platformTimeout(() => { this.quiet.delete(s); if (this.idle(s)) this.settle(s); }, 120));
     }
     this.pending.clear();
     for (const [s, list] of this.tweens) {
@@ -1618,7 +1619,7 @@ class CanvasSurface implements Surface, SceneSurface {
     return this.backdrop === null ? 0 : Math.ceil(3.5 * filterBlur(this.backdrop) * dpr) + 4;
   }
 
-  /** `imageSmoothing` (backend.ts): this surface's own setting; the subtree's is the
+  /** `imageRendering` (backend.ts): this surface's own setting; the subtree's is the
    *  nearest ancestor's that set one (pixelated()). Images then draw unsmoothed
    *  and drawings rasterize at one pixel per unit, enlarged unsmoothed
    *  (paintDrawingPixelated) — the DOM backend's picture, made by hand. */
@@ -2247,6 +2248,7 @@ class CanvasSurface implements Surface, SceneSurface {
   /** A press on the field at page point (cx, cy): its element, made there, focused, with the
    *  caret where the press was (a single line is read across its middle). */
   pressEditable(cx: number, cy: number): boolean {
+    if (this.edit?.disabled === true) return false;
     const el = this.showEditable();
     if (el === null) return false;
     const r = el.getBoundingClientRect();
@@ -2262,6 +2264,7 @@ class CanvasSurface implements Surface, SceneSurface {
   /** The editable's spec onto its element: value, inset, spellcheck, wrap, placeholder, style. */
   private styleEditable(el: HTMLInputElement | HTMLTextAreaElement, spec: EditableSpec): void {
     if (el.value !== spec.value) el.value = spec.value; // guard the caret against an echo
+    el.disabled = spec.disabled === true;
     // Parity with the DOM backend's editable: the field's inset, the
     // spellcheck election, and the wrap mode all come from the one spec —
     // the overlay is the same editable, positioned differently.
@@ -3402,7 +3405,7 @@ class CanvasSurface implements Surface, SceneSurface {
       const smooth = (ctx as { imageSmoothingQuality: ImageSmoothingQuality }).imageSmoothingQuality;
       ctx.imageSmoothingQuality = "high";
       const pixelated = this.pixelated();
-      if (pixelated) ctx.imageSmoothingEnabled = false;          // imageSmoothing = pixelated: every pixel a solid block
+      if (pixelated) ctx.imageSmoothingEnabled = false;          // imageRendering = pixelated: every pixel a solid block
       if (st === "cover" || st === "contain") {
         // Aspect-preserving: one scale for both axes — max fills-and-crops
         // (cover), min letterboxes (contain) — centered either way; cover
@@ -3793,8 +3796,8 @@ export function feedPointer(app: App, island: View): () => void {
     if (type !== "out" && app.lastPointerType !== host.lastPointerType) app.lastPointerType = host.lastPointerType;
     if (type === "down" && inside && !app.pointerDown) app.pointerDown = true;
     if (type === "up" && app.pointerDown) app.pointerDown = false;
-    const hovering = type !== "out" && host.hovering && inside;
-    if (app.hovering !== hovering) app.hovering = hovering;
+    const hovering = type !== "out" && host.pointerHovering && inside;
+    if (app.pointerHovering !== hovering) app.pointerHovering = hovering;
     const overText = hovering && host.pointerOverText;
     if (app.pointerOverText !== overText) app.pointerOverText = overText;
   };

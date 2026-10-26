@@ -107,7 +107,7 @@ class HeroStage [ height = { this.H },
     seam: View [ x = { classroot.inset }, width = { classroot.bw }, height = 12,
         y = { classroot.ker.y + classroot.ker.height + 6 },
         opacity = { unit(classroot.k * 2 - 1) },
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             d.strokeStyle = provided("theme").muted
             d.lineWidth = 1
             d.setLineDash([4, 4])

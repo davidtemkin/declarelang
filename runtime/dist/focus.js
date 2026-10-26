@@ -497,7 +497,7 @@ function reveal(v) {
             return;
         if (s.scrolls === "none" || child.ignoreScroll)
             continue;
-        if (s.scrolling) {
+        if (s.userScrolling) {
             s.$pendingScroll = () => reveal(v);
             return;
         }

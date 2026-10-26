@@ -1,5 +1,5 @@
 A `Dataset` whose value arrives over HTTP — a reactive remote resource. The one thing to
-know: **`fetch()` is explicit — a DataSource does not auto-load** (`auto = true` is a
+know: **`fetch()` is explicit — a DataSource does not auto-load** (`autoFetch = true` is a
 deliberate opt-in for reactive addresses, not the default). Call it when the data
 should load (typically `onInit`, or on a user action); value and flags then settle
 *together*, a frame ahead, so a constraint reading `.loaded` and one reading `.value`
@@ -38,7 +38,7 @@ and `Video` load their own.
 ## url
 The resource URL — a literal or a `{ }` constraint, so the source **re-points reactively**:
 change a dependency (a zip, a filter) and the *next* `fetch()` hits the new URL. Setting
-`url` does not load on its own — fetching stays explicit unless you opt into `auto`.
+`url` does not load on its own — fetching stays explicit unless you opt into `autoFetch`.
 
 ## fetch()
 Loads (or reloads) the resource from the current `url`, then settles `value` and the
@@ -50,16 +50,16 @@ derives from and then calls `fetch()` sends the new request. A later call supers
 earlier one: that request is stopped, and its reply never arrives. It returns a `Promise` that never rejects — a failure
 lands in `failed` and `error` — but the flags and `onLoad` are the idiomatic path.
 
-## auto
+## autoFetch
 Fetch unprompted whenever `url` arrives or changes, instead of waiting for `fetch()`.
 **Off by default, and the default is the discipline** — explicit loading is what stops a
 source firing requests nobody asked for as unrelated dependencies settle. Turn it on when
 the address *is* the reactive thing: a detail pane whose `url` derives from the current
-selection, where "the URL changed" and "load it" are the same event. With `auto` off,
+selection, where "the URL changed" and "load it" are the same event. With `autoFetch` off,
 changing `url` arms the next `fetch()` and does nothing else.
 
 ```declare-fragment
-detail: DataSource [ auto = true, url = { "/api/issue/" + app.selectedId } ]
+detail: DataSource [ autoFetch = true, url = { "/api/issue/" + app.selectedId } ]
 ```
 
 ## method
@@ -83,7 +83,7 @@ reactive attribute, which is what keeps an authenticated endpoint declarative ra
 imperative — the header re-derives when what it reads changes:
 
 ```declare-fragment
-api: DataSource [ url = "/graphql", method = "POST", auto = true,
+api: DataSource [ url = "/graphql", method = "POST", autoFetch = true,
     headers = { { "x-api-key": app.key,
                    Authorization: app.token != "" ? "Bearer " + app.token : "" } },
     body = { { query: app.query } } ]
@@ -92,7 +92,7 @@ api: DataSource [ url = "/graphql", method = "POST", auto = true,
 A header whose value is empty (or null) is **not sent**, so that ternary is the whole
 "only when signed in" story: no branch, no second source, no imperative re-plumbing when
 the token lands. (Changing a header, like changing `body`, sends nothing until the next
-`fetch()` — or immediately, if `auto` is on and the `url` changed with it.)
+`fetch()` — or immediately, if `autoFetch` is on and the `url` changed with it.)
 
 ## credentials
 How to handle cookies, TLS client certificates, and authentication headers — the
@@ -131,7 +131,7 @@ need.
 
 ## loaded
 Data is present: `value` is not null. True from the first arrival on and **stays
-true through every later fetch** — a refetch (a changed `url` under `auto`, or `fetch()`
+true through every later fetch** — a refetch (a changed `url` under `autoFetch`, or `fetch()`
 again) keeps the last good data in `value` until the new data lands — until `clear()`
 empties the source. It is about the value, not the request: `visible = { data.loaded }`
 is the screen that shows once there is something to show, and it stays put while the

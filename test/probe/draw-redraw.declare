@@ -5,7 +5,7 @@
 
 class Mark [ width = 120, height = 120,
     second: boolean = false,
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         d.strokeStyle = "#FFFFFF"
         d.lineWidth = 2
         d.strokeRect(10, 10, 100, 100)                  // the same bounds in both pictures

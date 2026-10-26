@@ -126,7 +126,7 @@ declare class MacSurface implements Surface, SceneSurface {
     private onScrollCb;
     private onScrollXCb;
     private onScrollingCb;
-    /** The host's `scrolling` fact as last reported, and whether a GESTURE
+    /** The host's `userScrolling` fact as last reported, and whether a GESTURE
      *  (a trackpad stream, its momentum, a bar drag) owns the offset right now —
      *  a request during it is dropped (arbitration rule 1). Both arrive per
      *  frame through macScrollFacts; the model never infers them. */
@@ -145,7 +145,7 @@ declare class MacSurface implements Surface, SceneSurface {
     sink: InputSink | null;
     /** What the view declared it wants (dbl / hold / touch) — see setInput. */
     wants: InputWants | undefined;
-    /** Shape clip (path data) and box clip — kept for the HIT walk, which must
+    /** path clip (path data) and box clip — kept for the HIT walk, which must
      *  subtract exactly what the paint does. */
     private clipData;
     private boxClip;
@@ -308,7 +308,7 @@ declare class MacSurface implements Surface, SceneSurface {
     setScrollX(on: boolean, onScroll?: (x: number) => void, onScrolling?: (active: boolean) => void): void;
     notifyScrollX(x: number): void;
     /** The host's per-frame report lands here (macScrollFacts): the offsets it
-     *  moved, and the `scrolling`/gesture state of its process. */
+     *  moved, and the `userScrolling`/gesture state of its process. */
     hostFacts(y: number | null, x: number | null, scrolling: boolean, gesture: boolean, bar?: boolean): void;
     /** Travel with a scroller (the FocusRing's ride): re-home in the model
      *  tree — the INSERT op re-parents the layer onto the scroller's content

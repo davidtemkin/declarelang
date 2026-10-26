@@ -5,6 +5,9 @@
 
 App [ fill = #1B2733, appName = "Probe A",
     clicks: number = 0,
+    exposes = ["clicks"],
+    heard: string = "",
+    onHostMessage(m: IslandMessage) { app.heard = m.topic; app.postToHost("ack", m.topic) },
 
     label: Text [ x = 16, y = 14, textColor = whitesmoke,
         text = { "A at " + (app.location == "" ? "(home)" : app.location) } ],

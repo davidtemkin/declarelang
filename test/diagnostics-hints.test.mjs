@@ -95,7 +95,7 @@ await test("rotate/blur/transform point at the real doors, not into a wall", asy
   // CSS-prior spellings around it still route to their true equivalents.
   await says(`App [ View [ rotate = 45 ] ]`, "rotation = 45");
   await says(`App [ View [ blur = 4 ] ]`, "d.filter");
-  await says(`App [ View [ transform = 1 ] ]`, "draw(d: Draw)");
+  await says(`App [ View [ transform = 1 ] ]`, "draw(d: DrawContext)");
   await says(`App [ View [ mixBlendMode = 1 ] ]`, "blend = multiply");
   await says(`App [ View [ backdropFilter = 1 ] ]`, "frost(radius, saturation)");
 });

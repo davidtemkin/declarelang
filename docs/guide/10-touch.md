@@ -22,21 +22,21 @@ to design for.
 **A finger doesn't hover.** [`hovered`](declare-docs:View.hovered) is always false on a touch device, so anything
 that only appears on hover is invisible on a phone unless you give it another way in
 — let [`pressed`](declare-docs:View.pressed) carry the feedback, or keep the affordance visible when
-[`app.touchDevice`](declare-docs:App.touchDevice) is true.
+[`app.touchFirst`](declare-docs:App.touchFirst) is true.
 
 **Targets want to be bigger.** Ask the device, and design accordingly:
 
 | you ask | it answers | use it for |
 |---|---|---|
-| `app.touchDevice` | is the *primary* pointer a finger? | sizing and layout density |
+| `app.touchFirst` | is this device built for touch — a phone or tablet, keyboard or not? | sizing and layout density |
 | [`app.hasTouch`](declare-docs:App.hasTouch) | is there a touch digitizer *at all*? | a hit-target floor |
-| [`app.hasPointer`](declare-docs:App.hasPointer) | is there a mouse, trackpad, or stylus? | offering precise affordances |
+| [`app.hasMouse`](declare-docs:App.hasMouse) | is there a mouse, trackpad, or stylus? | offering precise affordances |
 | [`app.lastPointerType`](declare-docs:App.lastPointerType) | what did the user *just* use — `"mouse"`, `"touch"`, `"pen"`? | revealing hover-only chrome |
 
 The last two exist for the awkward middle: a Windows touch laptop reports
-`touchDevice = false`, because its trackpad really is primary, yet a finger may arrive
+`touchFirst = false`, because its trackpad really is primary, yet a finger may arrive
 at any moment. The rule that follows is worth stating plainly — **size from
-`touchDevice`, floor from `hasTouch`, and reveal from `lastPointerType`.** Never drive
+`touchFirst`, floor from `hasTouch`, and reveal from `lastPointerType`.** Never drive
 layout from the live pointer type: targets that resize as the user alternates trackpad
 and finger are worse than either size. And a hit region need not match a visual one, so
 a hybrid can keep compact chrome and generous touch targets at the same time.

@@ -66,6 +66,26 @@ end or start edge.
 
 ## opacity
 Its open blend, as a card; a sheet at an edge slides rather than fades.
+
+## wideForm
+What the sheet is when the host has room to spare: an `edge = end` sheet stays at the end,
+any other is centred. `form` takes it unless the sheet comes from the start or the host is
+`narrow`.
+
+## keyboardH
+How far an on-screen keyboard reaches into this sheet's program (`app.keyboardHeight`), so a
+bottom sheet rises above it; 0 for a sheet hosted in another program's layer.
+
+## footY
+Where the sheet's room ends: the host's height less the keyboard.
+
+## formMargin
+The room the sheet leaves beside it in its current `form`: more for a centred or start
+sheet, none for an end or bottom one.
+
+## restX
+Where a sheet that does not slide in from a side rests across: centred, or 0 for a bottom
+sheet.
 */
 
 include [ "floating.declare" ]

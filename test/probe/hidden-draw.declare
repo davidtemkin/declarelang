@@ -11,7 +11,7 @@ App [ width = 600, height = 400, fill = #FFFFFF,
 
     pane: View [ visible = { app.open }, x = 20, y = 20, width = 400, height = 200,
         chart: View [ width = 400, height = 200,
-            draw(d: Draw) {
+            draw(d: DrawContext) {
                 d.fillStyle = "#2A6"
                 d.fillRect(0, 0, 400, 200)
                 }

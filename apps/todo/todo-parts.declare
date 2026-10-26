@@ -72,7 +72,7 @@ theme PaperDark [
 class Glyph extends Icon [
     shape: string = "",
     filled: boolean = false,
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         d.scale(unit, unit)
         d.strokeStyle = ink
         d.fillStyle = ink

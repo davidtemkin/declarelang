@@ -8,7 +8,7 @@
       "comment": "the traveling focus indicator \u2014 provided with the library"
     },
     {
-      "class": "TooltipLayer",
+      "class": "Tooltip",
       "when": {
         "attributeUsed": "tooltipLabel",
         "onBase": "View"
@@ -34,7 +34,7 @@
   "AccordionPane": "accordion.declare",
   "Carousel": "carousel.declare",
   "CarouselLayout": "carousel.declare",
-  "TooltipLayer": "tooltip.declare",
+  "Tooltip": "tooltip.declare",
   "Menu": "menu.declare",
   "MenuBar": "menubar.declare",
   "Dialog": "dialog.declare",

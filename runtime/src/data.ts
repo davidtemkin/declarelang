@@ -802,7 +802,7 @@ export class DataSource extends Dataset {
    *  explicit entry may override). REACTIVE like any other slot, which is the
    *  point: `headers = { ({ Authorization: "Bearer " + app.token }) }` re-reads
    *  when the token lands, so an authenticated source needs no imperative
-   *  re-plumbing — and with `auto = true` a changed address refetches with the
+   *  re-plumbing — and with `autoFetch = true` a changed address refetches with the
    *  current header. A header whose value is empty (or null) is NOT sent —
    *  `Authorization: signedIn ? "Bearer " + t : ""` is the whole conditional-
    *  header idiom, with no branch to write.
@@ -844,17 +844,17 @@ export class DataSource extends Dataset {
    *  `value`, so a constraint on it wakes exactly when presence changes. */
   get loaded(): boolean { return this.value != null; }
 
-  /** `auto = true`: fetch whenever a NON-EMPTY url arrives or changes — the
+  /** `autoFetch = true`: fetch whenever a NON-EMPTY url arrives or changes — the
    *  reactive-address case, where the url derives from late-landing state
    *  (`url = { hostProvided("program", "") != "" ? … : "" }`) and no handler exists to call
-   *  fetch() at the right moment. Push-driven off the url/auto slots; a
+   *  fetch() at the right moment. Push-driven off the url/autoFetch slots; a
    *  re-derive to the SAME address never refetches. Resolves the recorded
-   *  auto-fetch question: explicit fetch() stays the default, auto is opt-in. */
-  declare auto: boolean;
+   *  auto-fetch question: explicit fetch() stays the default, autoFetch is opt-in. */
+  declare autoFetch: boolean;
   private autoUrl = "";
 
   $maybeAuto(): void {
-    if (!this.auto) return;
+    if (!this.autoFetch) return;
     if (this.url === "") {
       // Going empty RESETS the memo: the contract is "fetch whenever a
       // non-empty url arrives or changes", and A → "" → A is an arrival.
@@ -914,7 +914,7 @@ export class DataSource extends Dataset {
   }
 
   /** Fetch `url` over HTTP. Explicit by design — the weather app's entry screen
-   *  decides when (`doEnterDown() { weatherData.fetch() }`); `auto = true` is the
+   *  decides when (`doEnterDown() { weatherData.fetch() }`); `autoFetch = true` is the
    *  opt-in for reactive addresses (above). A non-GET `method` sends `body`. */
   async fetch(): Promise<void> {
     const seq = ++this.seq;
@@ -1051,10 +1051,10 @@ function sourceLabel(d: DataSource): string {
 }
 
 defineAttributes(DataSource, {
-  // both pushes route through maybeAuto, so `auto = true` + a url that lands
+  // both pushes route through maybeAuto, so `autoFetch = true` + a url that lands
   // later (or the reverse order) fetches exactly once per distinct address
   url: { def: "", push: (d, _v) => (d as DataSource).$maybeAuto() },
-  auto: { def: false, push: (d, _v) => (d as DataSource).$maybeAuto() },
+  autoFetch: { def: false, push: (d, _v) => (d as DataSource).$maybeAuto() },
   format: { def: "json" },
   method: { def: "GET" },
   body: { def: null },

@@ -527,7 +527,7 @@ function reveal(v: View): void {
   for (let s: View | null = paintParent(v); s !== null; child = s, s = paintParent(s)) {
     if (child !== v && scopeOf(child) === "modal") return;
     if (s.scrolls === "none" || child.ignoreScroll) continue;
-    if (s.scrolling) { s.$pendingScroll = () => reveal(v); return; }
+    if (s.userScrolling) { s.$pendingScroll = () => reveal(v); return; }
     const b = rootFrameBox(v as unknown as InteractionView, undefined, s as unknown as InteractionView);
     const ax = s.scrolls;
     const fh = frameExtent(s, "height"), fw = frameExtent(s, "width");

@@ -22,7 +22,11 @@
 </main>
 <script type="module">
   import boot from "/bundles/declare-boot.js";
-  await boot({ main: "/test/probe/embed-a.declare", host: document.getElementById("slot-a") });
+  // A is hosted by this page in an island's words: its navigation and its
+  // postToHost come here, and the handle boot() resolves to speaks back
+  window.__navs = []; window.__posts = [];
+  window.__tenantA = await boot({ main: "/test/probe/embed-a.declare", host: document.getElementById("slot-a"),
+    onNavigate: (n) => window.__navs.push(n), onPost: (m) => window.__posts.push(m) });
   // probe C boots BETWEEN the others on purpose: if per-app data bases ever
   // regress to last-boot-wins, its relative url resolves against B's dir and
   // finds the decoy — the failure is loud, not lucky.

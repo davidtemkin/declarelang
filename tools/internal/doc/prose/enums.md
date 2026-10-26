@@ -54,9 +54,9 @@ leaves the cross placement to the child, which is what lets an ordinary
 `baseline` only where each child can report one: a `Text` does by itself, and a
 composite must **declare** which of its parts carries it.
 
-## EditControlJudgeOn
+## JudgeOn
 
-When a field first says what is wrong with its draft (`EditControl.judgeOn`): `edit` at every
+When a field first says what is wrong with its draft (`TextInput.judgeOn`): `edit` at every
 edit, `leave` once the field has been left — or `judge()` asked — and at every edit after.
 
 ## SafeAreaMode
@@ -97,13 +97,14 @@ and the arrows move inside (a radio group, a list). `capture`: Tab walks in and 
 stops (an entry form). `region`: one stop from outside, a cycle of its own inside, left with
 F6 (a window, a pane). `modal`: Tab wraps inside and never leaves (a dialog).
 
-## FontLoadBehavior
+## FontLate
 
-What a face that finishes loading **after** the text is already painted does to
-text already on screen. `swap` changes to the real face — one redraw, and the
-usual answer. `keep` leaves the fallback in place for the rest of the run, which
-is how a reflow mid-read is avoided; a face kept this way reports `loaded = false`
-for the life of the run.
+The type of `Font.late`: what a font whose files finish loading **after** its
+`wait` has run out does to text already on screen. A font's faces load and settle
+together. `swap` changes to the font — one redraw, and the usual answer. `keep`
+leaves the fallback in place for the rest of the run, which is how a reflow
+mid-read is avoided; a font kept this way reports `loaded = false` for the life of
+the run.
 
 ## FontWeight
 
@@ -170,7 +171,7 @@ no further — a menu), `dismissAndDeliver` (it closes; the press goes on — a 
 (the press goes nowhere; the overlay stays — a dialog), `ignore` (the press goes on as if the
 overlay were not there — a toast). `none` is every ordinary view.
 
-## ImageSmoothing
+## ImageRendering
 
 How a view's images and drawings look when they are shown larger or smaller. `smooth`
 blends neighbouring pixels, which suits photographs and an ordinary interface under a
@@ -206,9 +207,10 @@ has for a fetch. `retrying` is the one worth planning for: it covers both the
 platform's own recovery and a declared retry waiting to re-dial, and it is the
 difference between a stream that is coming back and `failed`, which is not.
 
-## MediaFit
+## ImageFit
 
-How a bitmap fills a box whose size differs from its natural size. The axis values
+The type of `stretches` on Image and Video: how a picture (a bitmap, or a video's
+frame) fills a box whose size differs from its natural size. The axis values
 — `width`, `height`, `both` — **distort by design**; the aspect-preserving fits
 never do: `contain` puts the whole picture in the box and letterboxes the
 remainder, `cover` fills the box and crops the overflow. `none` paints at natural
@@ -234,6 +236,13 @@ Reshapes the painted glyphs **without changing `text`**: selection, find-in-page
 and `$data` all see the original string, exactly as CSS `text-transform` behaves.
 The measurer shapes the transformed glyphs, so an `uppercase` run still wraps
 correctly at its real width on every renderer.
+
+## UnsupportedTags
+
+The type of `HTMLText.unsupported`: what a tag outside HTMLText's whitelist does. `strip`
+(the default) unwraps it — the tag goes, its text stays, and `<script>` / `<style>` go
+whole — so loaded markup renders what it safely can. `error` throws on the first one,
+naming it, for content where unexpected markup should be a hard failure.
 
 ## ClockTick
 

@@ -144,14 +144,14 @@ select() { selected = !selected },     // a METHOD
 onClick()      { count = count + 1 },  // a HANDLER — `on` + an event this node fires
 onPointerMove(e: PointerEvent) { x = e.x },   // pointer handlers get a typed payload
 
-draw(d: Draw) { d.fillStyle = "#4169E1"    // a METHOD the view calls to paint itself — see below
+draw(d: DrawContext) { d.fillStyle = "#4169E1"    // a METHOD the view calls to paint itself — see below
             d.fillRect(0, 0, 12, 12) },
 
 bg: View [ fill = midnightblue ],      // a CHILD, named — reachable as `bg`
 Text [ text = "OK" ]                  // a CHILD, anonymous
 ```
 
-**Any view can paint itself by defining `draw(d: Draw)`** — graphs, gauges, iconography, marks no
+**Any view can paint itself by defining `draw(d: DrawContext)`** — graphs, gauges, iconography, marks no
 fill or font gives you. It is an ordinary method: `View` calls it from a constraint of its own
 (`drawing = { record(draw) }`), so it runs on invalidation and re-runs when what it read changes,
 never per frame — the same rule as any method a constraint calls. `d` takes the Canvas2D drawing
@@ -606,7 +606,7 @@ TypeScript on it, never a walk of rendered rows.
 
 **A `DataSource` is a remote resource whose lifecycle is reactive state** —
 `data: DataSource [ url = "data/events.json" ]`. **Nothing loads on its own** unless you set
-`auto = true`; forgetting `.fetch()` is the silent first bug, and `onInit()`
+`autoFetch = true`; forgetting `.fetch()` is the silent first bug, and `onInit()`
 is the usual place for it. Screens then derive from the resource (`shown = { data.loaded }`)
 rather than being toggled. An optional `schema = [ field: type, rows[]: [ … ] ]` declares the
 response's shape: it validates the payload on receipt — so malformed data yields `.failed` rather

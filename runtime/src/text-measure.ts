@@ -3,7 +3,7 @@
 // style and width, on every renderer.
 //
 //   width = { measureText(app.label, { fontFamily: app.brand, fontSize: 13 }).width + 16 }
-//   draw(d: Draw) { const m = measureText("Plate 4", Caption); d.fillText("Plate 4", (d.w - m.width) / 2, m.baseline, Caption) }
+//   draw(d: DrawContext) { const m = measureText("Plate 4", Caption); d.fillText("Plate 4", (d.w - m.width) / 2, m.baseline, Caption) }
 //
 // The style is REQUIRED and is a record of `Text` attribute names — a `style`
 // bundle, or an inline record — and a field left out takes its plain default,

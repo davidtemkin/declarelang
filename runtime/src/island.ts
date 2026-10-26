@@ -13,6 +13,7 @@ import { scrollPlaces, holdScrollPlaces } from "./scroll-places.js";
 import { withdrawPaintGuests } from "./view.js";
 import { withdrawOpen } from "./outside.js";
 import { Keys } from "./keys.js";
+import { navigationOf } from "./navigation.js";
 
 /** The island's own box, as a host hands it to the link: its scroll, which is
  *  where a tenant that scrolls as a page scrolls (the box is its viewport). */
@@ -129,7 +130,7 @@ export class Island extends View {
   }
 
   /** @internal tenant → host verb arrival: fire the declared onPost with the
-   *  one-record payload `{ topic, payload }` (IslandPost). */
+   *  one-record payload `{ topic, payload }` (IslandMessage). */
   $receiveMessage(topic: string, payload: unknown): void {
     fireEvent(this, "post", { topic, payload });
   }
@@ -147,8 +148,9 @@ export class Island extends View {
 
   /** The foreign content's handle — built once, attached to the island's
    *  element by the DOM backend (`el.__declareIsland`). The whole sanctioned
-   *  surface for non-Declare content, in the same words a Declare tenant
-   *  uses: read what the host provides, expose values up, and the verbs. */
+   *  surface for non-Declare content, reaching what a Declare tenant reaches:
+   *  read what the host provides, expose values up, and the verbs (named as
+   *  the island's: post / onPost). */
   private handle: Record<string, unknown> | null = null;
   $foreignHandle(): Record<string, unknown> {
     if (this.handle !== null) return this.handle;
@@ -207,7 +209,6 @@ function syncNamed(read: () => Record<string, unknown>, put: (name: string, v: u
  *  the extension, a directory taken as its same-named program; "" when it
  *  names none) and the location after its `#`, and whether it asked for a
  *  window of its own. */
-export interface IslandNavigation { to: string; program: string; location: string; newWindow: boolean }
 
 /** An embedded app's navigation verbs, answered by the island that hosts it
  *  when that island declares `onNavigate` — the hosting program decides what
@@ -228,20 +229,6 @@ export function islandNavigation(island: View | null, resolve: (u: string) => st
   };
 }
 
-function navigationOf(to: string, newWindow: boolean): IslandNavigation {
-  let program = "", location = "";
-  try {
-    const u = new URL(to);
-    location = decodeURIComponent(u.hash.slice(1));
-    const path = (u.origin === "null" ? u.protocol + "//" : u.origin) + u.pathname;   // a file: URL's origin is "null"
-    if (u.pathname.endsWith(".declare")) program = path.slice(0, -".declare".length);
-    else if (u.pathname.endsWith("/")) {
-      const dir = u.pathname.split("/").filter((s) => s !== "").pop();
-      if (dir !== undefined) program = path + dir;
-    }
-  } catch { /* not a URL: it names no program */ }
-  return { to, program, location, newWindow };
-}
 
 /** Link an Island to a DECLARE tenant (host-client renderChild, the canvas
  *  island service, the mac runner). DOWN: every name on the island's
@@ -256,8 +243,8 @@ export function linkIslandTenant(island: Island, tenant: App, box: IslandBox | n
   const undo: Array<() => void> = [];
   undo.push(syncNamed(
     () => islandProvisions(island),
-    (n, v) => tenant.provideHostValue(n, v),
-    (n) => tenant.provideHostValue(n, undefined),
+    (n, v) => tenant.$provideHostValue(n, v),
+    (n) => tenant.$provideHostValue(n, undefined),
     "link:provides"));
   undo.push(syncNamed(
     () => {
@@ -304,7 +291,7 @@ export function linkIslandTenant(island: Island, tenant: App, box: IslandBox | n
   }
   // verbs, both directions
   island.tenantSink = {
-    message: (topic, payload) => fireEvent(tenant, "hostMessage", { topic, payload }),
+    message: (topic, payload) => tenant.$receiveHostMessage(topic, payload),
   };
   tenant.$hostSink = { message: (topic, payload) => island.$receiveMessage(topic, payload) };
   island.$tenant = tenant;

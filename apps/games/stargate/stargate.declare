@@ -52,7 +52,7 @@ defaultFlags [ render = canvas, accessibility = false ]
 
 App [ appName = "Stargate", fill = black,
 
-    shapes: DataSource [ url = "art/shapes.json", auto = true ],
+    shapes: DataSource [ url = "art/shapes.json", autoFetch = true ],
     pictures: Image [ visible = false, source = "art/pictures.png" ],   // every picture, one under another
     ready: boolean = { app.shapes.loaded && app.pictures.loaded && app.game.scenery.ground.loaded },     // all the art is in
     letters: Letters [ ],
@@ -166,7 +166,7 @@ App [ appName = "Stargate", fill = black,
     // frame ago — and the top of the screen goes over it. Every pixel of it shows as a solid
     // block, as on the monitor.
 
-    screen: View [ clip = true, x = center, y = center, width = 292, height = 240, scale = { app.unit }, imageSmoothing = pixelated,
+    screen: View [ clip = true, x = center, y = center, width = 292, height = 240, scale = { app.unit }, imageRendering = pixelated,
         beam: number = 128,             // the row where the halves meet
         picture: View [ x = -6, y = -7, width = 304, height = 256,
             whole: Playfield [ exists = { !app.monitor.split }, datapath = { app.game.value }, explosions = { app.game } ],

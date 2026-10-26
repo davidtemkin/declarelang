@@ -51,7 +51,7 @@ class HitFig extends Plate [
     // answer. With a pointer, the answers stay the views' hovered facts.
 
     tapped: string = "",
-    touch: boolean = { app.touchDevice },
+    touch: boolean = { app.touchFirst },
 
     row: View [
         layout: ResponsiveLayout [ plan = { [({ from: 820, flow: "row", gap: 32, share: ({ scene: 52, panel: 48 }) }),
@@ -112,7 +112,7 @@ class HitFig extends Plate [
                 // the part of the child the pane clips away: drawn as a ghost, takes nothing
 
                 ghost: View [ x = 140, y = 280, width = 170, height = 90, pointerEvents = "none",
-                    draw(d: Draw) {
+                    draw(d: DrawContext) {
                         d.strokeStyle = provided("theme").ker
                         d.globalAlpha = 0.55
                         d.setLineDash([4, 4])
@@ -130,7 +130,7 @@ class HitFig extends Plate [
                     onClick() { classroot.tapped = "Invisible glass" }
                     ],
                 glassMark: View [ x = 300, y = 24, width = 150, height = 96, pointerEvents = "none",
-                    draw(d: Draw) {
+                    draw(d: DrawContext) {
                         d.strokeStyle = provided("theme").muted
                         d.setLineDash([5, 4])
                         d.lineWidth = 1.2

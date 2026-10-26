@@ -131,7 +131,7 @@ await test("every shared interface, alias, function and namespace answers", () =
     }
   }
   const draw = help("draw");
-  assert.ok(draw.out.includes("draw(d: Draw)"), "lowercase 'draw' should reach the Draw interface");
+  assert.ok(draw.out.includes("draw(d: DrawContext)"), "lowercase 'draw' should reach the DrawContext interface");
 });
 
 // ── --help states the contract, not just the flags ───────────────────────────

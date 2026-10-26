@@ -49,7 +49,7 @@ demos and dashboards), [`Field`](declare-docs:Field) (a labeled form row),
 [`Card`](declare-docs:Card) and [`Divider`](declare-docs:Divider) ([Size, position and layout](declare-docs:guide:layout@padding-and-card)),
 [`Accordion`](declare-docs:Accordion) with [`AccordionPane`](declare-docs:AccordionPane) children, [`Table`](declare-docs:Table) and [`DataGrid`](declare-docs:DataGrid)
 ([Large collections](declare-docs:guide:collections)), the overlay family — [`Menu`](declare-docs:Menu),
-[`MenuBar`](declare-docs:MenuBar), [`ContextMenu`](declare-docs:ContextMenu), [`Dialog`](declare-docs:Dialog), [`TooltipLayer`](declare-docs:TooltipLayer)
+[`MenuBar`](declare-docs:MenuBar), [`ContextMenu`](declare-docs:ContextMenu), [`Dialog`](declare-docs:Dialog), [`Tooltip`](declare-docs:Tooltip)
 ([Menus, dialogs and overlays](declare-docs:guide:overlays)) — and [`Icon`](declare-docs:Icon) with its set
 of drawn marks ([Your own views](declare-docs:guide:your-own-views@icons)). All of it is
 written in Declare, in `library/`, and none of it uses anything you cannot.

@@ -40,7 +40,7 @@ class ChevronIcon extends Icon [
     dir: string = "down",                       // down | up | left | right
     angle: number = { ({ up: Math.PI, left: Math.PI / 2, right: -Math.PI / 2 })[classroot.dir] ?? 0 },
 
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         d.scale(unit, unit)
         d.strokeStyle = ink
         d.lineWidth = weight / unit
@@ -82,7 +82,7 @@ class ArrowIcon extends Icon [
     dir: string = "up",                         // up | down | left | right
     angle: number = { ({ down: Math.PI, left: -Math.PI / 2, right: Math.PI / 2 })[classroot.dir] ?? 0 },
 
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         d.scale(unit, unit)
         d.strokeStyle = ink
         d.lineWidth = weight / unit
@@ -113,7 +113,7 @@ row's check cannot drift apart.
 */
 
 class CheckIcon extends Icon [
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         d.scale(unit, unit)
         d.strokeStyle = ink
         d.lineWidth = weight / unit
@@ -143,7 +143,7 @@ control with words of its own is named by them.
 
 class CloseIcon extends Icon [
     accessibilityLabel = "Close",
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         d.scale(unit, unit)
         d.strokeStyle = ink
         d.lineWidth = weight / unit
@@ -171,7 +171,7 @@ named by them.
 
 class PlusIcon extends Icon [
     accessibilityLabel = "Add",
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         d.scale(unit, unit)
         d.strokeStyle = ink
         d.lineWidth = weight / unit
@@ -194,7 +194,7 @@ Renders the bar.
 */
 
 class MinusIcon extends Icon [
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         d.scale(unit, unit)
         d.strokeStyle = ink
         d.lineWidth = weight / unit
@@ -223,7 +223,7 @@ to widen. The bulb keeps its own visual weight at every rung.
 // act on here. No y-flip anywhere: the path counts down, like this canvas.
 
 class LightbulbIcon extends Icon [
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         d.scale(unit, unit)
         d.fillStyle = ink
         d.beginPath()

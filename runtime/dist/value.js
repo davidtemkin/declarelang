@@ -253,7 +253,7 @@ const DECLARED_TYPES = {
     Color: { kind: "color" },
     Length: { kind: "length" },
     Radius: { kind: "radius" },
-    Shape: { kind: "shape" },
+    ClipPath: { kind: "shape" },
     // An Inset (`View.padding`) is the same LITERAL shape as a Radius — one
     // number, or four clockwise — and rides the same routes: the coercer and the
     // bare-four-item-list path are the ones a Radius already has. It is its OWN

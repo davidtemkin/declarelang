@@ -1,7 +1,7 @@
 // weather-art — the skies and the drawn vocabulary for apps/weather.
 // Included by weather.declare so the app file stays about the app.
 //
-// Everything here that displays data is drawn: a `draw(d: Draw)` method is a
+// Everything here that displays data is drawn: a `draw(d: DrawContext)` method is a
 // tracked computation — it re-runs when the reactive values it reads change,
 // never per frame — and its output is resolution-independent. Two skies are
 // photographs (sky/LICENSES.md records their sources); the other two are
@@ -174,7 +174,7 @@ script {
 
 class WIcon [
     kind: string = "sun",
-    draw(d: Draw) { artIcon(d, this.kind, this.width, this.height) }
+    draw(d: DrawContext) { artIcon(d, this.kind, this.width, this.height) }
     ]
 
 
@@ -242,7 +242,7 @@ class WSky [ clip = true,
         visible = { classroot.hasPhoto },
         source = { classroot.cond == "cumulus" ? "sky/cumulus.jpg" : "sky/cloudy.jpg" } ],
 
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         if (this.cond == "sunny") artSunnySky(d, d.w, d.h)
         else if (this.cond == "night") artNightSky(d, d.w, d.h)
         // cloudy and cumulus record nothing: the photograph above is the sky
@@ -261,7 +261,7 @@ class RangeBar [
     min: number = 0,
     max: number = 1,
     now: number = -1000,
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const w = d.w, h = d.h, r = h / 2
         const span = Math.max(1, this.max - this.min)
         const x0 = ((this.lo - this.min) / span) * (w - h) + r
@@ -291,7 +291,7 @@ class RangeBar [
 
 class UVRamp [
     value: number = 0,
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const w = d.w, h = d.h, r = h / 2
         const g = d.createLinearGradient(r, 0, w - r, 0)
         g.addColorStop(0, "#57BB56")
@@ -314,7 +314,7 @@ class UVRamp [
 
 class AQILine [
     value: number = 0,
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const w = d.w, h = d.h, mid = h / 2
         const g = d.createLinearGradient(0, 0, w, 0)
         g.addColorStop(0, "#57BB56")
@@ -338,7 +338,7 @@ class AQILine [
 
 class SunCurve [
     frac: number = 0.5,
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const w = d.w, h = d.h
         const mid = h * 0.74
         const amp = h * 0.60
@@ -373,7 +373,7 @@ class SunCurve [
 
 class WindDial [
     deg: number = 0,
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const w = d.w, h = d.h
         const cx = w / 2, cy = h / 2
         const R = Math.min(w, h) / 2 - 4
@@ -435,7 +435,7 @@ class WindDial [
 
 class PressureGauge [
     frac: number = 0.5,
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const w = d.w, h = d.h
         const cx = w / 2, cy = h * 0.56
         const R = Math.min(w, h) / 2 - 4
@@ -492,7 +492,7 @@ class MoonDisc [
 class MoonShadow [ opacity = 0.88,
     illum: number = 0.22,
     waning: boolean = true,
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const w = d.w, h = d.h
         const R = Math.min(w, h) / 2
         if (R <= 0) return
@@ -548,7 +548,7 @@ class MoonShadow [ opacity = 0.88,
 class RadarBlobs [
     amount: number = 0,
     seed: number = 7,
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const w = d.w, h = d.h
         if (this.amount <= 0) return
         let s = Math.max(1, Math.floor(this.seed))
@@ -577,7 +577,7 @@ class RadarBlobs [
 
 class MapPin [
     label: string = "",
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const w = d.w, h = d.h
         d.fillStyle = "rgba(30,110,220,0.95)"
         d.beginPath()
@@ -724,7 +724,7 @@ class MasonryLayout extends Layout [
 // the city-list glyph — three rows of a list, drawn
 
 class ListIcon [
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const w = d.w, h = d.h
         d.strokeStyle = "#FFFFFF"
         d.lineCap = "round"

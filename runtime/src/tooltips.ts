@@ -8,7 +8,7 @@
 // retarget while a tip is already up (the OS behavior: once tips are showing,
 // moving between controls swaps instantly), hide on press — and publishes ONE
 // fact to subscribers: the active tip (text + the target's root-space box),
-// or null. The library TooltipLayer singleton renders it (`Tooltips [ onTooltip(e) { … } ]`),
+// or null. The library Tooltip singleton renders it (`Tooltips [ onTooltip(e) { … } ]`),
 // the same wiring contract as Focus/Keys (sources.ts).
 
 import type { View } from "./view.js";
@@ -24,7 +24,7 @@ export interface TooltipEvent {
   readonly w: number;
   readonly h: number;
   /** The target's tree root — a page can host several apps (islands); each
-   *  app's TooltipLayer stands down for foreign targets, like the FocusRing. */
+   *  app's Tooltip stands down for foreign targets, like the FocusRing. */
   readonly root: View;
 }
 

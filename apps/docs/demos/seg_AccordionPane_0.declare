@@ -1,6 +1,6 @@
 App [ width = 300, height = 180, fill = white, textColor = black,
     Accordion [ x = 20, y = 20, width = 260,
-        AccordionPane [ label = "Details", initial = true,
+        AccordionPane [ label = "Details", initiallyOpen = true,
             Text [ width = 100%, padding = 12, text = { "open: " + parent.open } ]
             ],
         AccordionPane [ label = "More",

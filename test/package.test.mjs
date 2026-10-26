@@ -46,7 +46,7 @@ const otherDir = path.join(root, "apps", "other");
 mkdirSync(otherDir, { recursive: true });
 writeFileSync(path.join(otherDir, "other.json"), JSON.stringify({ word: "other's own data" }));
 writeFileSync(path.join(otherDir, "other.declare"), `ship [ islands = ["../other/other"] ]
-App [ width = 160, height = 40, d: DataSource [ url = { hostProvided("base", "") + "other.json" }, auto = true ],
+App [ width = 160, height = 40, d: DataSource [ url = { hostProvided("base", "") + "other.json" }, autoFetch = true ],
     t: Text [ x = 4, y = 4, text = { app.d.loaded ? app.d.value.word : "waiting" } ] ]`);
 writeFileSync(path.join(srcDir, "demos", "late.declare"), `App [ width = 120, height = 40, fill = teal, Text [ x = 8, y = 8, text = "late compiled" ] ]`);
 writeFileSync(path.join(srcDir, "shipper.declare"), `ship [
@@ -58,7 +58,7 @@ writeFileSync(path.join(srcDir, "shipper.declare"), `ship [
 App [ width = 400, height = 300,
     which: string = "demos/tile",
     late: string = "",
-    model: DataSource [ url = "../../docs/model.json", auto = true ],
+    model: DataSource [ url = "../../docs/model.json", autoFetch = true ],
     greeting: Text [ x = 10, y = 10, text = { app.model.loaded ? app.model.value.greeting : "loading" } ],
     a: AppIsland [ x = 10, y = 40, width = 140, height = 50, program = { app.which } ],
     b: AppIsland [ x = 10, y = 100, width = 140, height = 50, program = { app.late } ],

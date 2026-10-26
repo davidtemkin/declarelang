@@ -43,7 +43,7 @@ const read = (p) => readFileSync(join(ROOT, p), "utf8");
 export function preludeText() {
   const src = read("compiler/src/scaffold.ts");
   const t = src.split("const PRELUDE = `")[1]?.split(/`;\s*$/m)[0] ?? "";
-  if (!t.includes("interface Draw")) throw new Error("the PRELUDE boundary no longer matches — surfaces.mjs is reading the wrong text");
+  if (!t.includes("interface DrawContext")) throw new Error("the PRELUDE boundary no longer matches — surfaces.mjs is reading the wrong text");
   return t;
 }
 

@@ -182,10 +182,13 @@ and leaves the page's background, scroll, title, URL, and history alone — and
 an untouched page books no animation frames (the host is notified on writes;
 nothing polls). For **several apps on one page**, pass each boot its element
 (`boot({ main, host: element })`); each tenant keeps its own input and asset
-directory. The returned app (also on `element.__declareApp`) is the
-embedder's handle: `observe(() => app.x, cb)` watches state out, `app.env`
-feeds facts in, and replacing `app.hostServices` intercepts `navigate` /
-`openWindow` into your own router. The guide's
+directory. `boot()` resolves to the page's handle on the app (also on
+`element.__declareTenant`), and the page hosts the app in an island's words:
+`boot({ provides })` and `tenant.provide(name, value)` feed values in,
+`tenant.exposed(name, default)` reads what it exposes (watch it with
+`observe(() => tenant.exposed(…), cb)`), `boot({ onPost })` and `tenant.post`
+carry messages, and `boot({ onNavigate })` takes over the app's `navigate` /
+`openWindow` for your own router. The guide's
 [Crossing boundaries](declare-docs:guide:embedding) chapter walks all three
 embedding directions — app-in-page, page-in-app (`DOMIsland`), and
 app-in-app (`AppIsland`).

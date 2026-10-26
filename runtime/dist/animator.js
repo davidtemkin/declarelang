@@ -41,7 +41,7 @@
 // prior owner exactly once and hands it back exactly once.
 import { Node } from "./node.js";
 import { DEFAULT_MOTION } from "./animate.js";
-import { defineAttributes, disposeBindings } from "./attributes.js";
+import { defineAttributes, disposeBindings, ownerOf, setBound } from "./attributes.js";
 import { TweenRun } from "./tween.js";
 import { AnimatorGroup } from "./animator-group.js";
 export class Animator extends Node {
@@ -93,12 +93,29 @@ export class Animator extends Node {
      *  the settled value once at the init hook. A grouped member is driven by
      *  its group (its own `started` is ignored; see AnimatorGroup). */
     $startedChanged(v) {
-        if (!this.autoStarted || this.grouped)
+        if (this.$requesting || !this.autoStarted || this.grouped)
             return;
         if (v)
             this.start();
         else
             this.stop();
+    }
+    /** The verbs keep the request honest: start() writes `started = true` and
+     *  stop() writes false, so `started` reads what was last asked for, however
+     *  it was asked (as a State's apply() writes `applied`). A `{ }` gate that
+     *  owns `started` IS the request — the verbs then move the run and leave the
+     *  gate's value alone. A grouped member's `started` is its group's business. */
+    $requesting = false;
+    $request(v) {
+        if (this.started === v || this.grouped || ownerOf(this, "started") !== null)
+            return;
+        this.$requesting = true;
+        try {
+            setBound(this, "started", v);
+        }
+        finally {
+            this.$requesting = false;
+        }
     }
     /** `paused` is clock membership (TweenRun.paused says how). */
     $pausedChanged(v) {
@@ -112,10 +129,12 @@ export class Animator extends Node {
     /** Begin driving the target slot through the curve (LZX's doStart) — the
      *  timed run, sampled once here (TweenRun.start). A no-op while running. */
     start() {
+        this.$request(true);
         (this.run ??= new TweenRun(this)).start();
     }
     /** Halt in place — no snap to either end (LZX). Idempotent (TweenRun.stop). */
     stop() {
+        this.$request(false);
         this.run?.stop();
     }
     /** Retire with the host view (the teardown recursion reaches us): drop off
@@ -125,7 +144,7 @@ export class Animator extends Node {
      *  stop() that fires onStop cannot re-target through a live binding. */
     $teardown() {
         disposeBindings(this);
-        this.stop();
+        this.run?.stop(); // the run, not the verb: a retiring animator asks nothing
         super.$teardown();
     }
     /** Shift the anchor across a scheduler handover (Ticker.rebase). */

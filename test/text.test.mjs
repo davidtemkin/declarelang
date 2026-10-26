@@ -246,7 +246,7 @@ await test("a constraint that measures text in a Font re-runs when the font's fa
 await test("fillText in a style draws the face as text state for that run, and re-records when its faces land", async () => {
   const app = await boot(`brand: Font [ FontFace [ src = "d.woff2" ] ],
     plate: View [ width = 100, height = 40,
-      draw(d: Draw) { d.fillText("plate", 0, 20, { fontFamily: app.brand, fontSize: 13, smallCaps: true, textColor: 0xff0000, textTransform: "uppercase" }) } ]`);
+      draw(d: DrawContext) { d.fillText("plate", 0, 20, { fontFamily: app.brand, fontSize: 13, smallCaps: true, textColor: 0xff0000, textTransform: "uppercase" }) } ]`);
   app.brand.$start();
   settle();
   const list = record((d) => app.plate.draw(d), () => 100, () => 40);

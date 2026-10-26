@@ -187,7 +187,7 @@ App [ width = 340, height = 200, fill = white, textColor = black,
     level: number = 62,
 
     gauge: View [ x = 20, y = 16, width = 160, height = 92,
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             const frac = app.level / 100
             d.lineWidth = 12
             d.lineCap = "round"
@@ -226,7 +226,7 @@ view paints identically as DOM, on a canvas, or in the native Mac host.
   takes clicks. Draw the part that is genuinely a shape; leave the box to attributes.
 - **`d` is shaped like Canvas2D** — `fillStyle`, `strokeStyle`, `lineWidth`, `beginPath`,
   `moveTo`, `arc`, `bezierCurveTo`, [`fill`](declare-docs:View.fill), [`stroke`](declare-docs:View.stroke), the transforms. `d.w` and `d.h` are
-  the view's size; reading one is what makes the drawing re-record on resize. The `Draw`
+  the view's size; reading one is what makes the drawing re-record on resize. The `DrawContext`
   type in the reference lists the whole surface.
 - **Never animate a drawing's size.** A drawing that reads its size re-records and
   reallocates its backing store every frame an animated size changes. Animate position,
@@ -250,7 +250,7 @@ style Caption [ fontSize = 13, smallCaps = true, letterSpacing = 0.5, textColor 
 
 App [ width = 240, height = 80, fill = white,
     plate: View [ x = 20, y = 20, width = 200, height = 40,
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             const m = measureText("Plate 4", Caption)
             d.fillStyle = 0xE7EBF1
             d.fillRect((d.w - m.width) / 2 - 8, 0, m.width + 16, d.h)
@@ -275,7 +275,7 @@ Author in a **16×16 box**:
 
 ```declare
 class BoltIcon extends Icon [
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         d.scale(unit, unit)
         d.strokeStyle = ink
         d.lineWidth = weight / unit

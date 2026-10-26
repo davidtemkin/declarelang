@@ -166,12 +166,23 @@ controls it holds blocks nothing. And a press waits for its target to hold still
 still moving (a native smooth scroll, a scroll landing a frame late) is pressed where it
 comes to rest, and one that never settles is said.
 
+**A view out of reach is scrolled to as a person scrolls to it.** A press on a view off the
+window, below its pane's fold, or under a bar pinned to the window's foot first swipes —
+a finger on a touch device, the wheel otherwise — through the browser's own gesture
+input, so the page scrolls natively and asynchronously, as it does for a hand. The swipe
+starts where the scroller meant is under the finger (on the page, not on a list inside
+it); after each one the driver waits until the platform says the scroll is over, then
+looks again. A view no swipe brings in is said with what the swipes did. Nothing writes a
+scroll offset or asks the program to scroll. (The platform's own processes, such as the
+user's scroll coming to rest, keep real time; only the program's time is the driver's.)
+
 | call | what it does |
 |---|---|
 | `drive.click(path)`, `drive.drag(path, dx, dy)`, `drive.wheel(path, dy, dx?)` | a press, a drag, a wheel turn on the view, as a person makes them |
 | `drive.press(path, x?, y?)`, `drive.moveBy(dx, dy)`, `drive.release()` | a drag a step at a time: the pointer goes down on the view (at a point inside it, else its centre) and stays down while `moveBy` moves it, so `expect` and pictures can look at the drag in progress — the ghost, the target lit — before `release` drops it |
 | `drive.clickAt(path, x, y)`, `drive.hold(path, ms?)` | a press at a point inside the view (from its top-left); a press held `ms` (default 600) of the program's time, then released — what `onHold` answers |
 | `drive.pinch(path, scale)` | a pinch about the view's centre to `scale`: two fingers on a touch device (`onPinch…` runs), a trackpad pinch otherwise (`onWheel` runs with `e.pinch`) |
+| `drive.reveal(path)` | the view swiped into sight, as above, and nothing pressed — for a picture or a read of something below the fold |
 | `drive.device({ width, height, touch })` | the page becomes that device and the app loads again on it — a phone is `{ width: 390, height: 844, touch: true }` (to start on it, export `device` instead) |
 | `drive.requests()` | the requests the program has sent so far — its data sources and streams, not the page's own files: `{ method, url, path, body, status }` each, the body parsed when it is JSON |
 | `expect.request(method, path, { count?, body? })` | the program sent that request: `path` a prefix or a RegExp, `count` how many times, `body` the fields it must carry — failing, it lists what was sent |
@@ -181,7 +192,7 @@ comes to rest, and one that never settles is said.
 | `drive.wait(ms)` | `ms` of real time, and exactly `ms` of the program's virtual time |
 | `drive.settleMotion(maxMs?)` | motion run to rest, frame by frame; loops that never end (`repeat = { Infinity }`, a `Time`) do not hold it |
 | `drive.settleData()` | the network gone quiet |
-| `expect.attr(path, attr, expected)`, `expect.approx(path, attr, expected, tol?)`, `expect.text(path, contains)` (the view's text, or a row's or card's: all its visible descendants' together), `expect.visible(path)`, `expect.hidden(path)`, `expect.exists(path)`, `expect.count(path, kind, n)`, `expect.equal(a, b)` | assertions: each fails the rung with what it found |
+| `expect.attr(path, attr, expected)`, `expect.approx(path, attr, expected, tol?)`, `expect.text(path, contains)` (the view's text, or a row's or card's: all its visible descendants' together), `expect.visible(path)` (shown: its own `visible` and every view's above it, with a size — failing, it names what hides it), `expect.hidden(path)` (a path that names nothing fails), `expect.exists(path)`, `expect.count(path, kind, n)`, `expect.equal(a, b)` | assertions: each fails the rung with what it found |
 | `expect.explain(path, attr)` | why an attribute holds its value — an assertion about structure, not a number |
 | `expect.traceStart(n?)`, `expect.trace()`, `expect.traceText()` | the runtime's own record of what it did |
 

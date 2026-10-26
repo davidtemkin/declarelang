@@ -67,7 +67,7 @@ schema Line [ id: number, status: string, kind?: "hdr", count?: number,
 // `closedAt` honest so no caller has to. Nothing here knows what the user is
 // looking at: filters, selection and the editor's draft belong to the App.
 
-class Issues extends DataSource [ url = { hostProvided("base", "") + "issues.json" }, auto = true, schema = [ issues[]: Issue ],
+class Issues extends DataSource [ url = { hostProvided("base", "") + "issues.json" }, autoFetch = true, schema = [ issues[]: Issue ],
 
     // workflow order: the chips, the rail and the grouped list all follow it
 

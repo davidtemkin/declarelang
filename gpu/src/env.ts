@@ -204,9 +204,13 @@ g.HTMLInputElement = class extends DeclareElement {};
 g.HTMLTextAreaElement = class extends DeclareElement {};
 g.Node = class {};
 
-// Appearance and pointer coarseness, as the page reports them.
+// Appearance and pointers, as the page reports them: the primary pointer's
+// coarseness, and what the device has at all (any-pointer) — they differ on a
+// touch laptop (fine primary, a touchscreen too) and an iPad with a trackpad.
 let dark = false;
 let coarse = false;
+let anyCoarse = false;
+let anyFine = true;
 const queries = new Set<Target & Record<string, unknown>>();
 const matchMedia = (q: string): unknown => {
   const mq = new Target() as Target & Record<string, unknown>;
@@ -214,6 +218,8 @@ const matchMedia = (q: string): unknown => {
   Object.defineProperty(mq, "matches", {
     get: () => /prefers-color-scheme\s*:\s*dark/.test(q) ? dark
       : /prefers-color-scheme\s*:\s*light/.test(q) ? !dark
+      : /any-pointer\s*:\s*coarse/.test(q) ? anyCoarse
+      : /any-pointer\s*:\s*fine/.test(q) ? anyFine
       : /pointer\s*:\s*coarse/.test(q) ? coarse
       : /pointer\s*:\s*fine/.test(q) ? !coarse : false,
   });
@@ -232,12 +238,14 @@ function ev(type: string, props: Record<string, unknown>): Record<string, unknow
 }
 
 /** The page's state, as the shell reports it. */
-export function setPage(p: { width: number; height: number; dpr: number; dark: boolean; coarse: boolean }): void {
+export function setPage(p: { width: number; height: number; dpr: number; dark: boolean; coarse: boolean; anyCoarse?: boolean; anyFine?: boolean }): void {
   const resized = p.width !== win.innerWidth || p.height !== win.innerHeight || p.dpr !== win.devicePixelRatio;
   win.innerWidth = p.width; win.innerHeight = p.height; win.devicePixelRatio = p.dpr;
   g.innerWidth = p.width; g.innerHeight = p.height; g.devicePixelRatio = p.dpr;
-  const appearance = p.dark !== dark || p.coarse !== coarse;
-  dark = p.dark; coarse = p.coarse;
+  // a page that does not report the any-pointer pair (an older shell) answers as before: the primary one
+  const ac = p.anyCoarse ?? p.coarse, af = p.anyFine ?? !p.coarse;
+  const appearance = p.dark !== dark || p.coarse !== coarse || ac !== anyCoarse || af !== anyFine;
+  dark = p.dark; coarse = p.coarse; anyCoarse = ac; anyFine = af;
   if (resized) win.dispatchEvent(ev("resize", {}));
   if (appearance) for (const mq of queries) mq.dispatchEvent({ type: "change", matches: mq.matches, media: mq.media } as never);
 }

@@ -157,8 +157,8 @@ App's, which on a page that scrolls is as tall as the page.
 ## hostH
 The height of the layer it paints in: its window's, or the browser window's.
 
-## full
-Whether it presents full-screen.
+## _full
+**Internal.** Whether it presents full-screen: `presentation == "full"`, for its own layout.
 
 ## width
 The theme's `dialogWidth` (420), inside its context; the whole width full-screen.
@@ -223,18 +223,18 @@ class Dialog extends Floating [
 
     hostW: number = { this.host != null ? this.host.width : app.hostWidth > 0 ? app.hostWidth : app.width },     // a window's, else the browser window's
     hostH: number = { this.host != null ? this.host.height : app.hostHeight > 0 ? app.hostHeight : app.height },
-    full: boolean = { this.presentation == "full" },
+    _full: boolean = { this.presentation == "full" },
 
-    width = { this.full ? this.hostW : Math.min(this.hostW - 32, provided("theme").dialogWidth) },
-    height = { this.full ? this.hostH : this.col.height },
+    width = { this._full ? this.hostW : Math.min(this.hostW - 32, provided("theme").dialogWidth) },
+    height = { this._full ? this.hostH : this.col.height },
     x = { (this.hostW - this.width) / 2 },
-    y = { this.full ? 0 : Math.max(40, (this.hostH - this.height) / 3) },
+    y = { this._full ? 0 : Math.max(40, (this.hostH - this.height) / 3) },
 
     // motion: it fades in and settles from slightly small; full-screen, it fades
 
     opacity = { this.openT },
-    scale = { this.full ? 1 : this._baseScale * (0.96 + 0.04 * this.openT) },
-    rotation = { this.full ? 0 : this._baseRotation },
+    scale = { this._full ? 1 : this._baseScale * (0.96 + 0.04 * this.openT) },
+    rotation = { this._full ? 0 : this._baseRotation },
     pivotX = { this.width / 2 },
     pivotY = { this.height / 2 },
 
@@ -343,18 +343,18 @@ class Dialog extends Floating [
         x = { -classroot.x }, y = { -classroot.y },
         width = { classroot.hostW }, height = { classroot.hostH },
         fill = { provided("theme").scrimFill },
-        opacity = { (provided("theme").scrimOpacity) * (classroot.full ? 0 : 1) } ],
+        opacity = { (provided("theme").scrimOpacity) * (classroot._full ? 0 : 1) } ],
 
     panel: View [ width = 100%, height = 100%,
-        cornerRadius = { classroot.full ? 0 : provided("theme").dialogCornerRadius ?? provided("theme").menuCornerRadius + 2 },
+        cornerRadius = { classroot._full ? 0 : provided("theme").dialogCornerRadius ?? provided("theme").menuCornerRadius + 2 },
         fill = { provided("theme").surface },
-        stroke = { classroot.full ? null : stroke(1, provided("theme").line) },
-        shadow = { classroot.full ? null : provided("theme").dialogShadow ?? provided("theme").menuShadow } ],
+        stroke = { classroot._full ? null : stroke(1, provided("theme").line) },
+        shadow = { classroot._full ? null : provided("theme").dialogShadow ?? provided("theme").menuShadow } ],
 
     // the 20pt margin is the column's own content box; the fill, the edge and
     // the shadow stay on the panel
 
-    col: View [ width = 100%, padding = { classroot.full ? 0 : 20 },
+    col: View [ width = 100%, padding = { classroot._full ? 0 : 20 },
         layout: SimpleLayout [ axis = y, spacing = 12 ],
 
         ttl: Text [ fontWeight = bold, wrap = true, width = 100%,
@@ -371,7 +371,7 @@ class Dialog extends Floating [
             textColor = { provided("theme").textMuted }, text = { classroot.message } ],
 
         content: View [ width = 100%,
-            height = { classroot.full ? classroot.hostH : this.contentHeight },
+            height = { classroot._full ? classroot.hostH : this.contentHeight },
             layout: SimpleLayout [ axis = y, spacing = 10 ]
             ],
 

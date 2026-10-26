@@ -34,7 +34,7 @@ const CHECKS = [
   { page: "reference/Slider", slot: "run:seg_Slider_0", action: { clickAt: [200, 30] }, expect: { pixels: true } },
   { page: "reference/ProgressBar", slot: "run:ProgressBar", action: { clickAt: [200, 60] }, expect: { pixels: true } },
   { page: "reference/ResponsiveLayout", slot: "run:ResponsiveLayout", action: { clickAt: [40, 20] }, expect: { text: "stack" } },
-  { page: "reference/TooltipLayer", slot: "run:seg_Tooltip_0", action: { hoverAt: [40, 22] }, expect: { text: "Save" } },
+  { page: "reference/Tooltip", slot: "run:seg_Tooltip_0", action: { hoverAt: [40, 22] }, expect: { text: "Save" } },
   { page: "reference/Tooltips", slot: "run:Tooltips", action: { hoverAt: [40, 40] }, expect: { text: "tip requested" } },
   { page: "reference/Keys", slot: "run:seg_Keys_0", action: { key: "ArrowUp" }, expect: { text: "n = 1" } },
   { page: "reference/Combobox", slot: "run:seg_Combobox_0", action: { type: "a" }, expect: { pixels: true } },

@@ -37,10 +37,10 @@ click, so it never also toggles.
 ## _grab
 **Internal.** The thumb's rest x at pointer-down, that the pointer delta is applied to.
 
-## restX()
+## _restX()
 **Internal.** The thumb's x at rest for a value.
 
-## dragX()
+## _dragX()
 **Internal.** The thumb's x under the pointer, held to the track.
 
 ## onPointerDown
@@ -105,8 +105,8 @@ class Switch extends Control [
     dragged: boolean = false,
     _x0: number = 0,
     _grab: number = 0,
-    restX(on: boolean) -> number { return on ? width - thumb.width - 2 : 2 },
-    dragX() -> number { return Math.max(2, Math.min(width - thumb.width - 2, _grab + app.pointerX - _x0)) },
+    _restX(on: boolean) -> number { return on ? width - thumb.width - 2 : 2 },
+    _dragX() -> number { return Math.max(2, Math.min(width - thumb.width - 2, _grab + app.pointerX - _x0)) },
 
     onPointerDown(e: PointerEvent) {
         if (disabled) return
@@ -115,12 +115,12 @@ class Switch extends Control [
         dragging = true
         dragged = false
         _x0 = app.pointerX
-        _grab = restX(checked)
+        _grab = _restX(checked)
         },
     onPointerMove() { if (dragging && Math.abs(app.pointerX - _x0) > 3) dragged = true },
     onPointerUp() {
         if (dragged) {
-            const on = dragX() + thumb.width / 2 > width / 2
+            const on = _dragX() + thumb.width / 2 > width / 2
             if (on != checked) input(on)
             }
         dragging = false
@@ -139,6 +139,6 @@ class Switch extends Control [
         height = { this.width },
         y = center,
         fill = { provided("theme").switchThumbFill ?? provided("theme").surface },
-        slide: Spring [ attribute = x, to = { classroot.dragged ? classroot.dragX() : classroot.restX(classroot.checked) }, stiffness = 300, damping = 26 ]
+        slide: Spring [ attribute = x, to = { classroot.dragged ? classroot._dragX() : classroot._restX(classroot.checked) }, stiffness = 300, damping = 26 ]
         ]
     ]

@@ -442,7 +442,7 @@ class MacSurface {
     onScrollCb = null;
     onScrollXCb = null;
     onScrollingCb = null;
-    /** The host's `scrolling` fact as last reported, and whether a GESTURE
+    /** The host's `userScrolling` fact as last reported, and whether a GESTURE
      *  (a trackpad stream, its momentum, a bar drag) owns the offset right now —
      *  a request during it is dropped (arbitration rule 1). Both arrive per
      *  frame through macScrollFacts; the model never infers them. */
@@ -461,7 +461,7 @@ class MacSurface {
     sink = null;
     /** What the view declared it wants (dbl / hold / touch) — see setInput. */
     wants = undefined;
-    /** Shape clip (path data) and box clip — kept for the HIT walk, which must
+    /** path clip (path data) and box clip — kept for the HIT walk, which must
      *  subtract exactly what the paint does. */
     clipData = null;
     boxClip = false;
@@ -804,7 +804,7 @@ class MacSurface {
     }
     notifyScrollX(x) { this.onScrollXCb?.(x); }
     /** The host's per-frame report lands here (macScrollFacts): the offsets it
-     *  moved, and the `scrolling`/gesture state of its process. */
+     *  moved, and the `userScrolling`/gesture state of its process. */
     hostFacts(y, x, scrolling, gesture, bar = false) {
         this.gestureLive = gesture;
         this.barLive = bar;
@@ -1218,7 +1218,7 @@ class MacSurface {
         emit(OP.EDIT, this.id, {
             multiline: spec.multiline === true, spellcheck: spec.spellcheck !== false && hintsOf(spec.purpose).prose,
             purpose: spec.purpose ?? "text", concealed: spec.concealed === true,
-            enterSubmits: spec.enterSubmits === true,
+            enterSubmits: spec.enterSubmits === true, disabled: spec.disabled === true, // the host applies it after the refactor; the runtime refuses edits meanwhile
             wrap: spec.wrap !== false, padding: insetSides(spec.padding ?? 0),
             value: spec.value ?? "", placeholder: spec.placeholder ?? "",
             // An editable carries its OWN style — the DOM backend styles the element
@@ -1484,7 +1484,7 @@ export function createOverlaySurface() {
 export function rootBox() {
     return macRoot === null ? null : { width: macRoot.width, height: macRoot.height };
 }
-/** Shape-clip point testing. The host owns Core Graphics paths, so it answers
+/** path-clip point testing. The host owns Core Graphics paths, so it answers
  *  — memoized per (path, point) round to keep the hover walk cheap. */
 let pointInPathImpl = null;
 export function provideHitPath(fn) {

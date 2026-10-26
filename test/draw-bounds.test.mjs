@@ -18,7 +18,7 @@ import { existsSync } from "node:fs";
 import puppeteer from "puppeteer-core";
 import { test, summarize } from "./harness.mjs";
 import { createDeclareServer } from "../server/create.mjs";
-import { Draw, replayArea } from "../runtime/dist/draw.js";
+import { DrawContext, replayArea } from "../runtime/dist/draw.js";
 import { launchChrome } from "../tools/internal/chrome.mjs";
 import { settled } from "./settle.mjs";
 
@@ -34,7 +34,7 @@ function findChrome() {
 // ── the pure half: in Node, no browser ──────────────────────────────────
 
 await test("per-op extents ride parallel to ops, null for anything that paints nothing", () => {
-  const d = new Draw(() => 200, () => 100);
+  const d = new DrawContext(() => 200, () => 100);
   d.fillStyle = "#fff";            // state → null
   d.fillRect(10, 10, 20, 30);      // paint → its box
   d.beginPath();                   // path → null
@@ -50,7 +50,7 @@ await test("per-op extents ride parallel to ops, null for anything that paints n
 });
 
 await test("extents follow the recorder's own transform, like bounds do", () => {
-  const d = new Draw(() => 200, () => 100);
+  const d = new DrawContext(() => 200, () => 100);
   d.translate(100, 0);
   d.scale(2, 2);
   d.fillStyle = "#fff";
@@ -61,12 +61,12 @@ await test("extents follow the recorder's own transform, like bounds do", () => 
 });
 
 await test("replayArea sums covered area — overdraw counts, gradients weigh more, a filter is unbounded", () => {
-  const one = new Draw(); one.fillStyle = "#fff"; one.fillRect(0, 0, 10, 10);
-  const two = new Draw(); two.fillStyle = "#fff"; two.fillRect(0, 0, 10, 10); two.fillRect(0, 0, 10, 10);
-  const grad = new Draw();
+  const one = new DrawContext(); one.fillStyle = "#fff"; one.fillRect(0, 0, 10, 10);
+  const two = new DrawContext(); two.fillStyle = "#fff"; two.fillRect(0, 0, 10, 10); two.fillRect(0, 0, 10, 10);
+  const grad = new DrawContext();
   const g = grad.createLinearGradient(0, 0, 10, 0); g.addColorStop(0, "#000"); g.addColorStop(1, "#fff");
   grad.fillStyle = g; grad.fillRect(0, 0, 10, 10);
-  const blur = new Draw(); blur.filter = "blur(4px)"; blur.fillStyle = "#fff"; blur.fillRect(0, 0, 10, 10);
+  const blur = new DrawContext(); blur.filter = "blur(4px)"; blur.fillStyle = "#fff"; blur.fillRect(0, 0, 10, 10);
   assert.equal(replayArea(one.list()), 100);
   assert.equal(replayArea(two.list()), 200, "two identical fills are twice the area — overdraw is what costs");
   assert.equal(replayArea(grad.list()) > replayArea(one.list()), true);
@@ -78,7 +78,7 @@ await test("replayArea sums covered area — overdraw counts, gradients weigh mo
 
 await test("with no measurer at all, text falls back to its anchor rather than throwing", () => {
   // bare Node: no document, so measure.ts cannot create a context
-  const d = new Draw();
+  const d = new DrawContext();
   d.fillStyle = "#fff";
   d.font = "20px sans-serif";
   d.fillText("hello", 30, 40);

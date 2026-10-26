@@ -3,7 +3,7 @@ its tooltip shown, and with `null` when it should hide. The service owns the pla
 conventions — the show delay, instant retarget while showing, hide on press — so a
 listener only renders.
 
-The library's `TooltipLayer` is the one listener most programs ever need, and it arrives
+The library's `Tooltip` is the one listener most programs ever need, and it arrives
 automatically in any app whose views carry tips. Declare your own `Tooltips [ … ]` member only
 when you are replacing that rendition.
 

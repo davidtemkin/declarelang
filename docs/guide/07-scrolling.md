@@ -220,7 +220,7 @@ the true bottom.
 ## Scrolling while the user scrolls
 
 Scrolling is something the platform does, and the user's hand is part of it. The
-fact [`scrolling`](declare-docs:View.scrolling) reports it: it becomes true when the
+fact [`userScrolling`](declare-docs:View.userScrolling) reports it: it becomes true when the
 pane starts moving, and becomes false only when the user's scroll is completely
 over. That means the finger has lifted or the scrollbar thumb has been let go,
 and any momentum afterwards has come to rest. A finger resting on the pane partway
@@ -228,7 +228,7 @@ through a scroll, not moving, is still scrolling.
 
 **Your requests wait for the user.** A `scrollTo`, `scrollBy` or `scrollIntoView`
 made while the user is scrolling isn't carried out straight away. It's kept, and
-carried out when `scrolling` becomes false. If you make another request in the
+carried out when `userScrolling` becomes false. If you make another request in the
 meantime, it replaces the one waiting. Your own glides don't make requests wait: a
 new request replaces a glide in flight.
 
@@ -256,7 +256,7 @@ into the edge. You write nothing: while the pointer rests there, your `onPointer
 the move again every frame at the same root point, so its local `x`/`y` follow the content
 and the dragged thing (or a `viewAt` drop test) keeps up. It stops when the pointer leaves
 the edge, the scroller reaches its end, or the press ends. This scrolling is not the user's
-scroll: `scrolling` stays false, and the dragged view is never the one kept still.
+scroll: `userScrolling` stays false, and the dragged view is never the one kept still.
 
 While it is dragged, a view counts toward the size of what holds it from where it was
 picked up, not from where the hand has taken it, so the range ends at the real content: a

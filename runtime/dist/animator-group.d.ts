@@ -48,6 +48,9 @@ export declare class AnimatorGroup extends Node implements Animatable {
      *  Animator.startedChanged) — the group is the driver, so a change here
      *  starts or stops the whole group, members included. */
     $startedChanged(v: boolean): void;
+    /** The verbs write the request, as an Animator's do (Animator.$request). */
+    private $requesting;
+    private $request;
     /** The group's own pause is clock membership too (see Animator.pausedChanged):
      *  off the clock while paused — members freeze because nothing ticks them —
      *  and on resume every running member's anchor is re-seeded at NOW before the
@@ -64,6 +67,8 @@ export declare class AnimatorGroup extends Node implements Animatable {
     /** Stop the group (LZX stop): halt every still-running member in place, drop
      *  the group ticker, fire onStop. Idempotent. */
     stop(): void;
+    /** Stop the run without touching the request — teardown's path. */
+    private $halt;
     /** Retire with the host view: drop the group ticker + own bindings, then
      *  recurse so each member animator disposes its own bindings too. */
     $teardown(): void;

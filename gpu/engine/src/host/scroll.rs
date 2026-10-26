@@ -85,7 +85,7 @@ impl Host {
         let mut owners: Vec<u32> = Vec::new();
         if dy != 0.0 { if let Some(n) = take(self, true) { self.step(n, true, dy, notch); owners.push(n); } }   // contained: owned even at its limit
         if dx != 0.0 { if let Some(n) = take(self, false) { self.step(n, false, dx, notch); if !owners.contains(&n) { owners.push(n); } } }
-        // a browser's wheel has no phases: `scrolling` rises with the first delta and settles
+        // a browser's wheel has no phases: `userScrolling` rises with the first delta and settles
         // 120 ms after the last (the Mac host's rule for a plain wheel; the timer is the platform's)
         for &n in &owners {
             if !self.nd(n).scrolling_live { self.nm(n).scrolling_live = true; self.fact(n); }

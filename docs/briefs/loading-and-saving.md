@@ -7,7 +7,7 @@
 class TaskRow [ width = 100%, height = 26, t: Text [ x = 8, y = 5, text = :title ] ]
 
 App [ width = 360, height = 300, fill = white,
-    tasks: DataSource [ url = "/api/tasks", auto = true ],
+    tasks: DataSource [ url = "/api/tasks", autoFetch = true ],
     draft: string = "",
     create: DataSource [ url = "/api/tasks", method = "POST",
         body = { { title: app.draft, done: false } },
@@ -28,7 +28,7 @@ App [ width = 360, height = 300, fill = white,
 
 **Rules**
 - Nothing loads until asked: call `fetch()` (in `onInit`, or on an action), or set
-  `auto = true` when the `url` itself is the reactive thing. Forgetting is the silent
+  `autoFetch = true` when the `url` itself is the reactive thing. Forgetting is the silent
   first bug.
 - The host's `fetch` is refused in a `{ }` body. Every request is a `DataSource`,
   a write too (`method = "POST"`, a `body`, `.fetch()` from the handler).
@@ -44,7 +44,7 @@ App [ width = 360, height = 300, fill = white,
   `undefined` three constraints later.
 - Logic about one feed belongs on it: `class Feed extends DataSource [ … onLoad() { … } ]`.
 
-**Look up** `DataSource`, `DataSource.fetch`, `DataSource.auto`, `DataSource.onLoad`,
+**Look up** `DataSource`, `DataSource.fetch`, `DataSource.autoFetch`, `DataSource.onLoad`,
 `DataSource.loaded`, `DataSource.failed`, `DataSource.schema`.
 
 **Examples** `apps/weather/weather.declare`: `data` with `auto` · `apps/marketmap/marketmap.declare`:

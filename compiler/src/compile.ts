@@ -916,7 +916,7 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
 
   // Library-provided singletons ride in by MANIFEST RULE (`$provide` in
   // autoincludes.json): the FocusRing with any Control descendant (OL's
-  // `canvas.focusclass` default, reborn), the TooltipLayer with any `tooltipLabel`
+  // `canvas.focusclass` default, reborn), the Tooltip with any `tooltipLabel`
   // attribute — each suppressed when the author declares that name
   // themselves (the customization path). The trigger vocabulary and the
   // executor live below; the ASSOCIATIONS are the library's data.
@@ -931,7 +931,7 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
     // ── PROVIDED SINGLETONS — data, not code paths ────────────────────────
     // The library manifest's `$provide` rules say when a program has EARNED a
     // library-provided singleton (the FocusRing with any Control descendant;
-    // the TooltipLayer with any `tooltipLabel` attribute). The compiler executes ONE
+    // the Tooltip with any `tooltipLabel` attribute). The compiler executes ONE
     // generic rule over a small trigger vocabulary — `baseUsed` (a declared
     // class descends from the named base) and `attributeUsed` (any element
     // sets the named attribute) — includes the class's own manifest file, and
@@ -980,7 +980,7 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
     // because the lie was written here. Reuse AutoIncludeHost's shape instead.
     const autoHost = host as Partial<Pick<AutoIncludeHost, "autoincludes" | "resolveLibrary">>;
     // A provided class's file is spliced whole, after the include phase — so
-    // the libraries it includes (a TooltipLayer is a Floating) are spliced first,
+    // the libraries it includes (a Tooltip is a Floating) are spliced first,
     // dependency-first and include-once, and its own `include` lines are
     // blanked (same length, so every position stays true). False when the
     // file is missing or already in the program.
@@ -1947,7 +1947,7 @@ class Resolver {
       e.children.some((c) => c.attrs.some((a) => a.name === "datapath"));
     if (levels.some(supplies)) return;
     // The write-back spelling differs by family and the message must name the
-    // one that exists on THIS class: an EditControl (TextInput) delivers through
+    // one that exists on THIS class: a TextInput delivers through
     // the `input` EVENT (`onInput(v: string)`), a Control (Checkbox, Slider,
     // RadioGroup) through the `input` METHOD (`input(v: …)`, Contract 1). Naming
     // the wrong one sends the reader to a member that is legal to declare, never

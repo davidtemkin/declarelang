@@ -1,7 +1,7 @@
-/** The two-way **edit session** — the reusable core an EditControl class owns
- *  (language §9, the leaf-input exception). `TextInput` is the first editor; a
- *  `Picker` or a `DatePopup` reuses the same functions, differing only in how a
- *  user gesture produces a new draft.
+/** The two-way **edit session** — the reusable core a field's draft runs on
+ *  (language §9, the leaf-input exception). `TextInput` is the one built-in
+ *  that holds a draft today; the functions take the draft slot's name, so the
+ *  session is not tied to it.
  *
  *  Two layers of ownership resolve the "who owns the value" question:
  *  - the **dataset** owns the *committed* value — the place a `:datapath` names;
@@ -20,7 +20,7 @@
  */
 import { Constraint } from "./reactive.js";
 import { View, onDiscard, inheritedCursor } from "./view.js";
-import { setBound, defineAttributes } from "./attributes.js";
+import { setBound } from "./attributes.js";
 import { coerceData } from "./data.js";
 import { splitPath } from "./path-plan.js";
 import { compileExpr } from "./expr.js";
@@ -214,34 +214,4 @@ export function revertDraft(view, name) {
     setBound(view, name, committed(view, s));
     refresh(view, name);
 }
-/** @api The base class for an **editor** — a class that edits a value, two-way
- *  through `<->` or as a field the program owns. It owns the edit-session slots (`commitOn` / `error`
- *  / `valid` / `dirty`) and the `commit()` / `revert()` verbs; a subclass only
- *  provides the editing UI and names its **draft slot** (`TextInput` → `text`,
- *  a `Picker` → `value`). Custom controls become editors by extending it. */
-export class EditControl extends View {
-    /** The field's element holds what is typed, the selection and focus. */
-    $eagerSurface() { return true; }
-    /** @api Commit the current draft into the bound dataset field, if it
-     *  validates — for a `commitOn = "manual"` field or a Save button. */
-    commit() {
-        commitDraft(this, this.$draftSlot());
-    }
-    /** @api Discard edits — reset the field to the committed dataset value. */
-    revert() {
-        revertDraft(this, this.$draftSlot());
-    }
-    /** @api Say what is wrong with the draft now, without waiting for the field
-     *  to be left — for a Save or a Pay that checks every field. */
-    judge() {
-        judgeDraft(this, this.$draftSlot());
-    }
-}
-defineAttributes(EditControl, {
-    commitOn: { def: "input" },
-    judgeOn: { def: "edit" },
-    error: { def: "" },
-    valid: { def: true },
-    dirty: { def: false },
-});
 //# sourceMappingURL=editor.js.map

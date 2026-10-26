@@ -484,7 +484,7 @@ class Row extends View [ height = 20, width = 200,
     n: number = { shout(:id) },
     ph: number = 0,
     warm: Spring [ attribute = ph, to = { classroot.n }, stiffness = 60, damping = 10 ],
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const k = shout(:id)
         d.fillStyle = "#446688"
         d.fillRect(0, 0, 10 + k * 4, 12)
@@ -1221,7 +1221,7 @@ class Probe [ width = 200, height = 30,
     seen: number = 0,
     onInit() { seen = app.k },
     mark: View [ width = 10, height = 10,
-        draw(d: Draw) { d.fillStyle = provided("theme").accent == 0 ? "#000" : "#c00"; d.fillRect(0, 0, 10, 10) } ],
+        draw(d: DrawContext) { d.fillStyle = provided("theme").accent == 0 ? "#000" : "#c00"; d.fillRect(0, 0, 10, 10) } ],
     t: Text [ text = { "" + (:label ?? "static") } ],
     dens: Text [ text = { "" + provided("density") } ],
     cr: Text [ text = { "" + classroot.k } ],

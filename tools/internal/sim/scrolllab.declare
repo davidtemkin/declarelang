@@ -1,0 +1,36 @@
+// scrolllab — the iOS cross-check for test/scroll-reach.test.mjs: the same page,
+// driven by real fingers on the simulator (regress.mjs, "scroll" pack), to see
+// that what Chrome's model says about the user's scroll holds in WebKit.
+// The page: a tall block a tap collapses (the page then clamps), a field to type
+// in, a pane inside the page, a bar pinned to the window's foot.
+
+App [
+    open: boolean = true,
+    taps: number = 0,
+    footTaps: number = 0,
+    paneTaps: number = 0,
+    col: View [ width = 390,
+        layout: SimpleLayout [ axis = y, spacing = 12 ],
+        top: Button [ label = "Top", x = 20,
+            onClick() { app.taps = app.taps + 1 }
+            ],
+        name: TextInput [ x = 20, width = 300 ],
+        tall: View [ width = 390, height = { app.open ? 1600 : 0 }, fill = #DDE4EE ],
+        pane: View [ x = 20, width = 350, height = 300, scrolls = y, fill = #EEF1F4,
+            inner: View [ width = 350, height = 900,
+                deep: Button [ label = "Deep", x = 20, y = 800,
+                    onClick() { app.paneTaps = app.paneTaps + 1 }
+                    ]
+                ]
+            ],
+        spacer: View [ width = 390, height = 300 ],
+        collapse: Button [ label = "Collapse", x = 20,
+            onClick() { app.open = false }
+            ],
+        nearFoot: Button [ label = "Near the foot", x = 20,
+            onClick() { app.footTaps = app.footTaps + 1 }
+            ],
+        foot: View [ width = 390, height = 120 ]
+        ],
+    bar: View [ ignoreScroll = true, width = 390, height = 72, y = { app.height - 72 }, fill = #20262E ]
+    ]

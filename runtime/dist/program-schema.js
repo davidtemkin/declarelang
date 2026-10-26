@@ -121,7 +121,7 @@ export function programSchemas(classes, shapes = EMPTY_SHAPES) {
         // attributes and behaviour plus its own declared attributes, constraints
         // and methods; the runtime builds every family through the one class-chain
         // install (instantiate.ts). The single refusal is an ABSTRACT base: a
-        // schema no runtime class implements (Stream, Media, EditControl) has nothing
+        // schema no runtime class implements (Stream, Media) has nothing
         // to construct, so a class extends a concrete member of that family.
         if (ABSTRACT_SCHEMAS.has(decl.base)) {
             errors.push(new DeclareError(`'${decl.base}' is an abstract base — it names no class to construct; extend one of its concrete members (${ABSTRACT_CONCRETE[decl.base] ?? "a built-in that descends from it"})`, decl.basePos));

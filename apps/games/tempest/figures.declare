@@ -21,7 +21,7 @@ pixels whatever the window's size; and `beam`, how the beam looks (beam.declare)
 class Lit [
     traced: Trace[] = { [] },
 
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         const palette = provided("palette") as Record<string, number>
         const px = provided("px") as number
         const beam = provided("beam") as BeamLook

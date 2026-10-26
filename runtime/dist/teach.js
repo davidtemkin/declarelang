@@ -44,7 +44,7 @@ export const CSS_ATTRIBUTE_HINTS = {
     // the wrong moment. (`rotation` graduated from this table 2026-08-06: it IS
     // a View attribute now — compositing.md Part II.)
     rotate: "rotation is the attribute — 'rotation = 45' (degrees, clockwise, about pivotX/pivotY); 'rotateX'/'rotateY' turn a view out of its plane under the parent's 'perspective'; inside a drawing, d.rotate(rad)",
-    transform: "there is no transform list: position is x/y, size is width/height; 'scale', 'scaleX'/'scaleY', 'skewX'/'skewY', 'rotation', 'rotateX'/'rotateY'/'translateZ' transform about pivotX/pivotY (the parent's 'perspective' is the eye), and arbitrary geometry is a 'draw(d: Draw)' member",
+    transform: "there is no transform list: position is x/y, size is width/height; 'scale', 'scaleX'/'scaleY', 'skewX'/'skewY', 'rotation', 'rotateX'/'rotateY'/'translateZ' transform about pivotX/pivotY (the parent's 'perspective' is the eye), and arbitrary geometry is a 'draw(d: DrawContext)' member",
     skew: "a shear is 'skewX = 20' / 'skewY = 20' (degrees, about pivotX/pivotY)",
     backfaceVisibility: "'backface = hidden' hides a view turned past 90° about X or Y",
     scaleX: "per-axis scale is 'scaleX' / 'scaleY' (multiplied with the uniform 'scale')",
@@ -74,6 +74,26 @@ export const CSS_ATTRIBUTE_HINTS = {
     fontStyle: "italics are Text's 'italic = true'",
     objectFit: "image fitting is 'stretches' — 'cover' fills and crops, 'contain' letterboxes",
 };
+/** The MEMBER instincts: names a newcomer reads or calls on a node, from the
+ *  frameworks they arrive from, each with its one true equivalent. Kept to the
+ *  cases where TypeScript's own nearest name would mislead (`scrolling` is
+ *  nearest to `scrolls`, a word list that is always truthy) or where there is
+ *  no near name at all (the DOM's tree verbs). Like the attribute table, it
+ *  keys on what a newcomer brings, never on a former Declare name. */
+export const MEMBER_HINTS = {
+    scrolling: "the user's scroll in progress is 'userScrolling' — true while a finger, wheel, key or scrollbar moves this scroller, through its momentum; your own scrollTo() leaves it false",
+    isScrolling: "the user's scroll in progress is 'userScrolling' — true while a finger, wheel, key or scrollbar moves this scroller, through its momentum; your own scrollTo() leaves it false",
+    isHovered: "the pointer over a view is 'hovered'; a hovering pointer anywhere over the app is app.pointerHovering",
+    isTouchDevice: "a device built for touch (a phone or tablet) is app.touchFirst; any touchscreen at all is app.hasTouch; a mouse or trackpad is app.hasMouse",
+    appendChild: "a view is made in place with createView(tag, props) on its parent, ordered with raise(below), and destroyed with discard(); for a list, declare one child and let the data replicate it",
+    insertBefore: "a view is made in place with createView(tag, props) on its parent and ordered with raise(below); for a list, declare one child and let the data replicate it",
+    removeChild: "a view leaves with discard(); a replicated one leaves when its record does",
+    root: "the top of the tree is 'app', which every body can read; a class's own top is 'classroot'",
+};
+/** The member-instinct hint for a name read on a node, or "". */
+export function memberHint(name) {
+    return Object.hasOwn(MEMBER_HINTS, name) ? MEMBER_HINTS[name] : "";
+}
 /** The CSS-instinct hint for an unknown attribute name, or "" when the miss
  *  isn't a known CSS name. */
 export function cssAttributeHint(name) {

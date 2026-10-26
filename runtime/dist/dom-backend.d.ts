@@ -147,7 +147,7 @@ export declare class DomSurface implements Surface {
     setScale(scale: number, pivotX: number, pivotY: number): void;
     setRotation(deg: number, pivotX: number, pivotY: number): void;
     private applyTransform;
-    /** `imageSmoothing` (backend.ts). CSS's `image-rendering` is INHERITED, so one
+    /** `imageRendering` (backend.ts). CSS's `image-rendering` is INHERITED, so one
      *  declaration here reaches every <img>, tint mask and drawing canvas in the
      *  subtree — the platform's own cascade, as a transform's is. A drawing's
      *  density is this backend's to choose, so the subtree's drawings re-raster:
@@ -177,7 +177,7 @@ export declare class DomSurface implements Surface {
     private maskPainted;
     applyMask(): void;
     setClip(d: string | null): void;
-    /** The Shape clip's path data / lazily-built Path2D (carved-hit testing). */
+    /** The path clip's path data / lazily-built Path2D (carved-hit testing). */
     private clipData;
     private clipObj;
     /** Selection phase 2 (RULED 2026-08-06, David — "the normal web page
@@ -197,7 +197,7 @@ export declare class DomSurface implements Surface {
      *  Local coords unwind a uniform scale (rect vs layout box ratio), then the
      *  Path2D answers with the canvas walk's default nonzero rule. */
     carvedHit(cx: number, cy: number): boolean;
-    /** Whether a point in the view's own frame is inside its Shape clip, for the
+    /** Whether a point in the view's own frame is inside its path clip, for the
      *  hit walk (interaction.ts): the same path the browser clips hits by. */
     insideClip(lx: number, ly: number): boolean;
     /** True when this surface opts out of its parent's box-clip (ignoreClip). */
@@ -347,13 +347,15 @@ export declare class DomSurface implements Surface {
     setRowIndex(i: number | null): void;
     setScroll(on: boolean, onScroll: (y: number) => void, onScrolling?: (active: boolean) => void): void;
     private scrollWatch;
+    private scrollingReport;
+    private syncScrollWatch;
     /** Is the user's scroll of this scroller (or of the page, for the root)
      *  finger-driven right now? (scroll-anchor.ts holds corrections then.) */
     userScrollByTouch(): boolean;
     scrollbarHeld(): boolean;
     private wheelXListener;
     private scrollXListener;
-    setScrollX(on: boolean, onScroll?: (x: number) => void, _onScrolling?: (active: boolean) => void): void;
+    setScrollX(on: boolean, onScroll?: (x: number) => void, onScrolling?: (active: boolean) => void): void;
     get richInlineSlots(): boolean;
     get richBlocks(): boolean;
     richMetrics(): {
@@ -495,7 +497,7 @@ export declare class DomSurface implements Surface {
     private unwatchVisibility;
     destroy(): void;
 }
-/** THE USER'S SCROLL, reported as one fact (`scrolling`): true from the first
+/** THE USER'S SCROLL, reported as one fact (`userScrolling`): true from the first
  *  movement until the scroll is completely over — the finger lifted or the
  *  scrollbar thumb let go, and any momentum after it come to rest. A finger
  *  resting on the pane partway through is still scrolling.

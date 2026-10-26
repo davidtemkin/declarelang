@@ -383,8 +383,8 @@ class DoneCell [ width = 100%, height = 100%,
     Checkbox [ x = center, y = center, label = "", accessibilityLabel = "Done",
         checked = :done, input(v: boolean) { :done = v } ] ]
 
-columns = { [ { id: "title", title: "Title", width: 240, edit: true },
-              { id: "done",  title: "Done",  width: 70,  cell: "DoneCell" } ] }
+DataGrid [ columns = { [ { id: "title", title: "Title", width: 240, edit: true },
+                        { id: "done",  title: "Done",  width: 70,  cell: "DoneCell" } ] } ]
 ```
 
 A record with a `heading` field — `{ id: "g1", heading: "Overdue" }` — is a heading row:

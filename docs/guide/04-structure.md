@@ -197,7 +197,7 @@ filtered, sorted and edited in place, with most of each body left out:
 ```
 schema Issue [ id: number, title: string, status: …, assignee?: string, … ]
 
-class Issues extends DataSource [ url = "issues.json", auto = true, schema = [ issues[]: Issue ],
+class Issues extends DataSource [ url = "issues.json", autoFetch = true, schema = [ issues[]: Issue ],
     statuses: string[] = [ … ],                    // what an issue can be
     statusLabel(s: string) -> string { … },
     all() -> Issue[] { … },

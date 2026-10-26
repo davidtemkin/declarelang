@@ -274,7 +274,7 @@ assert.deepEqual(jumpCompiled.errors, [], "jump fixture compiles clean");
 // THE WHEEL HAS NO END (dom-backend setScroll, 2026-09-12): a momentum wheel
 // stream is a decaying series of events with no terminator, and each event's
 // scroll is followed by `scrollend` in the same task. Keyed to scrollend alone
-// the `scrolling` fact read FALSE for the whole gesture (Murmur run 2: a program
+// the `userScrolling` fact read FALSE for the whole gesture (Murmur run 2: a program
 // yielding to it re-anchored between wheel events and fought the hand). Now
 // wheel activity holds the fact until 160 ms of quiet.
 const WHEEL_RAW = `App [ width = 640, height = 400, fill = #202830,
@@ -1339,45 +1339,45 @@ await test("scrollIntoView in a scrolls=y pane with overrun width moves y only; 
   assert.equal(r.stripLeft, 400, "an x scroller's \"start\" jump still pins the leading edge");
 });
 
-// ── DOM: the `scrolling` fact holds through a momentum wheel stream ─────────
+// ── DOM: the `userScrolling` fact holds through a momentum wheel stream ─────────
 
 await open("/dom-wheel");
 await settled(page);   // the page at rest before timing a wheel stream against its frames
 
-await test("a momentum-shaped wheel stream keeps `scrolling` true until 160 ms of quiet, then false", async () => {
+await test("a momentum-shaped wheel stream keeps `userScrolling` true until 160 ms of quiet, then false", async () => {
   const cdp = await page.createCDPSession();
   const geo = await page.evaluate(() => { const p = window.__app.pane; const r = p.rootBounds(); window.__seen = []; return { x: r.x + r.width / 2, y: r.y + r.height / 2, y0: p.scrollY }; });
   let delta = 60, gap = 16; const during = [];
   for (let i = 0; i < 16; i++) {
     await cdp.send("Input.dispatchMouseEvent", { type: "mouseWheel", x: geo.x, y: geo.y, deltaX: 0, deltaY: -delta });
     await new Promise((r) => setTimeout(r, gap));
-    during.push(await page.evaluate(() => window.__app.pane.scrolling));   // sampled BETWEEN events, where scrollend already fired
+    during.push(await page.evaluate(() => window.__app.pane.userScrolling));   // sampled BETWEEN events, where scrollend already fired
     delta = Math.max(2, delta * 0.85); gap = Math.min(120, gap * 1.15);
   }
   const moved = await page.evaluate(() => window.__app.pane.scrollY);
   assert.ok(moved < geo.y0 - 100, `the wheel moved the pane (${geo.y0} → ${moved})`);
   assert.equal(during.filter(Boolean).length, during.length, `scrolling stayed true between every pair of wheel events (${during.filter(Boolean).length}/${during.length}: ${during.map(Number).join("")})`);
   await new Promise((r) => setTimeout(r, 400));
-  assert.equal(await page.evaluate(() => window.__app.pane.scrolling), false, "and fell false once the stream went quiet");
+  assert.equal(await page.evaluate(() => window.__app.pane.userScrolling), false, "and fell false once the stream went quiet");
   await cdp.detach();
 });
 
 // A finger is down: whatever moves the pane is the user's scroll — a program
 // write landing in the same moment (a correction, a settle) must not claim
 // the stream, or the finger's scroll and its momentum pass for the program's
-// and `scrolling` never comes on (iOS: a windowed list then corrected
+// and `userScrolling` never comes on (iOS: a windowed list then corrected
 // against the flick, every frame).
-await test("under a finger, a program write does not claim the scroll: `scrolling` comes on", async () => {
+await test("under a finger, a program write does not claim the scroll: `userScrolling` comes on", async () => {
   await new Promise((r) => setTimeout(r, 400));
   const r = await page.evaluate(async () => {
     const pane = window.__app.pane, el = pane.$surface.element;
     const touch = (type, n) => el.dispatchEvent(new TouchEvent(type, { touches: n ? [new Touch({ identifier: 1, target: el, clientX: 10, clientY: 10 })] : [], bubbles: true }));
-    const before = pane.scrolling;
+    const before = pane.userScrolling;
     touch("touchstart", 1);
     pane.$surface.scrollToY(Math.max(0, el.scrollTop - 30));   // the program moves it — marks its motion
     el.scrollTop = Math.max(0, el.scrollTop - 50);              // and the finger's scroll arrives
     await new Promise((f) => setTimeout(f, 30));
-    const during = pane.scrolling;
+    const during = pane.userScrolling;
     touch("touchend", 0);
     return { before, during };
   });
@@ -1388,7 +1388,7 @@ await test("under a finger, a program write does not claim the scroll: `scrollin
 // The element a touch began on can leave the page under the finger (a press
 // that changes the screen); its end goes to that element, out of the page, and
 // never reaches the scroller. The scroll still ends when the finger lifts.
-await test("a touch whose element leaves the page under the finger still ends: `scrolling` falls", async () => {
+await test("a touch whose element leaves the page under the finger still ends: `userScrolling` falls", async () => {
   await new Promise((r) => setTimeout(r, 400));
   const r = await page.evaluate(async () => {
     const pane = window.__app.pane, el = pane.$surface.element;
@@ -1397,11 +1397,11 @@ await test("a touch whose element leaves the page under the finger still ends: `
     touch("touchstart", 1);
     el.scrollTop = Math.max(0, el.scrollTop - 50);
     await new Promise((f) => setTimeout(f, 30));
-    const during = pane.scrolling;
+    const during = pane.userScrolling;
     leaf.remove();
     touch("touchend", 0);
     el.dispatchEvent(new Event("scrollend"));
-    return { during, after: pane.scrolling };
+    return { during, after: pane.userScrolling };
   });
   assert.equal(r.during, true, "the finger's scroll is the user's");
   assert.equal(r.after, false, "and over once the finger lifts and the scroll has ended");

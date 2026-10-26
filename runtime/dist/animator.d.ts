@@ -90,6 +90,13 @@ export declare class Animator extends Node implements Animatable {
      *  the settled value once at the init hook. A grouped member is driven by
      *  its group (its own `started` is ignored; see AnimatorGroup). */
     $startedChanged(v: boolean): void;
+    /** The verbs keep the request honest: start() writes `started = true` and
+     *  stop() writes false, so `started` reads what was last asked for, however
+     *  it was asked (as a State's apply() writes `applied`). A `{ }` gate that
+     *  owns `started` IS the request — the verbs then move the run and leave the
+     *  gate's value alone. A grouped member's `started` is its group's business. */
+    private $requesting;
+    private $request;
     /** `paused` is clock membership (TweenRun.paused says how). */
     $pausedChanged(v: boolean): void;
     /** Re-seed the elapsed-time anchor at `now` — a group resuming from its own

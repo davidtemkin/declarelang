@@ -4,14 +4,14 @@
 
 import { DeclareError } from "./errors.js";
 import { fontString, transformText } from "./measure.js";
-import type { Draw, DrawTextStyle } from "./draw.js";
+import type { DrawContext, DrawTextStyle } from "./draw.js";
 
 /** One run drawn in a text style: the style's face, tracking, colour, shadow
  *  and treatments become ORDINARY text state for this run, inside save/restore,
  *  so every renderer replays the recording unchanged. The face is built by the
  *  shared `fontString` — the one a Text measures with — so a Font in the style is
  *  a tracked read, and the drawing records again when its faces land. */
-export function styledRun(d: Draw, style: DrawTextStyle, paint: "fill" | "stroke", text: string, run: (shown: string) => void): void {
+export function styledRun(d: DrawContext, style: DrawTextStyle, paint: "fill" | "stroke", text: string, run: (shown: string) => void): void {
   for (const k of ["textFill", "outline", "underline", "strike"] as const) {
     const v = style[k];
     if (v !== undefined && v !== null && v !== false) {

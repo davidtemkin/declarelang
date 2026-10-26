@@ -97,7 +97,7 @@ App [ width = 960, height = 600, fill = #101820,
         provides = ["hue"],
         hue: number = { app.masterHue },
 
-        onPost(m: IslandPost) { app.log = "tally posted \"" + m.topic + "\" at " + m.payload }
+        onPost(m: IslandMessage) { app.log = "tally posted \"" + m.topic + "\" at " + m.payload }
         ],
 
     orbitLabel: Text [ y = 84, textColor = #6C7683, fontSize = 11,
@@ -117,7 +117,7 @@ App [ width = 960, height = 600, fill = #101820,
 
         dots: number = { app.taps },
 
-        onPost(m: IslandPost) { app.log = "orbit posted \"" + m.topic + "\" with " + m.payload + " dots" }
+        onPost(m: IslandMessage) { app.log = "orbit posted \"" + m.topic + "\" with " + m.payload + " dots" }
         ],
 
     // ── readouts: host constraints DERIVING from tenant-exposed values ──

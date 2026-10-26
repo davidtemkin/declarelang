@@ -48,7 +48,7 @@ class Icon extends View [
     // the art at LIVE size — no reference box; the platform re-rasters at rest
 
     art: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height },
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             d.scale(this.width / 48, this.width / 48)
             const k = classroot.kind
             if (k == "calendar") {
@@ -120,7 +120,7 @@ class Icon extends View [
     // the glossy rim at live size
 
     rim: View [ x = 0, y = 0, width = { parent.width }, height = { parent.height },
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             const w = this.width
             const r = w * 0.23
             const g = d.createLinearGradient(0, 0, 0, w)
@@ -161,7 +161,7 @@ App [ fill = #0B0E12,
     // ── the mesh, at live size ──
 
     mesh: View [ x = 0, y = 0, width = { app.width }, height = { app.height },
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             const W = d.w
             const H = d.h
             const hsl = (h, s, l) => "hsl(" + (((h % 360) + 360) % 360) + "," + s + "%," + l + "%)"
@@ -218,7 +218,7 @@ App [ fill = #0B0E12,
     spinner: View [ x = { app.width / 2 - 70 }, y = { app.height / 2 - 110 }, width = 140, height = 140,
         pivotX = 70, pivotY = 70,
         rotation = { app.spin },
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             const g = d.createConicGradient(0, 70, 70)
             g.addColorStop(0, "#FF5252")
             g.addColorStop(0.34, "#69F0AE")
@@ -248,7 +248,7 @@ App [ fill = #0B0E12,
         pivotX = 80, pivotY = 50,
         scale = { app.zoom },
         cornerRadius = 12, clip = true, fill = #1B2733,
-        draw(d: Draw) {
+        draw(d: DrawContext) {
             d.strokeStyle = "#7FB3FF"
             d.lineWidth = 1
             for (let gx = 0.5; gx < 160; gx = gx + 10) { d.beginPath(); d.moveTo(gx, 0); d.lineTo(gx, 100); d.stroke() }

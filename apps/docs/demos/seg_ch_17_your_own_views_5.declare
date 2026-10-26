@@ -1,5 +1,5 @@
 class BoltIcon extends Icon [
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         d.scale(unit, unit)
         d.strokeStyle = ink
         d.lineWidth = weight / unit

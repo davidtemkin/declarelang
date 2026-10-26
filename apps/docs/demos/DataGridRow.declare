@@ -1,0 +1,12 @@
+// Rows: one per item, made by the grid
+// Each item becomes a DataGridRow holding one cell per column. Click a row to select it; with
+// `selects = "multi"`, Shift and Command extend the selection, and the arrows move it.
+
+App [ width = 420, height = 170,
+    d: Dataset { { "rows": [ { "id": 1, "name": "Ada", "role": "Design" },
+                             { "id": 2, "name": "Lin", "role": "Engineering" },
+                             { "id": 3, "name": "Sam", "role": "Support" } ] } },
+    DataGrid [ x = 20, y = 20, width = 380, height = 120, selects = "multi",
+        items = { app.d.value.rows },
+        columns = { [ { id: "name", title: "Name", width: 160 }, { id: "role", title: "Role", width: 200 } ] } ]
+    ]

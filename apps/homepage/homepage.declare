@@ -582,7 +582,7 @@ class GridBg [
     height = { app.height + 32 },
     y = { Math.max(0, Math.min(Math.floor(app.scrollY / 32) * 32, this.bottom - this.height)) },
 
-    draw(d: Draw) {
+    draw(d: DrawContext) {
         d.fillStyle = provided("theme").grid
         for (let gx = 0; gx <= width;  gx += 32) d.fillRect(gx, 0, 1, height)
         for (let gy = 0; gy <= height; gy += 32) d.fillRect(0, gy, width, 1)
@@ -806,18 +806,18 @@ App [ tagline: string = "a UI language for you and your AI",
     // still the deployed repo’s own material), the getting-started guide, and
     // the FAQ; and stats.json, the app figures, typed by its schema.
 
-    lang: DataSource [ url = "../../docs/declare.md", format = "text", auto = true ],
-    stats: DataSource [ url = "stats.json", auto = true,
+    lang: DataSource [ url = "../../docs/declare.md", format = "text", autoFetch = true ],
+    stats: DataSource [ url = "stats.json", autoFetch = true,
         schema = [ calendar?: AppFigures, tracker?: AppFigures, desktop?: AppFigures ] ],
-    guide: DataSource [ url = "getstarted.md", format = "text", auto = true ],
-    faq: DataSource [ url = "declare-faq.md", format = "text", auto = true ],
+    guide: DataSource [ url = "getstarted.md", format = "text", autoFetch = true ],
+    faq: DataSource [ url = "declare-faq.md", format = "text", autoFetch = true ],
 
     // the Why article and the note that follows it — two documents because they
     // are two registers, and beside this file rather than inside it, like every
     // other piece of prose the site serves
 
-    why: DataSource [ url = "why.md", format = "text", auto = true ],
-    story: DataSource [ url = "why-story.md", format = "text", auto = true ],
+    why: DataSource [ url = "why.md", format = "text", autoFetch = true ],
+    story: DataSource [ url = "why-story.md", format = "text", autoFetch = true ],
 
     // `liveCard`/`liveSource` name the demo an inline editor is republishing
     // and its current text — the host recompiles that pair live (the panels
@@ -1470,12 +1470,12 @@ App [ tagline: string = "a UI language for you and your AI",
 
         pointerEvents = "none",
 
-        // Only for a HOVERING pointer (mouse / trackpad) — `app.hovering` is false
+        // Only for a HOVERING pointer (mouse / trackpad) — `app.pointerHovering` is false
         // for touch, so the dot never appears on a phone, yet an iPad trackpad
         // (which reports a "mouse" pointer) still gets it. Also yields to the
         // native I-beam when the pointer is over an editable field.
 
-        visible = { app.hovering && !app.pointerOverText },
+        visible = { app.pointerHovering && !app.pointerOverText },
         followX: Spring [ attribute = x, to = { app.pointerX - 5 },
             stiffness = 120, damping = 14, mass = 0.6, epsilon = 0.05 ],
         followY: Spring [ attribute = y, to = { app.pointerY - 5 },

@@ -38,6 +38,7 @@ export { provideTransport, setAppDataBase } from "./data.js";
 export { provideAssetBase, setAppAssetBase, assetBaseFor, provideUrlMap, mapUrl } from "./asset-base.js";
 export { onIslandSlot } from "./backend.js";
 export { islandProvisions, linkIslandTenant, islandNavigation } from "./island.js";
+export { navigationOf } from "./navigation.js";
 export { fontsReady } from "./font-value.js";
 export { hydrateProgram } from "./hydrate.js";
 export { scrollPlaces, holdScrollPlaces, dropScrollPlaces } from "./scroll-places.js";

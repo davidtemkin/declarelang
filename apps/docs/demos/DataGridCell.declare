@@ -1,0 +1,19 @@
+// A cell of your own
+// `cell` names a class of the app's own, drawn in each of the column's rows inside a
+// DataGridCell and bound to that row's record — so `:done` in it is the row's `done`.
+
+class DoneCell [ width = 100%, height = 100%,
+    Checkbox [ x = center, y = center, label = "", accessibilityLabel = "Done",
+        checked = :done,
+        input(v: boolean) { :done = v }
+        ]
+    ]
+
+
+App [ width = 420, height = 160,
+    d: Dataset { { "rows": [ { "id": 1, "task": "Review the draft", "done": false },
+                             { "id": 2, "task": "Send it out", "done": true } ] } },
+    DataGrid [ x = 20, y = 20, width = 380, height = 120,
+        items = { app.d.value.rows },
+        columns = { [ { id: "task", title: "Task", width: 280 }, { id: "done", title: "Done", width: 70, cell: "DoneCell" } ] } ]
+    ]

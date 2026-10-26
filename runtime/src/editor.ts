@@ -1,7 +1,7 @@
-/** The two-way **edit session** — the reusable core an EditControl class owns
- *  (language §9, the leaf-input exception). `TextInput` is the first editor; a
- *  `Picker` or a `DatePopup` reuses the same functions, differing only in how a
- *  user gesture produces a new draft.
+/** The two-way **edit session** — the reusable core a field's draft runs on
+ *  (language §9, the leaf-input exception). `TextInput` is the one built-in
+ *  that holds a draft today; the functions take the draft slot's name, so the
+ *  session is not tied to it.
  *
  *  Two layers of ownership resolve the "who owns the value" question:
  *  - the **dataset** owns the *committed* value — the place a `:datapath` names;
@@ -21,7 +21,7 @@
 
 import { Constraint } from "./reactive.js";
 import { View, onDiscard, inheritedCursor } from "./view.js";
-import { setBound, defineAttributes } from "./attributes.js";
+import { setBound } from "./attributes.js";
 import { coerceData } from "./data.js";
 import { splitPath } from "./path-plan.js";
 import type { ShapeField } from "./data-schema.js";
@@ -235,52 +235,3 @@ export function revertDraft(view: View, name: string): void {
   refresh(view, name);
 }
 
-/** @api The base class for an **editor** — a class that edits a value, two-way
- *  through `<->` or as a field the program owns. It owns the edit-session slots (`commitOn` / `error`
- *  / `valid` / `dirty`) and the `commit()` / `revert()` verbs; a subclass only
- *  provides the editing UI and names its **draft slot** (`TextInput` → `text`,
- *  a `Picker` → `value`). Custom controls become editors by extending it. */
-export abstract class EditControl extends View {
-  /** The field's element holds what is typed, the selection and focus. */
-  protected override $eagerSurface(): boolean { return true; }
-  /** "input" (live) | "blur" | "enter" | "manual" — when a valid draft commits. */
-  declare commitOn: string;
-  /** "edit" | "leave" — when `error` first says what is wrong: at every edit,
-   *  or once the field has been left (or judge() asked). `valid` is true to
-   *  the draft either way. */
-  declare judgeOn: string;
-  /** The current validation message, "" when valid (reactive). */
-  declare error: string;
-  /** Does the draft pass validate()? (reactive) */
-  declare valid: boolean;
-  /** Does the draft differ from the committed value? (reactive) */
-  declare dirty: boolean;
-
-  /** The slot holding the draft (the editable value) — the one `<->` binds. */
-  protected abstract $draftSlot(): string;
-
-  /** @api Commit the current draft into the bound dataset field, if it
-   *  validates — for a `commitOn = "manual"` field or a Save button. */
-  commit(): void {
-    commitDraft(this, this.$draftSlot());
-  }
-
-  /** @api Discard edits — reset the field to the committed dataset value. */
-  revert(): void {
-    revertDraft(this, this.$draftSlot());
-  }
-
-  /** @api Say what is wrong with the draft now, without waiting for the field
-   *  to be left — for a Save or a Pay that checks every field. */
-  judge(): void {
-    judgeDraft(this, this.$draftSlot());
-  }
-}
-
-defineAttributes(EditControl, {
-  commitOn: { def: "input" },
-  judgeOn: { def: "edit" },
-  error: { def: "" },
-  valid: { def: true },
-  dirty: { def: false },
-});

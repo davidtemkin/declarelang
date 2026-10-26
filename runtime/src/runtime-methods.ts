@@ -23,7 +23,7 @@ import { SCHEMAS, RichTextSchema, type ClassSchema } from "./schema.js";
 export const RUNTIME_METHODS: Readonly<Record<string, readonly string[]>> = {
   Node: ["discard"],
   View: ["contentBox", "bounds", "footprint", "tabDefault", "viewAt", "containsPoint", "rootBounds", "rootTransform", "transformTo", "rootOrigin", "scrollIntoView", "scrollTo", "scrollToX", "scrollBy", "createView", "raise", "onKeyDown"],
-  App: ["postToHost", "navigate", "destinationOf", "followLink", "inspect", "openWindow", "reveal", "provideHostValue", "exposed", "watchExposed"],
+  App: ["postToHost", "navigate", "destinationOf", "followLink", "inspect", "openWindow", "reveal"],
   Text: [],
   Image: [],
   Media: ["play"],
@@ -33,8 +33,7 @@ export const RUNTIME_METHODS: Readonly<Record<string, readonly string[]>> = {
   // (islands.md): the provides list going down, the exposed values coming up,
   // and the verbs both ways — so they are listed on the concrete island.
   DOMIsland: ["exposed", "post"],
-  EditControl: ["commit", "revert", "judge"],
-  TextInput: ["select"],
+  TextInput: ["commit", "revert", "judge", "select"],
   RichText: [],
   Markdown: [],
   HTMLText: [],

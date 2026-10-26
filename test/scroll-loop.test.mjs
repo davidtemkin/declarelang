@@ -2,7 +2,7 @@
 // scroll process", ruled 2026-09-10). An interior scrolling pane on canvas has
 // no platform scroller — the runtime IS the process. These pin its contract:
 //   • a wheel delta is applied NEXT FRAME, painted, then reported as the fact;
-//     `scrolling` rises with the stream and settles after it goes quiet
+//     `userScrolling` rises with the stream and settles after it goes quiet
 //   • a request with a glide tweens on the loop and lands exactly on target
 //   • a touch drag follows the finger, momentum continues after the lift, and
 //     the FACT never leaves the range even while the visual rubber-bands
@@ -78,12 +78,12 @@ const frames = (n) => page.evaluate((k) => new Promise((r) => {
   const tick = () => (k-- > 0 ? requestAnimationFrame(tick) : r());
   requestAnimationFrame(tick);
 }), n);
-const facts = () => page.evaluate(() => ({ y: Math.round(window.__app.pane.scrollY), scrolling: window.__app.pane.scrolling }));
+const facts = () => page.evaluate(() => ({ y: Math.round(window.__app.pane.scrollY), scrolling: window.__app.pane.userScrolling }));
 const wheel = (dy, x = 200, y = 200) => page.evaluate(([dy, x, y]) => {
   const c = document.querySelector("canvas");
   return !c.dispatchEvent(new WheelEvent("wheel", { deltaX: 0, deltaY: dy, clientX: x, clientY: y, bubbles: true, cancelable: true }));
 }, [dy, x, y]);
-const settled = () => page.waitForFunction(() => window.__app.pane.scrolling === false, { timeout: 5000 });
+const settled = () => page.waitForFunction(() => window.__app.pane.userScrolling === false, { timeout: 5000 });
 
 await test("canvas: a wheel delta lands on the NEXT frame — consumed at once, the fact after the paint", async () => {
   // consumed and the fact read in ONE evaluate — a round trip spans a frame
@@ -97,7 +97,7 @@ await test("canvas: a wheel delta lands on the NEXT frame — consumed at once, 
   await frames(2);
   const after = await facts();
   assert.equal(after.y, 120, "one frame later the fact carries the delta");
-  assert.equal(after.scrolling, true, "`scrolling` is up while the wheel stream lives");
+  assert.equal(after.scrolling, true, "`userScrolling` is up while the wheel stream lives");
   await settled();
   assert.equal((await facts()).y, 120, "settling changes nothing");
 });
@@ -125,7 +125,7 @@ await test("canvas: a request with a glide tweens on the loop and lands exactly 
   await frames(3);
   const mid = await facts();
   assert.ok(mid.y < 1700 && mid.y > 400, `mid-glide the offset is between (got ${mid.y})`);
-  assert.equal(mid.scrolling, false, "a glide is the program's motion: `scrolling` (the user's scroll) stays down");
+  assert.equal(mid.scrolling, false, "a glide is the program's motion: `userScrolling` (the user's scroll) stays down");
   await page.waitForFunction(() => window.__app.pane.scrollY === 400, { timeout: 5000 });
   assert.equal((await facts()).y, 400, "the glide ends on its target");
 });
@@ -180,7 +180,7 @@ await test("canvas: a request during a touch session is dropped — the gesture 
   await settled();
 });
 
-await test("canvas: a tap scrolls nothing and leaves `scrolling` down", async () => {
+await test("canvas: a tap scrolls nothing and leaves `userScrolling` down", async () => {
   const t0 = await page.evaluate(() => performance.now());
   const before = await facts();
   await touch("touchstart", 200, 300, t0);

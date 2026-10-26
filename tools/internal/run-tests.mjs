@@ -97,6 +97,7 @@ const SUITE = [
   "test/safearea.test.mjs",
   "test/gesture.test.mjs",
   "test/scroll-loop.test.mjs",     // the runtime scroll provider on canvas: wheel batching, glides, touch physics, arbitration
+  "test/scroll-reach.test.mjs",   // `userScrolling` is the user's hand; the driver reaches views by swiping (native, async)
   "test/history.test.mjs",
   "test/embed.test.mjs",
   "test/dep-typed.test.mjs",

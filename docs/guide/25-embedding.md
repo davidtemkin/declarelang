@@ -64,26 +64,34 @@ its own asset directory, none with any page-scoped wiring:
 
 <script type="module">
   import boot from "/declare/bundles/declare-boot.js";
-  const a = await boot({ main: "/apps/birds/birds.declare",   host: document.getElementById("a") });
-  await     boot({ main: "/apps/weather/weather.declare",     host: document.getElementById("b") });
-  a.env = { base: "/apps/birds/" };     // the env channel: host → app facts, live
+  const birds = await boot({ main: "/apps/birds/birds.declare", host: document.getElementById("a"),
+    provides: { base: "/apps/birds/" } });                 // read in the app with hostProvided("base", "")
+  await boot({ main: "/apps/weather/weather.declare", host: document.getElementById("b") });
 </script>
 ```
 
 The tenancy contract is structural: an embedded app's [`appName`](declare-docs:App.appName) never retitles the page,
 its [`location`](declare-docs:App.location) moves neither the URL nor the page's history, and an untouched
 page books **zero animation frames** — the host is notified when an app
-writes; nothing polls. `boot()` returns the app, and the host element carries
-it too (`el.__declareApp`), which is the embedder's way in:
+writes; nothing polls.
 
-- **watch state out** — `observe(() => app.total, v => …)` (a runtime export)
-  runs your callback once per settle in which the value changed;
-- **feed values in** — pass `boot({ provides: {…} })`, or call [`app.provideHostValue(name, value)`](declare-docs:App.method.provideHostValue)
-  any time later, and everything reading it with `hostProvided` re-derives (below); the
-  page-visibility fact ([`app.pageVisible`](declare-docs:App.pageVisible)) arrives on its own;
-- **intercept the verbs** — replace the app's service table
-  (`app.hostServices = { navigate: to => router.push(to) }`) and a link
-  inside the widget routes through your SPA router instead of the browser.
+**The page is a host, in an island's words.** `boot()` resolves to the page's handle on
+the app — call it the tenant — and the host element carries it too (`el.__declareTenant`):
+
+- **values in** — `boot({ provides: {…} })`, then `tenant.provide(name, value)` any time
+  later; everything reading it with `hostProvided` re-derives (below), and `undefined`
+  withdraws it. The page-visibility fact ([`app.pageVisible`](declare-docs:App.pageVisible)) arrives on its own;
+- **values out** — `tenant.exposed(name, default)` reads one the App lists in
+  [`exposes`](declare-docs:App.exposes), and `observe(() => tenant.exposed("total", 0), v => …)`
+  (a runtime export) runs your callback once per settle in which it changed;
+- **messages both ways** — `boot({ onPost: ({ topic, payload }) => … })` hears the app's
+  [`postToHost`](declare-docs:App.method.postToHost), and `tenant.post(topic, payload)` arrives as its
+  [`onHostMessage`](declare-docs:App.event.hostMessage);
+- **navigation** — `boot({ onNavigate: ({ to, newWindow }) => router.push(to) })` carries
+  out every link the app follows out and every window it opens, synchronously inside the
+  click (so it may open a window itself); without it, the browser does.
+
+`tenant.app` is the App itself, for reading and writing its attributes directly.
 
 **A page with a strict Content-Security-Policy.** Two things a Declare app does
 fall under a policy that forbids `eval`. Compiling in the browser turns the program's
@@ -203,7 +211,7 @@ provide. The tenant reads one with `hostProvided(name, default)`.
 player: AppIsland [ program = "player",
     provides = ["volume"],
     volume: number = { app.masterVolume },            // offered down: the tenant follows it
-    onPost(m: IslandPost) { app.log(m.topic) }        // the tenant's messages arrive here
+    onPost(m: IslandMessage) { app.log(m.topic) }        // the tenant's messages arrive here
     ],
 scrubber: View [ x = { app.player.exposed("pos", 0) * trackWidth } ]   // full machinery over what it exposes
 ```
@@ -215,7 +223,7 @@ list of what it offers back:
 App [ exposes = ["pos"],
     volume: number = { hostProvided("volume", 0) },   // the host's value; 0 when nothing hosts it
     pos: number = 3,                                   // this app writes it; the host reads it
-    onHostMessage(m: IslandPost) { app.pos = app.pos + 1; app.postToHost("ack", m.topic) },
+    onHostMessage(m: IslandMessage) { app.pos = app.pos + 1; app.postToHost("ack", m.topic) },
     ]
 ```
 
@@ -235,7 +243,7 @@ host can hand it any address to read. A tenant that reads its *own* data asks
 where home is, and falls back to beside itself when it runs alone:
 
 ```declare-fragment
-data: DataSource [ auto = true, url = { hostProvided("base", "") + "data/events.json" } ]
+data: DataSource [ autoFetch = true, url = { hostProvided("base", "") + "data/events.json" } ]
 ```
 
 That is how the desktop's Calendar, Birds, and Market Map find their data,
@@ -254,12 +262,12 @@ view is an identity in one program's graph and cannot cross.
 **The page is the topmost host.** A top-level app reads what its *page*
 provides with the same `hostProvided`: pass `boot({ …, provides: { dark: true } })`,
 put JSON on the element (`<div data-declare-embed data-declare-provide='{"dark":true}'>`),
-or call `el.__declareApp.provideHostValue("dark", false)` any time later. Reading back
-out is [`app.exposed(name)`](declare-docs:App.method.exposed) and [`app.watchExposed(name, cb)`](declare-docs:App.method.watchExposed), over the names
-the App's `exposes` lists.
+or call `tenant.provide("dark", false)` any time later. Reading back out is
+`tenant.exposed(name, default)`, over the names the App's `exposes` lists.
 
-**Foreign tenants speak the same words.** A raw-JS tenant in a `DOMIsland`
-reaches the boundary through the island element's one sanctioned handle:
+**Foreign tenants reach the same boundary.** A raw-JS tenant in a `DOMIsland`
+reaches it through the island element's one sanctioned handle, whose verbs keep
+the island's own names (`post`, `onPost`):
 
 ```js
 const h = box.__declareIsland;         // the island's element, after mount
@@ -271,8 +279,8 @@ h.post("clicked", id);                 // → the island's onPost
 h.onPost(m => { … });                  // ← the island's post()
 ```
 
-Three handles are sanctioned, and only three: `el.__declareApp` (the app an
-embedding page booted into this element), `el.__declareIsland` (the foreign
+Three handles are sanctioned, and only three: `el.__declareTenant` (the page's handle
+on the app it booted into this element, which `boot()` also returns), `el.__declareIsland` (the foreign
 tenant's handle, above), and `__childApp` on an island's element — or, on
 canvas, its view — (the Declare tenant an island mounted). Everything else a
 backend or host plants is internal and may vanish without notice. None of
@@ -378,7 +386,7 @@ the slot, provide what the app knows, and let the loader act on it.
 signin: DOMIsland [ slot = "auth", width = 320, height = 420,
     provides = ["wanted"],
     wanted: boolean = { app.destinationOf(app.location) == "signin" },
-    onPost(m: IslandPost) { app.signedIn = true }
+    onPost(m: IslandMessage) { app.signedIn = true }
     ]
 ```
 

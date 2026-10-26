@@ -79,7 +79,7 @@ export function provideInlineViewHost(fn: (root: Node) => InlineViewHost | null)
 export function inlineViewHost(v: View): InlineViewHost | null {
   return inlineHost === null ? null : inlineHost(v.$root);
 }
-import { record, type Draw, type DisplayList } from "./draw.js";
+import { record, type DrawContext, type DisplayList } from "./draw.js";
 import { sharedClock } from "./animate.js";
 import { Cell, Constraint, afterSettle, isSettling, kernel, kernelLoaded, noteOrigin } from "./reactive.js";
 import { setChangeDispatcher, trackNode } from "./change-event.js";
@@ -90,7 +90,6 @@ import { noteContentRead } from "./size-probe.js";
 import { initInteraction, noteUserScroll, readHovered, readPressed, hitAt, boxContains, rootFrameOrigin, rootFrameBox, rootTransform, rootToLocal, transformBetween, type InteractionView } from "./interaction.js";
 import { bindDerived, blockOf, defineAttributes, disposeBindings, freeCells, isSet, localProvision, own, ownerOf, percentOwned, release, setBound, slotCellOf, slotIndex } from "./attributes.js";
 import { type AttrType } from "./value.js";
-import { observe } from "./reactive.js";
 import { hostValuesFor, type BoundaryValues } from "./boundary.js";
 import { armVisibility, reattachVisibility, retireVisibility } from "./visibility.js";
 import { judgeNegativeSizes, noteNegativeSize } from "./size-report.js";
@@ -594,7 +593,7 @@ export class View extends Node {
    *  drawing's pixels being one to each unit of the view, so pixel art stays
    *  sharp under any scale above it. The whole subtree follows, as it follows
    *  a transform; paint only — hit testing and focus never change. */
-  declare imageSmoothing: "smooth" | "pixelated";
+  declare imageRendering: "smooth" | "pixelated";
   /** The frost (`frost(radius, saturation?)`; null = none): what has already
    *  painted beneath this view, sampled through a blur within the view's own
    *  painted shape — the view's `fill` then paints OVER the frosted sample,
@@ -646,7 +645,7 @@ export class View extends Node {
   declare claim: "both" | "x" | "y";
   /** The tooltip text (planes.md tier 1 — one attribute at the use site). A
    *  non-empty tip wires this view's hover into the Tooltips service; the
-   *  auto-included TooltipLayer singleton renders it. "" = no tip. */
+   *  auto-included Tooltip singleton renders it. "" = no tip. */
   declare tooltipLabel: string;
   declare defaultPlacement: string;
   declare scrollY: number;
@@ -658,7 +657,7 @@ export class View extends Node {
   declare $shownX?: number;
   declare scrollStartY: number;
   declare scrollStartX: number;
-  declare scrolling: boolean;
+  declare userScrolling: boolean;
   declare scrollAnchor: string;
   /** A scrolling view that draws no scrollbars, on either axis (default false); it scrolls
    *  the same. */
@@ -735,7 +734,7 @@ export class View extends Node {
    *  something provides a draw — which is also what lets the language's
    *  `draw(d) { … }` member install here through the ordinary method path
    *  (instantiate's built-in-member guard sees an absent slot). */
-  declare draw?: (d: Draw) => void;
+  declare draw?: (d: DrawContext) => void;
 
   /** The enclosing class instance — the node this view was *written* inside
    *  (a named class's root, or the App root, whose whole tree is the
@@ -1504,7 +1503,7 @@ export class View extends Node {
         || this.scaleX !== 1 || this.scaleY !== 1 || this.skewX !== 0 || this.skewY !== 0 || this.$is3D()) pushTransform(this);
     if (this.perspective !== 0) s.setPerspective?.(this.perspective);
     if (this.blend !== "normal") s.setBlend?.(this.blend);
-    if (this.imageSmoothing !== "smooth") s.setScaling?.(this.imageSmoothing);
+    if (this.imageRendering !== "smooth") s.setScaling?.(this.imageRendering);
     if (this.backdrop !== null) s.setBackdrop?.(nullIfEmpty(filterList(this.backdrop)));
     if (this.filter !== null) s.setFilter?.(nullIfEmpty(filterList(this.filter)));
     if (this.mask !== null) this.$applyMask(this.mask);
@@ -1723,7 +1722,7 @@ export class View extends Node {
 
   /** @internal The platform reported the user's scroll starting or ending. */
   $scrollingChanged(a: boolean): void {
-    this.scrolling = a;
+    this.userScrolling = a;
     noteUserScroll(this, a);
     if (a) dropWaitingScroll(this);
     if (!a && this.$pendingScroll !== null) { const f = this.$pendingScroll; this.$pendingScroll = null; f(); }
@@ -1742,7 +1741,7 @@ export class View extends Node {
    *  deliberately unconditional — an equality-gated model write must not
    *  swallow the request (the boot-time trap applyDeclaredScroll records). */
   scrollTo(y: number | { x?: number; y?: number }, glide?: { duration?: number; motion?: string }): void {
-    if (this.scrolling) { this.$pendingScroll = () => this.scrollTo(y, glide); return; }   // the user's hand first
+    if (this.userScrolling) { this.$pendingScroll = () => this.scrollTo(y, glide); return; }   // the user's hand first
     // BOTH AXES AT ONCE — `scrollTo({ x, y })`: one request, so a request
     // waiting on the user's hand holds both, not only whichever came last
     if (typeof y === "object") {
@@ -1758,7 +1757,7 @@ export class View extends Node {
   /** The horizontal twin of `scrollTo` — same request/clamp/hold contract,
    *  for a `scrolls = x` (or `both`) view. */
   scrollToX(x: number, glide?: { duration?: number; motion?: string }): void {
-    if (this.scrolling) { this.$pendingScroll = () => this.scrollToX(x, glide); return; }
+    if (this.userScrolling) { this.$pendingScroll = () => this.scrollToX(x, glide); return; }
     if (Number.isFinite(x) && glide === undefined) this.scrollX = x;
     this.$surface?.scrollToX?.(x, glide);
   }
@@ -2139,7 +2138,7 @@ defineAttributes(View, {
   // optional-chained (the ignoreScroll pattern): backends adopt independently,
   // and the seam table (test/seam.test.mjs) says which have.
   blend: { def: "normal", push: (v, b: string) => v.$surface?.setBlend?.(b) },
-  imageSmoothing: { def: "smooth", push: (v, m: string) => v.$surface?.setScaling?.(m) },
+  imageRendering: { def: "smooth", push: (v, m: string) => v.$surface?.setScaling?.(m) },
   backdrop: { def: null, push: (v, b: FilterValue) => v.$surface?.setBackdrop?.(nullIfEmpty(filterList(b))), equal: backdropEqual },
   filter: { def: null, push: (v, f: FilterValue) => v.$surface?.setFilter?.(nullIfEmpty(filterList(f))), equal: filtersEqual },
   mask: { def: null, push: (v, m: Mask | null) => v.$applyMask(m) },
@@ -2230,7 +2229,7 @@ defineAttributes(View, {
   // in-motion fact — read-only, fed by the platform
   scrollStartY: { def: 0 },
   scrollStartX: { def: 0 },
-  scrolling: { def: false },
+  userScrolling: { def: false },
   scrollAnchor: { def: "content" },
   hideScrollbars: { def: false, push: (v, b: boolean) => v.$surface?.setScrollbar?.(!b) },
   // The text face / rich-text / iconSize / theme values are provided, not View
@@ -2524,7 +2523,7 @@ export class App extends View {
   declare scrollY: number;
   declare pointerX: number;
   declare pointerY: number;
-  declare hovering: boolean;
+  declare pointerHovering: boolean;
   /** True while a pointer (mouse button or touch) is down anywhere in the app —
    *  the press half of the interaction intrinsics (interaction.ts); fed at mount
    *  like the pointer coordinates. Read-only to user code. */
@@ -2550,22 +2549,22 @@ export class App extends View {
    *  page books nothing. Read-only to user code; schema.ts has the caveats
    *  (Safari does not report window occlusion). */
   declare pageVisible: boolean;
-  /** "Am I running on a touch device?" — true when the device's primary pointer
-   *  is coarse (`pointer: coarse`), a phone or tablet. A stable device fact fed
-   *  live by the runtime, distinct from the transient `hovering`: switch mouse-only
-   *  affordances off with `visible = { !app.touchDevice }`. Read-only to user code. */
-  declare touchDevice: boolean;
+  /** "Is this device built for touch?" — true when the device's primary pointer
+   *  is coarse (`pointer: coarse`): a phone or tablet, keyboard or not. A stable device fact fed
+   *  live by the runtime, to size from; a hover reveal keys on `lastPointerType`, and
+   *  what follows the pointer on `pointerHovering`. Read-only to user code. */
+  declare touchFirst: boolean;
 
   /** Does this device HAVE a touch digitizer at all (`any-pointer: coarse`)?
    *  True on a phone, a tablet, AND a touch laptop whose primary pointer is a
-   *  trackpad — the case `touchDevice` deliberately answers false. Use it for a
+   *  trackpad — the case `touchFirst` deliberately answers false. Use it for a
    *  hit-target floor (a finger may still arrive), not to switch layout.
    *  Read-only to user code. */
   declare hasTouch: boolean;
 
-  /** Does this device have a FINE pointer (`any-pointer: fine`) — a mouse,
-   *  trackpad, or stylus? Read-only to user code. */
-  declare hasPointer: boolean;
+  /** Does this device have a mouse, trackpad, or stylus at all (`any-pointer:
+   *  fine`)? Both this and `hasTouch` can be true. Read-only to user code. */
+  declare hasMouse: boolean;
 
   /** What the user JUST used: "mouse" | "touch" | "pen", updated live on every
    *  move and press. The honest signal on a hybrid device, where the answer
@@ -2650,12 +2649,19 @@ export class App extends View {
    *  where this program's tree joins its host's, for focus and the keyboard. */
   $hostIsland: View | null = null;
 
+  /** @internal A message from this app's host — an island's `post`, or the
+   *  embedding page's `tenant.post` — delivered as onHostMessage({ topic, payload }). */
+  $receiveHostMessage(topic: string, payload: unknown): void {
+    fireEvent(this, "hostMessage", { topic, payload });
+  }
+
   /** postToHost(topic, payload) — the tenant's message VERB, this app → its host
-   *  island's onPost. The other half of the bridge from the facts: consumed
-   *  once, ordered, never re-readable — for "do this", not "this is so"
-   *  (islands design; the state channel is the `external` attributes). */
+   *  (an island's onPost, or an embedding page's boot({ onPost })). The other half
+   *  of the bridge from the facts: consumed once, ordered, never re-readable — for
+   *  "do this", not "this is so" (islands design; the state channel is the
+   *  `external` attributes). */
   postToHost(topic: string, payload?: unknown): void {
-    if (this.$hostSink === null) { console.warn(`[Declare] app.postToHost("${topic}"): this app is not linked to a host island — message dropped`); return; }
+    if (this.$hostSink === null) { console.warn(`[Declare] app.postToHost("${topic}"): no host is listening (an island, or a page that passed boot({ onPost })) — message dropped`); return; }
     this.$hostSink.message(topic, payload);
   }
 
@@ -2874,30 +2880,24 @@ export class App extends View {
   /** The HOST's write: make `value` available to this app under `name` — what
    *  a `hostProvided("name", …)` read in the program returns. Called by the
    *  island bridge for each name the island `provides`, by a page embedding
-   *  this app (`el.__declareApp.provideHostValue(…)`, or `boot({ provides })`), and by
-   *  the native host for its launch parameters. Equality-gated; a change
+   *  this app (its tenant handle's `provide(…)`, or `boot({ provides })`), and by
+   *  the native host for its launch parameters. Internal: the page's door is the
+   *  tenant handle, so the name stays the program's. Equality-gated; a change
    *  re-derives every reader. `undefined` withdraws the value (readers fall to
    *  their defaults). Data only — a host never hands over a node. */
-  provideHostValue(name: string, value: unknown): void {
+  $provideHostValue(name: string, value: unknown): void {
     if (value === undefined) this.$hostValues?.clear(name);
     else this.$hostValues?.write(name, value);
   }
 
   /** The value this app exposes under `name` — one of its `exposes` names — or
-   *  undefined when it exposes no such name. The page's read (an island reads
-   *  through its own `exposed`); tracked, so an `observe` over it follows. */
-  exposed(name: string): unknown {
+   *  undefined when it exposes no such name. Behind the page's read (the tenant
+   *  handle's `exposed`; an island reads through its own); tracked, so an
+   *  `observe` over it follows. */
+  $exposed(name: string): unknown {
     const list = (this as unknown as { exposes?: unknown }).exposes;
     if (!Array.isArray(list) || !list.includes(name)) return undefined;
     return (this as unknown as Record<string, unknown>)[name];
-  }
-
-  /** A page's standing watch over one exposed value: `cb` runs now with the
-   *  current value and again at the close of every settle that changed it.
-   *  Returns the unwatch. */
-  watchExposed(name: string, cb: (value: unknown) => void): () => void {
-    cb(this.exposed(name));
-    return observe(() => this.exposed(name), cb, `exposed:${name}`);
   }
 
   /** The DEFAULT landing, exposed — what the platform does with an arrival
@@ -3035,7 +3035,7 @@ export class App extends View {
    *  rectangle. The boolean form of `clip` is absorbed here — the per-axis
    *  realization (overflow along a declared scroll axis is the page's range;
    *  overflow along any other axis is out of frame) lives in the backend's
-   *  root scroll styling, composed with `scrolls`. A Shape clip keeps its
+   *  root scroll styling, composed with `scrolls`. A path clip keeps its
    *  paint+hit meaning; `clip = false` is refused at compile time (check.ts). */
   override $applyClip(clip: string | boolean | null): void {
     if (this.$surface === null) return;
@@ -3104,7 +3104,7 @@ defineAttributes(App, {
   pointerX: { def: 0 },
   pointerDown: { def: false },
   pointerY: { def: 0 },
-  hovering: { def: false },
+  pointerHovering: { def: false },
   pointerOverText: { def: false },
   systemDark: { def: false },
   // the person's accessibility preferences (schema.ts); none, until a host says
@@ -3112,9 +3112,9 @@ defineAttributes(App, {
   // page visibility (schema.ts) — true until a host reports otherwise, so
   // headless and test mounts that never wire it see a visible page
   pageVisible: { def: true },
-  touchDevice: { def: false },
+  touchFirst: { def: false },
   hasTouch: { def: false },
-  hasPointer: { def: true },      // a plain desktop until the profile says otherwise
+  hasMouse: { def: true },      // a plain desktop until the profile says otherwise
   lastPointerType: { def: "mouse" },
   // How the app meets the DEVICE'S OWN chrome — a phone's notch/Dynamic Island
   // and home-indicator bar. `safe` (the default) letterboxes the app inside the
@@ -3249,6 +3249,6 @@ function isDisabled(v: View): boolean { return (v as unknown as { disabled?: unk
 /** The nearest scroller at or above `v` that the USER is scrolling now, or null
  *  (scrollIntoView's request goes to that scroller, so it waits on it). */
 function userScrolling(v: View): View | null {
-  for (let n: unknown = v; n instanceof View; n = n.parent) if (n.scrolling) return n;
+  for (let n: unknown = v; n instanceof View; n = n.parent) if (n.userScrolling) return n;
   return null;
 }
