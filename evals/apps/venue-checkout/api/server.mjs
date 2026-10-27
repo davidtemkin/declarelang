@@ -139,6 +139,11 @@ const ACCOUNT = {
     ],
   },
 };
+// A second account with a short sign-in, for a person testing by hand: the same address
+// and cards as Ada's. The acceptance (drive.mjs) signs in as Ada.
+const TESTER = { email: "a@a.co", password: "pass", me: { ...ACCOUNT.me, name: "Alex Tester", email: "a@a.co" } };
+const ACCOUNTS = [ACCOUNT, TESTER];
+const accountOf = (email) => ACCOUNTS.find((a) => a.email === email) ?? null;
 
 const brandOf = (n) => (/^4/.test(n) ? "visa" : /^(5[1-5]|2[2-7])/.test(n) ? "mastercard" : /^3[47]/.test(n) ? "amex" : /^6(011|5)/.test(n) ? "discover" : null);
 const luhn = (n) => {
@@ -198,7 +203,7 @@ function checkOrder(req, b) {
   if (p.savedCardId !== undefined) {
     const who = sessionOf(req);
     if (!who) return { code: 401, body: { error: "signed_out", message: "Sign in again to use a saved card." } };
-    card = ACCOUNT.me.cards.find((c) => c.id === p.savedCardId);
+    card = accountOf(who.email)?.me.cards.find((c) => c.id === p.savedCardId);
     if (!card) return { code: 400, body: { error: "bad_request", message: "That card isn't on your account." } };
     if (expired(card.expMonth, card.expYear)) return invalid("expiry", "That card has expired.");
     if (!/^\d{3}$/.test(String(p.cvc ?? ""))) return invalid("cvc", "The security code should be 3 digits.");
@@ -316,10 +321,11 @@ const server = createServer(async (req, res) => {
   }
 
   if (path === "/api/session" && req.method === "POST") {
-    if (body?.email?.trim?.().toLowerCase() === ACCOUNT.email && body?.password === ACCOUNT.password) {
+    const acct = accountOf(body?.email?.trim?.().toLowerCase());
+    if (acct && body?.password === acct.password) {
       const token = randomBytes(18).toString("base64url");
-      sessions.set(token, ACCOUNT.email);
-      return send(req, res, 200, { name: ACCOUNT.me.name, email: ACCOUNT.email }, {
+      sessions.set(token, acct.email);
+      return send(req, res, 200, { name: acct.me.name, email: acct.email }, {
         "set-cookie": `vn_session=${token}; Path=/; HttpOnly; SameSite=Lax`,
       });
     }
@@ -331,8 +337,9 @@ const server = createServer(async (req, res) => {
     return send(req, res, 204, undefined, { "set-cookie": "vn_session=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0" });
   }
   if (path === "/api/me" && req.method === "GET") {
-    return sessionOf(req)
-      ? send(req, res, 200, ACCOUNT.me)
+    const who = sessionOf(req);
+    return who && accountOf(who.email)
+      ? send(req, res, 200, accountOf(who.email).me)
       : send(req, res, 401, { error: "signed_out", message: "You're not signed in." });
   }
 

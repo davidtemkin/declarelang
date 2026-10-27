@@ -136,7 +136,8 @@ for m in misses.values():
     # only a name with somewhere else to go counts: one from a foreign table, or one
     # the platform answered with a real name. Declaring a member the agent had simply
     # not declared yet is the ordinary fix, not a carried-over name.
-    m["declared"] = (bool(re.search(r"(?m)^\s*" + re.escape(m["name"]) + r"\s*:\s*[^=\n]+=", source))
+    # an ATTRIBUTE declaration (`color: Color = …`), not a child (`mail: TextInput [ … ]`)
+    m["declared"] = (bool(re.search(r"(?m)^\s*" + re.escape(m["name"]) + r"\s*:\s*[A-Za-z_][\w.<>|?]*(\[\])?\s*=", source))
                      and m["kind"] in ("attribute", "member") and (origin(m["name"]) != "" or m["answer"] != "none"))
 
 def mins(x): return "—" if x is None else f"{x:.0f}"

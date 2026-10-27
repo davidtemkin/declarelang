@@ -1,0 +1,396 @@
+/*
+# Murmur: a conversation, read
+
+One conversation's transcript: a scrolling pane over its messages, one line
+per message. `murmur.declare` includes this file.
+
+- **A line is a message**, of one of three kinds (`TextLine`, `PhotoLine`,
+  `VoiceLine`), picked by `classFor`. They share one frame, `Line`: what
+  sits between messages, the sender's name and face, the bubble, the
+  reactions, and the status under your latest word. Each kind puts its own
+  content into the bubble (`defaultPlacement`).
+- **What sits between messages belongs to the line after it.** A line reads
+  its neighbours by `rowIndex` and decides from them whether it starts a new
+  day, follows a long pause, opens a run of one person's messages or carries
+  on one. Nothing is inserted into the records to draw a heading.
+- **Time is told as distance.** A new day is named; within a day, a pause of
+  an hour or more is said as the pause ("3 hours later"). A bubble carries no
+  clock; the exact time is its tooltip.
+- **The pane keeps the reader's place.** `scrollAnchor = end`: it opens at
+  the latest message, follows new ones while the reader is there, and holds
+  the words still while the reader is further back.
+*/
+
+script {
+    const MINUTE = 60000
+    const HOUR = 3600000
+    const DAY = 86400000
+    const RUN = 10 * MINUTE          // closer than this, one person's messages are one run
+
+    function ms(iso: string): number { return Date.parse(iso) }
+    function dayKey(iso: string): string {
+        const d = new Date(iso)
+        return d.getFullYear() + "-" + d.getMonth() + "-" + d.getDate()
+    }
+    function startOfDay(t: number): number { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime() }
+
+    // "Today", "Yesterday", "Tuesday" within the week, then "Tuesday 4 August",
+    // with the year once it is not this one.
+
+    function dayLabel(iso: string, now: number): string {
+        if (iso == "") return ""
+        const t = ms(iso)
+        const days = Math.round((startOfDay(now) - startOfDay(t)) / DAY)
+        if (days == 0) return "Today"
+        if (days == 1) return "Yesterday"
+        const d = new Date(t)
+        if (days > 0 && days < 7) return d.toLocaleDateString("en-GB", { weekday: "long" })
+        const sameYear = d.getFullYear() == new Date(now).getFullYear()
+        return d.toLocaleDateString("en-GB", sameYear
+            ? { weekday: "long", day: "numeric", month: "long" }
+            : { day: "numeric", month: "long", year: "numeric" })
+    }
+    function clock(iso: string): string {
+        return iso == "" ? "" : new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+    }
+    function gapLabel(gap: number): string {
+        const h = Math.round(gap / HOUR)
+        return h <= 1 ? "An hour later" : h + " hours later"
+    }
+
+    // A clip's length, or how far into it: "0:07", "1:32".
+
+    function mmss(msLen: number): string {
+        const s = Math.max(0, Math.round(msLen / 1000))
+        return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0")
+    }
+
+    // Reactions, gathered: one entry per mark, how many, and whether one is yours.
+
+    function tallyOf(rs: { person: string, emoji: string }[], me: string): { id: string, emoji: string, n: number, mine: boolean }[] {
+        const out: { id: string, emoji: string, n: number, mine: boolean }[] = []
+        for (const r of rs) {
+            const t = out.find((x) => x.emoji == r.emoji)
+            if (t) { t.n = t.n + 1; t.mine = t.mine || r.person == me }
+            else out.push({ id: r.emoji, emoji: r.emoji, n: 1, mine: r.person == me })
+        }
+        return out
+    }
+
+    // A photograph's box: as large as the room allows, at its own proportions.
+
+    function fitW(ratio: number, maxW: number, maxH: number): number { return Math.round(Math.min(maxW, maxH * ratio)) }
+    }
+
+
+// ── The pane ────────────────────────────────────────────────────────────────
+//
+// One per conversation, each standing on its thread's record. Only the open
+// one is shown; the others keep their scroll, so returning to one returns
+// to where its reader was. It provides what its lines read of it (`tid`,
+// `msgs`, `group`, `myLast`) under those names.
+
+class Transcript [ width = 100%, height = 100%, scrolls = y, scrollAnchor = end,
+    padding = [0, 0, 14, 0],
+    tid: string = { :id ?? "" },
+    msgs: Message[] = { :messages ?? [] },
+    group: boolean = { (:participants ?? []).length > 2 },
+    myLast: string = { app.convos.lastStanding(classroot.msgs) },
+    visible = { classroot.tid == app.paneId },
+
+    // Where the reader is. At the end, what arrives is read as it arrives.
+
+    atEnd: boolean = { this.contentHeight - this.scrollY - this.height < 64 },
+    reading: boolean = { classroot.tid == app.openId && classroot.atEnd && app.pageVisible },
+    lastId: string = { classroot.msgs[classroot.msgs.length - 1]?.id ?? "" },
+    unread: number = { app.convos.unreadIn(classroot.tid) },
+    sends: number = { app.sends[classroot.tid] ?? 0 },
+
+    trackChanges = ["reading", "lastId", "sends"],
+    onChange(e: ChangeEvent) {
+        if (e.changed.some((c) => c.name == "sends")) this.scrollTo(Infinity, { duration: 320 })
+        if (reading) app.convos.markRead(tid)
+        },
+    toEnd() { this.scrollTo(Infinity, { duration: 360 }) },
+
+    layout: SimpleLayout [ axis = y ],
+
+    // A short conversation sits at the foot of the pane, where a long one ends.
+
+    lift: View [ width = 100%,
+        height = { Math.max(0, classroot.height - classroot.list.height - classroot.typing.height - 14) } ],
+
+    list: View [ width = 100%,
+        layout: SimpleLayout [ axis = y ],
+        Line [ datapath = :messages[], virtualize = true,
+            classFor = { :kind == "photo" ? PhotoLine : :kind == "voice" ? VoiceLine : TextLine } ]
+        ],
+    typing: Typing [ tid = { classroot.tid }, group = { classroot.group } ],
+
+    // The day being read, at the top, while the reader moves through time.
+    // It fades in under a moving hand and out again once the pane is still.
+
+    chip: View [ ignoreScroll = true, ignoreLayout = true, x = center, y = 10, height = 26, padding = [0, 12, 0, 12],
+        cornerRadius = 13, fill = { provided("theme").card }, stroke = { stroke(1, provided("theme").line) },
+        shadow = { shadow(0, 2, 8, 0x0000001A) },
+        pointerEvents = "none",
+        shown: number = 0,
+        Spring [ attribute = shown, to = { classroot.userScrolling && !classroot.atEnd ? 1 : 0 }, stiffness = 90, damping = 18 ],
+        opacity = { this.shown },
+        visible = { this.shown > 0.01 },
+        TextLabel [ fontSize = 12, fontWeight = semibold, textColor = { provided("theme").textMuted },
+            text = { dayLabel(classroot.msgs[classroot.list.firstVisibleRow]?.at ?? "", app.now) } ]
+        ],
+
+    // Back to the latest. Says how many are new when some are.
+
+    jump: Control [ ignoreScroll = true, ignoreLayout = true, visible = { !classroot.atEnd },
+        x = { classroot.width - this.width - Math.max(14, provided("gutter") - 20) }, y = { classroot.height - this.height - 14 },
+        height = 40, padding = [0, 14, 0, 12], cornerRadius = 20,
+        accessibilityLabel = { classroot.unread > 0 ? classroot.unread + " new messages" : "Latest messages" },
+        fresh: boolean = { classroot.unread > 0 },
+        fill = { provided("theme").card }, stroke = { stroke(1, provided("theme").line) },
+        shadow = { shadow(0, 3, 12, 0x00000024) },
+        State [ applied = { parent.fresh }, fill = { provided("theme").fresh }, stroke = null ],
+        press() { classroot.toEnd() },
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        Glyph [ shape = "down", iconSize = 15, weight = 2,
+            ink = { parent.fresh ? provided("theme").mineText : provided("theme").accent } ],
+        TextLabel [ exists = { parent.fresh }, fontSize = 14, fontWeight = semibold, textColor = { provided("theme").mineText },
+            text = { classroot.unread == 1 ? "1 new" : classroot.unread + " new" } ]
+        ]
+    ]
+
+
+// ── Between messages ────────────────────────────────────────────────────────
+
+// Where the unread begins, as the conversation was opened.
+
+class FreshRule [ width = 100%, height = 28,
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    View [ flexes = true, height = 1, fill = { provided("theme").fresh }, opacity = 0.5 ],
+    Text [ fontSize = 11, fontWeight = bold, letterSpacing = 0.8, textColor = { provided("theme").fresh }, text = "NEW" ],
+    View [ flexes = true, height = 1, fill = { provided("theme").fresh }, opacity = 0.5 ]
+    ]
+
+
+// ── A message ───────────────────────────────────────────────────────────────
+
+class Line [ width = 100%, defaultPlacement = bubble,
+
+    // What the pane provides, and the record's own fields, named once.
+
+    tid: string = { provided("tid") },
+    msgs: Message[] = { provided("msgs") },
+    group: boolean = { provided("group") },
+    gutter: number = { provided("gutter") },
+    measure: number = { provided("measure") },
+    mid: string = { :id ?? "" },
+    from: string = { :from ?? "" },
+    at: string = { :at ?? "" },
+    mine: boolean = { classroot.from == app.convos.me },
+    reactions: Reaction[] = { :reactions ?? [] },
+    counts: Dataset [ contents = { { rows: tallyOf(classroot.reactions, app.convos.me) } } ],
+
+    // Its neighbours, and what they make of it.
+
+    prev: Message? = { rowIndex > 0 ? classroot.msgs[rowIndex - 1] ?? null : null },
+    next: Message? = { classroot.msgs[rowIndex + 1] ?? null },
+    fresh: boolean = { (app.freshFrom[classroot.tid] ?? "") == classroot.mid },
+    newDay: boolean = { classroot.prev == null || dayKey(classroot.prev.at) != dayKey(classroot.at) },
+    gap: number = { classroot.prev == null ? 0 : ms(classroot.at) - ms(classroot.prev.at) },
+    pause: boolean = { !classroot.newDay && classroot.gap >= 7200000 },
+    otherVoice: boolean = { classroot.prev?.from != classroot.from },
+    broke: boolean = { classroot.newDay || classroot.fresh || classroot.gap > 600000 },
+    startsRun: boolean = { classroot.broke || classroot.otherVoice },
+    endsRun: boolean = { app.convos.endsRun(classroot.msgs, rowIndex, classroot.tid) },
+    showsFace: boolean = { classroot.group && !classroot.mine },
+    indent: number = { classroot.showsFace ? 36 : 0 },
+
+    // The bubble's corners: round, except where it joins the rest of its run.
+
+    outer: number = 19,
+    joint: number = 6,
+    top: number = { classroot.startsRun ? classroot.outer : classroot.joint },
+    foot: number = { classroot.endsRun ? classroot.outer : classroot.joint },
+    corners: [number, number, number, number] = { classroot.mine ? [classroot.outer, classroot.top, classroot.foot, classroot.outer]
+        : [classroot.top, classroot.outer, classroot.outer, classroot.foot] },
+    inset: [number, number, number, number] = [8, 13, 9, 13],
+
+    padding = { [classroot.startsRun ? 10 : 2, classroot.gutter, 0, classroot.gutter] },
+    layout: SimpleLayout [ axis = y ],
+
+    newRule: FreshRule [ exists = { classroot.fresh } ],
+    day: Text [ exists = { classroot.newDay || classroot.pause }, width = 100%, textAlign = center, padding = [10, 0, 8, 0],
+        fontSize = 12, fontWeight = { classroot.newDay ? "semibold" : "regular" }, italic = { !classroot.newDay },
+        textColor = { classroot.newDay ? provided("theme").textMuted : provided("theme").textFaint },
+        text = { classroot.newDay ? dayLabel(classroot.at, app.now) : gapLabel(classroot.gap) } ],
+    who: Text [ exists = { classroot.showsFace && classroot.startsRun }, padding = { [0, 0, 3, classroot.indent + 12] },
+        width = 100%, maxLines = 1, fontSize = 12, fontWeight = semibold, textColor = { app.hueOf(classroot.from) },
+        text = { app.convos.name(classroot.from) } ],
+
+    row: View [ width = 100%,
+        face: Avatar [ exists = { classroot.showsFace && classroot.endsRun }, pid = { classroot.from }, width = 28, y = end ],
+
+        col: View [ x = { classroot.indent },
+            State [ applied = { classroot.mine }, x = end ],
+            layout: SimpleLayout [ axis = y, spacing = 4, align = { classroot.mine ? "end" : "start" } ],
+
+            // The bubble. A hold (a finger) or a right-click (a mouse) asks
+            // for a reaction; the kinds put their content inside.
+
+            bubble: View [ clip = true, cornerRadius = { classroot.corners }, padding = { classroot.inset },
+                fill = { classroot.mine ? provided("theme").mine : provided("theme").theirs },
+                stroke = { classroot.mine ? null : stroke(1, provided("theme").line) },
+                tooltipLabel = { clock(classroot.at) },
+                onHold(e: PointerEvent) { app.askReaction(classroot) },
+                onContextMenu(e: PointerEvent) { app.askReaction(classroot) }
+                ],
+            tally: View [ exists = { classroot.reactions.length > 0 }, padding = [0, 8, 0, 8],
+                datapath = { classroot.counts.value },
+                layout: SimpleLayout [ axis = x, spacing = 4 ],
+                Tally [ datapath = :rows[] ]
+                ]
+            ],
+
+        // A mouse gets a button beside the bubble for the same thing.
+
+        add: RoundButton [ exists = { !app.touchFirst }, width = 30, shape = "react", tone = { provided("theme").textFaint },
+            accessibilityLabel = "React",
+            x = { classroot.mine ? parent.col.x - this.width - 4 : parent.col.x + parent.col.width + 4 },
+            y = { (parent.col.bubble.height - this.height) / 2 },
+            opacity = { classroot.hovered || this.focused ? 1 : 0 },
+            press() { app.askReaction(classroot) }
+            ]
+        ],
+
+    // Under your latest message: whether it has gone, and who has read it.
+
+    status: Text [ exists = { classroot.mine && classroot.mid == provided("myLast") }, width = 100%, textAlign = right,
+        padding = [4, 4, 0, 0], fontSize = 11, fontWeight = medium, textColor = { provided("theme").textFaint },
+        text = { app.statusOf(classroot.tid, :@) } ]
+    ]
+
+
+// One mark under a bubble, with how many. Pressing it adds yours.
+
+class Tally extends Control [ height = 24, padding = [0, 7, 0, 6], cornerRadius = 12,
+    emoji: string = { :emoji ?? "" },
+    n: number = { :n ?? 0 },
+    own: boolean = { :mine ?? false },
+    accessibilityLabel = { classroot.emoji + " " + classroot.n },
+    fill = { provided("theme").card },
+    stroke = { stroke(1, provided("theme").line) },
+    State [ applied = { classroot.own }, fill = { provided("theme").selection }, stroke = { stroke(1, provided("theme").lineStrong) } ],
+    press() { app.react(provided("tid"), provided("mid"), classroot.emoji) },
+    layout: SimpleLayout [ axis = x, spacing = 3, align = center ],
+    TextLabel [ fontSize = 13, text = { classroot.emoji } ],
+    TextLabel [ exists = { classroot.n > 1 }, fontSize = 12, fontWeight = semibold, numeralWidth = tabular,
+        textColor = { provided("theme").textMuted }, text = { "" + classroot.n } ]
+    ]
+
+
+// ── The three kinds ─────────────────────────────────────────────────────────
+
+class TextLine extends Line [
+    Text [ wrapWidth = { classroot.measure - 26 }, fontSize = { app.wide ? 15 : 16 }, lineHeight = 1.32,
+        textColor = { classroot.mine ? provided("theme").mineText : provided("theme").theirsText },
+        text = { :text ?? "" } ]
+    ]
+
+
+// A photograph at its own proportions, from tall to very wide. Until its
+// pixels arrive its box is a quiet tone with its description in it; once
+// any copy of a picture has loaded, the app knows its shape, and every
+// other line showing it takes that shape before its own copy arrives.
+
+class PhotoLine extends Line [ inset = [0, 0, 0, 0],
+    src: string = { :src ?? "" },
+    ratio: number = { app.aspects[classroot.src] ?? 0 },
+    maxH: number = { app.wide ? 380 : 330 },
+    boxW: number = { classroot.ratio > 0 ? fitW(classroot.ratio, classroot.measure, classroot.maxH) : Math.min(classroot.measure, 260) },
+    boxH: number = { classroot.ratio > 0 ? Math.round(classroot.boxW / classroot.ratio) : Math.round(classroot.boxW * 0.75) },
+    frame: Control [ width = { classroot.boxW }, height = { classroot.boxH },
+        fill = { provided("theme").placeholder },
+        accessibilityLabel = { "Photo: " + (:alt ?? "") },
+        press() { app.viewing = :@ },
+        Text [ visible = { !parent.pic.loaded }, x = 12, y = 12, width = { parent.width - 24 }, maxLines = 3,
+            fontSize = 12, italic = true, textColor = { provided("theme").textFaint }, text = { :alt ?? "" } ],
+        pic: Image [ width = 100%, height = 100%, stretches = cover, source = { app.media(classroot.src) },
+            opacity = { this.loaded ? 1 : 0 },
+            trackChanges = ["loaded"],
+            onChange() { if (this.loaded) app.noteAspect(classroot.src, this.naturalWidth, this.naturalHeight) }
+            ]
+        ]
+    ]
+
+
+// A recording. Its length shows before it plays; while it plays the bars
+// fill, and a press or a drag anywhere on them goes to that point. One clip
+// plays at a time: the App holds which one, and the sound itself.
+
+class VoiceLine extends Line [ inset = [7, 14, 7, 7],
+    src: string = { :src ?? "" },
+    lengthMs: number = { :durationMs ?? 0 },
+    here: boolean = { app.voiceId == classroot.mid },
+    playing: boolean = { classroot.here && app.voicePlaying },
+    progress: number = { classroot.here && classroot.lengthMs > 0 ? app.voiceHead * 1000 / classroot.lengthMs : 0 },
+    ink: Color = { classroot.mine ? provided("theme").mineText : provided("theme").accent },
+    seek(frac: number) { app.seekVoice(mid, src, lengthMs, Math.max(0, Math.min(1, frac))) },
+
+    bar: View [ layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        play: Control [ width = { app.tap - 4 }, height = { this.width }, cornerRadius = { this.width / 2 },
+            fill = { classroot.ink },
+            accessibilityLabel = { (classroot.playing ? "Pause" : "Play") + " voice message, " + mmss(classroot.lengthMs) },
+            press() { app.toggleVoice(classroot.mid, classroot.src, classroot.lengthMs) },
+            Glyph [ x = center, y = center, iconSize = 16, shape = { classroot.playing ? "pause" : "play" },
+                ink = { classroot.mine ? provided("theme").mine : provided("theme").card } ]
+            ],
+        wave: Waveform [ width = { Math.max(120, Math.min(200, classroot.measure - 120)) }, height = { app.touchFirst ? 40 : 32 },
+            peaks = { :peaks ?? [] }, progress = { classroot.progress }, active = { classroot.here },
+            ink = { classroot.ink },
+            faint = { classroot.mine ? provided("theme").mineFaint : provided("theme").lineStrong },
+            accessibilityLabel = "Position in voice message",
+            claim = x,
+            onPointerDown(e: PointerEvent) { classroot.seek(e.x / this.width) },
+            onPointerMove(e: PointerEvent) { if (this.pressed) classroot.seek(e.x / this.width) }
+            ],
+        Text [ width = 34, fontSize = 12, fontWeight = medium, numeralWidth = tabular,
+            textColor = { classroot.mine ? provided("theme").mineText : provided("theme").textMuted },
+            text = { classroot.here ? mmss(app.voiceHead * 1000) : mmss(classroot.lengthMs) } ]
+        ]
+    ]
+
+
+// ── Someone is writing ──────────────────────────────────────────────────────
+
+class Typing [ width = 100%,
+    tid: string = "",
+    group: boolean = false,
+    who: string[] = { app.typing[classroot.tid] ?? [] },
+    visible = { classroot.who.length > 0 },
+    gutter: number = { provided("gutter") },
+    padding = { [10, classroot.gutter, 0, classroot.gutter] },
+    phase: number = 0,
+    Time [ tick = frame, running = { classroot.visible && app.pageVisible },
+        onTick(dt: number) { classroot.phase = (classroot.phase + dt * 1.6) % 1 }
+        ],
+    layout: SimpleLayout [ axis = x, spacing = 8, align = end ],
+    Avatar [ visible = { classroot.group }, pid = { classroot.who[0] ?? "" }, width = 28 ],
+    bubble: View [ height = 36, padding = [0, 14, 0, 14], cornerRadius = 18,
+        fill = { provided("theme").theirs }, stroke = { stroke(1, provided("theme").line) },
+        accessibilityLabel = { app.typingLine(classroot.tid) },
+        layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+        Dot [ beat = { classroot.phase } ],
+        Dot [ beat = { (classroot.phase + 0.82) % 1 } ],
+        Dot [ beat = { (classroot.phase + 0.64) % 1 } ]
+        ],
+    Text [ visible = { classroot.group }, fontSize = 12, textColor = { provided("theme").textFaint },
+        text = { app.typingLine(classroot.tid) } ]
+    ]
+
+
+class Dot [ width = 7, height = 7, cornerRadius = 3.5, fill = { provided("theme").textFaint },
+    beat: number = 0,
+    opacity = { 0.35 + 0.65 * Math.max(0, Math.sin(this.beat * Math.PI * 2)) }
+    ]

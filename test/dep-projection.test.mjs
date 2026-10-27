@@ -1,6 +1,6 @@
 // test/dep-projection.test.mjs — reading an attribute off a method's RETURNED NODE.
 //
-// The bug (findings-2026-08-03 §A1): a helper that hands back a view, whose
+// The bug (evals/reports/2026-08-03-agent-round.md §A1): a helper that hands back a view, whose
 // caller reads a property off it, wired the NODE and not the property —
 //
 //     pickBox() { return this.box },

@@ -1,0 +1,384 @@
+/*
+# The Venue: checkout
+
+Signing in, paying, and what is being paid for. Every field writes the
+App's `form` (a `PayForm`, in venue-model.declare), never a copy of its own,
+so signing in halfway or stepping back to the hall loses nothing.
+
+A field is judged once the person has left it (`judgeOn = leave`) or has
+pressed Pay, never while they are still typing in it for the first time. A
+refusal the service makes about one field is shown on that field, in the
+service's own words, until the value it refused is changed.
+
+`venue.declare` includes this file.
+*/
+
+// ── A labelled field ────────────────────────────────────────────────────────
+//
+// The label above, the field, and what is wrong with it below. The use site
+// says what the field holds (`value`), where an edit goes (`edit`), how it
+// is judged (`check`), and how it regroups as it is typed (`regroup`, which
+// keeps the caret after the same digit).
+
+class FormField [ width = 100%,
+    label: string = "",
+    aside: string = "",                 // a fact shown at the label's end: the card's kind
+    value: string = "",
+    refused: string = "",               // the service's sentence about this value, if any
+    purpose: InputPurpose = text,
+
+    check(v: string) -> string { return "" },
+    regroup(v: string) -> string { return v },
+    edit(v: string) { },
+    submit() { },
+
+    // Emptied for a fresh try (the code, after a decline): not marked wrong
+    // again until it is left, or Pay is pressed.
+
+    fresh: boolean = false,
+    shownError: string = { classroot.refused != "" ? classroot.refused : classroot.fresh ? "" : classroot.entry.error },
+    judge() { fresh = false; entry.judge() },
+    focusEntry() { Focus.focus(entry) },
+
+    layout: SimpleLayout [ axis = y, spacing = 7 ],
+
+    head: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, align = baseline ],
+        Text [ flexes = true, fontSize = 13, fontWeight = medium, textColor = { provided("theme").textMuted },
+            text = { classroot.label } ],
+        Text [ visible = { classroot.aside != "" }, fontSize = 12, fontWeight = semibold, letterSpacing = 0.6,
+            textTransform = uppercase, textColor = { provided("theme").text }, text = { classroot.aside },
+            accessibilityLive = polite ]
+        ],
+
+    entry: TextInput [ width = 100%, height = { app.fieldH }, padding = [0, 14, 0, 14], cornerRadius = 10,
+        fontSize = { app.touchFirst ? 17 : 16 },
+        fill = { provided("theme").field },
+        stroke = { stroke(1, provided("theme").fieldLine) },
+        State [ applied = { focused }, stroke = { stroke(1.5, provided("theme").text) } ],
+        State [ applied = { classroot.shownError != "" }, stroke = { stroke(1.5, provided("theme").danger) } ],
+        judgeOn = leave,
+        purpose = { classroot.purpose },
+        accessibilityLabel = { classroot.label },
+        accessibilityError = { classroot.shownError },
+        text = { classroot.value },
+        validate(v: string) -> string { return classroot.check(v) },
+        onInput(v: string) {
+            const grouped = classroot.regroup(v)
+            const caret = caretAfterDigits(grouped, digitsBefore(v, this.selectionStart))
+            classroot.edit(grouped)
+            if (grouped != v) afterSettle(() => this.select(caret))
+            },
+        onEnter() { classroot.submit() },
+        onBlur() { classroot.fresh = false }
+        ],
+
+    message: Text [ visible = { classroot.shownError != "" }, width = 100%, wrap = true, fontSize = 13,
+        textColor = { provided("theme").danger }, text = { classroot.shownError } ]
+    ]
+
+
+// ── A saved card, or a new one ──────────────────────────────────────────────
+//
+// A card is shown as a person knows it: its kind, its last four digits, its
+// expiry. An expired card is shown as expired and cannot be chosen.
+
+class CardBadge [ width = 40, height = 26, cornerRadius = 5,
+    brand: string = "",
+    fill = { provided("theme").badge },
+    stroke = { stroke(1, provided("theme").fieldLine) },
+    TextLabel [ x = center, fontSize = 9, fontWeight = bold, letterSpacing = 0.4,
+        textColor = { provided("theme").text },
+        text = { ({ visa: "VISA", mastercard: "MC", amex: "AMEX", discover: "DISC" } as Record<string, string>)[classroot.brand] ?? "NEW" } ]
+    ]
+
+
+class CardOption extends Control [ width = 100%, height = { app.touchFirst ? 60 : 56 }, padding = [0, 14, 0, 14],
+    cornerRadius = 10,
+    cardId: string = "new",
+    brand: string = "",
+    last4: string = "",
+    expMonth: number = 0,
+    expYear: number = 0,
+    expired: boolean = { classroot.cardId != "new" && hasExpired(classroot.expMonth, classroot.expYear) },
+    on: boolean = { app.form.method == classroot.cardId },
+    expiryText: string = { pad2(classroot.expMonth) + "/" + ("" + classroot.expYear).slice(2) },
+    title: string = { classroot.cardId == "new" ? "A new card" : brandName(classroot.brand) + " ending " + classroot.last4 },
+
+    disabled = { classroot.expired },
+    accessibilityRole = radio,
+    accessibilityChecked = { classroot.on },
+    accessibilityLabel = { classroot.cardId == "new" ? classroot.title
+        : classroot.title + (classroot.expired ? ", expired " : ", expires ") + classroot.expiryText },
+    press() { app.chooseMethod(classroot.cardId) },
+
+    fill = { provided("theme").field },
+    stroke = { stroke(1, provided("theme").fieldLine) },
+    State [ applied = { classroot.on }, stroke = { stroke(1.5, provided("theme").text) } ],
+    State [ applied = { classroot.expired }, fill = null, opacity = 1 ],
+
+    layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+    dot: View [ width = 18, height = 18, cornerRadius = 9,
+        stroke = { stroke(1.5, classroot.expired ? provided("theme").fieldLine : provided("theme").text) },
+        View [ x = center, y = center, width = 8, height = 8, cornerRadius = 4, visible = { classroot.on },
+            fill = { provided("theme").text } ]
+        ],
+    CardBadge [ brand = { classroot.brand }, opacity = { classroot.expired ? 0.45 : 1 } ],
+    Text [ flexes = true, fontSize = 15, fontWeight = medium, wrap = false, numeralWidth = tabular,
+        textColor = { classroot.expired ? provided("theme").textMuted : provided("theme").text },
+        text = { classroot.cardId == "new" ? classroot.title : brandName(classroot.brand) + " •••• " + classroot.last4 } ],
+    Text [ visible = { classroot.cardId != "new" }, fontSize = 13, numeralWidth = tabular, wrap = false,
+        fontWeight = { classroot.expired ? "semibold" : "regular" },
+        textColor = { classroot.expired ? provided("theme").danger : provided("theme").textMuted },
+        text = { (classroot.expired ? "Expired " : "Expires ") + classroot.expiryText } ]
+    ]
+
+
+// ── The pay button ──────────────────────────────────────────────────────────
+//
+// It names the amount. Pressed, it shows the payment under way and takes no
+// second press; it keeps the focus, so nothing is lost when the answer comes.
+
+class PayButton extends Control [ width = 100%, height = 54, cornerRadius = 12,
+    amount: number = 0,
+    busy: boolean = false,
+    fill = { provided("theme").accent },
+    State [ applied = { classroot.hovered && !classroot.busy }, fill = { provided("theme").accentHovered } ],
+    State [ applied = { classroot.pressed && !classroot.busy }, fill = { provided("theme").accentPressed } ],
+    accessibilityHint = { classroot.busy ? "Payment under way" : "" },
+
+    spin: number = 0,
+    Animator [ attribute = spin, from = 0, to = 360, duration = 900, repeat = { Infinity },
+        motion = linear, started = true, paused = { !classroot.busy } ],
+
+    face: View [ x = center, y = center,
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        spinner: View [ visible = { classroot.busy }, width = 18, height = 18,
+            rotation = { classroot.spin }, pivotX = 9, pivotY = 9,
+            draw(d: DrawContext) {
+                d.strokeStyle = provided("theme").accentTextColor
+                d.lineWidth = 2.2
+                d.lineCap = "round"
+                d.beginPath(); d.arc(9, 9, 7, 0, 4.4); d.stroke()
+                }
+            ],
+        Text [ fontSize = 17, fontWeight = semibold, numeralWidth = tabular,
+            textColor = { provided("theme").accentTextColor },
+            text = { "Pay " + money(classroot.amount) } ]
+        ]
+    ]
+
+
+// ── What is being bought ────────────────────────────────────────────────────
+
+class SummaryLine [ width = 100%, padding = [10, 0, 10, 0],
+    stroke = { [null, null, stroke(1, provided("theme").line), null] },
+    layout: SimpleLayout [ axis = x, spacing = 12 ],
+    what: View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ fontSize = 15, fontWeight = medium, text = { :sectionName ?? "" } ],
+        Text [ fontSize = 13, textColor = { provided("theme").textMuted },
+            text = { "Row " + (:row ?? "") + ", seat " + (:number ?? 0) } ]
+        ],
+    cost: View [
+        layout: SimpleLayout [ axis = y, spacing = 2, align = end ],
+        Text [ fontSize = 15, numeralWidth = tabular, text = { money(:price ?? 0) } ],
+        Text [ fontSize = 13, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+            text = { "+ " + money(:fee ?? 0) + " fee" } ]
+        ]
+    ]
+
+
+class OrderSummary [ width = 100%,
+    datapath = { app.pickedData.value },
+    layout: SimpleLayout [ axis = y ],
+    heading: Text [ fontSize = 13, fontWeight = medium, textColor = { provided("theme").textMuted },
+        padding = [0, 0, 6, 0], text = { app.perfLine } ],
+    SummaryLine [ datapath = :seats[] ],
+    totals: View [ width = 100%, padding = [14, 0, 4, 0],
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        View [ width = 100%,
+            layout: SimpleLayout [ axis = x ],
+            Text [ flexes = true, fontSize = 14, textColor = { provided("theme").textMuted }, text = "Tickets" ],
+            Text [ fontSize = 14, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+                text = { money(app.seatsTotal) } ]
+            ],
+        View [ width = 100%,
+            layout: SimpleLayout [ axis = x ],
+            Text [ flexes = true, fontSize = 14, textColor = { provided("theme").textMuted }, text = "Booking fees" ],
+            Text [ fontSize = 14, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+                text = { money(app.feesTotal) } ]
+            ],
+        View [ width = 100%, padding = [6, 0, 0, 0],
+            layout: SimpleLayout [ axis = x, align = baseline ],
+            Text [ flexes = true, fontSize = 17, fontWeight = semibold, text = "Total" ],
+            Text [ fontFamily = { app.display }, fontSize = 26, fontWeight = semibold, numeralWidth = tabular,
+                text = { money(app.grandTotal) } ]
+            ]
+        ]
+    ]
+
+
+// ── Signing in ──────────────────────────────────────────────────────────────
+//
+// An email and a password, as a password manager expects to find them. Built
+// when the sheet opens and gone when it closes; what it holds is its own.
+
+class SignInForm [ width = 100%, padding = [4, 4, 8, 4],
+    email: string = "",
+    password: string = "",
+    reveal: boolean = false,
+    submit() { app.signIn(email.trim(), password) },
+    onInit() { afterSettle(() => Focus.focus(this.mailBox.mail)) },
+
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+    Text [ fontFamily = { app.display }, fontSize = 26, fontWeight = semibold, text = "Sign in",
+        accessibilityRole = heading, accessibilityLevel = 2 ],
+    Text [ width = 100%, wrap = true, fontSize = 14, textColor = { provided("theme").textMuted },
+        text = "Your seats and anything you've typed stay as they are." ],
+
+    mailBox: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 7 ],
+        Text [ fontSize = 13, fontWeight = medium, textColor = { provided("theme").textMuted }, text = "Email" ],
+        mail: TextInput [ width = 100%, height = { app.fieldH }, padding = [0, 14, 0, 14], cornerRadius = 10,
+            fontSize = { app.touchFirst ? 17 : 16 }, purpose = email, accessibilityLabel = "Email",
+            fill = { provided("theme").field }, stroke = { stroke(1, provided("theme").fieldLine) },
+            State [ applied = { focused }, stroke = { stroke(1.5, provided("theme").text) } ],
+            text = { classroot.email },
+            onInput(v: string) { classroot.email = v },
+            onEnter() { Focus.focus(classroot.pass.row.field) }
+            ]
+        ],
+    pass: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 7 ],
+        Text [ fontSize = 13, fontWeight = medium, textColor = { provided("theme").textMuted }, text = "Password" ],
+        row: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+            field: TextInput [ flexes = true, height = { app.fieldH }, padding = [0, 14, 0, 14], cornerRadius = 10,
+                fontSize = { app.touchFirst ? 17 : 16 }, purpose = password, accessibilityLabel = "Password",
+                concealed = { !classroot.reveal },
+                fill = { provided("theme").field }, stroke = { stroke(1, provided("theme").fieldLine) },
+                State [ applied = { focused }, stroke = { stroke(1.5, provided("theme").text) } ],
+                accessibilityError = { app.signInError },
+                text = { classroot.password },
+                onInput(v: string) { classroot.password = v },
+                onEnter() { classroot.submit() }
+                ],
+            show: Control [ height = { app.fieldH }, padding = [0, 12, 0, 12], cornerRadius = 10,
+                accessibilityRole = toggle, accessibilityPressed = { classroot.reveal },
+                accessibilityLabel = "Show password",
+                fill = { hovered ? provided("theme").field : null },
+                press() { classroot.reveal = !classroot.reveal },
+                TextLabel [ fontSize = 14, fontWeight = medium, textColor = { provided("theme").text },
+                    text = { classroot.reveal ? "Hide" : "Show" } ]
+                ]
+            ]
+        ],
+    error: Text [ visible = { app.signInError != "" }, width = 100%, wrap = true, fontSize = 14,
+        textColor = { provided("theme").danger }, accessibilityLive = assertive,
+        text = { app.signInError } ],
+    Button [ width = 100%, height = 50, primary = true, label = { app.session.loading ? "Signing in…" : "Sign in" },
+        onClick() { classroot.submit() }
+        ]
+    ]
+
+
+// ── The new card's fields ───────────────────────────────────────────────────
+
+class NewCardFields [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+
+    email: FormField [ label = "Email", value = { app.form.email },
+        refused = { app.form.refusal("email", app.form.email) },
+        purpose = email,
+        check(v: string) -> string { return emailProblem(v) },
+        edit(v: string) { app.form.email = v },
+        submit() { app.pay() }
+        ],
+    Text [ width = 100%, wrap = true, fontSize = 13, textColor = { provided("theme").textMuted },
+        text = "Your tickets are sent here. There's nothing to post." ],
+
+    name: FormField [ label = "Name on card", purpose = cardName, value = { app.form.name },
+        check(v: string) -> string { return requiredProblem(v, "the name on the card") },
+        edit(v: string) { app.form.name = v },
+        submit() { app.pay() }
+        ],
+    number: FormField [ label = "Card number", purpose = cardNumber, value = { app.form.number },
+        aside = { app.form.brand == "" ? "" : brandName(app.form.brand) },
+        refused = { app.form.refusal("number", app.form.number) },
+        check(v: string) -> string { return cardNumberProblem(v) },
+        regroup(v: string) -> string { return groupCard(digitsOf(v).slice(0, maxCardLength(brandOf(digitsOf(v))))) },
+        edit(v: string) { app.form.number = v },
+        submit() { app.pay() }
+        ],
+    pair: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 12 ],
+        left: View [ flexes = true,
+            expiry: FormField [ label = "Expiry date", purpose = cardExpiry, value = { app.form.expiry },
+                refused = { app.form.refusal("expiry", app.form.expiry) },
+                check(v: string) -> string { return expiryProblem(v) },
+                regroup(v: string) -> string { return groupExpiry(v) },
+                edit(v: string) { app.form.expiry = v },
+                submit() { app.pay() }
+                ]
+            ],
+        right: View [ flexes = true,
+            code: FormField [ label = "Security code", purpose = cardCode, value = { app.form.code },
+                refused = { app.form.refusal("cvc", app.form.code) },
+                check(v: string) -> string { return codeProblem(v, app.form.brand) },
+                regroup(v: string) -> string { return digitsOf(v).slice(0, 4) },
+                edit(v: string) { app.form.code = v },
+                submit() { app.pay() }
+                ]
+            ]
+        ],
+
+    billingHead: Text [ padding = [10, 0, 0, 0], fontSize = 15, fontWeight = semibold, text = "Billing address",
+        accessibilityRole = heading, accessibilityLevel = 3 ],
+    line1: FormField [ label = "Street address", purpose = addressLine1, value = { app.form.line1 },
+        check(v: string) -> string { return requiredProblem(v, "the street address") },
+        edit(v: string) { app.form.line1 = v },
+        submit() { app.pay() }
+        ],
+    line2: FormField [ label = "Address line 2 (optional)", purpose = addressLine2, value = { app.form.line2 },
+        edit(v: string) { app.form.line2 = v },
+        submit() { app.pay() }
+        ],
+    city: FormField [ label = "City", purpose = city, value = { app.form.city },
+        check(v: string) -> string { return requiredProblem(v, "the city") },
+        edit(v: string) { app.form.city = v },
+        submit() { app.pay() }
+        ],
+    place: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 12 ],
+        left: View [ flexes = true,
+            postal: FormField [ label = "Postal code", purpose = postalCode, value = { app.form.postal },
+                refused = { app.form.refusal("postalCode", app.form.postal) },
+                check(v: string) -> string { return postalProblem(v, app.form.country) },
+                edit(v: string) { app.form.postal = v },
+                submit() { app.pay() }
+                ]
+            ],
+        country: View [ flexes = true,
+            layout: SimpleLayout [ axis = y, spacing = 7 ],
+            Text [ fontSize = 13, fontWeight = medium, textColor = { provided("theme").textMuted }, text = "Country" ],
+            pick: Combobox [ width = 100%, purpose = country, placeholder = "Choose",
+                accessibilityLabel = "Country",
+                accessibilityError = { app.countryError },
+                items = { app.countries },
+                value = { app.countries.find((c) => c.id == app.form.country) ?? null },
+                input(v: object) { app.form.country = (v as CountryRec)?.id ?? "" },
+
+                // the field shows the country chosen, however it was chosen:
+                // picked here, autofilled, or from the account's address
+
+                chosenLabel: string = { countryLabel(app.form.country) },
+                trackChanges = ["chosenLabel"],
+                onChange() { this.entry.text = this.chosenLabel },
+                onInit() { afterSettle(() => { this.entry.text = this.chosenLabel }) }
+                ],
+            Text [ visible = { app.countryError != "" }, width = 100%, wrap = true, fontSize = 13,
+                textColor = { provided("theme").danger }, text = { app.countryError } ]
+            ]
+        ]
+    ]

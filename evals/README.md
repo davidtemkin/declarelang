@@ -30,8 +30,9 @@ tasks/<id>/         a task cell: brief, reference solution, acceptance
 harness/            the task-cell runner, scorer and cost measure
 baselines/          the frozen language reference the harness's brief-only solver gets
 ROUNDS.md           how a pinned round is run
-reports/            one folder per run: what it was asked, what it built, how it went
-findings/           what the runs taught: language-learnings.md is the friction log
+reports/            one folder per run (what it was asked, what it built, how it went), and the
+                    dated write-ups outside the scored runs: cold-read rounds, field reports,
+                    bug dispositions, the early friction log
 runs/               local only (git ignores it): transcripts, sandboxes, apps kept to run again
 ```
 

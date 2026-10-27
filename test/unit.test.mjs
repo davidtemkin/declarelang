@@ -8467,7 +8467,7 @@ await test("settleHeadless: text measures and auto-extents settle without a DOM"
 });
 
 await test("E-series diagnostics name the fix: bare ident, layout-in-State, dotted member, <-> non-path", async () => {
-  // Run-1 findings (language-learnings.md E-4..E-7): each of these is a wrong
+  // Run-1 findings (evals/reports/2026-07-09-language-learnings.md E-4..E-7): each of these is a wrong
   // program a model ACTUALLY wrote; the diagnostic must state the repair, not
   // just the rule. compile() throws DeclareErrors carrying every message.
   const msg = async (src) => {

@@ -12,7 +12,7 @@ workaround, that is said explicitly: it is the strongest evidence a register lik
 this can carry.
 
 Narrative context and the session in which each was found lives in
-`evals/findings/language-learnings.md` §17–23; this file is the actionable list.
+`evals/reports/2026-07-09-language-learnings.md` §17–23; this file is the actionable list.
 
 | ID | Area | Item | Weight | Status |
 |---|---|---|---|---|
@@ -221,7 +221,7 @@ probe turns this class of bug from an hour into seconds.
 
 `open: object = ({ })` is refused, so state that wants to begin as an empty record
 must default `null` and be initialised in `onInit`, and every reader needs
-`|| ({ })`. Cf. `evals/findings/language-learnings.md` §11, whose general object attribute landed;
+`|| ({ })`. Cf. `evals/reports/2026-07-09-language-learnings.md` §11, whose general object attribute landed;
 this is its remaining edge.
 
 **Re-hit 2026-08-25:** the desktop's `borns` side-channel (windows-as-data) needed
@@ -240,7 +240,7 @@ ended up reading `this.text` in `onEnter()` instead.
 
 Did not exist. Overlay chrome, decoration and highlight layers all need it. Added:
 `schema.ts`, `View`, `Surface`, DOM backend (canvas/headless no-op). Note
-`evals/findings/language-learnings.md` §5 ("a handler-less view is `pointer-events:none`") is the same
+`evals/reports/2026-07-09-language-learnings.md` §5 ("a handler-less view is `pointer-events:none`") is the same
 subject from the other side — the two should be reconciled into one stated rule when
 L-7's documentation lands.
 

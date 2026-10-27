@@ -1,0 +1,163 @@
+[
+  {
+    "name": "guest_pays",
+    "pass": true,
+    "error": null,
+    "ms": 10603,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01",
+      "POST /api/orders"
+    ]
+  },
+  {
+    "name": "phone_guest_pays",
+    "pass": true,
+    "error": null,
+    "ms": 9555,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01",
+      "POST /api/orders"
+    ]
+  },
+  {
+    "name": "double_press_sends_one",
+    "pass": true,
+    "error": null,
+    "ms": 9811,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01",
+      "POST /api/orders"
+    ]
+  },
+  {
+    "name": "declined_then_retry",
+    "pass": true,
+    "error": null,
+    "ms": 11284,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01",
+      "POST /api/orders",
+      "POST /api/orders"
+    ]
+  },
+  {
+    "name": "security_code_wrong",
+    "pass": true,
+    "error": null,
+    "ms": 9316,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01",
+      "POST /api/orders"
+    ]
+  },
+  {
+    "name": "seat_taken_before_paying",
+    "pass": true,
+    "error": null,
+    "ms": 9481,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01",
+      "POST /api/orders"
+    ]
+  },
+  {
+    "name": "seat_taken_while_choosing",
+    "pass": true,
+    "error": null,
+    "ms": 2154,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01"
+    ]
+  },
+  {
+    "name": "signed_in_saved_card",
+    "pass": true,
+    "error": null,
+    "ms": 6742,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01",
+      "POST /api/session",
+      "GET /api/me",
+      "POST /api/orders",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01"
+    ]
+  },
+  {
+    "name": "wrong_password",
+    "pass": true,
+    "error": null,
+    "ms": 2859,
+    "requests": [
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01",
+      "POST /api/session"
+    ]
+  },
+  {
+    "name": "bad_postcode_stays_home",
+    "pass": true,
+    "error": null,
+    "ms": 10039,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01"
+    ]
+  },
+  {
+    "name": "sign_in_midway_keeps_choice",
+    "pass": true,
+    "error": null,
+    "ms": 8452,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01",
+      "POST /api/session",
+      "GET /api/me"
+    ]
+  }
+]

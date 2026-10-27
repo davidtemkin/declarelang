@@ -1,0 +1,7 @@
+NAMES — eval-cadence-17: 1 missed name(s), 0 collision(s), 0 declare-help miss(es), 0 empty search(es)
+
+MISSES (min · kind · name · on · origin · the platform's answer · times · resolved at min · how it ended)
+    10 · attribute · numeralWidth         · HTMLText                 · —                  · none         · ×1  ·   10 · resolved
+         HTMLText has no attribute 'numeralWidth' — 2 sites, also on line 387 [DECLARE2000] (line 378, col 39)
+
+SUMMARY: 1 of 1 misses got no hint · 0 declared instead (none) · 0 never resolved (none)

@@ -1,0 +1,291 @@
+/*
+# The Venue: the hall
+
+The room as a person reads it: the stage everything faces, four tiers behind
+it at their prices, each row curving toward the stage, and every seat in the
+house. A seat is a control: it is pressed (by pointer, Space or Enter) to
+choose or unchoose it, it says where it is, what it costs and whether it is
+free, and its three states differ in shape, not only in colour:
+
+- free  — an open ring;
+- theirs — a solid disc in the accent, with a tick;
+- gone  — a small dot, the ring gone.
+
+`venue.declare` includes this file.
+*/
+
+// ── One seat ────────────────────────────────────────────────────────────────
+//
+// Each seat is placed by the plan (`:x`, `:y`, the seat's centre). Its box is
+// the full pitch of the row, so the target is as large as the room allows;
+// what is drawn inside it is smaller.
+
+class Seat extends Control [ width = 30, height = 27,
+    seatId: string = { :id ?? "" },
+    sold: boolean = { :sold ?? false },
+    chosen: boolean = { app.chosen.includes(classroot.seatId) },
+    lost: boolean = { app.lostSeats.includes(classroot.seatId) },
+
+    x = { (:x ?? 0) - 15 },
+    y = { (:y ?? 0) - 13.5 },
+
+    disabled = { classroot.sold },
+    accessibilityRole = checkbox,
+    accessibilityLabel = { app.seatName(:@) },
+    accessibilityChecked = { classroot.chosen },
+    accessibilityHint = { classroot.sold ? "Taken" : money(:price ?? 0) + ", available" },
+
+    // Choosing registers: the disc lands with a little overshoot.
+
+    pop: number = 0,
+    Spring [ attribute = pop, to = { classroot.chosen ? 1 : 0 }, stiffness = 520, damping = 17 ],
+
+    press() { app.toggleSeat(classroot.seatId) },
+    focusShape() { return ({ x: 2, y: 0.5, w: 26, h: 26, rad: 13 }) },
+
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const cx = 15, cy = 13.5
+        if (sold) {
+            d.fillStyle = t.seatGone
+            d.beginPath(); d.arc(cx, cy, 3.4, 0, 6.3); d.fill()
+            if (lost) {
+                // just taken from this person: a cross where their seat was
+                d.strokeStyle = t.seatLost
+                d.lineWidth = 2
+                d.lineCap = "round"
+                d.beginPath()
+                d.moveTo(cx - 6, cy - 6); d.lineTo(cx + 6, cy + 6)
+                d.moveTo(cx + 6, cy - 6); d.lineTo(cx - 6, cy + 6)
+                d.stroke()
+                }
+            return
+            }
+        const lit = hovered || pressed
+        d.lineWidth = lit ? 2.6 : 1.8
+        d.strokeStyle = t.seatFree
+        if (lit) { d.fillStyle = t.seatHover }
+        d.beginPath(); d.arc(cx, cy, 9.2, 0, 6.3)
+        if (lit) d.fill()
+        d.stroke()
+        if (pop > 0.02) {
+            const r = 11 * pop
+            d.fillStyle = t.accent
+            d.beginPath(); d.arc(cx, cy, Math.max(0, r), 0, 6.3); d.fill()
+            if (pop > 0.5) {
+                d.strokeStyle = t.accentTextColor
+                d.lineWidth = 2.2
+                d.lineCap = "round"
+                d.lineJoin = "round"
+                d.beginPath()
+                d.moveTo(cx - 4.6, cy + 0.2); d.lineTo(cx - 1.4, cy + 3.6); d.lineTo(cx + 4.8, cy - 3.6)
+                d.stroke()
+                }
+            }
+        }
+    ]
+
+
+// ── A section: its label and its seats ──────────────────────────────────────
+//
+// Every section view covers the whole room, so a seat's place is the plan's.
+// To a screen reader a section is a named group; to the keyboard it is one
+// Tab stop, the arrows moving along a row and Up and Down between rows.
+
+class HallSection [ width = { app.plan.value?.width ?? 0 }, height = { app.plan.value?.height ?? 0 },
+    accessibilityRole = group,
+    accessibilityLabel = { (:name ?? "") + ", " + money(:price ?? 0) + " a seat, " + (:free ?? 0) + " free" },
+    focusScope = stop,
+
+    // The nearest free seat in the next row up or down, for the arrows.
+
+    moveRow(from: Seat, dir: number) {
+        const here = app.plan.seatById(from.seatId)
+        if (here == null) return
+        const seats = this.children.filter((c) => (c as Seat).seatId !== undefined) as Seat[]
+        const rows: string[] = []
+        for (const s of seats) {
+            const p = app.plan.seatById(s.seatId)
+            if (p != null && !rows.includes(p.row)) rows.push(p.row)
+            }
+        let ri = rows.indexOf(here.row) + dir
+        while (ri >= 0 && ri < rows.length) {
+            let best: Seat | null = null
+            let bestD = Infinity
+            for (const s of seats) {
+                const p = app.plan.seatById(s.seatId)
+                if (p == null || p.row != rows[ri] || s.sold) continue
+                const dd = Math.abs(p.x - here.x)
+                if (dd < bestD) { bestD = dd; best = s }
+                }
+            if (best != null) { Focus.focus(best); return }
+            ri = ri + dir
+            }
+        },
+
+    label: View [ x = center, y = { (:labelY ?? 0) + 2 },
+        layout: SimpleLayout [ axis = x, spacing = 10, align = baseline ],
+        Text [ fontSize = 16, fontWeight = semibold, letterSpacing = 2, textTransform = uppercase,
+            textColor = { provided("theme").hallInk }, text = { :name ?? "" } ],
+        Text [ fontSize = 16, numeralWidth = tabular,
+            textColor = { provided("theme").hallMuted }, text = { money(:price ?? 0) } ]
+        ],
+
+    Seat [ datapath = :seats[],
+        onKeyDown(e: KeyEvent) {
+            if (e.key == "ArrowUp") { classroot.moveRow(this, -1); return }
+            if (e.key == "ArrowDown") { classroot.moveRow(this, 1); return }
+            super.onKeyDown(e)
+            }
+        ]
+    ]
+
+
+// ── The room ────────────────────────────────────────────────────────────────
+//
+// The floor of each tier is drawn as a band that follows its rows' curve,
+// darker where the seats cost more, so the good seats read before any
+// words do. The stage is the bright shape everything faces.
+
+class Hall [ width = { app.plan.value?.width ?? 0 }, height = { app.plan.value?.height ?? 0 },
+    datapath = { app.plan.value },
+
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const p = app.plan.value
+        if (p == null) return
+        const cx = p.width / 2
+        const lift = (dx: number) => app.plan.lift(dx)
+
+        // the stage: an apron curving out toward the house
+        d.fillStyle = t.stage
+        d.beginPath()
+        d.moveTo(cx - 300, 0)
+        d.lineTo(cx + 300, 0)
+        d.lineTo(cx + 300, 34)
+        d.quadraticCurveTo(cx, 82, cx - 300, 34)
+        d.closePath()
+        d.fill()
+
+        // each tier's floor
+        for (const s of p.sections) {
+            const half = s.width / 2 + 34
+            const top = s.top - 2, bottom = s.bottom + 2
+            d.fillStyle = t.tierFloors[s.tier]
+            d.beginPath()
+            for (let i = 0; i <= 24; i++) {
+                const dx = -half + (2 * half * i) / 24
+                const yy = top - lift(dx)
+                if (i == 0) d.moveTo(cx + dx, yy); else d.lineTo(cx + dx, yy)
+                }
+            for (let i = 24; i >= 0; i--) {
+                const dx = -half + (2 * half * i) / 24
+                d.lineTo(cx + dx, bottom - lift(dx))
+                }
+            d.closePath()
+            d.fill()
+
+            // a raised tier's front rail
+            if (s.tier > 0) {
+                d.strokeStyle = t.tierRail
+                d.lineWidth = 2
+                d.beginPath()
+                for (let i = 0; i <= 24; i++) {
+                    const dx = -half + (2 * half * i) / 24
+                    const yy = top - 6 - lift(dx)
+                    if (i == 0) d.moveTo(cx + dx, yy); else d.lineTo(cx + dx, yy)
+                    }
+                d.stroke()
+                }
+            }
+        },
+
+    stageLabel: Text [ x = center, y = 12, fontSize = 15, fontWeight = semibold, letterSpacing = 3,
+        textTransform = uppercase, textColor = { provided("theme").stageInk }, text = "Stage" ],
+
+    HallSection [ datapath = :sections[] ]
+    ]
+
+
+// ── The whole room, small: the phone's map ──────────────────────────────────
+//
+// On a phone the hall is shown at a size a thumb can hit, so it is larger
+// than the screen. This map is the whole room at a glance, with the part on
+// screen framed; a tap there takes the hall to that spot. It adds nothing a
+// screen reader needs (every seat is in the hall itself), so it says nothing.
+
+class HallMap [
+    k: number = 0.12,                   // the map's scale
+    viewX: number = 0,                  // the visible part of the hall, in hall units
+    viewY: number = 0,
+    viewW: number = 0,
+    viewH: number = 0,
+    width = { (app.plan.value?.width ?? 0) * classroot.k + 16 },
+    height = { (app.plan.value?.height ?? 0) * classroot.k + 16 },
+    cornerRadius = 12,
+    fill = { provided("theme").mapFill },
+    shadow = { shadow(0, 4, 16, 0x00000059) },
+    accessibilityRole = none,
+
+    jump(hx: number, hy: number) { },
+    onClick(e: PointerEvent) { classroot.jump((e.x - 8) / classroot.k, (e.y - 8) / classroot.k) },
+
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const p = app.plan.value
+        if (p == null) return
+        d.translate(8, 8)
+        d.scale(k, k)
+        d.fillStyle = t.stage
+        d.fillRect(p.width / 2 - 300, 0, 600, 40)
+        for (const s of p.sections) {
+            for (const st of s.seats) {
+                const mine = app.chosen.includes(st.id)
+                d.fillStyle = mine ? t.accent : st.sold ? t.seatGone : t.seatFree
+                const r = mine ? 15 : st.sold ? 6 : 10
+                d.fillRect(st.x - r, st.y - r, 2 * r, 2 * r)
+                }
+            }
+        d.strokeStyle = t.mapFrame
+        d.lineWidth = 2 / k * 1.2
+        d.strokeRect(viewX, viewY, viewW, viewH)
+        }
+    ]
+
+
+// ── The legend: the three states, drawn as the seats draw them ──────────────
+
+class LegendMark [ width = 30, height = 27,
+    state: "free" | "mine" | "gone" = "free",
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const cx = 15, cy = 13.5
+        if (state == "gone") {
+            d.fillStyle = t.seatGone
+            d.beginPath(); d.arc(cx, cy, 3.4, 0, 6.3); d.fill()
+            } else if (state == "free") {
+            d.strokeStyle = t.seatFree
+            d.lineWidth = 1.8
+            d.beginPath(); d.arc(cx, cy, 9.2, 0, 6.3); d.stroke()
+            } else {
+            d.fillStyle = t.accent
+            d.beginPath(); d.arc(cx, cy, 11, 0, 6.3); d.fill()
+            d.strokeStyle = t.accentTextColor
+            d.lineWidth = 2.2
+            d.lineCap = "round"
+            d.lineJoin = "round"
+            d.beginPath()
+            d.moveTo(cx - 4.6, cy + 0.2); d.lineTo(cx - 1.4, cy + 3.6); d.lineTo(cx + 4.8, cy - 3.6)
+            d.stroke()
+            }
+        }
+    ]
+
+
+class LegendItem [
+    state: "free" | "mine" | "gone" = "free",
+    word: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+    LegendMark [ state = { classroot.state } ],
+    Text [ fontSize = 13, textColor = { provided("theme").hallMuted }, text = { classroot.word } ]
+    ]

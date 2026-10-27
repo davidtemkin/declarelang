@@ -1,0 +1,13 @@
+NAMES — eval-venue-6: 4 missed name(s), 0 collision(s), 0 declare-help miss(es), 0 empty search(es)
+
+MISSES (min · kind · name · on · origin · the platform's answer · times · resolved at min · how it ended)
+    14 · attribute · numeralWidth         · TextInput                · —                  · none         · ×1  ·   14 · resolved
+         TextInput has no attribute 'numeralWidth' [DECLARE2000] (venue-checkout.declare:52:9)
+    14 · member    · focused              · State                    · —                  · none         · ×1  ·   14 · resolved
+         'focused' is not a member of State — declare it (focused: <type> = …) or fix the name — 3 sites, also on lines 239, 254 [DECLARE6001] (venue-checkout.declare:54:34)
+    14 · member    · mail                 · SignInForm               · —                  · did-you-mean · ×1  ·   14 · resolved
+         'mail' is not a member of SignInForm — did you mean 'email'? [DECLARE6001] (venue-checkout.declare:225:51)
+    14 · member    · heading              · this View                · —                  · none         · ×1  ·   14 · resolved
+         'heading' is not a member of this View — declare it (heading: <type> = …) or fix the name [DECLARE6001] (line 652, col 117)
+
+SUMMARY: 3 of 4 misses got no hint · 0 declared instead (none) · 0 never resolved (none)

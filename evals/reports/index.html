@@ -22,6 +22,27 @@
 <thead><tr><th>Date</th><th>Task</th><th>Model</th><th>Outcome</th><th>Report</th></tr></thead>
 <tbody>
 <tr>
+  <td>2026-10-26</td>
+  <td><strong>Murmur — run 11</strong><br><small>1b3064f2, the renamed foundation: level with run 10 (20.9 min, cached input −7%), the fewest code lines yet (870); a prototype before the one-pane-per-conversation bet; the open conversation in the URL; one name miss (<code>fresh</code> on a State); findings: <code>drive.wait</code> passes no real time though verify.md says it does, a custom layout box missing <code>h</code>/<code>vis</code> draws nothing silently, an <code>input</code> override disables a Popover silently, an Audio is laid out</small></td>
+  <td>Opus 5.5</td>
+  <td><span class="tag t-ok">R4 clean · 5 scripts R5</span><br><small>870 code lines (1,233 raw) · 20.9 min · 108 turns</small></td>
+  <td><a href="2026-10-26-murmur-run11/report.md">report</a> · <a href="2026-10-26-murmur-run11/account.md">its account</a> · <a href="2026-10-26-murmur-run11/names.txt">names</a> · <a href="2026-10-26-murmur-run11/murmur.declare">murmur.declare</a></td>
+</tr>
+<tr>
+  <td>2026-10-26</td>
+  <td><strong>Cadence — run 17</strong><br><small>1b3064f2, run 16's fixes in place: the first Cadence faster than React (13.8 min vs 15.4; cached input 8.8M, half of run 16); no library or runtime source read; shortcuts inside the open sheet, the write-finished hook and rich-text figure lines replace run 16's workarounds; one name miss (<code>numeralWidth</code> on <code>HTMLText</code>); findings: generated guide JSON floods searches, no pan-and-zoom exemplar, rung 4 never opens a sheet, tests write to the live service again</small></td>
+  <td>Opus 5.5</td>
+  <td><span class="tag t-ok">R1–R5 clean</span><br><small>929 code lines (1,253 raw) · 13.8 min · 60 turns</small></td>
+  <td><a href="2026-10-26-cadence-run17/report.md">report</a> · <a href="2026-10-26-cadence-run17/account.md">its account</a> · <a href="2026-10-26-cadence-run17/names.txt">names</a> · <a href="2026-10-26-cadence-run17/cadence.declare">cadence.declare</a></td>
+</tr>
+<tr>
+  <td>2026-10-26</td>
+  <td><strong>Venue — run 6</strong><br><small>1b3064f2, the renames read in full and the page API documented: the cheapest Declare Venue and the first faster than React (26.7 min, cached input −35% on run 5); all of the saving in debugging and verification, done entirely with Declare's tools; the first names ledger: four names refused, all in one round, no foreign-instinct misses, no collisions; findings: Combobox doesn't show a value set from outside, an explicit <code>focusable = false</code> doesn't take a scroller out of the Tab order, the focus ring ignores a subtree's theme, and the form story hand-built in full</small></td>
+  <td>Opus 5.5</td>
+  <td><span class="tag t-ok">drive 11/11</span><br><small>1,606 code lines (2,095 raw) · 26.7 min · 117 turns</small></td>
+  <td><a href="2026-10-26-venue-run6/report.md">report</a> · <a href="2026-10-26-venue-run6/account.md">its account</a> · <a href="2026-10-26-venue-run6/names.txt">names</a> · <a href="2026-10-26-venue-run6/venue.declare">venue.declare</a></td>
+</tr>
+<tr>
   <td>2026-10-25</td>
   <td><strong>Venue (checkout) — run 5</strong><br><small>d7e80f80, the first run with the to-do app as the first read: read whole and used, but no measurable gain over run 4 (level cost, a larger program, one fewer pass); findings: a tap-catcher over the phone map swallows seat taps (the failed scenario), a stuck <code>scrolling</code> fact under the driver's touch, four name collisions (Card, Seat, FormField, scrollToX), no focus target outside the Tab order, <code>scrollToX</code> doesn't wait for content; chapter 11's font rule corrected</small></td>
   <td>Opus 5.5</td>
@@ -161,6 +182,25 @@
   <td><span class="tag t-warn">9 / 12 phases</span><br><small>837 lines · R1–R4 clean</small></td>
   <td><a href="2026-08-05-venue-run3/index.html">Read →</a></td>
 </tr>
+</tbody>
+</table>
+</div>
+
+<h2>Findings, outside the scored runs</h2>
+<p>What building with Declare turned up before and beside the scored runs: agents reading the docs cold,
+field reports from real builds, bug dispositions, and the friction log. Each is the record of one occasion;
+what was acted on lives in the language and the docs.</p>
+<div class="scroll">
+<table>
+<thead><tr><th>Date</th><th>What</th><th>Report</th></tr></thead>
+<tbody>
+<tr><td>2026-07-09 – 08-08</td><td><strong>The friction log</strong><br><small>what was confusing, surprising or broken while building the homepage demos, and the E-series register</small></td><td><a href="2026-07-09-language-learnings.md">Read →</a></td></tr>
+<tr><td>2026-07-21</td><td><strong>Field report: a storefront</strong><br><small>building the Aperture storefront UI, a first substantial app</small></td><td><a href="2026-07-21-storefront-field-report.md">Read →</a></td></tr>
+<tr><td>2026-07-29</td><td><strong>Cold-read round</strong><br><small>two agents read the docs cold, with eight questions</small></td><td><a href="2026-07-29-cold-read-round.md">Read →</a></td></tr>
+<tr><td>2026-08-03</td><td><strong>Agent round</strong><br><small>seven agents across two briefs and four profiles</small></td><td><a href="2026-08-03-agent-round.md">Read →</a></td></tr>
+<tr><td>2026-08-04</td><td><strong>Findings</strong><br><small>bugs from that round and from Cadence run 2</small></td><td><a href="2026-08-04-findings.md">Read →</a></td></tr>
+<tr><td>2026-08-11</td><td><strong>Murmur dispositions</strong><br><small>the first Murmur run's bugs, item by item</small></td><td><a href="2026-08-11-murmur-dispositions.md">Read →</a></td></tr>
+<tr><td>2026-08-23</td><td><strong>A reference gone red</strong><br><small>round 001's drift check: <code>pointerEvents = "none"</code> stopped sealing subtrees</small></td><td><a href="2026-08-23-pointer-corridor.md">Read →</a></td></tr>
 </tbody>
 </table>
 </div>

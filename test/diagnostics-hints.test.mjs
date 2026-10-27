@@ -2,7 +2,7 @@
 //
 // Every case here came from a cold-read round: an agent given the tree and no
 // context wrote the wrong name, and the compiler answered with the rule instead
-// of the rewrite. `findings-2026-08-03.md` §B collects them. The value of these
+// of the rewrite. `evals/reports/2026-08-03-agent-round.md` §B collects them. The value of these
 // diagnostics is highest for a reader who cannot ask a follow-up question — a
 // model mid-generation — so the negatives matter as much as the positives: a
 // confident wrong suggestion is worse than none.

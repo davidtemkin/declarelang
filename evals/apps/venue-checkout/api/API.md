@@ -65,8 +65,9 @@ A seat named by `seatchanged` is no longer available to anyone.
 - `200 { name, email }`, and sets the cookie;
 - `401 { error: "bad_credentials", message: "That email and password don't match." }`.
 
-One account exists: `ada@example.com`, password `correct horse battery`. It has a saved
-billing address, a Visa ending 4242, and a Mastercard ending 4444 that expired in August 2026.
+Two accounts exist: `ada@example.com`, password `correct horse battery`, and `a@a.co`, password
+`pass`. Each has the same saved billing address, a Visa ending 4242, and a Mastercard ending
+4444 that expired in August 2026.
 
 ### `DELETE /api/session`
 Signs out. `204`.
