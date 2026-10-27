@@ -123,6 +123,10 @@ Delivers this radio's `choice` to the group. Called by a click and by Space/Ente
 The arrows move to the next or previous radio in the group (the stop's) and check the one
 they land on; Space and Enter press, as on any control.
 
+## onBlur
+Judges the group when the focus leaves a radio, as a field is judged on leaving. An override
+calls `super.onBlur()`.
+
 ## focusShape()
 Rings the round dot rather than the dot-plus-label row.
 

@@ -103,6 +103,7 @@ The header row's height.
 
 ## selectable()
 `Table`'s, answered here: a heading record is not selectable, every other record is.
+An override narrows it with `super.selectable(m)`, so headings stay out.
 
 ## editStep()
 Moves an edit to the same column one row up or down — the spreadsheet expectation —
@@ -161,6 +162,7 @@ one is given); in any other cell, its first control does, or — for Space — i
 ## onKeyDown
 Left and Right move the active cell; Enter, F2 or a typed character edits a text column;
 Enter or F2 moves into a cell's control, and Space presses it; the rest is Table's.
+An override passes the keys it does not take to `super.onKeyDown(e)`.
 
 ## datapath
 The grid's own rows: its `items`, wrapped so each record becomes a row. Set by the grid; not
@@ -579,8 +581,8 @@ The row's record, as a derived attribute, so its cells follow the record's chang
 ## cellAt()
 The cell in a column, by its place in the column model.
 
-## trackChanges
-Empty: in a grid the keyboard is on a cell, and the cell reports itself, not the row.
+## _reportsActive
+**Internal.** Off: in a grid the keyboard is on a cell, and the cell reports itself, not the row.
 
 ## _isGridRow
 **Internal.** The marker identifying a grid row — not API.
@@ -592,7 +594,7 @@ From the theme's `gridRowHeight` (28 by default); the header row is `gridHeaderH
 class DataGridRow extends TableRow [
     accessibilityRole = row,
     _isGridRow: boolean = true,
-    trackChanges = [],               // in a grid the keyboard is on a cell, which reports itself
+    _reportsActive = false,          // in a grid the keyboard is on a cell, which reports itself
 
     height = { provided("theme").gridRowHeight },
 
@@ -647,7 +649,7 @@ The theme's `gridRowHeight`, the same as an ordinary row.
 class DataGridHeadingRow extends TableRow [
     accessibilityRole = row,
     _isGridHeading: boolean = true,
-    trackChanges = [],
+    _reportsActive = false,
     focusable = false,
     height = { provided("theme").gridRowHeight },
     rec: object = { this.datapath != null ? :@ : null },
@@ -721,12 +723,10 @@ Makes this the grid's active cell — what a control inside it does when it take
 ## _cls
 **Internal.** The class it draws.
 
-## trackChanges
-`activeHere`, so the cell can tell its grid when it becomes the active one.
-
-## onChange
-The cell that becomes the grid's active cell records itself as the grid's `activeView`,
-which the grid names to a screen reader; one that stops being it takes itself back.
+## _reportActive()
+**Internal.** The cell that becomes the grid's active cell records itself as the grid's
+`activeView`, which the grid names to a screen reader; one that stops being it takes itself
+back.
 
 ## x
 Its column's offset in the row.
@@ -795,10 +795,16 @@ class DataGridCell [ x = { :x }, width = { :width }, height = 100%, clip = true,
     stroke = { this.activeHere ? stroke(2, provided("theme").accent) : null },
     cornerRadius = { provided("theme").gridCellCornerRadius },
 
-    // the active cell says so to its grid, which names it to a screen reader
+    // the active cell says so to its grid, which names it to a screen reader —
+    // heard by this member, so a cell class's own `trackChanges` and `onChange`
+    // are its own
 
-    trackChanges = ["activeHere"],
-    onChange(e: ChangeEvent) {
+    _watch: Node [
+        on: boolean = { classroot.activeHere },
+        trackChanges = ["on"],
+        onChange() { classroot._reportActive() }
+        ],
+    _reportActive() {
         const g = this.dataGrid
         if (g == null) return
         if (this.activeHere) g.activeView = this

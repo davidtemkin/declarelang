@@ -378,13 +378,14 @@ stored.
 ## active
 Whether this row is its table's keyboard position.
 
-## trackChanges
-`active`, so the row can tell its table when it becomes the keyboard position.
+## _reportsActive
+**Internal.** Whether the row reports itself as its table's keyboard position; off for a
+grid's rows, whose cells report themselves.
 
-## onChange
-The row that becomes its table's keyboard position records itself as the table's
-`activeView`; one that stops being it, a recycled row handed another record, takes itself
-back.
+## _reportActive()
+**Internal.** The row that becomes its table's keyboard position records itself as the
+table's `activeView`; one that stops being it, a recycled row handed another record, takes
+itself back.
 
 ## item()
 The item this row presents: its **record** when replicated, the row view itself when
@@ -399,6 +400,7 @@ written-row fallback walks children, which no constraint may do.
 ## onPointerDown
 Focuses the **table**, not the row — rows are never tab stops, so the arrow keys must
 land on the container.
+An override calls `super.onPointerDown()`, or the arrow keys have nowhere to land.
 
 ## onClick
 Delivers the click to the table's `rowClick` with the modifier state. Override
@@ -454,11 +456,19 @@ class TableRow extends Control [
     // a row that becomes the active one says so to its table, and one that stops
     // being it (a recycled row handed another record) takes itself back
 
-    trackChanges = ["active"],
-    onChange(e: ChangeEvent) {
+    // Heard by this member, not by the row's own handlers, so a use site's
+    // `trackChanges` and `onChange` are its own.
+
+    _reportsActive: boolean = true,
+    _watch: Node [
+        on: boolean = { classroot._reportsActive && classroot.active },
+        trackChanges = ["on"],
+        onChange() { classroot._reportActive() }
+        ],
+    _reportActive() {
         const t = parent as Table
         if (t._isTable !== true) return
-        if (active) t.activeView = this
+        if (_reportsActive && active) t.activeView = this
         else if (t.activeView == this) t.activeView = null
         },
 

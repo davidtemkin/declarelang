@@ -1794,6 +1794,30 @@ class Resolver {
     canBundleScripts = false;
     /** The program's user classes by name — the chain `super` walks. */
     classDecls = new Map();
+    /** While an override value of a State resolves: the State's own member names,
+     *  which are not in reach there (the value runs on the view). */
+    stateOwn = null;
+    /** Is this element a State (or a State class's instance)? */
+    isState(el) {
+        const s = this.schemas[el.tag];
+        return el.tag === "State" || (s !== undefined && descendsFrom(s, "State"));
+    }
+    /** A State's own members: the slots State and its subclasses declare, the
+     *  element's own declarations, and its methods and verbs. */
+    stateMembers(el) {
+        const out = new Set(["apply", "remove", "toggle"]);
+        for (let s = this.schemas[el.tag] ?? this.schemas.State; s !== null && s.name !== "Node"; s = s.base) {
+            for (const k of Object.keys(s.attrs))
+                out.add(k);
+        }
+        for (const d of el.decls)
+            out.add(d.name);
+        for (const m of el.methods)
+            out.add(m.name);
+        for (const m of this.classExtras.get(el.tag)?.members ?? [])
+            out.add(m);
+        return out;
+    }
     constructor(source, program) {
         for (const cls of program.classes)
             this.classDecls.set(cls.name, cls);
@@ -2035,10 +2059,38 @@ class Resolver {
         const scope = mainRoot === null ? "class" : "app";
         const levels = [el, ...ancestors];
         this.checkTwoWayScope(el, levels, mainRoot);
+        // A State placed in a tree is TRANSPARENT where the runtime runs its
+        // contents on the view (instantiate.ts): an override value is the view's,
+        // computed with the view as `this`, and its children mount onto the view —
+        // so both resolve as if written on the view, the State not a level of their
+        // scope. Its own members (`applied`, its declarations, its handlers) are the
+        // State's, `this` the State. A State class's own body has no view yet: as written.
+        const state = this.isState(el) && ancestors.length > 0;
+        const own = state ? this.stateMembers(el) : null;
         for (const a of el.attrs) {
             if (a.value.kind === "code") {
-                this.resolveBody(a.value.src, a.value.pos, true, [], levels, mainRoot, scope, a.value, a.name);
+                if (own !== null && !own.has(a.name)) {
+                    this.stateOwn = { names: own, state: el.name ?? el.tag, slot: a.name };
+                    try {
+                        this.resolveBody(a.value.src, a.value.pos, true, [], ancestors, mainRoot, scope, a.value, a.name);
+                    }
+                    finally {
+                        this.stateOwn = null;
+                    }
+                }
+                else
+                    this.resolveBody(a.value.src, a.value.pos, true, [], levels, mainRoot, scope, a.value, a.name);
                 this.warnAmbient(a.value.src, a.value.pos);
+            }
+        }
+        if (own !== null) {
+            for (const m of el.methods) {
+                const ev = eventOfHandler(m.name);
+                // its handlers, its verbs, and what a State class of its own declares
+                const known = (ev !== null && eventsOf(this.schemas[el.tag] ?? this.schemas.State).includes(ev))
+                    || ["apply", "remove", "toggle"].includes(m.name) || (this.classExtras.get(el.tag)?.members.has(m.name) ?? false);
+                if (!known)
+                    this.errors.push(Diag.methodInState(m.name, el.name ?? el.tag, m.pos));
             }
         }
         // A declaration default that is a binding (the ruled R6 unlock —
@@ -2067,7 +2119,7 @@ class Resolver {
             }
         }
         for (const child of el.children)
-            this.resolveElement(child, levels, mainRoot);
+            this.resolveElement(child, state ? ancestors : levels, mainRoot);
     }
     /** A style bundle's `{ }` fields style a `<span class>` run — a run is text,
      *  so bare names resolve against `Text` (`fontSize`, `textColor` and the rest
@@ -2139,6 +2191,10 @@ class Resolver {
         if (idents === null)
             return; // TS could not parse what new Function did — leave the body alone
         for (const id of idents) {
+            if (this.stateOwn !== null && this.stateOwn.names.has(id.name)) {
+                this.errors.push(Diag.stateMemberInOverride(id.name, this.stateOwn.slot, this.stateOwn.state, this.posAt(bodyStart + id.start)));
+                continue;
+            }
             if (slot === "classFor") {
                 // `classFor = { … }` (replication metadata): the body reads the record
                 // and names a class — the element's own, or a subclass of it, since the

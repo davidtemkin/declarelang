@@ -92,8 +92,9 @@ export const STEPPED = new Set(["slider", "spinButton", "separator"]);
 const POSITIONED = new Set(["listItem", "menuItem", "tab", "radio", "option", "treeItem", "row"]);
 const PRESENTATIONAL = new Set(["button", "toggle", "checkbox", "switch", "radio", "tab", "slider", "spinButton", "progress", "separator", "option", "menuItem", "image"]);
 function walk(v, out) {
-    // what cannot be seen is not read: hidden, or faded to nothing
-    if (!v.visible || v.opacity === 0)
+    // what cannot be seen is not read: hidden, or faded to nothing; nor is what
+    // is seen and marked hidden from a screen reader
+    if (!v.visible || v.opacity === 0 || v.accessibilityHidden)
         return;
     if (isText(v)) {
         const t = textOfRun(v);
@@ -269,8 +270,8 @@ export function contentOf(v) {
     const words = [];
     const marks = [];
     const visit = (x) => {
-        // what cannot be seen names nothing, as it is not read
-        if (!x.visible || x.opacity === 0)
+        // what cannot be seen names nothing, as it is not read; nor does what is hidden from a screen reader
+        if (!x.visible || x.opacity === 0 || x.accessibilityHidden)
             return;
         if (isText(x)) {
             const t = textOfRun(x).trim();

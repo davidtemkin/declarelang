@@ -274,6 +274,7 @@ if (failedRung === null && flags.rung >= 4 && !flags.noBoot) {
         boot.unbuilt = boot.unbuilt.filter((c) => r.unbuilt.includes(c));
       }
       for (const l of r.layout ?? []) boot.layout.push(w.tag + l);
+      boot.flagged = [...(boot.flagged ?? []), ...(r.flagged ?? [])];
       first = false;
     }
     if (!boot.ok) failedRung = 4;
@@ -283,6 +284,12 @@ if (failedRung === null && flags.rung >= 4 && !flags.noBoot) {
   }
 }
 
+
+// The program's own classes (not the library's): which of them a check saw built.
+const ownClasses = async () => ((await compiledProgram()).classes ?? []).filter((c) => !String(c.pos?.file ?? "").startsWith("library/")).map((c) => c.name);
+// Rung 4's layout questions asked where rungs 5 and 6 drove the program: each
+// finding once, where it was first seen; and the classes no check saw built.
+const driven = { checks: [], flagged: [] };
 
 // ── rung 5: behavior (drive + assert, real browser) ──────────────────────
 const behave = { ran: false, ok: false, failures: [], log: [], writes: [] };
@@ -298,7 +305,10 @@ if (failedRung === null && flags.rung >= 5 && flags.assert !== null) {
       fixturesDir: flags.fixtures,
       budgetMs: flags.bootBudget,
       url: flags.url ?? null,
+      classes: await ownClasses(),
+      skip: [...boot.flagged ?? [], ...driven.checks.flatMap((c) => c.flagged ?? [])],
     });
+    driven.checks.push(...(r.checks ?? []));
     behave.ok = r.ok;
     behave.failures = r.failures;
     behave.log = r.log;
@@ -328,7 +338,10 @@ if (failedRung === null && flags.rung >= 6 && flags.states !== null) {
       bless: flags.bless,
       fixturesDir: flags.fixtures,
       budgetMs: flags.bootBudget,
+      classes: await ownClasses(),
+      skip: [...boot.flagged ?? [], ...driven.checks.flatMap((c) => c.flagged ?? [])],
     });
+    driven.checks.push(...(r.checks ?? []));
     visual.ok = r.ok;
     visual.failures = r.failures;
     visual.results = r.results;
@@ -338,6 +351,28 @@ if (failedRung === null && flags.rung >= 6 && flags.states !== null) {
     failedRung = 6;
   }
 }
+
+// what the driven checks found that the boot did not: each finding once, where
+// first seen; and the program's classes built nowhere — at boot or in any
+// state the scripts reached — so never checked
+const untagged = (l) => l.replace(/^[a-z]+ \d+×\d+: /, "");
+const known = new Set(boot.layout.map(untagged));
+const drivenLayout = [];
+for (const c of driven.checks) for (const l of c.layout ?? []) {
+  if (known.has(untagged(l))) continue;
+  known.add(untagged(l));
+  drivenLayout.push(`${c.where}: ${l}`);
+}
+const knownNotes = new Set(boot.notes.map(untagged));
+const drivenNotes = [];
+for (const c of driven.checks) for (const n of c.notes ?? []) {
+  if (knownNotes.has(untagged(n))) continue;
+  knownNotes.add(untagged(n));
+  drivenNotes.push(`${c.where}: ${n}`);
+}
+const stillUnbuilt = driven.checks.length === 0 ? boot.unbuilt
+  : boot.unbuilt.filter((cls) => driven.checks.every((c) => (c.unbuilt ?? []).includes(cls)));
+const layoutCount = boot.layout.length + drivenLayout.length;
 
 const effectiveBuilt = flags.states !== null ? 6 : flags.assert !== null ? 5 : 4;
 const topRequested = Math.min(flags.rung, effectiveBuilt);
@@ -358,7 +393,8 @@ if (flags.json) {
     probe: probeNote,
     only: onlyNote,
     stats: { constraints: out.deps?.length ?? 0, bootNodes: boot.nodes, bootMs: boot.ms },
-    boot: boot.ran ? { ok: boot.ok, errors: boot.errors, notes: boot.notes, layout: boot.layout, unbuilt: boot.unbuilt, answers: boot.answers, samples: boot.samples ?? [] } : null,
+    boot: boot.ran ? { ok: boot.ok, errors: boot.errors, notes: boot.notes, layout: boot.layout, unbuilt: stillUnbuilt, answers: boot.answers, samples: boot.samples ?? [] } : null,
+    driven: driven.checks.length > 0 ? { checks: driven.checks.length, layout: drivenLayout, notes: drivenNotes } : null,
     behavior: behave.ran ? { ok: behave.ok, failures: behave.failures, steps: behave.log } : null,
     visual: visual.ran ? { ok: visual.ok, failures: visual.failures, results: visual.results } : null,
     diagnostics: out.diagnostics,
@@ -396,8 +432,14 @@ if (flags.json) {
     const shown = [...new Set(behave.writes)];
     console.log(`  note the script sent ${behave.writes.length} write${behave.writes.length === 1 ? "" : "s"} to the live service (${shown.slice(0, 4).join(", ")}${shown.length > 4 ? ", …" : ""}) — what they made stays there; --fixtures <dir> answers requests from files instead, so a run leaves nothing behind (verify.md)`);
   }
+  for (const n of drivenNotes) console.log(`  note ${n}`);
   for (const l of boot.layout) console.log(`  layout ${l}`);
-  if (boot.unbuilt.length > 0) console.log(`  note not built at boot, so not checked here: ${boot.unbuilt.slice(0, 12).join(", ")}${boot.unbuilt.length > 12 ? ", …" : ""} — they appear once data arrives or the state changes; an assert script, or declare-look, reaches them`);
+  for (const l of drivenLayout) console.log(`  layout ${l}`);
+  if (stillUnbuilt.length > 0) {
+    const names = `${stillUnbuilt.slice(0, 12).join(", ")}${stillUnbuilt.length > 12 ? ", …" : ""}`;
+    if (driven.checks.length > 0) console.log(`  note never built — at boot or in any state the scripts reached (${driven.checks.length} checked) — so never checked for layout: ${names}`);
+    else console.log(`  note not built at boot, so not checked here: ${names} — they appear once data arrives or the state changes; an assert script (R5) or a states script (R6) that reaches them has them checked there`);
+  }
   for (const a of boot.answers) console.log(a);
   if (flags.samples) for (const s of boot.samples ?? []) console.log(`  sample ${s.source}: ${JSON.stringify(s.value)}`);
   if (failedRung === null) {
@@ -406,7 +448,7 @@ if (flags.json) {
     const wired = out.deps ? out.deps.filter((d) => d.length > 0).length : 0;
     console.log(`  verify: ${file} — clean through R${climbed}` +
       (out.deps?.length ? ` (${wired} of ${out.deps.length} constraints statically wired)` : "") +
-      (boot.layout.length > 0 ? `, with ${boot.layout.length} layout finding${boot.layout.length === 1 ? "" : "s"} to look at (the layout lines)` : ""));
+      (layoutCount > 0 ? `, with ${layoutCount} layout finding${layoutCount === 1 ? "" : "s"} to look at (the layout lines)` : ""));
     // WHAT R4 CANNOT SEE. Rungs 1–4 run in a synthetic Node backend, so a clean
     // climb is proof the program is well-formed — not that the browser bundle
     // agrees. A field report (2026-09-04) lost more time to this than to every
@@ -419,7 +461,8 @@ if (flags.json) {
       console.log(`       text did not run, and nothing was painted.`);
     } else if (climbed === 4) {
       console.log(`  note R4 booted the program as it starts; a screen it reaches only after a press or`);
-      console.log(`       data is checked by driving it there: --assert <script.mjs> (R5).`);
+      console.log(`       data is checked by driving it there: --assert <script.mjs> (R5) asks the same layout`);
+      console.log(`       questions wherever the script settles, and --states <states.mjs> (R6) in each state.`);
     }
   } else {
     console.log(`  verify: ${file} — FAILED at R${failedRung}`);

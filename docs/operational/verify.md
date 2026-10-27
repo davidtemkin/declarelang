@@ -15,8 +15,8 @@ npx declare-verify app.declare
 | 2 | resolution | unresolved names, tags, datapaths | — |
 | 3 | analysis | type errors, constraint reads without a known target | — |
 | 4 | boot | fails to construct or settle, or never settles; notes a control nobody can reach, a child spilling out of a box sized by its content, text running past its box or the window, a target too small for a finger | — |
-| 5 | behavior | drive/expect mismatch | `--assert <script.mjs>` |
-| 6 | visual | mismatch against named baselines | `--states <script.mjs>` `--baselines <dir>` |
+| 5 | behavior | drive/expect mismatch; notes rung 4's layout findings wherever the script settles | `--assert <script.mjs>` |
+| 6 | visual | mismatch against named baselines; notes rung 4's layout findings in each state | `--states <script.mjs>` `--baselines <dir>` |
 
 Rungs 1–3 read the program and need nothing else. Rung 4 **boots** it, in the Chrome the
 tools keep running between calls (a page of its own each time, so it costs about a second):
@@ -84,7 +84,17 @@ but presses nothing: input routing, a screen reached only after a press, and any
 only exists in a bundled or minified build are invisible to it — a transparent view
 swallowing presses, or a class name minified out from under code that compared it, both
 settle cleanly at rung 4. A rung-5 script that drives the program there is the check for
-those, and when a bug survives every rung, the next question is a live page, not a re-run. The tiers and their blind spots are tabulated in
+those, and when a bug survives every rung, the next question is a live page, not a re-run.
+
+**Rungs 5 and 6 ask rung 4's layout questions where they drive.** Wherever a script lets
+the program come to rest — `drive.settleMotion()`, `drive.settleData()`, its end — and in
+each named state, the program is asked what the boot was: a target too small for a finger
+(on a touch device), a control another view takes the presses of, text or a child running
+past its box. A finding is a `layout` line naming where it was seen (`after tap app.go:`,
+`in state 'open':`) and the views by path; a view already reported is not reported again.
+What an open overlay or pinned chrome lies over is behind it by design, and not reported.
+The verdict also names the program's own classes built nowhere — at boot or in any state a
+script reached — so never checked: a screen no script visits is a screen nothing looked at. The tiers and their blind spots are tabulated in
 [Introspection](declare-docs:operational:introspection).
 
 ## Looking at it, in one call

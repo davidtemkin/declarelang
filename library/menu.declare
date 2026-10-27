@@ -82,6 +82,7 @@ as `open`.
 
 ## close()
 Takes the menu down, closes any cascade under it, and releases the keyboard claim.
+An override calls `super.close()`.
 
 ## pick()
 Delivers a row: **dismisses first, then delivers**, one painted frame later — the

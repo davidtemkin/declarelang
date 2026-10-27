@@ -187,6 +187,11 @@ It opens when the state turns true and closes when it turns false; Esc and a pre
 write `false` back through `input`. Leaving `input` out is a compile error that names the fix:
 the sheet would have no way to tell your state it closed.
 
+**Something to do when it closes**, however it closed — Esc, a press past it, `close()` —
+goes in [`closed()`](declare-docs:Floating.method.closed), called once it has closed:
+`closed() { app.selection = null }`. Not in `input`: the verbs deliver through `input`, so
+an override of it that writes nothing leaves `show()` with nothing to open.
+
 ## Sheets
 
 A [`Sheet`](declare-docs:Sheet) is a modal panel attached to an edge: a form, a detail, a set of choices. On a

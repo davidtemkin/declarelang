@@ -639,7 +639,7 @@ On a web page a role is the ARIA role of the same name, with these exceptions: `
 ARIA states — `accessibilityLabel` the name (`aria-label`), `accessibilityHint` the
 description, `accessibilityChecked`, `Pressed`, `Selected` and `Expanded` the matching
 `aria-` states, `accessibilityValue`, `Min`, `Max` and `ValueText` the `aria-value…` ones —
-and a `disabled` control is `aria-disabled`. A test that finds views by role and name finds
+`accessibilityHidden` is `aria-hidden`, and a `disabled` control is `aria-disabled`. A test that finds views by role and name finds
 them by these.
 
 ## accessibilityLabel
@@ -652,6 +652,14 @@ is — a switch, a slider, a drawn control, an icon.
 ## accessibilityHint
 A longer description, read after the name and value — what pressing it does, when the name
 alone does not say. Leave it empty rather than repeating the name.
+
+## accessibilityHidden
+Whether a screen reader skips this view and all it holds, while it is still seen —
+decoration that the words around it already say: an icon beside a word that says the same
+thing, a divider drawn in characters. It names nothing either: a button holding a hidden
+shortcut glyph is named by its words alone. Not for a control, or a view that holds one —
+the keyboard still reaches it, and there it says nothing (the compiler warns); to take a
+control away, hide it or disable it. To hide a view from everyone, `visible = false`.
 
 ## accessibilityError
 What is wrong with this view's value, said with it — "Use at least three letters." — and

@@ -124,7 +124,14 @@ class Sheet extends Floating [
         : this.presentation == "center" ? (this.hostH - this.height) / 2 + 16 * (1 - this.openT) : 0 },
     opacity = { this.presentation == "center" ? this.openT : 1 },
 
-    closed() { dragY = 0; dragX = 0 },
+    // a sheet put away by a swipe opens next time at rest: reset here, when it
+    // closes, and not in `closed()`, which is the use site's to write
+
+    _dragReset: Node [
+        open: boolean = { classroot.shown },
+        trackChanges = ["open"],
+        onChange() { if (!open) { classroot.dragY = 0; classroot.dragX = 0 } }
+        ],
 
     scrim: View [ pointerEvents = "none",
         x = { -classroot.x }, y = { -classroot.y },

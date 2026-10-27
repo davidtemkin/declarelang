@@ -146,6 +146,11 @@ if (!argv.includes("--skip-corpus")) {
         for (let i = 0; i < 100 && decoding() > 0; i++) await new Promise((r) => setTimeout(r, 30));
         D.clock?.settleMotion?.(5000);
         D.clock?.auto?.();
+        // what a view learned mid-motion lands at rest on a real-time timer
+        // (visibility.ts scheduleFlush, 120 ms) — a drawing's raster scale among
+        // it. Photographed before, a drawing is its mid-motion raster on some
+        // loads and not others (todo's list badges, 2026-10-27): wait it out
+        await new Promise((r) => setTimeout(r, 300));
         await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
         const out = [];
         const walk = (v, p) => {

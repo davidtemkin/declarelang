@@ -69,6 +69,28 @@ await test("a press outside: a popover closes and the press goes on; a dialog ho
   app.toast.close(); settle();
 });
 
+await test("an overlay's open and close work is its own: a use site's trackChanges, onChange and onInit, written for its own ends, leave it opening, closing, and open from the start", async () => {
+  const app = await boot(`App [ width = 600, height = 400, seen: number = 0, inits: number = 0, startOpen: boolean = true,
+    opener1: Button [ x = 20, y = 20, label = "Anchor" ],
+    pop: Popover [ anchorTo = { app.opener1 }, note: string = "",
+        trackChanges = ["note"], onChange() { app.seen = app.seen + 1 }, onInit() { app.inits = app.inits + 1 },
+        Text [ text = "a popover" ] ],
+    early: Sheet [ shown = { app.startOpen }, input(open: boolean) { app.startOpen = open }, onInit() { app.inits = app.inits + 1 }, Text [ text = "open at start" ] ]
+    ]`);
+  await new Promise((r) => setTimeout(r, 0)); settle();
+  assert.equal(app.inits, 2, "the use sites' own onInit ran");
+  assert.equal(app.early.present, true, "an overlay shown from the start opened, its own onInit notwithstanding");
+  app.pop.showFor(app.opener1); settle();
+  assert.equal(app.pop.present, true, "show() opens it, its own trackChanges and onChange notwithstanding");
+  app.pop.note = "x"; settle();
+  assert.equal(app.seen, 1, "the use site's onChange hears its own attribute");
+  app.pop.close(); settle();
+  assert.equal(app.pop.shown, false, "close() closes it");
+  app.early.close(); settle();
+  assert.equal(app.early.shown, false, "and the one open from the start closes through its state");
+  await new Promise((r) => setTimeout(r, 50)); settle();
+});
+
 await test("a scroll outside: a sheet holds it back; a popover lets it by", async () => {
   const app = await boot(KINDS);
   app.sheet.show(); settle();

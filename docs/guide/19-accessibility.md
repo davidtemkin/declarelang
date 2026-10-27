@@ -87,6 +87,11 @@ and never read aloud.
 **Pictures that carry meaning.** An `Image` with an `accessibilityLabel` is read; one
 without is decoration and is skipped.
 
+**Decoration that is text.** Text that only repeats what the words around it say — a
+glyph beside a word that says the same thing — is noise when read aloud. Mark it
+[`accessibilityHidden`](declare-docs:View.accessibilityHidden): it is still seen, and a
+screen reader skips it and all it holds. Never on a control: the keyboard still reaches it.
+
 **The shape of a page.** A view whose text is a heading says so —
 `accessibilityRole = heading, accessibilityLevel = 2` — so a screen reader can move from
 heading to heading. The large regions of a screen can be landmarks (`navigation`, `main`,

@@ -96,10 +96,13 @@ export function typecheckBodies(text, program, mainStart = 0, prefix = "My") {
     CHECKING = program;
     const { schemas } = programSchemas(program.classes, new Set((program.shapes ?? []).map((s) => s.name)));
     WORD_TYPES = new Set();
+    WORD_TOKENS = new Map();
     for (const sc of Object.values(schemas))
         for (const t of Object.values(sc.attrs))
-            if (t.kind === "enum" && !isAuthoredUnion(t.name))
+            if (t.kind === "enum" && !isAuthoredUnion(t.name)) {
                 WORD_TYPES.add(t.name);
+                WORD_TOKENS.set(t.name, t.tokens);
+            }
     const rprog = program;
     const providedKeys = providedThemeKeys(rprog);
     THEME_TOKENS = [...themeTokenTypes(rprog.themes ?? [], providedKeys).keys()];
@@ -459,7 +462,8 @@ function explainTs(d, u, synthTags) {
                             : m[2] === "Radius"
                                 ? ` — ${insetOrRadiusShape(u.slot)}`
                                 : ` — make the expression yield a ${m[2]}`;
-                return `${home} computes ${article(m[1])}, but '${u.slot}' is typed ${m[2]}${canon}`;
+                const named = wordAsName(u.rewrites, m[2]);
+                return `${home} computes ${article(m[1])}, but '${u.slot}' is typed ${m[2]}${named !== "" ? named : canon}`;
             }
             return msg;
         // A missing member — with tsc's suggestion when it has one (grounded in
@@ -617,10 +621,22 @@ function plainLiteralText(lit) {
     }
     return undefined;
 }
+/** One of the slot's words written bare in a body where it is also a name
+ *  (`axis = { wide ? x : y }` reads the view's x and y): said, with its
+ *  spelling. A bare name the resolver rewrote to the member it reads ends in
+ *  that name, and spans exactly it in the author's text. */
+function wordAsName(rewrites, type) {
+    const words = WORD_TOKENS.get(type) ?? [];
+    const hit = rewrites.map((r) => /[\w$]+$/.exec(r.text)?.[0] ?? "")
+        .find((n, i) => n !== "" && words.includes(n) && rewrites[i].end - rewrites[i].start === n.length);
+    return hit === undefined ? "" : ` — here '${hit}' is a name, read as the member it names, not the word. Inside { } a word is a string: "${hit}"`;
+}
 /** The scaffold's named word sets — the enum aliases, whose values are a
  *  closed list of strings (set per typecheck from the schemas, as the scaffold
  *  emits them) — and the one of them a text style names. */
 let WORD_TYPES = new Set();
+/** Each word set's words, by its name. */
+let WORD_TOKENS = new Map();
 const TEXT_STYLE_WORDS = new Set(["FontWeight"]);
 /** Every key `provided("theme")` can be read for (set per typecheck, as the
  *  scaffold's `$ThemeTokens` is emitted). */
@@ -999,7 +1015,23 @@ class CaseEmitter {
     literalPaths = [];
     walkElement(el, ancestors, classBody) {
         const levels = [el, ...ancestors];
+        // A State placed in a tree is transparent where the runtime runs its
+        // contents on the view (compile.ts resolveElement says why): an override
+        // value checks as the view's — `this` the view, against the view's slot —
+        // and its children walk with the view as their scope.
+        const ss = this.schemas[el.tag];
+        const state = ancestors.length > 0 && (el.tag === "State" || (ss !== undefined && descendsFrom(ss, "State")));
+        const ownSlot = (name) => {
+            for (let s = ss ?? this.schemas.State ?? null; s !== null && s.name !== "Node"; s = s.base)
+                if (Object.hasOwn(s.attrs, name))
+                    return true;
+            return el.decls.some((d) => d.name === name);
+        };
         for (const a of el.attrs) {
+            if (state && a.value.kind === "code" && !ownSlot(a.name)) {
+                this.emit(a.value.src, a.value.pos, a.name, tsSlotType(this.schemas, ancestors[0].tag, a.name), ancestors, true, [], classBody, a.value);
+                continue;
+            }
             if (a.value.kind === "code" && a.name === "datapath" && isLiteralExpression(a.value.src))
                 this.literalPaths.push(a.value.pos);
             if (a.value.kind === "code") {
@@ -1025,7 +1057,7 @@ class CaseEmitter {
         for (const m of el.methods)
             this.emit(m.body, m.bodyPos, null, null, levels, false, m.params, classBody, m);
         for (const child of el.children)
-            this.walkElement(child, levels, classBody);
+            this.walkElement(child, state ? ancestors : levels, classBody);
     }
     /** `slot`/`slotTs` are the slot's name and TS type (an expression body
      *  checks against it), null for a method. `params` are a method's parameters

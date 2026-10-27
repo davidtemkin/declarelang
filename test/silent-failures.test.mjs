@@ -215,6 +215,131 @@ App [ width = 400, height = 200, sport: string = "run",
   assert.match(r.out, /use Segmented/, r.out);
 });
 
+await test("a slot's word written bare in { } where it is also a name (x, y) is answered with its quoted spelling", () => {
+  const f = join(DIR, "wordname.declare");
+  writeFileSync(f, `App [ width = 400, height = 200, wide: boolean = true,
+    View [ layout: SimpleLayout [ axis = { app.wide ? x : y } ] ] ]`);
+  const r = run("verify.mjs", f, "--rung", "3");
+  assert.match(r.out, /DECLARE6001/, r.out);
+  assert.match(r.out, /here 'x' is a name, read as the member it names, not the word\. Inside \{ \} a word is a string: "x"/, r.out);
+});
+
+await test("a press on a link in selectable text, half under a pinned bar, follows it: the browser's focus of its <a> is a press's, and does not scroll the page between press and release", () => {
+  const f = join(DIR, "pinnedlink.declare");
+  // in selectable text, where the browser's own press runs — and focuses the <a>
+  writeFileSync(f, `App [ width = 400, height = 300, scrolls = y,
+    col: View [ width = 400, selectable = true, layout: SimpleLayout [ axis = y ],
+        View [ width = 400, height = 600 ],
+        lk: Text [ height = 20, text = "Go there", link = "#there" ],
+        View [ width = 400, height = 600, anchor = "there" ] ],
+    bar: View [ ignoreScroll = true, width = 400, height = 40, fill = #10202C ] ]`);
+  const script = join(DIR, "pinnedlink.mjs");
+  writeFileSync(script, `export const device = { width: 400, height: 300 };
+export default async ({ drive, expect }) => {
+  // the link's top half under the bar (bar 0–40, link 25–45), pressed on its visible half
+  await drive.page.evaluate(() => scrollTo(0, 600 - 25));
+  await drive.waitReal(200);
+  const before = await drive.page.evaluate(() => { addEventListener("pointerup", () => { window.__atRelease = scrollY; }, true); return scrollY; });
+  await drive.page.mouse.click(30, 42);
+  await drive.waitReal(200);
+  const atRelease = await drive.page.evaluate(() => window.__atRelease);
+  if (atRelease !== before) throw new Error("the page scrolled between press and release: " + before + " → " + atRelease);
+  await expect.attr("app", "location", "@there");
+};`);
+  const r = run("verify.mjs", f, "--assert", script, "--rung=5", "--no-boot");
+  assert.equal(r.status, 0, r.out);
+});
+
+await test("a disabled Button or ToolButton takes no click — the click is refused before its action — and takes it once enabled", () => {
+  const f = join(DIR, "disabled.declare");
+  writeFileSync(f, `App [ width = 300, height = 200, n: number = 0, off: boolean = true,
+    b: Button [ x = 20, y = 20, label = "Go", disabled = { app.off }, onClick() { app.n = app.n + 1 } ],
+    t: ToolButton [ x = 20, y = 100, label = "Bold", toggle = true, disabled = { app.off } ] ]`);
+  const script = join(DIR, "disabled.mjs");
+  writeFileSync(script, `export const device = { width: 300, height: 200 };
+export default async ({ drive, expect }) => {
+  const at = async (p) => { const n = await drive.page.evaluate((q) => window.__declare.inspect(q), p); return [n.rootX + n.width / 2, n.rootY + n.height / 2]; };
+  const [bx, by] = await at("app.b"), [tx, ty] = await at("app.t");
+  await drive.page.mouse.click(bx, by); await drive.page.mouse.click(tx, ty);
+  await drive.waitReal(100);
+  await expect.attr("app", "n", 0);
+  await expect.attr("app.t", "on", false);
+  await drive.set("app", "off", false);
+  await drive.page.mouse.click(bx, by); await drive.page.mouse.click(tx, ty);
+  await drive.waitReal(100);
+  await expect.attr("app", "n", 1);
+  await expect.attr("app.t", "on", true);
+};`);
+  const r = run("verify.mjs", f, "--assert", script, "--rung=5", "--no-boot");
+  assert.equal(r.status, 0, r.out);
+});
+
+await test("rung 4's layout questions are asked where a script drives the program: what a press opens is checked, by name, once", () => {
+  const f = join(DIR, "driven.declare");
+  writeFileSync(f, `App [ width = 390, height = 700, more: boolean = false,
+    go: Button [ x = 20, y = 20, label = "Open", onClick() { app.s.show() } ],
+    moreBtn: Button [ x = 20, y = 90, label = "More", onClick() { app.more = true } ],
+    pinned: View [ ignoreScroll = true, width = 390, height = 10 ],
+    s: Sheet [ Text [ text = "Pick" ], tiny: Button [ height = 30, label = "x", onClick() { } ] ],
+    panel: View [ y = 300, width = 390, height = 200, exists = { app.more },
+        hidden: Button [ x = 20, y = 20, label = "Under", onClick() { } ],
+        cover: View [ width = 390, height = 200, onClick() { } ] ] ]`);
+  const script = join(DIR, "driven.mjs");
+  writeFileSync(script, `export const device = { width: 390, height: 700, touch: true };
+export default async ({ drive }) => {
+  await drive.click("app.go"); await drive.settleMotion();
+  await drive.key("Escape"); await drive.settleMotion();
+  await drive.click("app.moreBtn"); await drive.settleData();
+};`);
+  const r = run("verify.mjs", f, "--assert", script, "--rung=5");
+  assert.equal(r.status, 0, r.out);
+  assert.match(r.out, /layout after tap app\.go: 1 control\(s\) smaller than 44 × 44, a finger's target: app\.s\.body\.tiny 41×30/, r.out);
+  assert.match(r.out, /layout after tap app\.moreBtn: 1 control\(s\) another view takes the presses of: .*app\.panel\.hidden \(by app\.panel\.cover\)/, r.out);
+  assert.doesNotMatch(r.out, /layout after[^\n]*app\.go 73/, "a control the boot reported is not reported again");
+  assert.doesNotMatch(r.out, /\(by app\.s\b/, "what an open sheet covers is behind it by design");
+});
+
+await test("a driven check waits for the browser's scroll to come to rest: after a fling, what it reports is what is covered where the list stopped", () => {
+  const f = join(DIR, "fling.declare");
+  const rows = Array.from({ length: 30 }, (_, i) => `r${i}: Button [ width = 200, height = 50, label = "Row ${i}", onClick() { } ]`).join(",\n        ");
+  writeFileSync(f, `App [ width = 390, height = 700,
+    sc: View [ width = 390, height = 600, scrolls = y,
+      layout: SimpleLayout [ axis = y ],
+        ${rows} ],
+    cover: View [ y = 400, width = 390, height = 200, onClick() { } ] ]`);
+  const script = join(DIR, "fling.mjs");
+  writeFileSync(script, `export const device = { width: 390, height: 700, touch: true };
+export default async ({ drive, page }) => {
+  await drive.drag("app.sc", 0, -260, 4);
+  await drive.settleMotion();
+  await drive.waitReal(1500);
+  console.log("REST " + await page.evaluate(() => window.__declare.find("app.sc").scrollY));
+};`);
+  const r = run("verify.mjs", f, "--assert", script, "--rung=5", "--no-boot");
+  assert.equal(r.status, 0, r.out);
+  const rest = Number(/REST (\d+(?:\.\d+)?)/.exec(r.out)?.[1]);
+  assert.ok(rest > 0, "the list scrolled: " + r.out);
+  // a row's centre, at rest, under the layer (400–600) and inside the list (0–600)
+  const under = Array.from({ length: 30 }, (_, i) => i).filter((i) => { const c = i * 50 + 25 - rest; return c >= 400 && c <= 600; });
+  const line = r.out.split("\n").find((l) => l.includes("after drag app.sc") && l.includes("takes the presses of")) ?? "";
+  assert.match(line, new RegExp(`${under.length} control\\(s\\) another view takes the presses of`), `at rest ${rest}, rows ${under.join(",")} are under the layer:\n${r.out}`);
+  assert.ok(line.includes(`app.sc.r${under[0]} (by app.cover)`), line);
+});
+
+await test("rung 6 asks the same layout questions in each named state", () => {
+  const f = join(DIR, "driven6.declare");
+  writeFileSync(f, `App [ width = 390, height = 700,
+    go: Button [ x = 20, y = 20, width = 120, height = 48, label = "Open", onClick() { app.s.show() } ],
+    s: Sheet [ Text [ text = "Pick" ], tiny: Button [ height = 30, label = "x", onClick() { } ] ] ]`);
+  const states = join(DIR, "driven6.states.mjs");
+  writeFileSync(states, `export default [ { name: "open", viewport: { width: 390, height: 700 }, touch: true,
+  route: async ({ drive }) => { await drive.click("app.go"); await drive.settleMotion(); } } ];`);
+  // the questions are asked as the state is captured: one blessing run shows them
+  const r = run("verify.mjs", f, "--states", states, "--baselines", join(DIR, "driven6-baselines"), "--bless", "--rung=6");
+  assert.equal(r.status, 0, r.out);
+  assert.match(r.out, /layout in state 'open'[^\n]*app\.s\.body\.tiny 41×30/, r.out);
+});
+
 await test("a name missed on a class that a child of it holds is answered with the child's path", () => {
   const f = join(DIR, "dym.declare");
   writeFileSync(f, `class SignInForm [ width = 300,

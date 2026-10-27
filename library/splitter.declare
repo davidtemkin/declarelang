@@ -88,14 +88,17 @@ restore.
 
 ## onPointerDown
 Claims focus, as every control does, and starts the drag.
+An override calls `super.onPointerDown(e)`.
 
 ## onPointerMove
 Moves the divider by the pointer's **root-space** movement since the press, so it keeps up
 with a pointer that has left the strip.
+An override calls `super.onPointerMove(e)`.
 
 ## onPointerUp
 Ends the drag. A drag the browser takes back (`e.canceled`, a touch that became a scroll)
 puts the value back where it started.
+An override calls `super.onPointerUp(e)`: it is what ends the drag.
 
 ## onClick
 Does nothing: a press on the divider that does not move is not a command.

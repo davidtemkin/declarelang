@@ -45,12 +45,15 @@ click, so it never also toggles.
 
 ## onPointerDown
 Latches the drag, and keeps Control's focus rule.
+An override calls `super.onPointerDown(e)`.
 
 ## onPointerMove
 Marks the press a drag once the pointer has moved.
+An override calls `super.onPointerMove()`.
 
 ## onPointerUp
 Ends a drag on the nearer side, delivering through `input` when that changes the value.
+An override calls `super.onPointerUp()`: it is what ends the drag.
 
 ## width
 A theme with a native switch size says so (`provided("theme").switchWidth`); otherwise 44, the common pill.

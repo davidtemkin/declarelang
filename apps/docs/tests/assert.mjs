@@ -70,7 +70,7 @@ export default async ({ drive, expect }) => {
   // clock time: wait it out, or the click lands on whatever is at those
   // coordinates before the pane has moved.
   await drive.page.evaluate((p) => window.__declare.find(p).scrollIntoView(), row);
-  await drive.wait(600);
+  await drive.waitReal(600);
   await drive.settleMotion();
   await drive.click(`${row}.sig.ty`);
   await expect.attr("app", "location", "type/Motion");

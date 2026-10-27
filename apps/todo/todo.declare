@@ -29,6 +29,18 @@ How to read it:
 The look (colors, drawn icons, chips, tiles, the sidebar) is in
 `todo-parts.declare`, which this file includes. Read this file first.
 
+Where things are, in order — each section opens with a `// ── Name` line, so a
+search finds it, and a reader after one part can read just that:
+
+- **Helpers** — date arithmetic: plain functions the constraints call.
+- **The shape of the data** — the `Task` and `Place` schemas.
+- **The records** — `Tasks`, the model: loading, and every write.
+- **The list's layout** — `Glide`, the motion.
+- **The lines** — a row (`TaskRow`), its open card (`TaskCard`), and the add
+  form (`AddForm`).
+- **The app** — where the user is, then the screen: sidebar, list, toolbar,
+  the add panel and sheet.
+
 The notation, in three lines: in `[ ]` is structure (attributes, children,
 methods). In `{ }` is TypeScript, and as an attribute's value it is a
 *constraint*, re-run whenever anything it reads changes. In both, `:field` reads
@@ -869,7 +881,7 @@ App [ appName = "To-do", minWidth = 320,
 
     main: View [ flexes = true,
         padding = { app.wide ? [64, app.pagePad, 120, app.pagePad] : [52 + app.safeTop, 0, 120, 0] },
-        col: View [ width = { Math.min(720, parent.width) },
+        col: View [ width = { Math.min(720, parent.contentBox("width")) },
             layout: SimpleLayout [ axis = y ],
 
             // the title in the view's ink, its count, and the tag chips

@@ -567,7 +567,10 @@ it over the content).
 
 The clamp keeps the backdrop inside the content's extent. Unclamped, its bottom
 is `scrollY` plus a viewport, which would feed the scroller's own auto-extent
-and grow the page each time it reached the bottom. Reading the content's extent
+and grow the page each time it reached the bottom. It shortens the paper rather
+than moving it: the paper's top stays on the lattice, so near the end of the
+page the lines are where they are everywhere else (a top clamped to the extent
+put them wherever the content's height left them). Reading the content's extent
 is not a cycle: the content never reads the backdrop.
 */
 
@@ -579,8 +582,8 @@ class GridBg [
     bottom: number = 0,
 
     width = 100%,
-    height = { app.height + 32 },
-    y = { Math.max(0, Math.min(Math.floor(app.scrollY / 32) * 32, this.bottom - this.height)) },
+    y = { Math.floor(app.scrollY / 32) * 32 },
+    height = { Math.max(0, Math.min(app.height + 32, this.bottom - this.y)) },
 
     draw(d: DrawContext) {
         d.fillStyle = provided("theme").grid

@@ -13,6 +13,9 @@ export interface BootCheckOptions {
         outline?: string | true | null;
         semantics?: string | true | null;
     } | null;
+    /** Controls already reported, by `flagged` key: a check asked again (a state a
+     *  script reached) names only what it finds new. */
+    skip?: readonly string[];
 }
 export interface BootCheckRecord {
     nodes: number;
@@ -24,5 +27,7 @@ export interface BootCheckRecord {
         source: string;
         value: unknown;
     }[];
+    /** The controls this check reported, as keys a later check `skip`s. */
+    flagged: string[];
 }
 export declare function bootCheck(app: Node, opts?: BootCheckOptions): BootCheckRecord;

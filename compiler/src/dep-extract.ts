@@ -90,6 +90,12 @@ function isPureNodeNav(n: ts.Node): boolean {
  *  Radio's computed default reads `parent.value`, inlined into a grandchild's
  *  constraint where a literal `parent` means the wrong node; the un-rebased
  *  path silently tracked a nonexistent slot and the constraint never re-fired). */
+/** An effects-table read (effects.ts: a slot name, relative to `this`) as the
+ *  read-path rebase() carries to the receiver. Written bare in the table, it
+ *  once reached rebase() bare, which takes a bare name for a data path: the
+ *  receiver's slots were never wired, and `{ parent.bounds().width }` froze. */
+const effectPath = (rp: string): string => (rp.startsWith("this") || rp.startsWith(":") ? rp : "this." + rp);
+
 function rebase(readPath: string, receiver: string | null): string {
   if (receiver === "this" || receiver == null) return readPath;
   if (readPath === "this" || readPath === "classroot") return receiver;
@@ -749,7 +755,7 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
             // no user body of this name is not refused; any other call whose
             // receiver is known and carries no such method is.
             const effects = LANGUAGE_METHOD_EFFECTS.get(m);
-            if (effects !== undefined) for (const rp of effects) reads.add(rebase(rp, pathTextOf(recv)));
+            if (effects !== undefined) for (const rp of effects) reads.add(rebase(effectPath(rp), pathTextOf(recv)));
             const onParam = roots.has(pathTextOf(recv).split(/[.[]/, 1)[0]);
             // a super call: spelled `super.` in an authored body, `$base.` once
             // resolution has rewritten it — the same call either way
@@ -764,7 +770,7 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
           else {
             // a bare call is a call on `this` — settled by its receiver, as above
             const effects = LANGUAGE_METHOD_EFFECTS.get(nm);
-            if (effects !== undefined) for (const rp of effects) reads.add(rebase(rp, "this"));
+            if (effects !== undefined) for (const rp of effects) reads.add(rebase(effectPath(rp), "this"));
             calls.push({ kind: "method", name: nm, receiver: "this", args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s), body: bodyPos,
                          unbacked: effects === undefined || undefined, at: s.getStart() });
           }

@@ -62,6 +62,10 @@ export const LANGUAGE_METHOD_EFFECTS: ReadonlyMap<string, readonly string[]> = n
   // relative to the view's own origin, deliberately NOT reading x/y (a layout
   // strategy consumes this so it never reads the slots it writes).
   ["footprint", ["width", "height", "scale", "pivotX", "pivotY", "rotation"]],
+  // View.contentBox(size) — the room inside: width or height less padding's
+  // insets. Receiver-relative slots, so `{ parent.contentBox("width") }` (the
+  // reference's own idiom for spanning a parent's content) wires them and stays live.
+  ["contentBox", ["width", "height", "padding"]],
   // View.raise(below?) (runtime/src/view.ts) — promotion: re-links the view to
   // the front of its siblings, or just beneath `below` when given (planes.md
   // §1, order-as-slot). Structural mutation, no reactive READ → pure for

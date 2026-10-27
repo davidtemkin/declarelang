@@ -144,8 +144,9 @@ The controls in the form, counted or not. Kept by the controls themselves.
 ## _sending
 **Internal.** the form's own request is out.
 
-## _out
-**Internal.** whether `source` is loading — watched to learn how the form's request ended.
+## _heard()
+**Internal.** What became of the request the form sent: a refusal goes onto the members,
+a success resets them; for a form with no `source`, `pending` turning false after a submit.
 
 ## _join()
 **Internal.** A control inside joins the form.
@@ -336,16 +337,22 @@ class Form [
         return p.split("/").join(".")
         },
 
-    // what became of the request the form sent
+    // What became of the request the form sent. Heard by this member, not by
+    // the form's own handlers, so a use site's `trackChanges` and `onChange`
+    // are its own.
 
-    _out: boolean = { this.source != null && this.source.loading },
-    trackChanges = ["_out", "pending"],
-    onChange(e: ChangeEvent) {
+    _watch: Node [
+        out: boolean = { classroot.source != null && classroot.source.loading },
+        pend: boolean = { classroot.pending },
+        trackChanges = ["out", "pend"],
+        onChange(e: ChangeEvent) { classroot._heard(e.changed.some((c) => c.name == "pend")) }
+        ],
+    _heard(pendingMoved: boolean) {
         if (source == null) {
-            if (submitted && !pending && e.changed.some((c) => c.name == "pending")) _landed()
+            if (submitted && !pending && pendingMoved) _landed()
             return
             }
-        if (_out || !_sending) return
+        if (_watch.out || !_sending) return
         _sending = false
         if ((source as any).failed) {
             const body = (source as any).errorBody ?? null

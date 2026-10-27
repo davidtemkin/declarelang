@@ -23,6 +23,7 @@ import { onDiscard } from "./node.js";
 import { readRowIndex } from "./view.js";
 import { rowsUnder, roleOf, textOf, contentOf, nameOfContent, NAMED_BY_CONTENT, REACHED_APART } from "./semantics.js";
 import { provideAnnouncer } from "./accessibility-service.js";
+import { inPointer } from "./pointer-dispatch.js";
 /** The ARIA role each word maps to on the web. */
 const ARIA_ROLE = {
     button: "button", toggle: "button", checkbox: "checkbox", switch: "switch", radio: "radio", slider: "slider",
@@ -86,6 +87,9 @@ function holdsReachable(v) {
 function ariaOf(v) {
     if (!v.visible)
         return null;
+    // seen, not read: it and all it holds
+    if (v.accessibilityHidden)
+        return { "aria-hidden": "true" };
     const role = roleOf(v);
     // a view that is a link (`link`) is read through its own <a>, which covers it
     // and holds none of its text: the <a> carries the name — what it is called, or
@@ -409,13 +413,27 @@ export function installDomSemantics(doc) {
     provideAnnouncer((text, politeness) => announce(doc, text, politeness));
     Focus.onFocusChange(follow);
     // a focus the runtime did not cause — a screen reader, the browser — is the
-    // user's, and the focus service follows it
+    // user's, and the focus service follows it. One the browser gives while a
+    // pointer is down is a press's focus — in selectable text the press keeps its
+    // native default, and a press on a link's <a> focuses it — and like the
+    // runtime's own press it is not revealed: scrolling the page between the
+    // press and its release moved the link out from under it, and the click was
+    // lost (a link half under a pinned bar)
+    let pressing = false;
+    doc.addEventListener("pointerdown", () => { pressing = true; }, true);
+    for (const t of ["pointerup", "pointercancel"])
+        doc.addEventListener(t, () => { pressing = false; }, true);
     doc.addEventListener("focusin", (e) => {
         if (moving)
             return;
         const v = e.target instanceof HTMLElement ? VIEW_OF.get(e.target) : undefined;
-        if (v !== undefined && untracked(() => Focus.getFocus()) !== v)
-            untracked(() => Focus.focus(v));
+        if (v === undefined || untracked(() => Focus.getFocus()) === v)
+            return;
+        const take = () => untracked(() => Focus.focus(v));
+        if (pressing)
+            inPointer(take);
+        else
+            take();
     }, true);
     // a view already focused before the first annotation still gets its element
     const now = untracked(() => Focus.getFocus());

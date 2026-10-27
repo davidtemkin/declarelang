@@ -14,7 +14,7 @@ import { semanticTree, formatSemantics } from "./semantics.js";
 import { DataSource } from "./data.js";
 import { settle } from "./reactive.js";
 export function bootCheck(app, opts = {}) {
-    const record = { nodes: 0, notes: [], layout: [], unbuilt: [], answers: [], samples: [] };
+    const record = { nodes: 0, notes: [], layout: [], unbuilt: [], answers: [], samples: [], flagged: [] };
     if (opts.feed) {
         const fed = feedSchemaSamples(app, record.samples);
         if (fed > 0) {
@@ -26,7 +26,7 @@ export function bootCheck(app, opts = {}) {
         walk(c); };
     walk(app);
     record.notes.push(...outOfReach(app));
-    record.layout.push(...layoutChecks(app, opts));
+    record.layout.push(...layoutChecks(app, opts, record.flagged));
     if (opts.classes !== undefined)
         record.unbuilt = unbuiltClasses(app, opts.classes);
     if (opts.queries)
@@ -91,7 +91,16 @@ function outOfReach(app) {
     return out;
 }
 /** What the layout shows wrong, each naming the view. */
-function layoutChecks(app, { touch = false, realText = false }) {
+function layoutChecks(app, { touch = false, realText = false, skip = [] }, flagged) {
+    const skipped = new Set(skip);
+    // a control reported once is not reported again: kept by kind and path
+    const fresh = (kind, path) => {
+        const key = `${kind}:${path}`;
+        if (skipped.has(key))
+            return false;
+        flagged.push(key);
+        return true;
+    };
     const out = [];
     // an App held wider than the window (a minWidth) is panned by the browser:
     // its edge is the frame's, which a person can reach
@@ -196,7 +205,18 @@ function layoutChecks(app, { touch = false, realText = false }) {
             && v.focusable !== false) {
             const b = rootFrameBox(v);
             const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
-            if (cx >= 0 && cy >= 0 && cx <= hostW && cy <= hostH) {
+            // a control scrolled partly out of a scroller it sits in is brought clear
+            // by scrolling, which a person does: only one whose centre the scrollers
+            // around it show is asked who takes the press there
+            let inView = true;
+            for (let a = v.parent instanceof View ? v.parent : null; a !== null && inView; a = a.parent instanceof View ? a.parent : null) {
+                if (a.scrolls === "none")
+                    continue;
+                const sb = rootFrameBox(a);
+                if (cx < sb.x || cy < sb.y || cx > sb.x + sb.width || cy > sb.y + sb.height)
+                    inView = false;
+            }
+            if (inView && cx >= 0 && cy >= 0 && cx <= hostW && cy <= hostH) {
                 const at = pressAt(app, cx, cy);
                 let mine = at === null;
                 for (let a = at; a !== null && !mine; a = a.parent instanceof View ? a.parent : null)
@@ -205,12 +225,20 @@ function layoutChecks(app, { touch = false, realText = false }) {
                 for (let a = v.parent instanceof View ? v.parent : null; a !== null && !mine; a = a.parent instanceof View ? a.parent : null)
                     if (a === at)
                         mine = true;
-                if (!mine && at !== null)
+                // an open overlay (a view painting in an overlay's layer: a popover, a
+                // sheet) is over the page by design — what it covers is behind it
+                // — and pinned chrome (`ignoreScroll`) is over the content scrolling
+                // under it by design: what passes beneath it scrolls clear
+                let overlay = false;
+                for (let a = at; a !== null && !overlay; a = a.parent instanceof View ? a.parent : null)
+                    if (a.paintsIn !== null || a.ignoreScroll === true)
+                        overlay = true;
+                if (!mine && at !== null && !overlay && fresh("covered", pathOf(app, v)))
                     covered.push(`${pathOf(app, v)} (by ${pathOf(app, at)})`);
             }
         }
         // A TARGET TOO SMALL FOR A FINGER, on a touch screen
-        if (touch && isA(v, "Control") && v.width > 0 && v.height > 0 && (v.width < 44 || v.height < 44))
+        if (touch && isA(v, "Control") && v.width > 0 && v.height > 0 && (v.width < 44 || v.height < 44) && fresh("small", pathOf(app, v)))
             touchSmall.push(`${pathOf(app, v)} ${Math.round(v.width)}×${Math.round(v.height)}`);
         const across = scrollsAcross || v.scrolls === "x" || v.scrolls === "both";
         for (const c of v.children)
@@ -230,8 +258,10 @@ function layoutChecks(app, { touch = false, realText = false }) {
 function unbuiltClasses(app, classes) {
     const built = new Set();
     // a view's layout is its attribute, not a child, and is built with it
+    // a class is built when any instance of it is — a subclass's included
     const walk = (n) => {
-        built.add(n.constructor.name);
+        for (let c = n.constructor; c && c !== Object; c = Object.getPrototypeOf(c))
+            built.add(c.name);
         const l = n.layout;
         if (l !== null && typeof l === "object")
             built.add(l.constructor.name);

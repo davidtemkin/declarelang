@@ -328,6 +328,15 @@ export function accessibilityDiagnostics(
         }
         for (const g of bySubject.values()) if (g.n >= 2) warnings.push(Diag.accessibilityTogglesAsOneOf(g.n, g.tag, g.flag, g.subject, g.pos));
       }
+      // a control hidden from a screen reader: said where the hiding is written
+      if (el.attrs.some((a) => a.name === "accessibilityHidden")) {
+        const v = valueIn(levels, "accessibilityHidden");
+        const off = typeof v !== "string" && v.kind === "ident" && v.name === "false";
+        const mine = controlRole(levels, tag);
+        const inside = mine === null ? controlWithin(levels.flatMap((b) => b.children)) : null;
+        if (!off && mine !== null) warnings.push(Diag.accessibilityHiddenControl(owner, owner, mine, el.pos));
+        else if (!off && inside !== null) warnings.push(Diag.accessibilityHiddenControl(owner, inside.tag, inside.role, el.pos));
+      }
       // a control that shows a choice and reports none: a class of its own with a
       // boolean saying it is the one chosen (`on`, `selected` …), and no state a
       // screen reader hears — each of a row of them reads as a plain button

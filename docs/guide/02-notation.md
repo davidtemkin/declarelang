@@ -59,8 +59,9 @@ Each world has its own vocabulary, and the boundary between them is exact.
   `"""` block.
 - **Inside braces** that vocabulary stops, because you are in TypeScript. A color is a
   number, `0x1C3A4F`; there are no percentages, so a fraction of the parent is
-  arithmetic on `parent.width`. The compiler never reinterprets an identifier inside
-  braces.
+  arithmetic on `parent.width`. A word is a string: `axis = { wide ? "x" : "y" }`, where
+  a bare `x` would be a name, the view's own x. The compiler never reinterprets an
+  identifier inside braces.
 - **A value `{ }` is one expression.** Ternaries, template literals, array methods,
   closures and casts (`x as T`) are all fine; a `let` or a second statement is not. Move
   that logic into a method and call it: `width = { classroot.measure() }`.

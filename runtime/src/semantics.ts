@@ -121,8 +121,9 @@ const POSITIONED = new Set(["listItem", "menuItem", "tab", "radio", "option", "t
 const PRESENTATIONAL = new Set(["button", "toggle", "checkbox", "switch", "radio", "tab", "slider", "spinButton", "progress", "separator", "option", "menuItem", "image"]);
 
 function walk(v: View, out: SemNode[]): void {
-  // what cannot be seen is not read: hidden, or faded to nothing
-  if (!v.visible || v.opacity === 0) return;
+  // what cannot be seen is not read: hidden, or faded to nothing; nor is what
+  // is seen and marked hidden from a screen reader
+  if (!v.visible || v.opacity === 0 || v.accessibilityHidden) return;
 
   if (isText(v)) {
     const t = textOfRun(v);
@@ -257,8 +258,8 @@ export function contentOf(v: View): { words: string; marks: string } {
   const words: string[] = [];
   const marks: string[] = [];
   const visit = (x: View): void => {
-    // what cannot be seen names nothing, as it is not read
-    if (!x.visible || x.opacity === 0) return;
+    // what cannot be seen names nothing, as it is not read; nor does what is hidden from a screen reader
+    if (!x.visible || x.opacity === 0 || x.accessibilityHidden) return;
     if (isText(x)) { const t = textOfRun(x).trim(); if (t !== "") words.push(t); return; }
     if (isDocument(x)) { for (const b of documentOf(x)) words.push(blockText(b)); return; }
     // a control inside a row or an item is a stop of its own, reached and read

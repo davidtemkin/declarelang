@@ -127,6 +127,7 @@ Whether focus is inside the window now, in a program it hosts included.
 ## onPointerDown
 A press inside the window, on nothing that takes it, gives the window the keyboard — and a
 framed one comes to the front.
+An override calls `super.onPointerDown()`.
 
 ## defaultPlacement
 `body`: its children go into the pane below the title bar (the whole window, without a

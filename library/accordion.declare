@@ -100,6 +100,7 @@ Contributes the pane's contents to keyboard traversal only while it is open. A c
 pane is clip-occluded rather than hidden — its content must stay visible for the slide
 to carry it — so **this is what stops Tab from descending into a pane the user cannot
 see**. The header itself remains a stop either way.
+An override keeps that: a closed pane contributes nothing.
 
 ## focusShape()
 Rings the header — the part Space and Enter press — rather than the whole pane with its
@@ -111,6 +112,7 @@ Space/Enter on the header.
 
 ## onInit
 Applies `initiallyOpen`. Fires once per pane.
+An override calls `super.onInit()`, or `initiallyOpen` does nothing.
 
 ## width
 A pane is as wide as its accordion; only its height is its own.

@@ -47,6 +47,7 @@ Receives the id of the shortcut pressed. Override it at the use site.
 
 ## onInit
 Registers the set with the keyboard service.
+An override calls `super.onInit()`, or no shortcut in the set fires.
 */
 
 // a shortcut, as data

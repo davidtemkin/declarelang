@@ -106,6 +106,9 @@ its `input`. The default writes `shown`. To make whether it is open your own sta
 constrain `shown` and override this to write that state, so its own closings (Esc, a press
 past it) reach it: `shown = { app.editing }, input(open: boolean) { app.editing = open }`.
 Constraining `shown` without it is a compile error.
+An override must deliver: write the state `shown` follows, or — with `shown` not
+constrained — call `super.input(open)`; otherwise `show()`, `close()`, Esc and a press past
+it do nothing. To act on closing, override `closed()` instead.
 
 ## _sync()
 **Internal.** Runs the open or close work when `shown` has changed — after `show()`,
@@ -129,9 +132,17 @@ Opens it for `v` — `opener` becomes `v`.
 **Internal.** Focuses the overlay itself when it takes focus and holds nothing focusable,
 so Tab cannot reach what is behind it.
 
+## focusFirst()
+Where the focus goes when an overlay that `takesFocus` opens: the first view inside that
+takes focus, else the overlay holds the focus itself, so Tab has nowhere to go behind it and
+Esc still closes it. An override that may find nothing to focus calls `super.focusFirst()`
+for that case.
+
 ## close()
 Closes it at once, through `input(false)` (it stops taking input); it is torn down when its
 closing motion lands.
+An override calls `super.close()`. Work for every closing belongs in `closed()`: the state
+`shown` follows can close it without coming through here.
 
 ## closed()
 Called once it is closed — override to act on closing.
@@ -283,9 +294,17 @@ class Floating [
     input(open: boolean) { shown = open },
 
     _live: boolean = false,
-    trackChanges = ["shown"],
-    onChange() { this._sync() },
-    onInit() { if (shown) afterSettle(() => this._sync()) },
+
+    // The open and close work runs from this member, not from the overlay's own
+    // handlers, so a subclass's or a use site's `trackChanges`, `onChange` or
+    // `onInit` — written for anything of its own — cannot drop it.
+
+    _watch: Node [
+        open: boolean = { classroot.shown },
+        trackChanges = ["open"],
+        onInit() { if (open) afterSettle(() => classroot._sync()) },
+        onChange() { classroot._sync() }
+        ],
 
     _sync() {
         if (shown && !_live) { _live = true; this._opening() }

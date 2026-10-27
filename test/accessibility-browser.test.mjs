@@ -44,7 +44,7 @@ class Wave extends Control [ width = 200, height = 30, position: number = 12, du
     accessibilityValueText = { position + " seconds of " + duration },
     accessibilityIncrement() { position = Math.min(duration, position + 5) },
     accessibilityDecrement() { position = Math.max(0, position - 5) } ]
-App [ width = 500, height = 500, presses: number = 0, open: boolean = false,
+App [ width = 500, height = 500, presses: number = 0, open: boolean = false, plain: boolean = false,
     col: View [ padding = 10, layout: SimpleLayout [ axis = y, spacing = 8 ],
         send: Button [ label = "Send", onClick() { app.presses = app.presses + 1 } ],
         mute: Checkbox [ label = "Mute", checked = true ],
@@ -52,6 +52,7 @@ App [ width = 500, height = 500, presses: number = 0, open: boolean = false,
         vol: Slider [ accessibilityLabel = "Volume", value = 40 ],
         wave: Wave [ ],
         Text [ text = "Plain text" ],
+        deco: Text [ text = "Decor text", accessibilityHidden = { !app.plain } ],
         find: SearchField [ width = 200, placeholder = "Search messages" ],
         pw: TextInput [ width = 200, purpose = password, accessibilityLabel = "Password", initial = "hunter2" ],
         card: TextInput [ width = 200, purpose = cardNumber, accessibilityLabel = "Card number" ] ],
@@ -103,6 +104,22 @@ await test("the DOM: every control's element carries its role and states, set fr
   assert.deepEqual(a.wifi, { role: "switch", "aria-label": "Wi-Fi", "aria-checked": "false" });
   assert.deepEqual(a.vol, { role: "slider", "aria-label": "Volume", "aria-valuenow": "40", "aria-valuemin": "0", "aria-valuemax": "100" });
   assert.equal(a.wave["aria-valuetext"], "12 seconds of 65");
+});
+
+await test("accessibilityHidden: aria-hidden on the element, out of Chrome's tree, and back when it turns off", async () => {
+  await page.evaluate(() => window.__t.ready());
+  const texts = async () => {
+    const { nodes } = await cdp.send("Accessibility.getFullAXTree");
+    return nodes.filter((n) => !n.ignored && /text/i.test(n.role?.value ?? "")).map((n) => n.name?.value ?? "");
+  };
+  const hidden = () => page.evaluate(() => window.__t.el(window.__t.app.col.deco).getAttribute("aria-hidden"));
+  assert.equal(await hidden(), "true");
+  assert.ok((await texts()).includes("Plain text"), "the plain text is read");
+  assert.ok(!(await texts()).includes("Decor text"), "the hidden text is not read");
+  await page.evaluate(async () => { window.__t.app.plain = true; await window.__t.ready(); });
+  assert.equal(await hidden(), null);
+  assert.ok((await texts()).includes("Decor text"), "read once it is no longer hidden");
+  await page.evaluate(async () => { window.__t.app.plain = false; await window.__t.ready(); });
 });
 
 await test("a search field is a searchbox on its own input, named by its placeholder", async () => {

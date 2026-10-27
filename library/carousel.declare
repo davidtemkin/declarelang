@@ -64,14 +64,17 @@ the finger: the pull is compressed toward half a page.
 
 ## onPointerDown
 Latches the drag from wherever the row is, even mid-glide.
+An override calls `super.onPointerDown(e)`.
 
 ## onPointerMove
 Moves the row with the pointer, and keeps the speed.
+An override calls `super.onPointerMove()`.
 
 ## onPointerUp
 Chooses the page — one step for a drag past a third of the width or a flick faster than
 0.4 px/ms, otherwise none — and lets the spring carry the row there. A canceled release
 (the browser reclaimed the gesture) settles back on the current page.
+An override calls `super.onPointerUp(e)`: it is what ends the drag.
 
 # CarouselLayout
 

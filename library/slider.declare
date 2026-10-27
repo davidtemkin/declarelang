@@ -72,13 +72,16 @@ under hover and press. The other value of the same token.
 
 ## onPointerDown
 Jumps the value to the pressed position, claims focus, and latches the drag.
+An override calls `super.onPointerDown(e)`.
 
 ## onPointerMove
 Tracks the drag by **root-space** pointer delta, so the handle keeps up with a pointer
 that has left the control.
+An override calls `super.onPointerMove()`.
 
 ## onPointerUp
 Ends the drag.
+An override calls `super.onPointerUp()`: it is what ends the drag.
 
 ## onKeyDown
 Home and End go to `min` and `max`; Page Up and Page Down move a tenth of the range, never

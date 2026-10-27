@@ -284,6 +284,17 @@ export const Diag = {
     // sport, day and range choices). Each reports pressed, so 4022 is quiet, but
     // a screen reader hears separate toggles, not one choice among them.
     accessibilityTogglesAsOneOf: (count, cls, flag, subject, pos) => err(code4(4026), `these ${count} ${cls}s are one choice among several — each is '${flag}' when ${subject} equals its own value — but a screen reader hears ${count} separate toggles, not one choice of ${count}, and the arrows do not move between them. For one of several, use Segmented (or a RadioGroup of Radios): it holds the choice, reports it as one of ${count}, and the arrows move between the options`, pos),
+    // A WARNING: a control hidden from a screen reader. aria-hidden hides what a
+    // view says, not where the keyboard goes: Tab still lands on it, and there it
+    // says nothing.
+    accessibilityHiddenControl: (owner, control, role, pos) => err(code4(4027), `${owner} is hidden from a screen reader (accessibilityHidden), but ${control === owner ? "it is" : `it holds ${control}, which is`} a ${role} — Tab still reaches it, and there it says nothing. accessibilityHidden is for what is seen and already said by the words around it (an icon beside a word that says the same thing). To take a control away, hide it (visible = false) or disable it`, pos),
+    // A State's override value runs on the VIEW (its `this`), so the State's own
+    // members are not in reach there: a bare one would resolve outward, to
+    // whatever else carries that name.
+    stateMemberInOverride: (name, slot, state, pos) => err(code4(4028), `'${name}' is ${state}'s own, but '${slot} = { … }' is an override: it is the enclosing view's value, computed on the view, where ${state}'s members are not in reach. Read what the view has, or give the view the attribute and constrain it there`, pos),
+    // A method written in a State lands on the State, not on the view — a State
+    // overrides attributes and adds children, and has no way to change a method.
+    methodInState: (name, state, pos) => err(code4(4029), `${state} has no '${name}' — a method written in a State is the State's own, never the view's: a State overrides the view's attributes and adds children while it applies, but cannot change what a method does. Let the method read a condition instead (the same one 'applied' reads)`, pos),
     rowIndexUnreplicated: (owner, pos) => err(code4(4023), `${owner} reads rowIndex, but ${owner} is not replicated — that is its own rowIndex, never the row's, because a built-in never resolves outward. The index of the row it sits in is that view's: parent.rowIndex (one level up), or classroot.rowIndex inside a class whose instances are the rows`, pos),
     writeToComputedDataset: (name, verb, pos) => err(code4(4024), `${name} computes its value with contents, so it refuses writes — ${name}.${verb}(…) will be refused when it runs, and what it meant to keep is lost. A dataset that is written holds its records as data: ${name}: Dataset { { … } } (its first value), and a list derived from it is a second dataset with contents`, pos),
     // A WARNING: a constraint body whose decisions nest three `? :` deep, or one
@@ -409,6 +420,9 @@ export const DIAGNOSTIC_CATALOG = [
     { code: code4(4023), phase: "name", summary: "rowIndex read on a view that is not replicated — its own, never the row's (warning)" },
     { code: code4(4024), phase: "name", summary: "a write to a dataset that computes its value with contents (warning)" },
     { code: code4(4026), phase: "name", summary: "sibling toggles that each turn on for one value of the same thing — one of several, said as separate toggles (warning)" },
+    { code: code4(4028), phase: "name", summary: "a State's own member read bare in an override value, which runs on the view" },
+    { code: code4(4029), phase: "name", summary: "a method in a State that the State does not have — a State cannot change the view's methods" },
+    { code: code4(4027), phase: "name", summary: "a control hidden from a screen reader that the keyboard still reaches (warning)" },
     { code: code4(4025), phase: "name", summary: "a constraint whose decisions are nested three deep, or one condition with four or more parts (warning)" },
     { code: code4(4014), phase: "name", summary: "afterDelay() in a { } value — a value computes and never waits" },
     { code: code4(4015), phase: "name", summary: "a class, schema, theme or style takes a name TypeScript's standard library or Declare's own types declare" },

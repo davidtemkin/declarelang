@@ -26,6 +26,9 @@ export interface BootCheckOptions {
   /** Hand each unloaded DataSource with a schema a sample of it, as a fetch would. */
   feed?: boolean;
   queries?: { reads?: readonly string[]; outline?: string | true | null; semantics?: string | true | null } | null;
+  /** Controls already reported, by `flagged` key: a check asked again (a state a
+   *  script reached) names only what it finds new. */
+  skip?: readonly string[];
 }
 
 export interface BootCheckRecord {
@@ -35,10 +38,12 @@ export interface BootCheckRecord {
   unbuilt: string[];
   answers: string[];
   samples: { source: string; value: unknown }[];
+  /** The controls this check reported, as keys a later check `skip`s. */
+  flagged: string[];
 }
 
 export function bootCheck(app: Node, opts: BootCheckOptions = {}): BootCheckRecord {
-  const record: BootCheckRecord = { nodes: 0, notes: [], layout: [], unbuilt: [], answers: [], samples: [] };
+  const record: BootCheckRecord = { nodes: 0, notes: [], layout: [], unbuilt: [], answers: [], samples: [], flagged: [] };
   if (opts.feed) {
     const fed = feedSchemaSamples(app, record.samples);
     if (fed > 0) {
@@ -49,7 +54,7 @@ export function bootCheck(app: Node, opts: BootCheckOptions = {}): BootCheckReco
   const walk = (n: Node): void => { record.nodes++; for (const c of n.children) walk(c); };
   walk(app);
   record.notes.push(...outOfReach(app));
-  record.layout.push(...layoutChecks(app, opts));
+  record.layout.push(...layoutChecks(app, opts, record.flagged));
   if (opts.classes !== undefined) record.unbuilt = unbuiltClasses(app, opts.classes);
   if (opts.queries) record.answers = answer(app, opts.queries);
   return record;
@@ -107,7 +112,15 @@ function outOfReach(app: Node): string[] {
 }
 
 /** What the layout shows wrong, each naming the view. */
-function layoutChecks(app: Node, { touch = false, realText = false }: BootCheckOptions): string[] {
+function layoutChecks(app: Node, { touch = false, realText = false, skip = [] }: BootCheckOptions, flagged: string[]): string[] {
+  const skipped = new Set(skip);
+  // a control reported once is not reported again: kept by kind and path
+  const fresh = (kind: string, path: string): boolean => {
+    const key = `${kind}:${path}`;
+    if (skipped.has(key)) return false;
+    flagged.push(key);
+    return true;
+  };
   const out: string[] = [];
   // an App held wider than the window (a minWidth) is panned by the browser:
   // its edge is the frame's, which a person can reach
@@ -205,16 +218,31 @@ function layoutChecks(app: Node, { touch = false, realText = false }: BootCheckO
         && (v as unknown as { focusable?: boolean }).focusable !== false) {
       const b = rootFrameBox(v as unknown as InteractionView);
       const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
-      if (cx >= 0 && cy >= 0 && cx <= hostW && cy <= hostH) {
+      // a control scrolled partly out of a scroller it sits in is brought clear
+      // by scrolling, which a person does: only one whose centre the scrollers
+      // around it show is asked who takes the press there
+      let inView = true;
+      for (let a: View | null = v.parent instanceof View ? v.parent : null; a !== null && inView; a = a.parent instanceof View ? a.parent : null) {
+        if (a.scrolls === "none") continue;
+        const sb = rootFrameBox(a as unknown as InteractionView);
+        if (cx < sb.x || cy < sb.y || cx > sb.x + sb.width || cy > sb.y + sb.height) inView = false;
+      }
+      if (inView && cx >= 0 && cy >= 0 && cx <= hostW && cy <= hostH) {
         const at = pressAt(app, cx, cy) as unknown as View | null;
         let mine = at === null;
         for (let a: View | null = at; a !== null && !mine; a = a.parent instanceof View ? a.parent : null) if (a === v) mine = true;
         for (let a: View | null = v.parent instanceof View ? v.parent : null; a !== null && !mine; a = a.parent instanceof View ? a.parent : null) if (a === at) mine = true;
-        if (!mine && at !== null) covered.push(`${pathOf(app, v)} (by ${pathOf(app, at)})`);
+        // an open overlay (a view painting in an overlay's layer: a popover, a
+        // sheet) is over the page by design — what it covers is behind it
+        // — and pinned chrome (`ignoreScroll`) is over the content scrolling
+        // under it by design: what passes beneath it scrolls clear
+        let overlay = false;
+        for (let a: View | null = at; a !== null && !overlay; a = a.parent instanceof View ? a.parent : null) if (a.paintsIn !== null || a.ignoreScroll === true) overlay = true;
+        if (!mine && at !== null && !overlay && fresh("covered", pathOf(app, v))) covered.push(`${pathOf(app, v)} (by ${pathOf(app, at)})`);
       }
     }
     // A TARGET TOO SMALL FOR A FINGER, on a touch screen
-    if (touch && isA(v, "Control") && v.width > 0 && v.height > 0 && (v.width < 44 || v.height < 44)) touchSmall.push(`${pathOf(app, v)} ${Math.round(v.width)}×${Math.round(v.height)}`);
+    if (touch && isA(v, "Control") && v.width > 0 && v.height > 0 && (v.width < 44 || v.height < 44) && fresh("small", pathOf(app, v))) touchSmall.push(`${pathOf(app, v)} ${Math.round(v.width)}×${Math.round(v.height)}`);
     const across = scrollsAcross || v.scrolls === "x" || v.scrolls === "both";
     for (const c of v.children) if (c instanceof View) visit(c, across);
   };
@@ -229,8 +257,9 @@ function layoutChecks(app: Node, { touch = false, realText = false }: BootCheckO
 function unbuiltClasses(app: Node, classes: readonly string[]): string[] {
   const built = new Set<string>();
   // a view's layout is its attribute, not a child, and is built with it
+  // a class is built when any instance of it is — a subclass's included
   const walk = (n: Node): void => {
-    built.add(n.constructor.name);
+    for (let c = (n as { constructor: Function }).constructor; c && c !== Object; c = Object.getPrototypeOf(c)) built.add(c.name);
     const l = (n as { layout?: unknown }).layout;
     if (l !== null && typeof l === "object") built.add(l.constructor.name);
     for (const c of n.children) walk(c);

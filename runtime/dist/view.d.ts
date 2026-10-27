@@ -321,6 +321,7 @@ export declare class View extends Node {
     accessibilityRole: string;
     accessibilityLabel: string;
     accessibilityHint: string;
+    accessibilityHidden: boolean | null;
     accessibilityError: string;
     accessibilityRequired: boolean;
     accessibilityLive: string;

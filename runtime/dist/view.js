@@ -515,7 +515,7 @@ export class View extends Node {
         }
         this.$flush(s);
         if ((typeof __DECLARE_ACCESSIBILITY__ === "undefined" || __DECLARE_ACCESSIBILITY__)
-            && annotator !== null && (this.accessibilityRole !== "none" || this.$leafRole?.() === "textField" || this.accessibilityLabel !== "" || this.link !== "" || this.scrolls !== "none"))
+            && annotator !== null && (this.accessibilityRole !== "none" || this.$leafRole?.() === "textField" || this.accessibilityLabel !== "" || this.accessibilityHidden || this.link !== "" || this.scrolls !== "none"))
             annotator(this);
         if (!defer && !detached)
             parentSurface?.insertChild(s, before !== null && !isPlaced(before) ? realSurfaceAfter(this) : before);
@@ -1626,6 +1626,12 @@ export class View extends Node {
         if (!handled && !scroller && this.tooltipLabel === "" && this.link === "")
             return null;
         return (type, x, y, extra) => inPointer(() => {
+            // A disabled view takes no click, as a disabled button on the web takes
+            // none: it is not hovered or pressed either (below). A control whose
+            // `onClick` IS the use site's action (Button) has no base code of its own
+            // on that path to ask, so the rule is the runtime's.
+            if (type === "click" && isDisabled(this))
+                return;
             if (this.tooltipLabel !== "") {
                 if (type === "pointerOver")
                     Tooltips.over(this);
@@ -1946,6 +1952,12 @@ defineAttributes(View, {
                     annotator(v);
             } },
         accessibilityHint: { def: "" },
+        // hidden from a screen reader after it attached: the annotator takes it then.
+        // Unset is null, not false, so it takes no slot in every view's block
+        accessibilityHidden: { def: null, push: (v) => {
+                if ((typeof __DECLARE_ACCESSIBILITY__ === "undefined" || __DECLARE_ACCESSIBILITY__) && annotator !== null && v.accessibilityHidden && v.$surface !== null)
+                    annotator(v);
+            } },
         accessibilityError: { def: "" },
         accessibilityRequired: { def: false },
         accessibilityLive: { def: "off" },

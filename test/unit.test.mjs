@@ -2186,13 +2186,17 @@ await test("3.2: settleMotion waits for transitions, not for life (perpetual tic
   setClock(clock);
   try {
     const app = buildProgram(await compiled(`App [ width = 100, height = 100,
-      v: number = 0,
+      v: number = 0, target: number = 0,
       beat: Time [ tick = frame, onTick(dt: number) { this.parent.v = this.parent.v + dt } ],
       box: View [ x = 0, width = 10, height = 10,
-        s: Spring [ attribute = x, to = 50 ] ],
+        s: Spring [ attribute = x, to = { app.target } ] ],
     ]`));
     try {
       assert.equal(clock.busy, true, "the Time ticks (life paints)");
+      app.target = 50;
+      await new Promise((r) => setTimeout(r, 0));   // the settle that retargets it
+      { tNow += 16.7; const cb = pending; pending = null; if (cb) cb(tNow); }
+      assert.equal(clock.settling, true, "the spring moves");
       // drive frames until the spring rests: settling must FALL even though
       // the Time never stops
       let steps = 0;

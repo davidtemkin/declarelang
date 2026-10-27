@@ -354,6 +354,8 @@ const ViewSchema: ClassSchema = {
       accessibilityRole: enumType("AccessibilityRole", ...ROLES),
       accessibilityLabel: { kind: "string" },
       accessibilityHint: { kind: "string" },
+      // seen but not read: decoration the words around it already say
+      accessibilityHidden: { kind: "boolean" },
       // what is wrong with this field's value, said with it ("" when nothing is);
       // and whether a value is needed — a field passes its own `error` on
       accessibilityError: { kind: "string" },

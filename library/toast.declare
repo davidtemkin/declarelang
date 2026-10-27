@@ -37,11 +37,8 @@ person reaching for "Undo" is never cut off.
 ## _expired
 **Internal.** Its time ran out while it was held.
 
-## trackChanges
-`shown`, as every overlay's, and `held`.
-
-## onChange
-As every overlay's; and a toast let go after its time ran out goes a moment later.
+## _letGo()
+**Internal.** A toast let go after its time ran out goes a moment later.
 
 ## say()
 Shows `message`, with an optional action record; a toast already showing takes the new
@@ -132,9 +129,16 @@ class Toast extends Floating [
 
     held: boolean = { hovered || this.row.act.focused },
     _expired: boolean = false,
-    trackChanges = ["shown", "held"],
-    onChange() {
-        super.onChange()
+
+    // a toast let go after its time ran out goes a moment later — heard by this
+    // member, so a use site's `trackChanges` and `onChange` are its own
+
+    _holdWatch: Node [
+        h: boolean = { classroot.held },
+        trackChanges = ["h"],
+        onChange() { classroot._letGo() }
+        ],
+    _letGo() {
         if (held || !_expired) return
         const mine = _round
         afterDelay(1500, () => { if (this._round == mine && !held) this.close() })

@@ -112,6 +112,8 @@ override serves all three. The base opens `menu` when
 there is one. A value control delivers through `input` from here and **never writes its
 own value directly**, which is what lets a constrained control avoid fighting its
 constraint.
+On a control with a `menu`, an override calls `super.press()`: the base is what opens it
+from the keyboard.
 
 ## focusShape()
 The focus silhouette the ring hugs, `{ x, y, w, h, rad }` in this control's own
@@ -124,16 +126,17 @@ for buttons and menu items. **Value controls whose state change is itself the fe
 (Checkbox, Switch, Radio) deliberately do not call it.**
 
 ## onFocus
-Captures the keyboard modality into `focusVisible`. An override must keep it or the
-focus channel goes dark. (`focused` itself is every view's fact, kept by the focus service.)
+Captures the keyboard modality into `focusVisible`. An override calls `super.onFocus()`,
+or the focus channel goes dark. (`focused` itself is every view's fact, kept by the focus service.)
 
 ## onBlur
 Clears `focusVisible`.
+An override calls `super.onBlur()`, or `focusVisible` outlives the focus.
 
 ## onPointerDown
 Claims focus, clears the `:focus-visible` channel, and opens `menu` if there is one —
-menus open on **press**, not release, as the platform does. **An override must keep the
-`Focus.focus(this)` call**, or clicking the control strands the keyboard elsewhere.
+menus open on **press**, not release, as the platform does. **An override calls
+`super.onPointerDown()`**, or clicking the control strands the keyboard elsewhere.
 
 ## onKeyDown
 Space and Enter run `press()`; ArrowDown opens `menu`. On a `slider`, the arrow keys
@@ -141,6 +144,8 @@ run `accessibilityIncrement()` and `accessibilityDecrement()` — the methods a 
 reader's adjust gesture calls, which the `slider` role requires a control to have — so
 the keyboard and assistive technology move the value by one path; on a `spinButton`, Up and
 Down do the same. Ignores auto-repeat for activation, not for the arrows.
+An override handles its own keys and passes the rest on with `super.onKeyDown(e)`, or the
+control loses Space, Enter and its arrows.
 
 
 ## onClick

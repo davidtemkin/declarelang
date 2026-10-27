@@ -314,6 +314,15 @@ export function authoredName(node) {
                 return k;
         }
     }
+    // a child a State builds (`exists`, a state's own child) is named on the view
+    // by a getter the State keeps, not by a key of its own: the State says
+    for (const sib of node.parent?.children ?? []) {
+        const named = sib.$named;
+        if (named instanceof Map)
+            for (const [k, v] of named)
+                if (v === node)
+                    return k;
+    }
     return null;
 }
 // `trackChanges` (schema.ts NodeSchema): the values this node reports changes

@@ -290,6 +290,24 @@ await test("the tree: a field is a textField named by its placeholder; an unname
   assert.equal(tree(app), `application\n  textField "Search" = "birds"\n  image "Avatar"`);
 });
 
+await test("accessibilityHidden: seen, not read — pruned from the tree with all it holds, and it names nothing", async () => {
+  const app = await boot(`App [ width = 400, height = 300, layout: SimpleLayout [ axis = y ],
+  Text [ text = "Inbox" ], Text [ text = "★", accessibilityHidden = true ],
+  View [ accessibilityHidden = true, Text [ text = "decor" ] ],
+  Button [ width = 80, height = 30, View [ Text [ text = "Save" ] ], View [ accessibilityHidden = true, Text [ text = "⌘S" ] ] ] ]`);
+  assert.equal(tree(app), `application\n  text "Inbox"\n  button "Save" {press}`);
+});
+
+await test("accessibilityHidden on a control, or on a view that holds one, is a warning (4027); on decoration it is quiet", async () => {
+  const b = await compile(`App [ layout: SimpleLayout [ axis = y ],
+    Button [ label = "Go", accessibilityHidden = true ],
+    View [ accessibilityHidden = true, Button [ label = "Stop" ] ],
+    View [ accessibilityHidden = { 1 > 0 }, Text [ text = "x" ] ],
+    Button [ label = "Shown", accessibilityHidden = false ] ]`);
+  assert.deepEqual(codes(b.warnings), ["DECLARE4027", "DECLARE4027"]);
+  assert.match(b.warnings.find((w) => w.code === "DECLARE4027").message, /Tab still reaches it/);
+});
+
 await test("expanded: a menu button and an accordion header say whether what they open is open", async () => {
   const app = await boot(`App [ width = 400, height = 400, layout: SimpleLayout [ axis = y ],
     opts: Button [ label = "Options", menu = { app.m } ],
@@ -365,7 +383,7 @@ await test("authoring parity: the tree and the contracts name no library class",
 });
 
 await test("pay-per-use: no accessibility attribute takes a slot in a view's kernel block", () => {
-  for (const name of ["accessibilityRole", "accessibilityLabel", "accessibilityHint", "accessibilityLive", ...A11Y_MEMBERS]) {
+  for (const name of ["accessibilityRole", "accessibilityLabel", "accessibilityHint", "accessibilityHidden", "accessibilityLive", ...A11Y_MEMBERS]) {
     assert.equal(slotIndex(View, name), -1, `${name} is a block slot`);
   }
 });

@@ -151,6 +151,7 @@ which is what stops a host-built icon from rendering invisibly on a dark surface
 
 ## onInit
 Builds the named icon. Fires once.
+An override calls `super.onInit()`, or nothing is built.
 
 ## width
 Zero when there is no icon to host, so an empty slot reserves nothing and an icon-less button needs no special case; else the provided `iconSize`.

@@ -4,6 +4,9 @@ node_modules/
 # TypeScript incremental build cache
 *.tsbuildinfo
 
+# Python bytecode cache (the eval scripts in evals/craft/ write one when run)
+__pycache__/
+
 # server /prod/ on-demand build cache (regenerated per request; the committed prebuilt/ is the real artifact).
 # one dir per backend/variant — .prod-cache/, .prod-cache-canvas/, … — all regenerated, none committed.
 .prod-cache*/

@@ -13,6 +13,20 @@ card: View [ height = 72, fill = white,
     ]
 ```
 
+**Names inside it.** An override is the view's value, computed on the view: `this`, a bare
+name and `parent` there mean what they would written on the view itself (`height = { width / 2 }`
+is half the view's own width), and the children it holds read the view the same way. Its own
+members — `applied`, its declarations, `onApply`/`onRemove` — are the State's: `this` is the
+State there, and `parent` the view (`applied = { parent.expanded }`). A State's own member is
+not in reach from an override, and a method written in a State is a compile error.
+
+**Names inside it.** An override is the view's value, computed on the view: `this`, a bare
+name and `parent` there mean what they would written on the view itself (`height = { width / 2 }`
+is half the view's own width), and the children it holds read the view the same way. Its own
+members — `applied`, its declarations, `onApply`/`onRemove` — are the State's: `this` is the
+State there, and `parent` the view (`applied = { parent.expanded }`). A State's own member is
+not in reach from an override, and a method written in a State is a compile error.
+
 ## applied
 Whether the state is on. Constrain it to a condition (`applied = { expanded }`) and the whole
 bundle snaps in and out as that flips — the base values restore themselves when it turns

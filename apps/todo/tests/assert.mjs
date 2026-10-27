@@ -77,15 +77,16 @@ export default async ({ drive, expect }) => {
   await drive.settleData();
   await drive.set("app", "location", "all");           // the reload kept the URL's #work
   await drive.settleMotion();
+  // On a phone an unflagged row has no flag control at all, so a tap at the
+  // end of the row can't flag it (it used to be there, invisible). Read before
+  // the swipe below: a done task leaves the list, and the rows after it move up
+  await expect.hidden(L(5) + ".face.flag");
   await drive.drag(L(5) + ".face", 160, 0);
   await drive.settleMotion();
   await expect.equal((await tasks(drive)).find((t) => t.id == 2).done, true);
   await drive.drag(L(2) + ".face", -160, 0);
   await drive.settleMotion();
   await expect.equal((await tasks(drive)).find((t) => t.id == 4).important, true);
-  // On a phone an unflagged row has no flag control at all, so a tap at the
-  // end of the row can't flag it (it used to be there, invisible)
-  await expect.hidden(L(5) + ".face.flag");
 
   // The round button opens the add sheet. With no name, Add can't be
   // pressed and Return adds nothing; with one, Add adds and the sheet goes.

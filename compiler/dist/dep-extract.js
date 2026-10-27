@@ -86,6 +86,11 @@ function isPureNodeNav(n) {
  *  Radio's computed default reads `parent.value`, inlined into a grandchild's
  *  constraint where a literal `parent` means the wrong node; the un-rebased
  *  path silently tracked a nonexistent slot and the constraint never re-fired). */
+/** An effects-table read (effects.ts: a slot name, relative to `this`) as the
+ *  read-path rebase() carries to the receiver. Written bare in the table, it
+ *  once reached rebase() bare, which takes a bare name for a data path: the
+ *  receiver's slots were never wired, and `{ parent.bounds().width }` froze. */
+const effectPath = (rp) => (rp.startsWith("this") || rp.startsWith(":") ? rp : "this." + rp);
 function rebase(readPath, receiver) {
     if (receiver === "this" || receiver == null)
         return readPath;
@@ -806,7 +811,7 @@ function extractBody(sf, locals, inlinable, extraRoots, bodyPos) {
                         const effects = LANGUAGE_METHOD_EFFECTS.get(m);
                         if (effects !== undefined)
                             for (const rp of effects)
-                                reads.add(rebase(rp, pathTextOf(recv)));
+                                reads.add(rebase(effectPath(rp), pathTextOf(recv)));
                         const onParam = roots.has(pathTextOf(recv).split(/[.[]/, 1)[0]);
                         // a super call: spelled `super.` in an authored body, `$base.` once
                         // resolution has rewritten it — the same call either way
@@ -828,7 +833,7 @@ function extractBody(sf, locals, inlinable, extraRoots, bodyPos) {
                         const effects = LANGUAGE_METHOD_EFFECTS.get(nm);
                         if (effects !== undefined)
                             for (const rp of effects)
-                                reads.add(rebase(rp, "this"));
+                                reads.add(rebase(effectPath(rp), "this"));
                         calls.push({ kind: "method", name: nm, receiver: "this", args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s), body: bodyPos,
                             unbacked: effects === undefined || undefined, at: s.getStart() });
                     }

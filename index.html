@@ -11,7 +11,7 @@
 <link rel="preload" href="apps/homepage/demos/spring.declare" as="fetch" crossorigin>
 <link rel="preload" href="apps/homepage/demos/states.declare" as="fetch" crossorigin>
 <!--declare-preload:end-->
-<meta name="description" content="A declarative language for user interfaces — reactive by construction, compiled live in the browser. This whole page is written in it.">
+<meta name="description" content="Designed from the ground up for interfaces that act and move like the best native apps, in a few hundred lines your AI can write and its compiler can check.">
 <!-- Real icon FILES (not a data: URI): link crawlers — iMessage/Slack/etc. — ignore
      data-URI SVG favicons and fall back to a cached domain icon, so ship actual files. -->
 <link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
@@ -22,14 +22,14 @@
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Declare">
 
-<meta property="og:description" content="A declarative UI language — reactive by construction, compiled live in the browser. This whole page is written in it.">
+<meta property="og:description" content="Designed from the ground up for interfaces that act and move like the best native apps, in a few hundred lines your AI can write and its compiler can check.">
 <meta property="og:url" content="https://davidtemkin.github.io/declarelang/">
 <meta property="og:image" content="https://davidtemkin.github.io/declarelang/assets/og-image.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 
-<meta name="twitter:description" content="A declarative UI language, reactive by construction, that compiles live in the browser.">
+<meta name="twitter:description" content="Designed from the ground up for interfaces that act and move like the best native apps, in a few hundred lines your AI can write and its compiler can check.">
 <meta name="twitter:image" content="https://davidtemkin.github.io/declarelang/assets/og-image.png">
 <style>html,body{margin:0;padding:0;background:#0B141B}</style>
 <!-- The host holds the homepage's static extraction (baked by tools/bake-homepage-crawler.mjs
@@ -54,7 +54,7 @@
 <p>It runs on real data: open an event, drag it to another day, and it’s moved.</p>
 <p>540</p>
 <p>lines of code, plus 214 of comments — four views, zoom, drag and edit</p>
-<p>154 KB</p>
+<p>155 KB</p>
 <p>over the wire, gzipped — app (structure, logic, styling) and runtime</p>
 <p>0</p>
 <p>lines written by hand — an LLM wrote it</p>
@@ -425,6 +425,8 @@ panel: View [                                                // on a DESCENDANT,
 <pre><code class="language-declare-fragment">bg: View [ opacity = { app.open ? 0.5 : 1 } ],                 // the child derives
 bg: View [ dim: State [ applied = { app.open }, opacity = 0.5 ]
     ]   // or owns a state</code></pre>
+<p><strong>Inside a state, an override is the view's.</strong> Its value is computed on the view it changes, so <code>this</code>, a bare name and <code>parent</code> mean what they would written on that view: <code>height = { width / 2 }</code> is half the card's own width, and <code>parent</code> is the card's container. The children declared in a state mount onto the view, and read it the same way. The state's own members — <code>applied</code>, anything it declares, <code>onApply</code>/<code>onRemove</code> — are the state's: there <code>this</code> is the state and <code>parent</code> the view, so <code>applied = { parent.expanded }</code> reads the card's own flag. A method written in a state is a compile error, since a state changes attributes and children, never what a method does.</p>
+<p><strong>Inside a state, an override is the view's.</strong> Its value is computed on the view it changes, so <code>this</code>, a bare name and <code>parent</code> mean what they would written on that view: <code>height = { width / 2 }</code> is half the card's own width, and <code>parent</code> is the card's container. The children declared in a state mount onto the view, and read it the same way. The state's own members — <code>applied</code>, anything it declares, <code>onApply</code>/<code>onRemove</code> — are the state's: there <code>this</code> is the state and <code>parent</code> the view, so <code>applied = { parent.expanded }</code> reads the card's own flag. A method written in a state is a compile error, since a state changes attributes and children, never what a method does.</p>
 <p>A state is driven by its condition (<code>applied = { … }</code>) or imperatively by the verbs — <code>apply()</code>/<code>remove()</code>/<code>toggle()</code> from a handler. One or the other: the gate owns <code>applied</code>, so a gated state changes when what the gate reads changes.</p>
 <p>A <strong><code>Spring</code></strong> drives one attribute toward a reactive target. Declare where the thing belongs and the spring finds the path, so a change of target mid-flight is simply a new destination and interruption needs no code.</p>
 <pre><code class="language-declare-fragment">slide: Spring [ attribute = x, to = { on ? 340 : 20 }, stiffness = 170, damping = 20 ]</code></pre>
@@ -547,7 +549,7 @@ Slider   [ value = { app.volume },
 <h2>Performance</h2>
 <h3>What should I expect in terms of performance — download size and interactive responsiveness?</h3>
 <p>Concretely, measured from the deployed production artifacts:</p>
-<ul><li><strong>Wire size</strong>: the entire Declare calendar — application <em>and</em> runtime — ships at about 154 KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).</li><li><strong>Source size</strong>: the tracker — a million issues, search as you type, editing in place with undo — is 1,507 lines: 982 of code and 251 of comments, and no dependencies. It ships at 171 KB gzipped before its data, which a <code>DataSource</code> fetches at run time.</li><li><strong>Responsiveness</strong>: when you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.</li><li><strong>Startup</strong>: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.</li></ul>
+<ul><li><strong>Wire size</strong>: the entire Declare calendar — application <em>and</em> runtime — ships at about 155 KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).</li><li><strong>Source size</strong>: the tracker — a million issues, search as you type, editing in place with undo — is 1,507 lines: 982 of code and 251 of comments, and no dependencies. It ships at 171 KB gzipped before its data, which a <code>DataSource</code> fetches at run time.</li><li><strong>Responsiveness</strong>: when you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.</li><li><strong>Startup</strong>: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.</li></ul>
 <p>Live numbers are on the homepage, measured from the deployed artifacts themselves.</p>
 <h2>Declare and LLMs</h2>
 <h3>What benefits does Declare bring for LLM coding, where a human may never read or write the code?</h3>
@@ -807,7 +809,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=a5fa34ecc265";
+  import boot from "./bundles/declare-boot.js?v=39be053cc4de";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().

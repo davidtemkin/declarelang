@@ -673,6 +673,7 @@ export class View extends Node {
   declare accessibilityRole: string;
   declare accessibilityLabel: string;
   declare accessibilityHint: string;
+  declare accessibilityHidden: boolean | null;   // null: unset (not read as hidden)
   declare accessibilityError: string;
   declare accessibilityRequired: boolean;
   declare accessibilityLive: string;
@@ -798,7 +799,7 @@ export class View extends Node {
     if (detached) { DETACHED.add(this); DETACHED_SURFACES.add(s); STATS.detached++; }
     this.$flush(s);
     if ((typeof __DECLARE_ACCESSIBILITY__ === "undefined" || __DECLARE_ACCESSIBILITY__)
-      && annotator !== null && (this.accessibilityRole !== "none" || this.$leafRole?.() === "textField" || this.accessibilityLabel !== "" || this.link !== "" || this.scrolls !== "none")) annotator(this);
+      && annotator !== null && (this.accessibilityRole !== "none" || this.$leafRole?.() === "textField" || this.accessibilityLabel !== "" || this.accessibilityHidden || this.link !== "" || this.scrolls !== "none")) annotator(this);
     if (!defer && !detached) parentSurface?.insertChild(s, before !== null && !isPlaced(before) ? realSurfaceAfter(this) : before);
     // Each child joins the surface this view has NOW: the flush, or a child
     // that needs a real surface while hidden, may have brought this view in.
@@ -1856,6 +1857,11 @@ export class View extends Node {
     const scroller = this.scrolls !== "none";
     if (!handled && !scroller && this.tooltipLabel === "" && this.link === "") return null;
     return (type, x, y, extra) => inPointer(() => {
+      // A disabled view takes no click, as a disabled button on the web takes
+      // none: it is not hovered or pressed either (below). A control whose
+      // `onClick` IS the use site's action (Button) has no base code of its own
+      // on that path to ask, so the rule is the runtime's.
+      if (type === "click" && isDisabled(this)) return;
       if (this.tooltipLabel !== "") {
         if (type === "pointerOver") Tooltips.over(this);
         else if (type === "pointerOut") Tooltips.out(this);
@@ -2160,6 +2166,11 @@ defineAttributes(View, {
       if ((typeof __DECLARE_ACCESSIBILITY__ === "undefined" || __DECLARE_ACCESSIBILITY__) && annotator !== null && v.accessibilityLabel !== "" && v.$surface !== null) annotator(v);
     } },
     accessibilityHint: { def: "" },
+    // hidden from a screen reader after it attached: the annotator takes it then.
+    // Unset is null, not false, so it takes no slot in every view's block
+    accessibilityHidden: { def: null, push: (v) => {
+      if ((typeof __DECLARE_ACCESSIBILITY__ === "undefined" || __DECLARE_ACCESSIBILITY__) && annotator !== null && v.accessibilityHidden && v.$surface !== null) annotator(v);
+    } },
     accessibilityError: { def: "" },
     accessibilityRequired: { def: false },
     accessibilityLive: { def: "off" },

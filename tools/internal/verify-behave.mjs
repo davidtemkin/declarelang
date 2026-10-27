@@ -150,7 +150,7 @@ bootHost(cfg);
     ...(scrollbars ? { ignoreDefaultArgs: ["--hide-scrollbars"] } : {}) });
   try {
     /** A fresh page with the app booted and the language-altitude API bound. */
-    const openApp = async ({ width = 1024, height = 768, clock = null, scheme = "light", dpr = 1, touch = false, hideScrollbars = false, echoConsole = false, onPage = null, budgetMs = 15000 } = {}) => {
+    const openApp = async ({ width = 1024, height = 768, clock = null, scheme = "light", dpr = 1, touch = false, hideScrollbars = false, echoConsole = false, onPage = null, budgetMs = 15000, check = null } = {}) => {
       const page = await browser.newPage();
       // watched from before the program's first line: a program that stops
       // answering — while it boots, or later, under a click — is paused where it
@@ -377,6 +377,54 @@ bootHost(cfg);
 
       const log = [];
       const step = (s) => log.push(s);
+      // RUNG 4'S LAYOUT QUESTIONS, ASKED WHERE THE SCRIPT HAS DRIVEN IT. The boot
+      // check sees the screen the program starts on; a sheet opened, a list
+      // filled, a seat map built only after a press were never asked about a
+      // finger's reach or a control another view covers. With `check` set, every
+      // place the script lets the program come to rest (settleMotion,
+      // settleData) — and its end — is asked the same questions, on the same
+      // device, and remembers which of the program's own classes were built.
+      const checks = [];
+      const reported = new Set(check?.skip ?? []);
+      const checkHere = async (where) => {
+        if (check === null) return;
+        try {
+          // SCROLLING IS THE PLATFORM'S, AND ASYNC: a fling after a drag, an
+          // animated reveal, a script's own scrollIntoView all land over frames
+          // of their own, and the model's scroll positions follow the browser's
+          // events. Asked mid-scroll, the check would measure a place about to
+          // change. So wait as the driver's own swipes do — three frames with no
+          // scroll event and no scroller reporting the user's scroll live, in
+          // real time, at most 2.5 s — then two frames for the model to take
+          // the last position.
+          await page.evaluate(() => new Promise((done) => {
+            const until = performance.now() + 2500;
+            let n = 0, seen = -1, still = 0;
+            const count = () => { n++; };
+            addEventListener("scroll", count, true);
+            const live = () => {
+              const visit = (v) => v.userScrolling === true || (v.childViews ?? []).some(visit);
+              const app = window.__declare?.find?.("app");
+              return app != null && visit(app);
+            };
+            const frame = () => {
+              still = n === seen ? still + 1 : 0;
+              seen = n;
+              if ((still >= 3 && !live()) || performance.now() > until) {
+                removeEventListener("scroll", count, true);
+                requestAnimationFrame(() => requestAnimationFrame(done));
+              } else requestAnimationFrame(frame);
+            };
+            requestAnimationFrame(frame);
+          }));
+          const r = await page.evaluate((o) => window.__declare?.bootCheck?.(o) ?? null, { touch, realText: true, classes: check.classes ?? [], skip: [...reported] });
+          if (r !== null) {
+            for (const k of r.flagged ?? []) reported.add(k);
+            checks.push({ where, layout: r.layout, notes: r.notes, unbuilt: r.unbuilt, flagged: r.flagged ?? [] });
+          }
+        } catch { /* a page that went away answers nothing */ }
+      };
+      const atRest = () => checkHere(log.length > 1 ? `after ${log[log.length - 2]}` : "at the start");
       const node = async (path) => {
         const n = await page.evaluate((p) => window.__declare.inspect(p), path);
         if (n === null) throw new VerifyAssertion(`no node at '${path}'`);
@@ -957,8 +1005,9 @@ bootHost(cfg);
             return done;
           }, maxMs);
           if (!ok) throw new VerifyAssertion(`motion did not settle within ${maxMs} ms`);
+          await atRest();
         },
-        async settleData() { step("settleData"); await quiet(); },
+        async settleData() { step("settleData"); await quiet(); await atRest(); },
         /** Assign an attribute on a live node — the write twin of the asserts'
          *  find-based read. An assignment, so constraints fire exactly as a
          *  handler's write would; a { }-owned slot refuses exactly as it should. */
@@ -1081,7 +1130,7 @@ const expect = {
        *  stops answering, the run fails at once, naming the step it was on and
        *  the program's lines it was running. */
       const watched = (work) => watch.during(() => log.length > 0 ? `during ${log[log.length - 1]}` : "the script", work);
-      return { page, drive, expect, node, log, pageErrors, thrown, quiet, watched };
+      return { page, drive, expect, node, log, pageErrors, thrown, quiet, watched, checks, checkHere };
     };
 
     return await fn({ openApp });
@@ -1296,7 +1345,7 @@ async function importScript(path) {
   }
 }
 
-export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = null, backendClass = "DomBackend", built = null, budgetMs = 15000, url = null }) {
+export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = null, backendClass = "DomBackend", built = null, budgetMs = 15000, url = null, classes = null, skip = [] }) {
   // the writes the script sent to a live service (no fixtures answered them):
   // what they made stays there — a failed run's half-finished story included —
   // so a run reports them
@@ -1310,7 +1359,7 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
     if (typeof mod.default !== "function") throw new VerifyAssertion(`${assertPath} has no default export function`);
     let app;
     try {
-      app = await openApp({ ...(mod.device ?? {}), budgetMs });
+      app = await openApp({ ...(mod.device ?? {}), budgetMs, check: classes === null ? null : { classes, skip } });
     } catch (e) {
       if (e?.lines === undefined) throw e;
       return { ok: false, failures: e.lines, log: [] };
@@ -1327,9 +1376,10 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
         (String(e?.stack ?? "").split("\n").find((l) => l.includes(".mjs")) ?? "").trim();
       failures.push(`${e instanceof VerifyAssertion ? "" : "unexpected error: "}${e?.message ?? e}${where}${frame ? `\n      at ${frame}` : ""}`);
     }
+    if (failures.length === 0) { await app.quiet(2000); await app.checkHere("at the end of the script"); }
     for (const e of app.pageErrors) failures.push(`page error: ${e}`);
     for (const e of new Set(app.thrown)) failures.push(`error: ${e}`);
-    return { ok: failures.length === 0, failures, log: app.log, writes: writesOf(app) };
+    return { ok: failures.length === 0, failures, log: app.log, writes: writesOf(app), checks: app.checks };
   });
 }
 
@@ -1462,7 +1512,7 @@ async function diffPng(page, aBase64, bBase64, tolerance = 4, mask = []) {
  *  capture a dark state) so a capture never depends on the host machine's own
  *  appearance. `mask` is a list of {x,y,w,h} rectangles excluded from the diff,
  *  for regions that measure the machine (see diffPng). */
-export async function runStates({ compiled, appDir, statesPath, baselinesDir, bless = false, fixturesDir = null, backendClass = "DomBackend", tolerance = 4, built = null, budgetMs = 15000 }) {
+export async function runStates({ compiled, appDir, statesPath, baselinesDir, bless = false, fixturesDir = null, backendClass = "DomBackend", tolerance = 4, built = null, budgetMs = 15000, classes = null, skip = [] }) {
   const mod = await importScript(statesPath);
   const states = mod.default;
   if (!Array.isArray(states)) throw new VerifyAssertion(`${statesPath} must default-export an array of states`);
@@ -1471,6 +1521,8 @@ export async function runStates({ compiled, appDir, statesPath, baselinesDir, bl
   return withHost({ compiled, appDir, fixturesDir, backendClass, built }, async ({ openApp }) => {
     const failures = [];
     const results = [];
+    const checks = [];
+    const reported = new Set(skip);
     const KNOWN_STATE_KEYS = new Set(["name", "viewport", "clock", "scheme", "dpr", "touch", "mask", "route", "frames"]);
     for (const st of states) {
       for (const k of Object.keys(st)) {
@@ -1484,7 +1536,7 @@ export async function runStates({ compiled, appDir, statesPath, baselinesDir, bl
       const viewport = st.viewport ?? { width: 1024, height: 768 };
       let app;
       try {
-        app = await openApp({ ...viewport, clock: st.clock ?? null, scheme: st.scheme ?? "light", dpr: st.dpr ?? 1, touch: st.touch === true, budgetMs });
+        app = await openApp({ ...viewport, clock: st.clock ?? null, scheme: st.scheme ?? "light", dpr: st.dpr ?? 1, touch: st.touch === true, budgetMs, check: classes === null ? null : { classes, skip: [...reported] } });
       } catch (e) {
         if (e?.lines === undefined) throw e;
         failures.push(...e.lines.map((l, i) => i === 0 ? `${st.name}: ${l}` : l));
@@ -1525,6 +1577,10 @@ export async function runStates({ compiled, appDir, statesPath, baselinesDir, bl
               () => window.__declare?.stats?.().motionBusy === false,
               { timeout: 5000, polling: 50 });
           } catch { /* perpetual motion: capture it where it is */ }
+          // the state, at rest, asked rung 4's layout questions
+          await app.checkHere(`in state '${st.name}'`);
+          for (const c of app.checks) for (const k of c.flagged) reported.add(k);
+          checks.push(...app.checks.map((c) => c.where.startsWith("in state") ? c : { ...c, where: `in state '${st.name}', ${c.where}` }));
           // `frames: true` — a long document, as a sequence of settled viewport
           // frames rather than one very tall image. Each frame is its own baseline,
           // so a failure names the screen to go and look at.
@@ -1564,6 +1620,6 @@ export async function runStates({ compiled, appDir, statesPath, baselinesDir, bl
         await app.page.close().catch(() => {});
       }
     }
-    return { ok: failures.length === 0, failures, results };
+    return { ok: failures.length === 0, failures, results, checks };
   });
 }

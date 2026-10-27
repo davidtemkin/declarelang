@@ -48,7 +48,7 @@ Narrative context and the session in which each was found lives in
 | L-30 | compiler | Method BODIES are never checked against their written return type | medium | open — found building typed data |
 | L-31 | runtime | Layout↔author slot conflict: contained + one clear message across all 3 sites | — | **done** 2026-09-03 |
 | L-32 | runtime | The Safari canvas-filter fallback ships in every build that draws (5.6 KB) | medium | open — revisit |
-| L-33 | tests | Two app ladder rungs fail since v0.5.3 (docs R5, homepage R6), cause not traced | medium | open |
+| L-33 | tests | Two app ladder rungs fail since v0.5.3 (docs R5, homepage R6) | medium | fixed 2026-10-27 |
 | L-34 | build | A program whose script imports a module ships its bodies as text | low | open |
 | L-35 | build | A page that hosts islands carries every capability, not its tenants' union | low | open |
 | L-36 | tooling | The slim corpus gate runs by hand: no hook or CI runs it | medium | open |
@@ -1169,18 +1169,31 @@ never meet.
 - **Ship the WebAssembly as bytes, not base64,** in the same file: saves part of
   the 3.0 KB.
 
-## L-33 — Two app ladder rungs fail since v0.5.3, cause not traced · medium · open
+## L-33 — Two app ladder rungs fail since v0.5.3 · medium · fixed 2026-10-27
 
 Found 2026-10-24 running `slim-corpus`, and reproduced on whole builds, at the
 v0.5.3 release and at 0127ba80, so slimming is not the cause:
 
 - **docs R5:** `expected app.location = "type/Motion", got "reference/Animator"`
-  after a click on a reference row's type link (`app.detail.col.refCol.0.attrs.6.sig.ty`),
-  with a timer still waiting.
-- **homepage R6:** `phone-loop@390x844` differs from its baseline (15,980 channel
-  values past tolerance, max Δ 91).
-
-The local Chrome is 155; a browser update is a guess for R6, not checked.
+  after a click on a reference row's type link (`app.detail.col.refCol.0.attrs.6.sig.ty`).
+  **A runtime defect.** In selectable text a press keeps its native default, so
+  the browser focused the link's `<a>`; `semantics-dom`'s `focusin` handed that
+  to the focus service as a focus the program moved, which reveals — and it
+  scrolled the link clear of the pinned bar between press and release, so the
+  release landed on other content and the click was lost. A person pressing a
+  link half under a pinned bar lost the click the same way. Fixed: a focus the
+  browser gives while a pointer is down is a press's, and is not revealed
+  (test/silent-failures). The script's wait for the host's smooth scroll is
+  `drive.waitReal`, real time, as its comment always said.
+- **homepage R6:** `phone-loop@390x844` differed from its baseline. **A stale
+  baseline**: the route scrolls a heading to a fixed place, so the blueprint
+  grid's phase there is the heading's place in the page mod 32, and the tracker
+  card's figures line was shortened on 2026-10-22 (85a9291a), after the baseline
+  — one wrapped line fewer above it. Re-blessed. Tracing it found a real fault
+  in `GridBg`: near the end of the page its top was clamped to the content's
+  extent, off the 32px lattice, so the last screenful's lines sat wherever the
+  page's height left them (`phone-closer`). It now shortens instead of moving,
+  and keeps its top on the lattice; `phone-closer` re-blessed for that.
 
 ## L-34 — A program whose script imports a module ships its bodies as text · low · open
 
