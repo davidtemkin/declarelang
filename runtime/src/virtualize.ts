@@ -444,7 +444,9 @@ export class Windowing {
       if (dataChanged) this.reindex(ids);
       this.ledger.rebuild(ids, this.unit);
       this.ledgerIds = ids;
-      if (was !== null && this.anchor !== null && this.anchor.index >= 0) {
+      // (only while the viewport's top is in the rows: above them, what the
+      // reader holds is what sits before the list, and that has not moved)
+      if (was !== null && this.anchor !== null && this.anchor.index >= 0 && (this.lastL === null || this.lastL >= 0)) {
         const before = scroller.scrollY;
         this.absorb(this.ledger.offset(this.anchor.index) - was, scroller);
         y += scroller.scrollY - before;

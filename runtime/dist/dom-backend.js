@@ -3136,7 +3136,10 @@ export function watchScrolling(target, report) {
             return; // no hand on it: moved, not scrolled by the user
         live();
     };
-    const onWheel = () => { programEnds(); wheelLast = performance.now(); live(); };
+    // A wheel a view has claimed (onWheel, a trackpad pinch on a chart) moves
+    // nothing here: it is that view's gesture, not the user scrolling this pane.
+    const onWheel = (e) => { if (e.defaultPrevented)
+        return; programEnds(); wheelLast = performance.now(); live(); };
     const onTouch = (e) => {
         programEnds();
         touches = e.touches?.length ?? 0;
