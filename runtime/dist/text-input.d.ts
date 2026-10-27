@@ -4,6 +4,7 @@ import { type FontWeight } from "./measure.js";
 import { type FamilyValue } from "./font-value.js";
 import { type Color, type Inset } from "./value.js";
 import { type Purpose } from "./purpose.js";
+import type { NumeralWidth } from "./font-features.js";
 export declare class TextInput extends View {
     textColor: Color;
     fontSize: number;
@@ -11,6 +12,8 @@ export declare class TextInput extends View {
     fontFamily: FamilyValue;
     fontWeight: FontWeight;
     letterSpacing: number;
+    /** The digits' advance: "tabular" lines figures up (a card number, an amount). */
+    numeralWidth: NumeralWidth;
     selectable: boolean;
     text: string;
     placeholder: string;

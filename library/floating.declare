@@ -20,6 +20,12 @@ It carries, once, what every overlay needs:
 - **Anchoring** — `anchorBox(v)` is a view's box in the overlay's frame, for an overlay that
   opens next to something; `toLayer(v, x, y)` maps a point the same way, through a window
   turned or scaled; `keepOnApp(x, y, w, h)` moves a box back onto the App.
+- **Its colours are theme tokens** — the panel of a `Dialog`, `Sheet` or `Popover` paints the
+  theme's `surface` (a `Menu`'s, `menuFill` else `surface`; a `Toast`'s, `tooltipFill`), and the
+  backdrop `scrimFill` at `scrimOpacity`. One overlay of its own colour is given a theme with
+  the token changed: `theme = { ({ ...provided("theme"), surface: #111111 }) }`.
+- **Forms** — it is a boundary: a field inside belongs to a `Form` inside it, not to one
+  around the place it is declared.
 
 ```declare
 App [ width = 420, height = 220,

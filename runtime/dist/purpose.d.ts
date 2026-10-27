@@ -15,5 +15,7 @@ export declare const PURPOSES: Record<Purpose, PurposeHints>;
 export declare const PURPOSE_NAMES: Purpose[];
 export declare const hintsOf: (p: string | undefined) => PurposeHints;
 /** Write a field's purpose onto its native element: the autofill name, the
- *  keyboard, capitalization, and whether what is typed shows. Idempotent. */
-export declare function applyPurpose(el: HTMLInputElement | HTMLTextAreaElement, purpose: string, concealed: boolean, spellcheck: boolean): void;
+ *  keyboard, capitalization, whether what is typed shows, and what an
+ *  on-screen keyboard's Return key says (`enterHint`: "next" in a form whose
+ *  Return moves on, "go" on its last field). Idempotent. */
+export declare function applyPurpose(el: HTMLInputElement | HTMLTextAreaElement, purpose: string, concealed: boolean, spellcheck: boolean, enterHint?: string): void;

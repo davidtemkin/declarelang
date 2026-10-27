@@ -9,7 +9,7 @@
 // belongs to the browser rungs, §2.8). Rungs 5–6 land per the phase plan.
 //
 //   node tools/verify.mjs <app.declare> [--json] [--rung N]
-//                          [--assert <script.mjs>] [--fixtures <dir>]
+//                          [--assert <script.mjs>] [--fixtures <dir>] [--url <address>]
 //                          [--states <states.mjs>] [--baselines <dir>] [--bless]
 //
 // Exit code: 0 = every requested rung passed; 1 = a rung failed; 2 =
@@ -57,7 +57,9 @@ function rungOf(phase) {
 const args = process.argv.slice(2);
 // the program: the .declare named (a flag's value — `--rung 4`, `--assert s.mjs`
 // — is not it), else the first bare word
-const file = args.find((a) => a.endsWith(".declare")) ?? args.find((a) => !a.startsWith("--"));
+// (a served address — --url http://…/app.declare — is not the file)
+const local = (a) => !/^[a-z]+:\/\//i.test(a);
+const file = args.find((a) => a.endsWith(".declare") && local(a)) ?? args.find((a) => !a.startsWith("--") && local(a));
 const argVal = (name) => {
   const eq = args.find((a) => a.startsWith(`--${name}=`));
   if (eq !== undefined) return eq.slice(name.length + 3);
@@ -69,6 +71,9 @@ const flags = {
   rung: Number(argVal("rung") ?? 6),
   assert: argVal("assert"),
   fixtures: argVal("fixtures"),
+  // --url <address>: drive the app where it is served (a dev server) instead of
+  // the host's copy — rung 5 only; the file's rungs still check the source
+  url: argVal("url"),
   states: argVal("states"),
   baselines: argVal("baselines"),
   bless: args.includes("--bless"),
@@ -280,7 +285,7 @@ if (failedRung === null && flags.rung >= 4 && !flags.noBoot) {
 
 
 // ── rung 5: behavior (drive + assert, real browser) ──────────────────────
-const behave = { ran: false, ok: false, failures: [], log: [] };
+const behave = { ran: false, ok: false, failures: [], log: [], writes: [] };
 if (failedRung === null && flags.rung >= 5 && flags.assert !== null) {
   behave.ran = true;
   const { runBehavior } = await import("./internal/verify-behave.mjs");
@@ -292,10 +297,12 @@ if (failedRung === null && flags.rung >= 5 && flags.assert !== null) {
       assertPath: flags.assert,
       fixturesDir: flags.fixtures,
       budgetMs: flags.bootBudget,
+      url: flags.url ?? null,
     });
     behave.ok = r.ok;
     behave.failures = r.failures;
     behave.log = r.log;
+    behave.writes = r.writes ?? [];
     if (!r.ok) failedRung = 5;
   } catch (e) {
     behave.failures.push(e?.constructor?.name === "VerifyAssertion" ? e.message : `behavior harness: ${e?.message ?? e}`);
@@ -385,6 +392,10 @@ if (flags.json) {
   for (const w of warnings) console.log(`  warn ${show(w)}`);
   for (const h of hints) console.log(`  hint ${show(h)}`);
   for (const n of boot.notes) console.log(`  note ${n}`);
+  if (behave.writes.length > 0) {
+    const shown = [...new Set(behave.writes)];
+    console.log(`  note the script sent ${behave.writes.length} write${behave.writes.length === 1 ? "" : "s"} to the live service (${shown.slice(0, 4).join(", ")}${shown.length > 4 ? ", …" : ""}) — what they made stays there; --fixtures <dir> answers requests from files instead, so a run leaves nothing behind (verify.md)`);
+  }
   for (const l of boot.layout) console.log(`  layout ${l}`);
   if (boot.unbuilt.length > 0) console.log(`  note not built at boot, so not checked here: ${boot.unbuilt.slice(0, 12).join(", ")}${boot.unbuilt.length > 12 ? ", …" : ""} — they appear once data arrives or the state changes; an assert script, or declare-look, reaches them`);
   for (const a of boot.answers) console.log(a);

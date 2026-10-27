@@ -51,6 +51,10 @@ const start = () => {
     child = null;
     if (reloading) { reloading = false; start(); return; } // a build-signaled respawn
     cleanup();
+    // never silently: an exit nobody asked for says how the server went
+    if (!stopping && (signal !== null || (code ?? 0) !== 0)) {
+      console.error(`dev: the server stopped ${signal !== null ? `on ${signal} — sent by something outside it (a shell or tool ending its process group, an out-of-memory kill)` : `with exit code ${code}${code === 1 ? " — its last lines above say why, if it could say" : ""}`}; nothing restarts it. Start it again with  npm start`);
+    }
     process.exit(code ?? (signal ? 1 : 0));                // the server stopped on its own → so do we
   });
 };

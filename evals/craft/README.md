@@ -109,7 +109,15 @@ A Declare run's report has, in order:
    instinct tables or a concept synonym.
 5. **The agent's account, verbatim.** Asked after the build by resuming the finished session
    with read-only tools, with the standard questions (the prompt is kept beside the logs as
-   `impressions.txt`). Its tokens are counted separately from the build's.
+   `impressions.txt`), and with auto-memory off as the build had it
+   (`CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 claude -p --resume <session> --tools Read,Glob,Grep …`).
+   Its tokens are counted separately from the build's.
+
+**Ending a run.** `launch.sh` starts `finish.sh` beside the agent: once the build's result
+record is in, it stops whatever the agent left running (a dev server it started) and then
+the agent, by process id, listing each in `logs/finish.log`. Stopping such a server by hand
+instead wakes the finished session, which then works on past its result. The data service
+stays up for scoring; stop it by its pid once the report is filed.
 
 A run with a second phase (a follow-up prompt resuming the same session) gets sections 1, 2,
 4 and 5 again for that phase, appended to the first part's report. The idiom review (3) is

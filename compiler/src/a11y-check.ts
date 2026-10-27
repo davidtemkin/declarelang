@@ -310,6 +310,24 @@ export function accessibilityDiagnostics(
           }
         }
       }
+      // toggles used as one of several: sibling controls of one class, each with
+      // its chosen flag written `{ X == literal }` over the same X
+      {
+        const bySubject = new Map<string, { tag: string; flag: string; subject: string; pos: (typeof el)["pos"]; n: number }>();
+        for (const c of el.children) {
+          if (!isA(c.tag, "Control")) continue;
+          for (const a of c.attrs) {
+            if (!CHOSEN_FLAG.test(a.name) || a.value.kind !== "code") continue;
+            const m = /^\s*(.+?)\s*===?\s*("[^"]*"|'[^']*'|-?\d+(?:\.\d+)?)\s*$/.exec(a.value.src);
+            if (m === null) continue;
+            const key = `${c.tag}|${a.name}|${m[1]}`;
+            const g = bySubject.get(key);
+            if (g === undefined) bySubject.set(key, { tag: c.tag, flag: a.name, subject: m[1], pos: c.pos, n: 1 });
+            else g.n++;
+          }
+        }
+        for (const g of bySubject.values()) if (g.n >= 2) warnings.push(Diag.accessibilityTogglesAsOneOf(g.n, g.tag, g.flag, g.subject, g.pos));
+      }
       // a control that shows a choice and reports none: a class of its own with a
       // boolean saying it is the one chosen (`on`, `selected` …), and no state a
       // screen reader hears — each of a row of them reads as a plain button

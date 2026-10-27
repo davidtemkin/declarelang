@@ -159,6 +159,48 @@ await test("a Form reads a service's refusal onto the fields it names", async ()
   assert.equal(app.f.error, "Lost. Disabled.", "a name no counted field has goes to the form's error, never a near match");
 });
 
+await test("a ValueControl with no form: its rules, facts and judging stand alone", async () => {
+  const app = await boot(`App [ width = 300, height = 100, agree: boolean = false,
+    c: Checkbox [ label = "I agree", required = "Accept the terms.", checked = { app.agree }, input(v: boolean) { app.agree = v } ] ]`);
+  assert.equal(app.c.form, null, "no form above, and none needed");
+  assert.equal(app.c.problem, "Accept the terms.");
+  assert.equal(app.c.valid, false);
+  assert.equal(app.c.error, "", "not judged yet");
+  app.c.judge(); settle();
+  assert.equal(app.c.error, "Accept the terms.");
+  assert.equal(app.c.accessibilityError, "Accept the terms.");
+  app.agree = true; settle();
+  assert.equal(app.c.error, "");
+  app.c.refuse("Not now."); settle();
+  assert.equal(app.c.problem, "Not now.", "an outside message on a control of its own");
+});
+
+await test("a Form: next() walks the counted fields in reading order and submits from the last; enterMoves routes Return", async () => {
+  const app = await boot(`App [ width = 400, height = 400, sends: number = 0,
+    f: Form [ x = 0, y = 0, width = 380, enterMoves = true,
+      layout: SimpleLayout [ axis = y, spacing = 8 ],
+      TextInput [ width = 200, name = "a" ],
+      TextInput [ width = 200, name = "b", disabled = true ],
+      TextInput [ width = 200, name = "c" ],
+      send() { app.sends = app.sends + 1 } ] ]`);
+  const [a, , c] = app.f.childViews;
+  assert.equal(app.f._enterHint(a), "next");
+  assert.equal(app.f._enterHint(c), "go", "the last field's Return says go");
+  app.f.next(a); settle();
+  assert.equal(c.focused, true, "the disabled field is passed over");
+  app.f._enter(c); settle();
+  assert.equal(app.sends, 1, "Return in the last field submits");
+  app.f.enterMoves = false; settle();
+  app.f._enter(a); settle();
+  assert.equal(app.sends, 2, "without enterMoves, Return submits from any field");
+});
+
+await test("Sheet says how it presents as `presentation`, leaving `form` to forms", async () => {
+  const src = readFileSync(new URL("../library/sheet.declare", import.meta.url), "utf8");
+  assert.match(src, /^\s*presentation: string = /m);
+  assert.doesNotMatch(src, /^\s*form: string = /m);
+});
+
 summarize("forms");
 // an attached app keeps its timers (the focus ring's, a tooltip's): end here
 process.exit(process.exitCode ?? 0);

@@ -97,18 +97,22 @@ TOOLS="Read,Glob,Grep,Bash,Write,Edit,WebSearch,WebFetch"
   echo "SUBJECT=$SUBJECT"
   echo "TOOLS=$TOOLS (the only tools that exist; all pre-approved)"
   echo "STACK=${STACK:-Declare}"
-  echo "PERMISSION_MODE=acceptEdits; permission prompts: none (anything else is refused); MCP: none"
+  echo "PERMISSION_MODE=acceptEdits; permission prompts: none (anything else is refused); MCP: none; auto-memory: off"
   echo "CWD=$RUN/work (logs outside it)"
   echo "PORT=$PORT (the brief names ${APP_PORT:-none})"
   echo "SERVICE=node ${SERVICE[*]}"
 } > "$LOGS/started.txt"
 
-# the agent: headless, the full event stream, exactly these tools
-nohup claude -p --model "$MODEL" \
+# the agent: headless, the full event stream, exactly these tools — and no
+# auto-memory: a run's notes to itself (Murmur run 11 wrote one) must not reach
+# a later run that reuses a directory, nor sit outside the run's own record
+CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 nohup claude -p --model "$MODEL" \
   --output-format stream-json --verbose \
   --tools "$TOOLS" --allowedTools "$TOOLS" \
   --permission-mode acceptEdits --permission-prompts none \
   --strict-mcp-config \
   < "$LOGS/prompt.txt" > "$LOGS/agent.stream.jsonl" 2> "$LOGS/agent.stderr" &
 echo "AGENT_PID=$!" >> "$LOGS/started.txt"
+# ends the run cleanly once the result is in: what the agent left running, by pid
+nohup "$(dirname "$0")/finish.sh" "$RUN" > "$LOGS/finish.log" 2>&1 &
 cat "$LOGS/started.txt"

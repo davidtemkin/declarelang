@@ -55,8 +55,10 @@ export const PURPOSE_NAMES = Object.keys(PURPOSES) as Purpose[];
 export const hintsOf = (p: string | undefined): PurposeHints => PURPOSES[(p ?? "text") as Purpose] ?? PURPOSES.text;
 
 /** Write a field's purpose onto its native element: the autofill name, the
- *  keyboard, capitalization, and whether what is typed shows. Idempotent. */
-export function applyPurpose(el: HTMLInputElement | HTMLTextAreaElement, purpose: string, concealed: boolean, spellcheck: boolean): void {
+ *  keyboard, capitalization, whether what is typed shows, and what an
+ *  on-screen keyboard's Return key says (`enterHint`: "next" in a form whose
+ *  Return moves on, "go" on its last field). Idempotent. */
+export function applyPurpose(el: HTMLInputElement | HTMLTextAreaElement, purpose: string, concealed: boolean, spellcheck: boolean, enterHint = ""): void {
   const h = hintsOf(purpose);
   const set = (name: string, v: string): void => {
     if (v === "") { if (el.hasAttribute(name)) el.removeAttribute(name); }
@@ -68,6 +70,7 @@ export function applyPurpose(el: HTMLInputElement | HTMLTextAreaElement, purpose
   set("inputmode", h.inputmode);
   set("autocapitalize", h.autocapitalize);
   set("autocorrect", h.prose ? "" : "off");
+  set("enterkeyhint", enterHint);
   const check = spellcheck && h.prose;
   if (el.spellcheck !== check) el.spellcheck = check;
   if (el instanceof HTMLInputElement) {

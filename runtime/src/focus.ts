@@ -20,6 +20,7 @@ import { inPointerDispatch } from "./pointer-dispatch.js";
 import { View, fireEvent, setFocusDiscardHook, setKeyDefaultHook, noteFocused } from "./view.js";
 import type { KeyEvent } from "./keys.js";
 import { radiusMax } from "./value.js";
+import { isSet, ownerOf, providedRead } from "./attributes.js";
 import type { KeysService } from "./keys.js";
 import { Cell, Constraint, afterSettle } from "./reactive.js";
 import { rootFrameBox, rootTransform, type InteractionView } from "./interaction.js";
@@ -55,6 +56,10 @@ export interface FocusGeometry {
    *  turned origin corner and homeW/homeH its own scaled size, so an
    *  indicator turned by homeRot about its origin lies on the view. */
   homeRot: number;
+  /** The theme in force where the focused view is — what an indicator drawn
+   *  in the App's layer paints with, so a ring on a dark panel is drawn in the
+   *  panel's colours, not the App's. Null when nothing above provides one. */
+  theme: unknown;
 }
 
 export class FocusService {
@@ -295,6 +300,7 @@ export class FocusService {
           homeH: turned ? (rect?.h ?? v.height) * ht.scale : hb.height,
           homeRad: radLocal * hb.scale,
           homeRot: turned ? ht.rotation * 180 / Math.PI : 0,
+          theme: providedRead(v, "theme", true, null),
         };
       },
       (g) => { if (g != null) for (const fn of [...this.geometryHandlers]) fn(g as FocusGeometry); }
@@ -755,6 +761,9 @@ function visit(m: View, out: Entry[]): void {
  *  reaches into it, and what it focuses is revealed. */
 export function bareScroller(v: View): boolean {
   if (v.scrolls === "none" || v.focusable || v.link !== "" || !v.visible) return false;
+  // `focusable = false` said outright (or bound) is the author's word: the
+  // scroller is not a stop, whatever it holds — the default false is not a word
+  if (isSet(v, "focusable") || ownerOf(v, "focusable") !== null) return false;
   const inner: Entry[] = [];
   for (const c of tabOrderOf(v)) visit(c, inner);
   return inner.length === 0;

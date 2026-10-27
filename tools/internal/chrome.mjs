@@ -79,7 +79,8 @@ export async function launchChrome(opts = {}) {
       for (const sig of ["SIGINT", "SIGTERM", "SIGHUP"]) process.once(sig, () => process.exit(130));
     }
   }
-  const browser = await puppeteer.launch({ executablePath: findChrome(), headless: true, ...opts, userDataDir: profile });
+  const quiet = ["--disable-background-timer-throttling", "--disable-renderer-backgrounding", "--disable-backgrounding-occluded-windows"];
+  const browser = await puppeteer.launch({ executablePath: findChrome(), headless: true, ...opts, args: [...(opts.args ?? []), ...quiet], userDataDir: profile });
   const proc = browser.process();
   for (const s of [proc?.stdin, proc?.stdout, proc?.stderr]) s?.unref?.();
   // the profile goes once Chrome has exited (it writes to it while closing)
@@ -130,6 +131,10 @@ async function launchKept(slot, args, scrollbars) {
   const proc = spawn(findChrome(), [
     "--headless=new", "--remote-debugging-port=0", `--user-data-dir=${slot.profile}`,
     "--no-first-run", "--no-default-browser-check", "--mute-audio",
+    // several checks share one Chrome, each in its own page: a page that is not
+    // the front one must not have its timers and frames throttled, or a step
+    // that waits on a frame waits forever (verify-apps under load, 2026-10-26)
+    "--disable-background-timer-throttling", "--disable-renderer-backgrounding", "--disable-backgrounding-occluded-windows",
     // its cache is what makes the next call quick, kept small
     "--disk-cache-size=52428800",
     ...(scrollbars ? [] : ["--hide-scrollbars"]),

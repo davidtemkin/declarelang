@@ -152,4 +152,8 @@ defineAttributes(Audio, {
   volume: { def: 1, push: tuned("volume") },
   playbackRate: { def: 1, push: tuned("playbackRate") },
   inMemory: { def: false, push: (v) => (v as Audio).$load() },
+  // Audio draws nothing, so a layout passes over it: a player declared among a
+  // layout's children takes no slot (Murmur run 11: the App's own layout placed
+  // its Audio as the first pane). Set false to have a layout place it anyway.
+  ignoreLayout: { def: true, push: (v) => { const p = (v as Audio).parent; if (p !== null && typeof (p as { $childrenMutated?: unknown }).$childrenMutated === "function") (p as unknown as { $childrenMutated: () => void }).$childrenMutated(); } },
 });

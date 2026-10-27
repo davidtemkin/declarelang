@@ -204,6 +204,7 @@ export class TextInput extends View {
             letterSpacing: this.letterSpacing,
             color: this.textColor,
             shadow: null,
+            ...(this.numeralWidth !== "normal" ? { numeralWidth: this.numeralWidth } : {}),
         };
     }
     /** Push the whole editable spec across the seam — value, style, callbacks.
@@ -224,6 +225,7 @@ export class TextInput extends View {
             placeholder: this.placeholder,
             style: this.$editStyle(),
             enterSubmits: this.enterSubmits,
+            enterHint: this.multiline || this.form === null ? "" : String(this.form._enterHint?.(this) ?? ""),
             disabled: this.disabled,
             onInput: (v) => this.$onNativeInput(v),
             // The native element ECHOES focus the runtime just gave it (Tab →
@@ -248,8 +250,14 @@ export class TextInput extends View {
                 // unless the field says what Return does itself (an `onEnter`).
                 const own = typeof this.onEnter === "function";
                 fireEvent(this, "enter");
-                if (!own && !this.multiline && this.form !== null)
-                    this.form.submit?.();
+                // (a form whose Return moves on takes the field to the next: Form.enterMoves)
+                if (!own && !this.multiline && this.form !== null) {
+                    const f = this.form;
+                    if (typeof f._enter === "function")
+                        f._enter(this);
+                    else
+                        f.submit?.();
+                }
             },
             onSelect: (start, end) => {
                 if (this.selectionStart !== start)
@@ -344,6 +352,9 @@ export class TextInput extends View {
      *  the browser places the click's caret at mouseup, after focus handlers —
      *  and that is the right ranking, because a deliberate click names a spot. */
     $focusChanged(focused) {
+        // the Return key's word depends on where the field sits in its form: said as it is focused
+        if (focused && this.form !== null)
+            this.$syncEditable();
         this.$surface?.activateEditable(focused);
         if (focused)
             this.$applySelection();
@@ -402,6 +413,7 @@ defineAttributes(TextInput, {
             t.$syncEditable();
         } },
     initial: { def: "" },
+    numeralWidth: { def: "normal" },
     selectionStart: { def: 0 },
     selectionEnd: { def: 0 },
     disabled: { def: false, push: (t) => t.$syncEditable() },

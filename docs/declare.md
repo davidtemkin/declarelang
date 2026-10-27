@@ -173,7 +173,9 @@ glued and empty it is an array (`w: Window[]`); after a space it opens a named c
 `quant(v: number) -> number { … }`. Every parameter carries a written type — any type a
 declaration takes, an event payload among them (`onPointerUp(e: PointerUpEvent)`); `c?: Menu`,
 or Declare's `c: Menu?`, says the value may be absent, and the body must check. The return
-is written `-> Ret` or TypeScript's `: Ret`; omit it for a method that returns nothing. A computed *value* is still not a method but an attribute with
+is written `-> Ret` or TypeScript's `: Ret` — a type's **name** (`-> Week`, `-> Session[]`),
+not a record written out in place: give a returned record a `schema` and return that.
+Omit it for a method that returns nothing. A computed *value* is still not a method but an attribute with
 a `{ }` default, `segIndex: number = { … }` — an attribute stays reactively true; a method
 runs when called. A subclass's method, handlers included, **replaces** the base's of the same
 name, a built-in's own runtime methods (`fetch`, `start`, `scrollTo`) among them; `super.name(args)`

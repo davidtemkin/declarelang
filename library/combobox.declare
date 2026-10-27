@@ -186,7 +186,6 @@ class Combobox extends ValueControl [
     pickIndex(i: number) {
         const m = (this.matches ?? [])[i]
         if (m === undefined) return
-        this.entry.text = this.labelOf(m)
         filtering = false
         this.closeList()
         input(m)
@@ -237,6 +236,12 @@ class Combobox extends ValueControl [
 
     entry: TextInput [ x = 0, y = 0,
         width = { classroot.width },
+
+        // what it shows derives from the choice — the query while one is typed,
+        // else the chosen member's label — so a value set from outside (a
+        // saved address's country) shows as surely as one picked here
+
+        text = { classroot.filtering ? classroot.query : classroot.labelOf(classroot.value) },
         height = { classroot.height },
         placeholder = { classroot.placeholder },
         purpose = { classroot.purpose },

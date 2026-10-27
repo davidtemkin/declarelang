@@ -18,6 +18,7 @@
 import { inPointerDispatch } from "./pointer-dispatch.js";
 import { View, fireEvent, setFocusDiscardHook, setKeyDefaultHook, noteFocused } from "./view.js";
 import { radiusMax } from "./value.js";
+import { isSet, ownerOf, providedRead } from "./attributes.js";
 import { Cell, Constraint, afterSettle } from "./reactive.js";
 import { rootFrameBox, rootTransform } from "./interaction.js";
 import { apply as applyAffine } from "./affine.js";
@@ -258,6 +259,7 @@ export class FocusService {
                 homeH: turned ? (rect?.h ?? v.height) * ht.scale : hb.height,
                 homeRad: radLocal * hb.scale,
                 homeRot: turned ? ht.rotation * 180 / Math.PI : 0,
+                theme: providedRead(v, "theme", true, null),
             };
         }, (g) => { if (g != null)
             for (const fn of [...this.geometryHandlers])
@@ -742,6 +744,10 @@ function visit(m, out) {
  *  reaches into it, and what it focuses is revealed. */
 export function bareScroller(v) {
     if (v.scrolls === "none" || v.focusable || v.link !== "" || !v.visible)
+        return false;
+    // `focusable = false` said outright (or bound) is the author's word: the
+    // scroller is not a stop, whatever it holds — the default false is not a word
+    if (isSet(v, "focusable") || ownerOf(v, "focusable") !== null)
         return false;
     const inner = [];
     for (const c of tabOrderOf(v))

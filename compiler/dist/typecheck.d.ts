@@ -1,10 +1,5 @@
 import { type Program } from "../../runtime/dist/parser.js";
 import { DeclareError } from "../../runtime/dist/errors.js";
-/** Typecheck every `{ }` body of a program whose bodies are scope-resolved
- *  (bare names already paths). `text` is the source its positions index into —
- *  the lines a diagnostic is reported on. Returns coded DECLARE6001 diagnostics
- *  (empty when clean). Never throws on TS internals: a body that cannot be
- *  framed is skipped, not failed. */
 export declare function typecheckBodies(text: string, program: Program, mainStart?: number, prefix?: string): {
     errors: DeclareError[];
     oracle: TypeOracle | null;

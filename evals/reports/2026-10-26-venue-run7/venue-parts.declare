@@ -1,0 +1,327 @@
+/*
+# The Venue: the parts
+
+What the rest of the program leans on: the formatting and card rules (plain
+functions of their arguments), the shapes of what the service sends, the
+theme, and the small pieces the screens are made of. `venue.declare`
+includes this file.
+*/
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+//
+// Functions of their arguments only: money, dates and times as the brief
+// writes them, the card rules, and a Code 39 barcode for the tickets.
+
+script {
+    const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July",
+        "August", "September", "October", "November", "December"]
+
+    // "$1,240.00"
+    function money(cents: number): string {
+        const s = (Math.round(cents) / 100).toFixed(2)
+        return "$" + s.replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+    }
+
+    // The hall's local time, as printed: "2026-11-13T19:30" is Fri 13 Nov, 7:30pm.
+    function parts(iso: string): number[] {
+        const m = /^(\d+)-(\d+)-(\d+)T(\d+):(\d+)/.exec(iso)
+        return m == null ? [1970, 1, 1, 0, 0] : m.slice(1).map(Number)
+    }
+    function weekday(iso: string): string { const p = parts(iso); return DAYS[new Date(p[0], p[1] - 1, p[2]).getDay()] }
+    function dayOfMonth(iso: string): string { return "" + parts(iso)[2] }
+    function monthShort(iso: string): string { return MONTHS[parts(iso)[1] - 1] }
+    function monthLong(iso: string): string { return MONTH_NAMES[parts(iso)[1] - 1] }
+    function dateLabel(iso: string): string { return weekday(iso) + " " + dayOfMonth(iso) + " " + monthShort(iso) }
+    function timeLabel(iso: string): string {
+        const p = parts(iso)
+        const h = p[3] % 12 == 0 ? 12 : p[3] % 12
+        return h + ":" + (p[4] < 10 ? "0" : "") + p[4] + (p[3] < 12 ? "am" : "pm")
+    }
+    function isMatinee(iso: string): boolean { return parts(iso)[3] < 17 }
+
+    function seatsWord(n: number): string { return n == 1 ? "1 seat" : n + " seats" }
+
+    // ── cards
+
+    function digitsOf(v: string): string { return v.replace(/\D/g, "") }
+
+    function cardBrand(d: string): string {
+        if (/^3[47]/.test(d)) return "amex"
+        if (/^4/.test(d)) return "visa"
+        if (/^(5[1-5]|2(2[2-9][1-9]|2[3-9]|[3-6]|7[01]|720))/.test(d)) return "mastercard"
+        if (/^(6011|65|64[4-9])/.test(d)) return "discover"
+        return ""
+    }
+    function brandName(b: string): string {
+        return b == "visa" ? "Visa" : b == "mastercard" ? "Mastercard" : b == "amex" ? "American Express"
+            : b == "discover" ? "Discover" : "Card"
+    }
+    function brandShort(b: string): string {
+        return b == "visa" ? "VISA" : b == "mastercard" ? "MC" : b == "amex" ? "AMEX" : b == "discover" ? "DISC" : ""
+    }
+    function cardLength(b: string): number { return b == "amex" ? 15 : 16 }
+    function codeLength(b: string): number { return b == "amex" ? 4 : 3 }
+
+    // Grouped as printed: 4-6-5 for American Express, fours for the rest.
+    function groupCard(d: string): string {
+        const groups = cardBrand(d) == "amex" ? [4, 6, 5] : [4, 4, 4, 4, 3]
+        const out: string[] = []
+        let i = 0
+        for (const g of groups) {
+            if (i >= d.length) break
+            out.push(d.slice(i, i + g))
+            i = i + g
+        }
+        return out.join(" ")
+    }
+    function luhn(d: string): boolean {
+        let sum = 0
+        for (let i = 0; i < d.length; i++) {
+            let n = Number(d[d.length - 1 - i])
+            if (i % 2 == 1) { n = n * 2; if (n > 9) n = n - 9 }
+            sum = sum + n
+        }
+        return sum % 10 == 0
+    }
+    function cardProblem(v: string): string {
+        const d = digitsOf(v)
+        const b = cardBrand(d)
+        const okLength = b == "" ? d.length >= 12 && d.length <= 19
+            : b == "visa" ? [13, 16, 19].includes(d.length) : d.length == cardLength(b)
+        if (!okLength || !luhn(d)) return "That card number isn't right. Check it against your card."
+        return ""
+    }
+
+    // "0428" or "04/28" or "04 / 28" → [4, 2028]; [0, 0] when unreadable.
+    function expiryOf(v: string): number[] {
+        const d = digitsOf(v)
+        if (d.length != 4) return [0, 0]
+        return [Number(d.slice(0, 2)), 2000 + Number(d.slice(2))]
+    }
+    function expiryText(v: string): string {
+        let d = digitsOf(v)
+        if (d.length == 1 && Number(d) > 1) d = "0" + d          // "4" is April
+        d = d.slice(0, 4)
+        return d.length <= 2 ? d + (d.length == 2 && v.length > 2 ? " / " : "") : d.slice(0, 2) + " / " + d.slice(2)
+    }
+    function expiryProblem(v: string, year: number, month: number): string {
+        const d = digitsOf(v)
+        if (d.length != 4) return "Enter the expiry as MM / YY."
+        const e = expiryOf(v)
+        if (e[0] < 1 || e[0] > 12) return "That month isn't one. Use 01 to 12."
+        if (e[1] < year || (e[1] == year && e[0] < month)) return "That date is in the past. Check the card's expiry."
+        return ""
+    }
+    function cardExpired(expMonth: number, expYear: number, year: number, month: number): boolean {
+        return expYear < year || (expYear == year && expMonth < month)
+    }
+    function expiryShort(expMonth: number, expYear: number): string {
+        return (expMonth < 10 ? "0" : "") + expMonth + "/" + ("" + expYear).slice(2)
+    }
+
+    // ── addresses
+
+    function postalProblem(v: string, country: string): string {
+        const s = v.trim().toUpperCase()
+        if (country == "US" && !/^\d{5}(-?\d{4})?$/.test(s)) return "Enter a 5-digit ZIP code, like 94110."
+        if (country == "CA" && !/^[A-Z]\d[A-Z] ?\d[A-Z]\d$/.test(s)) return "Enter a postal code like K1A 0B1."
+        if (country == "GB" && !/^[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}$/.test(s)) return "Enter a postcode like SW1A 2AA."
+        return ""
+    }
+    // The country a postal code can only belong to, or "" — so an autofilled
+    // address needs no second step.
+    function countryOfPostal(v: string): string {
+        const fits = ["US", "CA", "GB"].filter((c) => postalProblem(v, c) == "")
+        return fits.length == 1 ? fits[0] : ""
+    }
+    function emailProblem(v: string): string {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) ? "" : "Enter an email address like name@example.com."
+    }
+
+    // ── the barcode: Code 39, which every door scanner reads. Each character is
+    //    five bars and four spaces, three of them wide; `*` starts and stops.
+
+    const CODE39: Record<string, string> = {
+        "0": "000110100", "1": "100100001", "2": "001100001", "3": "101100000", "4": "000110001",
+        "5": "100110000", "6": "001110000", "7": "000100101", "8": "100100100", "9": "001100100",
+        "A": "100001001", "B": "001001001", "C": "101001000", "D": "000011001", "E": "100011000",
+        "F": "001011000", "G": "000001101", "H": "100001100", "I": "001001100", "J": "000011100",
+        "K": "100000011", "L": "001000011", "M": "101000010", "N": "000010011", "O": "100010010",
+        "P": "001010010", "Q": "000000111", "R": "100000110", "S": "001000110", "T": "000010110",
+        "U": "110000001", "V": "011000001", "W": "111000000", "X": "010010001", "Y": "110010000",
+        "Z": "011010000", "-": "010000101", ".": "110000100", " ": "011000100", "*": "010010100"
+    }
+    // Widths of alternating bars and spaces, starting with a bar, in narrow units.
+    function code39(text: string): number[] {
+        const out: number[] = []
+        const chars = ("*" + text.toUpperCase() + "*").split("").filter((c) => CODE39[c] != null)
+        chars.forEach((c, i) => {
+            for (const bit of CODE39[c]) out.push(bit == "1" ? 3 : 1)
+            if (i < chars.length - 1) out.push(1)
+        })
+        return out
+    }
+    }
+
+
+// ── What the service sends ──────────────────────────────────────────────────
+
+schema Performance [ id: string, startsAt: string, doorsAt: string, priceFromCents: number,
+    seatsLeft: number, seats: number ]
+schema Production [ title: string, hall: string, runningTime: string, performances[]: Performance ]
+
+schema Seat [ id: string, number: number, status: string ]
+schema SeatRow [ name: string, seats[]: Seat ]
+schema Section [ key: string, name: string, priceCents: number, feeCents: number, rows[]: SeatRow ]
+schema SeatMap [ performanceId: string, sections[]: Section ]
+
+schema Billing [ line1: string, line2?: string, city: string, postalCode: string, country: string ]
+schema SavedCard [ id: string, brand: string, last4: string, expMonth: number, expYear: number ]
+schema Account [ name: string, email: string, billing?: Billing, cards[]?: SavedCard ]
+
+schema Ticket [ seatId: string, section: string, row: string, number: number, barcode: string ]
+schema Order [ code: string, email: string, totalCents: number, brand: string, last4: string,
+    performanceId: string, tickets[]: Ticket ]
+
+// A seat placed in the room: where it is (in seat pitches from the centre of
+// the stage's curve), what it costs, and the service's own record, wrapped
+// rather than copied, so a status written there shows here.
+
+schema Placed [ id: string, label: string, section: string, sectionKey: string, si: number,
+    row: string, ri: number, number: number, priceCents: number, feeCents: number,
+    ux: number, uy: number, seat: Seat ]
+
+// A section's name in the room, and a row's ends, for the labels.
+
+schema Band [ id: string, name: string, si: number, priceCents: number, labelY: number ]
+schema RowEnd [ id: string, row: string, ux: number, uy: number ]
+
+
+// ── Colours ─────────────────────────────────────────────────────────────────
+//
+// Paper and ink, and one accent. The accent means "yours": the seats you
+// hold, the count of them, and the button that buys them. Nothing else wears
+// it.
+
+theme Venue [
+    background = #F5F0E8, surface = #FFFDF9, card = #FFFDF9,
+    line = #E2D9CB, lineStrong = #CDBFAA,
+    text = #221B16, textMuted = #6B6057, textFaint = #A0958A,
+    accent = #A3122A, accentTextColor = #FFFFFF, accentHovered = #8F0F24, accentPressed = #7C0C1F,
+    linkColor = #221B16,
+    control = #ECE5DA, controlHovered = #E3DACC, controlPressed = #D8CDBC, controlSelected = #EBDDD9,
+    focusRingStyle = "both", controlCornerRadius = 10, buttonHeight = 48, buttonCornerRadius = 12,
+    tooltipFill = #221B16, tooltipTextColor = #F5F0E8,
+    menuCornerRadius = 10, menuShadow = shadow(0, 10, 40, #00000030), menuHighlightFill = #221B16,
+    scrimFill = #1A1410, scrimOpacity = 0.4, error = #B3261E,
+    segmentedSelectedFill = #FFFDF9, radioSize = 20,
+    toastCornerRadius = 14, toastFontSize = 15,
+
+    // the house: the stage, the four bands from dearest to cheapest, a free seat's ring
+
+    stage = #2A211B, stageText = #E9DFD0,
+    bands = [#E6D6BF, #EADDCA, #EEE4D5, #F1EAE0],
+    bandInk = [#5B4632, #6A5640, #7A6852, #8A7A66],
+    seatFree = #FFFDF9, seatGone = #CFC5B8,
+    ticket = #FFFDF9, night = #1D1713, nightText = #EFE6D8, nightMuted = #A69A8A
+    ]
+
+
+// ── Small parts ─────────────────────────────────────────────────────────────
+
+// A heading in the display face.
+
+class Display extends Text [ fontFamily = { app.displayFace }, fontWeight = semibold, letterSpacing = -0.3,
+    accessibilityRole = heading, accessibilityLevel = 1
+    ]
+
+
+// A small capitalised label over a value: "SECTION", "DOORS".
+
+class Eyebrow extends Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.2,
+    textTransform = uppercase, textColor = { provided("theme").textMuted }
+    ]
+
+
+// An amount: tabular figures, so a column of them lines up.
+
+class Amount extends Text [ numeralWidth = tabular, wrap = false ]
+
+// A line of the order: what, then its amount at the right.
+
+class Line [ width = 100%,
+    label: string = "",
+    detail: string = "",
+    amount: string = "",
+    strong: boolean = false,
+    layout: SimpleLayout [ axis = x, spacing = 12, align = start ],
+    View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ width = 100%, wrap = true, fontSize = { classroot.strong ? 17 : 15 },
+            fontWeight = { classroot.strong ? "semibold" : "regular" }, text = { classroot.label } ],
+        Text [ visible = { classroot.detail != "" }, fontSize = 13, textColor = { provided("theme").textMuted },
+            text = { classroot.detail } ]
+        ],
+    Amount [ fontSize = { classroot.strong ? 17 : 15 }, fontWeight = { classroot.strong ? "semibold" : "regular" },
+        text = { classroot.amount } ]
+    ]
+
+
+// A text control with no box: "Sign in", "Change", "All dates".
+
+class Link extends Control [ height = { app.tap }, padding = [0, 4, 0, 4], cornerRadius = 8,
+    label: string = "",
+    tone: Color = { provided("theme").text },
+    accessibilityLabel = { classroot.label },
+    opacity = { pressed ? 0.6 : 1 },
+    TextLabel [ y = center, fontSize = 15, fontWeight = medium, textColor = { classroot.tone },
+        underline = { classroot.hovered }, text = { classroot.label } ]
+    ]
+
+
+// A chevron, drawn: back (‹) or onward (›).
+
+class Chevron extends View [ width = 10, height = 16,
+    back: boolean = false,
+    ink: Color = { provided("theme").textMuted },
+    draw(d: DrawContext) {
+        d.strokeStyle = ink
+        d.lineWidth = 1.8
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        if (back) { d.moveTo(8, 2); d.lineTo(2, 8); d.lineTo(8, 14) }
+        else { d.moveTo(2, 2); d.lineTo(8, 8); d.lineTo(2, 14) }
+        d.stroke()
+        }
+    ]
+
+
+// A card's kind, as a small mark: a rounded tag with its short name.
+
+class BrandMark [ height = 22, padding = [0, 6, 0, 6], cornerRadius = 4,
+    brand: string = "",
+    visible = { classroot.brand != "" },
+    stroke = { stroke(1, provided("theme").lineStrong) },
+    fill = { provided("theme").surface },
+    TextLabel [ y = center, fontSize = 11, fontWeight = bold, letterSpacing = 0.6,
+        textColor = { provided("theme").text }, text = { brandShort(classroot.brand) } ]
+    ]
+
+
+// A text field in the house look: tall enough for a thumb, 16px type so a
+// phone doesn't zoom, and an edge that says when something is wrong. On a
+// touch screen the field being typed in rises to the top of the page, clear of
+// the keyboard and of anything fixed at the foot.
+
+class Entry extends TextInput [ width = 100%, height = 48, fontSize = 16, padding = [0, 14, 0, 14],
+    cornerRadius = 10,
+    onFocus() {
+        if (app.touchFirst) afterDelay(300, () => { if (this.focused) this.scrollIntoView("start", true, 96) })
+        },
+    fill = { provided("theme").surface },
+    stroke = { stroke(this.focused ? 2 : 1, this.error != "" ? provided("theme").error
+        : this.focused ? provided("theme").text : provided("theme").lineStrong) }
+    ]

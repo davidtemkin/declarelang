@@ -48,8 +48,19 @@ Judges every member now, so every problem shows at once, each under its own fiel
 fields the person never reached and fields autofill filled without focusing included.
 Withdraws the last refusals. If anything is wrong, `showProblems()`; otherwise `send()`.
 Does nothing while `pending`. Return in
-a single-line `TextInput` inside the form calls it, unless the field declares an `onEnter`
-of its own.
+a single-line `TextInput` inside the form calls it (or moves on, under `enterMoves`), unless
+the field declares an `onEnter` of its own.
+
+## enterMoves
+Return in a single-line field takes the person **to the next field** — in reading order,
+among the fields that count — and submits from the last; an on-screen keyboard's Return
+key says "Next" on the way and "Go" on the last. Off (the default), Return submits from
+any field, as on the web. A field that declares its own `onEnter` decides for itself.
+
+## next()
+`next(from)` takes the focus from a field to the next one that counts, in reading order,
+or submits the form when `from` is the last. What Return does under `enterMoves`; a field's
+own `onEnter` may call it.
 
 ## showProblems()
 What submit does when something is wrong. By default: when more than one field has a
@@ -90,7 +101,7 @@ built on.
 Whether nothing is wrong: no member has a problem and `validate()` is satisfied.
 
 ## error
-The message that belongs to no field: a refusal that names none (a card declined), a name
+The message that belongs to no field: a refusal that names none (an account locked), a name
 no counted member has, the form's own `validate()` on submit, or `failedMessage` when the
 request failed without a readable reply. Shown wherever the program places it.
 
@@ -110,13 +121,15 @@ the body (GraphQL does) calls it from the source's `onLoad`.
 (`{ "field", "message" }`), a list (`{ "errors": [ … ] }` with `field`, `path`, a JSON
 `pointer` or JSON:API's `source.pointer`, and `message`, `detail` or `title`), and a bare
 `{ "message" }`, which names no field. A pointer is read as a dotted name
-(`#/billing/postalCode` is `billing.postalCode`) and matched exactly. Override it to map
+(`#/address/city` is `address.city`) and matched exactly. Override it to map
 a service's own shape, its codes to the program's sentences, or another language.
 
 ## refusedWith()
-`refusedWith(body)` runs when the service refuses, after the refusal has been laid on the
-members, with the body — the program's own reaction: release the seats a conflict names,
-empty a declined card's code.
+`refusedWith(body)` is the program's own reaction when the service refuses, given the body:
+undo a reservation the refusal names, empty a field the service will not take again. The
+order is fixed: the refusal is laid on the members first (each named field's `refused`, the
+rest in `error`), then `refusedWith` runs, then `showProblems()` — so what it changes is
+what the person is then shown.
 
 ## failedMessage
 What `error` says when the request failed with nothing readable — no reply at all, or a
@@ -145,6 +158,15 @@ The controls in the form, counted or not. Kept by the controls themselves.
 
 ## _collect()
 **Internal.** Gathers the counted members' problems in reading order.
+
+## _ordered()
+**Internal.** The counted members in reading order: top to bottom, then left to right.
+
+## _enter()
+**Internal.** What Return in a member does: `next` under `enterMoves`, else `submit`.
+
+## _enterHint()
+**Internal.** What a member's on-screen Return key says: "next", or "go" on the last.
 
 ## _proceed()
 **Internal.** Submit's second half, once the judging has settled.
@@ -190,12 +212,37 @@ class Form [
     problems: FormProblem[] = { this._collect() },
     _collect() -> FormProblem[] {
         const out: FormProblem[] = []
-        for (const c of members) if (this._counts(c) && c.problem != "") out.push({ name: c.name, message: c.problem, control: c })
-        return out.sort((a, b) => {
-            const p = a.control.rootOrigin()
-            const q = b.control.rootOrigin()
+        for (const c of this._ordered()) if (c.problem != "") out.push({ name: c.name, message: c.problem, control: c })
+        return out
+        },
+
+    // the counted members in reading order: top to bottom, then left to right
+
+    _ordered() -> any[] {
+        return members.filter((c) => this._counts(c)).sort((a, b) => {
+            const p = a.rootOrigin()
+            const q = b.rootOrigin()
             return p.y != q.y ? p.y - q.y : p.x - q.x
             })
+        },
+
+    // Return in a field: submit, or — with enterMoves — on to the next field, and
+    // submit from the last
+
+    enterMoves: boolean = false,
+    next(from: any) {
+        const ms = this._ordered()
+        const at = ms.indexOf(from)
+        const to = at < 0 ? null : ms[at + 1] ?? null
+        if (to == null) { submit(); return }
+        if (typeof to.focusField == "function") to.focusField()
+        else Focus.focus(to)
+        },
+    _enter(from: any) { if (enterMoves) next(from); else submit() },
+    _enterHint(from: any) -> string {
+        if (!enterMoves) return "go"
+        const ms = this._ordered()
+        return ms.indexOf(from) == ms.length - 1 ? "go" : "next"
         },
     validate() -> string { return "" },
     valid: boolean = { this.problems.length == 0 && this.validate() == "" },

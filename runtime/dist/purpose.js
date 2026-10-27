@@ -30,8 +30,10 @@ export const PURPOSES = {
 export const PURPOSE_NAMES = Object.keys(PURPOSES);
 export const hintsOf = (p) => PURPOSES[(p ?? "text")] ?? PURPOSES.text;
 /** Write a field's purpose onto its native element: the autofill name, the
- *  keyboard, capitalization, and whether what is typed shows. Idempotent. */
-export function applyPurpose(el, purpose, concealed, spellcheck) {
+ *  keyboard, capitalization, whether what is typed shows, and what an
+ *  on-screen keyboard's Return key says (`enterHint`: "next" in a form whose
+ *  Return moves on, "go" on its last field). Idempotent. */
+export function applyPurpose(el, purpose, concealed, spellcheck, enterHint = "") {
     const h = hintsOf(purpose);
     const set = (name, v) => {
         if (v === "") {
@@ -47,6 +49,7 @@ export function applyPurpose(el, purpose, concealed, spellcheck) {
     set("inputmode", h.inputmode);
     set("autocapitalize", h.autocapitalize);
     set("autocorrect", h.prose ? "" : "off");
+    set("enterkeyhint", enterHint);
     const check = spellcheck && h.prose;
     if (el.spellcheck !== check)
         el.spellcheck = check;

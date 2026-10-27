@@ -122,6 +122,123 @@ writeFileSync(SHOWN, `App [ width = 400, height = 300,
     ]`);
 const script = (name, body) => { const f = join(DIR, name); writeFileSync(f, `export default async ({ drive, expect, page }) => {\n${body}\n};\n`); return f; };
 
+await test("the focus ring takes the theme of the control it rings, not the App's", () => {
+  const f = join(DIR, "ring.declare");
+  writeFileSync(f, `App [ width = 400, height = 300, theme = { SanFrancisco },
+    panel: View [ x = 20, y = 20, width = 300, height = 200, theme = { SanFranciscoDark },
+        go: Button [ x = 20, y = 20, label = "Go" ] ] ]`);
+  const r = run("look.mjs", f, "--key", "Tab", "--wait", "300", "--js",
+    "(() => { const ring = window.__declare.find('app').childViews.find((v) => v.constructor.name === 'FocusRing'); return String(ring._theme && ring._theme.accent) })()");
+  assert.equal(r.status, 0, r.out);
+  assert.match(r.out, /js: "3108832"/, "the dark panel's accent (#2F6FE0), not the light App's (#2E6FE0): " + r.out);
+});
+
+await test("a path by name reaches the field a person means: shown before hidden, a field before its label; select-all chords select", () => {
+  const f = join(DIR, "names.declare");
+  writeFileSync(f, `App [ width = 400, height = 300, pw: string = "correct horse battery", code: string = "123",
+    savedBox: View [ visible = false, Field [ label = "Security code", TextInput [ width = 100, text = "999" ] ] ],
+    f: Field [ x = 10, y = 10, label = "Password", TextInput [ width = 300, purpose = password, text = { app.pw }, onInput(v: string) { app.pw = v } ] ],
+    g: Field [ x = 10, y = 80, label = "Security code", TextInput [ width = 100, text = { app.code }, onInput(v: string) { app.code = v } ] ] ]`);
+  const r = run("verify.mjs", f, "--assert", script("names.mjs", `  await drive.selectAll('app."Password"');
+  await drive.type("wrong");
+  await expect.attr("app", "pw", "wrong");
+  await drive.click('app."Security code"');
+  await drive.key("Meta+a");
+  await drive.type("456");
+  await expect.attr("app", "code", "456");`), "--rung=5", "--no-boot");
+  assert.equal(r.status, 0, r.out);
+});
+
+await test("expect.attr on an attribute of a node, written with a dot, says how to split the path", () => {
+  const f = join(DIR, "nodeattr.declare");
+  writeFileSync(f, `App [ width = 200, height = 100, weekCount: Node [ shown: number = 3 ] ]`);
+  const r = run("verify.mjs", f, "--assert", script("nodeattr.mjs", `  await expect.attr("app", "weekCount.shown", 3);`), "--rung=5", "--no-boot");
+  assert.notEqual(r.status, 0, r.out);
+  assert.match(r.out, /'weekCount' is a node, not an attribute: the path is "app.weekCount" and the attribute "shown"/, r.out);
+});
+
+await test("an assert script that writes to a live service is told what it left there", async () => {
+  const { spawn } = await import("node:child_process");
+  const svc = spawn("node", ["-e", `require("node:http").createServer((q, r) => { r.writeHead(q.method === "OPTIONS" ? 204 : 201, { "access-control-allow-origin": "*", "access-control-allow-headers": "content-type", "access-control-allow-methods": "POST, DELETE", "content-type": "application/json" }); r.end(q.method === "OPTIONS" ? "" : "{}"); }).listen(8397, "127.0.0.1", () => console.log("up"))`]);
+  await new Promise((r) => svc.stdout.once("data", r));
+  try {
+    const f = join(DIR, "writes.declare");
+    writeFileSync(f, `App [ width = 200, height = 100,
+    add: DataSource [ url = "http://127.0.0.1:8397/api/things", method = "POST", body = { { name: "x" } } ] ]`);
+    const r = run("verify.mjs", f, "--assert", script("writes.mjs", `  await page.evaluate(() => window.__declare.find("app.add").fetch());
+  await drive.settleData();`), "--rung=5", "--no-boot");
+    assert.equal(r.status, 0, r.out);
+    assert.match(r.out, /note the script sent 1 write to the live service \(POST \/api\/things\)/, r.out);
+  } finally { svc.kill(); }
+});
+
+await test("R4: a control another view takes the presses of is said, with the view that takes them", () => {
+  const f = join(DIR, "cover.declare");
+  writeFileSync(f, `App [ width = 400, height = 300,
+    a: Button [ x = 20, y = 20, label = "Under" ],
+    cover: View [ x = 0, y = 0, width = 200, height = 100, onClick() { } ],
+    b: Button [ x = 20, y = 200, label = "Clear" ] ]`);
+  const r = run("verify.mjs", f);
+  assert.equal(r.status, 0, r.out);
+  assert.match(r.out, /control\(s\) another view takes the presses of: .*app\.a \(by app\.cover\)/, r.out);
+  assert.doesNotMatch(r.out, /app\.b \(by/, "a control clear of the cover is not named");
+});
+
+await test("declare-look --url looks at an app where it is served, with no program file", async () => {
+  const { spawn } = await import("node:child_process");
+  const port = 8396;
+  const srv = spawn("node", [join(ROOT, "server/index.mjs"), String(port)], { cwd: ROOT });
+  try {
+    await new Promise((ok, no) => {
+      const t = setTimeout(() => no(new Error("the dev server never came up")), 20000);
+      srv.stdout.on("data", (d) => { if (/Declare dev server/.test(String(d))) { clearTimeout(t); ok(); } });
+    });
+    const r = run("look.mjs", "--url", `http://127.0.0.1:${port}/apps/todo/todo.declare`, "--wait", "500", "--js", "location.pathname");
+    assert.equal(r.status, 0, r.out);
+    assert.match(r.out, /js: "\/apps\/todo\/todo.declare"/, r.out);
+  } finally { srv.kill(); }
+});
+
+await test("DECLARE4026: sibling toggles each on for one value of the same thing are one of several — Segmented is named", () => {
+  const f = join(DIR, "toggles.declare");
+  writeFileSync(f, `class Choice extends Control [ width = 60, height = 44,
+    on: boolean = false, label: string = "",
+    accessibilityRole = toggle, accessibilityPressed = { on }, accessibilityLabel = { label } ]
+App [ width = 400, height = 200, sport: string = "run",
+    row: View [ layout: SimpleLayout [ axis = x, spacing = 6 ],
+        Choice [ label = "Run", on = { app.sport == "run" }, press() { app.sport = "run" } ],
+        Choice [ label = "Ride", on = { app.sport == "ride" }, press() { app.sport = "ride" } ] ],
+    alone: Choice [ label = "Mute", on = { app.sport == "x" } ] ]`);
+  const r = run("verify.mjs", f, "--rung", "3");
+  assert.match(r.out, /DECLARE4026/, r.out);
+  assert.match(r.out, /these 2 Choices are one choice among several/, r.out);
+  assert.match(r.out, /use Segmented/, r.out);
+});
+
+await test("a name missed on a class that a child of it holds is answered with the child's path", () => {
+  const f = join(DIR, "dym.declare");
+  writeFileSync(f, `class SignInForm [ width = 300,
+    email: string = "",
+    mailBox: View [ mail: TextInput [ width = 200, accessibilityLabel = "Mail" ] ],
+    show() -> string { return this.mail.text } ]
+App [ width = 400, height = 200, f: SignInForm [ ] ]`);
+  const r = run("verify.mjs", f, "--rung", "3");
+  assert.match(r.out, /'mail' is not a member of SignInForm — a child's is: 'mailBox\.mail'/, r.out);
+  assert.doesNotMatch(r.out, /did you mean 'email'/, r.out);
+});
+
+await test("drive.wait is the program's time, not the world's; drive.waitReal waits for real", () => {
+  const r = run("verify.mjs", SHOWN, "--assert", script("waits.mjs", `  const t0 = Date.now();
+  await drive.wait(3000);
+  const virtual = Date.now() - t0;
+  const t1 = Date.now();
+  await drive.waitReal(300);
+  const real = Date.now() - t1;
+  if (virtual > 1500) throw new Error("drive.wait(3000) took " + virtual + " ms of real time");
+  if (real < 300) throw new Error("drive.waitReal(300) took only " + real + " ms");`), "--rung=5", "--no-boot");
+  assert.equal(r.status, 0, r.out);
+});
+
 await test("expect.visible is what is shown: a view inside a hidden panel is not, and the panel is named", () => {
   const r = run("verify.mjs", SHOWN, "--assert", script("vis.mjs", `  await expect.visible("app.panel.inner");`), "--rung=5", "--no-boot");
   assert.notEqual(r.status, 0, r.out);

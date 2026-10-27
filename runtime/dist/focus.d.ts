@@ -37,6 +37,10 @@ export interface FocusGeometry {
      *  turned origin corner and homeW/homeH its own scaled size, so an
      *  indicator turned by homeRot about its origin lies on the view. */
     homeRot: number;
+    /** The theme in force where the focused view is — what an indicator drawn
+     *  in the App's layer paints with, so a ring on a dark panel is drawn in the
+     *  panel's colours, not the App's. Null when nothing above provides one. */
+    theme: unknown;
 }
 export declare class FocusService {
     private current;

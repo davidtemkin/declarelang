@@ -62,7 +62,7 @@ function bodyHas(body, want) {
   return Object.entries(want).every(([k, v]) => bodyHas(body[k], v));
 }
 
-async function withHost({ compiled, appDir, fixturesDir = null, backendClass = "DomBackend", built = null, scrollbars = false }, fn) {
+async function withHost({ compiled, appDir, fixturesDir = null, backendClass = "DomBackend", built = null, scrollbars = false, url = null }, fn) {
   const baseHref = "/" + relative(ROOT, resolve(appDir)).split("\\").join("/") + "/";
   const builtFiles = new Map((built?.files ?? []).map((f) => [f.name, f.contents]));
   const cfg = { backend: backendClass, program: compiled?.program ?? null };
@@ -325,7 +325,20 @@ bootHost(cfg);
       const arrive = async (load) => {
         await watch.during("boot", async () => {
           await load();
-          await page.waitForFunction("!!window.__declare?.inspect", { timeout: 10000, polling: 10 }).catch(async (e) => {
+          // A page served elsewhere (--url) boots by its own path, after its load
+          // event, and the page's own timers are virtual here — so a polling wait
+          // inside the page would never poll again. It is polled from outside,
+          // its time let pass as it comes up.
+          const served = async () => {
+            const until = Date.now() + 10000;
+            for (;;) {
+              const up = await page.evaluate(() => (globalThis.__declareTimers?.advance?.(50), !!window.__declare?.inspect)).catch(() => false);
+              if (up) return;
+              if (Date.now() > until) throw new Error("Waiting failed: 10000ms exceeded");
+              await new Promise((r) => setTimeout(r, 50));
+            }
+          };
+          await (url === null ? page.waitForFunction("!!window.__declare?.inspect", { timeout: 10000, polling: 10 }) : served()).catch(async (e) => {
             const lines = bootFailure(await Promise.all(bootSaid), pageErrors);
             // nothing named a reason: say what is known, never the bare timeout
             if (lines.length === 0) {
@@ -358,7 +371,9 @@ bootHost(cfg);
           if (c && T && typeof c.onStepped === "function") c.onStepped((ms) => T.advance(ms));
         });
       };
-      await arrive(() => page.goto(`http://127.0.0.1:${port}${built !== null ? baseHref + "index.html" : "/__verify__/"}`, { waitUntil: "load", timeout: 30000 }));
+      // --url: the app where it is served (a dev server, its own address), not the
+      // verify host's copy — what a person opening it gets, its origin included
+      await arrive(() => page.goto(url ?? `http://127.0.0.1:${port}${built !== null ? baseHref + "index.html" : "/__verify__/"}`, { waitUntil: "load", timeout: 30000 }));
 
       const log = [];
       const step = (s) => log.push(s);
@@ -862,6 +877,15 @@ bootHost(cfg);
           for (const m of mods) await page.keyboard.down(m);
           await page.keyboard.press(last);
           for (const m of mods.reverse()) await page.keyboard.up(m);
+          // Select-all is the platform's editing command, which a real keyboard
+          // runs and a headless one does not: done here, in the focused text
+          // field, as a person's ⌘A / Ctrl+A does before typing over a value.
+          if (mods.length === 1 && /^(meta|control)$/i.test(mods[0]) && last.toLowerCase() === "a") {
+            await page.evaluate(() => {
+              const el = document.activeElement;
+              if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement) el.select();
+            });
+          }
           await landed();
         },
         async type(text) { step(`type "${text}"`); await page.keyboard.type(text); await landed(); },
@@ -883,6 +907,14 @@ bootHost(cfg);
           await landed();
         },
         async tab(n = 1) { for (let i = 0; i < n; i++) await this.key("Tab"); },
+        /** Let `ms` of REAL time pass — what runs on the world's clock (a
+         *  service's own schedule, a socket's timed frames) — then let the
+         *  app's clock catch up on what arrived. drive.wait never waits for
+         *  real; this is the one that does. */
+        async waitReal(ms) {
+          await new Promise((r) => setTimeout(r, ms));
+          await this.wait(50);
+        },
         /** Let `ms` of the app's time pass: its clock is driven through it a
          *  frame at a time — motion moves, later calls (`afterDelay`, a hold's
          *  timer) come due — so a route that waits 300 ms always sees exactly
@@ -938,7 +970,15 @@ bootHost(cfg);
       };
 
       const fail = (msg) => { throw new VerifyAssertion(msg); };
-      const expect = {
+      // An attribute written with a dot — expect.attr("app", "weekCount.shown") — when
+// the part before the dot is a node: the path and the attribute split there.
+const nodeAttrHint = async (path, name, v) => {
+  if (v !== undefined || !name.includes(".")) return "";
+  const head = name.slice(0, name.indexOf(".")), rest = name.slice(name.indexOf(".") + 1);
+  const isNode = await page.evaluate((p) => { const n = window.__declare.find(p); return n != null && typeof n === "object" && "children" in n; }, `${path}.${head}`);
+  return isNode ? ` — '${head}' is a node, not an attribute: the path is "${path}.${head}" and the attribute "${rest}"` : "";
+};
+const expect = {
         /** The program sent a request: `method` and a path (a string the
          *  request's path starts with, or a RegExp), optionally how many times
          *  (`count`) and what its body holds (`body`: the fields that must
@@ -983,7 +1023,7 @@ bootHost(cfg);
           const same = v === expected || JSON.stringify(v) === JSON.stringify(expected);
           if (!same) {
             const waiting = await page.evaluate(() => globalThis.__declareTimers?.pending?.() ?? 0);
-            fail(`expected ${path}.${name} = ${JSON.stringify(expected)}, got ${JSON.stringify(v)}${waiting > 0 ? ` (${waiting} timer${waiting === 1 ? "" : "s"} still waiting — drive.wait(ms) runs them)` : ""}`);
+            fail(`expected ${path}.${name} = ${JSON.stringify(expected)}, got ${JSON.stringify(v)}${await nodeAttrHint(path, name, v)}${waiting > 0 ? ` (${waiting} timer${waiting === 1 ? "" : "s"} still waiting — drive.wait(ms) runs them)` : ""}`);
           }
         },
         async approx(path, name, expected, tol = 1) {
@@ -991,7 +1031,7 @@ bootHost(cfg);
             const n = window.__declare.find(p);
             return n != null && a in n ? n[a] : window.__declare.explain(p, a)?.value;
           }, path, name);
-          if (typeof v !== "number" || Math.abs(v - expected) > tol) fail(`expected ${path}.${name} ≈ ${expected} (±${tol}), got ${JSON.stringify(v)}`);
+          if (typeof v !== "number" || Math.abs(v - expected) > tol) fail(`expected ${path}.${name} ≈ ${expected} (±${tol}), got ${JSON.stringify(v)}${await nodeAttrHint(path, name, v)}`);
         },
         /** Structural equality on any two values the script already holds —
          *  for reads made through page.evaluate, where identity never holds. */
@@ -1256,8 +1296,13 @@ async function importScript(path) {
   }
 }
 
-export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = null, backendClass = "DomBackend", built = null, budgetMs = 15000 }) {
-  return withHost({ compiled, appDir, fixturesDir, backendClass, built, scrollbars: true }, async ({ openApp }) => {
+export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = null, backendClass = "DomBackend", built = null, budgetMs = 15000, url = null }) {
+  // the writes the script sent to a live service (no fixtures answered them):
+  // what they made stays there — a failed run's half-finished story included —
+  // so a run reports them
+  const writesOf = (app) => fixturesDir !== null ? [] : app.drive.requests()
+    .filter((q) => q.method !== "GET" && q.method !== "HEAD").map((q) => `${q.method} ${q.path}`);
+  return withHost({ compiled, appDir, fixturesDir, backendClass, built, scrollbars: true, url }, async ({ openApp }) => {
     const failures = [];
     // a script may name the device it runs on — `export const device = { width,
     // height, touch }` — so the app loads once, on it, rather than twice
@@ -1273,7 +1318,7 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
     try {
       await app.watched(() => mod.default({ drive: app.drive, expect: app.expect, page: app.page }));
     } catch (e) {
-      if (e?.lines !== undefined) { failures.push(...e.lines); return { ok: false, failures, log: app.log }; }
+      if (e?.lines !== undefined) { failures.push(...e.lines); return { ok: false, failures, log: app.log, writes: writesOf(app) }; }
       const where = app.log.length > 0 ? ` (after: ${app.log.slice(-3).join(" → ")})` : "";
       // For an unexpected error, the first stack frame is the difference
       // between "my assert threw here" and an anonymous page error a reader
@@ -1284,7 +1329,7 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
     }
     for (const e of app.pageErrors) failures.push(`page error: ${e}`);
     for (const e of new Set(app.thrown)) failures.push(`error: ${e}`);
-    return { ok: failures.length === 0, failures, log: app.log };
+    return { ok: failures.length === 0, failures, log: app.log, writes: writesOf(app) };
   });
 }
 

@@ -279,6 +279,11 @@ export const Diag = {
     accessibilityControlInControl: (inner, innerRole, outer, outerRole, pos) => err(code4(4020), `${inner} (${/^[aeiou]/i.test(innerRole) ? "an" : "a"} ${innerRole}) is inside ${outer} (${/^[aeiou]/i.test(outerRole) ? "an" : "a"} ${outerRole}): the inner is read as part of the outer's name, and a screen reader that takes the outer as one element (VoiceOver does) never reaches it. Make them siblings in a plain View, or, if only ${inner} is meant to be pressed, make ${outer} a plain View`, pos),
     accessibilityCollapsedRead: (owner, axis, pos) => err(code4(4021), `${owner} hides what it holds by clipping it to a ${axis} of 0, but a screen reader still reads it and Tab still reaches it: absence is visible, not geometry. Add visible = { this.${axis} > 0 }, or the condition that collapses it`, pos),
     accessibilityUnreportedChoice: (owner, flag, pos) => err(code4(4022), `${owner} shows whether it is the one chosen ('${flag}'), but tells a screen reader nothing — a row of them reads as plain buttons, none of them picked. For one of many, use Segmented (or a RadioGroup of Radios): it reports the choice, and the arrows move between the options. Keeping your own, set accessibilityPressed = { ${flag} }: a pressed control is the one that is in`, pos),
+    // A WARNING: toggles used as one of several — sibling controls of one class,
+    // each "on" when the same value equals its own literal (Cadence run 17's
+    // sport, day and range choices). Each reports pressed, so 4022 is quiet, but
+    // a screen reader hears separate toggles, not one choice among them.
+    accessibilityTogglesAsOneOf: (count, cls, flag, subject, pos) => err(code4(4026), `these ${count} ${cls}s are one choice among several — each is '${flag}' when ${subject} equals its own value — but a screen reader hears ${count} separate toggles, not one choice of ${count}, and the arrows do not move between them. For one of several, use Segmented (or a RadioGroup of Radios): it holds the choice, reports it as one of ${count}, and the arrows move between the options`, pos),
     rowIndexUnreplicated: (owner, pos) => err(code4(4023), `${owner} reads rowIndex, but ${owner} is not replicated — that is its own rowIndex, never the row's, because a built-in never resolves outward. The index of the row it sits in is that view's: parent.rowIndex (one level up), or classroot.rowIndex inside a class whose instances are the rows`, pos),
     writeToComputedDataset: (name, verb, pos) => err(code4(4024), `${name} computes its value with contents, so it refuses writes — ${name}.${verb}(…) will be refused when it runs, and what it meant to keep is lost. A dataset that is written holds its records as data: ${name}: Dataset { { … } } (its first value), and a list derived from it is a second dataset with contents`, pos),
     // A WARNING: a constraint body whose decisions nest three `? :` deep, or one
@@ -403,6 +408,7 @@ export const DIAGNOSTIC_CATALOG = [
     { code: code4(4022), phase: "name", summary: "a control that shows it is chosen and reports no state (warning)" },
     { code: code4(4023), phase: "name", summary: "rowIndex read on a view that is not replicated — its own, never the row's (warning)" },
     { code: code4(4024), phase: "name", summary: "a write to a dataset that computes its value with contents (warning)" },
+    { code: code4(4026), phase: "name", summary: "sibling toggles that each turn on for one value of the same thing — one of several, said as separate toggles (warning)" },
     { code: code4(4025), phase: "name", summary: "a constraint whose decisions are nested three deep, or one condition with four or more parts (warning)" },
     { code: code4(4014), phase: "name", summary: "afterDelay() in a { } value — a value computes and never waits" },
     { code: code4(4015), phase: "name", summary: "a class, schema, theme or style takes a name TypeScript's standard library or Declare's own types declare" },

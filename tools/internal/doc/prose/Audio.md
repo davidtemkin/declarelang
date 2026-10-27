@@ -4,7 +4,8 @@ surface; see that page. `Audio` is the transport with nothing to look at, and ad
 choice: whether the sound is streamed or held whole, `inMemory`.
 
 It is still a view, because everything in the tree is one, but it draws nothing and its
-box means nothing — give it no size and it takes none. Where you put it is an
+box means nothing — give it no size and it takes none, and a layout passes over it
+(`ignoreLayout` is true by default), so it takes no place among the views a layout arranges. Where you put it is an
 **ownership** statement, not a layout one: declare it inside the panel whose sound it is,
 and it goes away when the panel does.
 

@@ -15,7 +15,7 @@ you declare** — return `""` when the text is good, otherwise the sentence to s
 or submitted with its form — and is what the field shows and a screen reader hears. On a
 two-way field a draft that fails `validate` never reaches the dataset. `validate` is reactive:
 it judges the value it is given and whatever else it reads (a field it must match, the
-country a postal code depends on), again whenever any of it changes.
+password a confirmation must match), again whenever any of it changes.
 
 **A field in a `Form`** joins it by being inside it. Its `name` is the key a service names it
 by; the form judges it on submit, lays a service's refusal on it, and Return in it submits
@@ -182,7 +182,7 @@ field says nothing until it is left again.
 
 ## name
 The field's address in its form — the key a service names it by when it refuses a value
-(`{ "field": "email", "message": "…" }`). A path is allowed (`"billing.postalCode"`). Independent
+(`{ "field": "email", "message": "…" }`). A path is allowed (`"address.city"`). Independent
 of the field's name in the view tree; leave it empty for a field no service names.
 
 ## required
@@ -290,6 +290,11 @@ them — defaulting to the provided value so an editor inherits its region's fac
 
 ## fontWeight
 The weight of the text being edited, defaulting to the provided value.
+
+## numeralWidth
+The digits' advance, as on `Text`: `tabular` gives every digit the same width, so a card
+number, an amount or a code lines up and does not shift as it is typed; `proportional` lets
+each take its natural width; `normal` is the face's own default.
 
 ## letterSpacing
 Tracking for the text being edited, defaulting to the provided value.

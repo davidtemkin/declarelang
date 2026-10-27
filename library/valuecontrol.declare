@@ -33,7 +33,7 @@ entry field of a `Combobox` belongs to the combobox, which is the member.
 
 ## name
 The control's address in its form — the key a service names it by when it refuses a value
-(`{ "field": "country", "message": "…" }`). A path is allowed (`"billing.country"`). It is
+(`{ "field": "country", "message": "…" }`). A path is allowed (`"address.country"`). It is
 independent of the control's name in the view tree; leave it empty for a control no
 service names.
 

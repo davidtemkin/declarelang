@@ -1,0 +1,417 @@
+/*
+# The Venue: the hall
+
+The seat map of one performance, and the room drawn from it.
+
+- `House` is the seat map as the service sends it, plus where each seat sits
+  in the room. Rows are arcs around the stage's curve; a seat's place is
+  measured in seat pitches, so the room is drawn at any size by one number,
+  `p` (pixels per pitch).
+- Other people's purchases arrive on an `EventStream` (on the App) and are
+  written into the map with `markSold`; every view of a seat follows.
+- `HallMap` is the room: the stage, four bands, row letters, and a `SeatDot`
+  per seat. At a desk it fits the room to its pane. On a phone the whole house
+  fits the width as an overview, and a tap zooms to a size where each seat is
+  a thumb's width, around the place tapped.
+*/
+
+// ── The seat map ────────────────────────────────────────────────────────────
+
+class House extends DataSource [ credentials = include, schema = SeatMap,
+    performance: string = "",
+    url = { classroot.performance == "" ? "" : app.api + "/api/performances/" + classroot.performance + "/seats" },
+
+    // The room's proportions, in seat pitches.
+
+    front: number = 13,          // the front row's radius from the stage's centre
+    rowStep: number = 1.15,      // row to row
+    gap: number = 3,             // between sections, where the section's name sits
+
+    sections() -> Section[] { return this.value?.sections ?? [] },
+
+    // Where each section starts: its first row's radius.
+
+    bases() -> number[] {
+        const out: number[] = []
+        let r = front
+        for (const s of sections()) {
+            out.push(r)
+            r = r + (s.rows.length - 1) * rowStep + gap
+            }
+        return out
+        },
+
+    // Every seat, placed. Seat 1 is at the left as seen from the stage, which
+    // is the right of a plan drawn with the stage at the top.
+
+    placed: Dataset [ schema = [ seats[]: Placed ], contents = { { seats: classroot.place() } } ],
+    place() -> Placed[] {
+        const out: Placed[] = []
+        const bs = bases()
+        sections().forEach((s, si) => {
+            s.rows.forEach((r, ri) => {
+                const R = bs[si] + ri * rowStep
+                const n = r.seats.length
+                r.seats.forEach((seat, k) => {
+                    const a = ((n - 1) / 2 - k) / R
+                    out.push({ id: seat.id, label: s.name + ", row " + r.name + ", seat " + seat.number,
+                        section: s.name, sectionKey: s.key, si: si, row: r.name, ri: ri, number: seat.number,
+                        priceCents: s.priceCents, feeCents: s.feeCents,
+                        ux: R * Math.sin(a), uy: R * Math.cos(a), seat: seat })
+                    })
+                })
+            })
+        return out
+        },
+
+    // Each section's name and price, in the aisle in front of it.
+
+    bands: Dataset [ schema = [ rows[]: Band ], contents = { { rows: classroot.bandsOf() } } ],
+    bandsOf() -> Band[] {
+        const bs = bases()
+        return sections().map((s, si) => ({ id: s.key, name: s.name, si: si, priceCents: s.priceCents, labelY: bs[si] - gap / 2 }))
+        },
+
+    // The ends of each row, where its letter is written.
+
+    rowEnds: Dataset [ schema = [ rows[]: RowEnd ], contents = { { rows: classroot.rowEndsOf() } } ],
+    rowEndsOf() -> RowEnd[] {
+        const out: RowEnd[] = []
+        const bs = bases()
+        sections().forEach((s, si) => {
+            s.rows.forEach((r, ri) => {
+                const R = bs[si] + ri * rowStep
+                const a = (r.seats.length / 2 + 0.6) / R
+                out.push({ id: s.key + r.name + "L", row: r.name, ux: -R * Math.sin(a), uy: R * Math.cos(a) })
+                out.push({ id: s.key + r.name + "R", row: r.name, ux: R * Math.sin(a), uy: R * Math.cos(a) })
+                })
+            })
+        return out
+        },
+
+    // The room's extent, in pitches: the stage at the top to the last row.
+
+    seatsAll() -> Placed[] { return this.placed.value?.seats ?? [] },
+    minX: number = { Math.min(-9, ...classroot.seatsAll().map((s) => s.ux)) - 1.6 },
+    maxX: number = { Math.max(9, ...classroot.seatsAll().map((s) => s.ux)) + 1.6 },
+    minY: number = 6,
+    maxY: number = { Math.max(20, ...classroot.seatsAll().map((s) => s.uy)) + 1 },
+    unitsW: number = { classroot.maxX - classroot.minX },
+    unitsH: number = { classroot.maxY - classroot.minY },
+
+    byId(id: string) -> Placed? { return seatsAll().find((s) => s.id == id) ?? null },
+    free: number = { classroot.seatsAll().filter((s) => s.seat.status == "available").length },
+    total: number = { classroot.seatsAll().length },
+
+    // Someone else bought it.
+
+    markSold(id: string) {
+        const secs = sections()
+        for (let si = 0; si < secs.length; si++) {
+            const rows = secs[si].rows
+            for (let ri = 0; ri < rows.length; ri++) {
+                const k = rows[ri].seats.findIndex((s) => s.id == id)
+                if (k >= 0) { this.set(["sections", si, "rows", ri, "seats", k, "status"], "sold"); return }
+                }
+            }
+        },
+
+    // The seat the arrow keys move to from `id`: along the row as it is drawn,
+    // or to the nearest free seat in the row in front or behind.
+
+    neighbour(id: string, dir: string) -> string {
+        const all = seatsAll()
+        const me = all.find((s) => s.id == id)
+        if (me == null) return ""
+        const free = all.filter((s) => s.seat.status == "available" || app.chosen.includes(s.id))
+        const order = (s: Placed) => s.si * 100 + s.ri
+        if (dir == "left" || dir == "right") {
+            const along = free.filter((s) => order(s) == order(me) && (dir == "right" ? s.ux > me.ux : s.ux < me.ux))
+            along.sort((a, b) => Math.abs(a.ux - me.ux) - Math.abs(b.ux - me.ux))
+            return along[0]?.id ?? ""
+            }
+        const rows = [...new Set(free.map(order))].sort((a, b) => a - b)
+        const here = order(me)
+        const next = dir == "up" ? rows.filter((r) => r < here).pop() : rows.find((r) => r > here)
+        if (next == null) return ""
+        const inRow = free.filter((s) => order(s) == next)
+        inRow.sort((a, b) => Math.abs(a.ux - me.ux) - Math.abs(b.ux - me.ux))
+        return inRow[0]?.id ?? ""
+        },
+
+    onLoad() { app.reconcile() }
+    ]
+
+
+// ── One seat ────────────────────────────────────────────────────────────────
+//
+// Three states, told apart by shape as well as colour: free is an open ring,
+// yours is a filled disc with a check, gone is a small cross. Choosing one
+// pops the disc in on a spring; unchoosing shrinks it away.
+
+class SeatDot extends Control [
+    p: number = 20,
+    ox: number = 0,
+    oy: number = 0,
+    seatId: string = { :id ?? "" },
+    status: string = { :seat.status ?? "sold" },
+    gone: boolean = { classroot.status != "available" },
+    mine: boolean = { app.chosen.includes(classroot.seatId) },
+
+    x = { classroot.ox + (:ux ?? 0) * classroot.p - classroot.p / 2 },
+    y = { classroot.oy + (:uy ?? 0) * classroot.p - classroot.p / 2 },
+    width = { classroot.p },
+    height = { classroot.p },
+
+    disabled = { classroot.gone },
+    accessibilityRole = toggle,
+    accessibilityLabel = { :label ?? "" },
+    accessibilityPressed = { classroot.mine },
+    accessibilityHint = { classroot.gone ? "Taken" : money(:priceCents ?? 0) + (classroot.mine ? ", chosen" : ", free") },
+    press() { app.toggleSeat(classroot.seatId) },
+
+    popT: number = 0,
+    Spring [ attribute = popT, to = { classroot.mine ? 1 : 0 }, stiffness = 520, damping = 17 ],
+
+    focusShape() {
+        const r = p * 0.44
+        return ({ x: p / 2 - r, y: p / 2 - r, w: r * 2, h: r * 2, rad: r })
+        },
+
+    // The arrows walk the room as it is drawn.
+
+    onKeyDown(e: KeyEvent) {
+        const dir = e.key == "ArrowLeft" ? "left" : e.key == "ArrowRight" ? "right"
+            : e.key == "ArrowUp" ? "up" : e.key == "ArrowDown" ? "down" : ""
+        if (dir == "") { super.onKeyDown(e); return }
+        const to = app.house.neighbour(seatId, dir)
+        const v = (parent.children as any[]).find((c) => c.seatId === to)
+        if (v != null) Focus.focus(v)
+        },
+
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const c = p / 2
+        const r = p * 0.36
+        if (gone) {
+            const k = r * 0.42
+            d.strokeStyle = t.seatGone
+            d.lineWidth = Math.max(1.2, p * 0.075)
+            d.lineCap = "round"
+            d.beginPath()
+            d.moveTo(c - k, c - k); d.lineTo(c + k, c + k)
+            d.moveTo(c + k, c - k); d.lineTo(c - k, c + k)
+            d.stroke()
+            return
+            }
+        const lw = Math.max(1.2, p * (hovered ? 0.11 : 0.075))
+        d.fillStyle = t.seatFree
+        d.strokeStyle = t.bandInk[Math.min(3, :si ?? 0)]
+        d.lineWidth = lw
+        d.beginPath()
+        d.arc(c, c, r - lw / 2, 0, Math.PI * 2)
+        d.fill()
+        d.stroke()
+        if (popT > 0.02) {
+            const rr = (r + 0.6) * popT
+            d.fillStyle = t.accent
+            d.beginPath()
+            d.arc(c, c, rr, 0, Math.PI * 2)
+            d.fill()
+            if (popT > 0.55 && p >= 12) {
+                const k = rr * 0.5
+                d.strokeStyle = t.accentTextColor
+                d.lineWidth = Math.max(1.4, p * 0.08)
+                d.lineCap = "round"
+                d.lineJoin = "round"
+                d.beginPath()
+                d.moveTo(c - k, c + k * 0.05); d.lineTo(c - k * 0.25, c + k * 0.7); d.lineTo(c + k, c - k * 0.6)
+                d.stroke()
+                }
+            }
+        }
+    ]
+
+
+// ── The room ────────────────────────────────────────────────────────────────
+//
+// The stage and the bands are one drawing; the row letters, the section names
+// and the seats are views over it, all placed by the same `p`, `ox` and `oy`.
+
+class HouseArt [
+    p: number = 20,
+    ox: number = 0,
+    oy: number = 0,
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const house = app.house
+        const bs = house.bases()
+        const at = (r: number, a: number) => [ox + r * Math.sin(a) * p, oy + r * Math.cos(a) * p]
+        // a band hugs its rows: along the front row, down one end of every
+        // row, along the back row, and up the other ends
+        house.sections().forEach((s, si) => {
+            const edge = s.rows.map((r, ri) => {
+                const R = bs[si] + ri * house.rowStep
+                return [R, (r.seats.length / 2 + 0.7) / R]
+                })
+            const first = edge[0]
+            const last = edge[edge.length - 1]
+            const r0 = first[0] - 0.75
+            const r1 = last[0] + 0.75
+            d.fillStyle = t.bands[Math.min(3, si)]
+            d.beginPath()
+            d.arc(ox, oy, r0 * p, Math.PI / 2 - first[1], Math.PI / 2 + first[1], false)
+            for (const e of edge) { const q = at(e[0], -e[1]); d.lineTo(q[0], q[1]) }
+            d.arc(ox, oy, r1 * p, Math.PI / 2 + last[1], Math.PI / 2 - last[1], true)
+            for (const e of [...edge].reverse()) { const q = at(e[0], e[1]); d.lineTo(q[0], q[1]) }
+            d.closePath()
+            d.fill()
+            })
+        // row letters at both ends of every row, once they are big enough to read
+        if (p >= 16) {
+            d.fillStyle = t.textFaint
+            d.font = "500 " + Math.round(Math.min(12, p * 0.5)) + "px -apple-system, system-ui, sans-serif"
+            d.textAlign = "center"
+            d.textBaseline = "middle"
+            for (const e of house.rowEnds.value?.rows ?? []) d.fillText(e.row, ox + e.ux * p, oy + e.uy * p)
+            }
+        // the stage, which everything faces
+        d.fillStyle = t.stage
+        d.beginPath()
+        d.arc(ox, oy, 11 * p, Math.PI / 2 + 0.62, Math.PI / 2 - 0.62, true)
+        d.arc(ox, oy, 8.2 * p, Math.PI / 2 - 0.62, Math.PI / 2 + 0.62, false)
+        d.closePath()
+        d.fill()
+        }
+    ]
+
+
+class HallMap [
+    zoomed: boolean = false,
+    pad: number = 16,
+
+    // pixels per seat pitch: the room fitted to the pane, or a thumb's width
+
+    widthFit: number = { (classroot.width - classroot.pad * 2) / app.house.unitsW },
+    heightFit: number = { (classroot.height - classroot.pad * 2) / app.house.unitsH },
+
+    // too small for a finger (or, with a mouse, for an eye): the overview zooms on a tap
+
+    canZoom: boolean = { classroot.widthFit < (app.touchFirst ? 28 : 11) },
+    fit: number = { Math.min(26, classroot.widthFit, classroot.canZoom ? 99 : classroot.heightFit) },
+    p: number = { classroot.zoomed ? 36 : Math.max(classroot.canZoom ? 4 : 12, classroot.fit) },
+    ox: number = { classroot.pad - app.house.minX * classroot.p },
+    oy: number = { classroot.pad - app.house.minY * classroot.p },
+    roomW: number = { app.house.unitsW * classroot.p + classroot.pad * 2 },
+    roomH: number = { app.house.unitsH * classroot.p + classroot.pad * 2 },
+
+    zoomAt(ux: number, uy: number) {
+        zoomed = true
+        afterSettle(() => {
+            const zp = this.p
+            this.pane.scrollTo({ x: ux * zp + this.ox - this.pane.width / 2, y: uy * zp + this.oy - this.pane.height / 2 })
+            })
+        },
+    zoomOut() { zoomed = false; pane.scrollTo({ x: 0, y: 0 }) },
+
+    pane: View [ width = 100%, height = 100%,
+        scrolls = { classroot.zoomed ? "both" : "none" },
+        hideScrollbars = { app.touchFirst },
+
+        room: View [ width = { classroot.roomW }, height = { classroot.roomH },
+            x = { Math.max(0, (parent.width - this.width) / 2) },
+            y = { Math.max(0, (parent.height - this.height) / 2) },
+
+            art: HouseArt [ width = 100%, height = 100%, p = { classroot.p }, ox = { classroot.ox }, oy = { classroot.oy } ],
+
+            TextLabel [ x = { classroot.ox - this.width / 2 }, y = { classroot.oy + 9.4 * classroot.p - this.height / 2 },
+                fontSize = { Math.max(9, Math.min(14, classroot.p * 0.6)) }, fontWeight = semibold, letterSpacing = 3,
+                textColor = { provided("theme").stageText }, text = "STAGE" ],
+
+            // each section's name and price, in the aisle in front of it
+
+            sectionNames: View [ width = 100%, height = 100%, datapath = { app.house.bands.value },
+                Text [ datapath = :rows[],
+                    x = { classroot.ox - this.width / 2 }, y = { classroot.oy + (:labelY ?? 0) * classroot.p - this.height / 2 },
+                    fontSize = { Math.max(9, Math.min(13, classroot.p * 0.55)) }, fontWeight = semibold, letterSpacing = 1.4,
+                    textTransform = uppercase, numeralWidth = tabular, wrap = false,
+                    textColor = { provided("theme").bandInk[Math.min(3, :si ?? 0)] },
+                    text = { (:name ?? "") + "  ·  " + money(:priceCents ?? 0) } ]
+                ],
+
+            seats: View [ width = 100%, height = 100%, datapath = { app.house.placed.value },
+                focusScope = stop,
+                SeatDot [ datapath = :seats[], p = { classroot.p }, ox = { classroot.ox }, oy = { classroot.oy } ]
+                ],
+
+            // On a phone's overview a tap means "closer, here"; the seats underneath
+            // still answer the keyboard and a screen reader directly.
+
+            zoomer: View [ exists = { classroot.canZoom && !classroot.zoomed }, width = 100%, height = 100%,
+                onClick(e: PointerEvent) {
+                    classroot.zoomAt((e.x - classroot.ox) / classroot.p, (e.y - classroot.oy) / classroot.p)
+                    }
+                ]
+            ]
+        ],
+
+    // back out to the whole house; drawn over the pane so it stays put as it scrolls
+
+    out: View [ visible = { classroot.zoomed }, x = end, padding = 12,
+        Button [ label = "Whole house", shadow = { shadow(0, 4, 14, 0x00000026) },
+            onClick() { classroot.zoomOut() }
+            ]
+        ]
+    ]
+
+
+// ── The legend: the three states, drawn as the room draws them ──────────────
+
+class LegendMark [ width = 22, height = 22,
+    kind: string = "free",
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const c = 11
+        const r = 8
+        if (kind == "gone") {
+            d.strokeStyle = t.seatGone
+            d.lineWidth = 1.8
+            d.lineCap = "round"
+            d.beginPath()
+            d.moveTo(c - 3.4, c - 3.4); d.lineTo(c + 3.4, c + 3.4)
+            d.moveTo(c + 3.4, c - 3.4); d.lineTo(c - 3.4, c + 3.4)
+            d.stroke()
+            return
+            }
+        if (kind == "mine") {
+            d.fillStyle = t.accent
+            d.beginPath(); d.arc(c, c, r, 0, Math.PI * 2); d.fill()
+            d.strokeStyle = t.accentTextColor
+            d.lineWidth = 1.8
+            d.lineCap = "round"
+            d.beginPath(); d.moveTo(c - 4, c); d.lineTo(c - 1, c + 3); d.lineTo(c + 4, c - 3); d.stroke()
+            return
+            }
+        d.fillStyle = t.seatFree
+        d.strokeStyle = t.bandInk[1]
+        d.lineWidth = 1.6
+        d.beginPath(); d.arc(c, c, r - 0.8, 0, Math.PI * 2); d.fill(); d.stroke()
+        }
+    ]
+
+
+class Legend [
+    layout: SimpleLayout [ axis = x, spacing = 16, align = center ],
+    View [ layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        LegendMark [ kind = "free" ],
+        Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = "Free" ]
+        ],
+    View [ layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        LegendMark [ kind = "mine" ],
+        Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = "Yours" ]
+        ],
+    View [ layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        LegendMark [ kind = "gone" ],
+        Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = "Taken" ]
+        ]
+    ]

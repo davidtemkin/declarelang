@@ -535,8 +535,8 @@ await test("a start sheet is a drawer at every width, and a swipe back past a qu
         Text [ text = "Contents" ] ],
     card: Sheet [ Text [ text = "a sheet" ] ] ]`);
     app.hostWidth = 390; app.hostHeight = 700; settle();
-    assert.equal(app.nav.form, "start", "a drawer on a phone, where a bottom sheet rises");
-    assert.equal(app.card.form, "bottom");
+    assert.equal(app.nav.presentation, "start", "a drawer on a phone, where a bottom sheet rises");
+    assert.equal(app.card.presentation, "bottom");
     app.open = true; settle(); frames(120);
     assert.equal(app.nav.grip.visible, true, "a drawer has a grip; a bottom sheet has its handle instead");
     assert.equal(app.nav.width, 320, "its own width, with the context still showing beside it");
@@ -554,9 +554,9 @@ await test("a start sheet is a drawer at every width, and a swipe back past a qu
     assert.equal(app.nav.dragX, 0, "and starts clean next time");
     assert.ok(app.nav.x <= -app.nav.width, "off past the start edge");
     app.hostWidth = 1200; app.hostHeight = 800; settle();
-    assert.equal(app.nav.form, "start", "still a drawer on a wide screen");
+    assert.equal(app.nav.presentation, "start", "still a drawer on a wide screen");
     assert.equal(app.nav.width, 320);
-    assert.equal(app.card.form, "center", "where a bottom sheet floats as a card");
+    assert.equal(app.card.presentation, "center", "where a bottom sheet floats as a card");
   } finally {
     setClock(new Clock());
   }

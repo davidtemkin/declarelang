@@ -906,6 +906,8 @@ const TextInputSchema = {
         // a multi-line field whose Return fires `enter` (a chat composer); Shift-Return types the break
         enterSubmits: { kind: "boolean" },
         spellcheck: { kind: "boolean" },
+        // the digits' advance, as Text's: tabular figures line up a card number or an amount
+        numeralWidth: enumType("NumeralWidth", "normal", "tabular", "proportional"),
         // what the field holds, told to the platform: autofill, keyboard, capitalization (purpose.ts)
         purpose: enumType("InputPurpose", ...PURPOSE_NAMES),
         concealed: { kind: "boolean" },

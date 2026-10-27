@@ -103,6 +103,12 @@ if (holder !== null) {
   process.exit(1);
 }
 
+// ── never silently ───────────────────────────────────────────────────────────
+// An error nothing caught ends the server: it is said first, with its stack,
+// so a dev server that goes away always says why.
+process.on("uncaughtException", (e) => { console.error(`dev server: stopping on an uncaught error — ${e?.stack ?? e}`); process.exit(1); });
+process.on("unhandledRejection", (e) => { console.error(`dev server: stopping on an unhandled rejection — ${e?.stack ?? e}`); process.exit(1); });
+
 // ── tied to the supervisor ───────────────────────────────────────────────────
 // Under server/dev.mjs this process is a child with an IPC channel. When the
 // supervisor goes — crash, kill -9, a closed terminal — the channel closes and

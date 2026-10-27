@@ -22,22 +22,43 @@ export function find(root: Node, path: string): Node | null {
   return findPath(root, path, said);
 }
 
-/** The nearest view inside `from` (level by level) that says `words`: its label,
- *  its accessible name, or its text. */
+/** The view inside `from` that says `words` — its label, its accessible name, or
+ *  its text — ranked, so the one a person means is found: a SHOWN view before a
+ *  hidden one (a saved card's hidden code field must not answer for the new
+ *  card's), then a view a person acts on before one they only read (a `Field`
+ *  is labelled "Password", and so is the field it holds), then one NAMED so
+ *  before a text that merely reads so, then the nearer before the deeper. */
 function said(from: Node, words: string): Node | undefined {
-  const says = (n: Node): boolean => {
+  const named = (n: Node): boolean => {
     const a = n as unknown as Record<string, unknown>;
-    return a.label === words || a.accessibilityLabel === words || a.text === words;
+    return a.label === words || a.accessibilityLabel === words;
   };
+  const reads = (n: Node): boolean => (n as unknown as Record<string, unknown>).text === words;
+  const shown = (n: Node): boolean => {
+    for (let v: Node | null = n; v !== null && v !== from; v = v.parent) {
+      if ((v as unknown as { visible?: boolean }).visible === false) return false;
+    }
+    return true;
+  };
+  // a view a person acts on — one that takes focus, a press, or an edit
+  const acts = (n: Node): boolean => {
+    const a = n as unknown as Record<string, unknown>;
+    return a.focusable === true || typeof a.select === "function" || typeof a.press === "function";
+  };
+  let best: Node | undefined;
+  let bestRank = Infinity;
   let level: Node[] = [...from.children];
-  while (level.length > 0) {
-    const hit = level.find(says);
-    if (hit !== undefined) return hit;
+  for (let depth = 0; level.length > 0; depth++) {
+    for (const n of level) {
+      const byName = named(n);
+      if (!byName && !reads(n)) continue;
+      const rank = (shown(n) ? 0 : 4000) + (acts(n) ? 0 : 2000) + (byName ? 0 : 1000) + depth;
+      if (rank < bestRank) { best = n; bestRank = rank; }
+    }
     level = level.flatMap((n) => [...n.children]);
   }
-  return undefined;
+  return best;
 }
-
 import { hitAt, pressAt, traceHitAt, rootFrameOrigin, rootFrameBox, rootTransform, type InteractionView } from "./interaction.js";
 import { apply as applyAffine } from "./affine.js";
 import { bootCheck, type BootCheckOptions } from "./boot-check.js";

@@ -63,6 +63,10 @@ actions, run in the order written (each may repeat)
   --requests                   print the requests the program has sent so far — its
                                data sources and streams: method, path, body, status
                                (roles, names, values, states, actions), as it stands then
+  --url ADDRESS                look at the app where it is served — a dev server's address
+                               (http://127.0.0.1:8200/my-apps/shop/shop.declare) — rather
+                               than a copy hosted for the look: its own origin, its own
+                               service. The program file may then be left out
   --shot FILE.png              save a picture of the window
   --shot-of PATH FILE.png      save a picture of one view only — its box, as seen: a
                                smaller picture to read than the whole window
@@ -78,12 +82,17 @@ examples
   declare-look app.declare --click app.toolbar.new --type "Buy milk" --key Enter --read app.items.count
   declare-look app.declare --drag app.board.card1 120,0 --shot moved.png
   declare-look app.declare --wheel app.list 2000 --read app.list.scrollY --shot scrolled.png
-  declare-look app.declare --click app.toolbar.new --semantics`;
+  declare-look app.declare --click app.toolbar.new --semantics
+  declare-look --url http://127.0.0.1:8200/my-apps/shop/shop.declare --size 390x844 --shot served.png`;
 
 const argv = process.argv.slice(2);
 if (argv.includes("--help") || argv.includes("-h")) { console.log(HELP); process.exit(0); }
-const file = argv.find((a) => a.endsWith(".declare"));
-if (file === undefined) { console.error(HELP); process.exit(2); }
+// --url: the app where it is served (a dev server) rather than a copy hosted for
+// the look; a program file is then optional (its source is not what is looked at)
+const urlAt = argv.indexOf("--url");
+const url = urlAt >= 0 ? argv[urlAt + 1] : undefined;
+let file = argv.find((a) => a.endsWith(".declare") && !/^[a-z]+:\/\//i.test(a));
+if (file === undefined && url === undefined) { console.error(HELP); process.exit(2); }
 
 const fail = (msg) => { console.error(`declare-look: ${msg}`); process.exit(2); };
 let size, touch = false, dark = false, consoleOut = false, settle = true, scrollbars = false;
@@ -92,6 +101,7 @@ for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
   const arg = () => { if (i + 1 >= argv.length) fail(`${a} needs a value — see --help`); return argv[++i]; };
   if (a === file) continue;
+  else if (a === "--url") arg();
   else if (a === "--size") size = arg();
   else if (a === "--touch") touch = true;
   else if (a === "--dark") dark = true;
@@ -232,11 +242,13 @@ export default async ({ page, drive, expect }) => {
 const dir = mkdtempSync(join(tmpdir(), "declare-look-"));
 const assert = join(dir, "look.mjs");
 writeFileSync(assert, script);
+// looking at a served page with no file: the rungs before the look check a stand-in
+if (file === undefined) { file = join(dir, "served.declare"); writeFileSync(file, "App [ ]\n"); }
 const verify = join(dirname(fileURLToPath(import.meta.url)), "verify.mjs");
 // what was asked for, and only that when it went well: the checking ladder the run
 // climbs on the way (R1–R5, its notes) is said only when something failed
 const LIMIT = 180_000;
-const r = spawnSync(process.execPath, [verify, file, "--assert", assert, "--rung=5", "--no-boot"], { encoding: "utf8", timeout: LIMIT, killSignal: "SIGKILL" });
+const r = spawnSync(process.execPath, [verify, file, "--assert", assert, "--rung=5", "--no-boot", ...(url !== undefined ? ["--url", url] : [])], { encoding: "utf8", timeout: LIMIT, killSignal: "SIGKILL" });
 rmSync(dir, { recursive: true, force: true });
 if (r.error?.code === "ETIMEDOUT" || r.signal === "SIGKILL") {
   process.stdout.write((r.stdout ?? "") + `declare-look: gave up after ${LIMIT / 1000} s — the page never finished what was asked (an action that waits on something that never comes)\n`);

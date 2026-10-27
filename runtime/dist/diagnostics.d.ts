@@ -85,6 +85,7 @@ export declare const Diag: {
     accessibilityControlInControl: (inner: string, innerRole: string, outer: string, outerRole: string, pos: Pos) => DeclareError;
     accessibilityCollapsedRead: (owner: string, axis: string, pos: Pos) => DeclareError;
     accessibilityUnreportedChoice: (owner: string, flag: string, pos: Pos) => DeclareError;
+    accessibilityTogglesAsOneOf: (count: number, cls: string, flag: string, subject: string, pos: Pos) => DeclareError;
     rowIndexUnreplicated: (owner: string, pos: Pos) => DeclareError;
     writeToComputedDataset: (name: string, verb: string, pos: Pos) => DeclareError;
     tangledConstraint: (attr: string, depth: number, parts: number, pos: Pos) => DeclareError;

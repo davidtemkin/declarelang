@@ -2287,8 +2287,8 @@ export class DomSurface implements Surface {
     // free — applyEditStyle runs a fontMetrics MEASURE per call, and every
     // style write invites a recalc. The scrub bench (recycled editor cells)
     // made the blanket reapply visible.
-    if (prev === null || prev.spellcheck !== spec.spellcheck || prev.purpose !== spec.purpose || prev.concealed !== spec.concealed)
-      applyPurpose(el, spec.purpose, spec.concealed, spec.spellcheck);
+    if (prev === null || prev.spellcheck !== spec.spellcheck || prev.purpose !== spec.purpose || prev.concealed !== spec.concealed || prev.enterHint !== spec.enterHint)
+      applyPurpose(el, spec.purpose, spec.concealed, spec.spellcheck, spec.enterHint ?? "");
     if (prev === null || insetCss(prev.padding) !== insetCss(spec.padding)) el.style.padding = insetCss(spec.padding);
     // no-wrap = one line per line + horizontal scroll (both native to a textarea
     // whose wrap attribute is "off"); soft = the wrapping default.

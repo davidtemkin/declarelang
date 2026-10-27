@@ -68,6 +68,7 @@ a task: a program with a lower count is not wrong.
 | `--outline [PATH]` | print every view under PATH (the App by default) with its place and size, as indented text — "is it where I meant?" without a picture |
 | `--semantics [PATH]` | print what a screen reader is given, from the booted program |
 | `--no-boot` | skip rung 4 and go to the browser rungs (`declare-look` does) |
+| `--url <address>` | rung 5 drives the app where it is served — a dev server's address — instead of a copy hosted for the check: its own origin, its own service |
 | `--only <file>` | verify the whole program, print only the diagnostics positioned in that one file (an include, by the path you would write it). The others are counted, and still fail the rung |
 
 Positions name their file: an error in the program file reads `(line 12, col 7)`;
@@ -96,6 +97,11 @@ npx declare-look app.declare --size 390x844 --touch --dark \
     --click app.toolbar.add --type "Buy milk" --key Enter \
     --wheel app.list 600 --read app.list.scrollY --shot phone.png
 ```
+
+To look at the app **where it is served** — the dev server's page, with its own address,
+cookies and service — give its address instead of (or as well as) the file:
+`npx declare-look --url http://127.0.0.1:8200/my-apps/shop/shop.declare --shot served.png`.
+Every action works the same there; no browser script of your own is needed.
 
 The actions — `--click PATH`, `--click-at PATH X,Y` (a point inside it, from its top-left: a
 step of a drawn scale), `--drag PATH DX,DY`, a drag a step at a time — `--press PATH [X,Y]`,
@@ -144,9 +150,12 @@ export default async ({ drive, expect }) => {
 
 **Time in a check is the check's.** The page's timers run on a virtual clock: a delay in
 the program (`afterDelay`, a tooltip's wait, a press-and-hold's half second) passes only when
-the script says time passes — `drive.wait(ms)` advances it by exactly `ms` (real time passes
-too, for the browser's own work), and `drive.settleMotion()` runs motion to rest frame by
-frame, carrying the timers with it. Holding the mouse down for 800 ms of real time fires no
+the script says time passes — `drive.wait(ms)` advances it by exactly `ms`, a frame at a
+time, **without waiting `ms` of real time** (a 6-second wait takes a fraction of a second),
+and `drive.settleMotion()` runs motion to rest frame by frame, carrying the timers with it.
+What runs on the **world's** clock is untouched by both: a service whose own schedule sends
+a message in six seconds, a socket's timed frames. To wait for one of those, wait in real
+time — `drive.waitReal(ms)` — and the page catches up on its clock after. Holding the mouse down for 800 ms of real time fires no
 hold; `drive.hold(path, 800)` does. What a press hands to the next frame (`afterDelay(0, …)` — a
 `Menu` passing on its choice) has run before the next step, as it has for a person; and a
 native scroll the program starts (a smooth `scrollIntoView`) lands within a `drive.wait`. A
@@ -189,7 +198,8 @@ user's scroll coming to rest, keep real time; only the program's time is the dri
 | `drive.key(name)`, `drive.type(text)`, `drive.tab(n?)` | keys, to whatever has the focus; a chord is written with `+`: `"Shift+Tab"`, `"Meta+Z"` |
 | `drive.selectAll(path)` | focus the text field and select everything in it, as select-all does before typing over a value |
 | `drive.set(path, attr, value)` | an assignment, as a handler's write |
-| `drive.wait(ms)` | `ms` of real time, and exactly `ms` of the program's virtual time |
+| `drive.wait(ms)` | exactly `ms` of the program's time, run frame by frame — not `ms` of real time; what the program asked for in the meantime (a request, a frame) is waited for as it lands |
+| `drive.waitReal(ms)` | `ms` of **real** time, then the program's clock catches up — for what runs on the world's clock: a service's timed messages, a socket's schedule |
 | `drive.settleMotion(maxMs?)` | motion run to rest, frame by frame; loops that never end (`repeat = { Infinity }`, a `Time`) do not hold it |
 | `drive.settleData()` | the network gone quiet |
 | `expect.attr(path, attr, expected)`, `expect.approx(path, attr, expected, tol?)`, `expect.text(path, contains)` (the view's text, or a row's or card's: all its visible descendants' together), `expect.visible(path)` (shown: its own `visible` and every view's above it, with a size — failing, it names what hides it), `expect.hidden(path)` (a path that names nothing fails), `expect.exists(path)`, `expect.count(path, kind, n)`, `expect.equal(a, b)` | assertions: each fails the rung with what it found |

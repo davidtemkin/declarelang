@@ -16,7 +16,7 @@ import { compile, compileTracked, isUpToDate, diskProbe, extractStatic, settleHe
 import { KeysService } from "../runtime/dist/keys.js";
 import { wrapLines, wrapEditable, provideMeasurer } from "../runtime/dist/measure.js";
 import { stroke, outline } from "../runtime/dist/value.js";
-import { Focus, FocusService, deliverKeys } from "../runtime/dist/focus.js";
+import { Focus, FocusService, deliverKeys, bareScroller } from "../runtime/dist/focus.js";
 import { routeInput } from "../runtime/dist/input.js";
 import {
   parse,
@@ -8916,6 +8916,16 @@ await test("TextInput and Control share their vocabulary: `disabled` is the same
     assert.match(control, new RegExp(`^\\s*${name}: boolean = false,`, "m"), `library Control declares ${name}: boolean = false`);
     assert.equal(SCHEMAS.TextInput.attrs[name]?.kind, "boolean", `TextInput's schema declares ${name} as a boolean`);
   }
+});
+
+await test("a scroller that holds nothing to tab to is a stop — unless it says focusable = false", async () => {
+  const app = buildProgram(await compiled(`App [ width = 300, height = 300,
+    quiet: View [ width = 100, height = 50, scrolls = y, focusable = false ],
+    plain: View [ width = 100, height = 50, scrolls = y ] ]`));
+  app.$attach(mockBackend([]), null);
+  settle();
+  assert.equal(bareScroller(app.plain), true, "a bare scroller is a stop, so the keyboard can scroll it");
+  assert.equal(bareScroller(app.quiet), false, "the author's focusable = false is honored");
 });
 
 await test("TextInput.disabled: no focus, no edits, and announced", async () => {

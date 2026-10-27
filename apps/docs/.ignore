@@ -1,0 +1,5 @@
+# Generated from docs/guide/ (the guide's chapters as the docs app reads them) and
+# its search index: left out of code search, which they would otherwise answer
+# with the guide's own text (Cadence run 17). Search docs/guide/ instead.
+/chapters/
+/search-index.json

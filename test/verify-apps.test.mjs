@@ -31,7 +31,9 @@ function verify(file, extra = []) {
     });
   });
 }
-const AT_ONCE = 3;
+// two at a time: three Chromes' worth of boots beside the rest of the suite
+// timed out on the heaviest apps (an empty reason, a different app each run)
+const AT_ONCE = 2;
 async function verifyAll(jobs) {
   const results = new Array(jobs.length);
   let next = 0;

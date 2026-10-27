@@ -125,6 +125,13 @@ Visible while its faded opacity still shows anything, and never while an overlay
 ## selectable
 Chrome, never prose: the ring never selects inside a `selectable` region — the same provision every `Control` makes for its label.
 
+## _theme
+**Internal.** The theme in force where the ringed control is, from the focus service.
+
+## ringTheme()
+The theme the ring draws with: the ringed control's, so a ring on a dark panel takes the
+panel's colours, else the App's.
+
 */
 
 class FocusRing [
@@ -151,6 +158,12 @@ class FocusRing [
     _rad: number = 8,
     shown: boolean = false,
     placed: boolean = false,                     // has the ring ever had a target to park on?
+
+    // the theme where the ringed control is: a ring on a dark panel is drawn
+    // in the panel's colours, not the App's
+
+    _theme: any = null,
+    ringTheme() -> any { return this._theme ?? provided("theme") },
 
     // the idle fade — travel role only; a resting ring does not fade
 
@@ -256,6 +269,7 @@ class FocusRing [
             classroot._tw = gw + 2 * off; classroot._th = gh + 2 * off
             classroot._trad = g.homeRad + off
             classroot._trot = g.homeRot
+            classroot._theme = g.theme
             // Only a focus change flies. The same control moving under a resting
             // ring — a dragged slider thumb, a reflow — takes the ring with it
             // rigidly: the springs' targets just moved, so land them now. The
@@ -392,7 +406,8 @@ class FocusRing [
             d.moveTo(x0 + r + ax, y1); d.lineTo(x0 + r, y1); d.arc(x0 + r, y1 - r, r, Q, Math.PI); d.lineTo(x0, y1 - r - ay)
             d.stroke()
             }
-        pass(0, lw, (provided("theme").focusRingColor ?? provided("theme").accent))
-        if (iw > 0) pass((lw + iw) / 2, iw, (provided("theme").focusRingInnerColor ?? provided("theme").surface))
+        const t = this.ringTheme()
+        pass(0, lw, (t.focusRingColor ?? t.accent))
+        if (iw > 0) pass((lw + iw) / 2, iw, (t.focusRingInnerColor ?? t.surface))
         }
     ]

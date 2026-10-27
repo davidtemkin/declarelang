@@ -1,0 +1,40 @@
+export const device = { width: 390, height: 844, touch: true };
+export default async ({ drive, expect, page }) => {
+  await drive.settleData();
+  await drive.click('app.header."Sign in"');
+  await drive.settleMotion();
+  await page.screenshot({ path: "/tmp/venue-shots/p-signin.png" });
+  await drive.click('app.signInSheet."Email"');
+  await drive.type("a@a.co");
+  await drive.click('app.signInSheet."Password"');
+  await drive.type("nope");
+  await drive.click('app.signInSheet."Show password"');
+  await drive.click('app.signInSheet."Sign in"');
+  await drive.settleData(); await drive.settleMotion();
+  await page.screenshot({ path: "/tmp/venue-shots/p-signin-err.png" });
+  console.log("type:", await page.evaluate(() => [...document.querySelectorAll("input")].map((i) => [i.type, i.autocomplete, i.name, i.inputMode].join("/"))));
+  await drive.click('app.signInSheet."Show password"');
+  await drive.click('app.signInSheet."Password"');
+  await drive.key("End");
+  for (let i = 0; i < 4; i++) await drive.key("Backspace");
+  await drive.type("pass");
+  await drive.key("Enter");
+  await drive.settleData(); await drive.settleMotion();
+  await expect.attr("app", "signedIn", true);
+  // reload keeps the session
+  await page.reload(); await drive.settleData();
+  await expect.attr("app", "signedIn", true);
+  // checkout with cards
+  await drive.click("app.listScreen.list.rows.1");
+  await drive.settleData();
+  await page.evaluate(() => { const a = window.__declare.find("app"); a.toggleSeat(a.house.seatsAll().find((s) => s.seat.status == "available").id); return null; });
+  await drive.settleMotion();
+  await drive.click('app.hallScreen.main.dock.Continue');
+  await drive.settleMotion();
+  await page.screenshot({ path: "/tmp/venue-shots/p-saved.png" });
+  await drive.click('app.header."Sign out"');
+  await drive.settleData();
+  await expect.attr("app", "signedIn", false);
+  await page.reload(); await drive.settleData();
+  await expect.attr("app", "signedIn", false);
+};

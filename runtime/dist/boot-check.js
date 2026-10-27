@@ -7,7 +7,7 @@
 // also has the real text; headless, text is measured by a stand-in, and the
 // checks that rest on text are left out (`realText`).
 import { View } from "./view.js";
-import { rootFrameBox } from "./interaction.js";
+import { rootFrameBox, pressAt } from "./interaction.js";
 import { findPath as find, pathOf } from "./node-path.js";
 import { isSet, ownerOf, percentOwned, setBound } from "./attributes.js";
 import { semanticTree, formatSemantics } from "./semantics.js";
@@ -103,6 +103,8 @@ function layoutChecks(app, { touch = false, realText = false }) {
         return o === null || o.isAutoExtent === true || /content(Height|Width)/.test(o.source ?? "");
     };
     const touchSmall = [];
+    const covered = [];
+    const hostH = Math.max(app.hostHeight ?? 0, app instanceof View ? app.height : 0);
     const offEdge = new Set();
     const visit = (v, scrollsAcross) => {
         if (!v.visible)
@@ -186,6 +188,27 @@ function layoutChecks(app, { touch = false, realText = false }) {
                     out.push(`${pathOf(app, low)} sits at the foot of ${pathOf(app, v)}, which is pinned to the window and as tall as it (height = { ${(h.source ?? "").trim()} }), so on a phone it follows the browser's bars a frame late and jumps. Pin a strip as tall as what it holds at the window's foot with y = end, and put it there: the browser holds it against the window's foot itself.`);
             }
         }
+        // A CONTROL ANOTHER VIEW TAKES THE PRESSES OF: at its centre, where a
+        // pointer and a screen reader's activation land, a press reaches some
+        // other view (an overlay laid over a map of seats to zoom it) — the
+        // control can be seen and named but not pressed there
+        if ((isA(v, "Control") || isA(v, "TextInput")) && v.visible && v.width > 0 && v.height > 0
+            && v.focusable !== false) {
+            const b = rootFrameBox(v);
+            const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
+            if (cx >= 0 && cy >= 0 && cx <= hostW && cy <= hostH) {
+                const at = pressAt(app, cx, cy);
+                let mine = at === null;
+                for (let a = at; a !== null && !mine; a = a.parent instanceof View ? a.parent : null)
+                    if (a === v)
+                        mine = true;
+                for (let a = v.parent instanceof View ? v.parent : null; a !== null && !mine; a = a.parent instanceof View ? a.parent : null)
+                    if (a === at)
+                        mine = true;
+                if (!mine && at !== null)
+                    covered.push(`${pathOf(app, v)} (by ${pathOf(app, at)})`);
+            }
+        }
         // A TARGET TOO SMALL FOR A FINGER, on a touch screen
         if (touch && isA(v, "Control") && v.width > 0 && v.height > 0 && (v.width < 44 || v.height < 44))
             touchSmall.push(`${pathOf(app, v)} ${Math.round(v.width)}×${Math.round(v.height)}`);
@@ -196,6 +219,8 @@ function layoutChecks(app, { touch = false, realText = false }) {
     };
     if (app instanceof View)
         visit(app, false);
+    if (covered.length > 0)
+        out.push(`${covered.length} control(s) another view takes the presses of: at the control's centre a press — and a screen reader's activation — reaches the other view instead: ${covered.slice(0, 4).join(", ")}${covered.length > 4 ? ", …" : "."} If the cover is meant only for a pointer, keep it off while a control is focused or a screen reader is on; otherwise let the press through (pointerEvents = none) or place the control above it.`);
     if (touchSmall.length > 0)
         out.push(`${touchSmall.length} control(s) smaller than 44 × 44, a finger's target: ${touchSmall.slice(0, 6).join(", ")}${touchSmall.length > 6 ? ", …" : "."}`);
     return out;

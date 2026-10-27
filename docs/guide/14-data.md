@@ -522,7 +522,9 @@ There is no flag to keep and no handler for failure:
   message goes the moment the value is right. Nothing is marked wrong while it is first typed.
 - **[`submit()`](declare-docs:Form.method.submit) judges every field at once** — the ones the person never reached and the ones
   autofill filled included — so every problem shows together, each under its own field, and
-  the focus goes to the first. Return in a field submits too. Nothing is sent while anything
+  the focus goes to the first. Return in a field submits too — or, in a form filled in
+  order (a checkout, an address), set [`enterMoves`](declare-docs:Form.enterMoves) and Return takes the person to the
+  next field, submitting from the last; a phone's keyboard says "Next" and then "Go". Nothing is sent while anything
   is wrong, and nothing twice while `pending`.
 - **Keep Submit enabled.** A button disabled until the form is valid hides the reason, and an
   autofilled form can leave it disabled for good; pressing it is what explains. (`pending` is
@@ -530,12 +532,13 @@ There is no flag to keep and no handler for failure:
 - **The service's refusal lands on the field it names.** A reply such as
   `{ "field": "email", "message": "That address already has an account." }` puts the
   sentence under the email field until the email changes; one that names no field
-  (`{ "message": "Your card was declined." }`) becomes the form's `error`. Lists of errors,
+  (`{ "message": "This account is locked." }`) becomes the form's `error`. Lists of errors,
   RFC 9457 problem details and JSON:API errors are read the same way, matched to each field's
   `name`; [`refusal(body)`](declare-docs:Form.method.refusal) is overridable for a service with its own shape, and
-  [`refusedWith(body)`](declare-docs:Form.method.refusedWith) is where the program reacts (releasing seats a conflict names).
-- **A rule may read other values.** `validate(v: string) -> string { return postalProblem(v, app.country) }`
-  judges again when the country changes. A rule that belongs to no one field is the form's
+  [`refusedWith(body)`](declare-docs:Form.method.refusedWith) is where the program reacts (clearing a code the service will not accept again).
+- **A rule may read other values.** A confirmation field's
+  `validate(v: string) -> string { return v == app.password ? "" : "The passwords don't match." }`
+  judges again when the password changes. A rule that belongs to no one field is the form's
   own `validate()`.
 
 [`Field`](declare-docs:Field) puts the label beside or above its control and the control's `error` under it

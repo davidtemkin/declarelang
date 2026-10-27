@@ -37,6 +37,19 @@ const COMBO = `App [ width = 400, height = 300,
   ],
 ]`;
 
+await test("Combobox: a value set from outside shows in the field (the text derives from the choice)", async () => {
+  const app = await boot(`App [ width = 400, height = 300, country: object = null,
+    c: Combobox [ x = 20, y = 20, items = ["France", "Japan"], value = { app.country }, input(v: object) { app.country = v } ] ]`);
+  assert.equal(app.c.entry.text, "", "no choice: empty");
+  app.country = "Japan"; settle();
+  assert.equal(app.c.entry.text, "Japan", "a saved choice shows as surely as a picked one");
+  app.c.query = "Fr"; app.c.filtering = true; settle();
+  assert.equal(app.c.entry.text, "Fr", "while a query is typed, the query shows");
+  app.c.pickIndex(0); settle();
+  assert.equal(app.country, "France");
+  assert.equal(app.c.entry.text, "France");
+});
+
 await test("Combobox: the matches are a derivation — typing filters, the count rides along", async () => {
   const app = await boot(COMBO);
   const c = app.c;

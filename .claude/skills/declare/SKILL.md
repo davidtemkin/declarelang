@@ -98,7 +98,9 @@ Then check every need in the plan against
     row class; editing through a draft; menus, shortcuts, undo. It is
     <!--stat:tracker.code-->982<!--/stat--> lines of code, and worth reading whole.
   - **A surface over time, or things dragged between places** — a schedule, a timeline, a
-    board, a grid you zoom from years to a day. → `apps/calendar/calendar.declare`, with
+    board, a grid you zoom from years to a day (to pan and zoom a surface about the
+    fingers — drag, pinch, trackpad, wheel — see `10-touch.md` § Pan and zoom about the
+    fingers). → `apps/calendar/calendar.declare`, with
     `docs/guide/28-calendar.md` beside it as its commentary: a change of view is one
     assignment, and the screen follows it continuously, with no transition code. The
     events as a dataset class with their own rules, a drag as a class with no view, four

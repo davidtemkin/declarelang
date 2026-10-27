@@ -312,7 +312,12 @@
     "double submit": "Form.pending",
     "reset validation": "TextInput.judged",
     "validator": "TextInput.method.validate",
-    "custom control validation": "ValueControl"
+    "custom control validation": "ValueControl",
+    "country": "Combobox.purpose",
+    "country picker": "Combobox.purpose",
+    "request failed": "DataSource.failed",
+    "fetch failed": "DataSource.failed",
+    "request error": "DataSource.failed"
   },
   "negative": [
     {

@@ -2476,7 +2476,7 @@ class CanvasSurface {
         // Parity with the DOM backend's editable: the field's inset, the
         // spellcheck election, and the wrap mode all come from the one spec —
         // the overlay is the same editable, positioned differently.
-        applyPurpose(el, spec.purpose, spec.concealed, spec.spellcheck);
+        applyPurpose(el, spec.purpose, spec.concealed, spec.spellcheck, spec.enterHint ?? "");
         el.style.padding = insetCss(spec.padding);
         if (el instanceof HTMLTextAreaElement) {
             el.wrap = spec.wrap ? "soft" : "off";

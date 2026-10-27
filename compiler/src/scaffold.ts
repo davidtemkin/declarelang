@@ -420,7 +420,7 @@ interface KeyEvent { code: string; key: string; shift: boolean; ctrl: boolean; a
 /** Where the focus indicator should be, and where it came from — the rect and
  *  radius to draw, the view and root it belongs to, the scroller it sits in, and the
  *  \`home…\` fields it is travelling from. What a custom focus ring reads to animate. */
-interface FocusGeometry { x: number; y: number; w: number; h: number; rad: number; view: View; root: View; scroller: View; homeX: number; homeY: number; homeW: number; homeH: number; homeRad: number; homeRot: number }
+interface FocusGeometry { x: number; y: number; w: number; h: number; rad: number; view: View; root: View; scroller: View; homeX: number; homeY: number; homeW: number; homeH: number; homeRad: number; homeRot: number; theme: any }
 /** A tooltip's request: the text, and the rect of the view asking, so a custom
  *  tip can place itself against the thing it describes. */
 interface TooltipEvent { readonly text: string; readonly x: number; readonly y: number; readonly w: number; readonly h: number; readonly root: View }

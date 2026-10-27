@@ -71,7 +71,29 @@ import { DeclareError, insetOrRadiusShape, strokeShapeMessage } from "../../runt
  *  the lines a diagnostic is reported on. Returns coded DECLARE6001 diagnostics
  *  (empty when clean). Never throws on TS internals: a body that cannot be
  *  framed is skipped, not failed. */
+/** The program being checked — read by the did-you-mean below, which looks
+ *  inside a class's named children for the name that was missed. */
+let CHECKING = null;
+/** Where, inside class `cls`, a named child holds `name` — as a child or a
+ *  declared member — as a path from the class (`mailBox.mail`), or null. A
+ *  name missed on a class is most often a child's: `this.mail` written for
+ *  `this.mailBox.mail` (Venue run 6). Two levels down, nearest first. */
+function childPath(cls, name) {
+    const c = CHECKING?.classes.find((k) => k.name === cls);
+    if (c === undefined)
+        return null;
+    let level = c.body.children.filter((e) => e.name !== null).map((e) => ({ el: e, path: e.name }));
+    for (let depth = 0; depth < 2 && level.length > 0; depth++) {
+        for (const { el, path } of level) {
+            if (el.children.some((k) => k.name === name) || el.decls.some((d) => d.name === name))
+                return `${path}.${name}`;
+        }
+        level = level.flatMap(({ el, path }) => el.children.filter((e) => e.name !== null).map((e) => ({ el: e, path: `${path}.${e.name}` })));
+    }
+    return null;
+}
 export function typecheckBodies(text, program, mainStart = 0, prefix = "My") {
+    CHECKING = program;
     const { schemas } = programSchemas(program.classes, new Set((program.shapes ?? []).map((s) => s.name)));
     WORD_TYPES = new Set();
     for (const sc of Object.values(schemas))
@@ -452,8 +474,12 @@ function explainTs(d, u, synthTags) {
             // $provided): say what is true without offering it
             if (m !== null && m[3].startsWith("$"))
                 return `'${m[1]}' is not a member of ${quoteType(m[2])} — declare it (${m[1]}: <type> = …) or fix the name`;
-            if (m !== null)
+            if (m !== null) {
+                const held = childPath(m[2], m[1]);
+                if (held !== null)
+                    return `'${m[1]}' is not a member of ${quoteType(m[2])} — a child's is: '${held}' (reached through the child that holds it)`;
                 return `'${m[1]}' is not a member of ${quoteType(m[2])} — did you mean '${m[3]}'?`;
+            }
             return msg;
         case 2339:
             m = msg.match(/Property '(.+?)' does not exist on type '(.+?)'/s);
@@ -461,6 +487,11 @@ function explainTs(d, u, synthTags) {
                 return themeTokenMiss(m[1], null);
             if (m !== null && memberHint(m[1]) !== "")
                 return `'${m[1]}' is not a member of ${quoteType(m[2])} — ${memberHint(m[1])}`;
+            if (m !== null) {
+                const held = childPath(m[2], m[1]);
+                if (held !== null)
+                    return `'${m[1]}' is not a member of ${quoteType(m[2])} — a child's is: '${held}' (reached through the child that holds it)`;
+            }
             if (m !== null) {
                 // A `:path` LOWERS to `this.$data(…)`, so a path written on a non-view
                 // node surfaces here as a missing `$data` member — and the generic advice
