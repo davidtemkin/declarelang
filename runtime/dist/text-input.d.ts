@@ -33,14 +33,30 @@ export declare class TextInput extends View {
     disabled: boolean;
     /** "input" (live) | "blur" | "enter" | "manual" — when a valid draft commits. */
     commitOn: string;
-    /** "edit" | "leave" — when `error` first says what is wrong: at every edit,
-     *  or once the field has been left (or judge() asked). `valid` is true to
-     *  the draft either way. */
+    /** "leave" (the default) | "edit" — when `error` first says what is wrong:
+     *  once the field has been left (or judged), or at every edit. `problem`
+     *  and `valid` are true to the draft either way. */
     judgeOn: string;
-    /** The current validation message, "" when valid (reactive). */
+    /** What is wrong with the value now, "" when nothing is: the refusal, then
+     *  `required`, then `validate`, then the schema floor (reactive). */
+    problem: string;
+    /** `problem` once judged — the default display rule (reactive). */
     error: string;
-    /** Does the draft pass validate()? (reactive) */
+    /** Is `problem` empty? (reactive) */
     valid: boolean;
+    /** Has the field been judged: left, `judge()`d, or submitted with its form. Writable. */
+    judged: boolean;
+    /** The field's address in its form: the key a service names it by. */
+    name: string;
+    /** `true`, or the message to say, when the field may not be left empty. */
+    required: boolean | string;
+    /** An outside message about the value — a service's refusal. It counts while
+     *  the value is the one refused. */
+    refused: string;
+    /** The form this field belongs to: the nearest `Form` above, unless set. */
+    form: View | null;
+    /** The value `refused` was said of (captured when it is written). */
+    $refusedValue: unknown;
     /** Does the draft differ from the committed value? (reactive) */
     dirty: boolean;
     /** The field's element holds what is typed, the selection and focus. */
@@ -53,6 +69,16 @@ export declare class TextInput extends View {
     /** @api Say what is wrong with the draft now, without waiting for the field
      *  to be left — for a Save or a Pay that checks every field. */
     judge(): void;
+    /** @api Say an outside message about the current value — a service's
+     *  refusal. It is the field's `problem` until the value changes; `""`
+     *  withdraws it. A form's `refuse` lays a service's problems this way. */
+    refuse(message: string): void;
+    /** Install the judging derives — `problem`, `valid`, `error` — once: at
+     *  attach, or on the first edit-session refresh of a field never attached. */
+    $judging(): void;
+    private $judges;
+    /** What is wrong with the value now — the one rule `problem` derives. */
+    private $problem;
     $attach(backend: RenderBackend, parentSurface: Surface | null, before?: Surface | null): void;
     protected $flush(s: Surface): void;
     private $editStyle;

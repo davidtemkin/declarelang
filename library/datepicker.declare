@@ -310,9 +310,16 @@ The theme's `fieldCornerRadius`, else `controlCornerRadius`.
 
 ## opacity
 Dimmed to the theme's `disabledOpacity` when disabled.
+
+## fieldValue
+Follows `value`: what `required` and `validate` judge (see `ValueControl`).
+
+## edge
+The picker's edge colour: the theme's `error` while it says what is wrong, the accent while
+its calendar is open, else the line colour.
 */
 
-include [ "control.declare", "popover.declare", "spacer.declare", "textlabel.declare", "icons/core.declare" ]
+include [ "valuecontrol.declare", "popover.declare", "spacer.declare", "textlabel.declare", "icons/core.declare" ]
 
 class MonthCalendar [
     value: string = "",
@@ -530,7 +537,7 @@ class MonthCalendarArrow extends Control [
     ]
 
 
-class DatePicker extends Control [
+class DatePicker extends ValueControl [
     accessibilityRole = button,
     accessibilityExpanded = { this.pop.shown },
     accessibilityLabel = { provided("fieldLabel", "") != "" ? provided("fieldLabel", "") + (display != "" ? ", " + display : "") : "" },
@@ -540,6 +547,7 @@ class DatePicker extends Control [
     max: string = "",
     weekStart: number = 0,
     placeholder: string = "Select a date",
+    fieldValue = { value },
 
     input(v: string) { value = v },
 
@@ -548,7 +556,8 @@ class DatePicker extends Control [
     width = 180,
     height = { provided("theme").comboboxHeight },
     fill = { provided("theme").surface },
-    stroke = { stroke(1, this.pop.shown ? provided("theme").accent : provided("theme").line) },
+    edge: Color = { this.error != "" ? provided("theme").error : this.pop.shown ? provided("theme").accent : provided("theme").line },
+    stroke = { stroke(1, this.edge) },
     cornerRadius = { provided("theme").fieldCornerRadius ?? provided("theme").controlCornerRadius },
     opacity = { disabled ? (provided("theme").disabledOpacity) : 1 },
 

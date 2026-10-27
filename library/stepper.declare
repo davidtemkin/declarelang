@@ -82,13 +82,17 @@ The track: the theme's `trackFill`, else `control`.
 
 ## opacity
 Disabled dims the whole stepper, to the theme's `disabledOpacity`.
+
+## fieldValue
+Follows `value`: what `required` and `validate` judge (see `ValueControl`).
 */
 
-include [ "control.declare", "icons/core.declare" ]
+include [ "valuecontrol.declare", "icons/core.declare" ]
 
-class Stepper extends Control [
+class Stepper extends ValueControl [
     accessibilityRole = spinButton,
     value: number = 0,
+    fieldValue = { value },
     min: number = 0,
     max: number = 100,
     step: number = 1,

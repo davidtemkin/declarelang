@@ -1064,7 +1064,7 @@ export declare class App extends View {
      *  never schema attrs. RULED to dissolve into a per-instance `LiveDemo`
      *  class; the app-authored state that once rode alongside (editing /
      *  liveCard / liveSource) is already instance-declared on the demo-hosting
-     *  apps. See docs/system-design/language-learnings.md §11–12. */
+     *  apps. See evals/reports/2026-07-09-language-learnings.md §11–12. */
     demoSources: Record<string, unknown>;
     liveReport: string;
     /** `location` — the app's slice of the URL, the fragment (docs/system-design/location.md). A

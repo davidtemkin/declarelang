@@ -985,6 +985,14 @@ export function defaultOf(self: object, name: string): unknown {
   return tableFor(DEFAULTS, self.constructor)?.[name];
 }
 
+/** Is `name` an attribute of this object (a slot its class defines or a
+ *  program declares) — as against a child, a method, or a plain property? */
+export function hasSlot(self: object, name: string): boolean {
+  const t = tableFor(DEFAULTS, self.constructor);
+  if (t !== null && name in t) return true;
+  return declarationsOf(self)[name] !== undefined;
+}
+
 /** Retire every constraint that owns a slot on `self` — the teardown half a
  *  removed view needs (R8's replication is the first thing that removes):
  *  disposed constraints unlink from their Cells, so a later data or

@@ -184,6 +184,13 @@ Follows `host`: it paints in the layer it opened into.
 
 ## scrollBelow
 `scrollPolicy` while it is open, `none` once it closes.
+
+## _form
+**Internal.** an overlay is a form boundary — a control in it belongs to a `Form` inside the
+overlay, not to one around where the overlay is declared.
+
+## _field
+**Internal.** the same boundary for a `Field`.
 */
 
 include [ "overlaystrata.declare" ]
@@ -192,6 +199,12 @@ use [ OverlayStrata ]
 
 class Floating [
     ignoreLayout = true,
+
+    // an overlay is a boundary for forms: what it holds belongs to a Form
+    // inside it, never to one around the place it is declared
+
+    _form: any = null,
+    _field: any = null,
 
     kind: string = "floating",
     shown: boolean = false,

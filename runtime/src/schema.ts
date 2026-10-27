@@ -923,9 +923,16 @@ const TextInputSchema: ClassSchema = {
     // `text` is the draft — its validity/error/dirtiness and WHEN it commits.
     commitOn: { kind: "string" }, // "input" (live) | "blur" | "enter" | "manual"
     judgeOn: enumType("JudgeOn", "edit", "leave"), // when `error` first speaks: at every edit, or once the field has been left
-    error: { kind: "string" },    // the current validation error, "" when valid
-    valid: { kind: "boolean" },   // does the draft pass validate()?
+    // What is wrong, and whether to say so (forms; library form.declare):
+    problem: { kind: "string" },  // what is wrong with the value now, "" when nothing is
+    error: { kind: "string" },    // `problem` once judged: the default display rule
+    valid: { kind: "boolean" },   // is `problem` empty?
+    judged: { kind: "boolean" },  // left, judge()d, or submitted with its form — writable
     dirty: { kind: "boolean" },   // does the draft differ from the committed value?
+    name: { kind: "string" },     // the field's address in its form: the key a service names it by
+    required: { kind: "object", written: "boolean | string" }, // true, or the message to say, when it may not be empty
+    refused: { kind: "string" },  // an outside message about the value: a service's refusal
+    form: { kind: "view" },       // the form it belongs to: the nearest Form above, unless set
     ...FACE_ATTRS,
     ...SELECTABLE_ATTR,
     text: { kind: "string" },
@@ -954,7 +961,7 @@ const TextInputSchema: ClassSchema = {
     selectionEnd: { kind: "number" },
   },
   // the session's facts (editor.ts maintains them; a write would be recomputed on the next keystroke)
-  readOnly: ["selectionStart", "selectionEnd", "error", "valid", "dirty"],
+  readOnly: ["selectionStart", "selectionEnd", "problem", "error", "valid", "dirty"],
   events: ["input", "enter"],
 };
 

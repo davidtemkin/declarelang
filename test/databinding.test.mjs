@@ -109,6 +109,9 @@ test("validate: an invalid draft is not committed and surfaces an error", async 
   settle();
   assert.equal(app.store.value.rec.zip, "94110", "invalid draft never reaches the dataset");
   assert.equal(f.valid, false);
+  assert.equal(f.problem, "5 digits");
+  assert.equal(f.error, "", "said once the field is judged (judgeOn = leave)");
+  f.judge(); settle();
   assert.equal(f.error, "5 digits");
   // a valid value does commit
   f.text = "60614";
@@ -341,13 +344,13 @@ App [ width=1, height=1,
   assert.strictEqual(app.d.read(["tasks", 0, "born"]), 42, "committed as the NUMBER, not the string");
   f.text = "abc"; edited(f, "text", "input"); settle();
   assert.equal(f.valid, false, "unreadable draft = invalid session");
-  assert.equal(f.error, "must be a number");
+  assert.equal(f.problem, "must be a number", "the schema's own check is the field's problem");
   assert.strictEqual(app.d.read(["tasks", 0, "born"]), 42, "…and the data is untouched — no write, no throw");
   g.text = "closed"; edited(g, "text", "input"); settle();
   assert.equal(app.d.read(["tasks", 0, "status"]), "closed", "a union member commits");
   g.text = "paused"; edited(g, "text", "input"); settle();
   assert.equal(g.valid, false, "a non-member is invalid");
-  assert.match(g.error, /"open" \| "closed"/);
+  assert.match(g.problem, /"open" \| "closed"/);
 });
 
 test("schema floor: <-> onto a boolean or record field refuses at compile, naming the right tool", async () => {

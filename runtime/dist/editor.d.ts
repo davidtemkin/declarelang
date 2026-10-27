@@ -31,15 +31,21 @@ export declare function bindTwoWay(view: View, name: string, path: string | read
  *  `classroot.field` string. The path thunk reads the expr under the reseed's
  *  tracking, so changing the field reseeds the editor onto the new place. */
 export declare function bindTwoWayDynamic(view: View, name: string, src: string, pos: Pos, classroot: View | null, type: AttrType): void;
+/** Run the editor's own `validate(v)` method if it declares one. Returns an
+ *  error MESSAGE (string) or null when valid. Pure and local by design — a
+ *  `validate` that returns `false` means "invalid" (a generic message), a
+ *  string is the message, and `true`/null/"" mean valid. Reactive where it is
+ *  called under tracking: a rule that reads another value re-judges when that
+ *  value changes. */
+export declare function runValidate(view: View, v: unknown): string | null;
+/** @api The schema floor's message for a bound field's draft — "must be a
+ *  number" — or null: structure, which only a two-way field has. */
+export declare function floorError(view: View, name: string): string | null;
 /** @api Judge the draft now: an editor that judges on leaving says what is
- *  wrong from here on. Leaving the field does this; so may a Save. */
-export declare function judgeDraft(view: View, name: string): void;
-/** @api A field the program owns (no `<->`) that declares `validate()`: it is
- *  judged on its own draft slot whenever the draft changes — a keystroke or the
- *  program's write alike — and on whatever else `validate` reads. `judgeOn`,
- *  `judge()`, `error` and `valid` mean what they mean for a bound field; there
- *  is no commit and no `dirty`, since nothing is written back. */
-export declare function judgeOwnDraft(view: View, name: string): void;
+ *  wrong from here on. Leaving the field does this; so may a Save, and a
+ *  form's submit. `judged` is the editor's own slot, which the program may
+ *  also write back to false (a field emptied for a fresh try). */
+export declare function judgeDraft(view: View, _name: string): void;
 /** @api The user changed the draft (a native edit, a picker selection). Refresh
  *  the session, and commit now if the policy is live (`commitOn === "input"`). */
 export declare function edited(view: View, name: string, commitOn: string): void;

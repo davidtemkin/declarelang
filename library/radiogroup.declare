@@ -43,13 +43,23 @@ The radio Tab lands on: the checked one, else the first that is enabled.
 ## radios()
 The group's radios, for the Tab entry. A handler-only walk.
 
+
+## fieldValue
+Follows `value`, the chosen `choice`: what `required` and `validate` judge (see `ValueControl`).
 */
 
-include [ "control.declare" ]
+include [ "valuecontrol.declare" ]
 
-class RadioGroup [
+class RadioGroup extends ValueControl [
     accessibilityRole = radioGroup,
     value: string = "",
+    fieldValue = { value },
+
+    // the radios are the stops, not the group (a ValueControl is otherwise one);
+    // it is judged when the focus leaves its radios
+
+    focusable = false,
+    focusField() { const r = focusEntry(); if (r != null) Focus.focus(r) },
 
     input(v: string) { value = v },
     pick(v: string)  { input(v) },
@@ -147,6 +157,14 @@ class Radio extends Control [ height = { this.dot.width + 4 },
     press()   { (parent as RadioGroup).pick(choice) },
 
     // the arrows move to the next radio and check it; Space and Enter as any control
+
+    // leaving the group's radios is leaving the group
+
+    onBlur() {
+        super.onBlur()
+        const g = parent as any
+        if (g != null && g.judgeOn == "leave") g.judged = true
+        },
 
     onKeyDown(e: KeyEvent) {
         super.onKeyDown(e)

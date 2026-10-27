@@ -1,32 +1,36 @@
 // the page being written: built when the sheet opens and gone when it closes,
 // so every opening starts empty, with the address suggested again
 
-class NewPage [ width = 300,
+class NewPage extends Form [ width = 300,
     title: string = "",
 
     // the address follows the title until the person writes one
 
     slug: string = { classroot.title.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") },
     layout: SimpleLayout [ axis = y, spacing = 10 ],
-    TextInput [ width = 300, placeholder = "Title",
+    TextInput [ width = 300, placeholder = "Title", name = "title", required = "Give the page a title.",
+        accessibilityLabel = "Title",
         onInput(t: string) { classroot.title = t }
         ],
-    TextInput [ width = 300, placeholder = "Address", initial = { classroot.slug },
+    TextInput [ width = 300, placeholder = "Address", name = "slug", initial = { classroot.slug },
+        accessibilityLabel = "Address",
         onInput(t: string) { classroot.slug = t }
         ],
-    Text [ visible = { app.saveError != "" }, width = 300, wrap = true, textColor = firebrick, text = { app.saveError } ],
-    Button [ label = "Create", primary = true, disabled = { classroot.title == "" },
-        onClick() { app.create(classroot) }
-        ]
+    Button [ label = "Create", primary = true,
+        onClick() { classroot.submit() }
+        ],
+    send() { app.create(this) }
     ]
 
 
 App [ width = 400, height = 300, fill = white, textColor = black,
     pages: Dataset { { "rows": [ { "title": "About", "slug": "about" } ] } },
     adding: boolean = false,
-    saveError: string = "",
     create(p: NewPage) {
-        if ((app.pages.value?.rows ?? []).some((r) => r.slug == p.slug)) { app.saveError = "A page already has that address."; return }
+        if ((app.pages.value?.rows ?? []).some((r) => r.slug == p.slug)) {
+            p.refuse([({ name: "slug", message: "A page already has that address." })])
+            return
+            }
         app.pages.set("/rows/-", ({ title: p.title, slug: p.slug }))
         app.adding = false
         },
@@ -38,7 +42,7 @@ App [ width = 400, height = 300, fill = white, textColor = black,
         Text [ text = { (app.pages.value?.rows ?? []).map((r) => "/" + r.slug).join("  ") } ]
         ],
     sheet: Sheet [ accessibilityLabel = "New page", shown = { app.adding },
-        input(open: boolean) { app.adding = open; app.saveError = "" },
+        input(open: boolean) { app.adding = open },
         NewPage [ exists = { app.adding } ]
         ]
     ]

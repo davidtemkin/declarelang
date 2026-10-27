@@ -1,0 +1,12 @@
+class Rating extends ValueControl [ width = 120, height = 24,
+    stars: number = 0,
+    fieldValue = { stars },
+    empty = { stars == 0 },
+    input(v: number) { stars = v },
+    press() { input(stars % 5 + 1) },
+    TextLabel [ text = { "★".repeat(classroot.stars) + "☆".repeat(5 - classroot.stars) } ]
+    ]
+
+
+App [ Rating [ x = 20, y = 20, required = "Rate your stay." ]
+    ]

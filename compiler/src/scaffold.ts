@@ -924,7 +924,7 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
   // …and the selection write half (#22): one verb — a caret is a zero-length
   // range. "start" / "end" / "all" are the word forms; numbers clamp; `end`
   // omitted means a caret at `at`.
-  TextInput: [`  commit(): void;`, `  revert(): void;`, `  judge(): void;`,
+  TextInput: [`  commit(): void;`, `  revert(): void;`, `  judge(): void;`, `  refuse(message: string): void;`,
     `  select(at: number | "start" | "end" | "all", end?: number): void;`],
   // The State verbs (state.ts): drive `applied` imperatively — legal only on
   // an UNGATED state (gate XOR verbs; a gated state throws with the rule named).

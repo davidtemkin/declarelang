@@ -100,5 +100,8 @@
   "BreadcrumbCurrent": "breadcrumb.declare",
   "MonthCalendarDay": "datepicker.declare",
   "MonthCalendarArrow": "datepicker.declare",
-  "WindowClose": "window.declare"
+  "WindowClose": "window.declare",
+  "Form": "form.declare",
+  "ValueControl": "valuecontrol.declare",
+  "FieldLayout": "field.declare"
 }

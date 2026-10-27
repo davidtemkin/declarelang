@@ -1,32 +1,23 @@
-App [ width = 400, height = 220, fill = white, textColor = black,
-    rec: Dataset { { "name": "Ada", "email": "ada@example.com" } },
-
-    canSave: boolean = { app.col.nameF.valid && app.col.mailF.valid
-                      && (app.col.nameF.dirty || app.col.mailF.dirty) },
-
-    col: View [ x = 20, y = 20, width = 360, datapath = { rec.value },
-        layout: SimpleLayout [ axis = y, spacing = 10 ],
-
-        nameF: TextInput [ width = 250, height = 28, padding = 5, cornerRadius = 6, fill = gainsboro,
-            commitOn = "manual", text <-> :name, accessibilityLabel = "Name",
-            validate(v: string) -> string { return v.length > 0 ? "" : "Name is required" }
-            ],
-        mailF: TextInput [ width = 250, height = 28, padding = 5, cornerRadius = 6, fill = gainsboro,
-            commitOn = "manual", text <-> :email, accessibilityLabel = "Email",
-            validate(v: string) -> string { return v.includes("@") ? "" : "That is not an address" }
-            ],
-
-        msg: Text [ width = 340, textColor = firebrick,
-            text = { app.col.nameF.error != "" ? app.col.nameF.error : app.col.mailF.error } ],
-
-        row: View [ height = 30,
-            layout: SimpleLayout [ axis = x, spacing = 8 ],
-            Button [ label = "Save", primary = true, disabled = { !app.canSave },
-                onClick() { app.col.nameF.commit(); app.col.mailF.commit() }
-                ],
-            Button [ label = "Revert",
-                onClick() { app.col.nameF.revert(); app.col.mailF.revert() }
+App [ width = 380, height = 220, fill = white, textColor = black,
+    names: Dataset { { "rows": [ { "name": "Ada" } ] } },
+    draft: string = "",
+    add: Form [ x = 20, y = 20, width = 340,
+        layout: SimpleLayout [ axis = y, spacing = 12 ],
+        Field [ label = "Name", stacked = true,
+            entry: TextInput [ width = 240, name = "name", required = "Enter a name.",
+                text = { app.draft },
+                onInput(v: string) { app.draft = v }
                 ]
-            ]
-        ]
+            ],
+        Button [ label = "Add", primary = true,
+            onClick() { parent.submit() }
+            ],
+        send() {
+            const taken = (app.names.value?.rows ?? []).some((r) => r.name == app.draft.trim())
+            if (taken) { refuse([({ name: "name", message: "That name is taken." })]); return }
+            app.names.set("/rows/-", ({ name: app.draft.trim() }))
+            app.draft = ""
+            }
+        ],
+    Text [ x = 20, y = 160, text = { (app.names.value?.rows ?? []).map((r) => r.name).join(", ") } ]
     ]

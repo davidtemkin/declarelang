@@ -975,7 +975,7 @@ const CLASS_GROUPS = [
   ["Text",          ["Text", "TextLabel", "Font", "FontFace", "RichText", "Markdown", "HTMLText"]],
   ["Media",         ["Image", "Media", "Video", "Audio"]],
   ["Layout",        ["Layout", "SimpleLayout", "WrappingLayout", "ResponsiveLayout", "TweenLayout", "Spacer"]],
-  ["Controls",      ["Control", "Button", "Checkbox", "Switch", "Slider", "RadioGroup", "Radio", "Field", "TextInput", "SearchField", "Combobox", "Segmented", "SegmentedItem", "TabBar", "TabBarTab", "Stepper", "DatePicker", "MonthCalendar", "MonthCalendarDay", "MonthCalendarArrow", "Toolbar", "ToolButton", "ToolbarDivider", "Splitter", "ProgressBar", "FocusRing", "AppearanceSwitch", "TextSizeSwitch"]],
+  ["Controls",      ["Control", "Button", "Checkbox", "Switch", "Slider", "RadioGroup", "Radio", "Field", "FieldLayout", "Form", "ValueControl", "TextInput", "SearchField", "Combobox", "Segmented", "SegmentedItem", "TabBar", "TabBarTab", "Stepper", "DatePicker", "MonthCalendar", "MonthCalendarDay", "MonthCalendarArrow", "Toolbar", "ToolButton", "ToolbarDivider", "Splitter", "ProgressBar", "FocusRing", "AppearanceSwitch", "TextSizeSwitch"]],
   // "Structure", not "Chrome": the word is the browser the gates drive, and the
   // reference is read by agents as often as by people, so the collision was one
   // we would have been adding on purpose. It is also the word the language file's

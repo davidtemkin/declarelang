@@ -123,13 +123,16 @@ Whether the list is open — what a screen reader hears as the combobox expanded
 ## accessibilityLabel
 The caption of a `Field` around it, else the `placeholder`, unless the use site names the combobox — its name to a screen reader, carried by
 the field inside, which is what holds the focus.
+
+## fieldValue
+Follows `value`, the chosen member: what `required` and `validate` judge (see `ValueControl`).
 */
 
-include [ "control.declare", "menu.declare" ]
+include [ "valuecontrol.declare", "menu.declare" ]
 
 use [ Menu ]
 
-class Combobox extends Control [
+class Combobox extends ValueControl [
     // a field and the list it drops: a combobox, expanded while its list is open;
     // the field inside is the text field a screen reader edits
 
@@ -147,6 +150,7 @@ class Combobox extends Control [
 
     items: array = null,        // the option members: records or strings
     value: object = null,       // the choice — the chosen member, or null
+    fieldValue = { value },
     placeholder: string = "",
 
     // what the choice is — `country`, `region` — so autofill and a phone's
@@ -177,6 +181,7 @@ class Combobox extends Control [
     // ── the delivery seam ─────────────────────────────────────────────────
 
     input(v: object) { value = v },
+    focusField() { Focus.focus(entry) },
 
     pickIndex(i: number) {
         const m = (this.matches ?? [])[i]
@@ -239,6 +244,14 @@ class Combobox extends Control [
         // the field is what a screen reader edits, so it carries the combobox's name
 
         accessibilityLabel = { classroot.accessibilityLabel },
+
+        // and its error and its being required; leaving the field (not for
+        // the list) is leaving the combobox
+
+        accessibilityError = { classroot.error },
+        stroke = { stroke(1, classroot.error != "" ? provided("theme").error : this.focused ? provided("theme").accent : provided("theme").line) },
+        accessibilityRequired = { classroot.accessibilityRequired },
+        onBlur() { if (classroot.judgeOn == "leave" && !classroot.listShown()) classroot.judged = true },
         accessibilityActiveItem = { classroot.list == null ? null : (classroot.list as any).accessibilityActiveItem },
         focusable = { !classroot.disabled },
         onInput(t: string) {

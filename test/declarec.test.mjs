@@ -579,8 +579,12 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // comes on only while a hand can be scrolling (a finger, one that just
   // travelled, a wheel, a scrolling key outside a text field, the bar), and the
   // scroll watcher's timers run on the platform's time — measured 153.2 KB.
+  // 154 → 155 KB (2026-10-26, forms): a text field knows what is wrong and when
+  // to say so (problem, judged, required, refused), joins its form and its Field,
+  // and submits on Return; a constraint that reads through an attribute stays on
+  // the tracking path — measured 154.2 KB.
   const wire = out.files.reduce((n, f) => n + gzipSync(Buffer.from(f.contents)).length, 0);
-  assert.ok(wire > 20 * 1024 && wire < 154 * 1024,
+  assert.ok(wire > 20 * 1024 && wire < 155 * 1024,
     `unexpected FIRST-LOAD size ${(wire / 1024).toFixed(1)} KB — ` +
     out.files.map((f) => `${f.name} ${(gzipSync(Buffer.from(f.contents)).length / 1024).toFixed(1)}`).join(", "));
 

@@ -76,11 +76,14 @@ Follows `checked`. A switch shows no label of its own, so **its use site names i
 ## accessibilityLabel
 The caption of a `Field` around it, unless the use site names the switch: its name to a screen
 reader.
+
+## fieldValue
+Follows `checked`: what `required` and `validate` judge (see `ValueControl`).
 */
 
-include [ "control.declare" ]
+include [ "valuecontrol.declare" ]
 
-class Switch extends Control [
+class Switch extends ValueControl [
     // a switch shows no label of its own, so its use site names it
     // (accessibilityLabel = "Wi-Fi"); it tells a screen reader whether it is on
 
@@ -91,6 +94,7 @@ class Switch extends Control [
     height = { provided("theme").switchHeight },
     cornerRadius = { height / 2 },
     checked: boolean = false,
+    fieldValue = { checked },
 
     input(v: boolean) { checked = v },
 

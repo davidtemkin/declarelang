@@ -1,0 +1,17 @@
+App [ width = 360, height = 240, fill = white,
+    email: string = "",
+    signIn: Form [ x = 20, y = 20, width = 300,
+        layout: SimpleLayout [ axis = y, spacing = 12 ],
+        Field [ label = "Email", stacked = true,
+            TextInput [ width = 300, name = "email", purpose = email, required = "Enter your email address.",
+                text = { app.email },
+                onInput(v: string) { app.email = v },
+                validate(v: string) -> string { return v.includes("@") ? "" : "Enter an email address like name@example.com." }
+                ]
+            ],
+        Button [ label = "Sign in", primary = true,
+            onClick() { parent.submit() }
+            ],
+        send() { app.email = "" }
+        ]
+    ]

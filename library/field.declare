@@ -1,12 +1,15 @@
 /*
 # Field
 
-A labeled form row: the label column, then whatever control the use site nests
-(its direct child, arranged by the row's layout):
+A labeled form row: the label, then whatever control the use site nests, and under the
+control **what is wrong with it** — its `error`, once it has been judged:
 
-    Field [ label = "Name", TextInput [ width = 220, height = 30 ] ]
+    Field [ label = "Name", TextInput [ width = 220, height = 30, required = "Enter your name." ] ]
 
-`labelWidth` is the shared-column knob.
+The label sits in a column beside the control (`labelWidth` is the shared-column knob), or
+above it with `stacked = true`. The control reports itself to the field it is in, so the
+field shows its message without being told which control it holds; a control of your own
+that extends `ValueControl` does the same.
 
 ```declare
 form: View [ x = 20, y = 20,
@@ -32,11 +35,31 @@ the same plain number** — one value, repeated or read from a shared attribute
 label: aggregating over sibling rows is exactly what the constraint system refuses, so
 the shared column is a value you state rather than one the form discovers.
 
+## stacked
+The label above the control rather than in a column beside it — the usual arrangement of a
+form read top to bottom, and of one on a phone.
+
+## control
+The control the field holds, as it reported itself: a `TextInput` or `ValueControl` inside.
+Null for anything else.
+
+## message
+What the field shows under its control: the control's `error`, empty when it says nothing.
+
 ## fieldLabel
 The caption, provided to what the field holds: a `TextInput`, `Switch`, `Checkbox`, `Slider` or
 `Combobox` inside takes it as its name to a screen reader unless it has its own
 (`accessibilityLabel`). A control of your own reads it the same way —
 `accessibilityLabel = { provided("fieldLabel", "") }`.
+
+## _field
+**Internal.** what a control inside reads to report itself to this field.
+
+## _hold()
+**Internal.** A control inside reports itself here.
+
+## _release()
+**Internal.** A control inside that goes takes itself back.
 */
 
 class Field [
@@ -44,14 +67,69 @@ class Field [
 
     label:      string = "",
     labelWidth: number = 96,
+    stacked:    boolean = false,
 
     // the caption names the control it holds, to a screen reader as to the eye:
     // provided, and the library's value controls take it as their name
 
     fieldLabel: string = { label },
 
-    layout: SimpleLayout [ axis = x, spacing = 12 ],
+    // the control inside reports itself here (it reads `_field`), so the field
+    // can show what is wrong with it
 
-    cap: Text [ y = 6, wrap = false, width = { labelWidth }, textColor = { provided("theme").textMuted },
-        text = { label } ]
+    _field: any = { this },
+    control: any = null,
+    _hold(c: any) { control = c },
+    _release(c: any) { if (control === c) control = null },
+    message: string = { this.control != null ? this.control.error : "" },
+
+    layout: FieldLayout [ ],
+
+    cap: Text [ wrap = false,
+        textColor = { provided("theme").textMuted }, text = { label } ],
+
+    msg: Text [ visible = { classroot.message != "" }, wrap = true, fontSize = 13,
+        textColor = { provided("theme").error }, text = { classroot.message } ]
+    ]
+
+
+/*
+# FieldLayout
+
+How a `Field` arranges what it holds: the caption in its column beside the control, or
+above it when the field is `stacked`; the control, or a row of them; and the message under
+the control, as wide as what it holds. A `Field` makes its own; nothing else needs one.
+
+```declare
+App [ fill = white,
+    Field [ x = 20, y = 20, label = "Name", stacked = true, TextInput [ width = 220, required = "Enter your name." ] ]
+    ]
+```
+*/
+
+class FieldLayout extends Layout [
+    place() {
+        const f = this.view as Field
+        const kids = this.laid()
+        const out = [] as any
+        const x0 = f.stacked ? 0 : f.labelWidth + 12
+        const y0 = f.stacked ? kids[0].height + 6 : 0
+        let x = x0
+        let h = 0
+        for (let i = 2; i < kids.length; i++) {
+            const c = kids[i]
+            if (!c.visible) continue
+            x = x + c.width + 12
+            h = Math.max(h, c.height)
+            }
+        out.push(f.stacked ? ({ x: 0, y: 0 }) : ({ x: 0, y: 6, w: f.labelWidth }))
+        out.push({ x: x0, y: y0 + h + 4, w: Math.max(160, x - 12 - x0) })
+        let cx = x0
+        for (let i = 2; i < kids.length; i++) {
+            const c = kids[i]
+            out.push({ x: cx, y: y0 })
+            if (c.visible) cx = cx + c.width + 12
+            }
+        return out
+        }
     ]

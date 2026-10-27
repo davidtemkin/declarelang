@@ -56,8 +56,9 @@ composite must **declare** which of its parts carries it.
 
 ## JudgeOn
 
-When a field first says what is wrong with its draft (`TextInput.judgeOn`): `edit` at every
-edit, `leave` once the field has been left — or `judge()` asked — and at every edit after.
+When a field first says what is wrong (`TextInput.judgeOn`, `ValueControl.judgeOn`): `leave`
+(the default) once it has been left, `judge()`d or submitted with its form — and at every edit
+after — or `edit` at every moment.
 
 ## SafeAreaMode
 

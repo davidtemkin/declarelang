@@ -33,7 +33,7 @@ export const RUNTIME_METHODS: Readonly<Record<string, readonly string[]>> = {
   // (islands.md): the provides list going down, the exposed values coming up,
   // and the verbs both ways — so they are listed on the concrete island.
   DOMIsland: ["exposed", "post"],
-  TextInput: ["commit", "revert", "judge", "select"],
+  TextInput: ["commit", "revert", "judge", "refuse", "select"],
   RichText: [],
   Markdown: [],
   HTMLText: [],

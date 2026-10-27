@@ -1,0 +1,311 @@
+/*
+# Form
+
+The place a set of fields is submitted from. The controls inside it — every `TextInput`
+and `ValueControl` that exists and is not disabled — **join it by being inside it**; there
+is nothing to register. It holds no values: they live wherever the program keeps them
+(the App, a model class, a dataset). It knows what is wrong, says so on submit, sends, and
+carries a service's refusals back to the fields they name.
+
+```declare
+App [ width = 360, height = 240, fill = white,
+    email: string = "",
+    signIn: Form [ x = 20, y = 20, width = 300,
+        layout: SimpleLayout [ axis = y, spacing = 12 ],
+        Field [ label = "Email", stacked = true,
+            TextInput [ width = 300, name = "email", purpose = email, required = "Enter your email address.",
+                text = { app.email }, onInput(v: string) { app.email = v },
+                validate(v: string) -> string { return v.includes("@") ? "" : "Enter an email address like name@example.com." } ] ],
+        Button [ label = "Sign in", primary = true, onClick() { parent.submit() } ],
+        send() { app.email = "" }
+        ]
+    ]
+```
+
+**The normal case sends to a service.** Give the form its `source` — the `DataSource`
+that sends — and `submit()` judges every member, sends when nothing is wrong, keeps
+`pending` while the request is out, and reads a refusal's body back onto the members by
+`name`. A message that names no member becomes the form's `error`. The source's own
+`onLoad` is where a success goes on, as ever.
+
+**A form with no service** leaves `source` out and says what sending is: `send()` runs
+when `submit()` finds nothing wrong, and the program saves however it likes there — to a
+`Dataset`, a file, the host page (the example above). An outside check (a name already
+taken in local data) is said with `refuse`. Slow work there sets `pending` itself while it
+runs.
+
+**Membership** is the form's subtree, with three edges:
+- an overlay (a `Sheet`, `Dialog`, `Popover`) is a boundary: a control in it belongs to a
+  `Form` inside the overlay, not to one around the place it is declared. A control set
+  apart on purpose names its form: `form = { app.payment }`;
+- a control inside another control is part of it: a `Combobox`'s entry field belongs to
+  the combobox, which is the member;
+- a member that is not shown (it, or a view above it, has `visible = false`) or is
+  disabled does not count: it is not judged, and its problems hold nothing up.
+
+## submit()
+Judges every member now, so every problem shows at once, each under its own field —
+fields the person never reached and fields autofill filled without focusing included.
+Withdraws the last refusals. If anything is wrong, `showProblems()`; otherwise `send()`.
+Does nothing while `pending`. Return in
+a single-line `TextInput` inside the form calls it, unless the field declares an `onEnter`
+of its own.
+
+## showProblems()
+What submit does when something is wrong. By default: when more than one field has a
+problem, it announces how many; it takes the focus to the first (in reading order),
+whose own message a screen reader then hears; a form-level `error` is announced. Override
+it to focus a summary of your own, scroll, or stay silent.
+
+## send()
+What `submit()` does when nothing is wrong. By default it sends `source` (and does nothing
+when there is none). A form with no service overrides it to save its own way; one with a
+`source` that also wants to do something first calls `super.send()` after. A send of the
+program's own has succeeded when it refused nothing — once `pending` is false, if it set
+it — and the fields are then judged afresh, so a field emptied for the next entry says
+nothing.
+
+## source
+The `DataSource` the form sends — a write: `method = "POST"`, its `body` built from the
+program's values. `pending` follows the request the form sent; when the service refuses,
+its `errorBody` goes through `refusal` onto the members. Leave it null to send another way
+(`send()`).
+
+## pending
+True while the request the form sent is out; `submit()` does nothing meanwhile. A form
+with no `source` sets it itself around slow work in `send()`, and back to false when the
+work is done. Keep the Submit button
+focusable while pending (say so in its label); `submit()` already ignores the press.
+
+## submitted
+Whether `submit()` has been tried since the last success. A presentation that shows
+nothing until a submit reads it.
+
+## problems
+Every counted member's current `problem`, in reading order: `{ name, message, control }`
+each. It does not wait for judging, so it is the fact a summary, a banner or a count is
+built on.
+
+## valid
+Whether nothing is wrong: no member has a problem and `validate()` is satisfied.
+
+## error
+The message that belongs to no field: a refusal that names none (a card declined), a name
+no counted member has, the form's own `validate()` on submit, or `failedMessage` when the
+request failed without a readable reply. Shown wherever the program places it.
+
+## validate()
+The form's own rule, for what belongs to no one field — return `""` when it is fine, or
+the sentence. A rule that does belong to a field goes on that field (`validate` there may
+read any other value).
+
+## refuse()
+`refuse(problems)` lays problems on the form from anywhere: each `{ name, message }` lands
+on the counted member of that `name` as its `refused`, and the rest become `error`. A
+refusal reaches it from `source` by itself; a service that answers success with errors in
+the body (GraphQL does) calls it from the source's `onLoad`.
+
+## refusal()
+`refusal(body)` reads a refusal's body into problems. It understands one field
+(`{ "field", "message" }`), a list (`{ "errors": [ … ] }` with `field`, `path`, a JSON
+`pointer` or JSON:API's `source.pointer`, and `message`, `detail` or `title`), and a bare
+`{ "message" }`, which names no field. A pointer is read as a dotted name
+(`#/billing/postalCode` is `billing.postalCode`) and matched exactly. Override it to map
+a service's own shape, its codes to the program's sentences, or another language.
+
+## refusedWith()
+`refusedWith(body)` runs when the service refuses, after the refusal has been laid on the
+members, with the body — the program's own reaction: release the seats a conflict names,
+empty a declined card's code.
+
+## failedMessage
+What `error` says when the request failed with nothing readable — no reply at all, or a
+reply that is not a refusal. Say it in the program's own words.
+
+## members
+The controls in the form, counted or not. Kept by the controls themselves.
+
+## _form
+**Internal.** what the controls inside read to find their form.
+
+## _sending
+**Internal.** the form's own request is out.
+
+## _out
+**Internal.** whether `source` is loading — watched to learn how the form's request ended.
+
+## _join()
+**Internal.** A control inside joins the form.
+
+## _leave()
+**Internal.** A control that goes leaves it.
+
+## _counts()
+**Internal.** Whether a member counts: enabled, and shown up to the form.
+
+## _collect()
+**Internal.** Gathers the counted members' problems in reading order.
+
+## _proceed()
+**Internal.** Submit's second half, once the judging has settled.
+
+## _landed()
+**Internal.** Decides whether a send of the program's own went well.
+
+## _succeeded()
+**Internal.** A send went well: the fields are judged afresh.
+
+## _nameOf()
+**Internal.** Reads a pointer or path as a dotted name.
+*/
+
+// One thing wrong: the member's address, what to say, and the member, when there is one.
+
+schema FormProblem [ name: string, message: string, control?: any ]
+
+class Form [
+    // what the controls inside read to find their form
+
+    _form: any = { this },
+
+    source: DataSource? = null,
+    failedMessage: string = "That didn't go through, and nothing was saved. Try again.",
+
+    members: any[] = [],
+    _join(c: any) { if (!members.includes(c)) members = [...members, c] },
+    _leave(c: any) { members = members.filter((m) => m !== c) },
+
+    // a member counts while it is enabled and shown, up to the form
+
+    _counts(c: any) -> boolean {
+        if (c.disabled === true) return false
+        let v = c
+        while (v != null && v !== this) {
+            if (v.visible === false) return false
+            v = v.parent
+            }
+        return v === this || c.form === this
+        },
+
+    problems: FormProblem[] = { this._collect() },
+    _collect() -> FormProblem[] {
+        const out: FormProblem[] = []
+        for (const c of members) if (this._counts(c) && c.problem != "") out.push({ name: c.name, message: c.problem, control: c })
+        return out.sort((a, b) => {
+            const p = a.control.rootOrigin()
+            const q = b.control.rootOrigin()
+            return p.y != q.y ? p.y - q.y : p.x - q.x
+            })
+        },
+    validate() -> string { return "" },
+    valid: boolean = { this.problems.length == 0 && this.validate() == "" },
+
+    error: string = "",
+    submitted: boolean = false,
+    _sending: boolean = false,
+    pending: boolean = { this._sending },
+
+    submit() {
+        if (pending) return
+        submitted = true
+        error = ""
+        for (const c of members) {
+            if (c.refused != "") c.refuse("")
+            if (this._counts(c)) c.judged = true
+            }
+        afterSettle(() => this._proceed())
+        },
+    _proceed() {
+        const own = validate()
+        if (problems.length > 0 || own != "") {
+            if (own != "") error = own
+            showProblems()
+            return
+            }
+        send()
+        if (source == null) afterSettle(() => this._landed())
+        },
+
+    // a send of the program's own has gone well when, once nothing is pending,
+    // it refused nothing: the fields are judged afresh from here
+
+    _landed() {
+        if (pending || error != "" || members.some((c) => c.refused != "")) return
+        _succeeded()
+        },
+    _succeeded() {
+        for (const c of members) c.judged = false
+        submitted = false
+        error = ""
+        },
+    send() {
+        if (source == null) return
+        _sending = true
+        ;(source as any).fetch()
+        },
+
+    showProblems() {
+        if (error != "") Accessibility.announce(error, "assertive")
+        const ps = problems
+        if (ps.length == 0) return
+        if (ps.length > 1) Accessibility.announce(ps.length + " fields need attention.", "assertive")
+        const c = ps[0].control
+        if (typeof c.focusField == "function") c.focusField()
+        else Focus.focus(c)
+        },
+
+    refusedWith(body: any) { },
+
+    refuse(list: FormProblem[]) {
+        const rest: string[] = []
+        for (const p of list) {
+            const c = p.name == "" ? null : members.find((m) => m.name == p.name && this._counts(m))
+            if (c != null && p.message != "") c.refuse(p.message)
+            else if (p.message != "") rest.push(p.message)
+            }
+        error = rest.join(" ")
+        },
+
+    refusal(body: any) -> FormProblem[] {
+        const say = (e: any) => e == null ? "" : String(e.message ?? e.detail ?? e.title ?? "")
+        const out: FormProblem[] = []
+        if (body != null && typeof body == "object") {
+            if (Array.isArray(body.errors)) {
+                for (const e of body.errors) {
+                    const where = e.field ?? e.path ?? e.pointer ?? e.source?.pointer ?? e.source?.parameter ?? ""
+                    if (say(e) != "") out.push({ name: this._nameOf(String(where)), message: say(e) })
+                    }
+                }
+            else if (body.field != null && say(body) != "") out.push({ name: this._nameOf(String(body.field)), message: say(body) })
+            if (out.length == 0 && say(body) != "") out.push({ name: "", message: say(body) })
+            }
+        if (out.length == 0) out.push({ name: "", message: failedMessage })
+        return out
+        },
+    _nameOf(where: string) -> string {
+        let p = where.startsWith("#") ? where.slice(1) : where
+        if (p.startsWith("/")) p = p.slice(1)
+        if (p.startsWith("data/attributes/")) p = p.slice(16)
+        return p.split("/").join(".")
+        },
+
+    // what became of the request the form sent
+
+    _out: boolean = { this.source != null && this.source.loading },
+    trackChanges = ["_out", "pending"],
+    onChange(e: ChangeEvent) {
+        if (source == null) {
+            if (submitted && !pending && e.changed.some((c) => c.name == "pending")) _landed()
+            return
+            }
+        if (_out || !_sending) return
+        _sending = false
+        if ((source as any).failed) {
+            const body = (source as any).errorBody ?? null
+            refuse(refusal(body))
+            refusedWith(body)
+            afterSettle(() => this.showProblems())
+            }
+        else _succeeded()
+        }
+    ]

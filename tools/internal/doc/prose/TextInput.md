@@ -6,13 +6,20 @@ submit, and inherits View's focus and keyboard events.
 Bind `text <-> :path` to edit a dataset record two-way — the field reads the datapath,
 commits edits back into the dataset, and reseeds when the cursor moves to a new record. The
 dataset owns the committed value; the field owns the **edit session** — its draft, when the
-draft commits (`commitOn`), and whether it is any good (`valid` / `error` / `dirty`).
+draft commits (`commitOn`), and whether it is any good (`problem` / `valid` / `error` / `dirty`).
 
-**`validate(v)` is a method you declare** on the field. It is called with the field's text
-whenever that changes, and before every commit. Return `""` when it is good, and otherwise the
-message to show. The message becomes `error`, `valid` follows it, and on a two-way field a
-draft that fails never reaches the dataset. Keep it pure: it judges the value it is given (and
-whatever else it reads, such as a field it must match).
+**What is wrong, and when to say so, are two facts.** `problem` is what is wrong with the
+text **now**: a service's refusal (`refused`), then `required`, then **`validate(v)`, a method
+you declare** — return `""` when the text is good, otherwise the sentence to show. `valid` is
+`problem` being empty. `error` is `problem` once the field has been **judged** — left, `judge()`d,
+or submitted with its form — and is what the field shows and a screen reader hears. On a
+two-way field a draft that fails `validate` never reaches the dataset. `validate` is reactive:
+it judges the value it is given and whatever else it reads (a field it must match, the
+country a postal code depends on), again whenever any of it changes.
+
+**A field in a `Form`** joins it by being inside it. Its `name` is the key a service names it
+by; the form judges it on submit, lays a service's refusal on it, and Return in it submits
+the form.
 
 **Any field can be judged**, two-way or not. A `text <-> :path` field also commits and keeps
 `dirty`; a field the program fills itself (`text = { app.found.address }` with `onInput`) has
@@ -153,14 +160,50 @@ For a `text <-> :path` field, **when** a valid draft commits into the dataset: `
 `"manual"` (never automatically — only when you call `commit()`). Point the datapath at the
 real record for autosave, or at a working copy you commit on a Save button for a transaction.
 
+## problem
+**Read-only.** What is wrong with the text now, whatever has been judged: the refusal while
+the text is the one refused, then `required`, then `validate()`, then (on a two-way field) the
+schema's own check ("must be a number"). `""` when nothing is. The fact a presentation of its
+own is built on; a `Form` lists its fields' problems.
+
 ## error
-**Read-only.** The current validation message for the field's text, or `""` when valid —
-recomputed whenever the text changes, so what you own is `validate()`, not this attribute. Show
-it with a label that reads it (`text = { app.field.error }`).
+**Read-only.** `problem` once the field is judged (at every moment under `judgeOn = "edit"`),
+else `""` — the default display rule. A `Field` shows it under the field, a screen reader hears
+it with the field, and the field's edge takes the theme's `error` colour while it says
+something. What you own is `validate()` and `required`, not this attribute.
 
 ## valid
-**Read-only.** Whether the text passes `validate()` — recomputed with `error`. A form-wide "can save" is just a constraint over several fields' `valid` (no
-form object needed).
+**Read-only.** Whether `problem` is empty — immediately, whatever has been judged.
+
+## judged
+Whether the field has been judged: left once, `judge()`d, or submitted with its form. Writable:
+set it back to `false` for a fresh try (a security code emptied after a decline), and the
+field says nothing until it is left again.
+
+## name
+The field's address in its form — the key a service names it by when it refuses a value
+(`{ "field": "email", "message": "…" }`). A path is allowed (`"billing.postalCode"`). Independent
+of the field's name in the view tree; leave it empty for a field no service names.
+
+## required
+`true`, or **the message to say**, when the field may not be left empty (or only spaces):
+`required = "Enter your email address."`. With `true` the message is "Required"; say your own
+wherever a person will read it. A screen reader hears the field as required either way.
+
+## refused
+An outside message about the field's text — a service's refusal, laid here by its form or by
+`refuse()`. It is the field's `problem` while the text is the one refused, and stops counting
+as soon as the text changes.
+
+## refuse()
+`refuse(message)` says an outside message about the current text (see `refused`); `""`
+withdraws it.
+
+## form
+The `Form` the field belongs to: the nearest one above it, unless set. Set it
+(`form = { app.payment }`) for a field that sits outside its form's views. A field inside an
+overlay belongs to a form inside the overlay, and one inside another control (a combobox's
+entry) is part of that control.
 
 ## dirty
 **Read-only.** Whether the draft of a two-way field differs from the committed dataset
@@ -168,22 +211,23 @@ value — the session maintains it; `commit()` and `revert()` are what clear it.
 or an unsaved-changes prompt.
 
 ## judgeOn
-**When** `error` first says what is wrong with the draft: `"edit"` (on every edit — the
-default) or `"leave"` — not until the field has been left once, or `judge()` asked. A field
-marked wrong while the person is still typing in it for the first time is a common annoyance;
-`"leave"` waits for them to finish. `valid` is true to the draft either way, so a form's
-"can this be sent?" never waits. Once judged, the field follows each edit.
+**When** `error` first says what is wrong: `leave` (the default) — once the field has been
+left, `judge()`d, or submitted with its form — or `edit`, at every moment. A field marked wrong
+while the person is still typing in it for the first time is the common annoyance `leave`
+avoids. Once judged, the field follows each edit, so the message goes the moment the text is
+right. `problem` and `valid` are true to the text either way.
 
 ## judge()
-Say what is wrong with the draft now, without waiting for the field to be left — for a Save
-or a Send that checks every field: `onClick() { form.title.judge(); form.body.judge() }`.
-Only matters with `judgeOn = "leave"`.
+Judge the field now, without waiting for it to be left. A `Form`'s `submit()` judges every
+field it holds; call this for a field outside any form.
 
 ## validate()
-Declare it on the field to judge its draft: return `""` (or `true`) when it is fine, and
-otherwise the sentence that says what is wrong — it becomes `error`, and `valid` is false.
-`validate(v: string) -> string { return v.includes("@") ? "" : "That is not an address" }`.
-A draft that fails it never reaches the dataset. When the message first shows is `judgeOn`'s.
+Declare it on the field to judge its text: return `""` (or `true`) when it is fine, and
+otherwise the sentence that says what is wrong — it becomes `problem` (and so `error`, once
+judged), and `valid` is false. It runs when `required` is met.
+`validate(v: string) -> string { return /^[0-9]{5}$/.test(v) ? "" : "Enter a 5-digit ZIP code." }`.
+It is reactive: a rule that reads another value judges again when that value changes. A draft
+that fails it never reaches the dataset.
 
 ## commit()
 Commit the current draft into the bound dataset field, if it validates — for a
@@ -200,7 +244,9 @@ Fires on every edit, carrying the new text — for live validation or search-as-
 ## onEnter
 Fires when the user submits the field with Return: always on a single-line field, and on a
 `multiline` one that sets `enterSubmits` (where Shift-Return makes the newline instead).
-On a plain `multiline` field Return makes a newline and this does not fire.
+On a plain `multiline` field Return makes a newline and this does not fire. A single-line
+field in a `Form` that declares no `onEnter` submits the form on Return; one that declares it
+says what Return does itself.
 
 
 ## select()

@@ -21,7 +21,7 @@ import { Constraint, settle } from "./reactive.js";
 import { Focus } from "./focus.js";
 import { fontMetrics, fontString, wrapEditable, type TextStyle, type FontWeight } from "./measure.js";
 import { heldFamily, type FamilyValue } from "./font-value.js";
-import { isTwoWay, edited, commitDraft, revertDraft, judgeDraft, judgeOwnDraft } from "./editor.js";
+import { isTwoWay, edited, commitDraft, revertDraft, judgeDraft, runValidate, floorError } from "./editor.js";
 import { insetSides, stroke, type Color, type Inset } from "./value.js";
 import { hintsOf, type Purpose } from "./purpose.js";
 
@@ -58,14 +58,30 @@ export class TextInput extends View {
   // ── the edit session (editor.ts): `text` is the draft ──
   /** "input" (live) | "blur" | "enter" | "manual" — when a valid draft commits. */
   declare commitOn: string;
-  /** "edit" | "leave" — when `error` first says what is wrong: at every edit,
-   *  or once the field has been left (or judge() asked). `valid` is true to
-   *  the draft either way. */
+  /** "leave" (the default) | "edit" — when `error` first says what is wrong:
+   *  once the field has been left (or judged), or at every edit. `problem`
+   *  and `valid` are true to the draft either way. */
   declare judgeOn: string;
-  /** The current validation message, "" when valid (reactive). */
+  /** What is wrong with the value now, "" when nothing is: the refusal, then
+   *  `required`, then `validate`, then the schema floor (reactive). */
+  declare problem: string;
+  /** `problem` once judged — the default display rule (reactive). */
   declare error: string;
-  /** Does the draft pass validate()? (reactive) */
+  /** Is `problem` empty? (reactive) */
   declare valid: boolean;
+  /** Has the field been judged: left, `judge()`d, or submitted with its form. Writable. */
+  declare judged: boolean;
+  /** The field's address in its form: the key a service names it by. */
+  declare name: string;
+  /** `true`, or the message to say, when the field may not be left empty. */
+  declare required: boolean | string;
+  /** An outside message about the value — a service's refusal. It counts while
+   *  the value is the one refused. */
+  declare refused: string;
+  /** The form this field belongs to: the nearest `Form` above, unless set. */
+  declare form: View | null;
+  /** The value `refused` was said of (captured when it is written). */
+  $refusedValue: unknown = undefined;
   /** Does the draft differ from the committed value? (reactive) */
   declare dirty: boolean;
 
@@ -82,6 +98,35 @@ export class TextInput extends View {
   /** @api Say what is wrong with the draft now, without waiting for the field
    *  to be left — for a Save or a Pay that checks every field. */
   judge(): void { judgeDraft(this, "text"); }
+
+  /** @api Say an outside message about the current value — a service's
+   *  refusal. It is the field's `problem` until the value changes; `""`
+   *  withdraws it. A form's `refuse` lays a service's problems this way. */
+  refuse(message: string): void {
+    this.refused = "";
+    this.$refusedValue = this.text;
+    this.refused = message;
+  }
+
+  /** Install the judging derives — `problem`, `valid`, `error` — once: at
+   *  attach, or on the first edit-session refresh of a field never attached. */
+  $judging(): void {
+    if (this.$judges) return;
+    this.$judges = true;
+    bindDerived(this, "problem", () => this.$problem());
+    bindDerived(this, "valid", () => this.problem === "");
+    bindDerived(this, "error", () => (this.judgeOn === "edit" || this.judged ? this.problem : ""));
+  }
+  private $judges = false;
+
+  /** What is wrong with the value now — the one rule `problem` derives. */
+  private $problem(): string {
+    const text = this.text;
+    if (this.refused !== "" && text === this.$refusedValue) return this.refused;
+    const req = this.required;
+    if (req !== false && req !== "" && text.trim() === "") return typeof req === "string" ? req : "Required";
+    return runValidate(this, text) ?? floorError(this, "text") ?? "";
+  }
 
   override $attach(backend: RenderBackend, parentSurface: Surface | null, before: Surface | null = null): void {
     // A text field is a tab stop by default, and not while disabled; an
@@ -107,8 +152,39 @@ export class TextInput extends View {
     if (!isSet(this, "text") && ownerOf(this, "text") === null && !isTwoWay(this, "text")) {
       bindDerived(this, "text", () => this.initial);
     }
-    // a field the program owns is judged by its own validate(), as a bound one is
-    judgeOwnDraft(this, "text");
+    // What is wrong, and whether to say so (editor.ts, forms): `problem` is
+    // the truth now — the refusal, `required`, the field's own `validate`,
+    // the schema floor — and reactive over whatever `validate` reads; `valid`
+    // is its emptiness; `error` is the default display rule, `problem` once
+    // the field is judged (or at every edit, under judgeOn = edit).
+    this.$judging();
+    if (!isSet(this, "accessibilityRequired") && ownerOf(this, "accessibilityRequired") === null)
+      bindDerived(this, "accessibilityRequired", () => this.required !== false && this.required !== "");
+    // Membership (library form.declare): the field joins the form it is in,
+    // and reports itself to the Field around it, through the members those
+    // classes declare — the same protocol a library ValueControl keeps.
+    let joined: View | null = null;
+    const member = new Constraint("TextInput.form", () => this.form, (f) => {
+      if (joined === f) return;
+      (joined as unknown as { _leave?: (c: View) => void } | null)?._leave?.(this);
+      joined = f as View | null;
+      (joined as unknown as { _join?: (c: View) => void } | null)?._join?.(this);
+    }, 0);
+    let held: View | null = null;
+    const field = new Constraint("TextInput.field", () => providedRead(this, "_field", true, null), (f) => {
+      if (held === f) return;
+      (held as unknown as { _release?: (c: View) => void } | null)?._release?.(this);
+      held = f as View | null;
+      (held as unknown as { _hold?: (c: View) => void } | null)?._hold?.(this);
+    }, 0);
+    member.run();
+    field.run();
+    onDiscard(this, () => {
+      member.dispose();
+      field.dispose();
+      (joined as unknown as { _leave?: (c: View) => void } | null)?._leave?.(this);
+      (held as unknown as { _release?: (c: View) => void } | null)?._release?.(this);
+    });
     // The house FIELD rendition (library-charter §6: a bare TextInput must
     // carry real visual articulation — today's edgeless default is a defect).
     // Same YIELDING-derive pattern as the seed above: reactive on the
@@ -133,7 +209,7 @@ export class TextInput extends View {
     if (!isSet(this, "accessibilityError") && ownerOf(this, "accessibilityError") === null)
       bindDerived(this, "accessibilityError", () => this.error);
     if (!isSet(this, "stroke") && ownerOf(this, "stroke") === null)
-      bindDerived(this, "stroke", () => stroke(1, this.focused ? tok("accent", 0x2E6FE0) : tok("line", 0xDBE1E9)));
+      bindDerived(this, "stroke", () => stroke(1, this.error !== "" ? tok("error", 0xC93429) : this.focused ? tok("accent", 0x2E6FE0) : tok("line", 0xDBE1E9)));
     if (!isSet(this, "cornerRadius") && ownerOf(this, "cornerRadius") === null)
       bindDerived(this, "cornerRadius", () => tok("fieldCornerRadius", tok("controlCornerRadius", 7)));
     if (!isSet(this, "padding") && ownerOf(this, "padding") === null)
@@ -232,7 +308,11 @@ export class TextInput extends View {
       },
       onEnter: () => {
         if (this.commitOn === "enter" && isTwoWay(this, "text")) commitDraft(this, "text");
+        // Return in a single-line field submits its form, as on the web —
+        // unless the field says what Return does itself (an `onEnter`).
+        const own = typeof (this as unknown as { onEnter?: unknown }).onEnter === "function";
         fireEvent(this, "enter");
+        if (!own && !this.multiline && this.form !== null) (this.form as unknown as { submit?: () => void }).submit?.();
       },
       onSelect: (start, end) => {
         if (this.selectionStart !== start) this.selectionStart = start;
@@ -377,10 +457,17 @@ defineAttributes(TextInput, {
   selectionEnd: { def: 0 },
   disabled: { def: false, push: (t) => t.$syncEditable() },
   commitOn: { def: "input" },
-  judgeOn: { def: "edit" },
+  judgeOn: { def: "leave" },
+  problem: { def: "" },
   error: { def: "" },
   valid: { def: true },
   dirty: { def: false },
+  judged: { def: false },
+  name: { def: "" },
+  required: { def: false },
+  // a refusal is said OF a value: written, it remembers the text it was said of
+  refused: { def: "", push: (t, v) => { if (v !== "") (t as TextInput).$refusedValue = (t as TextInput).text; } },
+  form: { def: null, defBinding: providedDefault("_form", null) },
 });
 
 // what a TextInput is to assistive technology (View.$leafRole), in a build with the layer

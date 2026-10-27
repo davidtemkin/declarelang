@@ -139,9 +139,10 @@ function readDraft(f: ShapeField | null, draft: unknown): { v: unknown; error: s
 /** Run the editor's own `validate(v)` method if it declares one. Returns an
  *  error MESSAGE (string) or null when valid. Pure and local by design — a
  *  `validate` that returns `false` means "invalid" (a generic message), a
- *  string is the message, and `true`/null/"" mean valid. Form-wide validity is
- *  not special-cased: it is an ordinary constraint over fields' `valid` slots. */
-function runValidate(view: View, v: unknown): string | null {
+ *  string is the message, and `true`/null/"" mean valid. Reactive where it is
+ *  called under tracking: a rule that reads another value re-judges when that
+ *  value changes. */
+export function runValidate(view: View, v: unknown): string | null {
   const fn = (view as unknown as Record<string, unknown>).validate;
   if (typeof fn !== "function") return null;
   const r = (fn as (x: unknown) => unknown).call(view, v);
@@ -150,58 +151,31 @@ function runValidate(view: View, v: unknown): string | null {
   return String(r);
 }
 
-/** Editors whose value has been judged — left once, or asked (judge()). */
-const JUDGED = new WeakSet<View>();
+/** @api The schema floor's message for a bound field's draft — "must be a
+ *  number" — or null: structure, which only a two-way field has. */
+export function floorError(view: View, name: string): string | null {
+  const s = sessionOf(view, name);
+  if (s === undefined) return null;
+  return readDraft(declaredFloor(view, s), (view as unknown as Record<string, unknown>)[name]).error;
+}
 
 /** @api Judge the draft now: an editor that judges on leaving says what is
- *  wrong from here on. Leaving the field does this; so may a Save. */
-export function judgeDraft(view: View, name: string): void {
-  JUDGED.add(view);
-  refresh(view, name);
+ *  wrong from here on. Leaving the field does this; so may a Save, and a
+ *  form's submit. `judged` is the editor's own slot, which the program may
+ *  also write back to false (a field emptied for a fresh try). */
+export function judgeDraft(view: View, _name: string): void {
+  if ((view as unknown as { judged?: boolean }).judged !== true) setBound(view, "judged", true);
 }
 
-/** Publish an OPTIONAL session slot only when the editor declares it, so
- *  `error`/`valid`/`dirty` stay pay-per-use. */
-function publish(view: View, name: string, v: unknown): void {
-  if (name in view) setBound(view, name, v);
-}
-
-/** Recompute + publish the session state (error / valid / dirty). Cheap; called
- *  after any draft change or reseed. */
+/** Recompute + publish the session's `dirty`. `problem`, `valid` and `error`
+ *  are the field's own derives (text-input.ts), over the same rule. */
 function refresh(view: View, name: string): void {
+  (view as unknown as { $judging?: () => void }).$judging?.();
   const s = sessionOf(view, name);
-  if (s === undefined && typeof (view as unknown as Record<string, unknown>).validate !== "function") return;
+  if (s === undefined) return;
   const draft = (view as unknown as Record<string, unknown>)[name];
-  // the author's judgment first (their message, written for this form), then
-  // the schema floor (structure — "must be a number"), which only a bound
-  // field has
-  const err = runValidate(view, draft) ?? (s === undefined ? null : readDraft(declaredFloor(view, s), draft).error);
-  // `valid` is the truth from the first keystroke; the MESSAGE waits, when the
-  // editor judges on leaving, until the field has been left once (or judge())
-  const speaks = (view as unknown as { judgeOn?: string }).judgeOn !== "leave" || JUDGED.has(view);
-  publish(view, "error", speaks ? err ?? "" : "");
-  publish(view, "valid", err === null);
-  if (s !== undefined) publish(view, "dirty", draft !== committed(view, s));
+  if ("dirty" in view) setBound(view, "dirty", draft !== committed(view, s));
 }
-
-/** @api A field the program owns (no `<->`) that declares `validate()`: it is
- *  judged on its own draft slot whenever the draft changes — a keystroke or the
- *  program's write alike — and on whatever else `validate` reads. `judgeOn`,
- *  `judge()`, `error` and `valid` mean what they mean for a bound field; there
- *  is no commit and no `dirty`, since nothing is written back. */
-export function judgeOwnDraft(view: View, name: string): void {
-  if (isTwoWay(view, name) || OWN_JUDGED.has(view)) return;
-  if (typeof (view as unknown as Record<string, unknown>).validate !== "function") return;
-  OWN_JUDGED.add(view);
-  const watch = new Constraint(
-    `${view.constructor.name}.validate`,
-    () => runValidate(view, (view as unknown as Record<string, unknown>)[name]),
-    () => refresh(view, name)
-  );
-  onDiscard(view, () => watch.dispose());
-  watch.run();
-}
-const OWN_JUDGED = new WeakSet<View>();
 
 /** @api The user changed the draft (a native edit, a picker selection). Refresh
  *  the session, and commit now if the policy is live (`commitOn === "input"`). */

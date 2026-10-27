@@ -67,11 +67,14 @@ Follows `checked`; the visible label is the name.
 The caption of a `Field` around it, unless the use site names the checkbox; with neither, its
 `label` is its name. A checkbox with no `label` — a task's in a list — is named at its use site:
 `accessibilityLabel = :title`.
+
+## fieldValue
+Follows `checked`: what `required` and `validate` judge (see `ValueControl`).
 */
 
-include [ "control.declare" ]
+include [ "valuecontrol.declare" ]
 
-class Checkbox extends Control [
+class Checkbox extends ValueControl [
     baseline: number = { this.cap.y + this.cap.baseline },   // a row aligns the control by its label
 
     // keyboard focus rings the box alone, not box+label (the Radio rule)
@@ -79,6 +82,7 @@ class Checkbox extends Control [
     focusShape() { return ({ x: this.box.x, y: this.box.y, w: this.box.width, h: this.box.height, rad: this.box.cornerRadius }) },
     height = 24,
     checked: boolean = false,
+    fieldValue = { checked },
     label:   string = "",
 
     // a checkbox, named by its label, telling a screen reader whether it is checked
@@ -105,6 +109,7 @@ class Checkbox extends Control [
         cornerRadius = { provided("theme").checkboxCornerRadius ?? Math.min(8, Math.max(3, provided("theme").controlCornerRadius - 2)) },
         fill   = { checked ? provided("theme").accent : provided("theme").control },
         stroke = { stroke(1, checked ? provided("theme").accent : hovered || pressed ? provided("theme").textMuted : provided("theme").line) },
+        State [ applied = { classroot.error != "" }, stroke = { stroke(1, provided("theme").error) } ],
 
         // The tick, from the shared set — drawn, so it is pixel-identical on
         // every renderer and independent of any font. Sized from the box,

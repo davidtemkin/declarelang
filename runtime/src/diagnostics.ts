@@ -31,6 +31,7 @@
 // and the migration to specific codes is incremental.
 
 import { DeclareError, describePos, type Pos } from "./errors.js";
+import { memberHint } from "./teach.js";
 
 /** `hint` is the third tier, below `warning`: the program is correct and the
  *  compiler has a shorter way to say it. A hint never blocks and never counts
@@ -327,7 +328,9 @@ export const Diag = {
   unknownHandler: (owner: string, name: string, known: readonly string[], pos: Pos, near = known.find((h) => h.toLowerCase() === name.toLowerCase() || editDistance(h, name) <= 2) ?? null): DeclareError =>
     err(code4(4019), near !== null
       ? `${owner} has no '${name}' event — '${near}' is the handler, so '${name}' never fires; as written it is an ordinary method`
-      : `${owner} has no '${name}' event, so '${name}' is an ordinary method; a method that answers no event reads best without the 'on' prefix`, pos),
+      : memberHint(name) !== ""
+        ? `${owner} has no '${name}' event, so '${name}' never runs as one — ${memberHint(name)}`
+        : `${owner} has no '${name}' event, so '${name}' is an ordinary method; a method that answers no event reads best without the 'on' prefix`, pos),
   // Accessibility (docs/system-design/accessibility.md §3.7). A role is a
   // contract: the class that declares it must set what the role reads and have
   // the methods its actions call — an error, since a slider with no value is a

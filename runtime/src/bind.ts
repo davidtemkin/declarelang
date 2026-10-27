@@ -12,7 +12,7 @@
 import { deferral } from "./boot-deferrals.js";
 import { DeclareError, type Pos } from "./errors.js";
 import { Constraint, kernel, touchCell, readsCellDuring } from "./reactive.js";
-import { defaultOf, markPercent, setPercentMark, own, release, setBound, provideWrite, computingProvision, slotCellOf, writeOwned, isSetOrOwned, ownerOf, kernelLanding } from "./attributes.js";
+import { defaultOf, hasSlot, markPercent, setPercentMark, own, release, setBound, provideWrite, computingProvision, slotCellOf, writeOwned, isSetOrOwned, ownerOf, kernelLanding } from "./attributes.js";
 import { KERNEL_FLAG } from "./kernel-loader.js";
 import { watchingContentRead } from "./size-probe.js";
 import { compileExpr, type ExprFn } from "./expr.js";
@@ -388,7 +388,12 @@ export function bindConstraint(
   // would take it out of its parent's content size, and a parent sized by its
   // content would collapse round it.
   const byBranch = derived && branches(src);
-  const expr = plan !== null && !byBranch ? plan.expr : null;
+  // A read reached THROUGH an attribute (`this.control.error`, where `control`
+  // is a slot the program rebinds) cannot be prewired: the edge would be bound
+  // on whatever the slot held at link time, and stay there when it changed.
+  // Such a constraint runs on the tracking path, which subscribes afresh each run.
+  const rebindable = deps !== undefined && deps.some((p) => readsThroughSlot(view, classroot, p));
+  const expr = plan !== null && !byBranch && !rebindable ? plan.expr : null;
   if (expr !== null) {
     if (bindKernelExpr(view, name, expr, classroot, `${view.constructor.name}.${name}`, src, pos, yielding, deps, derived)) { exprStats.kernel++; return; }
     exprStats.fallback++;
@@ -434,7 +439,7 @@ export function bindConstraint(
   // dataset's tracked view (data.ts trackedView) makes such reads subscribe to
   // region cells, which live on the value tree and are recreated with it, so
   // the tracking path (re-tracked each run) is the only honest wiring here too.
-  if (plan !== null && plan.probes !== null && !byBranch) {
+  if (plan !== null && plan.probes !== null && !byBranch && !rebindable) {
     // Each read-path is an analyzable expression (`this.$root.n`, `this.theme`);
     // compiled once per template and read under tracking to wire the (stable) edge.
     const probes = plan.probes;
@@ -446,6 +451,25 @@ export function bindConstraint(
   } else {
     k.run();
   }
+}
+
+/** Does a read-path step through an attribute on its way to the slot it reads
+ *  — `this.control.error`, `classroot.form.pending` — rather than through
+ *  children, `parent`, `classroot` or the runtime's `$` internals, which a
+ *  program does not rebind? An index or a call in the chain counts as through. */
+function readsThroughSlot(view: Node, classroot: View | null, path: string): boolean {
+  if (path.startsWith(":")) return false;
+  const segs = path.split(".");
+  if (segs.length < 3) return false;
+  let node: unknown = segs[0] === "this" ? view : segs[0] === "parent" ? view.parent : segs[0] === "classroot" ? classroot : undefined;
+  for (let i = 1; i < segs.length - 1; i++) {
+    const seg = segs[i];
+    if (!/^[A-Za-z_$][\w$]*$/.test(seg)) return true;
+    if (typeof node !== "object" || node === null) return false;
+    if (!seg.startsWith("$") && hasSlot(node, seg)) return true;
+    node = (node as Record<string, unknown>)[seg];
+  }
+  return false;
 }
 
 /** Bind `name = :path` (a value slot reading data, language §9): a standing

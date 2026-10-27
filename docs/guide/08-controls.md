@@ -132,6 +132,12 @@ written, and it can wait for Enter or a Save button before it lands.
 [Data](declare-docs:guide:data@editing-text-and-forms) covers drafts and forms. `<->` is for text fields only;
 the compiler refuses it on a checkbox or a slider and names the value pattern instead.
 
+Every control that holds a value — the ones above, a `Combobox`, a `DatePicker`, and any
+of your own that extends [`ValueControl`](declare-docs:ValueControl) — can be **checked like a field**:
+`required` (`true` or the message), `validate(v)`, and a `name` a service refuses it by. A
+[`Form`](declare-docs:Form) around them judges them all on submit; a [`Field`](declare-docs:Field) around one shows
+what is wrong with it under it ([Data](declare-docs:guide:data@a-form)).
+
 Say what a field holds with [`purpose`](declare-docs:TextInput.purpose) —
 `email`, `password`, `cardNumber`, `postalCode` and the rest — and the platform helps
 with it: the browser's autofill and a password manager recognise the field and offer to

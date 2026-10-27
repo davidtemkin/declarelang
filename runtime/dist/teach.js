@@ -89,6 +89,12 @@ export const MEMBER_HINTS = {
     insertBefore: "a view is made in place with createView(tag, props) on its parent and ordered with raise(below); for a list, declare one child and let the data replicate it",
     removeChild: "a view leaves with discard(); a replicated one leaves when its record does",
     root: "the top of the tree is 'app', which every body can read; a class's own top is 'classroot'",
+    // form instincts (React Hook Form, Formik, HTML)
+    onSubmit: "a Form's submit hook is send(): submit() runs it when nothing is wrong, and by default it sends the form's source",
+    handleSubmit: "a Form submits with submit(): it judges every field, shows what is wrong, and calls send() when nothing is",
+    setError: "a field takes an outside message with refuse(message); a Form lays a service's problems on its fields with refuse(problems)",
+    touched: "whether a field has been judged (left, judge()d, or submitted) is 'judged'",
+    isValid: "whether a field or a Form has nothing wrong is 'valid'; what is wrong now is 'problem' (a Form's: 'problems')",
 };
 /** The member-instinct hint for a name read on a node, or "". */
 export function memberHint(name) {

@@ -109,11 +109,14 @@ Follows `step` — what one increment moves. A slider shows no name, so its use 
 ## accessibilityLabel
 The caption of a `Field` around it, unless the use site names the slider: its name to a screen
 reader.
+
+## fieldValue
+Follows `value`: what `required` and `validate` judge (see `ValueControl`).
 */
 
-include [ "control.declare" ]
+include [ "valuecontrol.declare" ]
 
-class Slider extends Control [
+class Slider extends ValueControl [
 
     // what a screen reader is told: a slider, its value and range in the
     // slider's own units, named by whatever the use site names it
@@ -130,6 +133,7 @@ class Slider extends Control [
     focusShape() { return ({ x: this.thumb.x, y: this.thumb.y, w: this.thumb.width, h: this.thumb.height, rad: this.thumb.width / 2 }) },
     width = 220, height = 28,
     value: number = 0,
+    fieldValue = { value },
     min:   number = 0,
     max:   number = 100,
     step:  number = 1,

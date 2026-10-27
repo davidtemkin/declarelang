@@ -213,6 +213,9 @@ export declare function cellIdsOf(self: object): number[];
 /** The slot's class-level default — what a `:path` binding falls back to
  *  when the path is unresolved (the doc's rule, language §9). */
 export declare function defaultOf(self: object, name: string): unknown;
+/** Is `name` an attribute of this object (a slot its class defines or a
+ *  program declares) — as against a child, a method, or a plain property? */
+export declare function hasSlot(self: object, name: string): boolean;
 /** Retire every constraint that owns a slot on `self` — the teardown half a
  *  removed view needs (R8's replication is the first thing that removes):
  *  disposed constraints unlink from their Cells, so a later data or

@@ -473,74 +473,123 @@ own order — one request per file, chained in `onLoad`, or a list of files in o
 A text field can edit a record directly, both ways, with `<->`:
 [`TextInput [ text <-> :name ]`](declare-docs:TextInput). Type and the record follows; change the record and the
 field follows. Under a schema, a number field commits the parsed number, and a draft that
-cannot be read as the field's type never reaches the data.
+cannot be read as the field's type never reaches the data. **[`commitOn`](declare-docs:TextInput.commitOn)** decides when a
+draft lands: `"input"` (live, the default), `"blur"`, `"enter"`, or `"manual"` — only on
+[`commit()`](declare-docs:TextInput.method.commit). Drafts belong to text fields because an in-progress value can be unrepresentable
+in the data (`"12/3"` is not a date); a checkbox or a slider writes at once.
 
-A form usually wants more: a **draft** the user is editing, validated, that lands only
-when it is good and only when they say so. That is a text field's edit session — it
-belongs to [`TextInput`](declare-docs:TextInput):
+When *nothing* should be written until the person says so, point the form at a **working
+copy** — a plain `draft: Dataset { { } }`, filled when editing starts with
+`app.draft.set([], structuredClone(app.record.value))` — let every control write to it, and
+copy it across when it is saved. The copy is what makes it a draft: a derived dataset would
+hold the record itself, and its writes would land at once. Values can just as well live on
+the App or on a model class of their own, as computed defaults that follow an account until
+the person types.
 
-```declare
-App [ width = 400, height = 220, fill = white, textColor = black,
-    rec: Dataset { { "name": "Ada", "email": "ada@example.com" } },
+### A form
 
-    canSave: boolean = { app.col.nameF.valid && app.col.mailF.valid
-                      && (app.col.nameF.dirty || app.col.mailF.dirty) },
+What a field may hold is said **on the field**: `required` (`true`, or the message to say),
+and `validate(v)`, a method that returns `""` when the value is fine and otherwise the
+sentence that says what is wrong. A [`Form`](declare-docs:Form) gathers the fields inside it — there is
+nothing to register — and sends them. The normal case sends to a service: the form's
+`source` is the `DataSource` that writes, its `body` built from wherever the values live.
 
-    col: View [ x = 20, y = 20, width = 360, datapath = { rec.value },
-        layout: SimpleLayout [ axis = y, spacing = 10 ],
+```declare-fragment
+email: string = "",
+password: string = "",
+session: DataSource [ url = "/api/session", method = "POST",
+    body = { { email: app.email, password: app.password } },
+    onLoad() { app.signedIn() } ],
 
-        nameF: TextInput [ width = 250, height = 28, padding = 5, cornerRadius = 6, fill = gainsboro,
-            commitOn = "manual", text <-> :name, accessibilityLabel = "Name",
-            validate(v: string) -> string { return v.length > 0 ? "" : "Name is required" }
-            ],
-        mailF: TextInput [ width = 250, height = 28, padding = 5, cornerRadius = 6, fill = gainsboro,
-            commitOn = "manual", text <-> :email, accessibilityLabel = "Email",
-            validate(v: string) -> string { return v.includes("@") ? "" : "That is not an address" }
-            ],
-
-        msg: Text [ width = 340, textColor = firebrick,
-            text = { app.col.nameF.error != "" ? app.col.nameF.error : app.col.mailF.error } ],
-
-        row: View [ height = 30,
-            layout: SimpleLayout [ axis = x, spacing = 8 ],
-            Button [ label = "Save", primary = true, disabled = { !app.canSave },
-                onClick() { app.col.nameF.commit(); app.col.mailF.commit() }
-                ],
-            Button [ label = "Revert",
-                onClick() { app.col.nameF.revert(); app.col.mailF.revert() }
-                ]
-            ]
-        ]
+signIn: Form [ source = { app.session },
+    layout: SimpleLayout [ axis = y, spacing = 14 ],
+    Field [ label = "Email", stacked = true,
+        TextInput [ width = 280, name = "email", purpose = email, required = "Enter your email address.",
+            text = { app.email }, onInput(v: string) { app.email = v },
+            validate(v: string) -> string { return v.includes("@") ? "" : "Enter an email address like name@example.com." } ] ],
+    Field [ label = "Password", stacked = true,
+        TextInput [ width = 280, name = "password", purpose = password, required = "Enter your password.",
+            text = { app.password }, onInput(v: string) { app.password = v } ] ],
+    Text [ visible = { parent.error != "" }, text = { parent.error } ],
+    Button [ label = { parent.pending ? "Signing in…" : "Sign in" }, primary = true,
+        onClick() { parent.submit() } ]
     ]
 ```
 
-Empty a field and Save disables itself; fix it and Save returns. **[`commitOn`](declare-docs:TextInput.commitOn)** decides
-when a valid draft lands: `"input"` (live, the default), `"blur"`, `"enter"`, or
-`"manual"` — only on [`commit()`](declare-docs:TextInput.method.commit). **`validate(v)`** returns `""` for valid or the message
-otherwise. From those, three facts follow — [`valid`](declare-docs:TextInput.valid), `error` and [`dirty`](declare-docs:TextInput.dirty) — and an invalid
-draft never reaches the dataset. `canSave` is an ordinary constraint over them: no form
-object, no submit handler. A field the program fills itself — `text = { … }` with an
-`onInput` — takes the same `validate`, and gets the same `valid` and `error`; it just has
-nothing to commit. Such a field can regroup its text as it is typed — a card number in
-fours — by putting the caret back with [`select()`](declare-docs:TextInput.method.select) after writing; `selectionStart` in
-`onInput` is the caret after the keystroke.
+There is no flag to keep and no handler for failure:
 
-Drafts belong to text fields because an in-progress value can be unrepresentable in the
-data (`"12/3"` is not a date). A checkbox or slider writes immediately. When *nothing*
-should be written until Save, move the buffer into the data instead: point the form at a
-working copy — a plain `draft: Dataset { { } }`, filled when editing starts with
-`app.draft.set([], structuredClone(app.record.value))` — let every control write to it
-freely, and copy it across on Save with `app.record.set([], structuredClone(app.draft.value))`.
-The copy is what makes it a draft: a derived dataset would hold the record itself, and
-its writes would land in the record at once. Validate the model, not the widgets: a
-`canSave` computed over the draft covers controls that have no `valid` of their own.
+- **A field says what is wrong once it has been left**, and from then on at every edit, so the
+  message goes the moment the value is right. Nothing is marked wrong while it is first typed.
+- **[`submit()`](declare-docs:Form.method.submit) judges every field at once** — the ones the person never reached and the ones
+  autofill filled included — so every problem shows together, each under its own field, and
+  the focus goes to the first. Return in a field submits too. Nothing is sent while anything
+  is wrong, and nothing twice while `pending`.
+- **Keep Submit enabled.** A button disabled until the form is valid hides the reason, and an
+  autofilled form can leave it disabled for good; pressing it is what explains. (`pending` is
+  the one time it waits: say so in its label.)
+- **The service's refusal lands on the field it names.** A reply such as
+  `{ "field": "email", "message": "That address already has an account." }` puts the
+  sentence under the email field until the email changes; one that names no field
+  (`{ "message": "Your card was declined." }`) becomes the form's `error`. Lists of errors,
+  RFC 9457 problem details and JSON:API errors are read the same way, matched to each field's
+  `name`; [`refusal(body)`](declare-docs:Form.method.refusal) is overridable for a service with its own shape, and
+  [`refusedWith(body)`](declare-docs:Form.method.refusedWith) is where the program reacts (releasing seats a conflict names).
+- **A rule may read other values.** `validate(v: string) -> string { return postalProblem(v, app.country) }`
+  judges again when the country changes. A rule that belongs to no one field is the form's
+  own `validate()`.
+
+[`Field`](declare-docs:Field) puts the label beside or above its control and the control's `error` under it
+(its arrangement is a [`FieldLayout`](declare-docs:FieldLayout)).
+Any control that holds a value is a field: a `Checkbox`, `Switch`, `RadioGroup`, `Combobox`,
+`DatePicker`, `Slider` or `Stepper` takes `name`, `required` and `validate` the same way, and a
+control of your own does by extending [`ValueControl`](declare-docs:ValueControl).
+
+### A form with no service
+
+A form that saves locally says what sending is: [`send()`](declare-docs:Form.method.send) runs when `submit()` finds
+nothing wrong. A check only the program can make — a name already taken — is said on the
+field with `refuse(message)`, and holds until the value changes:
+
+```declare
+App [ width = 380, height = 220, fill = white, textColor = black,
+    names: Dataset { { "rows": [ { "name": "Ada" } ] } },
+    draft: string = "",
+    add: Form [ x = 20, y = 20, width = 340,
+        layout: SimpleLayout [ axis = y, spacing = 12 ],
+        Field [ label = "Name", stacked = true,
+            entry: TextInput [ width = 240, name = "name", required = "Enter a name.",
+                text = { app.draft }, onInput(v: string) { app.draft = v } ] ],
+        Button [ label = "Add", primary = true, onClick() { parent.submit() } ],
+        send() {
+            const taken = (app.names.value?.rows ?? []).some((r) => r.name == app.draft.trim())
+            if (taken) { refuse([({ name: "name", message: "That name is taken." })]); return }
+            app.names.set("/rows/-", ({ name: app.draft.trim() }))
+            app.draft = ""
+            }
+        ],
+    Text [ x = 20, y = 160, text = { (app.names.value?.rows ?? []).map((r) => r.name).join(", ") } ]
+    ]
+```
+
+Slow work in `send()` sets `pending` itself while it runs.
+
+### Errors shown your own way
+
+The form and its fields hold facts, not a look; `Field` is one way to show them. Each field
+has `problem` — what is wrong **now**, whatever has been judged — beside `error`, the default
+rule (`problem` once judged). The form has `problems` (every field's, in reading order),
+`error`, `submitted` and `valid`. One message in a place of your choosing is
+`text = { app.signIn.problems[0]?.message ?? app.signIn.error }`; nothing until a submit and
+then everything reads `problem` where `submitted` is true; a summary at the top replicates
+over `problems` and overrides [`showProblems()`](declare-docs:Form.method.showProblems) to take the focus there.
 
 ### A form in a sheet
 
 A form that opens for each new thing (a sheet that creates a page, a dialog that adds an
 entry) is its own view class, and it **exists only while it is open**: `exists` builds it
 when the sheet opens and discards it when the sheet closes. Its fields are its own
-attributes, so every opening starts from its defaults, with nothing to reset.
+attributes, so every opening starts from its defaults, with nothing to reset. A sheet is a
+boundary for forms: the `Form` goes inside it.
 
 A value the form suggests until the person sets it is a **computed default**: the
 address below follows the title, character by character, until the person writes an
@@ -551,25 +600,27 @@ No flag says whether it was edited. The field shows it with `initial`, the edita
 ```declare
 // the page being written: built when the sheet opens and gone when it closes,
 // so every opening starts empty, with the address suggested again
-class NewPage [ width = 300,
+class NewPage extends Form [ width = 300,
     title: string = "",
     // the address follows the title until the person writes one
     slug: string = { classroot.title.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") },
     layout: SimpleLayout [ axis = y, spacing = 10 ],
-    TextInput [ width = 300, placeholder = "Title", onInput(t: string) { classroot.title = t } ],
-    TextInput [ width = 300, placeholder = "Address", initial = { classroot.slug },
-        onInput(t: string) { classroot.slug = t } ],
-    Text [ visible = { app.saveError != "" }, width = 300, wrap = true, textColor = firebrick, text = { app.saveError } ],
-    Button [ label = "Create", primary = true, disabled = { classroot.title == "" },
-        onClick() { app.create(classroot) } ]
+    TextInput [ width = 300, placeholder = "Title", name = "title", required = "Give the page a title.",
+        accessibilityLabel = "Title", onInput(t: string) { classroot.title = t } ],
+    TextInput [ width = 300, placeholder = "Address", name = "slug", initial = { classroot.slug },
+        accessibilityLabel = "Address", onInput(t: string) { classroot.slug = t } ],
+    Button [ label = "Create", primary = true, onClick() { classroot.submit() } ],
+    send() { app.create(this) }
     ]
 
 App [ width = 400, height = 300, fill = white, textColor = black,
     pages: Dataset { { "rows": [ { "title": "About", "slug": "about" } ] } },
     adding: boolean = false,
-    saveError: string = "",
     create(p: NewPage) {
-        if ((app.pages.value?.rows ?? []).some((r) => r.slug == p.slug)) { app.saveError = "A page already has that address."; return }
+        if ((app.pages.value?.rows ?? []).some((r) => r.slug == p.slug)) {
+            p.refuse([({ name: "slug", message: "A page already has that address." })])
+            return
+            }
         app.pages.set("/rows/-", ({ title: p.title, slug: p.slug }))
         app.adding = false
         },
@@ -577,16 +628,13 @@ App [ width = 400, height = 300, fill = white, textColor = black,
         Button [ label = "New page", onClick() { app.adding = true } ],
         Text [ text = { (app.pages.value?.rows ?? []).map((r) => "/" + r.slug).join("  ") } ] ],
     sheet: Sheet [ accessibilityLabel = "New page", shown = { app.adding },
-        input(open: boolean) { app.adding = open; app.saveError = "" },
+        input(open: boolean) { app.adding = open },
         NewPage [ exists = { app.adding } ] ]
     ]
 ```
 
-The refusal lands where the person is looking: `create` checks, says why in `saveError`,
-and leaves the sheet open; the sheet's own close clears it. A form that saves to a server
-does the same with a `DataSource`: Save fetches, `onLoad` closes the sheet, and the
-source's `failed` and `error` are the message
-([Talking to a server](declare-docs:guide:data@talking-to-a-server)).
+The refusal lands where the person is looking — under the address — and the sheet stays
+open; a form that saves to a service does the same with its `source`.
 
 ## Data in a whole app
 

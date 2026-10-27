@@ -68,7 +68,7 @@ await test("--semantics prints the whole tree, and direction reaches the page", 
 await test("a field the program owns is judged by validate(), when typed and when the program sets it", () => {
   const f = join(DIR, "card.declare");
   writeFileSync(f, `App [ width = 400, height = 200, card: string = "",
-    f: TextInput [ width = 300, accessibilityLabel = "Card", text = { app.card },
+    f: TextInput [ width = 300, accessibilityLabel = "Card", text = { app.card }, judgeOn = edit,
         onInput(t: string) { app.card = t.replace(/\\D/g, "") },
         validate(v: string) -> string { return v.length == 4 ? "" : "4 digits" } ],
     set: Button [ y = 100, label = "set", onClick() { app.card = "1234" } ] ]`);

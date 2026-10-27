@@ -1,0 +1,227 @@
+/*
+# ValueControl
+
+The base of a control that **holds a value a person sets** — a checkbox, a switch, a
+choice of one, a date, a number — and so can be checked, required, refused by a service,
+and gathered into a `Form`. It is a `Control` (focus, keyboard, `disabled`) with the words
+a field needs, the same words a `TextInput` has:
+
+- `required`, `validate(v)` and `refused` say what can be wrong;
+- `problem` is what is wrong **now**, `valid` that nothing is, and `error` is `problem`
+  once the control has been **judged** — left, `judge()`d, or submitted with its form;
+- `name` is its address in its form: the key a service names it by.
+
+A concrete control says what its value is by setting `fieldValue` (a `Checkbox`'s is
+`checked`, a `Combobox`'s its `value`), and when that counts as empty by `empty` if the
+default does not fit. Extend it for a value control of your own:
+
+```declare
+class Rating extends ValueControl [ width = 120, height = 24,
+    stars: number = 0,
+    fieldValue = { stars },
+    empty = { stars == 0 },
+    input(v: number) { stars = v },
+    press() { input(stars % 5 + 1) },
+    TextLabel [ text = { "★".repeat(classroot.stars) + "☆".repeat(5 - classroot.stars) } ]
+    ]
+
+App [ Rating [ x = 20, y = 20, required = "Rate your stay." ] ]
+```
+
+A control inside another control is part of it, not a member of a form of its own: the
+entry field of a `Combobox` belongs to the combobox, which is the member.
+
+## name
+The control's address in its form — the key a service names it by when it refuses a value
+(`{ "field": "country", "message": "…" }`). A path is allowed (`"billing.country"`). It is
+independent of the control's name in the view tree; leave it empty for a control no
+service names.
+
+## required
+`true`, or **the message to say**, when the control may not be left empty:
+`required = "Choose the country."`. Empty is what `empty` says. With `true` the message is
+"Required"; say a message of your own wherever a person will read it. Screen readers hear
+the control as required either way.
+
+## validate()
+The control's own rule: given the value, return `""` when it is fine, or the sentence that
+says what is wrong. It runs when `required` is met, and it is **reactive** — a rule that
+reads another value (`app.form.country`) judges again when that value changes.
+
+## refused
+An outside message about the value — usually a service's refusal, laid here by a form's
+`refuse` or the control's own `refuse(message)`. It is the control's `problem` while the
+value is the one refused, and stops counting when the value changes.
+
+## refuse()
+`refuse(message)` says an outside message about the current value (see `refused`); `""`
+withdraws it.
+
+## problem
+What is wrong with the value **now**, whatever has been judged: the refusal, then
+`required`, then `validate`. Empty when nothing is. The fact any presentation can be built
+on; a `Form` lists its members' problems.
+
+## valid
+Whether `problem` is empty.
+
+## error
+`problem` once the control is judged, else empty — the default display rule, and what a
+`Field` shows under the control and a screen reader hears with it. Under `judgeOn = edit`
+it is `problem` at every moment.
+
+## judged
+Whether the control has been judged: left, `judge()`d, or submitted with its form.
+Writable: set it back to false for a fresh try (a security code emptied after a decline).
+
+## judgeOn
+When `error` first says what is wrong: `leave` (the default) once the control has been
+left, `edit` at every moment.
+
+## judge()
+Judges the control now, as leaving it would.
+
+## form
+The form the control belongs to: the nearest `Form` above it, unless set — set it
+(`form = { app.payment }`) for a control that sits outside its form's views, as in a sheet
+of its own.
+
+## fieldValue
+The value the rules judge: `validate(v)` receives it, `required` asks whether it is
+`empty`, and a refusal is said of it. Each concrete control sets it from its own value.
+
+## empty
+Whether `fieldValue` counts as empty for `required`: `blank(fieldValue)` by default. A
+control whose empty is something else says so (a rating of 0).
+
+## blank()
+`blank(v)`: null, `""`, `false` or an empty list.
+
+## onRetire
+A control that goes leaves its form and its `Field`. An override calls `super.onRetire()`.
+
+## focusField()
+Puts the focus where a person fixes this control's value — the control itself, or its
+entry field when it has one. A form calls it to take the person to a problem.
+
+## accessibilityError
+Follows `error`: the control is invalid to a screen reader while it says something.
+
+## accessibilityRequired
+Follows `required`.
+
+## _refusedValue
+**Internal.** the value `refused` was said of.
+
+## _refusing
+**Internal.** the refusal still counts (the value is the one refused).
+
+## _missing
+**Internal.** required and empty.
+
+## _requiredSays
+**Internal.** the message a missing value says.
+
+## _form
+**Internal.** a control's parts belong to it, not to a form of their own.
+
+## _field
+**Internal.** the same for a `Field` around the control.
+
+## _inField
+**Internal.** the `Field` this control is in, if any.
+*/
+
+include [ "control.declare" ]
+
+class ValueControl extends Control [
+    name: string = "",
+    required: boolean | string = false,
+    judgeOn: JudgeOn = leave,
+    judged: boolean = false,
+
+    // what the rules judge, set by each concrete control from its own value
+
+    fieldValue: any = null,
+    empty: boolean = { this.blank(this.fieldValue) },
+    blank(v: any) -> boolean {
+        if (v == null || v === "" || v === false) return true
+        return Array.isArray(v) && v.length == 0
+        },
+
+    // a refusal is said OF a value: it counts while the value is that one
+
+    refused: string = "",
+    _refusedValue: any = null,
+
+    validate(v: any) -> string { return "" },
+
+    _refusing: boolean = { this.refused != "" && this.fieldValue === this._refusedValue },
+    _missing: boolean = { this.required !== false && this.required !== "" && this.empty },
+    _requiredSays: string = { typeof this.required == "string" ? this.required : "Required" },
+    problem: string = { this._refusing ? this.refused : this._missing ? this._requiredSays : this.validate(this.fieldValue) },
+    valid: boolean = { this.problem == "" },
+    error: string = { this.judgeOn == "edit" || this.judged ? this.problem : "" },
+
+    // the form above, unless set; what is inside this control is part of it,
+    // so it provides "no form" (and "no field") to its own parts
+
+    form: any = { provided("_form", null) },
+    _form: any = null,
+    _field: any = null,
+    _inField: any = { provided("_field", null) },
+
+    accessibilityError = { this.error },
+    accessibilityRequired = { this.required !== false && this.required !== "" },
+
+    refuse(message: string) {
+        _refusedValue = fieldValue
+        refused = message
+        },
+    judge() { judged = true },
+    focusField() { Focus.focus(this) },
+
+    // a control that goes leaves its form and its field (an override calls super.onRetire())
+
+    onRetire() { _member.retire() },
+
+    // Membership and judging on leave are kept by this member, not by the
+    // control's own handlers, so a subclass's `onInit` or `onBlur` cannot
+    // drop them: it joins the form the control is in, reports the control to
+    // the Field around it, and judges the control when the focus leaves it.
+
+    _member: Node [
+        f: any = { classroot.form },
+        fld: any = { classroot._inField },
+        here: boolean = { classroot.focused },
+        _joined: any = null,
+        _held: any = null,
+        trackChanges = ["f", "fld", "here"],
+        sync() {
+            if (_joined !== f) {
+                if (_joined != null) _joined._leave(classroot)
+                _joined = f
+                if (f != null) f._join(classroot)
+                }
+            if (_held !== fld) {
+                if (_held != null) _held._release(classroot)
+                _held = fld
+                if (fld != null) fld._hold(classroot)
+                }
+            },
+        onInit() { sync() },
+        onChange(e: ChangeEvent) {
+            sync()
+            // leaving judges — but not for the control's own popup (a date
+            // picker's calendar), which the focus visits while choosing
+            if (e.changed.some((c) => c.name == "here") && !here && classroot.judgeOn == "leave"
+                && classroot.accessibilityExpanded !== true) classroot.judged = true
+            },
+        retire() {
+            if (_joined != null) _joined._leave(classroot)
+            if (_held != null) _held._release(classroot)
+            _joined = null
+            _held = null
+            }
+        ]
+    ]
