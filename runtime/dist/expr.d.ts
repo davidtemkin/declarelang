@@ -26,7 +26,15 @@ export declare const FILTER_FN_NAMES: readonly string[];
  *  parent and classroot as arguments, so all three scope nouns resolve
  *  naturally. */
 export type ExprFn = (this: unknown, parent: unknown, classroot: unknown) => unknown;
-export declare function compileExpr(src: string): {
+/** A compiled body's NAME for a stack: `//# sourceURL=` on its function, so a
+ *  frame reads `declare/Form.showProblems@library/form.declare:295` instead of
+ *  an anonymous `eval (:6:16)` — what a page error names a program by. Bodies
+ *  are memoized by their text, so identical text shares the first site's name. */
+export declare function bodyLabel(owner: string, member: string, pos?: {
+    line: number;
+    file?: string;
+} | null): string;
+export declare function compileExpr(src: string, label?: string): {
     fn: ExprFn;
 } | {
     error: string;
@@ -60,7 +68,7 @@ export type BodyFn = (this: unknown, parent: unknown, classroot: unknown, base: 
  *  exactly as language §4 promises ("their names are in scope in the body").
  *  Scope rules and the replacement plan are compileExpr's, unchanged. The
  *  error fragment matches the compileExpr pattern for callers to prefix. */
-export declare function compileBody(params: readonly string[], src: string): {
+export declare function compileBody(params: readonly string[], src: string, label?: string): {
     fn: BodyFn;
 } | {
     error: string;

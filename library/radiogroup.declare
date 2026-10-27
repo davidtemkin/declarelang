@@ -138,13 +138,14 @@ Disabled dims the whole choice, dot and label alike — to the theme's `disabled
 or 0.45 when the theme states none.
 
 ## height
-Tall enough for the dot and a 2px margin either side: the theme's `radioSize` (18 by default) plus 4.
+Tall enough for the dot and a 2px margin either side: the theme's `radioSize` (18 by default) plus 4 —
+and on a touch-first device at least 44, a finger's target, the dot unchanged.
 
 ## accessibilityChecked
 Follows `on`: whether this choice is the group's `value`.
 */
 
-class Radio extends Control [ height = { this.dot.width + 4 },
+class Radio extends Control [ height = { Math.max(this.dot.width + 4, app.touchFirst ? 44 : 0) },
     baseline: number = { this.cap.y + this.cap.baseline },   // a row aligns the control by its label
 
     // keyboard focus rings the round dot itself, not the dot-plus-label row

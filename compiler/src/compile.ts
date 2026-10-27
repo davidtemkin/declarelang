@@ -2204,6 +2204,14 @@ class Resolver {
         });
         continue;
       }
+      if (id.name === "afterSettle" && id.callee && !expression) {
+        // `afterSettle(fn)` in a handler — the step belongs to the node that
+        // asked, as afterDelay's wait does (Node.$afterSettle): discarded before
+        // the settle closes, the node drops it. In a value { } it stays the
+        // global (a value computes; the step is the settle's).
+        this.edits.push({ start: bodyStart + id.start, end: bodyStart + id.end, text: "this.$afterSettle" });
+        continue;
+      }
       if (id.name === "afterDelay" && id.callee) {
         // `afterDelay(ms, fn)` — run fn once, later. Rewritten to the base-node
         // method so the wait belongs to the node whose handler asked (a

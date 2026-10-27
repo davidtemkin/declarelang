@@ -140,6 +140,12 @@ what holds the browser's focus; `declare-look --js` is the same door for a one-o
 Its scrollbars are real ones, the classic bar Windows and Linux draw, so a script can grab a
 thumb with the page's mouse and drag it as a person would.
 
+**A live service remembers.** A script that talks to a running service changes it: the seats
+it bought are sold the next time it runs, and a script that picks a fixed seat then fails for
+reasons that are not the program's. Write a script to take what is available now, reset the
+service if it offers a way, or answer from files with `--fixtures <dir>`. A run reports the writes
+it sent, and a run that fails after earlier runs wrote to the same service says so.
+
 A script runs on a laptop-sized window by default. To run it on another device, export one:
 `export const device = { width: 390, height: 844, touch: true }` — the app loads once, on it.
 `drive` and `expect` drive the app by **view path**, never by DOM selector. A path names

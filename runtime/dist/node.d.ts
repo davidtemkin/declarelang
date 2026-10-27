@@ -64,6 +64,14 @@ export declare class Node {
     $afterDelay(ms: number, fn: () => void): {
         cancel(): void;
     };
+    /** The call behind `afterSettle(fn)` in a handler — run `fn` at the close of
+     *  the current settle. The compiler rewrites the callee to
+     *  `this.$afterSettle`, so the step belongs to the node whose handler asked,
+     *  as `afterDelay`'s wait does: a node discarded before the settle closes
+     *  drops it, and its step never reads a node that is gone (a form leaving
+     *  the screen inside its own refusal handler threw from its deferred
+     *  `showProblems()`). */
+    $afterSettle(fn: () => void): void;
     /** The read behind `hostProvided("name", default)` — a value this program's
      *  HOST makes available: an island's `provides` name, a page's
      *  a page's `tenant.provide(…)`, the native host's launch parameters. The compiler

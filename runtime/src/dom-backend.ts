@@ -53,6 +53,35 @@ function clipToBox(r: { x: number; y: number; w: number; h: number }, w: number,
   return { x, y, w: Math.max(0, Math.min(r.x + r.w, w + 1) - x), h: Math.max(0, Math.min(r.y + r.h, h + 1) - y) };
 }
 
+/** A TAP'S LATE MOUSEDOWN. On a touch device the browser sends its
+ *  compatibility mouse events after the touch has ended — after the tap's own
+ *  work has run. When that work moved the focus (a sheet the tap opened put it
+ *  in its first field), the late mousedown on what was tapped takes the focus
+ *  back: the field is left, and judged, before anyone has touched it. So that
+ *  mousedown is refused its default, and the focus stays where the program put
+ *  it. A tap whose work moved no focus — a tap into a text field, which that
+ *  same mousedown is what focuses — is left alone. The runtime routes presses
+ *  from pointer events, so nothing else hears the difference. */
+const TAP_GUARDED = new WeakSet<Document>();
+function guardTapFocus(doc: Document): void {
+  if (TAP_GUARDED.has(doc)) return;
+  TAP_GUARDED.add(doc);
+  let tap: { at: Node | null; moved: boolean; up: boolean } | null = null;
+  doc.addEventListener("pointerdown", (e) => {
+    tap = (e as PointerEvent).pointerType === "touch" ? { at: e.target instanceof Node ? e.target : null, moved: false, up: false } : null;
+  }, true);
+  doc.addEventListener("focusin", (e) => {
+    if (tap === null || !(e.target instanceof Node)) return;
+    const t = e.target;
+    // the tapped element taking focus itself (or what holds it) is the tap's own
+    if (tap.at !== null && (t === tap.at || t.contains(tap.at) || tap.at.contains(t))) return;
+    tap.moved = true;
+  }, true);
+  doc.addEventListener("pointerup", (e) => { if (tap !== null && (e as PointerEvent).pointerType === "touch") tap.up = true; }, true);
+  doc.addEventListener("mousedown", (e) => { if (tap !== null && tap.up && tap.moved) e.preventDefault(); }, true);
+  doc.addEventListener("click", () => { if (tap !== null && tap.up) tap = null; }, true);
+}
+
 function keepingFocus(el: HTMLElement, move: () => void): void {
   const active = el.ownerDocument.activeElement as HTMLElement | null;
   const held = active !== null && active !== el.ownerDocument.body && el.contains(active) ? active : null;
@@ -599,6 +628,7 @@ export class DomBackend implements RenderBackend {
     // …and while the user IS pinch-zoomed, scroller containment yields to
     // viewport panning (see watchPinchZoom — the measured iOS chain trap).
     watchPinchZoom(host.ownerDocument);
+    guardTapFocus(host.ownerDocument);
     // The ROOT's scroll regime is the page (applyScrollStyle's root branch) —
     // but attach ran before the declareApp stamp, so the element still wears
     // the PANE realization. Re-apply now that root-ness is knowable.

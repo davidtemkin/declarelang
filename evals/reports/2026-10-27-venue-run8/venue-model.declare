@@ -1,0 +1,318 @@
+/*
+# The Venue: the model
+
+What the service holds, as the program sees it: the shapes of its replies, the
+plain functions that write amounts, dates and card numbers out, and the two
+dataset classes with logic of their own — the production, and one
+performance's seat map, which the event stream keeps true.
+
+`venue.declare` includes this file.
+*/
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+//
+// Functions of their arguments only: writing values out, and the rules a card
+// number, an expiry and a postal code must keep.
+
+script {
+    const API = "http://127.0.0.1:8350"
+
+    const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+    // "2026-11-13T19:30" is the hall's local time, as printed on a ticket:
+    // read it as written, never through a time zone.
+    function stamp(iso: string): number[] {
+        const [d, t] = iso.split("T")
+        const [y, m, day] = d.split("-").map(Number)
+        const [h, min] = (t ?? "0:0").split(":").map(Number)
+        return [y, m, day, h, min]
+    }
+    function dayLabel(iso: string): string {
+        if (iso == "") return ""
+        const [y, m, d] = stamp(iso)
+        return DAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()] + " " + d + " " + MONTHS[m - 1]
+    }
+    function weekday(iso: string): string {
+        if (iso == "") return ""
+        const [y, m, d] = stamp(iso)
+        return ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][new Date(Date.UTC(y, m - 1, d)).getUTCDay()]
+    }
+    function timeLabel(iso: string): string {
+        if (iso == "") return ""
+        const [, , , h, min] = stamp(iso)
+        const h12 = h % 12 == 0 ? 12 : h % 12
+        return h12 + ":" + (min < 10 ? "0" : "") + min + (h < 12 ? "am" : "pm")
+    }
+    function isMatinee(iso: string): boolean { return iso != "" && stamp(iso)[3] < 17 }
+
+    function money(cents: number): string {
+        return "$" + (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    }
+    function seatCount(n: number): string { return n + (n == 1 ? " seat" : " seats") }
+    function seatName(section: string, row: string, n: number): string { return section + ", row " + row + ", seat " + n }
+
+    // ── cards
+
+    function digitsOf(s: string): string { return s.replace(/\D/g, "") }
+
+    function brandOf(digits: string): string {
+        if (/^3[47]/.test(digits)) return "amex"
+        if (/^4/.test(digits)) return "visa"
+        if (/^(5[1-5]|2[2-7])/.test(digits)) return "mastercard"
+        if (/^(6011|65|64[4-9])/.test(digits)) return "discover"
+        return ""
+    }
+    function brandName(brand: string): string {
+        return ({ visa: "Visa", mastercard: "Mastercard", amex: "American Express", discover: "Discover" } as Record<string, string>)[brand] ?? ""
+    }
+    function lengthsOf(brand: string): number[] {
+        if (brand == "amex") return [15]
+        if (brand == "visa") return [13, 16, 19]
+        if (brand == "mastercard") return [16]
+        if (brand == "discover") return [16, 17, 18, 19]
+        return [12, 13, 14, 15, 16, 17, 18, 19]
+    }
+    function codeLength(brand: string): number { return brand == "amex" ? 4 : 3 }
+
+    // The number as it is printed on the card: 4-6-5 on an American Express,
+    // fours on the rest.
+    function groupCard(digits: string): string {
+        const groups = brandOf(digits) == "amex" ? [4, 6, 5] : [4, 4, 4, 4, 3]
+        const out: string[] = []
+        let at = 0
+        for (const g of groups) {
+            if (at >= digits.length) break
+            out.push(digits.slice(at, at + g))
+            at = at + g
+        }
+        return out.join(" ")
+    }
+    // Where the caret belongs in the grouped text: after the same number of digits.
+    function caretAfter(grouped: string, digitsBefore: number): number {
+        if (digitsBefore <= 0) return 0
+        let seen = 0
+        for (let i = 0; i < grouped.length; i++) {
+            if (/\d/.test(grouped[i])) seen = seen + 1
+            if (seen == digitsBefore) return i + 1
+        }
+        return grouped.length
+    }
+    function luhn(digits: string): boolean {
+        let sum = 0
+        for (let i = 0; i < digits.length; i++) {
+            let d = Number(digits[digits.length - 1 - i])
+            if (i % 2 == 1) { d = d * 2; if (d > 9) d = d - 9 }
+            sum = sum + d
+        }
+        return sum % 10 == 0
+    }
+    function cardNumberProblem(text: string): string {
+        const digits = digitsOf(text)
+        const brand = brandOf(digits)
+        if (!lengthsOf(brand).includes(digits.length) || !luhn(digits))
+            return "That isn't a card number — check the digits against your card."
+        return ""
+    }
+    function codeProblem(text: string, brand: string): string {
+        const n = codeLength(brand)
+        if (!new RegExp("^\\d{" + n + "}$").test(text.trim()))
+            return n == 4 ? "Enter the 4-digit code printed on the front of the card."
+                          : "Enter the 3-digit code from the back of the card."
+        return ""
+    }
+
+    // The expiry is typed as "MM / YY". Autofill may bring "04/2028".
+    function formatExpiry(text: string, grew: boolean): string {
+        const whole = text.match(/^\s*(\d{1,2})\s*\/\s*(\d{2}|\d{4})\s*$/)
+        if (whole) return whole[1].padStart(2, "0") + " / " + whole[2].slice(-2)
+        let d = digitsOf(text).slice(0, 4)
+        if (d.length == 1 && d > "1") d = "0" + d
+        if (d.length > 2) return d.slice(0, 2) + " / " + d.slice(2)
+        return d.length == 2 && grew ? d + " / " : d
+    }
+    function expiryParts(text: string): number[] {
+        const m = text.match(/^\s*(\d{2})\s*\/\s*(\d{2})\s*$/)
+        return m ? [Number(m[1]), 2000 + Number(m[2])] : []
+    }
+    function expiryProblem(text: string, year: number, month: number): string {
+        const p = expiryParts(text)
+        if (p.length == 0) return "Enter the expiry date as MM / YY, as it's printed on the card."
+        if (p[0] < 1 || p[0] > 12) return "There's no month " + String(p[0]).padStart(2, "0") + " — the month is 01 to 12."
+        if (p[1] < year || (p[1] == year && p[0] < month)) return "This card has expired. Use a card with a later date."
+        return ""
+    }
+    function expiryLabel(m: number, y: number): string { return String(m).padStart(2, "0") + "/" + String(y % 100).padStart(2, "0") }
+
+    // ── addresses
+
+    function postalProblem(text: string, country: string): string {
+        const v = text.trim()
+        if (country == "US" && !/^\d{5}(-\d{4})?$/.test(v)) return "Enter a 5-digit ZIP code, like 94103."
+        if (country == "CA" && !/^[A-Za-z]\d[A-Za-z] ?\d[A-Za-z]\d$/.test(v)) return "Enter a postal code like K1A 0B1."
+        if (country == "GB" && !/^[A-Za-z]{1,2}\d[A-Za-z\d]? ?\d[A-Za-z]{2}$/.test(v)) return "Enter a postcode like SW1A 2AA."
+        return ""
+    }
+    function postalExample(country: string): string { return ({ US: "94103", CA: "K1A 0B1", GB: "SW1A 2AA" } as Record<string, string>)[country] ?? "" }
+
+    function emailProblem(text: string): string {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text.trim()) ? "" : "Enter an email address like name@example.com."
+    }
+
+    // ── the ticket's barcode: Code 39, which reads every character a ticket's
+    //    code uses. Each character is nine elements, bar and space by turns,
+    //    three of them wide.
+
+    const CODE39: Record<string, string> = {
+        "0": "nnnwwnwnn", "1": "wnnwnnnnw", "2": "nnwwnnnnw", "3": "wnwwnnnnn", "4": "nnnwwnnnw",
+        "5": "wnnwwnnnn", "6": "nnwwwnnnn", "7": "nnnwnnwnw", "8": "wnnwnnwnn", "9": "nnwwnnwnn",
+        "A": "wnnnnwnnw", "B": "nnwnnwnnw", "C": "wnwnnwnnn", "D": "nnnnwwnnw", "E": "wnnnwwnnn",
+        "F": "nnwnwwnnn", "G": "nnnnnwwnw", "H": "wnnnnwwnn", "I": "nnwnnwwnn", "J": "nnnnwwwnn",
+        "K": "wnnnnnnww", "L": "nnwnnnnww", "M": "wnwnnnnwn", "N": "nnnnwnnww", "O": "wnnnwnnwn",
+        "P": "nnwnwnnwn", "Q": "nnnnnnwww", "R": "wnnnnnwwn", "S": "nnwnnnwwn", "T": "nnnnwnwwn",
+        "U": "wwnnnnnnw", "V": "nwwnnnnnw", "W": "wwwnnnnnn", "X": "nwnnwnnnw", "Y": "wwnnwnnnn",
+        "Z": "nwwnwnnnn", "-": "nwnnnnwnw", "*": "nwnnwnwnn"
+    }
+    // The bars as [start, width] pairs, in narrow-element units.
+    function barsOf(code: string): number[][] {
+        const out: number[][] = []
+        let x = 0
+        for (const ch of ("*" + code.toUpperCase() + "*")) {
+            const p = CODE39[ch] ?? CODE39["-"]
+            for (let i = 0; i < 9; i++) {
+                const w = p[i] == "w" ? 3 : 1
+                if (i % 2 == 0) out.push([x, w])
+                x = x + w
+            }
+            x = x + 1
+        }
+        return out
+    }
+    function barsWidth(code: string): number { return (code.length + 2) * 16 - 1 }
+    }
+
+
+// ── The shape of the data ───────────────────────────────────────────────────
+
+schema Performance [ id: string, startsAt: string, doorsAt: string, priceFromCents: number, seatsLeft: number, seats: number ]
+schema Production [ title: string, hall: string, runningTime: string, performances[]: Performance ]
+
+schema Seat [ id: string, number: number, status: "available" | "sold" ]
+schema SeatRow [ name: string, seats[]: Seat ]
+schema Section [ key: string, name: string, priceCents: number, feeCents: number, rows[]: SeatRow ]
+schema SeatMap [ performanceId: string, sections[]: Section ]
+
+// A chosen seat, written out: what the summary, the checkout and a screen
+// reader say about it.
+
+schema Chosen [ id: string, section: string, row: string, number: number, priceCents: number, feeCents: number ]
+
+schema Billing [ line1: string, line2?: string, city: string, postalCode: string, country: string ]
+schema SavedCard [ id: string, brand: string, last4: string, expMonth: number, expYear: number ]
+schema Account [ name: string, email: string, billing: Billing, cards[]: SavedCard ]
+
+schema Ticket [ seatId: string, section: string, row: string, number: number, barcode: string ]
+schema Order [ code: string, email: string, totalCents: number, brand: string, last4: string, performanceId: string,
+    tickets[]: Ticket ]
+
+schema Country [ id: string, label: string ]
+
+
+// ── The records ─────────────────────────────────────────────────────────────
+
+// The production and its twenty performances.
+
+class ProductionSource extends DataSource [ url = { API + "/api/production" }, autoFetch = true,
+    schema = Production,
+    all() -> Performance[] { return this.value?.performances ?? [] },
+    byId(id: string) -> Performance? { return this.all().find((p) => p.id == id) ?? null }
+    ]
+
+
+// One performance's seat map. The service's reply is the starting point; the
+// event stream then writes each seat someone else buys into it, so what is
+// shown as free is free. The geometry of the room — where each row stands —
+// is a fact of this data too: rows are arcs facing the stage, one radius per
+// row, with a gap between sections for their names.
+
+class SeatMapSource extends DataSource [ schema = SeatMap, autoFetch = true,
+
+    // the room, in hall units: the stage's centre of curvature sits above the
+    // drawing, so every row is an arc of a circle about it
+
+    focusY: number = -660,
+    firstRow: number = 880,
+    rowPitch: number = 31,
+    seatPitch: number = 28,
+    sectionGap: number = 96,
+
+    sections() -> Section[] { return this.value?.sections ?? [] },
+
+    // the radius of each section's first row
+
+    starts: number[] = { this.sectionStarts(this.sections()) },
+    sectionStarts(ss: Section[]) -> number[] {
+        const out: number[] = []
+        let r = firstRow
+        for (const s of ss) {
+            out.push(r)
+            r = r + (s.rows.length - 1) * rowPitch + sectionGap
+            }
+        return out
+        },
+    rowRadius(si: number, ri: number) -> number { return (this.starts[si] ?? firstRow) + ri * rowPitch },
+    depth: number = { this.rowRadius(Math.max(0, this.sections().length - 1), 0) + 2 * rowPitch },
+
+    // the height of the drawing: the back row's ends, which curve up least, are
+    // above its middle, so the middle of the back row is the bottom
+
+    lastRadius: number = {
+        this.sections().length == 0 ? firstRow
+            : this.rowRadius(this.sections().length - 1, this.sections()[this.sections().length - 1].rows.length - 1)
+        },
+    height: number = { focusY + this.lastRadius + 40 },
+
+    // where a seat stands: seat 1 is at the stage's left, which from the house
+    // is the right
+
+    angleOf(radius: number, k: number, n: number) -> number { return ((n - 1) / 2 - k) * seatPitch / radius },
+    xOf(radius: number, k: number, n: number) -> number { return 500 + radius * Math.sin(this.angleOf(radius, k, n)) },
+    yOf(radius: number, k: number, n: number) -> number { return focusY + radius * Math.cos(this.angleOf(radius, k, n)) },
+
+    // ── what is true of the seats
+
+    find(id: string) -> number[] {
+        const ss = this.sections()
+        for (let si = 0; si < ss.length; si++)
+            for (let ri = 0; ri < ss[si].rows.length; ri++) {
+                const ki = ss[si].rows[ri].seats.findIndex((s) => s.id == id)
+                if (ki >= 0) return [si, ri, ki]
+                }
+        return []
+        },
+    describe(id: string) -> Chosen? {
+        const at = this.find(id)
+        if (at.length == 0) return null
+        const s = this.sections()[at[0]]
+        const row = s.rows[at[1]]
+        return ({ id: id, section: s.name, row: row.name, number: row.seats[at[2]].number,
+            priceCents: s.priceCents, feeCents: s.feeCents })
+        },
+    nameOf(id: string) -> string {
+        const c = this.describe(id)
+        return c == null ? id : seatName(c.section, c.row, c.number)
+        },
+    isFree(id: string) -> boolean {
+        const at = this.find(id)
+        return at.length > 0 && this.sections()[at[0]].rows[at[1]].seats[at[2]].status == "available"
+        },
+    freeIn(s: Section) -> number { return s.rows.reduce((n, r) => n + r.seats.filter((x) => x.status == "available").length, 0) },
+    seatsIn(s: Section) -> number { return s.rows.reduce((n, r) => n + r.seats.length, 0) },
+
+    // ── the one write: a seat is gone
+
+    markSold(id: string) {
+        const at = this.find(id)
+        if (at.length > 0) this.set(["sections", at[0], "rows", at[1], "seats", at[2], "status"], "sold")
+        }
+    ]

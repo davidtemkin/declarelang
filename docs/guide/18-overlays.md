@@ -189,8 +189,12 @@ the sheet would have no way to tell your state it closed.
 
 **Something to do when it closes**, however it closed — Esc, a press past it, `close()` —
 goes in [`closed()`](declare-docs:Floating.method.closed), called once it has closed:
-`closed() { app.selection = null }`. Not in `input`: the verbs deliver through `input`, so
-an override of it that writes nothing leaves `show()` with nothing to open.
+`closed() { app.selection = null }`. To start each opening fresh — a form's fields empty
+again — reset them there, or build the contents for each opening with
+`exists = { app.editSheet.present }` (see [`present`](declare-docs:Floating.present)):
+keyed on `present`, they stay through the closing motion, where keyed on the flag that opens
+it they vanish while the panel is still sliding away. Not in `input`: the verbs deliver
+through `input`, so an override of it that writes nothing leaves `show()` with nothing to open.
 
 ## Sheets
 

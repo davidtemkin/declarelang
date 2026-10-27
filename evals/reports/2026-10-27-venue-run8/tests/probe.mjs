@@ -1,0 +1,24 @@
+export const device = { width: 390, height: 844, touch: true };
+const F = "app.checkoutScreen.col.main.pay.form";
+const S = "app.signInSheet.box.signIn";
+export default async ({ drive, expect, page }) => {
+  await drive.settleData();
+  await drive.click("app.listScreen.grid.4");
+  await drive.settleData();
+  await drive.set("app", "chosen", ["BALC-A-1"]);
+  await drive.click("app.hallScreen.side.tally.1");
+  await drive.settleMotion();
+  await drive.click(F.replace(".form", "") + ".account.1");
+  await drive.settleMotion();
+  await drive.click(S + ".emailRow.emailInput"); await drive.type("ada@example.com");
+  await drive.click(S + ".passRow.passInput"); await drive.type("correct horse battery");
+  await drive.key("Enter");
+  await drive.settleData(); await drive.settleMotion();
+  const h = () => page.evaluate(() => { const d = window.__declare; const a = d.find("app"); const c = d.find("app.checkoutScreen"); const f = d.find("app.checkoutScreen.col.main.pay.form"); return [a.contentHeight, c.height, f.height, document.scrollingElement.scrollHeight, d.find("app.signInSheet").shown]; });
+  console.log("signed in:", JSON.stringify(await h()));
+  await drive.click(F + ".savedPart.methods.2");
+  await drive.settleMotion();
+  console.log("new card:", JSON.stringify(await h()), await page.evaluate(() => { const d = window.__declare; const g = d.find("app.checkoutScreen.col.main.pay.form.savedPart.methods"); return JSON.stringify([d.find("app.pay").method, g.value, g.children.map((c) => [c.choice, c.label, c.y, c.height])]); }));
+  await drive.click("app.topBar.3");
+  await drive.settleData();
+};

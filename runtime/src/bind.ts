@@ -15,7 +15,7 @@ import { Constraint, kernel, touchCell, readsCellDuring } from "./reactive.js";
 import { defaultOf, hasSlot, markPercent, setPercentMark, own, release, setBound, provideWrite, computingProvision, slotCellOf, writeOwned, isSetOrOwned, ownerOf, kernelLanding } from "./attributes.js";
 import { KERNEL_FLAG } from "./kernel-loader.js";
 import { watchingContentRead } from "./size-probe.js";
-import { compileExpr, type ExprFn } from "./expr.js";
+import { compileExpr, bodyLabel, type ExprFn } from "./expr.js";
 import { View, inheritedCursor, withCursorDefining } from "./view.js";
 import { authoredName, onDiscard, type Node } from "./node.js";
 import { coerceData, toCursor } from "./data.js";
@@ -44,7 +44,7 @@ export function provideBind(
   classroot: View | null,
   deps?: readonly string[]
 ): void {
-  const c = compileExpr(src);
+  const c = compileExpr(src, bodyLabel(view.constructor.name, name, pos));
   if ("error" in c) throw new DeclareError(`${view.constructor.name} provides ${name} = { … } ${c.error}`, pos);
   const fn = c.fn;
   const k = new Constraint(
@@ -399,7 +399,7 @@ export function bindConstraint(
     exprStats.fallback++;
   }
   if (plan !== null) deps = plan.paths;
-  const c = compileExpr(src);
+  const c = compileExpr(src, bodyLabel(view.constructor.name, name, pos));
   if ("error" in c) {
     throw new DeclareError(`${view.constructor.name}.${name} = { … } ${c.error}`, pos);
   }

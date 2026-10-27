@@ -15,6 +15,14 @@ write, then check the program and look at it running.
 
 ## Read first, in order
 
+**Read the brief (or the request) first.** Then read the three items below, and choose, from
+[What Declare handles for you](#what-declare-handles-for-you), the needs this program has —
+each row's first column is its name — and at most one whole program, from § What's where, whose
+shape is nearest, by its folder (`tracker`, `calendar`, …). `npx declare-start --pick form,touch,overlays --program calendar`, run in
+the Declare directory, writes the guide sections, reference entries and program outline those
+point at into a few files: read them whole, once, and nothing else before you plan. Choose
+what the brief is about, not everything it might touch: the rest is a lookup when you reach it.
+
 1. **`docs/declare.md`** — the whole language: its forms, its rules, how a program fits
    together.
 2. **Three guide chapters**: `docs/guide/01-what-declare-is.md`, how a Declare program
@@ -161,32 +169,33 @@ is how Declare itself is built, and is not part of writing a program in it.
 Most of what an interface needs, Declare already does, and building it again by hand
 is the most common way a working program ends up wrong. Find each need here before you
 build it: the guide section that teaches it, a program that does it, and names to ask
-`npx declare-help` about.
+`npx declare-help` about. Its first column is what `npx declare-start --pick` takes (§ Read
+first).
 
-| Need | Guide (`docs/guide/`) | See it in | Ask about |
-|---|---|---|---|
-| Arranging views; sizes that follow content; one program for phone and desktop; a view that changes with where the user is | `06-layout.md`; `04-structure.md` § A view in each of the user's places | tracker: `SimpleLayout` and `padding` throughout; sampler: `Specimen extends Card`; weather: the App's `desk: State [ applied = { !app.phone } ]` | `SimpleLayout`, `ResponsiveLayout`, `Card`, `padding`, `State` |
-| Scrolling panes; views that stay put while the page scrolls; what is on screen staying still when content above it changes; a log that follows its newest line | `07-scrolling.md` | weather: `HourStrip`'s `scroller` (`scrolls = x`), the App's `pill` and `back` (`ignoreScroll = true`); keeping the reader's place is the default, so the tracker's list has no code for it | `scrolls`, `ignoreScroll`, `scrollTo`, `scrollAnchor` |
-| Buttons, fields, toggles; your own control, with keyboard, focus, hover and pressed built in | `08-controls.md`; `17-your-own-views.md` § View or Control | sampler: every library control; tracker: `Chip`, `Facet`, `RailStat`; calendar: `NavArrow` (each `extends Control`, with `press()`) | `Control`, `Button`, `TextInput`, `Segmented` |
-| Dragging and dropping; keys; keyboard shortcuts | `09-pointer-and-keyboard.md` § Dragging, § Keyboard events, § Keyboard shortcuts | calendar: `Ev` (`onPointerDown`, `onPointerUp`) and its `Drag` class; desktop: `DeskWindow`'s `beginDrag`, and its menu bar's records, whose `key:` fields are the program's shortcuts | `onPointerDown`, `viewAt`, `Keys`, `Shortcuts` |
-| Touch: a drag inside a scrolling page, press and hold | `10-touch.md` § Gesture claims | calendar: `Ev`'s `onHold`; tracker: `IssueRow`'s `onHold` (opens the context menu) | `claim`, `onHold` |
-| Themes, dark mode, a value every descendant reads | `11-paint-and-themes.md` | tracker: `theme Tracker`, the App's `theme = { … }` and `appear: AppearanceSwitch`; calendar: `theme CalendarLight` and `CalendarDark`; sampler: four themes | `theme`, `provided`, `AppearanceSwitch` |
-| Text, fonts, styled runs, views inside a line, Markdown | `12-text.md` | swatchbook: the Type and Rich text sections; desktop: `ViewerWindow` (a Markdown document in a window) | `Text`, `Font`, `style`, `HTMLText`, `Markdown` |
-| Images, video, audio | `13-media.md` | birds: `Plate`'s `pic: Image`; weather: `RowSky`'s `photo` | `Image`, `Video`, `Audio` |
-| Where records live; a dataset with its own logic; a list derived from it that edits still write through; a job with no view | `14-data.md` § A Node class on a record, § Data in a whole app | tracker: the App's derived `shown: Dataset`; calendar: the App's `cal: Dataset`; desktop: `WinManager extends Node` and its `list` of window records | `Dataset`, `Dataset.contents`, `Node` |
-| Data from a service: loading, failure, typed records | `14-data.md` § Where data comes from; `15-schemas.md` | tracker: `schema Issue` and `class Issues extends DataSource`; marketmap: `class Market extends DataSource` | `DataSource`, `schema` |
-| Records edited in place; forms; a draft saved or cancelled | `14-data.md` § Writing a record, § Editing text, and forms | tracker: `EditorCard` (`text <-> :it.title`); calendar: `DetailSection` | `<->`, `TextInput`, `TextInput.commitOn` |
-| A form that checks itself and sends: required fields and rules, every problem shown on submit, the first focused, a service's refusal shown on the field it names, sending once while pending; fields that start from the signed-in account; one of many chosen; money and dates written out | `14-data.md` § Editing text, and forms (§ A form, § A form with no service, § Errors shown your own way, § A form in a sheet); `08-controls.md` § Choosing one of many, § Keyboard focus; `12-text.md` (numbers, money and dates) | tracker: `EditorCard` | `Form`, `Field`, `TextInput.required`, `validate`, `Form.source`, `Form.method.refusedWith`, `ValueControl`, `RadioGroup`, `Combobox`, `globals` (for `Intl`) |
-| A long list: only the rows near the screen built, rows of different heights and kinds, a heading between records | `16-collections.md` | tracker: the App's `ListRow [ … virtualize = true, classFor = { … } ]` over `GroupRow` and `IssueRow`; desktop: the App's `wins` (a class per kind of window) | `virtualize`, `classFor`, `rowIndex`, `exists` |
-| Drawing what attributes can't express: a gauge, a chart, an icon | `17-your-own-views.md` § Custom drawing, § Icons | weather (`weather-art.declare`): `WindDial`, `PressureGauge`; marketmap: `StageTile`'s sparkline | `draw`, `DrawContext`, `Icon` |
-| A layout of your own | `17-your-own-views.md` § Writing a layout | weather (`weather-art.declare`): `MasonryLayout`; marketmap: `MarketLayout` | `Layout`, `place` |
-| Anything that opens over the interface — a menu, a context menu, a popover, a dialog, a sheet, a toast — closing when it should, holding focus and keys while open, staying with its window | `18-overlays.md` | tracker: the App's `sortMenu`, `facetMenu`, `ctx: ContextMenu` and its undo `Toast`; sampler: the Overlays page, every kind opened from a card; desktop: a Files window's row menu, which opens in the window's layer | `Menu`, `ContextMenu`, `Popover`, `Dialog`, `Sheet`, `Toast`, `Window` |
-| A screen reader and the keyboard alone: names for what shows none, your own drawn control's role, announcements; what a field holds, for autofill and a phone's keyboard | `19-accessibility.md`; `08-controls.md` § Text fields | tracker: its icon buttons' `accessibilityLabel`; library: `Toast` (`Accessibility.announce`), `Slider`'s role contract | `accessibilityLabel`, `accessibilityRole`, `Accessibility`, `TextInput.purpose` |
-| Addresses, back and forward, deep links | `20-urls.md` | birds: the App's `location` and `waypoint` and what derives from them | `location`, `waypoint` |
-| Motion that can be interrupted and redirected | `21-motion.md` | tracker: `ListRow`'s height spring; calendar: `DetailSection`'s spring; desktop: `DockIcon`'s `magSpring` | `Spring` |
-| Clocks, a later call, one action when something changes | `22-time.md` | calendar: the App's `clock: Time [ tick = day ]`; tracker: `Toast` (`afterDelay`), the App's `trackChanges` and `onChange` | `Time`, `afterDelay`, `onChange` |
-| A whole arrangement moving from one view to another; one view becoming the next | `23-animated-arrangements.md` | calendar: the App's four springs (`c0`, `r0`, `nc`, `nr`) that every cell reads; weather: `CityView`, carried by one spring (`openT`); marketmap: the App's `flight` and `zoomer` | `Spring`, `TweenLayout` |
-| Another program inside yours; yours inside a page | `25-embedding.md` | desktop: `AppWindow`'s `island: AppIsland`; two-way: `crossings` — values go down with `provides`, come back up with the method `exposed(…)` (what the tenant `exposes`), and commands cross with `post` | `AppIsland`, `DOMIsland`, `provides`, `exposes`, `DOMIsland.exposed` |
+| Pick | Need | Guide (`docs/guide/`) | See it in | Ask about |
+|---|---|---|---|---|
+| `layout` | Arranging views; sizes that follow content; one program for phone and desktop; a view that changes with where the user is | `06-layout.md`; `04-structure.md` § A view in each of the user's places | tracker: `SimpleLayout` and `padding` throughout; sampler: `Specimen extends Card`; weather: the App's `desk: State [ applied = { !app.phone } ]` | `SimpleLayout`, `ResponsiveLayout`, `Card`, `padding`, `State` |
+| `scrolling` | Scrolling panes; views that stay put while the page scrolls; what is on screen staying still when content above it changes; a log that follows its newest line | `07-scrolling.md` | weather: `HourStrip`'s `scroller` (`scrolls = x`), the App's `pill` and `back` (`ignoreScroll = true`); keeping the reader's place is the default, so the tracker's list has no code for it | `scrolls`, `ignoreScroll`, `scrollTo`, `scrollAnchor` |
+| `controls` | Buttons, fields, toggles; your own control, with keyboard, focus, hover and pressed built in | `08-controls.md`; `17-your-own-views.md` § View or Control | sampler: every library control; tracker: `Chip`, `Facet`, `RailStat`; calendar: `NavArrow` (each `extends Control`, with `press()`) | `Control`, `Button`, `TextInput`, `Segmented` |
+| `keys` | Dragging and dropping; keys; keyboard shortcuts | `09-pointer-and-keyboard.md` § Dragging, § Keyboard events, § Keyboard shortcuts | calendar: `Ev` (`onPointerDown`, `onPointerUp`) and its `Drag` class; desktop: `DeskWindow`'s `beginDrag`, and its menu bar's records, whose `key:` fields are the program's shortcuts | `onPointerDown`, `viewAt`, `Keys`, `Shortcuts` |
+| `touch` | Touch: a drag inside a scrolling page, press and hold; a surface panned and zoomed about the fingers (pinch, drag, wheel) | `10-touch.md` § Gesture claims, § Pan and zoom about the fingers | calendar: `Ev`'s `onHold`; tracker: `IssueRow`'s `onHold` (opens the context menu) | `claim`, `onHold` |
+| `themes` | Themes, dark mode, a value every descendant reads | `11-paint-and-themes.md` | tracker: `theme Tracker`, the App's `theme = { … }` and `appear: AppearanceSwitch`; calendar: `theme CalendarLight` and `CalendarDark`; sampler: four themes | `theme`, `provided`, `AppearanceSwitch` |
+| `text` | Text, fonts, styled runs, views inside a line, Markdown | `12-text.md` | swatchbook: the Type and Rich text sections; desktop: `ViewerWindow` (a Markdown document in a window) | `Text`, `Font`, `style`, `HTMLText`, `Markdown` |
+| `media` | Images, video, audio | `13-media.md` | birds: `Plate`'s `pic: Image`; weather: `RowSky`'s `photo` | `Image`, `Video`, `Audio` |
+| `records` | Where records live; a dataset with its own logic; a list derived from it that edits still write through; a job with no view | `14-data.md` § A Node class on a record, § Data in a whole app | tracker: the App's derived `shown: Dataset`; calendar: the App's `cal: Dataset`; desktop: `WinManager extends Node` and its `list` of window records | `Dataset`, `Dataset.contents`, `Node` |
+| `service` | Data from a service: loading, failure, typed records | `14-data.md` § Where data comes from; `15-schemas.md` | tracker: `schema Issue` and `class Issues extends DataSource`; marketmap: `class Market extends DataSource` | `DataSource`, `schema` |
+| `editing` | Records edited in place; forms; a draft saved or cancelled | `14-data.md` § Writing a record, § Editing text, and forms | tracker: `EditorCard` (`text <-> :it.title`); calendar: `DetailSection` | `<->`, `TextInput`, `TextInput.commitOn` |
+| `form` | A form that checks itself and sends: required fields and rules, every problem shown on submit, the first focused, a service's refusal shown on the field it names, sending once while pending; fields that start from the signed-in account; one of many chosen; money and dates written out | `14-data.md` § Editing text, and forms (§ A form, § A form with no service, § Errors shown your own way, § A form in a sheet); `08-controls.md` § Choosing one of many, § Keyboard focus; `12-text.md` (numbers, money and dates) | tracker: `EditorCard` | `Form`, `Field`, `TextInput.required`, `validate`, `Form.source`, `Form.method.refusedWith`, `ValueControl`, `RadioGroup`, `Combobox`, `globals` (for `Intl`) |
+| `lists` | A long list: only the rows near the screen built, rows of different heights and kinds, a heading between records | `16-collections.md` | tracker: the App's `ListRow [ … virtualize = true, classFor = { … } ]` over `GroupRow` and `IssueRow`; desktop: the App's `wins` (a class per kind of window) | `virtualize`, `classFor`, `rowIndex`, `exists` |
+| `drawing` | Drawing what attributes can't express: a gauge, a chart, an icon | `17-your-own-views.md` § Custom drawing, § Icons | weather (`weather-art.declare`): `WindDial`, `PressureGauge`; marketmap: `StageTile`'s sparkline | `draw`, `DrawContext`, `Icon` |
+| `own-layout` | A layout of your own | `17-your-own-views.md` § Writing a layout | weather (`weather-art.declare`): `MasonryLayout`; marketmap: `MarketLayout` | `Layout`, `place` |
+| `overlays` | Anything that opens over the interface — a menu, a context menu, a popover, a dialog, a sheet, a toast — closing when it should, holding focus and keys while open, staying with its window | `18-overlays.md` | tracker: the App's `sortMenu`, `facetMenu`, `ctx: ContextMenu` and its undo `Toast`; sampler: the Overlays page, every kind opened from a card; desktop: a Files window's row menu, which opens in the window's layer | `Menu`, `ContextMenu`, `Popover`, `Dialog`, `Sheet`, `Toast`, `Window` |
+| `accessibility` | A screen reader and the keyboard alone: names for what shows none, your own drawn control's role, announcements; what a field holds, for autofill and a phone's keyboard | `19-accessibility.md`; `08-controls.md` § Text fields | tracker: its icon buttons' `accessibilityLabel`; library: `Toast` (`Accessibility.announce`), `Slider`'s role contract | `accessibilityLabel`, `accessibilityRole`, `Accessibility`, `TextInput.purpose` |
+| `urls` | Addresses, back and forward, deep links | `20-urls.md` | birds: the App's `location` and `waypoint` and what derives from them | `location`, `waypoint` |
+| `motion` | Motion that can be interrupted and redirected | `21-motion.md` | tracker: `ListRow`'s height spring; calendar: `DetailSection`'s spring; desktop: `DockIcon`'s `magSpring` | `Spring` |
+| `time` | Clocks, a later call, one action when something changes | `22-time.md` | calendar: the App's `clock: Time [ tick = day ]`; tracker: `Toast` (`afterDelay`), the App's `trackChanges` and `onChange` | `Time`, `afterDelay`, `onChange` |
+| `arrangements` | A whole arrangement moving from one view to another; one view becoming the next | `23-animated-arrangements.md` | calendar: the App's four springs (`c0`, `r0`, `nc`, `nr`) that every cell reads; weather: `CityView`, carried by one spring (`openT`); marketmap: the App's `flight` and `zoomer` | `Spring`, `TweenLayout` |
+| `embedding` | Another program inside yours; yours inside a page | `25-embedding.md` | desktop: `AppWindow`'s `island: AppIsland`; two-way: `crossings` — values go down with `provides`, come back up with the method `exposed(…)` (what the tenant `exposes`), and commands cross with `post` | `AppIsland`, `DOMIsland`, `provides`, `exposes`, `DOMIsland.exposed` |
 
 The rows follow the guide's order. For anything else, each chapter opens with a `# ` title
 that says what it covers.
@@ -272,6 +281,15 @@ Climb from the cheapest check to the dearest, and stop as soon as one answers:
   order you write them, and read values (`--help` lists them). Under `--touch` every press
   is a finger. `--shot-of PATH file.png` pictures one view instead of the window. A picture you read stays in your context for the rest of the session, like
   any read, so look when there is something to see, not after every edit.
+- **Hand a check of more than one command to a checker** — a whole flow, a screen on a phone
+  and a desk, a regression run, a look at how something appears. A checker is a second agent
+  that starts fresh, follows `docs/operational/checking.md`, and returns a short report: what
+  fails, where, the program line, what it could not check. Its scripts' output and its
+  pictures stay in its context, not yours, so checking stops growing what you re-read on
+  every turn. In Claude Code, start it with the Agent tool, its prompt beginning "Read
+  `docs/operational/checking.md` in the Declare distribution, then answer:" and the question,
+  the program, its address and the service; elsewhere, `npx declare-check "<question>"
+  --program <file>`. You decide what to change; it only finds out.
 - **Check a whole flow with an assert script** for `npx declare-verify app.declare --assert
   flow.mjs` (`docs/operational/verify.md`): `drive` presses, types and waits as a person
   does, `expect` checks what is shown and what the program sent (`expect.request`). A view

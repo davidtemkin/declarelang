@@ -253,7 +253,10 @@ once; neither tells you which the user is holding right now — `lastPointerType
 What the user *just* used: `"mouse"`, `"touch"`, or `"pen"`, live. On a hybrid the honest
 answer changes per gesture, which is exactly what makes this the right input for hover-only
 affordances — and the wrong one for layout, which must not reflow because someone reached
-past their trackpad.
+past their trackpad. It is wrong, too, for **what a press does**: a press is the same act from
+a mouse, a finger, a pen, the keyboard or a screen reader (which activates with a tap), so a
+`press()` that branches on it does something else for some of those people — a first tap that
+zooms where a click chooses. Size for a finger with `touchFirst`; let a press mean one thing.
 
 ## edges
 How the app meets the device's **own** chrome — a phone's notch and home-indicator bar.

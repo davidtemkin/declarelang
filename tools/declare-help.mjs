@@ -380,6 +380,25 @@ function sayClass(cls) {
     if (ALL) { say(`  ─ full reference prose ─`); for (const line of REF[cls].doc.split("\n")) say(`  ${line}`); }
     else say(`  full prose: declare-help ${cls} --all`);
   }
+  // …and, all of it, what each of its own members' entries says: the details a
+  // class's prose leaves to them (what `refusal(body)` reads, what `purpose`
+  // fills) were only in reach one name at a time, and an agent read the
+  // library's source for them instead
+  if (ALL) {
+    const names = [...(own ? Object.keys(own.attrs) : []), ...(own?.events ?? []).map((e) => `on${e.charAt(0).toUpperCase() + e.slice(1)}`),
+      ...(t?.methods ?? []).map((m) => m.name)].filter((n) => !n.startsWith("_"));
+    const entries = [...new Set(names)].map((n) => {
+      const ev = n.startsWith("on") && n.length > 2 ? n.charAt(2).toLowerCase() + n.slice(3) : null;
+      return [`${cls}.${n}`, `${cls}.method.${n}`, ...(ev ? [`${cls}.event.${ev}`, `${cls}.on.${ev}`] : [])].map((id) => REF[id]).find((e) => e && e.doc);
+    }).filter(Boolean);
+    if (entries.length > 0) {
+      say(`  ─ its members ─`);
+      for (const e of entries) {
+        say(`  ${e.id.replace(/\.(method|event|on)\./, ".")}${e.signature ? ` — ${e.signature}` : ""}`);
+        for (const line of e.doc.split("\n")) say(`    ${line}`);
+      }
+    }
+  }
 }
 
 // ── the grammar, one shape at a time (§3, top row wins) ──────────────────────
@@ -670,6 +689,10 @@ function answer() {
   if (owners.length > 0) {
     const asForm = (CONCEPTS.forms ?? []).find((f) => f.terms.some((t) => t.toLowerCase() === query.toLowerCase().trim()));
     if (asForm) { for (const line of asForm.answer.split("\n")) say(line); say(""); }
+    // ONE owner: the answer is that entry, not a pointer to it — `waypoint`
+    // answered "an attribute on: App" and an agent went without its prose
+    const sole = owners.length === 1 ? findMember(owners[0].split(" ")[0], query) : null;
+    if (sole && !asForm) { sayEntry(sole); json = { kind: "entry", entry: sole }; return true; }
     say(`${query} — ${asForm ? "also " : ""}an attribute on: ${owners.slice(0, ALL ? Infinity : 8).join(", ")}${owners.length > 8 && !ALL ? `, …and ${owners.length - 8} more (--all)` : ""}`);
     say(`  scoped entry: declare-help <Class>.${query}`);
     // a word that is ALSO a curated concept gets both readings — `arrangement`

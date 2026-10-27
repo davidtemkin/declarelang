@@ -180,7 +180,7 @@ class Chip extends Control [ height = { app.tap }, cornerRadius = { this.height 
 // An attribute pill in the editor and the add form: a glyph and a label. A
 // pill with a `menu` is a pop-up button: the menu opens under it.
 
-class Pill extends Control [ height = 28, cornerRadius = 14, padding = [0, 11, 0, 10],
+class Pill extends Control [ height = { app.touchFirst ? 44 : 28 }, cornerRadius = { this.height / 2 }, padding = [0, 11, 0, 10],
     label: string = "",
     glyph: string = "",
     on: boolean = false,

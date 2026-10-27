@@ -481,7 +481,7 @@ class TaskCard [ padding = { [0, app.edge, 12, app.edge + app.tap] },
 
     facts: View [ width = 100%,
         layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = center ],
-        DatePicker [ width = 150, height = 28, placeholder = "Add date",
+        DatePicker [ width = 150, height = { app.touchFirst ? 44 : 28 }, placeholder = "Add date",
             value = { :due ?? "" },
             input(v: string) { :due = v }
             ],
@@ -560,7 +560,7 @@ class AddForm [ width = 100%,
         // `disabled` takes a control out of reach — no press, no Tab stop —
         // until the task has a name; a State gives it the look that says so.
 
-        add: Control [ height = 30, cornerRadius = 15, padding = [0, 14, 0, 14], accessibilityLabel = "Add task",
+        add: Control [ height = { app.tap }, cornerRadius = { this.height / 2 }, padding = [0, 14, 0, 14], accessibilityLabel = "Add task",
             disabled = { classroot.blank },
             fill = { app.addTone },
             press() { classroot.submit() },
@@ -576,7 +576,7 @@ class AddForm [ width = 100%,
         ],
     attrs: View [ width = 100%, padding = [0, 0, 0, 32],
         layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = center ],
-        DatePicker [ width = 150, height = 28, placeholder = "Add date",
+        DatePicker [ width = 150, height = { app.touchFirst ? 44 : 28 }, placeholder = "Add date",
             value = { classroot.due },
             input(v: string) { classroot.due = v }
             ],

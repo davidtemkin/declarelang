@@ -237,7 +237,16 @@ function pathFn(src) {
         return cur;
     };
 }
-export function compileExpr(src) {
+/** A compiled body's NAME for a stack: `//# sourceURL=` on its function, so a
+ *  frame reads `declare/Form.showProblems@library/form.declare:295` instead of
+ *  an anonymous `eval (:6:16)` — what a page error names a program by. Bodies
+ *  are memoized by their text, so identical text shares the first site's name. */
+export function bodyLabel(owner, member, pos) {
+    const at = pos ? `@${pos.file ?? "main"}:${pos.line}` : "";
+    return `declare/${owner}.${member}${at}`.replace(/[\s()]/g, "_");
+}
+const sourceURL = (label) => (label ? `\n//# sourceURL=${label}` : "");
+export function compileExpr(src, label) {
     const pre = precompiled(src);
     if (pre !== null)
         return { fn: pre };
@@ -262,7 +271,7 @@ export function compileExpr(src) {
             // The shape a precompiled body has (declarec precompileBodies): the scope
             // unpacked once by a factory, the body a function of its own parameters
             // only — so `arguments` is the body's, never the scope, in every mode.
-            const build = () => new Function("$d", "$s", `"use strict"; ${PRELUDE} ${scriptPrelude(scripts)} return function(parent, classroot) { return (${r.src}\n); };`);
+            const build = () => new Function("$d", "$s", `"use strict"; ${PRELUDE} ${scriptPrelude(scripts)} return function(parent, classroot) { return (${r.src}\n); };${sourceURL(label)}`);
             const factory = (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && phasesOn ? phased("compile bodies", build) : build());
             const fn = factory(SCOPE, scripts);
             return { fn: NAMES_KEYS.test(r.src) ? askingKeys(fn) : fn };
@@ -386,7 +395,7 @@ function validateBodyUncached(params, src) {
  *  exactly as language §4 promises ("their names are in scope in the body").
  *  Scope rules and the replacement plan are compileExpr's, unchanged. The
  *  error fragment matches the compileExpr pattern for callers to prefix. */
-export function compileBody(params, src) {
+export function compileBody(params, src, label) {
     const pre = precompiled(src);
     if (pre !== null)
         return { fn: pre };
@@ -407,7 +416,7 @@ export function compileBody(params, src) {
             // constructor name (`const stop = …`) without a redeclaration error;
             // `var` still hoists to the function and `return` works unchanged.
             // the precompiled shape, as for an expression above
-            const factory = new Function("$d", "$s", `"use strict"; ${PRELUDE} ${scriptPrelude(scripts)} return function(parent, classroot, $base${params.map((q) => ", " + q).join("")}) { { ${r.src}\n } };`);
+            const factory = new Function("$d", "$s", `"use strict"; ${PRELUDE} ${scriptPrelude(scripts)} return function(parent, classroot, $base${params.map((q) => ", " + q).join("")}) { { ${r.src}\n } };${sourceURL(label)}`);
             const fn = factory(SCOPE, scripts);
             return { fn: NAMES_KEYS.test(r.src) ? askingKeys(fn) : fn };
         }

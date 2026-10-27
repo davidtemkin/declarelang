@@ -159,6 +159,16 @@ await test("a Form reads a service's refusal onto the fields it names", async ()
   assert.equal(app.f.error, "Lost. Disabled.", "a name no counted field has goes to the form's error, never a near match");
 });
 
+await test("a step a handler defers with afterSettle belongs to its node: discarded first, the node drops it (a form leaving the screen in its own refusal handler)", async () => {
+  const app = await boot(`App [ width = 300, height = 100, n: number = 0, show: boolean = true,
+    box: View [ exists = { app.show }, go() { afterSettle(() => { app.n = app.n + 1 }); app.show = false } ],
+    keep: View [ go() { afterSettle(() => { app.n = app.n + 10 }) } ] ]`);
+  app.box.go(); settle();
+  assert.equal(app.n, 0, "the discarded node's step did not run");
+  app.keep.go(); settle();
+  assert.equal(app.n, 10, "a node that stays runs its step at the settle's close");
+});
+
 await test("a ValueControl with no form: its rules, facts and judging stand alone", async () => {
   const app = await boot(`App [ width = 300, height = 100, agree: boolean = false,
     c: Checkbox [ label = "I agree", required = "Accept the terms.", checked = { app.agree }, input(v: boolean) { app.agree = v } ] ]`);

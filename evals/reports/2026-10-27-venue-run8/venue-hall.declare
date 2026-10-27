@@ -1,0 +1,336 @@
+/*
+# The Venue: the hall
+
+The room, drawn as it stands: a stage everything faces, then four sections
+further back and higher up, each a curved band of rows, each row an arc of
+seats. The seat map's own data says where everything goes (`SeatMapSource`
+in venue-model.declare): a section is replicated per section, a row per row,
+a seat per seat, and each places itself on its arc.
+
+Everything here is drawn in hall units — the room is 1000 wide — on one
+surface that is scaled to the space it has. On a phone that scale makes a seat
+too small for a thumb, so the surface zooms: a tap on the whole hall brings
+that part of it up to finger size, a drag moves about, a pinch zooms, and
+"Whole hall" goes back.
+
+A seat is a control: it says where it is, what it costs and whether it is
+free, and the arrow keys move between seats as they stand in the room.
+*/
+
+// ── A seat ──────────────────────────────────────────────────────────────────
+//
+// Three states, told apart by shape as well as colour: free is a solid dot,
+// yours is a larger garnet disc with a pale core, gone is a small hollow ring.
+
+class SeatDot extends Control [ width = 27, height = 27,
+
+    // where it stands, given by its row
+
+    sectionName: string = "",
+    rowName: string = "",
+    priceCents: number = 0,
+    radius: number = 0,
+    count: number = 0,
+
+    seatId: string = { :id ?? "" },
+    number: number = { :number ?? 0 },
+    gone: boolean = { :status == "sold" },
+    mine: boolean = { app.chosen.includes(classroot.seatId) },
+
+    cx: number = { app.seats.xOf(classroot.radius, rowIndex, classroot.count) },
+    cy: number = { app.seats.yOf(classroot.radius, rowIndex, classroot.count) },
+    x = { classroot.cx - 13.5 },
+    y = { classroot.cy - 13.5 },
+
+    disabled = { classroot.gone },
+
+    // a taken seat is still read, but a press there falls through to the room
+
+    pointerEvents = { classroot.gone ? "none" : "auto" },
+    accessibilityRole = toggle,
+    accessibilityLabel = { seatName(classroot.sectionName, classroot.rowName, classroot.number) },
+    accessibilityPressed = { classroot.mine },
+    accessibilityHint = { classroot.gone ? "Taken" : (classroot.mine ? "Yours, " : "Free, ") + money(classroot.priceCents) },
+
+    press() { app.pressSeat(this) },
+    onKeyDown(e: KeyEvent) { if (!(app.hall?.arrow(this, e.key) ?? false)) super.onKeyDown(e) },
+
+    // choosing registers: the disc springs up past its size and settles
+
+    grow: number = 0,
+    Spring [ attribute = grow, to = { classroot.mine ? 1 : 0 }, stiffness = 560, damping = 16 ],
+
+    lit: boolean = { classroot.hovered && !classroot.mine },
+    dot: View [ x = center, y = center,
+        width = { classroot.gone ? 10 : 16 + 7 * classroot.grow }, height = { this.width },
+        cornerRadius = { this.width / 2 },
+        fill = { classroot.gone ? null : classroot.grow > 0.02 ? provided("theme").accent : provided("theme").seatFree },
+        stroke = { classroot.gone ? stroke(2, provided("theme").seatGone) : classroot.lit ? stroke(3, provided("theme").accent) : null },
+        core: View [ visible = { classroot.grow > 0.3 }, x = center, y = center, width = 7, height = 7, cornerRadius = 3.5,
+            fill = { provided("theme").surface }, opacity = { classroot.grow } ]
+        ]
+    ]
+
+
+// ── A row: an arc, with its letter at each end ──────────────────────────────
+
+class SeatRowView [ width = 100%, height = 100%,
+    si: number = 0,
+    sectionName: string = "",
+    priceCents: number = 0,
+    rowName: string = { :name ?? "" },
+    count: number = { (:seats ?? []).length },
+    radius: number = { app.seats.rowRadius(classroot.si, rowIndex) },
+
+    RowLetter [ text = { classroot.rowName },
+        x = { app.seats.xOf(classroot.radius, -1.1, classroot.count) - 10 },
+        y = { app.seats.yOf(classroot.radius, -1.1, classroot.count) - 9 } ],
+    RowLetter [ text = { classroot.rowName },
+        x = { app.seats.xOf(classroot.radius, classroot.count + 0.1, classroot.count) - 10 },
+        y = { app.seats.yOf(classroot.radius, classroot.count + 0.1, classroot.count) - 9 } ],
+
+    SeatDot [ datapath = :seats[], sectionName = { classroot.sectionName }, rowName = { classroot.rowName },
+        priceCents = { classroot.priceCents }, radius = { classroot.radius }, count = { classroot.count } ]
+    ]
+
+
+class RowLetter extends Text [ width = 20, height = 18, textAlign = center, fontSize = 13, fontWeight = medium,
+    textColor = { provided("theme").textFaint }, accessibilityHidden = true
+    ]
+
+
+// ── A section: a band of the floor, its name and price above it ─────────────
+
+class SectionView [ width = 100%, height = 100%,
+    si: number = { rowIndex },
+    name: string = { :name ?? "" },
+    priceCents: number = { :priceCents ?? 0 },
+    rowCount: number = { (:rows ?? []).length },
+    widest: number = { Math.max(0, ...(:rows ?? []).map((r) => r.seats.length)) },
+    inner: number = { app.seats.rowRadius(classroot.si, 0) - 18 },
+    outer: number = { app.seats.rowRadius(classroot.si, classroot.rowCount - 1) + 18 },
+    halfAngle: number = { (classroot.widest / 2 + 1.6) * app.seats.seatPitch / (classroot.outer - 18) },
+
+    accessibilityRole = group,
+    accessibilityLabel = { classroot.name + ", " + money(classroot.priceCents) },
+
+    draw(d: DrawContext) {
+        const cy = app.seats.focusY
+        const a = halfAngle
+        d.beginPath()
+        d.arc(500, cy, outer, Math.PI / 2 - a, Math.PI / 2 + a, false)
+        d.arc(500, cy, inner, Math.PI / 2 + a, Math.PI / 2 - a, true)
+        d.closePath()
+        d.fillStyle = provided("theme").band
+        d.fill()
+        d.strokeStyle = provided("theme").bandEdge
+        d.lineWidth = 1.5
+        d.stroke()
+        },
+
+    label: View [ x = center, y = { app.seats.focusY + classroot.inner - 36 }, accessibilityHidden = true,
+        layout: SimpleLayout [ axis = x, spacing = 10, align = baseline ],
+        Text [ fontSize = 19, fontWeight = semibold, letterSpacing = 2, text = { classroot.name.toUpperCase() } ],
+        Text [ fontSize = 19, textColor = { provided("theme").textMuted }, numeralWidth = tabular,
+            text = { money(classroot.priceCents) } ]
+        ],
+
+    SeatRowView [ datapath = :rows[], si = { classroot.si }, sectionName = { classroot.name },
+        priceCents = { classroot.priceCents } ]
+    ]
+
+
+// ── The hall ────────────────────────────────────────────────────────────────
+//
+// A window onto the surface. `fit` is the scale at which the whole room fits;
+// `zoom` multiplies it. The pan is how far the window has moved over the
+// scaled room. Each of the three is carried by a Spring toward its target, so
+// a tap glides in; a finger writes value and target together, so the room
+// stays under it.
+
+class Hall [ clip = true,
+    zoomable: boolean = false,
+
+    roomH: number = { app.seats.height },
+    fit: number = { Math.max(0.1, Math.min(this.width / 1000, this.height / this.roomH)) },
+
+    // the zoom at which a seat is a thumb's width: 40px between seat centres
+
+    near: number = { Math.max(1, 40 / (app.seats.seatPitch * this.fit)) },
+
+    zoom: number = 1,
+    zoomTo: number = 1,
+    panX: number = 0,
+    panXTo: number = 0,
+    panY: number = 0,
+    panYTo: number = 0,
+    Spring [ attribute = zoom, to = { classroot.zoomTo }, stiffness = 210, damping = 26 ],
+    Spring [ attribute = panX, to = { classroot.panXTo }, stiffness = 210, damping = 26 ],
+    Spring [ attribute = panY, to = { classroot.panYTo }, stiffness = 210, damping = 26 ],
+    zoomed: boolean = { this.zoomTo > 1.05 },
+
+    maxPanX(z: number) -> number { return Math.max(0, 1000 * fit * z - width) },
+    maxPanY(z: number) -> number { return Math.max(0, roomH * fit * z - height) },
+    clampX(v: number, z: number) -> number { return Math.max(0, Math.min(this.maxPanX(z), v)) },
+    clampY(v: number, z: number) -> number { return Math.max(0, Math.min(this.maxPanY(z), v)) },
+
+    // bring the room up to finger size, with the point (in hall units) at the middle
+
+    zoomInAt(ux: number, uy: number) {
+        const z = near
+        zoomTo = z
+        panXTo = clampX(ux * fit * z - width / 2, z)
+        panYTo = clampY(uy * fit * z - height / 2, z)
+        },
+    wholeHall() { zoomTo = 1; panXTo = 0; panYTo = 0 },
+
+    // on a phone, a tap anywhere on the whole room brings that part up
+
+    onClick(e: PointerEvent) {
+        if (!zoomable || zoomed) return
+        zoomInAt((e.x - surface.x) / surface.scale, (e.y - surface.y) / surface.scale)
+        },
+    jump(z: number, px: number, py: number) {
+        zoom = z; zoomTo = z
+        panX = clampX(px, z); panXTo = panX
+        panY = clampY(py, z); panYTo = panY
+        },
+
+    // a drag moves the window by exactly the finger's travel
+
+    grabX: number = 0,
+    grabY: number = 0,
+    grabZ: number = 1,
+    onPointerDown(e: PointerEvent) { grabX = panX; grabY = panY },
+    onPointerMove(e: PointerEvent) {
+        if (!zoomable || !zoomed) return
+        jump(zoom, grabX - e.deltaX, grabY - e.deltaY)
+        },
+
+    // a pinch zooms about the point between the fingers
+
+    onPinchStart(e: PinchEvent) { grabX = panX; grabY = panY; grabZ = zoom },
+    onPinch(e: PinchEvent) {
+        if (!zoomable) return
+        const z = Math.max(1, Math.min(near * 1.6, grabZ * e.scale))
+        const ux = (grabX + e.x) / grabZ
+        const uy = (grabY + e.y) / grabZ
+        jump(z, ux * z - e.x, uy * z - e.y)
+        },
+
+    // ── the keyboard: one Tab stop, and the arrows move through the room
+    //    as it stands — along a row, or to the nearest seat in the next one
+
+    seatViews() -> SeatDot[] {
+        const out: SeatDot[] = []
+        for (const s of surface.children) for (const r of s.children) for (const c of r.children)
+            if (c instanceof SeatDot) out.push(c)
+        return out
+        },
+    arrow(from: SeatDot, key: string) -> boolean {
+        const along = key == "ArrowLeft" ? -1 : key == "ArrowRight" ? 1 : 0
+        const across = key == "ArrowUp" ? -1 : key == "ArrowDown" ? 1 : 0
+        if (along == 0 && across == 0) return false
+        const free = this.seatViews().filter((s) => !s.gone || s == from)
+        let to: SeatDot | null = null
+        if (along != 0) {
+            const row = free.filter((s) => s.radius == from.radius && s.sectionName == from.sectionName && s != from)
+                .filter((s) => (s.cx - from.cx) * along > 0)
+                .sort((a, b) => Math.abs(a.cx - from.cx) - Math.abs(b.cx - from.cx))
+            to = row[0] ?? null
+        } else {
+            const radii = [...new Set(free.map((s) => s.radius))].sort((a, b) => a - b)
+            const next = radii[radii.indexOf(from.radius) + across]
+            if (next != null) {
+                const row = free.filter((s) => s.radius == next)
+                    .sort((a, b) => Math.abs(a.cx - from.cx) - Math.abs(b.cx - from.cx))
+                to = row[0] ?? null
+                }
+        }
+        if (to != null) {
+            Focus.focus(to)
+            if (zoomable && zoomed) this.reveal(to)
+            }
+        return true
+        },
+    reveal(s: SeatDot) {
+        const z = zoomTo
+        const px = s.cx * fit * z
+        const py = s.cy * fit * z
+        if (px < panXTo + 40 || px > panXTo + width - 40) panXTo = clampX(px - width / 2, z)
+        if (py < panYTo + 40 || py > panYTo + height - 40) panYTo = clampY(py - height / 2, z)
+        },
+
+    surface: View [ width = 1000, height = { classroot.roomH },
+        scale = { classroot.fit * classroot.zoom },
+        x = { Math.max(0, (classroot.width - 1000 * this.scale) / 2) - classroot.panX },
+        y = { Math.max(0, (classroot.height - classroot.roomH * this.scale) / 2) - classroot.panY },
+        datapath = { app.seats.value },
+        focusScope = stop,
+
+        // Tab lands on your first seat, or else the free seat nearest the
+        // middle of the front-most row that has one
+
+        focusEntry() -> View? {
+            const seats = classroot.seatViews()
+            const mine = seats.find((x) => x.mine)
+            if (mine != null) return mine
+            const free = seats.filter((x) => !x.gone)
+                .sort((p, q) => p.radius - q.radius || Math.abs(p.cx - 500) - Math.abs(q.cx - 500))
+            return free[0] ?? null
+            },
+        accessibilityRole = group,
+        accessibilityLabel = "Seats in the Grand Hall",
+
+        // the stage, which everything faces
+
+        stage: View [ width = 100%, height = 100%, accessibilityHidden = true,
+            draw(d: DrawContext) {
+                const cy = app.seats.focusY
+                const a = 0.3
+                d.beginPath()
+                d.arc(500, cy, 815, Math.PI / 2 - a, Math.PI / 2 + a, false)
+                d.arc(500, cy, 722, Math.PI / 2 + a, Math.PI / 2 - a, true)
+                d.closePath()
+                d.fillStyle = provided("theme").stage
+                d.fill()
+                },
+            Text [ x = center, y = { app.seats.focusY + 752 }, fontSize = 18, fontWeight = semibold, letterSpacing = 6,
+                textColor = { provided("theme").stageInk }, text = "STAGE" ]
+            ],
+
+        SectionView [ datapath = :sections[] ]
+        ]
+    ]
+
+
+// ── The key: the three states, drawn as the seats draw them ─────────────────
+
+class LegendMark [ width = 22, height = 22,
+    kind: string = "free",
+    View [ x = center, y = center,
+        width = { classroot.kind == "gone" ? 9 : classroot.kind == "mine" ? 18 : 13 }, height = { this.width },
+        cornerRadius = { this.width / 2 },
+        fill = { classroot.kind == "gone" ? null : classroot.kind == "mine" ? provided("theme").accent : provided("theme").seatFree },
+        stroke = { classroot.kind == "gone" ? stroke(1.6, provided("theme").seatGone) : null },
+        View [ visible = { classroot.kind == "mine" }, x = center, y = center, width = 6, height = 6, cornerRadius = 3,
+            fill = { provided("theme").surface } ]
+        ]
+    ]
+
+
+class Legend [
+    layout: SimpleLayout [ axis = x, spacing = 18, align = center ],
+    LegendItem [ kind = "free", word = "Free" ],
+    LegendItem [ kind = "mine", word = "Yours" ],
+    LegendItem [ kind = "gone", word = "Taken" ]
+    ]
+
+
+class LegendItem [
+    kind: string = "free",
+    word: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+    LegendMark [ kind = { classroot.kind } ],
+    Text [ fontSize = 14, textColor = { provided("theme").textMuted }, text = { classroot.word } ]
+    ]

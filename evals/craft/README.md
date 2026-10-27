@@ -110,7 +110,9 @@ A Declare run's report has, in order:
 5. **The agent's account, verbatim.** Asked after the build by resuming the finished session
    with read-only tools, with the standard questions (the prompt is kept beside the logs as
    `impressions.txt`), and with auto-memory off as the build had it
-   (`CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 claude -p --resume <session> --tools Read,Glob,Grep …`).
+   (`CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 claude -p --resume <session> --tools Read,Glob,Grep … < impressions.txt`
+   — the questions on standard input: `--tools` takes a list, and a prompt written after it is
+   read as one more tool, so the resume runs with no prompt and fails).
    Its tokens are counted separately from the build's.
 
 **Ending a run.** `launch.sh` starts `finish.sh` beside the agent: once the build's result

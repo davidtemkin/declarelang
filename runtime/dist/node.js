@@ -6,7 +6,7 @@
 // rungs that need it: names/ids and `classroot` scope (R6), the reactive core
 // and construct/init events (R4/R5). Establishing the Node↔View seam now is
 // what lets those land without reshaping the base.
-import { Cell, isTracking, noteOrigin } from "./reactive.js";
+import { Cell, isTracking, noteOrigin, afterSettle } from "./reactive.js";
 import { timeHost } from "./wallclock.js";
 import { trackNode, untrackNode } from "./change-event.js";
 import { providedRead, defineAttributes, providedChainMoved, PROVIDED_FACE, disposeBindings, freeCells } from "./attributes.js";
@@ -96,6 +96,28 @@ export class Node {
         };
         frame = host.frame !== undefined ? host.frame(afterFrame) : host.setTimeout(afterFrame, 0);
         return { cancel };
+    }
+    /** The call behind `afterSettle(fn)` in a handler — run `fn` at the close of
+     *  the current settle. The compiler rewrites the callee to
+     *  `this.$afterSettle`, so the step belongs to the node whose handler asked,
+     *  as `afterDelay`'s wait does: a node discarded before the settle closes
+     *  drops it, and its step never reads a node that is gone (a form leaving
+     *  the screen inside its own refusal handler threw from its deferred
+     *  `showProblems()`). */
+    $afterSettle(fn) {
+        let done = false;
+        const cancel = () => { if (!done) {
+            done = true;
+            pending(this).delete(cancel);
+        } };
+        pending(this).add(cancel);
+        afterSettle(() => {
+            if (done)
+                return;
+            done = true;
+            pending(this).delete(cancel);
+            fn();
+        });
     }
     /** The read behind `hostProvided("name", default)` — a value this program's
      *  HOST makes available: an island's `provides` name, a page's

@@ -77,7 +77,7 @@ const checkClassValue = (...a) => CHECKER.checkClassValue(...a);
 import { fontObjectHint } from "./font-value.js";
 import { setStyleBundles, bundleRecord } from "./style-bundles.js";
 import { THEME_PRESETS } from "./themes.js";
-import { compileBody, compileExpr, withScriptScope, evalScript } from "./expr.js";
+import { compileBody, compileExpr, withScriptScope, evalScript, bodyLabel } from "./expr.js";
 import { coerce, coerceToken, isPercent, isAlign, nullablePrimitive } from "./value.js";
 import { defineAttributes, noteUseSiteSet, recordDeclarations, setBound, provideWrite, declaredRules, isSet, ownerOf } from "./attributes.js";
 import { contractGaps, contractMessage } from "./a11y-roles.js";
@@ -707,7 +707,7 @@ isShapeType = () => false) {
             // R6 unlock — theme-deferring defaults); checkDecl vetted the syntax.
             let defBinding;
             if (d.def?.kind === "code") {
-                const c = compileExpr(d.def.src);
+                const c = compileExpr(d.def.src, bodyLabel(name, d.name, d.def.pos));
                 if ("error" in c)
                     throw new DeclareError(`${name}.${d.name}'s default = { … } ${c.error}`, d.def.pos);
                 defBinding = c.fn;
@@ -790,7 +790,7 @@ function classAccessibility(body, name) {
         const v = a.value;
         const text = a.name === "accessibilityLabel" || a.name === "accessibilityHint" || a.name === "accessibilityValueText";
         if (v.kind === "code") {
-            const c = compileExpr(v.src);
+            const c = compileExpr(v.src, bodyLabel(name, a.name, v.pos));
             if ("error" in c)
                 throw new DeclareError(`${name}.${a.name} = { … } ${c.error}`, v.pos);
             a11y[a.name] = { def: text ? "" : null, defBinding: c.fn };
@@ -896,7 +896,7 @@ function installMethods(node, sources, owner, eff, ctx) {
                 const impl = rt.fn;
                 base[m.name] = (...args) => impl.apply(node, args);
             }
-            const c = compileBody(m.params.map((p) => p.name), m.body);
+            const c = compileBody(m.params.map((p) => p.name), m.body, bodyLabel(owner, m.name, m.bodyPos));
             if ("error" in c)
                 throw new DeclareError(`${owner}.${m.name}(…) ${c.error}`, m.bodyPos);
             const fn = c.fn;
@@ -1583,7 +1583,7 @@ function constructState(el, outer, ctx, parentEl) {
             throw r.error;
         const slot = a.name;
         if ("binding" in r) {
-            const c = compileExpr(r.binding.src);
+            const c = compileExpr(r.binding.src, bodyLabel(parentEl.tag, slot, a.value.pos));
             if ("error" in c)
                 throw new DeclareError(`${parentEl.tag}.${slot} = { … } ${c.error}`, a.value.pos);
             const fn = c.fn;

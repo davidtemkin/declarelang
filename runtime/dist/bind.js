@@ -14,7 +14,7 @@ import { Constraint, kernel, touchCell, readsCellDuring } from "./reactive.js";
 import { defaultOf, hasSlot, markPercent, setPercentMark, own, release, setBound, provideWrite, computingProvision, slotCellOf, writeOwned, isSetOrOwned, ownerOf, kernelLanding } from "./attributes.js";
 import { KERNEL_FLAG } from "./kernel-loader.js";
 import { watchingContentRead } from "./size-probe.js";
-import { compileExpr } from "./expr.js";
+import { compileExpr, bodyLabel } from "./expr.js";
 import { View, inheritedCursor, withCursorDefining } from "./view.js";
 import { authoredName, onDiscard } from "./node.js";
 import { coerceData, toCursor } from "./data.js";
@@ -34,7 +34,7 @@ import { splitPath } from "./path-plan.js";
  *  so a descendant's `provided("theme")` re-derives when the { } does. No slot
  *  owner (there is no slot); teardown rides onDiscard. */
 export function provideBind(view, name, src, pos, classroot, deps) {
-    const c = compileExpr(src);
+    const c = compileExpr(src, bodyLabel(view.constructor.name, name, pos));
     if ("error" in c)
         throw new DeclareError(`${view.constructor.name} provides ${name} = { … } ${c.error}`, pos);
     const fn = c.fn;
@@ -414,7 +414,7 @@ bytecode) {
     }
     if (plan !== null)
         deps = plan.paths;
-    const c = compileExpr(src);
+    const c = compileExpr(src, bodyLabel(view.constructor.name, name, pos));
     if ("error" in c) {
         throw new DeclareError(`${view.constructor.name}.${name} = { … } ${c.error}`, pos);
     }

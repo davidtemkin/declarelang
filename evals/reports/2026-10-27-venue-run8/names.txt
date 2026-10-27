@@ -1,0 +1,7 @@
+NAMES — eval-venue-8: 1 missed name(s), 0 collision(s), 0 declare-help miss(es), 0 empty search(es)
+
+MISSES (min · kind · name · on · origin · the platform's answer · times · resolved at min · how it ended)
+     0 · attribute · color                · Text                     · CSS                · foreign hint · ×1  ·    0 · resolved
+         Text has no attribute 'color' — the CSS instinct: text color is 'textColor'
+
+SUMMARY: 0 of 1 misses got no hint · 0 declared instead (none) · 0 never resolved (none)

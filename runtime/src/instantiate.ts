@@ -96,7 +96,7 @@ import { fontObjectHint } from "./font-value.js";
 import { setStyleBundles, bundleRecord } from "./style-bundles.js";
 import { THEME_PRESETS } from "./themes.js";
 import type { Theme } from "./value.js";
-import { compileBody, compileExpr, withScriptScope, evalScript } from "./expr.js";
+import { compileBody, compileExpr, withScriptScope, evalScript, bodyLabel } from "./expr.js";
 import { coerce, coerceToken, isPercent, isAlign, nullablePrimitive, type AttrType, type AttrValue } from "./value.js";
 import { defineAttributes, noteUseSiteSet, recordDeclarations, setBound, provideWrite, declaredRules, isSet, ownerOf, type AttrSpec, type DeclRecord } from "./attributes.js";
 import { contractGaps, contractMessage } from "./a11y-roles.js";
@@ -779,7 +779,7 @@ function synthesize(
       // R6 unlock — theme-deferring defaults); checkDecl vetted the syntax.
       let defBinding: AttrSpec<View, unknown>["defBinding"];
       if (d.def?.kind === "code") {
-        const c = compileExpr(d.def.src);
+        const c = compileExpr(d.def.src, bodyLabel(name, d.name, d.def.pos));
         if ("error" in c) throw new DeclareError(`${name}.${d.name}'s default = { … } ${c.error}`, d.def.pos);
         defBinding = c.fn;
       }
@@ -860,7 +860,7 @@ function classAccessibility(body: Element, name: string): Record<string, AttrSpe
     const v = a.value as Literal;
     const text = a.name === "accessibilityLabel" || a.name === "accessibilityHint" || a.name === "accessibilityValueText";
     if (v.kind === "code") {
-      const c = compileExpr(v.src);
+      const c = compileExpr(v.src, bodyLabel(name, a.name, v.pos));
       if ("error" in c) throw new DeclareError(`${name}.${a.name} = { … } ${c.error}`, v.pos);
       a11y[a.name] = { def: text ? "" : null, defBinding: c.fn };
     } else if (v.kind === "ident") {
@@ -971,7 +971,7 @@ function installMethods(node: Node, sources: readonly MemberSource[], owner: str
         const impl = rt.fn;
         base[m.name] = (...args: unknown[]) => impl.apply(node, args);
       }
-      const c = compileBody(m.params.map((p) => p.name), m.body);
+      const c = compileBody(m.params.map((p) => p.name), m.body, bodyLabel(owner, m.name, m.bodyPos));
       if ("error" in c) throw new DeclareError(`${owner}.${m.name}(…) ${c.error}`, m.bodyPos);
       const fn = c.fn;
       const mcroot = s.croot;
@@ -1663,7 +1663,7 @@ function constructState(
     if (!r.ok) throw r.error;
     const slot = a.name;
     if ("binding" in r) {
-      const c = compileExpr(r.binding.src);
+      const c = compileExpr(r.binding.src, bodyLabel(parentEl.tag, slot, a.value.pos));
       if ("error" in c) throw new DeclareError(`${parentEl.tag}.${slot} = { … } ${c.error}`, a.value.pos);
       const fn = c.fn;
       overrides.push({

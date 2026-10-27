@@ -177,7 +177,7 @@ bootHost(cfg);
       // Default light; a state asks for dark with `scheme: "dark"`.
       await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: scheme }]);
       const pageErrors = [];
-      page.on("pageerror", (e) => pageErrors.push(String(e?.message ?? e)));
+      page.on("pageerror", (e) => pageErrors.push(String(e?.message ?? e) + programFrames(e?.stack)));
       // what the page's own boot says went wrong, so a boot that fails is
       // reported by its reason rather than by the wait for a ready signal it
       // will never give
@@ -194,7 +194,12 @@ bootHost(cfg);
         pageSaid.push(t.split("\n")[0].slice(0, 300));
         if (pageSaid.length > 5) pageSaid.shift();
         if (t.startsWith("[Declare] boot failed")) bootSaid.push(consoleText(m));
-        else if (/^\[Declare\] .* threw: /.test(t)) thrown.push(t.slice("[Declare] ".length));
+        else if (/^\[Declare\] .* threw: /.test(t)) {
+          // the error rides as the message's second argument: its stack names
+          // the program's own frames (expr.ts bodyLabel)
+          const i = thrown.push(t.slice("[Declare] ".length)) - 1;
+          m.args()[1]?.evaluate((e) => e?.stack ?? "").then((st) => { thrown[i] += programFrames(st); }, () => {});
+        }
       });
       // THE REQUESTS THE PROGRAM MAKES — its DataSources, streams and sockets,
       // not the page's own scripts, styles, fonts and pictures — in order, with
@@ -205,6 +210,11 @@ bootHost(cfg);
       page.on("request", (r) => {
         if (!PROGRAM_KINDS.has(r.resourceType()) || r.method() === "OPTIONS") return;
         const u = new URL(r.url());
+        // the dev server compiling the page it serves (a --url run) is the host's
+        // own work, not a request the program made
+        let pageOrigin = null;
+        try { pageOrigin = new URL(page.url()).origin; } catch { /* no page yet */ }
+        if (u.origin === pageOrigin && u.pathname === "/compile") return;
         requests.push({ method: r.method(), url: r.url(), path: u.pathname + u.search, body: parseBody(r.postData()), status: null, $req: r });
       });
       page.on("response", (res) => {
@@ -1197,6 +1207,20 @@ export async function runBootInBrowser({ compiled, appDir, windows, queries = nu
 // the browser's side, so the run fails at once with the line rather than at
 // some timeout with none.
 
+/** The program's own frames in a page error's stack: compiled bodies carry
+ *  their owner, member and place (runtime expr.ts bodyLabel), so the error is
+ *  said as " — in Form.showProblems (library/form.declare:295), from
+ *  Venue.leave (venue.declare:212)", rather than as minified frames. */
+function programFrames(stack) {
+  const seen = [];
+  for (const m of String(stack ?? "").matchAll(/declare\/([A-Za-z0-9_$.]+)@([^\s)]+?):(\d+):\d+:\d+/g)) {
+    const at = `${m[1]} (${m[2] === "main" ? `line ${m[3]}` : `${m[2]}:${m[3]}`})`;
+    if (!seen.includes(at)) seen.push(at);
+    if (seen.length === 2) break;
+  }
+  return seen.length === 0 ? "" : ` — in ${seen[0]}${seen.length > 1 ? `, from ${seen[1]}` : ""}`;
+}
+
 /** Race `p` against `ms`; `TIMED_OUT` when the time ran out first. Its timer is
  *  cleared either way, so a watch ended early holds nothing open. */
 const TIMED_OUT = Symbol("timed out");
@@ -1351,6 +1375,11 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
   // so a run reports them
   const writesOf = (app) => fixturesDir !== null ? [] : app.drive.requests()
     .filter((q) => q.method !== "GET" && q.method !== "HEAD").map((q) => `${q.method} ${q.path}`);
+  // the services this run talked to, and those it wrote to, by origin — what a
+  // later run that fails is told it may be meeting (verify.mjs)
+  const originsOf = (app, writing) => fixturesDir !== null ? [] : [...new Set(app.drive.requests()
+    .filter((q) => !writing || (q.method !== "GET" && q.method !== "HEAD"))
+    .map((q) => { try { return new URL(q.url).origin; } catch { return null; } }).filter((o) => o !== null))];
   return withHost({ compiled, appDir, fixturesDir, backendClass, built, scrollbars: true, url }, async ({ openApp }) => {
     const failures = [];
     // a script may name the device it runs on — `export const device = { width,
@@ -1367,7 +1396,7 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
     try {
       await app.watched(() => mod.default({ drive: app.drive, expect: app.expect, page: app.page }));
     } catch (e) {
-      if (e?.lines !== undefined) { failures.push(...e.lines); return { ok: false, failures, log: app.log, writes: writesOf(app) }; }
+      if (e?.lines !== undefined) { failures.push(...e.lines); return { ok: false, failures, log: app.log, writes: writesOf(app), talked: originsOf(app, false), wrote: originsOf(app, true) }; }
       const where = app.log.length > 0 ? ` (after: ${app.log.slice(-3).join(" → ")})` : "";
       // For an unexpected error, the first stack frame is the difference
       // between "my assert threw here" and an anonymous page error a reader
@@ -1379,7 +1408,7 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
     if (failures.length === 0) { await app.quiet(2000); await app.checkHere("at the end of the script"); }
     for (const e of app.pageErrors) failures.push(`page error: ${e}`);
     for (const e of new Set(app.thrown)) failures.push(`error: ${e}`);
-    return { ok: failures.length === 0, failures, log: app.log, writes: writesOf(app), checks: app.checks };
+    return { ok: failures.length === 0, failures, log: app.log, writes: writesOf(app), talked: originsOf(app, false), wrote: originsOf(app, true), checks: app.checks };
   });
 }
 

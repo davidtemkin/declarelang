@@ -292,7 +292,7 @@ const ownClasses = async () => ((await compiledProgram()).classes ?? []).filter(
 const driven = { checks: [], flagged: [] };
 
 // ── rung 5: behavior (drive + assert, real browser) ──────────────────────
-const behave = { ran: false, ok: false, failures: [], log: [], writes: [] };
+const behave = { ran: false, ok: false, failures: [], log: [], writes: [], serviceNote: null };
 if (failedRung === null && flags.rung >= 5 && flags.assert !== null) {
   behave.ran = true;
   const { runBehavior } = await import("./internal/verify-behave.mjs");
@@ -313,6 +313,31 @@ if (failedRung === null && flags.rung >= 5 && flags.assert !== null) {
     behave.failures = r.failures;
     behave.log = r.log;
     behave.writes = r.writes ?? [];
+    // A LIVE SERVICE REMEMBERS. What earlier runs wrote to a service is still
+    // there for this one: a script that bought seats meets them sold the next
+    // time. Each run's writes are kept by service and time (in the system's temp
+    // folder); a run that fails after talking to a service earlier runs wrote to
+    // is told so, since its failure may be the service's state, not the program.
+    try {
+      const { tmpdir } = await import("node:os");
+      const { readFileSync: rd, writeFileSync: wr, mkdirSync: mk } = await import("node:fs");
+      const { join: jn } = await import("node:path");
+      const dir = jn(tmpdir(), "declare-verify"), rec = jn(dir, "writes.json");
+      let past = [];
+      try { past = JSON.parse(rd(rec, "utf8")); } catch { /* none yet */ }
+      const now = Date.now(), hour = 3600_000;
+      past = past.filter((w) => now - w.at < hour);
+      if (!r.ok) {
+        const before = past.filter((w) => (r.talked ?? []).includes(w.origin));
+        if (before.length > 0) {
+          const n = before.reduce((a, w) => a + w.count, 0), last = Math.max(...before.map((w) => w.at));
+          const mins = Math.max(1, Math.round((now - last) / 60_000));
+          behave.serviceNote = `this run failed after talking to ${[...new Set(before.map((w) => w.origin))].join(", ")}, which earlier runs wrote to (${n} write${n === 1 ? "" : "s"} in the last hour, the last ${mins} min ago): what they made is still there, so the failure may be the service's state rather than the program — write the script to take what is available now (a free seat, not a fixed one), reset the service if it has a way, or answer from files with --fixtures <dir>`;
+        }
+      }
+      const mine = (r.wrote ?? []).map((origin) => ({ origin, count: (r.writes ?? []).length, at: now }));
+      if (mine.length > 0) { mk(dir, { recursive: true }); wr(rec, JSON.stringify([...past, ...mine])); }
+    } catch { /* the record is a courtesy: never the run's failure */ }
     if (!r.ok) failedRung = 5;
   } catch (e) {
     behave.failures.push(e?.constructor?.name === "VerifyAssertion" ? e.message : `behavior harness: ${e?.message ?? e}`);
@@ -428,6 +453,7 @@ if (flags.json) {
   for (const w of warnings) console.log(`  warn ${show(w)}`);
   for (const h of hints) console.log(`  hint ${show(h)}`);
   for (const n of boot.notes) console.log(`  note ${n}`);
+  if (behave.serviceNote) console.log(`  note ${behave.serviceNote}`);
   if (behave.writes.length > 0) {
     const shown = [...new Set(behave.writes)];
     console.log(`  note the script sent ${behave.writes.length} write${behave.writes.length === 1 ? "" : "s"} to the live service (${shown.slice(0, 4).join(", ")}${shown.length > 4 ? ", …" : ""}) — what they made stays there; --fixtures <dir> answers requests from files instead, so a run leaves nothing behind (verify.md)`);

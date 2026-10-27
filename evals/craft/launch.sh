@@ -89,7 +89,9 @@ if [ -f "${SERVICE[0]}" ]; then
 fi
 
 # a real session's tools: files, the shell (package installs included), and the web
-TOOLS="Read,Glob,Grep,Bash,Write,Edit,WebSearch,WebFetch"
+# Agent: the harness's own sub-agents, there for any stack to use (Declare's skill
+# teaches handing checks to one; a stack whose ecosystem has its own is not stopped)
+TOOLS="Read,Glob,Grep,Bash,Write,Edit,WebSearch,WebFetch,Agent"
 {
   echo "STARTED=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
   echo "APP=$APP"
@@ -114,5 +116,5 @@ CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 nohup claude -p --model "$MODEL" \
   < "$LOGS/prompt.txt" > "$LOGS/agent.stream.jsonl" 2> "$LOGS/agent.stderr" &
 echo "AGENT_PID=$!" >> "$LOGS/started.txt"
 # ends the run cleanly once the result is in: what the agent left running, by pid
-nohup "$(dirname "$0")/finish.sh" "$RUN" > "$LOGS/finish.log" 2>&1 &
+nohup "$HERE/finish.sh" "$RUN" > "$LOGS/finish.log" 2>&1 &
 cat "$LOGS/started.txt"

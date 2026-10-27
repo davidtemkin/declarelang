@@ -22,6 +22,10 @@ row: View [ x = 20, y = 20,
     ]
 ```
 
+## height
+24, the row a checkbox and its label sit in — and 44 on a touch-first device, a finger's target,
+the box unchanged.
+
 ## checked
 Whether the box is ticked. Standalone it owns this and you read it back by name;
 constrained (`checked = { app.muted }`) it needs an `input` override to go with it — **a
@@ -80,7 +84,10 @@ class Checkbox extends ValueControl [
     // keyboard focus rings the box alone, not box+label (the Radio rule)
 
     focusShape() { return ({ x: this.box.x, y: this.box.y, w: this.box.width, h: this.box.height, rad: this.box.cornerRadius }) },
-    height = 24,
+
+    // a finger's target on a touch-first device, the box still the theme's size
+
+    height = { app.touchFirst ? 44 : 24 },
     checked: boolean = false,
     fieldValue = { checked },
     label:   string = "",

@@ -1039,6 +1039,8 @@ function emitClass(
     lines.push(`  $providedTextStyle(overrides?: TextStyle): TextStyle;`);
     // `afterDelay(ms, fn)` → `this.$afterDelay(…)`: the wait belongs to the asking node.
     lines.push(`  $afterDelay(ms: number, fn: () => void): DelayHandle;`);
+    // `afterSettle(fn)` in a handler → `this.$afterSettle(…)`: the step belongs to the asking node.
+    lines.push(`  $afterSettle(fn: () => void): void;`);
   }
   // One optional handler member per event this schema DECLARES. Emitting them
   // is what makes a user's handler an OVERRIDE: writing `onPointerUp(e: string)`

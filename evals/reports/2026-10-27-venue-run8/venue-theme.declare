@@ -1,0 +1,30 @@
+/*
+# The Venue: the look
+
+One palette: warm paper and ink, and one accent — garnet — which means
+"yours": the seats you hold, the action that commits them. Everything else is
+ink at different strengths. The library reads the same record (`accent`,
+`surface`, `line` …), so its controls wear it too.
+*/
+
+theme Venue [
+    background = #F6F1E9, surface = #FFFDF8, card = #FFFDF8,
+    text = #1E1915, textMuted = #6A6058, textFaint = #93897F,
+    line = #E3DACC, lineStrong = #CBBFAE, quiet = #EDE6DA, hover = #EFE8DD,
+    accent = #A3203B, accentHovered = #8E1A32, accentPressed = #7A152A, accentTextColor = #FFFFFF,
+    accentTint = #F6E3E6,
+    control = #EDE6DA, controlHovered = #E5DDCF, controlPressed = #DCD2C2, controlSelected = #E5DDCF,
+    error = #B42318, errorTint = #FBEAE8,
+
+    // the house: free seats are ink, taken ones a faint ring, bands behind
+    // each section a shade of the paper
+
+    seatFree = #3B332D, seatGone = #C2B6A4, band = #EDE5D8, bandEdge = #E0D5C4, stage = #2A231E, stageInk = #F6F1E9,
+
+    // the ticket: paper on ink
+
+    ticketInk = #1E1915, ticketPaper = #FFFDF8,
+
+    buttonHeight = 44, controlCornerRadius = 10, buttonCornerRadius = 10, comboboxHeight = 44,
+    sheetCornerRadius = 18
+    ]

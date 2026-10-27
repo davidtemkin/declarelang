@@ -172,6 +172,26 @@ await test("an assert script that writes to a live service is told what it left 
   } finally { svc.kill(); }
 });
 
+await test("a run that fails after talking to a service earlier runs wrote to is told what may be the service's state", async () => {
+  const { spawn } = await import("node:child_process");
+  const svc = spawn("node", ["-e", `require("node:http").createServer((q, r) => { r.writeHead(q.method === "OPTIONS" ? 204 : 201, { "access-control-allow-origin": "*", "access-control-allow-headers": "content-type", "access-control-allow-methods": "GET, POST, OPTIONS", "content-type": "application/json" }); r.end("{}"); }).listen(8398, () => console.log("up"));`]);
+  await new Promise((r) => svc.stdout.once("data", r));
+  try {
+    const f = join(DIR, "remembers.declare");
+    writeFileSync(f, `App [ width = 200, height = 100,
+    add: DataSource [ url = "http://127.0.0.1:8398/api/seats", method = "POST", body = { { seat: "A-1" } } ] ]`);
+    const buy = script("buy.mjs", `  await page.evaluate(() => window.__declare.find("app.add").fetch());
+  await drive.settleData();`);
+    assert.equal(run("verify.mjs", f, "--assert", buy, "--rung=5", "--no-boot").status, 0);
+    const again = script("again.mjs", `  await page.evaluate(() => window.__declare.find("app.add").fetch());
+  await drive.settleData();
+  await expect.attr("app", "width", 999);`);
+    const r = run("verify.mjs", f, "--assert", again, "--rung=5", "--no-boot");
+    assert.notEqual(r.status, 0, r.out);
+    assert.match(r.out, /note this run failed after talking to http:\/\/127\.0\.0\.1:8398, which earlier runs wrote to/, r.out);
+  } finally { svc.kill(); }
+});
+
 await test("R4: a control another view takes the presses of is said, with the view that takes them", () => {
   const f = join(DIR, "cover.declare");
   writeFileSync(f, `App [ width = 400, height = 300,
@@ -196,6 +216,12 @@ await test("declare-look --url looks at an app where it is served, with no progr
     const r = run("look.mjs", "--url", `http://127.0.0.1:${port}/apps/todo/todo.declare`, "--wait", "500", "--js", "location.pathname");
     assert.equal(r.status, 0, r.out);
     assert.match(r.out, /js: "\/apps\/todo\/todo.declare"/, r.out);
+    // …and verify driving it there counts no write of the host's own: the dev
+    // server compiling the page it serves is not the program writing to a service
+    const v = run("verify.mjs", join(ROOT, "apps/todo/todo.declare"), "--url", `http://127.0.0.1:${port}/apps/todo/todo.declare`, "--no-boot",
+      "--assert", script("served.mjs", `  await drive.settleData();`), "--rung=5");
+    assert.equal(v.status, 0, v.out);
+    assert.doesNotMatch(v.out, /\/compile/, v.out);
   } finally { srv.kill(); }
 });
 
@@ -324,6 +350,43 @@ export default async ({ drive, page }) => {
   const line = r.out.split("\n").find((l) => l.includes("after drag app.sc") && l.includes("takes the presses of")) ?? "";
   assert.match(line, new RegExp(`${under.length} control\\(s\\) another view takes the presses of`), `at rest ${rest}, rows ${under.join(",")} are under the layer:\n${r.out}`);
   assert.ok(line.includes(`app.sc.r${under[0]} (by app.cover)`), line);
+});
+
+await test("a sheet a finger opens keeps the focus it gives its first field — the tap's late mousedown does not take it back — and a tap into a field still focuses it", () => {
+  const f = join(DIR, "tapfocus.declare");
+  writeFileSync(f, `App [ width = 390, height = 700,
+    go: Button [ x = 20, y = 20, label = "Sign in", onClick() { app.s.show() } ],
+    field: TextInput [ x = 20, y = 120, width = 300, accessibilityLabel = "Search" ],
+    s: Sheet [ email: TextInput [ width = 300, name = "email", required = "Enter your email address.", accessibilityLabel = "Email" ] ] ]`);
+  const script = join(DIR, "tapfocus.mjs");
+  writeFileSync(script, `export const device = { width: 390, height: 700, touch: true };
+export default async ({ drive, expect }) => {
+  await drive.click("app.field");
+  await drive.waitReal(200);
+  await expect.attr("app.field", "focused", true);
+  await drive.click("app.go");
+  await drive.settleMotion();
+  await drive.waitReal(300);
+  await expect.attr("app.s.email", "focused", true);
+  await expect.attr("app.s.email", "judged", false);
+  await expect.attr("app.s.email", "error", "");
+};`);
+  const r = run("verify.mjs", f, "--assert", script, "--rung=5", "--no-boot");
+  assert.equal(r.status, 0, r.out);
+});
+
+await test("an error a handler throws names the program's own code: the method that threw and what called it", () => {
+  const f = join(DIR, "threw.declare");
+  writeFileSync(f, `class Panel extends View [ width = 100, height = 40, items: any = null,
+    count() -> number { return this.items.length },
+    go() { this.count() } ]
+App [ width = 300, height = 200,
+    p: Panel [ ],
+    b: Button [ y = 60, label = "Go", onClick() { app.p.go() } ] ]`);
+  const script = join(DIR, "threw.mjs");
+  writeFileSync(script, `export default async ({ drive }) => { await drive.click("app.b"); await drive.waitReal(200); };`);
+  const r = run("verify.mjs", f, "--assert", script, "--rung=5", "--no-boot");
+  assert.match(r.out, /threw: Cannot read properties of null \(reading 'length'\) — in Panel\.count \(line 2\), from Panel\.go \(line 3\)/, r.out);
 });
 
 await test("rung 6 asks the same layout questions in each named state", () => {

@@ -86,7 +86,8 @@ its `errorBody` goes through `refusal` onto the members. Leave it null to send a
 True while the request the form sent is out; `submit()` does nothing meanwhile. A form
 with no `source` sets it itself around slow work in `send()`, and back to false when the
 work is done. Keep the Submit button
-focusable while pending (say so in its label); `submit()` already ignores the press.
+focusable while pending (say so in its label); `submit()` already ignores the press, so a
+form sends once with no flag of your own — a `sending` beside `pending` is a second copy of it.
 
 ## submitted
 Whether `submit()` has been tried since the last success. A presentation that shows

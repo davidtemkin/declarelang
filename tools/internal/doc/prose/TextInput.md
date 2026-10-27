@@ -217,6 +217,10 @@ while the person is still typing in it for the first time is the common annoyanc
 avoids. Once judged, the field follows each edit, so the message goes the moment the text is
 right. `problem` and `valid` are true to the text either way.
 
+Judging on leave is the field's own: it does not run through `onBlur`, so an `onBlur` of yours
+neither starts nor stops it, and has no base body to call (there is no `super.onBlur()`). To keep
+a field from being judged, set `judged = false`; to judge it now, `judge()`.
+
 ## judge()
 Judge the field now, without waiting for it to be left. A `Form`'s `submit()` judges every
 field it holds; call this for a field outside any form.
