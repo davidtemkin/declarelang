@@ -258,18 +258,19 @@ shows the Declare form.
 Climb from the cheapest check to the dearest, and stop as soon as one answers:
 
 - **Check as you go** with `npx declare-verify app.declare`: in a second or two it compiles
-  the program, checks it, and boots it in a browser at a laptop's size and a phone's —
+  the program, checks it, and boots it in a browser at a laptop's size (`--phone` for a
+  phone's, `--phone --desk` for both, when the program is for phones) —
   syntax, names, types, that it starts, and what it can see wrong in the layout (a child
   spilling out of a box sized by its content, text past its box or the window, a target too
   small for a finger). A program that never finishes is stopped, and its line quoted. Each error names its fix;
   apply exactly that, change nothing else, check again. It also lists the classes the boot
   never built — screens that appear later — which it could not check.
-- **Ask where things are before you look.** `npx declare-verify app.declare --size 390x844
-  --touch --read app.list.height --outline app.sheet` answers from that boot: a value, and
+- **Ask where things are before you look.** `npx declare-verify app.declare
+  --read app.list.height --outline app.sheet` answers from that boot: a value, and
   every view under a path with its place and size, as text. It costs a fraction of a picture.
 - **Look at milestones** — once the whole program first runs, and after a change to what
   people see — because paint, fonts and real text exist only in a browser.
-  `npx declare-look app.declare --size 390x844 --touch --shot out.png` runs it in a browser
+  `npx declare-look app.declare --shot out.png` (`--phone` for a phone) runs it in a browser
   and saves a picture; it can click, drag, hold, pinch, scroll, type and press keys, in the
   order you write them, and read values (`--help` lists them). Under `--touch` every press
   is a finger. `--shot-of PATH file.png` pictures one view instead of the window. A picture you read stays in your context for the rest of the session, like

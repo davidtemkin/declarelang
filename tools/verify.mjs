@@ -92,11 +92,14 @@ const flags = {
   // declare-look, which runs the program in a browser at once and is asked
   // again and again while a program is written
   noBoot: args.includes("--no-boot"),
-  // --size WxH [--touch]: the window the headless boot fills (default: a laptop,
-  // then a phone held upright, touch). --read PATH.ATTR (repeatable), --outline
-  // [PATH], --semantics [PATH]: answered from that boot, no browser.
+  // --size WxH [--touch]: the window the headless boot fills (default: a
+  // laptop's). --phone: a phone held upright, touch, instead; --phone --desk:
+  // both. --read PATH.ATTR (repeatable), --outline [PATH], --semantics [PATH]:
+  // answered from that boot, no browser.
   size: argVal("size"),
   touch: args.includes("--touch"),
+  phone: args.includes("--phone"),
+  desk: args.includes("--desk"),
   reads: args.flatMap((a, i) => a === "--read" && args[i + 1] !== undefined ? [args[i + 1]] : a.startsWith("--read=") ? [a.slice(7)] : []),
   outline: optionalVal("outline"),
   semantics: optionalVal("semantics"),
@@ -226,9 +229,9 @@ async function compiledProgram() {
 // settle is stopped and reported with what it was running. Typography-sensitive
 // assertions are out of scope at Node rung 4 BY DESIGN (verify-and-evals.md §2.8).
 const boot = { ran: false, ok: false, nodes: 0, ms: 0, errors: [], notes: [], samples: [] };
-// BOTH WINDOWS. With no --size, the boot fills a laptop window and then a phone
-// held upright (touch): a program is written for both, and what goes wrong on
-// one — a row past the edge, a target too small for a finger — is seen there.
+// THE WINDOWS ASKED FOR. With no --size, the boot fills a laptop window; --phone
+// a phone held upright (touch) instead, and --phone --desk both. A phone is
+// checked when the program is for one — nothing here assumes it is.
 const sized = (() => {
   const m = /^(\d+)x(\d+)$/.exec(flags.size ?? "");
   return m !== null ? [{ size: [Number(m[1]), Number(m[2])], touch: flags.touch, tag: "" }] : null;
@@ -249,7 +252,8 @@ if (failedRung === null && flags.rung >= 4 && !flags.noBoot) {
   boot.where = inChrome ? "chrome" : "headless";
   try {
     const program = await compiledProgram();
-    const windows = sized ?? [{ size: [1280, 800], touch: false, tag: "" }, { size: [390, 844], touch: true, tag: "phone 390×844: " }];
+    const desk = { size: [1280, 800], touch: false, tag: "" }, phone = { size: [390, 844], touch: true, tag: "" };
+    const windows = sized ?? (flags.phone && flags.desk ? [desk, { ...phone, tag: "phone 390×844: " }] : flags.phone ? [phone] : [desk]);
     const own = (program.classes ?? []).filter((c) => !String(c.pos?.file ?? "").startsWith("library/")).map((c) => c.name);
     let results;
     if (inChrome) {
@@ -439,7 +443,7 @@ if (flags.json) {
       optionalIdle || r.n > effectiveBuilt ? "·" : "✓";
     const note =
       optionalIdle || r.n > effectiveBuilt ? ` — ${r.what}` :
-      r.n === 4 && boot.ran && boot.ok ? ` (${boot.nodes} nodes, in ${boot.where === "chrome" ? "Chrome, real text" : "Node, stand-in text"}${sized ? "" : ", a laptop and a phone"})${findings(boot.layout.length)}` :
+      r.n === 4 && boot.ran && boot.ok ? ` (${boot.nodes} nodes, in ${boot.where === "chrome" ? "Chrome, real text" : "Node, stand-in text"}${sized ? "" : flags.phone && flags.desk ? ", a laptop and a phone" : flags.phone ? ", a phone, touch" : ", a laptop"})${findings(boot.layout.length)}` :
       r.n === 5 && behave.ran && behave.ok ? ` (${behave.log.length} steps, real input${behave.asserted === 0 ? "; it asserted nothing, so the pass says only that nothing threw and what the layout checks found — end a flow with an expect of what it should have done" : `, ${behave.asserted} assertion${behave.asserted === 1 ? "" : "s"}`})` :
       r.n === 6 && visual.ran && visual.ok ? ` (${visual.results.length} states${flags.bless ? ", blessed" : ""})` : "";
     console.log(`  R${r.n} ${mark} ${r.name}${note}`);

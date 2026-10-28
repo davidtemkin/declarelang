@@ -86,6 +86,23 @@ await test("Combobox: picking delivers the MEMBER, echoes the label, closes the 
   assert.equal(c.list.shown, false, "pick closes");
 });
 
+await test("Combobox: Enter over the whole list keeps the choice already made", async () => {
+  // type "tur", Enter picks Alan Turing; Enter opens the whole list again, and
+  // Enter with no row roved keeps Turing — never the list's first item
+  const app = await boot(COMBO);
+  const c = app.c;
+  c.open(); settle();
+  c.query = "tur"; c.filtering = true; settle();
+  c.entry.onEnter(); settle();
+  assert.equal(c.value, c.items[1], "typed, then Enter: the first match");
+  c.entry.onEnter(); settle();
+  assert.equal(c.list.shown, true, "Enter on a closed list opens it");
+  assert.equal(c.matchCount, 3, "the whole list");
+  c.entry.onEnter(); settle();
+  assert.equal(c.value, c.items[1], "Enter with no row roved keeps the choice");
+  assert.equal(c.list.shown, false, "and closes the list");
+});
+
 await test("Combobox: a use-site input() owns the value (press-never-writes)", async () => {
   const app = await boot(`App [ width = 400, height = 300,
     chosen: object = null,

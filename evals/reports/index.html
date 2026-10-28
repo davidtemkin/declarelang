@@ -22,6 +22,13 @@
 <thead><tr><th>Date</th><th>Task</th><th>Model</th><th>Outcome</th><th>Report</th></tr></thead>
 <tbody>
 <tr>
+  <td>2026-10-28</td>
+  <td><strong>Venue — run 11</strong><br><small>b7bfd01b: the builder's own assert scripts again, and one brief check (declare-check --brief) before handover; the brief check ran unprompted and found three real bugs the acceptance doesn't test (the buyer's own seats reported "taken by someone else", the desk total scrolling away, a postcode not judged on leaving), all fixed; but the builder left Declare's checking tools for its own Playwright harness after a driver bug (a seat misplaced off-window) and an undocumented Puppeteer page — so verify's layout checks never ran past boot; 21.8M cached input re-read plus the checker's 2.25M. Run 10 (fee8fb2f, every flow to a checker) was stopped at 24 min and not filed</small></td>
+  <td>Opus 5.5</td>
+  <td><span class="tag t-ok">drive 11/11</span><br><small>1,388 code lines (1,823 raw) · 37.7 min · 112 turns</small></td>
+  <td><a href="2026-10-28-venue-run11/report.md">report</a> · <a href="2026-10-28-venue-run11/account.md">its account</a> · <a href="2026-10-28-venue-run11/report.md#the-names-ledger">names</a> · <a href="2026-10-28-venue-run11/checker-report.txt">the brief check</a></td>
+</tr>
+<tr>
   <td>2026-10-27</td>
   <td><strong>Venue — run 9</strong><br><small>7dd3360c: run 8's fixes (Form after a discard, finger-opened sheets, page errors that name program lines, the live-service note) and declare-start, a pre-read assembled from the needs picked in the skill's table; the fewest turns and least cached input of any Declare Venue — 79 turns, 17.2M cached input (−43% on run 8, −12% on run 7), $8.64 — though not the fastest (29.5 min against run 7’s 25.6); one platform bug met (provided() on the App throws, though its reference says "read it anywhere"); the checker was never used — the skill's one advisory line was read and not weighed</small></td>
   <td>Opus 5.5</td>

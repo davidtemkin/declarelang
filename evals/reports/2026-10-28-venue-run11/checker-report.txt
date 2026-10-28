@@ -1,0 +1,64 @@
+VERDICT   partly — every flow checked works end to end, but buying sends the buyer an assertive "taken by someone else" message about their own seats, and at a desk the total and Pay button scroll out of sight.
+
+Note: nothing was answering at http://127.0.0.1:8200 (connection refused), so every run used verify's own hosted copy against the live service at 8350.
+
+REQUIREMENTS  (in the order checked)
+  pass  twenty performances with date, time, lowest price, how full each is  — 20 PerfRows, each shows "from $35.00" and "N of 648 left"
+  pass  picking a performance takes the person into the hall  — clicking "Fri 11 Dec, 7:30pm" sets screen to "hall"
+  pass  each seat's accessible name is "Orchestra, row C, seat 14"  — every seat was pressed by that name, on the desk and the phone
+  pass  seats chosen and unchosen by picking them directly  — 3 seats chosen, 1 pressed again, accessibilityPressed true/false
+  pass  summary reads exactly "3 seats · $240.00" with the true total across sections  — "3 seats · $X", then "2 seats · $Y" (Orchestra + Dress Circle)
+  pass  a seat they had chosen that someone else takes leaves their choice, and they are told which  — the script bought one on the service (phone); chosen dropped it, the tally named it, the seat became disabled
+  pass  checkout shows each seat's price, booking fee and total; the pay button reads "Pay $261.00"  — prices, fee and total shown; "Pay $142.00" visible
+  pass  card number grouped as typed, kind recognised, impossible number caught on leaving, not while typing  — "4242 4242 4242 4242", "Visa"; "3782 822463 10005", "American Express"; Luhn error only after Tab
+  pass  code is 3 or 4 digits by card kind  — Amex with "123" gives "Enter the 4-digit code…"
+  pass  a month that isn't one, and an expiry in the past, are caught  — "There's no month 13…", "This card has expired…"
+  pass  postal code checked against the country's format, told on moving on  — "WC1N" (GB) and "9410" (US) refused; see FAILURES for a guest with no country chosen
+  pass  pressing Pay twice / Enter twice sends one payment  — two clicks plus Enter, and Enter twice: one POST /api/orders each time
+  pass  accepted: tickets, "Sent to …", one at a time, start again  — "Sent to checker@example.com", "Ticket 1 of 2", Next, then the list
+  pass  sign in halfway through paying; nothing chosen or typed lost  — after signing in: same 3 seats, card number and "9 Typed Road" kept
+  pass  password hidden, can be shown; wrong password gets the service's sentence  — concealed true, then false; "That email and password don't match."
+  pass  signed in: email and name filled, saved billing used, Visa ending 4242 offered, expired card shown expired and not choosable  — "Visa ending 4242 · expires 04/28"; "Mastercard ending 4444 · expired 08/26" disabled; city London
+  pass  declined: service's sentence shown, typed values kept  — 402, "declined" text in the pay dock; new-card fields intact
+  pass  one field wrong: marked with the service's sentence, person taken to it  — card …0127 gets 422; the sentence shows at Security code and focus is there
+  pass  reload keeps them signed in; signing out signs them out  — signedIn true after reload; DELETE /api/session; false after reload
+  pass  keyboard alone at a desk books two seats  — Tab to the plan, Space, ArrowLeft, Space; Tab through every field; Enter on Pay; 2 tickets
+  FAIL  their own purchase is not someone else's taking; nothing lies during payment  — see FAILURES
+  FAIL  checkout: the seats being bought and the total never out of sight (desk)  — see FAILURES
+
+FAILURES  (one block each, most important first)
+- On success, the buyer is told their own seat "was just taken by someone else"
+  where:    desk and phone; Pay pressed with a new card; the order is accepted
+  program:  venue.declare:57–64 (App.events onMessage) → venue.declare:120–128 (App.seatTaken); venue.declare:240 (App.paid)
+  seen:     app.notice = "Dress Circle, row C, seat 24 was just taken by someone else. Choose another seat.", announced assertively, every run. In one of four runs the screen read "hall", not "tickets", after the payment.
+            expected: the tickets, with no warning about seats they have just bought
+  cause:    the service's seatchanged event for the buyer's own seats arrives while `chosen` still holds them (the stream stays active during payment), so seatTaken removes them and sets the notice; with chosen empty, screenFor can return "hall" until placeOrder loads
+- Desk checkout: the order, total and Pay scroll away with the form
+  where:    1280×800, checkout, page wheeled down 900
+  program:  venue.declare:440 (checkoutScreen.col.summaryCol, ignoreScroll = true)
+  seen:     the summary column is gone at the top; only "All fields are needed…" is left   expected: seats and total always in sight
+  cause:    verify: "summaryCol has ignoreScroll, but its parent app.checkoutScreen.col does not scroll, so it moves with app.checkoutScreen.col"
+- A guest's mistyped postal code isn't caught on leaving until a country is pressed
+  where:    desk, guest, Postal code "9410", Tab
+  program:  venue-helpers.declare:130–144 (postalProblem / countryOfPostalCode)
+  seen:     no message until "United States" is pressed   expected: told when they move on (§10)
+  cause:    the country is "" until a radio is pressed or the code fits one format, and postalProblem("") returns ""
+
+LAYOUT    app.signInSheet.body.0 runs past the right edge at 390 wide (ends at 400), and app.signInSheet.body.0.1.2 with it
+          phone hall: 648 seats are 34×34, under 44×44 (app.hallScreen.lens.canvas.sections.0.1.2 …)
+          desk panel: the chosen-seat row is cut off as "Orchestra, row…" (app.hallScreen.panel.mine); seen in a picture
+          runtime said: Focus.focus(app.bar.signInButton) is not focusable, so after signing out focus did not move
+          runtime said: Focus.focus(app.checkoutScreen.col.formCol.account.1) is not focusable, after signing in at checkout
+
+UNCHECKED A seat taken at payment (409): back in the hall with the rest intact. Not triggered, because the event stream removes the seat first.
+          "Nearly sold out" apparent before picking: no performance is under the 10% threshold in today's data (lowest is p06, 79 of 648)
+          Pressing Pay shows that payment is under way (spinner, status text); not asserted
+          Phone: field never hidden behind the keyboard, browser autofill and password manager, keyboard types per field
+          Screen reader announcements for errors; focus after each action beyond the points above
+          Whether the hall reads as a room, a seat choice registers, checkout feels calm, the type and accent, motion restraint, tickets legible at arm's length: only a person can judge these
+
+SCRIPTS   my-apps/venue/checks/lib.mjs (helpers)
+          my-apps/venue/checks/desk-guest-buy.mjs (fails at the notice check, as above)
+          my-apps/venue/checks/phone-signin-decline-pay.mjs
+          my-apps/venue/checks/desk-signed-in-field-error.mjs
+          my-apps/venue/checks/desk-keyboard-only.mjs (needs a signed-out start)

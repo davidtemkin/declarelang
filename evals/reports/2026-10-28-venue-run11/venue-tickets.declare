@@ -1,0 +1,104 @@
+/*
+# The Venue: the tickets
+
+What someone holds up at the door: one ticket at a time, legible at arm's
+length — the performance, the seat in large type, when to arrive — and a
+Code 128 barcode of the ticket's own code on a white field for the scanner.
+*/
+
+class Barcode [ height = 84, fill = #FFFFFF, cornerRadius = 6,
+    code: string = "",
+    accessibilityRole = image,
+    accessibilityLabel = { "Barcode " + classroot.code },
+    widths: number[] = { code128(classroot.code) },
+    draw(d: DrawContext) {
+        const quiet = 10
+        const m = (width - 2 * 14) / (moduleCount(widths) + 2 * quiet)
+        let x = 14 + quiet * m
+        d.fillStyle = 0x111111
+        widths.forEach((w, i) => {
+            if (i % 2 == 0) d.fillRect(x, 10, w * m, height - 20)
+            x += w * m
+            })
+        }
+    ]
+
+
+// One ticket. Its record is the service's ticket; the performance comes from
+// the App, which knows which one was booked.
+
+class TicketCard [ cornerRadius = 18, clip = true,
+    fill = { provided("theme").ticket },
+    shadow = { shadow(0, 4, 10, 0x2A1A101A) },
+    stroke = { stroke(1, provided("theme").line) },
+    total: number = 1,
+    accessibilityRole = group,
+    accessibilityLabel = { "Ticket " + (rowIndex + 1) + " of " + classroot.total },
+    layout: SimpleLayout [ axis = y ],
+
+    // the top: the production, in the accent — these are theirs
+
+    band: View [ width = 100%, padding = [18, 22, 16, 22], fill = { provided("theme").accent },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.6, textTransform = uppercase,
+            textColor = #FFFFFFCC, text = { app.production.value?.hall ?? "Grand Hall" } ],
+        Text [ width = 100%, wrap = true, fontFamily = { app.titleFace }, fontSize = 24, fontWeight = semibold,
+            textColor = #FFFFFF, text = { app.production.value?.title ?? "" } ]
+        ],
+
+    when: View [ width = 100%, padding = [18, 22, 6, 22],
+        layout: SimpleLayout [ axis = x, align = baseline ],
+        Text [ fontFamily = { app.titleFace }, fontSize = 30, fontWeight = semibold, text = { dayLabel(app.bookedPerf?.startsAt ?? "") } ],
+        Spacer [ ],
+        Text [ fontSize = 26, fontWeight = semibold, numeralWidth = tabular, text = { timeLabel(app.bookedPerf?.startsAt ?? "") } ]
+        ],
+    Text [ padding = [0, 22, 14, 22], fontSize = 15, textColor = { provided("theme").textMuted },
+        text = { "Doors open " + timeLabel(app.bookedPerf?.doorsAt ?? "") + " — arrive by then" } ],
+
+    // the seat, as large as the card allows
+
+    seat: View [ width = 100%, padding = [14, 22, 18, 22],
+        stroke = { [stroke(1, provided("theme").line), null, null, null] },
+        layout: SimpleLayout [ axis = x, spacing = 18 ],
+        TicketFact [ flexes = true, caption = "Section", value = { :section ?? "" }, big = false ],
+        TicketFact [ caption = "Row", value = { :row ?? "" } ],
+        TicketFact [ caption = "Seat", value = { "" + (:number ?? "") } ]
+        ],
+
+    // the tear line
+
+    TearLine [ width = 100%, height = 12 ],
+
+    scan: View [ width = 100%, padding = [16, 18, 18, 18], fill = #FFFFFF,
+        layout: SimpleLayout [ axis = y, spacing = 6, align = center ],
+        Barcode [ width = 100%, code = { :barcode ?? "" } ],
+        Text [ fontSize = 14, letterSpacing = 2, numeralWidth = tabular, fontWeight = medium,
+            textColor = #111111, text = { :barcode ?? "" } ]
+        ]
+    ]
+
+
+class TicketFact [
+    caption: string = "",
+    value: string = "",
+    big: boolean = true,
+    layout: SimpleLayout [ axis = y, spacing = 0 ],
+    Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.2, textTransform = uppercase,
+        textColor = { provided("theme").textMuted }, text = { classroot.caption } ],
+    Text [ width = 100%, wrap = true, fontFamily = { app.titleFace }, fontWeight = semibold,
+        fontSize = { classroot.big ? 44 : 26 }, numeralWidth = tabular, text = { classroot.value } ]
+    ]
+
+
+// Where the stub would tear: a dotted rule between two notches.
+
+class TearLine [ accessibilityHidden = true,
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        d.fillStyle = t.background
+        d.beginPath(); d.arc(0, height / 2, 9, 0, Math.PI * 2); d.fill()
+        d.beginPath(); d.arc(width, height / 2, 9, 0, Math.PI * 2); d.fill()
+        d.fillStyle = t.lineStrong
+        for (let x = 18; x < width - 18; x += 9) d.fillRect(x, height / 2 - 0.75, 4.5, 1.5)
+        }
+    ]

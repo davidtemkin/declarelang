@@ -77,7 +77,7 @@ cascade of consequences:
 1. **structure** — does it parse?
 2. **resolution** — does every name, tag and data path resolve?
 3. **analysis** — does every `{ }` typecheck, with every constraint's reads known?
-4. **boot** — does it construct and settle, in a browser, at a laptop's size and a phone's?
+4. **boot** — does it construct and settle, in a browser, at a laptop's size (or a phone's, with `--phone`)?
 5. **behavior** — does it do what a drive-and-assert script says?
 6. **visual** — does it match its named screenshots?
 

@@ -1,0 +1,201 @@
+/*
+# The Venue: helpers
+
+Plain functions of their arguments — money, dates, the card rules, the
+postal-code rules and the barcode — and the shapes of the service's data.
+Nothing here is reactive; a constraint that calls one depends only on what
+it passes.
+*/
+
+script {
+    const API = "http://127.0.0.1:8350"
+
+    // ── money, dates and times, as the brief writes them
+
+    function money(cents: number): string {
+        const s = (Math.abs(cents) / 100).toFixed(2)
+        const [whole, frac] = s.split(".")
+        return (cents < 0 ? "-$" : "$") + whole.replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "." + frac
+    }
+
+    const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+    // The service's times are the hall's local time, "2026-11-13T19:30".
+    function dayLabel(iso: string): string {
+        if (iso.length < 10) return ""
+        const y = Number(iso.slice(0, 4)), m = Number(iso.slice(5, 7)), d = Number(iso.slice(8, 10))
+        return DAYS[new Date(Date.UTC(y, m - 1, d)).getUTCDay()] + " " + d + " " + MONTHS[m - 1]
+    }
+    function weekday(iso: string): string { return dayLabel(iso).split(" ")[0] ?? "" }
+    function dayOfMonth(iso: string): string { return iso.length < 10 ? "" : "" + Number(iso.slice(8, 10)) }
+    function monthOf(iso: string): string { return iso.length < 10 ? "" : MONTHS[Number(iso.slice(5, 7)) - 1] }
+    function timeLabel(iso: string): string {
+        if (iso.length < 16) return ""
+        const h = Number(iso.slice(11, 13)), min = iso.slice(14, 16)
+        return ((h + 11) % 12 + 1) + ":" + min + (h < 12 ? "am" : "pm")
+    }
+    function isMatinee(iso: string): boolean { return iso.length >= 13 && Number(iso.slice(11, 13)) < 17 }
+
+    function plural(n: number, one: string, many: string): string { return n + " " + (n == 1 ? one : many) }
+
+    // ── a seat id is "ORCH-C-14": section, row, number
+
+    function seatParts(id: string): string[] { return id.split("-") }
+
+    // ── cards
+
+    function digitsOf(s: string): string { return s.replace(/\D/g, "") }
+
+    function brandOf(d: string): string {
+        if (/^3[47]/.test(d)) return "amex"
+        if (/^4/.test(d)) return "visa"
+        if (/^(5[1-5]|2[2-7])/.test(d)) return "mastercard"
+        if (/^(6011|65|64[4-9])/.test(d)) return "discover"
+        return ""
+    }
+    function brandName(b: string): string {
+        if (b == "visa") return "Visa"
+        if (b == "mastercard") return "Mastercard"
+        if (b == "amex") return "American Express"
+        if (b == "discover") return "Discover"
+        return ""
+    }
+    function cardLength(b: string): number { return b == "amex" ? 15 : 16 }
+    function codeLength(b: string): number { return b == "amex" ? 4 : 3 }
+
+    // Grouped as printed on the card: 4-6-5 for American Express, fours otherwise.
+    function groupCard(d: string): string {
+        const groups = brandOf(d) == "amex" ? [4, 6, 5] : [4, 4, 4, 4, 3]
+        const out: string[] = []
+        let i = 0
+        for (const g of groups) {
+            if (i >= d.length) break
+            out.push(d.slice(i, i + g))
+            i += g
+        }
+        return out.join(" ")
+    }
+
+    function luhn(d: string): boolean {
+        let sum = 0
+        for (let i = 0; i < d.length; i++) {
+            let n = Number(d[d.length - 1 - i])
+            if (i % 2 == 1) { n = n * 2; if (n > 9) n = n - 9 }
+            sum += n
+        }
+        return d.length > 0 && sum % 10 == 0
+    }
+
+    // Where the caret goes after regrouping: just past the same count of digits.
+    function caretAfterDigits(text: string, count: number): number {
+        if (count <= 0) return 0
+        let seen = 0
+        for (let i = 0; i < text.length; i++) {
+            if (/\d/.test(text[i])) { seen++; if (seen == count) return i + 1 }
+        }
+        return text.length
+    }
+
+    // The expiry as typed: "04 / 28". A lone first digit above 1 is a month.
+    function groupExpiry(raw: string): string {
+        let d = digitsOf(raw)
+        if (d.length == 1 && Number(d) > 1) d = "0" + d
+        // a year written in full ("04/2028", as autofill sometimes does) keeps its last two digits
+        if (d.length == 6) d = d.slice(0, 2) + d.slice(4)
+        d = d.slice(0, 4)
+        return d.length > 2 ? d.slice(0, 2) + " / " + d.slice(2) : d
+    }
+    function expiryMonth(text: string): number { const d = digitsOf(text); return d.length == 4 ? Number(d.slice(0, 2)) : 0 }
+    function expiryYear(text: string): number { const d = digitsOf(text); return d.length == 4 ? 2000 + Number(d.slice(2)) : 0 }
+
+    function expiryProblem(text: string, nowYear: number, nowMonth: number): string {
+        const d = digitsOf(text)
+        if (d.length != 4) return "Enter the expiry as MM / YY, as it's printed on the card."
+        const m = Number(d.slice(0, 2)), y = 2000 + Number(d.slice(2))
+        if (m < 1 || m > 12) return "There's no month " + d.slice(0, 2) + " — use 01 to 12."
+        if (y < nowYear || (y == nowYear && m < nowMonth)) return "This card has expired. Use another card."
+        return ""
+    }
+
+    function cardExpired(month: number, year: number, nowYear: number, nowMonth: number): boolean {
+        return year < nowYear || (year == nowYear && month < nowMonth)
+    }
+    function expiryLabel(month: number, year: number): string {
+        return (month < 10 ? "0" : "") + month + "/" + ("" + year).slice(-2)
+    }
+
+    // ── postal codes, by country
+
+    function postalProblem(country: string, v: string): string {
+        const t = v.trim().toUpperCase()
+        if (country == "US" && !/^\d{5}(-\d{4})?$/.test(t)) return "Enter a 5-digit ZIP code, like 94103."
+        if (country == "CA" && !/^[ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z] ?\d[ABCEGHJ-NPRSTV-Z]\d$/.test(t))
+            return "Enter a Canadian postal code, like K1A 0B1."
+        if (country == "GB" && !/^([A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}|GIR ?0AA)$/.test(t))
+            return "Enter a UK postcode, like SW1A 2AA."
+        return ""
+    }
+
+    // The one country whose format a postal code is in, or "".
+    function countryOfPostalCode(v: string): string {
+        if (v.trim() == "") return ""
+        const fits = ["US", "CA", "GB"].filter((c) => postalProblem(c, v) == "")
+        return fits.length == 1 ? fits[0] : ""
+    }
+
+    function emailOk(v: string): boolean { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) }
+
+    // ── the barcode: Code 128, set B. Returns the module widths, bar first.
+
+    const C128 = ["212222", "222122", "222221", "121223", "121322", "131222", "122213", "122312", "132212", "221213",
+        "221312", "231212", "112232", "122132", "122231", "113222", "123122", "123221", "223211", "221132",
+        "221231", "213212", "223112", "312131", "311222", "321122", "321221", "312212", "322112", "322211",
+        "212123", "212321", "232121", "111323", "131123", "131321", "112313", "132113", "132311", "211313",
+        "231113", "231311", "112133", "112331", "132131", "113123", "113321", "133121", "313121", "211331",
+        "231131", "213113", "213311", "213131", "311123", "311321", "331121", "312113", "312311", "332111",
+        "314111", "221411", "431111", "111224", "111422", "121124", "121421", "141122", "141221", "112214",
+        "112412", "122114", "122411", "142112", "142211", "241211", "221114", "413111", "241112", "134111",
+        "111242", "121142", "121241", "114212", "124112", "124211", "411212", "421112", "421211", "212141",
+        "214121", "412121", "111143", "111341", "131141", "114113", "114311", "411113", "411311", "113141",
+        "114131", "311141", "411131", "211412", "211214", "211232"]
+
+    function code128(text: string): number[] {
+        const codes = [104]
+        for (let i = 0; i < text.length; i++) {
+            const c = text.charCodeAt(i) - 32
+            codes.push(c >= 0 && c < 95 ? c : 0)
+        }
+        let check = codes[0]
+        for (let i = 1; i < codes.length; i++) check += codes[i] * i
+        codes.push(check % 103)
+        const widths: number[] = []
+        for (const c of codes) for (const ch of C128[c]) widths.push(Number(ch))
+        for (const ch of "2331112") widths.push(Number(ch))
+        return widths
+    }
+    function moduleCount(widths: number[]): number { return widths.reduce((a, b) => a + b, 0) }
+    }
+
+
+// ── The shapes of the service's data ────────────────────────────────────────
+
+schema Performance [ id: string, startsAt: string, doorsAt: string, priceFromCents: number, seatsLeft: number, seats: number ]
+schema Production [ title: string, hall: string, runningTime: string, performances[]: Performance ]
+
+schema Seat [ id: string, number: number, status: string ]
+schema Row [ name: string, seats[]: Seat ]
+schema Section [ key: string, name: string, priceCents: number, feeCents: number, rows[]: Row ]
+schema SeatMap [ performanceId: string, sections[]: Section ]
+
+schema SavedCard [ id: string, brand: string, last4: string, expMonth: number, expYear: number ]
+schema Billing [ line1: string, line2?: string, city: string, postalCode: string, country: string ]
+schema Account [ name: string, email: string, billing?: Billing, cards[]?: SavedCard ]
+
+schema Ticket [ seatId: string, section: string, row: string, number: number, barcode: string ]
+schema Order [ code: string, email: string, totalCents: number, brand: string, last4: string,
+    performanceId: string, tickets[]: Ticket ]
+
+// A chosen seat, as checkout and the summary show it.
+
+schema Chosen [ id: string, section: string, row: string, number: number, priceCents: number, feeCents: number ]

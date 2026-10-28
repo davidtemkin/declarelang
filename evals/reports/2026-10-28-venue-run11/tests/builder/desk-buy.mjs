@@ -1,0 +1,38 @@
+import { open, freeSeats, seat } from "./lib.mjs";
+const { browser, page, requests } = await open();
+try {
+  await page.getByRole("button", { name: /^Fri 13 Nov/ }).first().click();
+  await page.waitForTimeout(1500);
+  const names = await freeSeats(page, 2, 7);
+  console.log("seats", names);
+  for (const n of names) await seat(page, n).click();
+  for (const n of names) console.log(n, await seat(page, n).getAttribute("aria-pressed"));
+  console.log("summary count", await page.getByText(/^2 seats · \$\d+\.\d\d$/).count(), await page.getByText(/^2 seats · /).first().textContent());
+  await page.getByRole("button", { name: "Continue to checkout" }).click();
+  await page.waitForTimeout(500);
+  await page.getByRole("textbox", { name: "Email" }).fill("buyer@example.com");
+  await page.getByRole("textbox", { name: "Name on card" }).fill("Ada Buyer");
+  await page.getByRole("textbox", { name: "Card number" }).pressSequentially("4242424242424242");
+  console.log("number", await page.getByRole("textbox", { name: "Card number" }).inputValue());
+  await page.getByRole("textbox", { name: /Expiry/ }).pressSequentially("428");
+  console.log("expiry", await page.getByRole("textbox", { name: /Expiry/ }).inputValue());
+  await page.getByRole("textbox", { name: "Security code" }).fill("123");
+  await page.getByRole("textbox", { name: "Street address" }).fill("1 Main St");
+  await page.getByRole("textbox", { name: "City" }).fill("Springfield");
+  await page.getByRole("textbox", { name: "Postal code" }).fill("94103");
+  console.log("country inferred", await page.getByRole("radio", { name: "United States" }).getAttribute("aria-checked"));
+  await page.keyboard.press("Tab");
+  await page.waitForTimeout(300);
+  await page.mouse.wheel(0, 900); await page.waitForTimeout(400);
+  await page.screenshot({ path: "/tmp/vshots/pw-checkout.png", fullPage: false });
+  const pay = page.getByRole("button", { name: /^Pay \$/ });
+  console.log("pay label:", await pay.textContent());
+  await pay.click();
+  await pay.click({ force: true }).catch(e => console.log("2nd click", e.message.split("\n")[0]));
+  await page.keyboard.press("Enter");
+  await page.waitForTimeout(3000);
+  console.log("requests", requests.filter(r => r[1].includes("orders")).length);
+  console.log("false alarm notices:", await page.getByText(/just taken/).count(), "| tickets heading:", await page.getByRole("heading", { level: 1 }).textContent());
+  console.log("sent", await page.getByText("Sent to buyer@example.com").count());
+  await page.screenshot({ path: "/tmp/vshots/pw-tickets.png" });
+} finally { await browser.close(); }

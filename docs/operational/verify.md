@@ -20,7 +20,8 @@ npx declare-verify app.declare
 
 Rungs 1–3 read the program and need nothing else. Rung 4 **boots** it, in the Chrome the
 tools keep running between calls (a page of its own each time, so it costs about a second):
-first in a laptop's window (1280×800), then a phone's held upright (390×844, touch). It
+in a laptop's window (1280×800) — or, with `--phone`, a phone's held upright (390×844,
+touch), and with `--phone --desk`, both; `--size WxH [--touch]` names any other. It
 hands each `DataSource` with a `schema` a sample of it, and notes what it can see wrong in
 the layout: a control outside a view which clips and does not scroll, or above a scroller's
 origin; a child spilling out of a box sized by its content because its own size is taken

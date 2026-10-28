@@ -20,7 +20,8 @@ rendered row is ever scanned.
   shows the full list (the disclosure-button path). Picking echoes the label
   into the field and closes; editing again re-filters from the new text.
 - **Keyboard**: arrows rove the list (the Menu rover), Enter picks the roved
-  row — or the first match when none is roved (the type-then-Enter path);
+  row — or, when none is roved, the first match of what was typed (the
+  type-then-Enter path); over the whole list it keeps the choice already made;
   Escape closes the list (then a second Escape leaves the control — the
   focus-scope ascent). The list is never a tab stop of its own.
 - The list is a collection like any other — bind 100k options and
@@ -111,8 +112,8 @@ Whether the list is currently up.
 
 ## listRoved()
 Whether the keyboard rover is sitting on a row. **This is what makes Enter mean two
-things**: pick the roved row when there is one, else take the first match — the
-type-then-Enter path.
+things**: pick the roved row when there is one, else take the first match of what was
+typed — the type-then-Enter path. With nothing typed, Enter keeps the choice already made.
 
 ## height
 From the theme's `comboboxHeight` (30 by default), and at least 44 on a touch-first
@@ -280,9 +281,14 @@ class Combobox extends ValueControl [
             },
         onEnter() {
             if (!classroot.listShown()) { classroot.open(); return }
-            // the roved row picks through the Menu's own Enter; unroved,
-            // Enter takes the first match — the type-then-Enter path
-            if (!classroot.listRoved()) classroot.pickIndex(0)
+            // the roved row picks through the Menu's own Enter; unroved, Enter
+            // takes the first match of what was typed — the type-then-Enter
+            // path — and over the whole list keeps the choice already made
+            if (classroot.listRoved()) return
+            if (classroot.filtering) { classroot.pickIndex(0); return }
+            const at = (classroot.matches ?? []).indexOf(classroot.value)
+            if (at >= 0) classroot.pickIndex(at)
+            else classroot.closeList()
             }
         ],
 

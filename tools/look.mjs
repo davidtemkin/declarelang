@@ -24,6 +24,7 @@ usage: declare-look app.declare [options] [actions…]
 
 options
   --size WxH          the window, e.g. 390x844 (default 1280x800)
+  --phone             a phone held upright: --size 390x844 --touch
   --touch             a touch device: a mobile viewport, and every press, drag and
                       hold below is a finger (touch events), not a mouse
   --dark              the system's dark appearance
@@ -104,6 +105,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === "--url") arg();
   else if (a === "--size") size = arg();
   else if (a === "--touch") touch = true;
+  else if (a === "--phone") { size = "390x844"; touch = true; }
   else if (a === "--dark") dark = true;
   else if (a === "--console") consoleOut = true;
   else if (a === "--no-settle") settle = false;

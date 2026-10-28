@@ -84,10 +84,15 @@ App [ width = 400, height = 300,
   assert.deepEqual(b.unbuilt, ["Later"], "a class the boot never built is named");
 });
 
-await test("with no --size the boot fills a laptop window and then a phone", () => {
-  const r = verify("two.declare", `App [ small: Button [ label = "Go", width = 30, height = 30 ] ]`);
-  assert.ok(r.boot.layout.some((l) => l.startsWith("phone 390×844: ") && /app\.small/.test(l)), r.boot.layout.join("\n"));
-  assert.ok(!r.boot.layout.some((l) => !l.startsWith("phone") && /finger/.test(l)), "no touch-target warning at the laptop size");
+await test("with no --size the boot fills a laptop window only; --phone a phone, --phone --desk both", () => {
+  const src = `App [ small: Button [ label = "Go", width = 30, height = 30 ] ]`;
+  const desk = verify("two.declare", src);
+  assert.ok(!desk.boot.layout.some((l) => /finger/.test(l)), "no phone, so no touch-target finding: " + desk.boot.layout.join("\n"));
+  const phone = verify("two.declare", src, "--phone");
+  assert.ok(phone.boot.layout.some((l) => /finger/.test(l) && /app\.small/.test(l)), phone.boot.layout.join("\n"));
+  const both = verify("two.declare", src, "--phone", "--desk");
+  assert.ok(both.boot.layout.some((l) => l.startsWith("phone 390×844: ") && /app\.small/.test(l)), both.boot.layout.join("\n"));
+  assert.ok(!both.boot.layout.some((l) => !l.startsWith("phone") && /finger/.test(l)), "no touch-target warning at the laptop size");
 });
 
 await test("a panel past the window's edge is named once, with what it carries; a frame held wider pans and is not", () => {
