@@ -252,6 +252,9 @@ export type AttrType = {
      *  beside `fontWeight = medium` (CSS Fonts 4: the keywords are aliases for points
      *  on the 1–1000 line). The scaffold alias gains `| number`. */
     readonly numeric?: readonly [number, number];
+    /** A vocabulary that also takes `true` and `false` — `focusable = quiet` beside
+     *  `focusable = true`. The scaffold alias gains `| boolean`. */
+    readonly boolean?: true;
 } | {
     readonly kind: "class";
     readonly of: string;

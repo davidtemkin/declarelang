@@ -450,7 +450,10 @@ export type AttrType =
       /** A vocabulary that also takes a NUMBER in this inclusive range — `fontWeight = 350`
        *  beside `fontWeight = medium` (CSS Fonts 4: the keywords are aliases for points
        *  on the 1–1000 line). The scaffold alias gains `| number`. */
-      readonly numeric?: readonly [number, number] }
+      readonly numeric?: readonly [number, number];
+      /** A vocabulary that also takes `true` and `false` — `focusable = quiet` beside
+       *  `focusable = true`. The scaffold alias gains `| boolean`. */
+      readonly boolean?: true }
   // `required`: a DECLARED attribute written without `?` (`child: Menu`) —
   // never empty. A schema slot (`layout: Layout`) never carries it: null is
   // its "none".

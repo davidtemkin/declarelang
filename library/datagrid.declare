@@ -771,7 +771,7 @@ class DataGridCell [ x = { :x }, width = { :width }, height = 100%, clip = true,
         if (d == null) return null
         const walk = (v: View) => {
             for (const c of v.childViews) {
-                if (c.focusable && c.visible) return c
+                if (c.focusable == true && c.visible) return c
                 const deeper = walk(c)
                 if (deeper != null) return deeper
                 }

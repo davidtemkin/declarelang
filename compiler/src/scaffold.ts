@@ -1117,9 +1117,9 @@ export function generateScaffold(
   // The enum aliases every enum-typed attribute references, deduped by name in
   // first-encounter order (built-in enum names are globally consistent — Motion
   // is identical on Animator and AnimatorGroup — so a name pins one token set).
-  const enums = new Map<string, { tokens: readonly string[]; numeric: boolean }>();
+  const enums = new Map<string, { tokens: readonly string[]; numeric: boolean; boolean: boolean }>();
   for (const s of all.values()) {
-    for (const t of Object.values(s.attrs)) if (t.kind === "enum" && !isAuthoredUnion(t.name) && !enums.has(t.name)) enums.set(t.name, { tokens: t.tokens, numeric: t.numeric !== undefined });
+    for (const t of Object.values(s.attrs)) if (t.kind === "enum" && !isAuthoredUnion(t.name) && !enums.has(t.name)) enums.set(t.name, { tokens: t.tokens, numeric: t.numeric !== undefined, boolean: t.boolean === true });
   }
   // …and from METHOD SIGNATURE types. An enum (or record) named ONLY by a
   // signature — `f(a: Axis)` in a program whose attributes never mention Axis —
@@ -1135,10 +1135,10 @@ export function generateScaffold(
   sigTypes.push(...extraSignatureTypes);
   for (const name of sigTypes) {
     const t = declaredType(name);
-    if (t !== null && t.kind === "enum" && !isAuthoredUnion(t.name) && !enums.has(t.name)) enums.set(t.name, { tokens: t.tokens, numeric: t.numeric !== undefined });
+    if (t !== null && t.kind === "enum" && !isAuthoredUnion(t.name) && !enums.has(t.name)) enums.set(t.name, { tokens: t.tokens, numeric: t.numeric !== undefined, boolean: t.boolean === true });
   }
   const enumLines = [...enums].map(
-    ([name, e]) => `type ${name} = ${e.tokens.map((t) => JSON.stringify(t)).join(" | ")}${e.numeric ? " | number" : ""};`
+    ([name, e]) => `type ${name} = ${e.tokens.map((t) => JSON.stringify(t)).join(" | ")}${e.numeric ? " | number" : ""}${e.boolean ? " | boolean" : ""};`
   );
 
   // Record aliases: every record-typed attribute references a NAMED open record.

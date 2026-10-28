@@ -52,7 +52,7 @@ const CHECK = process.argv.includes("--check");
 /** One attribute type as a published tag. Shared by both schema tiers so the
  *  kernel and the library can never encode the same type two ways. */
 const attrTypeTag = (t) =>
-  t.kind === "enum" ? (t.name.startsWith('"') ? `union(${t.name})` : `enum(${t.tokens.join("|")})`)
+  t.kind === "enum" ? (t.name.startsWith('"') ? `union(${t.name})` : `enum(${t.tokens.join("|")}${t.boolean ? "|true|false" : ""})`)
   : t.kind === "class" ? `class(${t.of})`
   : t.kind === "record" ? `record(${t.name})`
   : t.kind;
@@ -764,7 +764,7 @@ const sharedTypesDoc = (spine) => {
 // assembly until it is placed.
 const TYPE_GROUPS = [
   ["Enums", ["AccessibilityLive", "AccessibilityRole", "AccessibilitySort", "Axis", "Backface", "Blend", "ClaimAxis", "RequestCredentials", "CrossAlign", "TextDirection", "SafeAreaMode", "JudgeOn",
-             "FitAlign", "FocusScope", "FontLate", "FontWeight", "Justify", "Motion", "Numerals", "NumeralWidth",
+             "FitAlign", "Focusable", "FocusScope", "FontLate", "FontWeight", "Justify", "Motion", "Numerals", "NumeralWidth",
              "OutsidePress", "AnimatorOrder", "InputPurpose", "ImageRendering", "ScrollAnchor", "ScrollBelow", "Scrolls", "StreamStatus", "ImageFit", "TextAlign", "TextTransform", "UnsupportedTags", "ClockTick"]],
   ["Values", ["Color", "Fill", "Gradient", "Length", "Percent", "Radius", "Inset", "ClipPath", "Stroke", "BoxStroke", "GlyphOutline",
               "Shadow", "ImageFilter", "FilterList", "Theme", "MotionCurve", "DataCursor", "TextMetrics", "IslandMessage", "IslandNavigation", "DelayHandle", "AccessibilitySettings"]],

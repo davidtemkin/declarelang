@@ -292,6 +292,10 @@ class FocusRing [
             // Another app on the page (an embedded preview) owns this target — its own
             // ring indicates it; this one stands down rather than chase foreign coordinates.
             if (n != app) { classroot.shown = false; return }
+            // A quiet view (focusable = quiet) is a place, not a stop: no ring, however
+            // focus came, and the next Tab's ring appears where it lands, as a first
+            // appearance does — a flight from a heading is a streak across the page.
+            if (v.focusable == "quiet") { classroot.shown = false; classroot.placed = false; return }
             // Pointer focus: park silently — geometry current, ring hidden. The next
             // keyboard flight departs from here (the just-clicked control).
             if (!Focus.byKeyboard()) { classroot.shown = false; classroot.snapTo(); classroot.placed = true; return }

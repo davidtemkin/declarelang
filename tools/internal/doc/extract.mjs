@@ -193,7 +193,7 @@ function renderType(t) {
     case "shape": return "ClipPath";
     // an authored-style union's NAME is its quoted member list — the spelling
     // the ruling requires at every use site; a named vocabulary lists tokens
-    case "enum": return t.name.startsWith('"') ? t.name : t.tokens.join(" | ") + (t.numeric ? " | number" : "");
+    case "enum": return t.name.startsWith('"') ? t.name : t.tokens.join(" | ") + (t.numeric ? " | number" : "") + (t.boolean ? " | true | false" : "");
     case "class": return t.of;
     case "cursor": return "datapath";
     case "slotref": return "slot";

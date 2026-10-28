@@ -113,6 +113,7 @@ export class FocusService {
      *  field), it is keyboard focus: the web's :focus-visible rule for script
      *  focus during keyboard use. */
     focus(view) {
+        this.calls++;
         // the web's :focus-visible rule for focus moved by code: it shows when the
         // person's last input was the keyboard — a key's handler roving a group,
         // or an overlay giving focus back a turn after Esc — and not after a press
@@ -137,6 +138,9 @@ export class FocusService {
         if (view !== null && this.current === view && !inPointerDispatch())
             reveal(view);
     }
+    /** Calls to focus() and blur(): a recovery waiting a frame (recover) stands down
+     *  when the program has moved focus since, even to where it already was. */
+    calls = 0;
     /** Was the person's last input a key (true) or a press (false)? Set as each
      *  arrives (deliverKeys, pressAt). */
     lastInputKeyboard = false;
@@ -281,28 +285,34 @@ export class FocusService {
     }
     /** Focus does not stay on what the person can no longer reach. A standing
      *  constraint over the focused view's reachability — it or an ancestor
-     *  hidden, it made unfocusable or disabled, or an ancestor's `tabOrder()` no
-     *  longer naming it (a pane that closed) — clears focus once the change has
+     *  hidden, it made unfocusable, or an ancestor's `tabOrder()` no longer
+     *  naming it (a pane that closed) — clears focus once the change has
      *  settled, and the next Tab starts from where it was, as the web does when
-     *  a focused element stops being rendered. (A view torn down is
-     *  noteDiscarded's, before it goes.) */
+     *  a focused element stops being rendered; then `recover` gives it to the
+     *  nearest container that says where. A control DISABLED while focused keeps
+     *  focus (focus-place.md): a disable is often brief, and moving would put a
+     *  neighbour under the next Enter. (A view torn down is noteDiscarded's,
+     *  before it goes.) */
     rewatch() {
         this.watch?.dispose();
         this.watch = null;
         const v = this.current;
         if (v === null)
             return;
-        const k = new Constraint("Focus.reachable", () => reachable(v), (ok) => {
+        const k = new Constraint("Focus.reachable", () => reachable(v) || keepsDisabled(v), (ok) => {
             if (ok !== false || this.current !== v)
                 return;
             afterSettle(() => {
-                if (this.current !== v || reachable(v))
+                if (this.current !== v || reachable(v) || keepsDisabled(v))
                     return;
-                // shown, yet out of reach: a container's tabOrder() leaves it out
-                if (shownChain(v))
+                // shown and focusable, yet out of reach: a container's tabOrder() leaves it out
+                if (shownChain(v) && canFocus(v))
                     warnOnce(v, `focus on ${where(v)} was dropped: a container's tabOrder() leaves it out, so Tab cannot reach it — list it there (compose with tabDefault()) or focus a view Tab reaches`);
                 this.apply(null);
                 this.startPoint = v;
+                const p = parentAcross(v);
+                if (p !== null)
+                    this.recover(v, p);
             });
         });
         this.watch = k;
@@ -374,6 +384,12 @@ export class FocusService {
             if (first >= 0)
                 idx = dir === 1 ? first - 1 : first;
         }
+        // focus on a view that is not a stop (a quiet heading, a control disabled
+        // while focused): Tab goes on from its place, as from a pressed spot
+        else if (this.current !== null && idx < 0) {
+            const f = this.current, after = seq.findIndex((e) => afterSpot(f, e.view));
+            idx = after < 0 ? (dir === 1 ? seq.length - 1 : seq.length) : (dir === 1 ? after - 1 : after);
+        }
         const nidx = (((idx + dir) % seq.length) + seq.length) % seq.length; // cyclic
         this.land(seq[nidx].view);
     }
@@ -397,12 +413,18 @@ export class FocusService {
         const back = held._savedFocus ?? null, parent = held._savedParent ?? null, at = held._savedAt ?? -1;
         held._savedFocus = null;
         held._savedParent = null;
-        if (back === null)
-            return;
         // a discarded view is the top of a tree of its own
         const top = (v) => { let n = v; for (let p = parentAcross(n); p !== null; p = parentAcross(p))
             n = p; return n; };
         const home = top(overlay);
+        // where the program says, read now: the answer can depend on what the closing did
+        const told = overlay.restoresFocusTo;
+        if (told instanceof View && top(told) === home && reachable(told) && !insideAcross(told, overlay)) {
+            this.focus(told);
+            return;
+        }
+        if (back === null)
+            return;
         if (top(back) === home && reachable(back)) {
             this.focus(back);
             return;
@@ -468,6 +490,11 @@ export class FocusService {
         const c = keys.claimant();
         return c instanceof View && this.holds(c);
     }
+    /** Can the person still reach `v` — focusable, shown, and in Tab's reach? A
+     *  native field asks before it reports its own blur. */
+    reaches(v) {
+        return reachable(v);
+    }
     holds(v) {
         return this.current !== null && insideAcross(this.current, v);
     }
@@ -519,7 +546,65 @@ export class FocusService {
             h(null);
         const p = view.parent instanceof View ? view.parent : null;
         this.startPoint = p !== null ? { parent: p, at: p.childViews.indexOf(view) } : null;
+        if (p !== null)
+            this.recover(view, p);
     }
+    /** Focus was lost from `lost` (hidden, made unreachable, or torn down — its
+     *  subtree's root). On the next frame, if focus is still nowhere and nothing
+     *  has called focus() or blur() since, give it to the nearest container above
+     *  the place, from `from` up, that says where (restoreTarget). Else it stays
+     *  cleared and the next Tab starts from the place, as today. Whatever the last
+     *  input was — the program asked; after a press the ring stays hidden. */
+    recover(lost, from) {
+        const calls = this.calls;
+        from.$afterDelay(0, () => {
+            if (this.current !== null || this.calls !== calls)
+                return;
+            const t = restoreTarget(from, lost);
+            if (t !== null)
+                this.focus(t);
+        });
+    }
+}
+/** Where lost focus goes (focus-place.md Rule 2): the first container from
+ *  `from` up whose `restoresFocusTo` answers a view that can hold focus now; a
+ *  `stop` group (a list, a grid) that says nothing answers its own entry, so the
+ *  arrows go on working. A target that can't hold focus is passed over and the
+ *  walk goes on up. It ends at an overlay — a Floating, whose own value is for
+ *  its close (Floating._closing → _giveBack), and a modal, which focus does not
+ *  leave — and at the program's root: nothing answers, null. The runtime's own
+ *  search, once, at the loss: never a provided() read made for the program. */
+function restoreTarget(from, lost) {
+    if ("_savedAt" in lost)
+        return null; // an overlay that held focus itself (a menu) gives it back itself
+    for (let c = from; c !== null; c = parentAcross(c)) {
+        if ("_savedAt" in c)
+            return null; // a Floating
+        const r = c.restoresFocusTo;
+        if (r instanceof View) {
+            if (r !== lost && reachable(r))
+                return r;
+        }
+        else if (scopeOf(c) === "stop" && shownChain(c)) {
+            const t = entryOf(c);
+            if (t !== null && reachable(t))
+                return t;
+        }
+        if (scopeOf(c) === "modal")
+            return null;
+    }
+    return null;
+}
+/** A text field: its arrows move the caret, and the browser itself takes focus
+ *  from a disabled one. */
+function isTextField(v) {
+    const t = v;
+    return typeof t.placeholder === "string" && typeof t.multiline === "boolean";
+}
+/** A control disabled while it has focus keeps it: still in the program and
+ *  shown — not a native text field, whose element the browser blurs. */
+function keepsDisabled(v) {
+    return v.disabled === true && v.$root !== null && shownChain(v) && !isTextField(v);
 }
 // ── scopes (planes.md §13) ──────────────────────────────────────────────────
 const scopeOf = (v) => v.focusScope ?? "none";
@@ -619,7 +704,8 @@ function overflows(n) {
         || ((ax === "y" || ax === "both") && n.contentHeight > n.height + 0.5);
 }
 /** Can the person still reach `v`: focusable and shown, every ancestor shown,
- *  and named by each ancestor's own `tabOrder()` where one gates its members.
+ *  and — for a Tab stop — named by each ancestor's own `tabOrder()` where one
+ *  gates its members.
  *  Read inside a constraint, so each of those is tracked. */
 function reachable(v) {
     if (!canFocus(v) || v.$root === null)
@@ -630,7 +716,8 @@ function reachable(v) {
         if (c.parent !== p)
             continue; // crossed an island: its tenant is its whole content
         const own = p.tabOrder;
-        if (typeof own === "function") { // a view has one only where a program gates its members
+        // a quiet view is never a stop, so no tabOrder() lists it: shown is enough
+        if (typeof own === "function" && v.focusable !== "quiet") { // a view has one only where a program gates its members
             if (!tabOrderOf(p).includes(c) && !gatedBelow(p, c))
                 return false;
         }
@@ -807,8 +894,8 @@ function visit(m, out) {
             out.push({ view: m, scope: null });
         return;
     }
-    if (m.focusable || m.link !== "")
-        out.push({ view: m, scope: null }); // links are stops (§0.4)
+    if (m.focusable === true || m.link !== "")
+        out.push({ view: m, scope: null }); // links are stops (§0.4); a quiet view is not
     const at = out.length;
     for (const c of tabOrderOf(m))
         visit(c, out);
@@ -868,8 +955,7 @@ function arrowDefault(f, ev) {
     const d = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
     if (d === 0 && e.key !== "Home" && e.key !== "End")
         return;
-    const t = f;
-    if (typeof t.placeholder === "string" && typeof t.multiline === "boolean")
+    if (isTextField(f))
         return;
     const s = memberStop(f);
     if (s === null)

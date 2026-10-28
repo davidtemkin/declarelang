@@ -309,12 +309,16 @@ const ViewSchema = {
         // overlay sets them. The router walks the open overlays top first.
         outsidePress: enumType("OutsidePress", "none", "dismiss", "dismissAndDeliver", "block", "ignore"),
         scrollBelow: enumType("ScrollBelow", "none", "block", "allow", "dismiss"),
-        // Keyboard focus (docs/system-design/planes.md §13): `focusable` = a tab stop;
+        // Keyboard focus (docs/system-design/planes.md §13): `focusable` = a tab stop
+        // (`true`), or `quiet` — held only where the program puts focus, never a stop;
         // `focusScope` = what Tab does at this view's edge — `stop` (one stop, arrows
         // inside), `capture` (Tab walks in and through), `region` (one stop from
         // outside, Tab wraps inside), `modal` (Tab wraps, never leaves). Traversal order
         // is the view tree (no numeric tabindex), customized by `tabOrder()`.
-        focusable: { kind: "boolean" },
+        focusable: { kind: "enum", name: "Focusable", tokens: ["quiet"], boolean: true },
+        // where focus goes when the view that had it, inside this one, goes away
+        // (focus-place.md) — on an overlay, as it closes
+        restoresFocusTo: { kind: "class", of: "View" },
         focusScope: enumType("FocusScope", "none", "stop", "capture", "region", "modal"),
         // Accessibility (docs/system-design/accessibility.md §3): what the view IS to
         // assistive technology. `accessibilityRole` is a token from a closed

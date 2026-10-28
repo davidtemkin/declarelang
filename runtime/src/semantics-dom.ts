@@ -157,8 +157,13 @@ function ariaOf(v: View): Attrs | null {
   if (role === "row") { const i = readRowIndex(v); if (i >= 0) a["aria-rowindex"] = String(i + 1); }
   // focusable to the browser and assistive technology too — the focus service
   // owns Tab (keys.ts takes it), so the browser's own order never runs; 0 says
-  // honestly that the keyboard reaches it (never a positive index)
-  if (v.focusable) a.tabindex = "0";
+  // honestly that the keyboard reaches it (never a positive index). A quiet view
+  // is focused only by the program: -1, as the web marks one. A control disabled
+  // while it has focus keeps it (focus-place.md), so its element must stay
+  // focusable too, or the browser takes focus to the page; the focus read is
+  // tracked only for a disabled view.
+  if (v.focusable === true) a.tabindex = "0";
+  else if (v.focusable === "quiet" || (v as unknown as Any).disabled === true && Focus.getFocus() === v) a.tabindex = "-1";
   return a;
 }
 
@@ -277,7 +282,7 @@ function follow(v: View | null): void {
   const el = focusElementOf(v);
   if (el === null) { retry(v, 4); return; }   // its element arrives with the settle that shows it
   VIEW_OF.set(el, v);
-  if (!el.hasAttribute("tabindex")) { el.tabIndex = 0; el.style.outline = "none"; }   // the ring is Declare's own
+  if (!el.hasAttribute("tabindex")) { el.tabIndex = v.focusable === "quiet" ? -1 : 0; el.style.outline = "none"; }   // the ring is Declare's own
   if (doc.activeElement === el) return;
   moving = true;
   el.focus({ preventScroll: true });
@@ -296,7 +301,7 @@ function retry(v: View, frames: number): void {
     if (el !== null && el.ownerDocument.activeElement === el) return;
     if (el !== null) {
       VIEW_OF.set(el, v);
-      if (!el.hasAttribute("tabindex")) { el.tabIndex = 0; el.style.outline = "none"; }
+      if (!el.hasAttribute("tabindex")) { el.tabIndex = v.focusable === "quiet" ? -1 : 0; el.style.outline = "none"; }
       moving = true;
       el.focus({ preventScroll: true });
       moving = false;

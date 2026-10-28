@@ -307,7 +307,9 @@ export class TextInput extends View {
       // the element (a click into the field) still claims normally.
       onFocus: () => { if (Focus.getFocus() !== this) Focus.focus(this); },
       onBlur: () => {
-        if (Focus.getFocus() === this) Focus.blur();
+        // a field hidden or disabled under focus is the focus service's to settle
+        // (rewatch): it clears focus and gives it where the program says
+        if (Focus.getFocus() === this && Focus.reaches(this)) Focus.blur();
         if (this.commitOn === "blur" && isTwoWay(this, "text")) commitDraft(this, "text");
         judgeDraft(this, "text");
       },

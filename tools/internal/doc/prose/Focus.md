@@ -25,7 +25,7 @@ embedded app's ring ignores a target belonging to another).
 ## focus()
 Moves keyboard focus to a view — **the only way to move it**; assigning a control's
 `focused` does not. The call every control makes on pointer-down, so that the keyboard
-picks up where the pointer left off. Focusing a view that is not focusable is a no-op.
+picks up where the pointer left off. Focusing a view that can't take focus leaves focus where it is, and says so once in the console. A `quiet` view can take it.
 
 ```declare-fragment
 onPointerDown() { Focus.focus(this) }

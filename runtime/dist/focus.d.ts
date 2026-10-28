@@ -102,6 +102,9 @@ export declare class FocusService {
      *  field), it is keyboard focus: the web's :focus-visible rule for script
      *  focus during keyboard use. */
     focus(view: View | null): void;
+    /** Calls to focus() and blur(): a recovery waiting a frame (recover) stands down
+     *  when the program has moved focus since, even to where it already was. */
+    private calls;
     /** Was the person's last input a key (true) or a press (false)? Set as each
      *  arrives (deliverKeys, pressAt). */
     lastInputKeyboard: boolean;
@@ -128,11 +131,14 @@ export declare class FocusService {
     blur(): void;
     /** Focus does not stay on what the person can no longer reach. A standing
      *  constraint over the focused view's reachability — it or an ancestor
-     *  hidden, it made unfocusable or disabled, or an ancestor's `tabOrder()` no
-     *  longer naming it (a pane that closed) — clears focus once the change has
+     *  hidden, it made unfocusable, or an ancestor's `tabOrder()` no longer
+     *  naming it (a pane that closed) — clears focus once the change has
      *  settled, and the next Tab starts from where it was, as the web does when
-     *  a focused element stops being rendered. (A view torn down is
-     *  noteDiscarded's, before it goes.) */
+     *  a focused element stops being rendered; then `recover` gives it to the
+     *  nearest container that says where. A control DISABLED while focused keeps
+     *  focus (focus-place.md): a disable is often brief, and moving would put a
+     *  neighbour under the next Enter. (A view torn down is noteDiscarded's,
+     *  before it goes.) */
     private rewatch;
     /** Where the next Tab starts when nothing has focus: the spot a press on
      *  content that takes no focus left (the web's sequential focus navigation
@@ -181,6 +187,9 @@ export declare class FocusService {
     /** Is focus inside the overlay that holds the keys? Then the keys the
      *  overlay owns are still the focused view's. */
     focusInClaimant(keys: KeysService): boolean;
+    /** Can the person still reach `v` — focusable, shown, and in Tab's reach? A
+     *  native field asks before it reports its own blur. */
+    reaches(v: View): boolean;
     holds(v: View): boolean;
     /** Is focus inside a region (a window, a pane)? */
     inRegion(): boolean;
@@ -195,6 +204,13 @@ export declare class FocusService {
      *  re-rendered) leaves no spot, and focus is simply dropped. Called from
      *  View.discard() via the seam in view.ts. */
     noteDiscarded(view: View): void;
+    /** Focus was lost from `lost` (hidden, made unreachable, or torn down — its
+     *  subtree's root). On the next frame, if focus is still nowhere and nothing
+     *  has called focus() or blur() since, give it to the nearest container above
+     *  the place, from `from` up, that says where (restoreTarget). Else it stays
+     *  cleared and the next Tab starts from the place, as today. Whatever the last
+     *  input was — the program asked; after a press the ring stays hidden. */
+    private recover;
 }
 /** A scroller with nothing inside it that takes focus — a pane of text, a strip
  *  of pictures — is a Tab stop of its own, as Firefox and Chrome make it, so a

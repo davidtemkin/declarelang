@@ -246,6 +246,13 @@ theme can change or turn off how it looks. You declare none of it.
 When you need more:
 
 - `focusable = true` makes any view a tab stop; there is no numeric tab index.
+  `focusable = quiet` makes it a place you can put focus that Tab never lands on — a
+  screen's heading, so a screen reader says where the person is now; Tab goes on from it.
+- A control disabled while it has focus keeps it, so the next Enter does nothing rather
+  than press a neighbour; Tab goes on from it.
+- When the view with focus is hidden or removed, focus goes where the nearest container's
+  [`restoresFocusTo`](declare-docs:View.restoresFocusTo) says; inside a list or a grid, to
+  the list. Otherwise it is cleared, and the next Tab starts from where it was.
 - A container reorders or gates what Tab reaches by overriding [`tabOrder()`](declare-docs:View.method.tabOrder) — a closed
   pane returns nothing, so Tab never reaches content the user cannot see.
 - [`focusScope`](declare-docs:View.focusScope) says what Tab does at a container's edge:

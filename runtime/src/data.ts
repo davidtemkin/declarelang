@@ -1224,7 +1224,7 @@ export function coerceData(type: AttrType, v: unknown, def: unknown): unknown {
     case "dataschema":
       return def; // a shape is declaration surface, never a data read
     case "enum":
-      return typeof v === "string" && type.tokens.includes(v) ? v : def;
+      return typeof v === "string" && type.tokens.includes(v) || type.boolean === true && typeof v === "boolean" ? v : def;
     // the records door: a data-borne array/record binds as itself
     case "array":
       return Array.isArray(v) ? v : def;

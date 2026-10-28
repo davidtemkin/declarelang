@@ -662,10 +662,14 @@ export class View extends Node {
   /** A scrolling view that draws no scrollbars, on either axis (default false); it scrolls
    *  the same. */
   declare hideScrollbars: boolean;
-  /** Keyboard focus (planes.md §13). `focusable` = a tab stop; `focusScope` = what
+  /** Keyboard focus (planes.md §13). `focusable` = a tab stop (`true`), or `quiet`:
+   *  held only where the program puts focus, never a stop; `focusScope` = what
    *  Tab does at this view's edge (`none` | `stop` | `capture` | `region` | `modal`).
-   *  Traversal order is the tree, overridable per view by a `tabOrder()` method. */
-  declare focusable: boolean;
+   *  Traversal order is the tree, overridable per view by a `tabOrder()` method.
+   *  `restoresFocusTo` = where focus goes when the view that had it, inside this
+   *  one, goes away (focus-place.md). */
+  declare focusable: boolean | "quiet";
+  declare restoresFocusTo: View | null;
   declare focusScope: string;
   /** Accessibility (accessibility.md §3): the role, a contract checked by name
    *  and type (a11y-roles.ts), and the facts roles read — every one unset (null,
@@ -2152,6 +2156,7 @@ defineAttributes(View, {
   outsidePress: { def: "none", push: (v) => noteOverlay(v) },
   scrollBelow: { def: "none", push: (v) => noteOverlay(v) },
   focusable: { def: false },
+  restoresFocusTo: { def: null },
   focusScope: { def: "none" },
   // Accessibility: every default is null or a string, so none of these takes a
   // slot in the kernel's per-view block (attributes.ts — only number and

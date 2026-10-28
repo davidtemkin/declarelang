@@ -91,6 +91,12 @@ API shares, so a program is written for none of them in particular. Each word is
 names the facts the role reads and the methods its actions call, and the compiler holds a class
 that declares it to them. `none` is transparent — the view is read as part of its parent.
 
+## Focusable
+
+Whether a view takes keyboard focus. `false`: it does not. `true`: it is a Tab stop. `quiet`:
+the program can give it focus, and Tab never lands on it — a heading or a summary the
+person is taken to; Tab goes on from it to the next stop.
+
 ## FocusScope
 
 What Tab does at a view's edge. `none`: its stops are its parent's. `stop`: it is one Tab stop

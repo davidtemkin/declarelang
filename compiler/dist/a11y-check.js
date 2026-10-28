@@ -393,7 +393,7 @@ export function accessibilityDiagnostics(program, schemas, opts) {
             }
             // a drawn view that takes the focus and says nothing — said once, where
             // the drawing or the focus is written (a use site inherits the class's)
-            const focusable = (b) => b.attrs.some((a) => a.name === "focusable" && a.value.kind === "ident" && a.value.name === "true");
+            const focusable = (b) => b.attrs.some((a) => a.name === "focusable" && a.value.kind === "ident" && (a.value.name === "true" || a.value.name === "quiet"));
             if (role === null && !isA(tag, "Control") && has(levels, "draw") && levels.some(focusable)
                 && (el.methods.some((m) => m.name === "draw") || focusable(el))) {
                 warnings.push(Diag.accessibilityDrawnFocusable(owner, el.pos));

@@ -1105,7 +1105,7 @@ styles = []) {
     for (const s of all.values()) {
         for (const t of Object.values(s.attrs))
             if (t.kind === "enum" && !isAuthoredUnion(t.name) && !enums.has(t.name))
-                enums.set(t.name, { tokens: t.tokens, numeric: t.numeric !== undefined });
+                enums.set(t.name, { tokens: t.tokens, numeric: t.numeric !== undefined, boolean: t.boolean === true });
     }
     // …and from METHOD SIGNATURE types. An enum (or record) named ONLY by a
     // signature — `f(a: Axis)` in a program whose attributes never mention Axis —
@@ -1125,9 +1125,9 @@ styles = []) {
     for (const name of sigTypes) {
         const t = declaredType(name);
         if (t !== null && t.kind === "enum" && !isAuthoredUnion(t.name) && !enums.has(t.name))
-            enums.set(t.name, { tokens: t.tokens, numeric: t.numeric !== undefined });
+            enums.set(t.name, { tokens: t.tokens, numeric: t.numeric !== undefined, boolean: t.boolean === true });
     }
-    const enumLines = [...enums].map(([name, e]) => `type ${name} = ${e.tokens.map((t) => JSON.stringify(t)).join(" | ")}${e.numeric ? " | number" : ""};`);
+    const enumLines = [...enums].map(([name, e]) => `type ${name} = ${e.tokens.map((t) => JSON.stringify(t)).join(" | ")}${e.numeric ? " | number" : ""}${e.boolean ? " | boolean" : ""};`);
     // Record aliases: every record-typed attribute references a NAMED open record.
     // A record the PRELUDE already declares is skipped — it has a real shape there
     // and a second alias here would be a duplicate identifier. Everything else gets

@@ -359,8 +359,9 @@ export function parseLiteral(type: AttrType, lit: Literal): Coerced {
         if (Number.isFinite(lit.value) && lit.value >= lo && lit.value <= hi) return ok(lit.value);
         return fail(diag`a ${type.name} (one of ${type.tokens.join(" | ")}, or a number ${lo}–${hi})`);
       }
+      if (type.boolean === true && lit.kind === "ident" && (lit.name === "true" || lit.name === "false")) return ok(lit.name === "true");
       // Vowel-aware article: R7's Axis is the first enum that needs "an".
-      return fail(diag`${/^[AEIOU]/.test(type.name) ? "an" : "a"} ${type.name} (one of ${type.tokens.join(" | ")}${type.numeric !== undefined ? `, or a number ${type.numeric[0]}–${type.numeric[1]}` : ""})`,
+      return fail(diag`${/^[AEIOU]/.test(type.name) ? "an" : "a"} ${type.name} (one of ${type.tokens.join(" | ")}${type.numeric !== undefined ? `, or a number ${type.numeric[0]}–${type.numeric[1]}` : ""}${type.boolean === true ? ", or true | false" : ""})`,
         lit.kind === "ident" ? VALUE_INSTINCTS[`${type.name}.${lit.name}`] : undefined);
     case "fn":
       // Like a class slot: `null` is the one literal form ("no callback").

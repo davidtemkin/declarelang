@@ -606,8 +606,26 @@ The vertical offset within the parent's content box — the twin of `x`, with th
 ownership rule: a layout that places `y` (a stack, or a row with `align`) owns it.
 
 ## focusable
-Makes the view a keyboard **tab stop**. Traversal order is the view tree — there is no
-numeric tabindex; override `tabOrder()` to reorder within a container.
+`true` makes the view a keyboard **tab stop**. Traversal order is the view tree — there is
+no numeric tabindex; override `tabOrder()` to reorder within a container. `quiet` makes it a
+place the program can put focus (`Focus.focus`) that Tab never lands on: a screen's heading
+after the screen changes, a summary of a form's problems. A screen reader reads it, no ring
+shows, and Tab goes on from it to the next stop. Inside `{ }` the word is a string:
+`focusable = { editing ? "quiet" : true }`.
+
+## restoresFocusTo
+Where focus goes when the view that had it, somewhere inside this one, is hidden or
+removed: a view that can hold focus then, or `null` (the default). The nearest container
+that answers wins, so an inner one overrides an outer one; a list or grid (a `focusScope`
+of `stop`) that answers nothing takes focus itself, at its entry. When nothing answers,
+focus is cleared and the next Tab starts from where it was. On an overlay it is read as the
+overlay closes; `null` there gives focus back to what had it when it opened. It can be a
+constraint, read at that moment, so it can depend on what just happened. Focus the program
+moves itself meanwhile wins.
+
+```declare-fragment
+confirm: Dialog [ restoresFocusTo = { app.deleted ? app.listHeading : null } ]
+```
 
 ## focusScope
 What Tab does at this view's edge. `none` (the default): the view's stops are its

@@ -1937,6 +1937,7 @@ defineAttributes(View, {
     outsidePress: { def: "none", push: (v) => noteOverlay(v) },
     scrollBelow: { def: "none", push: (v) => noteOverlay(v) },
     focusable: { def: false },
+    restoresFocusTo: { def: null },
     focusScope: { def: "none" },
     // Accessibility: every default is null or a string, so none of these takes a
     // slot in the kernel's per-view block (attributes.ts — only number and

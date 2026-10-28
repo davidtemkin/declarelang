@@ -72,9 +72,9 @@ What a press outside it does while it is open — `outsidePress`'s value then.
 What a scroll outside it does while it is open — `scrollBelow`'s value then.
 
 ## takesFocus
-Whether opening moves focus into it (its first stop) and closing gives it back — to the
-view that had it, or, when that view is gone or hidden by then, to the next Tab stop after
-its place.
+Whether opening moves focus into it (its first stop) and closing gives it back — to where
+`restoresFocusTo` says, else to the view that had it, or, when that view is gone or hidden
+by then, to the next Tab stop after its place.
 
 ## sharesProgram
 Whether, open in a host's layer (a program running in a window, say), it is shown at its
@@ -366,9 +366,9 @@ class Floating [
     _closing() {
         this._strata().closedIt(this)
         Keys.navClaim(this, false)
-        // back to where it was — unless the focus has gone on somewhere since;
-        // to the next Tab stop when what had it is gone
-        if (_savedFocus != null) afterDelay(0, () => {
+        // back to where it was, or where restoresFocusTo says — unless the focus has
+        // gone on somewhere since; to the next Tab stop when what had it is gone
+        if (_savedFocus != null || restoresFocusTo != null) afterDelay(0, () => {
             const f = Focus.getFocus() as View | null
             if (f == null || f == this || Focus.holds(this)) Focus._giveBack(this)
             else { _savedFocus = null; _savedParent = null }

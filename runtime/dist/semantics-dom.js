@@ -201,9 +201,15 @@ function ariaOf(v) {
     }
     // focusable to the browser and assistive technology too — the focus service
     // owns Tab (keys.ts takes it), so the browser's own order never runs; 0 says
-    // honestly that the keyboard reaches it (never a positive index)
-    if (v.focusable)
+    // honestly that the keyboard reaches it (never a positive index). A quiet view
+    // is focused only by the program: -1, as the web marks one. A control disabled
+    // while it has focus keeps it (focus-place.md), so its element must stay
+    // focusable too, or the browser takes focus to the page; the focus read is
+    // tracked only for a disabled view.
+    if (v.focusable === true)
         a.tabindex = "0";
+    else if (v.focusable === "quiet" || v.disabled === true && Focus.getFocus() === v)
+        a.tabindex = "-1";
     return a;
 }
 /** The nearest view above that replicates — whose records an item counts among. */
@@ -344,7 +350,7 @@ function follow(v) {
     } // its element arrives with the settle that shows it
     VIEW_OF.set(el, v);
     if (!el.hasAttribute("tabindex")) {
-        el.tabIndex = 0;
+        el.tabIndex = v.focusable === "quiet" ? -1 : 0;
         el.style.outline = "none";
     } // the ring is Declare's own
     if (doc.activeElement === el)
@@ -369,7 +375,7 @@ function retry(v, frames) {
         if (el !== null) {
             VIEW_OF.set(el, v);
             if (!el.hasAttribute("tabindex")) {
-                el.tabIndex = 0;
+                el.tabIndex = v.focusable === "quiet" ? -1 : 0;
                 el.style.outline = "none";
             }
             moving = true;

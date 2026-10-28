@@ -148,7 +148,10 @@ the cancel one. Every control inside keeps its own keys. Focus is **saved on ope
 close** — and restored one turn late, deliberately, because an in-flight keystroke has to
 finish against the old focus first. When what had it is gone by then — the row a "Delete?"
 dialog was about, deleted — focus goes to the next Tab stop after the place it held, as one
-Tab from there would.
+Tab from there would. Somewhere else makes more sense, sometimes: say so with
+[`restoresFocusTo`](declare-docs:View.restoresFocusTo), read as the dialog closes —
+`restoresFocusTo = { app.deleted ? app.listHeading : null }`, with the heading
+`focusable = quiet`.
 
 A dialog's content can also be yours: its children go between the message and the buttons,
 and focus opens on the first of them.
