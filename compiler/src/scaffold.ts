@@ -759,6 +759,8 @@ export const LANGUAGE_STATICS: Readonly<Record<string, readonly string[]>> = {
     `  static focusIn(v: unknown): boolean;`,
     `  static nextRegion(dir: number): void;`,
     `  static holds(v: unknown): boolean;`,
+    // an overlay closing gives focus back (Floating's _closing) — internal
+    `  static _giveBack(overlay: unknown): void;`,
   ],
 };
 

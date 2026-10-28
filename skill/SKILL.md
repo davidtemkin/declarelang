@@ -34,9 +34,7 @@ built to a brief, have a checker test it against the brief before you hand it ov
    content, swipes, a drawer, a sheet and a popover, search, menus, shortcuts and undo,
    two themes.
 
-Then stop reading. Everything else is read when you reach the part that needs it: every
-read stays in your context for the rest of the session, so a read made early, or never
-needed, is paid for again on every later turn.
+Then stop reading. Everything else is read when you reach the part that needs it.
 
 If your context is summarized partway through a session, the summary keeps what you
 did but not what you read. Read items 1 and 2 again before you write or review any
@@ -50,7 +48,7 @@ colors, sizes) and the stated requirements. Where it names a technique ("modal",
 "hover state"), ask what the technique is for and choose the Declare form that does
 that. (`docs/operational/intake.md` covers this at length, for a large or unclear spec.)
 
-Write the plan down before the first line of the program:
+For a new program, write the plan down before its first line:
 
 - **The data** — which datasets hold the records. One source of truth; everything a view
   shows is derived from it.
@@ -63,6 +61,12 @@ Write the plan down before the first line of the program:
   slides in, the items travel. In Declare the second costs about the same to write, so it
   is an ordinary option wherever it helps a person follow what happened; which changes
   move is a design decision, not a rule.
+
+**For a phone.** One Declare program serves phones and desktops. When it is for use on a
+phone — the person says so, or the app plainly is — make it a phone app rather than a
+desktop page that fits: targets a finger can hit (44 points), controls within a thumb's
+reach, and the swipes, sheets and drawers the library has (the to-do app uses each).
+Check it with `--phone`.
 
 Then check every need in the plan against
 [What Declare handles for you](#what-declare-handles-for-you), below.
@@ -88,9 +92,9 @@ Then check every need in the plan against
   the guide's working code.
 - **Complete programs** — each opens with a comment on how it is put together, and the
   table below cites the class or App member to look at. Beyond the to-do app, read a
-  program by its parts, not whole: its header, then `npx declare-help map <file>`, which
-  lists each class and App member with its lines and what it is, and the parts your plan
-  needs. Find the one nearest what you are building:
+  program by its parts, not whole — a program you are changing, too: its header, then
+  `npx declare-help map <file>`, which lists each class and App member with its lines and
+  what it is, and the parts your plan needs. Find the one nearest what you are building:
   - **A list of things to tick off, on phone and desktop** — tasks, reminders, a reading
     list. → `apps/todo/todo.declare` with `todo-parts.declare`, read first (above).
   - **Records people list, search, filter and edit** — most applications: issues, mail,
@@ -255,7 +259,8 @@ shows the Declare form.
 
 ## Checking and looking
 
-Climb from the cheapest check to the dearest, and stop as soon as one answers:
+Start from the first check below and go only as far as the request needs: stop as soon as
+one answers.
 
 - **Check as you go** with `npx declare-verify app.declare`: in a second or two it compiles
   the program, checks it, and boots it in a browser at a laptop's size (`--phone` for a
@@ -267,16 +272,16 @@ Climb from the cheapest check to the dearest, and stop as soon as one answers:
   never built — screens that appear later — which it could not check.
 - **Ask where things are before you look.** `npx declare-verify app.declare
   --read app.list.height --outline app.sheet` answers from that boot: a value, and
-  every view under a path with its place and size, as text. It costs a fraction of a picture.
+  every view under a path with its place and size, as text.
 - **Look at milestones** — once the whole program first runs, and after a change to what
   people see — because paint, fonts and real text exist only in a browser.
   `npx declare-look app.declare --shot out.png` (`--phone` for a phone) runs it in a browser
   and saves a picture; it can click, drag, hold, pinch, scroll, type and press keys, in the
   order you write them, and read values (`--help` lists them). Under `--touch` every press
-  is a finger. `--shot-of PATH file.png` pictures one view instead of the window. A picture you read stays in your context for the rest of the session, like
-  any read, so look when there is something to see, not after every edit. `look` is for
-  reaching a state to see it; whether a sequence of actions does what it should is a flow,
-  and a flow is an assert script.
+  is a finger. `--shot-of PATH file.png` pictures one view instead of the window. Look
+  when there is something to see, not after every edit. `look` is for reaching a state to
+  see it; whether a sequence of actions does what it should is a flow, and a flow is an
+  assert script.
 - **Check a whole flow with an assert script** for `npx declare-verify app.declare --assert
   flow.mjs` (`docs/operational/verify.md`): `drive` presses, types and waits as a person
   does, `expect` checks what is shown and what the program sent (`expect.request`). End
@@ -285,17 +290,20 @@ Climb from the cheapest check to the dearest, and stop as soon as one answers:
   browser harness of your own; `page` in an assert script, and `declare-look --js`, answer
   what the vocabulary doesn't. Keep the scripts, and run them again after a change.
 - `npm start` serves a program at its file's path (`my-apps/app.declare` at
-  `http://127.0.0.1:8200/my-apps/app.declare`) for a person to use.
-- **Before you hand it over, use it once as a person would.** Scroll a long list from end
-  to end, drag its scrollbar, resize the window, switch to dark mode and to touch. A
-  program can pass every check and still fail the first person who does one of these.
+  `http://127.0.0.1:8200/my-apps/app.declare`) for a person to use. When you tell the
+  person where to see the program, start it first: an address with nothing behind it is
+  the first thing they will try.
+- **Before you hand over a whole program, use it once as a person would.** Scroll a long
+  list from end to end, drag its scrollbar, resize the window, switch to dark mode and to
+  touch. A program can pass every check and still fail the first person who does one of
+  these.
 - **A whole program built to a brief or a spec: have a checker test it against it** before
   you hand it over — not for a change, an experiment or a small request. `npx declare-check --brief <the brief>
   --program app.declare --url <its address>` (and `--service <url>` for a service it talks
   to). A second agent, started fresh and knowing nothing of how you built it, reads the
   brief, checks each requirement it can — most important first — and reports each as
-  passed, failed or unchecked, with the program line for what failed. It takes some
-  minutes: it waits up to 100 s, then prints an id for `npx declare-check --wait <id>`.
+  passed, failed or unchecked, with the program line for what failed. It waits up
+  to 100 s, then prints an id for `npx declare-check --wait <id>`.
   Fix what failed, rerun the scripts it saved (`checks/`), and for what it did not reach,
   ask again with `--continue <id>`. (`docs/operational/checking.md`)
 - **When it runs but is wrong**, don't re-read the source to guess: ask the running program

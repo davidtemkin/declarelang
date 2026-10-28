@@ -9,11 +9,8 @@ Declare is a language for user interfaces. No LLM has been trained on it, and it
 resembles React, CSS and HTML only on the surface: a rule carried over from them is the
 surest way to be wrong.
 
-Learning it comes first: the reading below. When there is a program to write, the work
-then goes in this order: plan, check the plan against what Declare handles for you,
-write, then check the program and look at it running — and when a whole program was
-built to a brief, have a checker test it against the brief before you hand it over
-(§ Checking and looking).
+Learning it comes first: the reading below, whatever you have been asked. After that,
+the work takes the shape of the request (§ Working with a person).
 
 ## Read first, in order
 
@@ -34,13 +31,48 @@ built to a brief, have a checker test it against the brief before you hand it ov
    content, swipes, a drawer, a sheet and a popover, search, menus, shortcuts and undo,
    two themes.
 
-Then stop reading. Everything else is read when you reach the part that needs it: every
-read stays in your context for the rest of the session, so a read made early, or never
-needed, is paid for again on every later turn.
+Then stop reading. Everything else is read when you reach the part that needs it.
 
 If your context is summarized partway through a session, the summary keeps what you
 did but not what you read. Read items 1 and 2 again before you write or review any
 more Declare.
+
+## Working with a person
+
+The person decides what to build and when it is done; your part is to make each step
+real and show it. How they ask says what a good answer is:
+
+- **A one-line idea** — "make me a habit tracker". Build a whole small program at once,
+  with sensible choices, rather than asking first, and say in a line what you chose. It
+  should look designed from its first version. The person will steer from what they see.
+- **The next request in a session** — "let me drag the cards", "it feels too busy". Do
+  that, and leave the rest as it is. A request in terms of a feeling ("calmer", "it should
+  feel good") is a design request: decide what it means here, and make it visible.
+- **A picture to match.** Take it literally: proportions, spacing, type sizes, colours,
+  copy. Look at your result beside it, at the picture's size, and fix what differs before
+  you say it matches.
+- **A change to a program that exists** — your own from earlier, or someone else's. Read
+  its opening comment and `npx declare-help map <file>` first, then the parts the change
+  touches. Make the change in the program's own grain — its datasets, its state, its
+  classes — touch only what the change needs, and keep what works working: run its assert
+  scripts again, if it has them.
+- **Something wrong** — a bug report, a pasted error. Make it happen first (a check, a
+  script or a look that shows it), then fix it, and show it fixed.
+- **"Can this work?"** — a spike. The smallest program that answers the question, and an
+  honest answer: what it shows, what it doesn't, where it would strain. Asked only to
+  explain, explain.
+- **A brief or a spec**, above all one built without the person watching: all of §
+  Planning a program, and § Checking and looking to its end, the checker included.
+
+Whatever was asked, a turn ends the same way: the program compiles and starts, you have
+looked at what you changed, and your reply says briefly what you did, what you checked,
+and where to see it — its address (`npm start`, below). Then let the person look.
+
+**Phones.** One Declare program serves phones and desktops. When the person will use it on
+a phone, or the app is plainly one used on the go, make it a phone app — targets a finger
+can hit (44 points), the controls within reach of a thumb, the gestures a phone app has —
+not a desktop page that merely fits, and check it at a phone's size (`--phone`). Otherwise
+build it so nothing breaks on a phone, and check it at the size the person is using.
 
 ## Planning a program
 
@@ -50,7 +82,8 @@ colors, sizes) and the stated requirements. Where it names a technique ("modal",
 "hover state"), ask what the technique is for and choose the Declare form that does
 that. (`docs/operational/intake.md` covers this at length, for a large or unclear spec.)
 
-Write the plan down before the first line of the program:
+For a new program, write the plan down before its first line — a few lines, not a
+document:
 
 - **The data** — which datasets hold the records. One source of truth; everything a view
   shows is derived from it.
@@ -255,7 +288,8 @@ shows the Declare form.
 
 ## Checking and looking
 
-Climb from the cheapest check to the dearest, and stop as soon as one answers:
+Start from the first check below and go only as far as the request needs: stop as soon as
+one answers.
 
 - **Check as you go** with `npx declare-verify app.declare`: in a second or two it compiles
   the program, checks it, and boots it in a browser at a laptop's size (`--phone` for a
@@ -267,14 +301,14 @@ Climb from the cheapest check to the dearest, and stop as soon as one answers:
   never built — screens that appear later — which it could not check.
 - **Ask where things are before you look.** `npx declare-verify app.declare
   --read app.list.height --outline app.sheet` answers from that boot: a value, and
-  every view under a path with its place and size, as text. It costs a fraction of a picture.
+  every view under a path with its place and size, as text.
 - **Look at milestones** — once the whole program first runs, and after a change to what
   people see — because paint, fonts and real text exist only in a browser.
   `npx declare-look app.declare --shot out.png` (`--phone` for a phone) runs it in a browser
   and saves a picture; it can click, drag, hold, pinch, scroll, type and press keys, in the
   order you write them, and read values (`--help` lists them). Under `--touch` every press
-  is a finger. `--shot-of PATH file.png` pictures one view instead of the window. A picture you read stays in your context for the rest of the session, like
-  any read, so look when there is something to see, not after every edit. `look` is for
+  is a finger. `--shot-of PATH file.png` pictures one view instead of the window. Look when there is
+  something to see, not after every edit. `look` is for
   reaching a state to see it; whether a sequence of actions does what it should is a flow,
   and a flow is an assert script.
 - **Check a whole flow with an assert script** for `npx declare-verify app.declare --assert
@@ -286,7 +320,7 @@ Climb from the cheapest check to the dearest, and stop as soon as one answers:
   what the vocabulary doesn't. Keep the scripts, and run them again after a change.
 - `npm start` serves a program at its file's path (`my-apps/app.declare` at
   `http://127.0.0.1:8200/my-apps/app.declare`) for a person to use.
-- **Before you hand it over, use it once as a person would.** Scroll a long list from end
+- **Before you hand over a whole program, use it once as a person would.** Scroll a long list from end
   to end, drag its scrollbar, resize the window, switch to dark mode and to touch. A
   program can pass every check and still fail the first person who does one of these.
 - **A whole program built to a brief or a spec: have a checker test it against it** before
@@ -294,8 +328,8 @@ Climb from the cheapest check to the dearest, and stop as soon as one answers:
   --program app.declare --url <its address>` (and `--service <url>` for a service it talks
   to). A second agent, started fresh and knowing nothing of how you built it, reads the
   brief, checks each requirement it can — most important first — and reports each as
-  passed, failed or unchecked, with the program line for what failed. It takes some
-  minutes: it waits up to 100 s, then prints an id for `npx declare-check --wait <id>`.
+  passed, failed or unchecked, with the program line for what failed. It waits up
+  to 100 s, then prints an id for `npx declare-check --wait <id>`.
   Fix what failed, rerun the scripts it saved (`checks/`), and for what it did not reach,
   ask again with `--continue <id>`. (`docs/operational/checking.md`)
 - **When it runs but is wrong**, don't re-read the source to guess: ask the running program

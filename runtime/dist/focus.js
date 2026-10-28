@@ -386,6 +386,39 @@ export class FocusService {
         if (this.current === v)
             reveal(v);
     }
+    /** Give focus back as an overlay that took it closes (Floating's _closing):
+     *  to the view that had it, while the person can still reach it; else to the
+     *  first Tab stop after its place — the index it held among its parent's
+     *  children when it has been discarded since — as Tab from there would go,
+     *  passing over the closing overlay. The web leaves focus on nothing when a
+     *  dialog's opener is gone; the dialog pattern asks for a logical place. */
+    _giveBack(overlay) {
+        const held = overlay;
+        const back = held._savedFocus ?? null, parent = held._savedParent ?? null, at = held._savedAt ?? -1;
+        held._savedFocus = null;
+        held._savedParent = null;
+        if (back === null)
+            return;
+        // a discarded view is the top of a tree of its own
+        const top = (v) => { let n = v; for (let p = parentAcross(n); p !== null; p = parentAcross(p))
+            n = p; return n; };
+        const home = top(overlay);
+        if (top(back) === home && reachable(back)) {
+            this.focus(back);
+            return;
+        }
+        const spot = top(back) === home ? back : parent !== null && top(parent) === home && at >= 0 ? { parent, at } : null;
+        if (spot === null)
+            return;
+        const start = shownSpot(spot);
+        const seq = sequence(cycleOf(start.from)).filter((e) => e.view !== overlay && !insideAcross(e.view, overlay));
+        if (seq.length === 0) {
+            this.startPoint = spot;
+            return;
+        }
+        const after = seq.findIndex((e) => afterSpot(start.spot, e.view));
+        this.focus(seq[after < 0 ? 0 : after].view); // past the last stop, the first, as Tab cycles
+    }
     /** Enter the focused region (Enter on a window focused as one stop): focus
      *  what last had focus inside it, else its first stop. True when it entered. */
     enter() {

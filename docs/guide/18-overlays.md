@@ -146,7 +146,9 @@ the default button — unless the focused view takes Return itself: a focused bu
 itself (Return on Cancel is Cancel), and a multi-line field types its line break. Escape picks
 the cancel one. Every control inside keeps its own keys. Focus is **saved on open and restored on
 close** — and restored one turn late, deliberately, because an in-flight keystroke has to
-finish against the old focus first.
+finish against the old focus first. When what had it is gone by then — the row a "Delete?"
+dialog was about, deleted — focus goes to the next Tab stop after the place it held, as one
+Tab from there would.
 
 A dialog's content can also be yours: its children go between the message and the buttons,
 and focus opens on the first of them.

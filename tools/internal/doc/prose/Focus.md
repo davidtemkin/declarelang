@@ -64,6 +64,10 @@ focus does on opening; a scope remembers where focus was, so reopening returns t
 Whether focus is on a view or anywhere inside it — a program hosted in an island inside it
 included. A `Window` answers whether it has the keyboard with it.
 
+## _giveBack()
+**Internal.** An overlay closing gives focus back: to what had it when it opened, or, when
+that is gone, to the next Tab stop after its place.
+
 ## nextRegion()
 Moves focus to the next (`1`) or previous (`-1`) region of the context around the one
 focus is in — what F6 and Shift-F6 do. A program's own command for cycling its windows

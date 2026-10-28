@@ -322,17 +322,20 @@ function readMethods(files) {
 // slice; the explicit `@api` marker + coverage gate arrive with the block-capture parser).
 function readProse(cls) {
   const abs = path.join(ROOT, "tools/internal/doc/prose", cls + ".md");
-  if (!existsSync(abs)) return { class: null, members: {}, methods: {} };
+  if (!existsSync(abs)) return { class: null, members: {}, methods: {}, internal: new Set() };
   const text = readFileSync(abs, "utf8");
   const parts = text.split(/^## +(.+)$/m);              // [classProse, name1, body1, name2, body2, …]
-  const members = {}, methods = {};
+  // a section opening **Internal.** is marked not-API, as in a library class's prose
+  const members = {}, methods = {}, internal = new Set();
   for (let i = 1; i < parts.length; i += 2) {
     const head = parts[i].trim(), body = parts[i + 1].trim();
     const asMethod = head.match(/^([A-Za-z_$][\w$]*)\(\)$/);
-    if (asMethod) methods[asMethod[1]] = body;
+    const name = asMethod ? asMethod[1] : head;
+    if (/^\*\*Internal\.\*\*/.test(body)) internal.add(name);
+    if (asMethod) methods[name] = body;
     else members[head] = body;
   }
-  return { class: parts[0].trim() || null, members, methods, file: `tools/internal/doc/prose/${cls}.md` };
+  return { class: parts[0].trim() || null, members, methods, internal, file: `tools/internal/doc/prose/${cls}.md` };
 }
 
 // Every `## heading` a prose file offers that NOTHING in the model claimed.
@@ -531,7 +534,10 @@ for (const name of TARGETS) {
     const id = `${clsId}.method.${cname}`;
     nodes[id] = {
       id, name: cname, kind: "method",
-      doc, docSegs: await segmentize(doc, id), api: true,      // in the check block ⇒ callable ⇒ API
+      // in the check block ⇒ callable ⇒ API, unless its prose marks it internal
+      // (the library's own plumbing into a service — Focus._giveBack)
+      doc, docSegs: await segmentize(doc, id),
+      api: !(prose.internal?.has(cname) ?? false), internal: prose.internal?.has(cname) ?? false,
       source: { file: "compiler/src/scaffold.ts", line: 0 },
       parent: clsId, seeAlso: [], signature: c.signature, returns: null,
       ...(c.isStatic ? { isStatic: true } : {}),

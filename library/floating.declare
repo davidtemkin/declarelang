@@ -72,7 +72,9 @@ What a press outside it does while it is open — `outsidePress`'s value then.
 What a scroll outside it does while it is open — `scrollBelow`'s value then.
 
 ## takesFocus
-Whether opening moves focus into it (its first stop) and closing gives it back.
+Whether opening moves focus into it (its first stop) and closing gives it back — to the
+view that had it, or, when that view is gone or hidden by then, to the next Tab stop after
+its place.
 
 ## sharesProgram
 Whether, open in a host's layer (a program running in a window, say), it is shown at its
@@ -145,7 +147,8 @@ An override calls `super.close()`. Work for every closing belongs in `closed()`:
 `shown` follows can close it without coming through here.
 
 ## closed()
-Called once it is closed — override to act on closing.
+Called once it is closed — override to act on closing. It runs before focus is given back,
+so focus moved here (to what the closing created) stays where it was put.
 
 ## escape()
 What Esc does when this is the topmost open overlay — closes it; a dialog picks its cancel
@@ -190,6 +193,13 @@ An outside press (or, with `scrollPolicy = "dismiss"`, an outside scroll) asked 
 ## _savedFocus
 **Internal.** The view that had focus when it opened, given focus back when it closes.
 
+## _savedParent
+**Internal.** The parent of `_savedFocus` when it opened: its place, should it be gone by
+the close.
+
+## _savedAt
+**Internal.** The index `_savedFocus` held among `_savedParent`'s children.
+
 ## visible
 Follows `present`: it is drawn while open, and while its closing motion runs.
 
@@ -233,6 +243,8 @@ class Floating [
     scrollPolicy: "block" | "allow" | "dismiss" = "block",
     takesFocus: boolean = false,
     _savedFocus: View? = null,
+    _savedParent: View? = null,
+    _savedAt: number = -1,
     _hostedLayer: boolean = false,
     sharesProgram: boolean = true,
     _baseScale: number = 1,
@@ -325,6 +337,8 @@ class Floating [
         if (pressPolicy != "ignore") Keys.navClaim(this, true)
         if (takesFocus) {
             _savedFocus = Focus.getFocus()
+            _savedParent = _savedFocus != null ? _savedFocus.parent as View | null : null
+            _savedAt = _savedParent != null ? _savedParent.childViews.indexOf(_savedFocus) : -1
             afterSettle(() => this.focusFirst())
             }
         },
@@ -352,12 +366,12 @@ class Floating [
     _closing() {
         this._strata().closedIt(this)
         Keys.navClaim(this, false)
-        const back = _savedFocus
-        _savedFocus = null
-        // back to where it was — unless the focus has gone on somewhere since
-        if (back != null) afterDelay(0, () => {
+        // back to where it was — unless the focus has gone on somewhere since;
+        // to the next Tab stop when what had it is gone
+        if (_savedFocus != null) afterDelay(0, () => {
             const f = Focus.getFocus() as View | null
-            if (f == null || f == this || Focus.holds(this)) Focus.focus(back)
+            if (f == null || f == this || Focus.holds(this)) Focus._giveBack(this)
+            else { _savedFocus = null; _savedParent = null }
             })
         this.closed()
         },

@@ -155,6 +155,13 @@ export declare class FocusService {
      *  focus-reveal contract (a keyboard-focused control is scrolled into view,
      *  minimum distance, through app scrollers and the document alike). */
     land(v: View): void;
+    /** Give focus back as an overlay that took it closes (Floating's _closing):
+     *  to the view that had it, while the person can still reach it; else to the
+     *  first Tab stop after its place — the index it held among its parent's
+     *  children when it has been discarded since — as Tab from there would go,
+     *  passing over the closing overlay. The web leaves focus on nothing when a
+     *  dialog's opener is gone; the dialog pattern asks for a logical place. */
+    _giveBack(overlay: View): void;
     /** Enter the focused region (Enter on a window focused as one stop): focus
      *  what last had focus inside it, else its first stop. True when it entered. */
     enter(): boolean;

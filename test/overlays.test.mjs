@@ -530,6 +530,37 @@ await test("an overlay holding nothing focusable takes focus itself, so Tab cann
   same(Focus.getFocus(), app.b, "Esc closes it and focus goes back");
 });
 
+await test("a dialog whose opener is gone by its close gives focus to the next Tab stop after the opener's place", async () => {
+  const src = `App [ width = 500, height = 300,
+    showB: boolean = true,
+    a: Button [ x = 20, y = 20, label = "Before" ],
+    b: Button [ x = 120, y = 20, label = "Delete", visible = { app.showB } ],
+    c: Button [ x = 220, y = 20, label = "After" ],
+    dlg: Dialog [ title = "Delete it?", Button [ label = "OK" ] ] ]`;
+  // hidden while the dialog was open
+  let app = await boot(src);
+  deliverKeys(Keys, Focus);
+  Focus.focus(app.b); settle();
+  app.dlg.show(); settle(); await turns();
+  assert.ok(Focus.holds(app.dlg), "focus is in the dialog");
+  app.showB = false; app.dlg.close(); settle(); await turns();
+  same(Focus.getFocus(), app.c, "focus goes to the stop after the hidden opener");
+  // discarded while the dialog was open
+  app = await boot(src);
+  deliverKeys(Keys, Focus);
+  Focus.focus(app.b); settle();
+  app.dlg.show(); settle(); await turns();
+  app.b.discard(); app.dlg.close(); settle(); await turns();
+  same(Focus.getFocus(), app.c, "focus goes to the stop after the discarded opener's place");
+  // still there: focus goes back to it, as before
+  app = await boot(src);
+  deliverKeys(Keys, Focus);
+  Focus.focus(app.b); settle();
+  app.dlg.show(); settle(); await turns();
+  app.dlg.close(); settle(); await turns();
+  same(Focus.getFocus(), app.b, "an opener still there gets focus back");
+});
+
 await test("a combobox is one Tab stop: its entry", async () => {
   const app = await boot(`App [ width = 500, height = 300,
     a: Button [ x = 20, y = 20, label = "A" ],
