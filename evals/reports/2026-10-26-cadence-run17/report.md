@@ -6,7 +6,7 @@ what run 16 met: a set of shortcuts declared inside an open sheet is in force, a
 press refuses a covered point, DECLARE4022 warns of a control that shows it is chosen and reports nothing,
 `WrappingLayout` deals equal cells, and the reference points at baseline wrapping, `present` and `Segmented`. It is
 also the first run on the renamed foundation (`touchFirst`, `DrawContext`, `autoFetch`, the folded `TextInput`) and the
-first with the names ledger (`names.txt`).
+first with the names ledger (the names ledger, at the end).
 
 Opus 5.5, web tools available, the brief's idiom sentence included, one round, the standard strip (`evals/`,
 `docs/system-design/` and `test/` removed from the agent's copy).
@@ -86,7 +86,7 @@ about a dozen `declare-help` lookups. It read no other exemplar. Run 16 read the
 
 ## Names
 
-From `names.txt`: **1 miss, 0 collisions, 0 `declare-help` misses, 0 empty searches.**
+From the names ledger (at the end): **1 miss, 0 collisions, 0 `declare-help` misses, 0 empty searches.**
 
 | min | name | on | the platform's answer | outcome |
 |---|---|---|---|---|
@@ -383,3 +383,17 @@ I'd hesitate for:
 - Anything where I'd need a scale or performance track record the language doesn't have yet.
 
 That last judgment is the least certain part of this account, because I never measured performance in this build.
+
+## The names ledger
+
+From `evals/craft/names.py`, run on the build's logs when the report was filed: every name a check refused, what the platform answered, and how it ended.
+
+```
+NAMES — 2026-10-26-cadence-run17: 1 missed name(s), 0 collision(s), 0 declare-help miss(es), 0 empty search(es)
+
+MISSES (min · kind · name · on · origin · the platform's answer · times · resolved at min · how it ended)
+    10 · attribute · numeralWidth         · HTMLText                 · —                  · none         · ×1  ·   10 · resolved
+         HTMLText has no attribute 'numeralWidth' — 2 sites, also on line 387 [DECLARE2000] (line 378, col 39)
+
+SUMMARY: 1 of 1 misses got no hint · 0 declared instead (none) · 0 never resolved (none)
+```

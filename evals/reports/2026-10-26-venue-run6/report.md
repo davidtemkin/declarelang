@@ -92,7 +92,7 @@ flags and assert sections. It never opened the calendar and never read a brief.
 
 ## Names
 
-From `names.txt` (the ledger) and the idiom read together.
+From the names ledger (at the end) and the idiom read together.
 
 **Misses: four, all in the first compile round, all resolved in that minute.**
 
@@ -407,3 +407,23 @@ My confidence is moderate. One app is a narrow sample, and this brief fit Declar
 The fixture gained a second account with a short sign-in, `a@a.co` / `pass` (the same address and cards as Ada's),
 for testing by hand; `API.md` lists both. The acceptance still signs in as Ada. Run 7's agent will read one more line
 than run 6's did.
+
+## The names ledger
+
+From `evals/craft/names.py`, run on the build's logs when the report was filed: every name a check refused, what the platform answered, and how it ended.
+
+```
+NAMES — eval-venue-6: 4 missed name(s), 0 collision(s), 0 declare-help miss(es), 0 empty search(es)
+
+MISSES (min · kind · name · on · origin · the platform's answer · times · resolved at min · how it ended)
+    14 · attribute · numeralWidth         · TextInput                · —                  · none         · ×1  ·   14 · resolved
+         TextInput has no attribute 'numeralWidth' [DECLARE2000] (venue-checkout.declare:52:9)
+    14 · member    · focused              · State                    · —                  · none         · ×1  ·   14 · resolved
+         'focused' is not a member of State — declare it (focused: <type> = …) or fix the name — 3 sites, also on lines 239, 254 [DECLARE6001] (venue-checkout.declare:54:34)
+    14 · member    · mail                 · SignInForm               · —                  · did-you-mean · ×1  ·   14 · resolved
+         'mail' is not a member of SignInForm — did you mean 'email'? [DECLARE6001] (venue-checkout.declare:225:51)
+    14 · member    · heading              · this View                · —                  · none         · ×1  ·   14 · resolved
+         'heading' is not a member of this View — declare it (heading: <type> = …) or fix the name [DECLARE6001] (line 652, col 117)
+
+SUMMARY: 3 of 4 misses got no hint · 0 declared instead (none) · 0 never resolved (none)
+```

@@ -85,7 +85,7 @@ are close to Venue's; see finding D1.)
 
 ## Names
 
-From `names.txt`: **2 misses, 0 collisions, 0 `declare-help` misses, 0 empty searches.**
+From the names ledger (at the end): **2 misses, 0 collisions, 0 `declare-help` misses, 0 empty searches.**
 
 | min | name | on | the platform's answer | what was right |
 |---|---|---|---|---|
@@ -341,3 +341,19 @@ I'm uncertain about:
 - performance well beyond a few thousand views
 - how far beyond the DOM renderer the accessibility support holds up
 - whether my code is truly idiomatic, rather than idiomatic-looking
+
+## The names ledger
+
+From `evals/craft/names.py`, run on the build's logs when the report was filed: every name a check refused, what the platform answered, and how it ended.
+
+```
+NAMES — 2026-10-26-venue-run7: 2 missed name(s), 0 collision(s), 0 declare-help miss(es), 0 empty search(es)
+
+MISSES (min · kind · name · on · origin · the platform's answer · times · resolved at min · how it ended)
+    14 · member    · intro                · this View                · —                  · none         · ×1  ·   14 · resolved
+         'intro' is not a member of this View — declare it (intro: <type> = …) or fix the name [DECLARE6001] (line 558, col 58)
+    14 · member    · heading              · this View                · —                  · none         · ×1  ·   14 · resolved
+         'heading' is not a member of this View — declare it (heading: <type> = …) or fix the name [DECLARE6001] (line 559, col 79)
+
+SUMMARY: 2 of 2 misses got no hint · 0 declared instead (none) · 0 never resolved (none)
+```

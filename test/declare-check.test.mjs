@@ -37,6 +37,30 @@ await test("the checker is asked what checking.md says, with the question and th
   assert.ok(readFileSync(join(ROOT, "docs/operational/checking.md"), "utf8").includes("## For the checker"));
 });
 
+await test("with a brief, the checker is told to read it whole and check its requirements", () => {
+  const brief = join(DIR, "brief.md");
+  writeFileSync(brief, "# Notes\nSomeone can add a note.\n");
+  const r = check({}, "--brief", brief, ...program, "--print-prompt");
+  assert.equal(r.status, 0, r.stderr);
+  assert.match(r.stdout, new RegExp(`Brief: ${brief.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} — read it whole first`));
+  assert.doesNotMatch(r.stdout, /Question:/);
+  assert.equal(check({}, "--brief", join(DIR, "none.md"), ...program, "--print-prompt").status, 2, "a brief that is not there is refused");
+});
+
+await test("--continue starts from an earlier checker: its program and brief, and its report", () => {
+  const brief = join(DIR, "brief.md");
+  const first = check({}, "--brief", brief, ...program);
+  const id = /checker ([0-9a-f]{6})/.exec(first.stdout)?.[1];
+  assert.ok(id, first.stdout);
+  const r = check({}, "--continue", id);
+  assert.equal(r.status, 0, r.stderr);
+  const asked = readFileSync(join(DIR, "asked.txt"), "utf8");
+  assert.match(asked, /Brief: .*brief\.md/);
+  assert.match(asked, /An earlier checker already reported, below\. Check what it lists under UNCHECKED/);
+  assert.match(asked, /VERDICT {3}fail — the order was never sent/);
+  assert.match(asked, /Program: .*apps\/todo\/todo\.declare/);
+});
+
 await test("a check prints the checker's report and what it cost, and lands in the ledger", () => {
   const r = check({}, "does adding a task work?", ...program);
   assert.equal(r.status, 0, r.stderr);

@@ -11,9 +11,9 @@ surest way to be wrong.
 
 Learning it comes first: the reading below. When there is a program to write, the work
 then goes in this order: plan, check the plan against what Declare handles for you,
-write, then check the program and look at it running — `declare-verify` and your own
-pictures yourself, what it does once it runs through a checker (`npx declare-check`,
-§ Checking and looking).
+write, then check the program and look at it running — and when a whole program was
+built to a brief, have a checker test it against the brief before you hand it over
+(§ Checking and looking).
 
 ## Read first, in order
 
@@ -273,22 +273,30 @@ Climb from the cheapest check to the dearest, and stop as soon as one answers:
   and saves a picture; it can click, drag, hold, pinch, scroll, type and press keys, in the
   order you write them, and read values (`--help` lists them). Under `--touch` every press
   is a finger. `--shot-of PATH file.png` pictures one view instead of the window. A picture you read stays in your context for the rest of the session, like
-  any read, so look when there is something to see, not after every edit.
-- **What it does once it runs is a checker's to find out, not yours.** A flow from start to
-  end, a screen on a phone and a desk, a keyboard-only path: ask each as a question,
-  `npx declare-check "<what to find out>" --program app.declare --url <its address>`. A second
-  agent, started fresh, writes and runs the scripts and returns a short report: what fails,
-  where, the program line, what it could not check. Its scripts and their output stay in its
-  context, not in the one you re-read every turn. It waits up to 100 s; a checker still
-  working prints its id for `npx declare-check --wait <id>`. After a change, rerun a script it
-  saved yourself: `npx declare-verify app.declare --assert checks/<name>.mjs`. Don't write a
-  flow script yourself; only if `declare-check` says no checker can start here, follow
-  `docs/operational/checking.md` § For the checker.
+  any read, so look when there is something to see, not after every edit. `look` is for
+  reaching a state to see it; whether a sequence of actions does what it should is a flow,
+  and a flow is an assert script.
+- **Check a whole flow with an assert script** for `npx declare-verify app.declare --assert
+  flow.mjs` (`docs/operational/verify.md`): `drive` presses, types and waits as a person
+  does, `expect` checks what is shown and what the program sent (`expect.request`). End
+  each flow by expecting what it should have done — R5 says when a script asserted nothing.
+  A view is named by its path or by what it says — `app.form."Pay $40.00"`. Don't build a
+  browser harness of your own; `page` in an assert script, and `declare-look --js`, answer
+  what the vocabulary doesn't. Keep the scripts, and run them again after a change.
 - `npm start` serves a program at its file's path (`my-apps/app.declare` at
   `http://127.0.0.1:8200/my-apps/app.declare`) for a person to use.
 - **Before you hand it over, use it once as a person would.** Scroll a long list from end
   to end, drag its scrollbar, resize the window, switch to dark mode and to touch. A
   program can pass every check and still fail the first person who does one of these.
+- **A whole program built to a brief or a spec: have a checker test it against it** before
+  you hand it over — not for a change, an experiment or a small request. `npx declare-check --brief <the brief>
+  --program app.declare --url <its address>` (and `--service <url>` for a service it talks
+  to). A second agent, started fresh and knowing nothing of how you built it, reads the
+  brief, checks each requirement it can — most important first — and reports each as
+  passed, failed or unchecked, with the program line for what failed. It takes some
+  minutes: it waits up to 100 s, then prints an id for `npx declare-check --wait <id>`.
+  Fix what failed, rerun the scripts it saved (`checks/`), and for what it did not reach,
+  ask again with `--continue <id>`. (`docs/operational/checking.md`)
 - **When it runs but is wrong**, don't re-read the source to guess: ask the running program
   why a value is what it is, which view is under a point, where a value came from
   (`05-run-and-check.md` § Debugging a running program; `docs/operational/introspection.md`).

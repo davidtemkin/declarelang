@@ -115,6 +115,12 @@ A Declare run's report has, in order:
    — the questions on standard input: `--tools` takes a list, and a prompt written after it is
    read as one more tool, so the resume runs with no prompt and fails).
    Its tokens are counted separately from the build's.
+6. **The names ledger:** `names.py`'s whole output, in a code block, after the account.
+
+**Filing ends the logs.** Every analysis the logs feed — the figures, the time breakdown,
+the checkers' ledger, the names ledger — is run when the report is filed and goes into the
+report. The logs are not kept: once the report is filed, the run directory, logs and all,
+is deleted.
 
 **Ending a run.** `launch.sh` starts `finish.sh` beside the agent: once the build's result
 record is in, it stops whatever the agent left running (a dev server it started) and then

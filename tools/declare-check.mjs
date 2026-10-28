@@ -2,13 +2,15 @@
 // declare-check — hand a check to a checker: an agent in a context of its own, which
 // follows docs/operational/checking.md, writes and runs the scripts, and reports.
 //
-//   npx declare-check "<what to find out>" --program my-apps/shop/shop.declare
+//   npx declare-check --brief task/brief.md --program my-apps/shop/shop.declare
 //        [--url http://127.0.0.1:8200/my-apps/shop/shop.declare] [--service http://127.0.0.1:8350]
 //        [--scripts <dir>] [--agent claude|codex|gemini] [--model <id>]
-//            starts a checker and waits for its report (up to 100 s); one still
-//            working prints its id
+//            starts a checker on the brief and waits for its report (up to 100 s); one
+//            still working prints its id
+//   npx declare-check "<what to find out>" --program …   one question instead (brief optional)
 //   npx declare-check --wait <id>        waits for that checker's report again
-//   npx declare-check --start "<…>" …    starts one and returns at once, to run several side by side
+//   npx declare-check --continue <id>    a checker on what that one left unchecked
+//   npx declare-check --start …          starts one and returns at once
 //   npx declare-check --print-prompt …   what the checker would be asked, and nothing started
 //
 // The checker's scripts, their output and its retries stay in its context, not the
@@ -31,13 +33,13 @@ const SELF = fileURLToPath(import.meta.url);
 const HOME = join(tmpdir(), "declare-check");
 const LEDGER = process.env.DECLARE_CHECK_LEDGER ?? join(HOME, "ledger.jsonl");
 const WAIT_MS = Number(process.env.DECLARE_CHECK_WAIT ?? 100_000);   // under the 2 minutes an agent's shell command gets
-const LIMIT_MS = 15 * 60_000;                                          // a checker still going after this is stopped
+const LIMIT_MS = 30 * 60_000;                                          // a checker still going after this is stopped
 const argv = process.argv.slice(2);
 const flag = (name) => { const i = argv.indexOf(`--${name}`); return i >= 0 ? argv[i + 1] : null; };
 const jobDir = (id) => join(HOME, id);
 
 if (argv.length === 0 || argv.includes("--help") || argv.includes("-h")) {
-  console.log(readFileSync(SELF, "utf8").split("\n").slice(1, 21).map((l) => l.replace(/^\/\/ ?/, "")).join("\n"));
+  console.log(readFileSync(SELF, "utf8").split("\n").slice(1, 23).map((l) => l.replace(/^\/\/ ?/, "")).join("\n"));
   process.exit(argv.length === 0 ? 2 : 0);
 }
 
@@ -97,23 +99,38 @@ async function collect(id) {
 if (flag("wait") !== null) await collect(flag("wait"));
 
 // ── a new check ─────────────────────────────────────────────────────────────────
-const valued = new Set(["program", "url", "service", "scripts", "agent", "model"]);
-const question = argv.filter((a, i) => !a.startsWith("--") && !(i > 0 && argv[i - 1].startsWith("--") && valued.has(argv[i - 1].slice(2)))).join(" ").trim();
-if (question === "") { console.error("declare-check: say what to find out — npx declare-check \"<what to find out>\" --program <file>"); process.exit(2); }
-const program = flag("program") ? resolve(flag("program")) : null;
+const valued = new Set(["program", "url", "service", "scripts", "agent", "model", "brief", "continue"]);
+let question = argv.filter((a, i) => !a.startsWith("--") && !(i > 0 && argv[i - 1].startsWith("--") && valued.has(argv[i - 1].slice(2)))).join(" ").trim();
+// --continue <id>: the earlier checker's job is the starting point — its program,
+// brief, service and scripts — and its report says what is left
+let earlier = null;
+if (flag("continue") !== null) {
+  const dir = jobDir(flag("continue"));
+  if (!existsSync(join(dir, "report.txt"))) { console.error(`declare-check: checker ${flag("continue")} has no report yet — npx declare-check --wait ${flag("continue")}`); process.exit(2); }
+  earlier = { ...JSON.parse(readFileSync(join(dir, "job.json"), "utf8")), report: readFileSync(join(dir, "report.txt"), "utf8").trim() };
+}
+const opt = (name) => flag(name) ?? earlier?.opts?.[name] ?? null;
+const brief = opt("brief") ? resolve(opt("brief")) : null;
+if (brief !== null && !existsSync(brief)) { console.error(`declare-check: no brief at ${brief}`); process.exit(2); }
+if (question === "" && brief === null) { console.error("declare-check: give the brief, or say what to find out — npx declare-check --brief <file> --program <file>, or npx declare-check \"<what to find out>\" --program <file>"); process.exit(2); }
+const program = opt("program") ? resolve(opt("program")) : null;
 if (program === null) { console.error("declare-check: name the program — --program <file>"); process.exit(2); }
-const scripts = resolve(flag("scripts") ?? join(dirname(program), "checks"));
+const scripts = resolve(opt("scripts") ?? join(dirname(program), "checks"));
+const opts = { program, brief, url: opt("url"), service: opt("service"), scripts };
 const prompt = [
-  `Read ${join(ROOT, "docs/operational/checking.md")} — the section "For the checker" — then answer this question and report in its form.`,
+  `Read ${join(ROOT, "docs/operational/checking.md")} — the section "For the checker" — then do what it says and report in its form.`,
   "",
-  `Question: ${question}`,
+  brief !== null ? `Brief: ${brief} — read it whole first; its requirements are what you check.` : null,
+  question !== "" ? `${brief !== null ? "Check above all: " : "Question: "}${question}` : null,
+  earlier !== null ? `An earlier checker already reported, below. Check what it lists under UNCHECKED (not what only a person can judge), reusing its scripts; report on those.\n\n${earlier.report}\n` : null,
   `Program: ${program}`,
-  flag("url") ? `Served at: ${flag("url")} (verify and look take --url)` : null,
-  flag("service") ? `Service: ${flag("service")} — a live service: earlier runs' writes are still there` : null,
+  opts.url ? `Served at: ${opts.url} (verify and look take --url)` : null,
+  opts.service ? `Service: ${opts.service} — a live service: earlier runs' writes are still there` : null,
   `Scripts: write yours in ${scripts} (reuse what is there); never change the program's files.`,
   `Run the Declare commands (npx declare-verify, npx declare-look, npx declare-help) from ${ROOT}.`,
   "Your last message is the report, in the form, and nothing else.",
 ].filter((l) => l !== null).join("\n");
+if (question === "") question = earlier !== null ? `(continuing ${earlier.id})` : `(the brief: ${brief})`;
 if (argv.includes("--print-prompt")) { console.log(prompt); process.exit(0); }
 
 const onPath = (cmd) => spawnSync("sh", ["-c", `command -v ${cmd}`], { encoding: "utf8" }).status === 0;
@@ -141,7 +158,7 @@ if (!onPath(run.cmd)) {
 const id = randomBytes(3).toString("hex");
 mkdirSync(jobDir(id), { recursive: true });
 mkdirSync(scripts, { recursive: true });
-writeFileSync(join(jobDir(id), "job.json"), JSON.stringify({ id, question, program, agent, prompt, ...run, started: Date.now() }));
+writeFileSync(join(jobDir(id), "job.json"), JSON.stringify({ id, question, program, agent, prompt, opts, ...run, started: Date.now() }));
 const log = openSync(join(jobDir(id), "runner.log"), "a");
 spawn(process.execPath, [SELF, "--run", id], { detached: true, stdio: ["ignore", log, log] }).unref();
 if (argv.includes("--start")) {

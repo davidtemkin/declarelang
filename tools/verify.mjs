@@ -489,9 +489,9 @@ if (flags.json) {
       console.log(`       runtime's own, but text is measured by a stand-in, so the checks that rest on`);
       console.log(`       text did not run, and nothing was painted.`);
     } else if (climbed === 4) {
-      console.log(`  note R4 booted the program as it starts; what it does after a press or once data`);
-      console.log(`       arrives is a checker's question: npx declare-check "<what to find out>" --program ${file}`);
-      console.log(`       writes and runs the scripts and reports; rerun one it saved with --assert <script.mjs>.`);
+      console.log(`  note R4 booted the program as it starts; a screen it reaches only after a press or`);
+      console.log(`       data is checked by driving it there: --assert <script.mjs> (R5) asks the same layout`);
+      console.log(`       questions wherever the script settles, and --states <states.mjs> (R6) in each state.`);
     }
   } else {
     console.log(`  verify: ${file} — FAILED at R${failedRung}`);

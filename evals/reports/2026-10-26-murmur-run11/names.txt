@@ -1,7 +1,0 @@
-NAMES — eval-murmur-11: 1 missed name(s), 0 collision(s), 0 declare-help miss(es), 0 empty search(es)
-
-MISSES (min · kind · name · on · origin · the platform's answer · times · resolved at min · how it ended)
-    13 · member    · fresh                · State                    · —                  · none         · ×1  ·   13 · resolved
-         'fresh' is not a member of State — declare it (fresh: <type> = …) or fix the name [DECLARE6001] (murmur-lines.declare:153:34)
-
-SUMMARY: 1 of 1 misses got no hint · 0 declared instead (none) · 0 never resolved (none)

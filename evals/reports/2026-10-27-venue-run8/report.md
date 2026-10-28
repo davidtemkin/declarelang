@@ -369,7 +369,7 @@ Each is a real name that the compiler accepted, used for something other than wh
 
 ## Names
 
-From `names.py` (`names.txt`): **one** name refused in the whole build. At minute 0 it wrote `color` on a Text, and
+From `names.py` (the names ledger, at the end): **one** name refused in the whole build. At minute 0 it wrote `color` on a Text, and
 the CSS-instinct hint answered "the CSS instinct: text color is 'textColor'"; it was resolved at once. There were no
 collisions, no `declare-help` misses and no empty searches. The silent misses are in the idiom read's last section.
 
@@ -535,3 +535,17 @@ Styling without CSS was easy, and theme tokens via `provided("theme")` read like
 Yes, for interaction-heavy consumer surfaces: checkout and booking flows, seat maps and other spatial pickers, dashboards with live data, anything where continuity of motion matters. Venue's hall, forms and live-seat handling took noticeably less glue than I'd expect in React. The parts that stayed hard were layout and spatial keyboard navigation, not reactivity.
 
 I'd be more hesitant, with genuine uncertainty, about a large team codebase today. The ecosystem is young and real-device performance is unproven to me; I didn't measure 650 sprung controls on a mid-range phone. For long text-heavy sites I'd want to see the crawler output and accessibility hold up under real screen readers before committing.
+
+## The names ledger
+
+From `evals/craft/names.py`, run on the build's logs when the report was filed: every name a check refused, what the platform answered, and how it ended.
+
+```
+NAMES — 2026-10-27-venue-run8: 1 missed name(s), 0 collision(s), 0 declare-help miss(es), 0 empty search(es)
+
+MISSES (min · kind · name · on · origin · the platform's answer · times · resolved at min · how it ended)
+     0 · attribute · color                · Text                     · CSS                · foreign hint · ×1  ·    0 · resolved
+         Text has no attribute 'color' — the CSS instinct: text color is 'textColor'
+
+SUMMARY: 0 of 1 misses got no hint · 0 declared instead (none) · 0 never resolved (none)
+```

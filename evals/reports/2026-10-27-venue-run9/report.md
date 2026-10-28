@@ -376,7 +376,7 @@ Each compiled, and each means something other than what was meant.
 
 ## Names
 
-From `names.py` (`names.txt`): **six** names refused, all at minute 14 on the first full compile, all resolved
+From `names.py` (the names ledger, at the end): **six** names refused, all at minute 14 on the first full compile, all resolved
 within a minute, none with a hint. Four have one cause: `class Amount [ width = 96, textAlign = end, … ]` and `class FormHeading [`
 were declared with no base, so each is a View, and `textAlign`, `numeralWidth` and `text` are not a View's. The
 compiler said "has no attribute" four times. A hint
@@ -591,3 +591,27 @@ I'd hesitate:
 - for very large teams. The library is small and the community knowledge is thin, though the docs are good enough that this mattered less than I expected.
 
 My judgment rests on one build of moderate size. I didn't stress performance, the canvas renderer, dark mode, or long-term maintenance.
+
+## The names ledger
+
+From `evals/craft/names.py`, run on the build's logs when the report was filed: every name a check refused, what the platform answered, and how it ended.
+
+```
+NAMES — 2026-10-27-venue-run9: 6 missed name(s), 0 collision(s), 0 declare-help miss(es), 0 empty search(es)
+
+MISSES (min · kind · name · on · origin · the platform's answer · times · resolved at min · how it ended)
+    14 · attribute · textAlign            · Amount                   · —                  · none         · ×1  ·   15 · resolved
+         Amount has no attribute 'textAlign' [DECLARE2000] (venue-checkout.declare:16:28)
+    14 · attribute · numeralWidth         · Amount                   · —                  · none         · ×1  ·   15 · resolved
+         Amount has no attribute 'numeralWidth' [DECLARE2000] (venue-checkout.declare:16:45)
+    14 · attribute · text                 · Amount                   · —                  · none         · ×1  ·   15 · resolved
+         Amount has no attribute 'text' — 3 sites, also on lines 30, 42 [DECLARE2000] (venue-checkout.declare:25:18)
+    14 · attribute · text                 · FormHeading              · —                  · none         · ×1  ·   15 · resolved
+         FormHeading has no attribute 'text' — 4 sites, also on lines 152, 165, 231 [DECLARE2000] (venue-checkout.declare:118:23)
+    15 · member    · code                 · this View                · —                  · none         · ×1  ·   15 · resolved
+         'code' is not a member of this View — declare it (code: <type> = …) or fix the name — 2 sites, also on line 97 [DECLARE6001] (venue-checkout.declare:96:24)
+    19 · member    · heading              · this View                · —                  · none         · ×1  ·   19 · resolved
+         'heading' is not a member of this View — declare it (heading: <type> = …) or fix the name [DECLARE6001] (line 313, col 113)
+
+SUMMARY: 6 of 6 misses got no hint · 0 declared instead (none) · 0 never resolved (none)
+```

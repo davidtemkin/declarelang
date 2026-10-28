@@ -124919,7 +124919,7 @@
      "kind": "doc",
      "label": "Markdown file",
      "path": "docs/operational/checking.md",
-     "preview": "Checking a program is the dearest part of building one. Every turn a builder spends writing a script, fixing it and reading what it printed is a turn that re-reads everything the builder has read so far. So what a program does once it runs…"
+     "preview": "A builder checks its program as it goes: declare-verify, its own assert scripts, its own pictures. What it cannot do is see the program fresh. It checks what it thought of, in the way it understood the brief. So before a program is handed o…"
     },
     {
      "name": "Derived artifacts and the gates",

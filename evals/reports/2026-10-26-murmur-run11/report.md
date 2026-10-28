@@ -80,7 +80,7 @@ the tracker with `declare-help map` and didn't read it.
 
 ## Names
 
-From `names.txt`: **1 miss, 0 collisions, 0 `declare-help` misses, 0 empty searches.**
+From the names ledger (at the end): **1 miss, 0 collisions, 0 `declare-help` misses, 0 empty searches.**
 
 | min | name | on | the platform's answer | outcome |
 |---|---|---|---|---|
@@ -370,3 +370,17 @@ It reminded me most of **QML**: property bindings, `State`s, an anchors-like lit
 For consumer-style apps where continuity and long lists matter (chat, feeds, timelines, dashboards) and the team can live inside its library: yes, gladly. I got more of the hard requirements correct on the first try than I would have in React.
 
 I'd hesitate for products that depend on a large third-party UI ecosystem, or for teams that need decades of Stack Overflow answers. I'm also uncertain how it behaves at real-device scale and under heavy production load, which I couldn't test here.
+
+## The names ledger
+
+From `evals/craft/names.py`, run on the build's logs when the report was filed: every name a check refused, what the platform answered, and how it ended.
+
+```
+NAMES — 2026-10-26-murmur-run11: 1 missed name(s), 0 collision(s), 0 declare-help miss(es), 0 empty search(es)
+
+MISSES (min · kind · name · on · origin · the platform's answer · times · resolved at min · how it ended)
+    13 · member    · fresh                · State                    · —                  · none         · ×1  ·   13 · resolved
+         'fresh' is not a member of State — declare it (fresh: <type> = …) or fix the name [DECLARE6001] (murmur-lines.declare:153:34)
+
+SUMMARY: 1 of 1 misses got no hint · 0 declared instead (none) · 0 never resolved (none)
+```
