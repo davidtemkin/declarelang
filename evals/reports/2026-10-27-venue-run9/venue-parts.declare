@@ -1,0 +1,284 @@
+/*
+# The Venue: the bar, the performances, the tickets
+
+The bar along the top of every screen; the list of performances; and the
+tickets, which are what someone holds up at the door with a queue behind them:
+one at a time, large, with the performance, the seat and when to arrive.
+*/
+
+// ── Small marks ─────────────────────────────────────────────────────────────
+
+class BackIcon extends Icon [
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        d.moveTo(10, 2.5); d.lineTo(4.5, 8); d.lineTo(10, 13.5)
+        d.stroke()
+        }
+    ]
+
+
+class NextIcon extends Icon [
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        d.moveTo(6, 2.5); d.lineTo(11.5, 8); d.lineTo(6, 13.5)
+        d.stroke()
+        }
+    ]
+
+
+// ── The bar ─────────────────────────────────────────────────────────────────
+
+class TopBar [ width = 100%, height = { 56 + app.safeTop },
+    padding = { [app.safeTop, app.wide ? 24 : 6, 0, app.wide ? 24 : 12] },
+    fill = { provided("theme").background },
+    stroke = { [null, null, stroke(1, provided("theme").line), null] },
+    accessibilityRole = banner,
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+
+    back: Control [ visible = { app.screen == "hall" || app.screen == "pay" },
+        height = { app.tap }, width = { Math.max(app.tap, this.contentWidth) }, padding = [0, 10, 0, 4], cornerRadius = 8,
+        accessibilityLabel = { app.screen == "pay" ? "Back to seats" : "Back to performances" },
+        fill = { hovered || pressed ? provided("theme").quiet : null },
+        press() { if (app.screen == "pay") app.waypoint = ""; else app.location = "" },
+        layout: SimpleLayout [ axis = x, spacing = 2, align = center ],
+        BackIcon [ iconSize = 18, weight = 2, ink = { provided("theme").text } ],
+        TextLabel [ visible = { app.wide }, fontSize = 15, text = { app.screen == "pay" ? "Seats" : "Performances" } ]
+        ],
+
+    title: View [ flexes = true,
+        layout: SimpleLayout [ axis = y ],
+        Text [ width = 100%, wrap = false, fontFamily = { app.serif }, fontSize = { app.wide ? 19 : 17 }, fontWeight = semibold,
+            text = { app.production.value?.title ?? "The Marriage of Figaro" } ],
+        Text [ width = 100%, wrap = false, fontSize = 12, textColor = { provided("theme").textMuted },
+            text = { app.production.value?.hall ?? "Grand Hall" } ]
+        ],
+
+    Text [ visible = { app.account != null && app.wide }, fontSize = 14, textColor = { provided("theme").textMuted },
+        text = { app.account?.name ?? "" } ],
+    Button [ visible = { app.account == null }, label = "Sign in", height = { app.touchFirst ? 44 : 36 },
+        onClick() { app.signingIn = true }
+        ],
+    Button [ visible = { app.account != null }, label = "Sign out", height = { app.touchFirst ? 44 : 36 },
+        onClick() { app.signOut.fetch() }
+        ]
+    ]
+
+
+// ── A performance ───────────────────────────────────────────────────────────
+//
+// Its date, its time, how full it is, and the lowest price. A house that is
+// nearly sold out says so in words and in its bar, before anyone picks it.
+
+class PerfRow extends Control [ width = 100%, height = { app.wide ? 88 : 96 }, padding = [0, 8, 0, 4], cornerRadius = 10,
+    perfId: string = { :id ?? "" },
+    starts: string = { :startsAt ?? "" },
+    left: number = { :seatsLeft ?? 0 },
+    seats: number = { :seats ?? 1 },
+    from: number = { :priceFromCents ?? 0 },
+    low: boolean = { classroot.left / classroot.seats < 0.15 },
+    fill = { hovered || pressed ? provided("theme").plate : null },
+    accessibilityLabel = { dayLabel(classroot.starts) + ", " + timeLabel(classroot.starts) + ", from " + money(classroot.from) + ", "
+        + (classroot.low ? "nearly sold out, " : "") + classroot.left + " of " + classroot.seats + " seats left" },
+    press() { app.location = classroot.perfId },
+    layout: SimpleLayout [ axis = x, spacing = { app.wide ? 20 : 14 }, align = center ],
+
+    date: View [ width = 52,
+        layout: SimpleLayout [ axis = y, align = center ],
+        Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1, textColor = { provided("theme").textMuted },
+            text = { weekday(classroot.starts).toUpperCase() } ],
+        Text [ fontFamily = { app.serif }, fontSize = 30, fontWeight = semibold, numeralWidth = tabular,
+            text = { dayOfMonth(classroot.starts) } ],
+        Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = { monthLabel(classroot.starts) } ]
+        ],
+
+    middle: View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 7 ],
+        Text [ fontSize = 17, fontWeight = semibold,
+            text = { timeLabel(classroot.starts) + (isMatinee(classroot.starts) ? " · Matinee" : "") } ],
+        fullness: View [ width = { Math.min(220, parent.width) }, height = 6, cornerRadius = 3,
+            fill = { provided("theme").quiet }, accessibilityHidden = true,
+            View [ height = 6, cornerRadius = 3, width = { parent.width * (1 - classroot.left / classroot.seats) },
+                fill = { classroot.low ? provided("theme").text : provided("theme").lineStrong } ]
+            ],
+        Text [ fontSize = 13, fontWeight = { classroot.low ? "semibold" : "regular" },
+            textColor = { classroot.low ? provided("theme").text : provided("theme").textMuted },
+            text = { classroot.low ? "Nearly sold out · " + classroot.left + " left" : classroot.left + " of " + classroot.seats + " seats left" } ]
+        ],
+
+    price: View [
+        layout: SimpleLayout [ axis = y, align = end ],
+        Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = "from" ],
+        Text [ fontSize = 17, fontWeight = semibold, numeralWidth = tabular, text = { money(classroot.from) } ]
+        ],
+    NextIcon [ iconSize = 16, weight = 1.8, ink = { provided("theme").textFaint } ]
+    ]
+
+
+class ListScreen [ width = 100%, height = 100%, scrolls = y,
+    col: View [ x = center, width = { Math.min(760, parent.width) },
+        padding = { app.wide ? [52, 32, 72, 32] : [28, 12, 48, 12] },
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        Text [ padding = [0, 4, 0, 4], fontSize = 12, fontWeight = semibold, letterSpacing = 2,
+            textColor = { provided("theme").textMuted }, text = "MOZART · THE GRAND HALL" ],
+        heading: Text [ padding = [0, 4, 0, 4], width = 100%, wrap = true, focusable = true,
+            accessibilityRole = heading, accessibilityLevel = 1,
+            fontFamily = { app.serif }, fontSize = { app.wide ? 52 : 36 }, fontWeight = semibold, letterSpacing = -1,
+            text = { app.production.value?.title ?? "The Marriage of Figaro" } ],
+        Text [ padding = [0, 4, 18, 4], width = 100%, wrap = true, fontSize = 16, textColor = { provided("theme").textMuted },
+            text = { "Twenty performances this season. Running time " + (app.production.value?.runningTime ?? "3h 10m") + ". Choose a performance to see the hall." } ],
+        Text [ visible = { !app.production.loaded }, padding = [0, 4, 0, 4], textColor = { provided("theme").textMuted },
+            text = { app.production.failed ? "The box office couldn't be reached. " + app.production.error : "Loading performances…" } ],
+        list: View [ width = 100%, datapath = { app.production.value },
+            accessibilityRole = list, accessibilityLabel = "Performances",
+            layout: SimpleLayout [ axis = y, spacing = 2 ],
+            PerfRow [ datapath = :performances[] ]
+            ]
+        ]
+    ]
+
+
+// ── A ticket ────────────────────────────────────────────────────────────────
+
+// A barcode drawn from the ticket's own code: the same code always draws the
+// same bars, and no two tickets look alike.
+
+class Barcode [ accessibilityHidden = true,
+    code: string = "",
+    draw(d: DrawContext) {
+        const bits: number[] = [1, 0, 1, 1, 0]
+        for (let i = 0; i < code.length; i++) {
+            let c = code.charCodeAt(i) * 7 + i * 13
+            for (let k = 0; k < 9; k++) { bits.push(c & 1); c = c >> 1 }
+            bits.push(0)
+            }
+        bits.push(1, 1, 0, 1)
+        const m = this.width / bits.length
+        d.fillStyle = provided("theme").text
+        let run = 0
+        bits.forEach((b, i) => {
+            if (b == 1) { d.fillRect(i * m, 0, m * 1.02, this.height); run = run + 1 }
+            })
+        }
+    ]
+
+
+class TicketStat [
+    label: string = "",
+    value: string = "",
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 1.5, textColor = { provided("theme").textMuted },
+        text = { classroot.label } ],
+    Text [ fontFamily = { app.serif }, fontSize = 40, fontWeight = semibold, numeralWidth = tabular,
+        text = { classroot.value } ]
+    ]
+
+
+class TicketCard [ padding = [4, 6, 20, 6],
+    count: number = 1,
+    perf: Performance? = { app.performances.find((p) => p.id == app.result?.performanceId) ?? null },
+    section: string = { :section ?? "" },
+    row: string = { :row ?? "" },
+    num: number = { :number ?? 0 },
+    accessibilityRole = group,
+    accessibilityLabel = { "Ticket " + (rowIndex + 1) + " of " + classroot.count },
+
+    card: View [ width = 100%, height = 100%, cornerRadius = 22, clip = true,
+        fill = { provided("theme").surface },
+        shadow = { shadow(0, 10, 30, 0x2A231D24) },
+        layout: SimpleLayout [ axis = y ],
+
+        top: View [ width = 100%, padding = [22, 24, 20, 24], fill = { provided("theme").stage },
+            textColor = { provided("theme").stageText },
+            layout: SimpleLayout [ axis = y, spacing = 4 ],
+            Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 2, opacity = 0.75,
+                text = { (app.production.value?.hall ?? "Grand Hall").toUpperCase() + " · ADMIT ONE" } ],
+            Text [ width = 100%, wrap = true, fontFamily = { app.serif }, fontSize = 24, fontWeight = semibold,
+                text = { app.production.value?.title ?? "" } ],
+            Text [ padding = [6, 0, 0, 0], fontSize = 26, fontWeight = bold, numeralWidth = tabular,
+                text = { classroot.perf == null ? "" : dayLabel(classroot.perf.startsAt) + " · " + timeLabel(classroot.perf.startsAt) } ],
+            Text [ fontSize = 15, text = { classroot.perf == null ? "" : "Doors open " + timeLabel(classroot.perf.doorsAt) + " — please arrive by then" } ]
+            ],
+
+        seat: View [ width = 100%, padding = [20, 24, 16, 24],
+            layout: SimpleLayout [ axis = x, spacing = 20 ],
+            TicketStat [ flexes = true, label = "SECTION", value = { classroot.section },
+                accessibilityLabel = { classroot.section + ", row " + classroot.row + ", seat " + classroot.num } ],
+            TicketStat [ label = "ROW", value = { classroot.row } ],
+            TicketStat [ label = "SEAT", value = { "" + classroot.num } ]
+            ],
+
+        // The tear line: a dashed rule between two notches.
+
+        tear: View [ width = 100%, height = 20, accessibilityHidden = true,
+            draw(d: DrawContext) {
+                const w = this.width, h = this.height
+                d.fillStyle = provided("theme").background
+                d.beginPath(); d.arc(0, h / 2, 10, 0, Math.PI * 2); d.fill()
+                d.beginPath(); d.arc(w, h / 2, 10, 0, Math.PI * 2); d.fill()
+                d.fillStyle = provided("theme").lineStrong
+                for (let x = 18; x < w - 18; x = x + 10) d.fillRect(x, h / 2 - 0.75, 5, 1.5)
+                }
+            ],
+
+        code: View [ width = 100%, padding = [10, 28, 0, 28],
+            layout: SimpleLayout [ axis = y, spacing = 8, align = center ],
+            Barcode [ width = 100%, height = 76, code = { :barcode ?? "" } ],
+            Text [ fontSize = 17, fontWeight = medium, letterSpacing = 2.5, numeralWidth = tabular,
+                text = { :barcode ?? "" } ],
+            Text [ fontSize = 12, textColor = { provided("theme").textMuted },
+                text = { "Ticket " + (classroot.rowIndex + 1) + " of " + classroot.count } ]
+            ]
+        ]
+    ]
+
+
+class TicketScreen [ width = 100%, height = 100%, scrolls = y,
+    count: number = { app.result?.tickets.length ?? 0 },
+    col: View [ x = center, width = { Math.min(460, parent.width) }, padding = [28, 16, 48, 16],
+        layout: SimpleLayout [ axis = y, spacing = 12 ],
+        heading: Text [ focusable = true, accessibilityRole = heading, accessibilityLevel = 1, width = 100%, textAlign = center,
+            fontFamily = { app.serif }, fontSize = 34, fontWeight = semibold, letterSpacing = -0.5,
+            text = { classroot.count == 1 ? "Your ticket" : "Your " + classroot.count + " tickets" } ],
+        Text [ width = 100%, textAlign = center, fontSize = 17, fontWeight = medium,
+            accessibilityLive = polite,
+            text = { "Sent to " + (app.result?.email ?? "") } ],
+        Text [ width = 100%, textAlign = center, wrap = true, fontSize = 13, textColor = { provided("theme").textMuted },
+            text = { app.result == null ? "" : "Confirmation " + app.result.code + " · " + brandName(app.result.brand)
+                + " ending " + app.result.last4 + " · " + money(app.result.totalCents) + " paid" } ],
+
+        tickets: Carousel [ width = 100%, height = 500, datapath = { app.result },
+            page = { app.ticketPage },
+            input(p: number) { app.ticketPage = p },
+            TicketCard [ datapath = :tickets[], count = { classroot.count } ]
+            ],
+
+        pager: View [ x = center, visible = { classroot.count > 1 },
+            layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+            Button [ label = "Previous", height = { app.tap }, disabled = { app.ticketPage == 0 },
+                accessibilityLabel = "Previous ticket",
+                onClick() { app.ticketPage = Math.max(0, app.ticketPage - 1) }
+                ],
+            Text [ width = 110, textAlign = center, fontSize = 14, numeralWidth = tabular,
+                accessibilityLive = polite,
+                text = { "Ticket " + (app.ticketPage + 1) + " of " + classroot.count } ],
+            Button [ label = "Next", height = { app.tap }, disabled = { app.ticketPage >= classroot.count - 1 },
+                accessibilityLabel = "Next ticket",
+                onClick() { app.ticketPage = Math.min(classroot.count - 1, app.ticketPage + 1) }
+                ]
+            ],
+
+        Button [ x = center, height = { app.tap }, label = "Book another performance",
+            onClick() { app.startOver() }
+            ]
+        ]
+    ]

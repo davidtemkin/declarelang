@@ -26,6 +26,7 @@ import { Cell, Constraint, afterSettle } from "./reactive.js";
 import { rootFrameBox, rootTransform, type InteractionView } from "./interaction.js";
 import { apply as applyAffine } from "./affine.js";
 import { provideKeyContextTarget } from "./input.js";
+import { pathOf } from "./node-path.js";
 
 /** The focused control's live silhouette, root-space — what the follower
  *  (below) computes and onGeometry subscribers receive. `root` lets a ring
@@ -168,6 +169,10 @@ export class FocusService {
       for (const h of [...this.changeHandlers]) h(this.current);
       return;
     }
+    // a program asking for focus on what cannot take it is told, once per view:
+    // the call does nothing, and nothing else would say so (a control focusing
+    // itself as it is pressed is not the program asking)
+    if (view !== null && !canFocus(view) && !(inPointerDispatch() && typeof (view as { press?: unknown }).press === "function")) warnOnce(view, `Focus.focus(${where(view)}): it is not focusable, so focus did not move — set focusable = true on it, or focus a control inside it`);
     this.apply(view);
     // Focus a program moves is shown, as Tab's is and as the web's
     // element.focus() is: scrolled into view, clear of pinned chrome. Focus a
@@ -335,6 +340,8 @@ export class FocusService {
         if (ok !== false || this.current !== v) return;
         afterSettle(() => {
           if (this.current !== v || reachable(v)) return;
+          // shown, yet out of reach: a container's tabOrder() leaves it out
+          if (shownChain(v)) warnOnce(v, `focus on ${where(v)} was dropped: a container's tabOrder() leaves it out, so Tab cannot reach it — list it there (compose with tabDefault()) or focus a view Tab reaches`);
           this.apply(null);
           this.startPoint = v;
         });
@@ -386,8 +393,8 @@ export class FocusService {
   }
 
   private move(dir: 1 | -1): void {
-    const start = this.current === null && this.startPoint !== null && spotView(this.startPoint).$root !== null ? this.startPoint : null;
-    const cyc = this.current !== null ? cycleOf(this.current) : start !== null ? cycleOf(spotView(start)) : this.rootView;
+    const start = this.current === null && this.startPoint !== null && spotView(this.startPoint).$root !== null ? shownSpot(this.startPoint) : null;
+    const cyc = this.current !== null ? cycleOf(this.current) : start !== null ? cycleOf(start.from) : this.rootView;
     if (cyc === null) return;
     const seq = sequence(cyc);
     if (seq.length === 0) return;
@@ -395,7 +402,7 @@ export class FocusService {
     // from a pressed spot: Tab goes to the first stop after it, Shift-Tab to
     // the last one before it
     if (start !== null) {
-      const after = seq.findIndex((e) => afterSpot(start, e.view));
+      const after = seq.findIndex((e) => afterSpot(start.spot, e.view));
       idx = after < 0 ? (dir === 1 ? seq.length - 1 : seq.length) : (dir === 1 ? after - 1 : after);
     }
     // a focused island stands where its program's stops are spliced: Tab goes
@@ -640,6 +647,18 @@ function spotView(s: Spot): View {
   return s instanceof View ? s : s.parent;
 }
 
+/** The spot Tab starts from, in what is shown. A spot inside a view that is now
+ *  hidden — the place a form held in a popover that has since closed — has no
+ *  stops around it: Tab starts from the outermost hidden view's place instead,
+ *  in the cycle around it, as the web's starting point falls back when its node
+ *  goes away. `from` is the view whose cycle Tab moves in. */
+function shownSpot(s: Spot): { spot: Spot; from: View } {
+  let hidden: View | null = null;
+  for (let v: View | null = spotView(s); v !== null; v = parentAcross(v)) if (!v.visible) hidden = v;
+  if (hidden === null) return { spot: s, from: spotView(s) };
+  return { spot: hidden, from: parentAcross(hidden) ?? hidden };
+}
+
 /** Does `v` come after the spot, in the tree's order? */
 function afterSpot(s: Spot, v: View): boolean {
   if (s instanceof View) return precedes(s, v);
@@ -660,6 +679,29 @@ function precedes(a: View, b: View): boolean {
   if (i === 0) return false;                   // different programs: no order
   const kids = ca[i - 1].childViews;
   return kids.indexOf(ca[i]) < kids.indexOf(cb[i]);
+}
+
+/** A view's address, for what the runtime says about it. */
+function where(v: View): string {
+  let r: View = v;
+  while (r.parent instanceof View) r = r.parent;
+  return pathOf(r, v);
+}
+
+/** Is the view and everything above it visible? */
+function shownChain(v: View): boolean {
+  for (let n: View | null = v; n !== null; n = parentAcross(n)) if (!n.visible) return false;
+  return true;
+}
+
+const WARNED = new WeakMap<View, Set<string>>();
+function warnOnce(v: View, said: string): void {
+  const seen = WARNED.get(v) ?? new Set<string>();
+  const key = said.slice(0, 24);
+  if (seen.has(key)) return;
+  seen.add(key);
+  WARNED.set(v, seen);
+  console.warn(`[Declare] ${said}`);
 }
 
 function canFocus(v: View): boolean {

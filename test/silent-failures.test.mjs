@@ -58,6 +58,19 @@ await test("a two-way arrow on a control that is not an editor names the form th
   assert.match(r.out, /write 'checked = :done, input\(v\) \{ :done = v \}'/);
 });
 
+await test("textAlign: start and end follow the run's direction; left and right are the page's sides", () => {
+  const f = join(DIR, "align.declare");
+  writeFileSync(f, `App [ width = 300, height = 200, layout: SimpleLayout [ axis = y ],
+    ltr: View [ width = 300, height = 60, layout: SimpleLayout [ axis = y ],
+        Text [ width = 200, text = "a1" ], Text [ width = 200, text = "a2", textAlign = end ] ],
+    rtl: View [ width = 300, height = 80, direction = rtl, layout: SimpleLayout [ axis = y ],
+        Text [ width = 200, text = "b1" ], Text [ width = 200, text = "b2", textAlign = end ],
+        Text [ width = 200, text = "b3", textAlign = right ] ] ]`);
+  const r = run("look.mjs", f, "--js", "['a1','a2','b1','b2','b3'].map((t) => getComputedStyle([...document.querySelectorAll('span')].find((d) => d.textContent === t)).textAlign).join(' ')");
+  assert.equal(r.status, 0, r.out);
+  assert.match(r.out, /js: "left right right left right"/, r.out);
+});
+
 await test("--semantics prints the whole tree, and direction reaches the page", () => {
   const r = run("look.mjs", BOOK, "--semantics", "--js", "document.querySelector('[data-declare-app]').dir + ' ' + getComputedStyle([...document.querySelectorAll('span')].find((d) => d.textContent === 'مرحبا')).textAlign");
   assert.equal(r.status, 0, r.out);
@@ -155,6 +168,54 @@ await test("expect.attr on an attribute of a node, written with a dot, says how 
   const r = run("verify.mjs", f, "--assert", script("nodeattr.mjs", `  await expect.attr("app", "weekCount.shown", 3);`), "--rung=5", "--no-boot");
   assert.notEqual(r.status, 0, r.out);
   assert.match(r.out, /'weekCount' is a node, not an attribute: the path is "app.weekCount" and the attribute "shown"/, r.out);
+});
+
+await test("a path that names nothing is answered with what is nearest there, by name or by what it says", () => {
+  const f = join(DIR, "near.declare");
+  writeFileSync(f, `App [ width = 300, height = 200, layout: SimpleLayout [ axis = y ],
+    pay: View [ width = 300, height = 100, layout: SimpleLayout [ axis = y ], Button [ label = "Pay $245.00" ], Button [ label = "Cancel" ] ],
+    other: View [ width = 10, height = 10 ] ]`);
+  const said = run("verify.mjs", f, "--assert", script("near1.mjs", `  await expect.visible('app.pay."Pay $246.00"');`), "--rung=5", "--no-boot");
+  assert.match(said.out, /'app\.pay' holds nothing called "Pay \$246\.00"; nearest there: "Pay \$245\.00"/, said.out);
+  const named = run("verify.mjs", f, "--assert", script("near2.mjs", `  await expect.visible("app.paw");`), "--rung=5", "--no-boot");
+  assert.match(named.out, /'app' holds nothing called paw; nearest there: pay/, named.out);
+});
+
+await test("focus that did nothing, or was dropped, is said beside the verdict", () => {
+  const f = join(DIR, "focusw.declare");
+  writeFileSync(f, `App [ width = 300, height = 200, layout: SimpleLayout [ axis = y ],
+    heading: Text [ text = "Seats" ],
+    side: View [ width = 200, height = 60, layout: SimpleLayout [ axis = y ], tabOrder() { return [this.ok] },
+        hid: View [ width = 20, height = 20, focusable = true ], ok: View [ width = 20, height = 20, focusable = true ] ],
+    go: Button [ label = "Go", onClick() { Focus.focus(app.heading) } ],
+    go2: Button [ label = "Go2", onClick() { Focus.focus(app.side.hid) } ] ]`);
+  const r = run("verify.mjs", f, "--assert", script("focusw.mjs", `  await drive.click('app."Go"');\n  await drive.click('app."Go2"');\n  await drive.settleMotion();\n  await expect.visible('app."Go"');`), "--rung=5", "--no-boot");
+  assert.match(r.out, /note the runtime said: Focus\.focus\(app\.heading\): it is not focusable, so focus did not move/, r.out);
+  assert.match(r.out, /note the runtime said: focus on app\.side\.hid was dropped: a container's tabOrder\(\) leaves it out/, r.out);
+});
+
+await test("accessibilityRole = alert is answered with the status idiom", () => {
+  const f = join(DIR, "alert.declare");
+  writeFileSync(f, `App [ width = 100, height = 50, Text [ text = "x", accessibilityRole = alert ] ]`);
+  const r = run("verify.mjs", f);
+  assert.match(r.out, /got 'alert' — an alert is `accessibilityRole = status` with `accessibilityLive = assertive`/, r.out);
+});
+
+await test("a class written without extends, given a leaf's attribute, is told which class has it", () => {
+  const f = join(DIR, "nobase.declare");
+  writeFileSync(f, `class Amount [ width = 96, textAlign = end ]\nApp [ width = 200, height = 100, Amount [ ] ]`);
+  const r = run("verify.mjs", f);
+  assert.match(r.out, /Amount is a View \(a class written without `extends` is one\), and 'textAlign' is Text's: `class Amount extends Text \[ … \]`/, r.out);
+});
+
+await test("an assert script that asserts nothing passes R5 only with that said", () => {
+  const f = join(DIR, "noassert.declare");
+  writeFileSync(f, `App [ width = 200, height = 100, b: Button [ label = "Go" ] ]`);
+  const none = run("verify.mjs", f, "--assert", script("noassert.mjs", `  await drive.click('app."Go"');`), "--rung=5", "--no-boot");
+  assert.equal(none.status, 0, none.out);
+  assert.match(none.out, /R5 ✓ behavior \(1 steps?, real input; it asserted nothing/, none.out);
+  const one = run("verify.mjs", f, "--assert", script("oneassert.mjs", `  await drive.click('app."Go"');\n  await expect.visible('app."Go"');`), "--rung=5", "--no-boot");
+  assert.match(one.out, /R5 ✓ behavior \(\d+ steps?, real input, 1 assertion\)/, one.out);
 });
 
 await test("an assert script that writes to a live service is told what it left there", async () => {

@@ -1,0 +1,518 @@
+/*
+# The Venue
+
+*The Marriage of Figaro* at the Grand Hall: pick one of twenty performances,
+choose seats in a hall laid out as the room is, pay, and come away with
+tickets to hold up at the door. One program for a phone and a desk.
+
+How to read it:
+
+- **Everything lives behind the box-office service** (`task/api/API.md`), at
+  `app.api`. The production, the seat map, the account and the order are each
+  a `DataSource`; other people's purchases arrive on an `EventStream` and are
+  written into the seat map, so the room never shows a seat as free that
+  isn't.
+- **Where the person is** is a handful of App attributes: the performance in
+  `location` (a link someone could share), checkout in `waypoint` (Back undoes
+  it), the seats they have chosen, the payment they are typing, and the order
+  once it is placed. `screen` is derived from those, never set.
+- **What they type at checkout lives on the App**, as computed defaults that
+  follow the signed-in account until the person types their own. Signing in
+  halfway through therefore loses nothing: the sheet opens over the form, and
+  the form is still there when it closes.
+- **The hall is a scene, not a layout**: every seat's place is a formula of
+  its row and number (`seatDX`, `seatLift`, `sectionTops` below), so the hall,
+  the phone's overview map and the pick burst all agree on where a seat is.
+
+Where things are:
+
+- this file — helpers, the shape of the data, the records, the theme, the App;
+- `venue-hall.declare` — the seat, the hall, the overview map, the legend;
+- `venue-checkout.declare` — the payment form, the order lines, signing in;
+- `venue-parts.declare` — a performance row and a ticket.
+*/
+
+include [ "venue-hall.declare", "venue-checkout.declare", "venue-parts.declare" ]
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+//
+// Functions of their arguments: money, dates, card numbers, postal codes, and
+// the geometry of the hall. A constraint that calls one re-runs only when the
+// arguments it passes change.
+
+script {
+    const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    const USD = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" })
+
+    function money(cents: number): string { return USD.format(cents / 100) }
+
+    // The service writes times as the hall's local time, "2026-11-13T19:30".
+    // They are read as written, never through a time zone.
+    function clockParts(iso: string): number[] {
+        const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso)
+        return m == null ? [0, 1, 1, 0, 0] : m.slice(1).map(Number)
+    }
+    function dayLabel(iso: string): string {
+        const p = clockParts(iso)
+        return DAYS[new Date(p[0], p[1] - 1, p[2]).getDay()] + " " + p[2] + " " + MONTHS[p[1] - 1]
+    }
+    function weekday(iso: string): string { const p = clockParts(iso); return DAYS[new Date(p[0], p[1] - 1, p[2]).getDay()] }
+    function dayOfMonth(iso: string): string { return "" + clockParts(iso)[2] }
+    function monthLabel(iso: string): string { return MONTHS[clockParts(iso)[1] - 1] }
+    function timeLabel(iso: string): string {
+        const p = clockParts(iso)
+        const h = p[3] % 12 == 0 ? 12 : p[3] % 12
+        return h + ":" + (p[4] < 10 ? "0" : "") + p[4] + (p[3] < 12 ? "am" : "pm")
+    }
+    function isMatinee(iso: string): boolean { return clockParts(iso)[3] < 17 }
+
+    // ── cards
+    function digitsOf(v: string): string { return v.replace(/\D/g, "") }
+    function brandOf(d: string): string {
+        if (/^3[47]/.test(d)) return "amex"
+        if (/^4/.test(d)) return "visa"
+        if (/^(5[1-5]|2(2[2-9]|[3-6]\d|7[01]|720))/.test(d)) return "mastercard"
+        if (/^(6011|65|64[4-9])/.test(d)) return "discover"
+        return ""
+    }
+    function brandName(b: string): string {
+        return b == "visa" ? "Visa" : b == "mastercard" ? "Mastercard" : b == "amex" ? "American Express" : b == "discover" ? "Discover" : ""
+    }
+    function cardLengths(b: string): number[] { return b == "amex" ? [15] : b == "visa" ? [13, 16, 19] : [16] }
+    function maxDigits(b: string): number { return b == "amex" ? 15 : b == "visa" ? 19 : 16 }
+    function codeLength(b: string): number { return b == "amex" ? 4 : 3 }
+    // Grouped as printed: American Express 4-6-5, every other card in fours.
+    function groupCard(d: string): string {
+        const b = brandOf(d)
+        const groups = b == "amex" ? [4, 6, 5] : [4, 4, 4, 4, 3]
+        const out: string[] = []
+        let i = 0
+        for (const g of groups) { if (i >= d.length) break; out.push(d.slice(i, i + g)); i = i + g }
+        return out.join(" ")
+    }
+    // Where the caret goes in grouped text: just after its `n`th digit.
+    function caretAfterDigits(text: string, n: number): number {
+        if (n == 0) return 0
+        let seen = 0
+        for (let i = 0; i < text.length; i++) { if (/\d/.test(text[i])) { seen = seen + 1; if (seen == n) return i + 1 } }
+        return text.length
+    }
+    function luhn(d: string): boolean {
+        let sum = 0
+        for (let i = 0; i < d.length; i++) {
+            let n = Number(d[d.length - 1 - i])
+            if (i % 2 == 1) { n = n * 2; if (n > 9) n = n - 9 }
+            sum = sum + n
+        }
+        return d.length > 0 && sum % 10 == 0
+    }
+    // "0428", "04/28", "04 / 2028" → [4, 2028]; [0, 0] when it can't be read.
+    function expiryParts(v: string): number[] {
+        const m = /^\s*(\d{1,2})\s*\/?\s*(\d{2}|\d{4})\s*$/.exec(v.includes("/") ? v : v.replace(/^(\d{2})(\d+)$/, "$1/$2"))
+        if (m == null) return [0, 0]
+        const y = Number(m[2])
+        return [Number(m[1]), y < 100 ? 2000 + y : y]
+    }
+    function formatExpiry(v: string): string {
+        const full = /^\s*(\d{1,2})\s*\/\s*(\d{4})\s*$/.exec(v)
+        const d = full != null ? (full[1].padStart(2, "0") + full[2].slice(2)) : digitsOf(v).slice(0, 4)
+        return d.length <= 2 ? d : d.slice(0, 2) + " / " + d.slice(2)
+    }
+
+    // ── postal codes, by country
+    function postalProblem(v: string, country: string): string {
+        const s = v.trim()
+        if (country == "US") return /^\d{5}(-\d{4})?$/.test(s) ? "" : "Enter a 5-digit ZIP code, like 94110."
+        if (country == "CA") return /^[A-Za-z]\d[A-Za-z] ?\d[A-Za-z]\d$/.test(s) ? "" : "Enter a postal code like K1A 0B1."
+        if (country == "GB") return /^[A-Za-z]{1,2}\d[A-Za-z\d]? ?\d[A-Za-z]{2}$/.test(s) ? "" : "Enter a postcode like EC1A 1BB."
+        return ""
+    }
+    function postalExample(country: string): string { return country == "US" ? "94110" : country == "CA" ? "K1A 0B1" : "EC1A 1BB" }
+
+    // ── the hall, in seat pitches. A row's seats are centred, with an aisle
+    //    six seats out on either side, and every row curves round the stage.
+    const HEAD = 2.3        // a section's heading, above its first row
+    const GAP = 0.8         // between one section and the next
+    const STAGE = 3.6       // the stage, above everything
+    const SPAN = 37         // the width of the widest row, with its aisles and letters
+    function seatDX(i: number, n: number): number {
+        const u = i - (n - 1) / 2
+        return u + Math.sign(u) * (Math.abs(u) > 6 ? 0.9 : 0)
+    }
+    function seatLift(i: number, n: number): number { const d = seatDX(i, n); return 0.0075 * d * d }
+    // `row` is a row's depth: a little less than a seat's width at a desk,
+    // a full pitch on a phone, so each seat is a square a thumb can hit.
+    function sectionTops(rows: number[], row: number): number[] {
+        let y = STAGE
+        return rows.map((r) => { const t = y; y = y + HEAD + r * row + GAP; return t })
+    }
+    function hallDepth(rows: number[], row: number): number { return rows.reduce((y, r) => y + HEAD + r * row + GAP, STAGE) }
+    }
+
+
+// ── The shape of the data ───────────────────────────────────────────────────
+
+schema Performance [ id: string, startsAt: string, doorsAt: string, priceFromCents: number, seatsLeft: number, seats: number ]
+schema Production [ title: string, hall: string, runningTime: string, performances[]: Performance ]
+
+schema SeatRecord [ id: string, number: number, status: "available" | "sold" ]
+schema SeatRow [ name: string, seats[]: SeatRecord ]
+schema Section [ key: string, name: string, priceCents: number, feeCents: number, rows[]: SeatRow ]
+schema SeatMap [ performanceId: string, sections[]: Section ]
+
+schema SavedCard [ id: string, brand: string, last4: string, expMonth: number, expYear: number ]
+schema Address [ line1: string, line2?: string, city: string, postalCode: string, country: string ]
+schema Account [ name: string, email: string, billing?: Address, cards[]: SavedCard ]
+
+schema Ticket [ seatId: string, section: string, row: string, number: number, barcode: string ]
+schema Order [ code: string, email: string, totalCents: number, brand: string, last4: string,
+    performanceId: string, tickets[]: Ticket ]
+schema Refusal [ error?: string, message?: string, field?: string, conflicts[]?: string ]
+
+// A chosen seat, as checkout shows it, and a place in the hall in pitches.
+
+schema Picked [ id: string, section: string, row: string, number: number, priceCents: number, feeCents: number ]
+schema Point [ x: number, y: number ]
+schema Country [ id: string, label: string ]
+
+
+// ── The records ─────────────────────────────────────────────────────────────
+//
+// The seat map of one performance, and what is true of a seat whoever is
+// looking: where it is, what it costs, and whether it is still free. Other
+// people's purchases are written here (`markSold`), so every view of the hall
+// follows them.
+
+class House extends DataSource [ schema = SeatMap, autoFetch = true,
+    sections() -> Section[] { return this.value?.sections ?? [] },
+
+    // "ORCH-C-14" names its section, row and number.
+
+    find(id: string) -> Picked? {
+        const parts = id.split("-")
+        const s = this.sections().find((x) => x.key == parts[0])
+        if (s == null) return null
+        return ({ id: id, section: s.name, row: parts[1], number: Number(parts[2]),
+            priceCents: s.priceCents, feeCents: s.feeCents })
+        },
+    status(id: string) -> string {
+        const parts = id.split("-")
+        const s = this.sections().find((x) => x.key == parts[0])
+        const r = s?.rows.find((x) => x.name == parts[1])
+        return r?.seats.find((x) => x.id == id)?.status ?? "sold"
+        },
+    markSold(id: string) {
+        const parts = id.split("-")
+        const ss = this.sections()
+        const si = ss.findIndex((x) => x.key == parts[0])
+        if (si < 0) return
+        const ri = ss[si].rows.findIndex((x) => x.name == parts[1])
+        if (ri < 0) return
+        const k = ss[si].rows[ri].seats.findIndex((x) => x.id == id)
+        if (k >= 0 && ss[si].rows[ri].seats[k].status != "sold") this.set(["sections", si, "rows", ri, "seats", k, "status"], "sold")
+        },
+
+    // Where a seat is in the hall, in pitches from its top left.
+
+    rowCounts: number[] = { classroot.sections().map((s) => s.rows.length) },
+    pointOf(id: string) -> Point {
+        const parts = id.split("-")
+        const ss = this.sections()
+        const si = ss.findIndex((x) => x.key == parts[0])
+        if (si < 0) return ({ x: 0, y: 0 })
+        const ri = ss[si].rows.findIndex((x) => x.name == parts[1])
+        const seats = ri < 0 ? [] : ss[si].rows[ri].seats
+        const k = seats.findIndex((x) => x.id == id)
+        const row = app.rowDepth
+        return ({ x: SPAN / 2 + seatDX(k, seats.length),
+            y: sectionTops(this.rowCounts, row)[si] + HEAD + ri * row + row / 2 - seatLift(k, seats.length) })
+        },
+
+    seatCount: number = { classroot.sections().reduce((n, s) => n + s.rows.reduce((m, r) => m + r.seats.length, 0), 0) },
+    freeCount: number = { classroot.sections().reduce((n, s) => n + s.rows.reduce((m, r) => m + r.seats.filter((x) => x.status == "available").length, 0), 0) }
+    ]
+
+
+// ── The look ────────────────────────────────────────────────────────────────
+//
+// Warm paper and ink, one accent. The accent means *yours*: the seats you have
+// chosen, and the one action that moves you on. Free seats are drawn in ink,
+// darker where they cost more; seats that are gone fade to a small dot.
+
+theme Venue [
+    background = #F8F5EF, surface = #FFFFFF, card = #FFFFFF, plate = #F1ECE3,
+    line = #E5DED3, lineStrong = #CFC5B6, quiet = #EFEAE1,
+    text = #1D1915, textMuted = #6A6058, textFaint = #998F85,
+    accent = #2B36B8, accentHovered = #2530A6, accentPressed = #1E2890, accentTextColor = #FFFFFF,
+    accentTint = #E6E8FA, linkColor = #2B36B8,
+    control = #EFEAE1, controlHovered = #E7E1D6, controlPressed = #DDD5C8, controlSelected = #E7E1D6,
+    error = #B3261E, sold = #D9D1C5,
+
+    // free seats, front to back: the dearer the section, the darker its ink
+
+    seatInks = [#2A231D, #4E453C, #71675D, #8F857A],
+    stage = #2A231D, stageText = #F8F5EF,
+    tooltipFill = #1D1915, tooltipTextColor = #F8F5EF
+    ]
+
+
+// ── The app ─────────────────────────────────────────────────────────────────
+
+App [ appName = "The Marriage of Figaro · Grand Hall", minWidth = 320,
+    theme = { { ...SanFrancisco, ...Venue } },
+    fill = { provided("theme").background },
+    textColor = { provided("theme").text },
+
+    // Two families: a serif for the occasion, the system's sans for the work.
+
+    fraunces: Font [ FontFace [ weight = semibold,
+            src = "https://fonts.gstatic.com/s/fraunces/v38/6NUh8FyLNQOQZAnv9bYEvDiIdE9Ea92uemAk_WBq8U_9v0c2Wa0K7iN7hzFUPJH58nhr1K03gg7S2nfgRYIcaRyTCf7Tp05GNyXk.woff2" ]
+        ],
+    serif: array = { [app.fraunces, "Iowan Old Style", "Georgia", "serif"] },
+    sans: array = { ["-apple-system", "system-ui", "Segoe UI", "Helvetica Neue", "sans-serif"] },
+    fontFamily = { app.sans },
+
+    wide: boolean = { app.width >= 860 },
+    tap: number = { app.touchFirst ? 44 : 36 },
+
+    clock: Time [ tick = day ],
+    monthIndex: number = { app.clock.year * 12 + app.clock.month },
+
+    // ── the service
+
+    api: string = "http://127.0.0.1:8350",
+
+    production: DataSource [ url = { app.api + "/api/production" }, autoFetch = true, schema = Production ],
+    performances: Performance[] = { app.production.value?.performances ?? [] },
+
+    // ── where the person is
+    //
+    // The performance is the URL's fragment ("#p05"): Back leaves the hall,
+    // and the address can be handed to someone. Checkout is a waypoint: Back
+    // returns to the hall, and a stranger given the URL starts in the hall.
+
+    location = "",
+    waypoint = "",
+    perfId: string = { app.location },
+    perf: Performance? = { app.performances.find((p) => p.id == app.perfId) ?? null },
+    chosen: string[] = [],
+    result: Order? = null,
+    notice: string = "",            // a seat they had chosen has gone, and which
+    signingIn: boolean = false,
+
+    paying: boolean = { app.waypoint == "pay" && app.chosen.length > 0 },
+    atPerformance: string = { app.paying ? "pay" : "hall" },
+    screen: string = { app.result != null ? "tickets" : app.perf == null ? "list" : app.atPerformance },
+
+    trackChanges = ["perfId", "screen"],
+    onChange(e: ChangeEvent) {
+        if (e.changed.some((c) => c.name == "perfId")) { chosen = []; notice = "" }
+        if (e.changed.some((c) => c.name == "screen")) afterSettle(() => app.focusScreen())
+        },
+
+    // A new screen takes the focus at its heading, so a keyboard or a screen
+    // reader starts there rather than nowhere.
+
+    focusScreen() {
+        if (screen == "list") Focus.focus(app.listScreen.col.heading)
+        else if (screen == "hall") Focus.focus(app.wide ? app.hallScreen.side.heading : app.hallScreen.overview.about.heading)
+        else if (screen == "pay") Focus.focus(app.payScreen.formPane.col.heading)
+        else if (screen == "tickets") Focus.focus(app.ticketScreen.col.heading)
+        },
+
+    // ── the hall: its seats, live
+
+    house: House [ url = { app.perfId == "" ? "" : app.api + "/api/performances/" + app.perfId + "/seats" } ],
+
+    // Other people buying. The stream opens when a performance is chosen; the
+    // map is fetched again once it is open, so nothing sold in between is
+    // missed.
+
+    live: EventStream [ listenTo = ["seatchanged"],
+        url = { app.perfId == "" || app.result != null ? "" : app.api + "/api/events?performance=" + app.perfId },
+        onOpen() { app.house.fetch() },
+        onMessage(e: StreamMessage) {
+            const m = JSON.parse(e.data)
+            if (m.status == "sold") app.seatTaken(m.seatId)
+            }
+        ],
+
+    picks: Picked[] = { app.chosen.map((id) => app.house.find(id)).filter((p) => p != null) as Picked[] },
+    lines: Dataset [ contents = { { lines: app.picks } }, schema = [ lines[]: Picked ] ],
+    seatsCents: number = { app.picks.reduce((n, p) => n + p.priceCents, 0) },
+    feesCents: number = { app.picks.reduce((n, p) => n + p.feeCents, 0) },
+    totalCents: number = { app.seatsCents + app.feesCents },
+    summary: string = { app.chosen.length + (app.chosen.length == 1 ? " seat · " : " seats · ") + money(app.seatsCents) },
+    nearlyFull: boolean = { app.house.seatCount > 0 && app.house.freeCount / app.house.seatCount < 0.15 },
+
+    // The one moment of commitment: a pick lands in the seat with a burst,
+    // and in the total with a lift. One animator drives both.
+
+    burstAt: Point = { { x: 0, y: 0 } },
+    burstLost: boolean = false,
+    burstT: number = 1,
+    burst: Animator [ attribute = burstT, from = 0, to = 1, duration = 520, motion = quadOut ],
+    stillness: boolean = { (app.accessibilitySettings as { reduceMotion?: boolean }).reduceMotion == true },
+    mark(id: string, lost: boolean) {
+        if (stillness) return
+        burstAt = house.pointOf(id)
+        burstLost = lost
+        burst.start()
+        },
+
+    toggleSeat(id: string) {
+        if (chosen.includes(id)) { chosen = chosen.filter((c) => c != id); return }
+        if (house.status(id) != "available") return
+        chosen = [...chosen, id]
+        notice = ""
+        mark(id, false)
+        },
+
+    // Someone else bought a seat. The map always learns it; if it was one of
+    // this person's, it leaves their choice and they are told which.
+
+    seatTaken(id: string) {
+        house.markSold(id)
+        if (!chosen.includes(id)) return
+        chosen = chosen.filter((c) => c != id)
+        const p = house.find(id)
+        notice = (p == null ? "A seat" : p.section + ", row " + p.row + ", seat " + p.number)
+            + " was just taken by someone else, so it has left your choice."
+        Accessibility.announce(notice, "assertive")
+        mark(id, true)
+        },
+
+    // The service refused the order because seats went first: nothing was
+    // charged, the lost seats leave the choice, and the person is back in the
+    // hall with the rest.
+
+    seatsLost(ids: string[], message: string) {
+        ids.forEach((id) => house.markSold(id))
+        chosen = chosen.filter((c) => !ids.includes(c))
+        notice = message
+        waypoint = ""
+        Accessibility.announce(message, "assertive")
+        },
+
+    pitch: number = { app.wide
+        ? Math.max(15, Math.min(30, (app.hallScreen.hallPane.width - 48) / SPAN,
+            (app.hallScreen.hallPane.height - 40) / hallDepth(app.house.rowCounts, app.rowDepth)))
+        : 44 },
+    rowDepth: number = { app.wide ? 0.86 : 1 },
+
+    // ── the account. The session is a cookie the service keeps; `me` says
+    //    who it belongs to, and is empty when nobody is signed in.
+
+    me: DataSource [ url = { app.api + "/api/me" }, credentials = include, autoFetch = true, schema = Account ],
+    account: Account? = { app.me.loaded ? app.me.value : null },
+    signInEmail: string = "",
+    password: string = "",
+    showPassword: boolean = false,
+    session: DataSource [ url = { app.api + "/api/session" }, method = "POST", credentials = include,
+        body = { { email: app.signInEmail.trim(), password: app.password } },
+        onLoad() { app.signedIn() }
+        ],
+    signedIn() {
+        me.fetch()
+        signingIn = false
+        password = ""
+        showPassword = false
+        },
+    signOut: DataSource [ url = { app.api + "/api/session" }, method = "DELETE", credentials = include, format = "text",
+        onLoad() { app.me.clear(); app.savedCode = ""; Accessibility.announce("Signed out.") }
+        ],
+
+    // ── paying. Each value is the person's once they type it; until then the
+    //    ones an account knows follow the account.
+
+    expired(c: SavedCard) -> boolean { return c.expYear * 12 + c.expMonth < app.monthIndex },
+    cards: SavedCard[] = { app.account?.cards ?? [] },
+    payWith: string = { app.cards.find((c) => !app.expired(c))?.id ?? "new" },
+    savedCard: SavedCard? = { app.cards.find((c) => c.id == app.payWith && !app.expired(c)) ?? null },
+    usingSaved: boolean = { app.savedCard != null },
+
+    email: string = { app.account?.email ?? "" },
+    cardName: string = { app.account?.name ?? "" },
+    cardNumber: string = "",
+    expiry: string = "",
+    code: string = "",
+    savedCode: string = "",
+    line1: string = { app.account?.billing?.line1 ?? "" },
+    line2: string = { app.account?.billing?.line2 ?? "" },
+    city: string = { app.account?.billing?.city ?? "" },
+    postalCode: string = { app.account?.billing?.postalCode ?? "" },
+    country: string = { app.account?.billing?.country ?? "US" },
+    countries: Country[] = { [({ id: "US", label: "United States" }), ({ id: "CA", label: "Canada" }),
+        ({ id: "GB", label: "United Kingdom" })] },
+
+    cardDigits: string = { digitsOf(app.cardNumber) },
+    brand: string = { brandOf(app.cardDigits) },
+
+    orderBody() -> object {
+        const base = ({ performanceId: perfId, seatIds: chosen })
+        if (savedCard != null) {
+            return ({ ...base, email: account?.email ?? email.trim(),
+                payment: ({ savedCardId: savedCard.id, cvc: savedCode }) })
+            }
+        const exp = expiryParts(expiry)
+        return ({ ...base, email: email.trim(),
+            payment: ({ card: ({ number: cardDigits, expMonth: exp[0], expYear: exp[1], cvc: code, name: cardName.trim() }),
+                billing: ({ line1: line1.trim(), line2: line2.trim() == "" ? null : line2.trim(), city: city.trim(),
+                    postalCode: postalCode.trim().toUpperCase(), country: country }) }) })
+        },
+    order: DataSource [ url = { app.api + "/api/orders" }, method = "POST", credentials = include, schema = Order,
+        body = { app.orderBody() },
+        onLoad() { app.placed() }
+        ],
+    payProblem: string = "",        // the service's sentence that names no field
+
+    placed() {
+        result = order.value
+        chosen = []
+        waypoint = ""
+        code = ""
+        savedCode = ""
+        ticketPage = 0
+        },
+    startOver() {
+        result = null
+        location = ""
+        },
+
+    // A decline keeps everything but the security code, which is asked again.
+
+    declined(message: string) {
+        payProblem = message
+        code = ""
+        savedCode = ""
+        },
+
+    ticketPage: number = 0,
+
+    // ── views reached from far away
+
+    payForm: PayForm = { app.payScreen.formPane.col.form },
+
+    // ── the screen: a bar along the top, and the screen the person is on
+
+    layout: SimpleLayout [ axis = y ],
+
+    bar: TopBar [ ],
+
+    screens: View [ width = 100%, flexes = true,
+        list: ListScreen [ visible = { app.screen == "list" } ],
+        hall: HallScreen [ visible = { app.screen == "hall" } ],
+        pay: PayScreen [ visible = { app.screen == "pay" } ],
+        tickets: TicketScreen [ visible = { app.screen == "tickets" } ]
+        ],
+    listScreen: ListScreen = { app.screens.list },
+    hallScreen: HallScreen = { app.screens.hall },
+    payScreen: PayScreen = { app.screens.pay },
+    ticketScreen: TicketScreen = { app.screens.tickets },
+
+    signInSheet: Sheet [ accessibilityLabel = "Sign in", shown = { app.signingIn },
+        input(open: boolean) { app.signingIn = open },
+        SignInForm [ exists = { app.signingIn } ]
+        ]
+    ]

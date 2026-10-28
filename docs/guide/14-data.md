@@ -590,7 +590,9 @@ over `problems` and overrides [`showProblems()`](declare-docs:Form.method.showPr
 
 A form that opens for each new thing (a sheet that creates a page, a dialog that adds an
 entry) is its own view class, and it **exists only while it is open**: `exists` builds it
-when the sheet opens and discards it when the sheet closes. Its fields are its own
+when the sheet opens and discards it once the sheet has closed — keyed on the sheet's
+`present`, which stays true through the closing motion, so the form doesn't vanish while
+the panel is still sliding away (`18-overlays.md`). Its fields are its own
 attributes, so every opening starts from its defaults, with nothing to reset. A sheet is a
 boundary for forms: the `Form` goes inside it.
 
@@ -632,7 +634,7 @@ App [ width = 400, height = 300, fill = white, textColor = black,
         Text [ text = { (app.pages.value?.rows ?? []).map((r) => "/" + r.slug).join("  ") } ] ],
     sheet: Sheet [ accessibilityLabel = "New page", shown = { app.adding },
         input(open: boolean) { app.adding = open },
-        NewPage [ exists = { app.adding } ] ]
+        NewPage [ exists = { app.sheet.present } ] ]
     ]
 ```
 

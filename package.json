@@ -13,7 +13,6 @@
     "declare-format": "tools/format.mjs",
     "declare-help": "tools/declare-help.mjs",
     "declare-look": "tools/look.mjs",
-    "declare-start": "tools/declare-start.mjs",
     "declare-check": "tools/declare-check.mjs"
   },
   "scripts": {

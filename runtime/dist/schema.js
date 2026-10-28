@@ -465,9 +465,9 @@ const AppSchema = {
         systemDark: { kind: "boolean" },
         // the person's accessibility preferences, fed live by the host — reduceMotion
         // (prefers-reduced-motion), increaseContrast (prefers-contrast: more),
-        // reduceTransparency (prefers-reduced-transparency), textScale — and read
-        // anywhere as provided("accessibilitySettings")
-        accessibilitySettings: { kind: "object" },
+        // reduceTransparency (prefers-reduced-transparency), textScale; read below
+        // the App as provided("accessibilitySettings")
+        accessibilitySettings: { kind: "record", name: "AccessibilitySettings" },
         // Is the page this app lives on VISIBLE — the browser's Page Visibility
         // fact (visibilitychange), fed live: false when the tab is hidden, the
         // window minimized, or the display asleep; true again on return. The
@@ -701,7 +701,7 @@ export const TextSchema = {
         // "Show more" control binds to, and the reason a clamp is a fact about the
         // text rather than a look you have to infer.
         truncated: { kind: "boolean" },
-        textAlign: enumType("TextAlign", "left", "center", "right"),
+        textAlign: enumType("TextAlign", "start", "center", "end", "left", "right"),
         italic: { kind: "boolean" },
         // Fill the glyphs with a gradient (or solid Fill), like the box `fill` —
         // overrides `textColor` when set. `textFill = { gradient("90deg", …) }`.

@@ -188,7 +188,15 @@ bootHost(cfg);
       // …and every error the page logged, the last few — what a boot that never
       // came up is said with when nothing else names its reason
       const pageSaid = [];
+      // what the runtime warns of, once each — a call that did nothing, focus it
+      // dropped — said beside the verdict, since nothing on screen shows it
+      const warned = [];
       page.on("console", (m) => {
+        if (m.type() === "warn" || m.type() === "warning") {
+          const t = m.text();
+          if (t.startsWith("[Declare] ") && !warned.includes(t.slice(10)) && warned.length < 12) warned.push(t.slice(10));
+          return;
+        }
         if (m.type() !== "error") return;
         const t = m.text().replace(/(?: JSHandle@\w+)+$/, "");
         pageSaid.push(t.split("\n")[0].slice(0, 300));
@@ -435,9 +443,46 @@ bootHost(cfg);
         } catch { /* a page that went away answers nothing */ }
       };
       const atRest = () => checkHere(log.length > 1 ? `after ${log[log.length - 2]}` : "at the start");
+      // A PATH THAT NAMES NOTHING: the deepest part of it that does name a view,
+      // and what is there nearest the missing step — its members by name, or,
+      // for a step named by what it says, what the views under it say — so a
+      // wrong price or a stale label is answered in the failure itself.
+      const nearNodes = async (path) => {
+        try {
+          const r = await page.evaluate((p) => {
+            const segs = p.match(/"[^"]*"|[^.]+/g) ?? [];
+            let i = segs.length - 1;
+            while (i > 0 && window.__declare.find(segs.slice(0, i).join(".")) == null) i--;
+            const base = segs.slice(0, i).join("."), miss = segs[i] ?? "";
+            const top = window.__declare.find(base);
+            if (top == null || i === 0) return null;
+            const out = new Set();
+            if (miss.startsWith('"')) {
+              const walk = (v, d) => {
+                if (v == null || d > 12 || out.size > 300 || v.visible === false) return;
+                for (const s of [v.accessibilityLabel, v.label, v.text]) if (typeof s === "string" && s.trim() !== "") out.add(`"${s}"`);
+                for (const c of v.children ?? []) walk(c, d + 1);
+              };
+              walk(top, 0);
+            } else {
+              for (const c of window.__declare.inspect(base)?.children ?? []) if (c.name) out.add(c.name);
+            }
+            return { base, miss, near: [...out] };
+          }, path);
+          if (r === null || r.near.length === 0) return "";
+          const dist = (a, b) => {
+            const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
+            for (let j = 1; j <= b.length; j++) d[0][j] = j;
+            for (let i = 1; i <= a.length; i++) for (let j = 1; j <= b.length; j++) d[i][j] = Math.min(d[i - 1][j] + 1, d[i][j - 1] + 1, d[i - 1][j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+            return d[a.length][b.length];
+          };
+          const near = r.near.sort((a, b) => dist(a, r.miss) - dist(b, r.miss)).slice(0, 5);
+          return ` — '${r.base}' holds nothing called ${r.miss}; nearest there: ${near.join(", ")}`;
+        } catch { return ""; }
+      };
       const node = async (path) => {
         const n = await page.evaluate((p) => window.__declare.inspect(p), path);
-        if (n === null) throw new VerifyAssertion(`no node at '${path}'`);
+        if (n === null) throw new VerifyAssertion(`no node at '${path}'${await nearNodes(path)}`);
         return n;
       };
       // the nearest view above `path` whose own visible is false, by its path
@@ -754,7 +799,7 @@ bootHost(cfg);
           step(`reveal ${path}`);
           const vp = page.viewport() ?? { width: 1280, height: 800 };
           const r = await scrollInto(path, null, { l: 0, t: 0, r: vp.width, b: vp.height });
-          if (r.c === null) throw new VerifyAssertion(`no node at '${path}'`);
+          if (r.c === null) throw new VerifyAssertion(`no node at '${path}'${await nearNodes(path)}`);
           const c = r.c;
           if (c.x < 0 || c.y < 0 || c.x >= vp.width || c.y >= vp.height)
             throw new VerifyAssertion(`'${path}' is outside the window at (${Math.round(c.x)}, ${Math.round(c.y)}), and swiping did not bring it in: ${toldTried(r)}`);
@@ -1136,11 +1181,21 @@ const expect = {
         fail,
       };
 
+      // A PASS THAT JUDGED NOTHING. A script whose every step ran and that never
+      // asked what came of it passes R5 only in that nothing threw: count the
+      // asks that judge (not explain, the trace, or fail itself), so the
+      // verdict can say a pass asserted nothing.
+      let asserted = 0;
+      for (const k of ["request", "exists", "visible", "hidden", "attr", "approx", "equal", "text", "count"]) {
+        const judge = expect[k];
+        expect[k] = (...a) => { asserted++; return judge(...a); };
+      }
+
       /** Run `work` (a script, a route) with the page watched: if the program
        *  stops answering, the run fails at once, naming the step it was on and
        *  the program's lines it was running. */
       const watched = (work) => watch.during(() => log.length > 0 ? `during ${log[log.length - 1]}` : "the script", work);
-      return { page, drive, expect, node, log, pageErrors, thrown, quiet, watched, checks, checkHere };
+      return { page, drive, expect, node, log, pageErrors, thrown, quiet, watched, checks, checkHere, asserted: () => asserted, warned };
     };
 
     return await fn({ openApp });
@@ -1396,7 +1451,7 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
     try {
       await app.watched(() => mod.default({ drive: app.drive, expect: app.expect, page: app.page }));
     } catch (e) {
-      if (e?.lines !== undefined) { failures.push(...e.lines); return { ok: false, failures, log: app.log, writes: writesOf(app), talked: originsOf(app, false), wrote: originsOf(app, true) }; }
+      if (e?.lines !== undefined) { failures.push(...e.lines); return { ok: false, failures, log: app.log, writes: writesOf(app), talked: originsOf(app, false), wrote: originsOf(app, true), warned: app.warned }; }
       const where = app.log.length > 0 ? ` (after: ${app.log.slice(-3).join(" → ")})` : "";
       // For an unexpected error, the first stack frame is the difference
       // between "my assert threw here" and an anonymous page error a reader
@@ -1408,7 +1463,7 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
     if (failures.length === 0) { await app.quiet(2000); await app.checkHere("at the end of the script"); }
     for (const e of app.pageErrors) failures.push(`page error: ${e}`);
     for (const e of new Set(app.thrown)) failures.push(`error: ${e}`);
-    return { ok: failures.length === 0, failures, log: app.log, writes: writesOf(app), talked: originsOf(app, false), wrote: originsOf(app, true), checks: app.checks };
+    return { ok: failures.length === 0, failures, log: app.log, writes: writesOf(app), talked: originsOf(app, false), wrote: originsOf(app, true), checks: app.checks, asserted: app.asserted(), warned: app.warned };
   });
 }
 

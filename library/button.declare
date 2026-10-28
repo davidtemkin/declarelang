@@ -76,8 +76,8 @@ row: View [ layout: SimpleLayout [ axis = x, spacing = 10, align = baseline ],
 
 ## height
 The theme decides, when it has an opinion: `provided("theme").buttonHeight` sets it (a platform
-theme's native control height); a theme that leaves it unset gets 40. A `height` at
-the use site overrides both.
+theme's native control height); a theme that leaves it unset gets 40. On a touch-first
+device it is at least 44, a finger's target. A `height` at the use site overrides both.
 
 ## cornerRadius
 A theme that rounds buttons by a fixed radius sets `provided("theme").buttonCornerRadius`; it is capped
@@ -139,7 +139,7 @@ class Button extends Control [
     // the baseline a row aligns this control by: its label's (declared, never discovered)
 
     baseline: number = { this.run.y + this.run.cap.y + this.run.cap.baseline },
-    height = { provided("theme").buttonHeight },
+    height = { app.touchFirst ? Math.max(44, provided("theme").buttonHeight) : provided("theme").buttonHeight },
     cornerRadius = { provided("theme").buttonCornerRadius != null ? Math.min(provided("theme").buttonCornerRadius, height / 2) : provided("theme").controlCornerRadius },
     label:   string = "",
     primary: boolean = false,

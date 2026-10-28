@@ -743,7 +743,12 @@ export function providedRead(self, name, hasDefault, dflt) {
     // a 22-row build). The rule's own run still meets the refusal below.
     if (S.collecting !== null)
         return undefined;
-    throw new DeclareError(`provided("${name}"): no ancestor provides '${name}', and this read declares no default — provide '${name}' on an ancestor, or give the read a default`);
+    // the reader's OWN attribute of that name is not above it: provided() reads
+    // from above, so a view reading its own value names it
+    const own = tableFor(DEFAULTS, self.constructor) !== null && name in self;
+    throw new DeclareError(`provided("${name}"): no ancestor provides '${name}', and this read declares no default — ` +
+        (own ? `'${name}' is this ${self.constructor.name}'s own attribute, and provided() reads from above: read it here as ${name}`
+            : `provide '${name}' on an ancestor, or give the read a default`));
 }
 /** The one write path (public setters and setBound both land here):
  *  equality-gate, store, push the slot's Surface call, wake dependents. */

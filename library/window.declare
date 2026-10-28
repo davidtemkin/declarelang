@@ -325,7 +325,7 @@ class Window [ width = 360, height = 240,
             caption: TextLabel [ wrap = false, clip = true, fontSize = 13, fontWeight = semibold,
                 x = { provided("theme").dialogTextAlign == "center" ? 40 : 14 },
                 width = { parent.width - this.x - 40 },
-                textAlign = { provided("theme").dialogTextAlign == "center" ? "center" : "left" },
+                textAlign = { provided("theme").dialogTextAlign == "center" ? "center" : "start" },
                 textColor = { provided("theme").text },
                 text = { classroot.title } ],
 

@@ -7532,6 +7532,29 @@ await test("focus: two apps on one page — Tab cycles within the focused view's
   assert.equal(Focus.getFocus(), null, "a discarded child's focus is dropped, not moved to the host's editor");
 });
 
+await test("focus: a field discarded inside a panel that then hides — Tab starts from the panel's place", async () => {
+  // A form in a popover: Return sends it, the form is discarded (the next Tab
+  // starts from its place) and the popover hides. That place is inside a hidden
+  // view, whose cycle has no stops: Tab must start from the panel's place in
+  // what is shown, not go nowhere (the to-do app, found by a checker).
+  Focus.reset();
+  const app = buildProgram(await compiled(`App [ width = 100, height = 100,
+    open: boolean = true,
+    a: View [ focusable = true ],
+    panel: View [ visible = { app.open }, focusScope = modal,
+      field: View [ exists = { app.open }, focusable = true ] ],
+    b: View [ focusable = true ],
+  ]`));
+  Focus.setRoot(app);
+  settle();
+  Focus.focus(app.panel.field);
+  app.open = false;
+  settle();
+  assert.equal(Focus.getFocus(), null, "the discarded field's focus is dropped");
+  Focus.next();
+  assert.equal(Focus.getFocus(), app.b, "Tab goes on from where the panel stands");
+});
+
 await test("focus: keyboard delivery — Tab traverses, other keys reach the focused view", async () => {
   Focus.reset();
   globalThis.__k = [];

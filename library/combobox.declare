@@ -115,7 +115,8 @@ things**: pick the roved row when there is one, else take the first match — th
 type-then-Enter path.
 
 ## height
-From the theme's `comboboxHeight` (30 by default).
+From the theme's `comboboxHeight` (30 by default), and at least 44 on a touch-first
+device, a finger's target.
 
 ## accessibilityExpanded
 Whether the list is open — what a screen reader hears as the combobox expanded or collapsed.
@@ -144,7 +145,7 @@ class Combobox extends ValueControl [
     // one Tab stop: the entry is the stop, the combobox around it is not
 
     focusable = false,
-    height = { provided("theme").comboboxHeight },
+    height = { app.touchFirst ? Math.max(44, provided("theme").comboboxHeight) : provided("theme").comboboxHeight },
 
     // ── the surface ───────────────────────────────────────────────────────
 

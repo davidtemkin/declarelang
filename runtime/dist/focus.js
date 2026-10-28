@@ -23,6 +23,7 @@ import { Cell, Constraint, afterSettle } from "./reactive.js";
 import { rootFrameBox, rootTransform } from "./interaction.js";
 import { apply as applyAffine } from "./affine.js";
 import { provideKeyContextTarget } from "./input.js";
+import { pathOf } from "./node-path.js";
 export class FocusService {
     current = null;
     rootView = null;
@@ -124,6 +125,11 @@ export class FocusService {
                 h(this.current);
             return;
         }
+        // a program asking for focus on what cannot take it is told, once per view:
+        // the call does nothing, and nothing else would say so (a control focusing
+        // itself as it is pressed is not the program asking)
+        if (view !== null && !canFocus(view) && !(inPointerDispatch() && typeof view.press === "function"))
+            warnOnce(view, `Focus.focus(${where(view)}): it is not focusable, so focus did not move — set focusable = true on it, or focus a control inside it`);
         this.apply(view);
         // Focus a program moves is shown, as Tab's is and as the web's
         // element.focus() is: scrolled into view, clear of pinned chrome. Focus a
@@ -292,6 +298,9 @@ export class FocusService {
             afterSettle(() => {
                 if (this.current !== v || reachable(v))
                     return;
+                // shown, yet out of reach: a container's tabOrder() leaves it out
+                if (shownChain(v))
+                    warnOnce(v, `focus on ${where(v)} was dropped: a container's tabOrder() leaves it out, so Tab cannot reach it — list it there (compose with tabDefault()) or focus a view Tab reaches`);
                 this.apply(null);
                 this.startPoint = v;
             });
@@ -343,8 +352,8 @@ export class FocusService {
         return cyc !== null ? sequence(cyc).map((e) => e.view) : [];
     }
     move(dir) {
-        const start = this.current === null && this.startPoint !== null && spotView(this.startPoint).$root !== null ? this.startPoint : null;
-        const cyc = this.current !== null ? cycleOf(this.current) : start !== null ? cycleOf(spotView(start)) : this.rootView;
+        const start = this.current === null && this.startPoint !== null && spotView(this.startPoint).$root !== null ? shownSpot(this.startPoint) : null;
+        const cyc = this.current !== null ? cycleOf(this.current) : start !== null ? cycleOf(start.from) : this.rootView;
         if (cyc === null)
             return;
         const seq = sequence(cyc);
@@ -354,7 +363,7 @@ export class FocusService {
         // from a pressed spot: Tab goes to the first stop after it, Shift-Tab to
         // the last one before it
         if (start !== null) {
-            const after = seq.findIndex((e) => afterSpot(start, e.view));
+            const after = seq.findIndex((e) => afterSpot(start.spot, e.view));
             idx = after < 0 ? (dir === 1 ? seq.length - 1 : seq.length) : (dir === 1 ? after - 1 : after);
         }
         // a focused island stands where its program's stops are spliced: Tab goes
@@ -609,6 +618,20 @@ function gatedBelow(p, c) {
 function spotView(s) {
     return s instanceof View ? s : s.parent;
 }
+/** The spot Tab starts from, in what is shown. A spot inside a view that is now
+ *  hidden — the place a form held in a popover that has since closed — has no
+ *  stops around it: Tab starts from the outermost hidden view's place instead,
+ *  in the cycle around it, as the web's starting point falls back when its node
+ *  goes away. `from` is the view whose cycle Tab moves in. */
+function shownSpot(s) {
+    let hidden = null;
+    for (let v = spotView(s); v !== null; v = parentAcross(v))
+        if (!v.visible)
+            hidden = v;
+    if (hidden === null)
+        return { spot: s, from: spotView(s) };
+    return { spot: hidden, from: parentAcross(hidden) ?? hidden };
+}
 /** Does `v` come after the spot, in the tree's order? */
 function afterSpot(s, v) {
     if (s instanceof View)
@@ -637,6 +660,30 @@ function precedes(a, b) {
         return false; // different programs: no order
     const kids = ca[i - 1].childViews;
     return kids.indexOf(ca[i]) < kids.indexOf(cb[i]);
+}
+/** A view's address, for what the runtime says about it. */
+function where(v) {
+    let r = v;
+    while (r.parent instanceof View)
+        r = r.parent;
+    return pathOf(r, v);
+}
+/** Is the view and everything above it visible? */
+function shownChain(v) {
+    for (let n = v; n !== null; n = parentAcross(n))
+        if (!n.visible)
+            return false;
+    return true;
+}
+const WARNED = new WeakMap();
+function warnOnce(v, said) {
+    const seen = WARNED.get(v) ?? new Set();
+    const key = said.slice(0, 24);
+    if (seen.has(key))
+        return;
+    seen.add(key);
+    WARNED.set(v, seen);
+    console.warn(`[Declare] ${said}`);
 }
 function canFocus(v) {
     return ((v.focusable || v.link !== "" || scopeOf(v) === "region") && v.visible) || bareScroller(v);

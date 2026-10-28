@@ -1005,7 +1005,7 @@ export declare class App extends View {
     systemDark: boolean;
     /** The person's accessibility preferences, fed live by the host: `reduceMotion`,
      *  `increaseContrast`, `reduceTransparency`, and `textScale` (1 until a host
-     *  supplies it). Read anywhere as `provided("accessibilitySettings")`. */
+     *  supplies it). Read below the App as `provided("accessibilitySettings")`. */
     accessibilitySettings: AccessibilitySettings;
     /** Is the page this app lives on visible? The browser's Page Visibility fact
      *  (boot.ts wireVisibility feeds it; the native host feeds the same slot from

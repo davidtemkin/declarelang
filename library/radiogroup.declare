@@ -2,7 +2,9 @@
 # RadioGroup
 
 One-of-N. Radios are written as the group's **direct children** — the group's
-layout arranges them, and each radio reaches its group as `parent`:
+layout arranges them, and each radio reaches its group as `parent`. A radio replicated
+from data (`Radio [ datapath = :plans[], choice = { :id }, label = { :name } ]`) is one
+too: each copy is a direct child of the group.
 
     RadioGroup [ value = "m", input(v: string) { app.size = v },
         Radio [ choice = "s", label = "Small" ],

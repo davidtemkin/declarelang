@@ -861,14 +861,6 @@ declares, `onApply`/`onRemove` — are the state's: there `this` is the state an
 so `applied = { parent.expanded }` reads the card's own flag. A method written in a state is a
 compile error, since a state changes attributes and children, never what a method does.
 
-**Inside a state, an override is the view's.** Its value is computed on the view it changes, so
-`this`, a bare name and `parent` mean what they would written on that view: `height = { width / 2 }`
-is half the card's own width, and `parent` is the card's container. The children declared in a state
-mount onto the view, and read it the same way. The state's own members — `applied`, anything it
-declares, `onApply`/`onRemove` — are the state's: there `this` is the state and `parent` the view,
-so `applied = { parent.expanded }` reads the card's own flag. A method written in a state is a
-compile error, since a state changes attributes and children, never what a method does.
-
 A state is driven by its condition (`applied = { … }`) or imperatively by the verbs —
 `apply()`/`remove()`/`toggle()` from a handler. One or the other: the gate owns `applied`,
 so a gated state changes when what the gate reads changes.

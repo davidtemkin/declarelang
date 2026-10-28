@@ -226,7 +226,9 @@ A right-to-left paragraph is laid out from the right — its lines start there u
 
 ## TextAlign
 
-Horizontal alignment of wrapped lines inside the run's own width. It only means
+Horizontal alignment of wrapped lines inside the run's own width: `start`, `center` and
+`end` follow the run's direction, as a layout's `start` and `end` follow its axis;
+`left` and `right` are the page's sides, whatever the direction. It only means
 anything once the run **has** a width to align within — a `Text` that sizes itself
 to its content is already exactly as wide as its longest line, so every value
 looks the same.

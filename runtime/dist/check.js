@@ -1569,6 +1569,14 @@ function attributeMiss(schema, name) {
     const hinted = hintedForeignName(name);
     if (hinted !== null)
         return cssAttributeHint(hinted);
+    // A CLASS OF ONE'S OWN THAT IS A VIEW, given a leaf's attribute: written
+    // without `extends` (or extending View), it has none of Text's or Image's
+    // members. Name the class that has it, rather than a near spelling.
+    if (schema.base?.name === "View" && !(schema.name in SCHEMAS)) {
+        const owner = ["Text", "TextInput", "Image", "Button"].find((c) => SCHEMAS[c] !== undefined && attrType(SCHEMAS[c], name) !== null);
+        if (owner !== undefined)
+            return ` — ${schema.name} is a View (a class written without \`extends\` is one), and '${name}' is ${owner}'s: \`class ${schema.name} extends ${owner} [ … ]\``;
+    }
     const near = nearestName(name, attrNames(schema));
     return near === null ? "" : ` — did you mean '${near}'?`;
 }

@@ -1,41 +1,46 @@
 # Checking — a checker in a context of its own
 
-Checking a program is the dearest part of building one. Every check's output, and every
-picture looked at, stays in the context of the agent that made it and is read again on every
-later turn. So the builder hands a check to a **checker**: a second agent, started fresh, that
-runs the check and returns a short report of what it found. Its pictures, its scripts' output
-and its retries never enter the builder's context. The builder decides what to change; the
-checker only finds out.
+Checking a program is the dearest part of building one. Every turn a builder spends writing a
+script, fixing it and reading what it printed is a turn that re-reads everything the builder has
+read so far. So what a program does once it runs is checked by a **checker**: a second agent,
+started fresh by `npx declare-check`, that works out how to check it, writes and runs the
+scripts, and returns a short report. Its scripts, their output and its retries never enter the
+builder's context. The builder decides what to change; the checker only finds out.
 
-This page is the checker's instructions. A builder starts one with a prompt that names this
-page and the question (below); a checker reads this page first and follows it.
+## For the builder
 
-## For the builder: starting a checker
+Check these yourself — each is one command with a short answer:
 
-Hand a check over when there is a working program to check and the check takes more than one
-command: a whole flow, a screen on two devices, a regression run after a change, a look at how
-something appears. Keep for yourself the one-command checks whose answer you need at once
-(`npx declare-verify app.declare`, a `--read`).
+- `npx declare-verify app.declare`: that it compiles, boots on a laptop and a phone, and what
+  the layout checks see;
+- `--read` and `--outline`, for where things are;
+- a picture with `npx declare-look … --shot`, when the question is how it looks — the design
+  is yours to judge;
+- a script the checker saved, run again after a change:
+  `npx declare-verify app.declare --assert checks/<name>.mjs`.
 
-The prompt names this page and says, in a few lines:
+**Everything else that a program does once it runs is a question to a checker** — a flow from
+start to end, the same screen on a phone and a desk, a keyboard-only path, what a screen reader
+is told. Ask it in the brief's terms, one question a flow:
 
-- **the question** — what to find out: "does a guest purchase of two seats succeed on a phone
-  and on a desk?", "is anything on the checkout screen too small for a finger, covered or cut
-  off?";
-- **the program** — its file, and its address if a dev server serves it (`--url`);
-- **the service** it talks to, if any, and whether earlier runs have written to it;
-- **where scripts go** — a folder the checker may write its assert and states scripts in, and
-  any scripts already there to reuse.
+```sh
+npx declare-check "can someone add an item, edit it and undo the edit with the keyboard alone?" \
+  --program my-apps/notes/notes.declare --url http://127.0.0.1:8200/my-apps/notes/notes.declare
+```
 
-In Claude Code, start it with the Agent tool — a general-purpose agent, its prompt beginning
-"Read `docs/operational/checking.md` in the Declare distribution, then answer:". Elsewhere, or
-from a script, `npx declare-check "<question>" --program <file>` starts one in a process of its
-own and prints its report.
+It waits for the report, up to 100 seconds. A checker still working prints its id; collect
+its report with `npx declare-check --wait <id>`, and keep building meanwhile. To ask several
+questions side by side, start each with `--start` and wait for each. `--service <url>` names a
+service the program talks to; `--scripts <dir>` where the scripts go (default: `checks/` beside
+the program).
+
+Don't write a flow script yourself. Only if `declare-check` says no checker can start here —
+no agent command on this machine — check it yourself, following § For the checker below.
 
 ## For the checker
 
 You check one program against one question and report what you found. **Never change the
-program's files.** You may write scripts in the folder you were given.
+program's files.** Write your scripts in the folder you were given, and reuse what is there.
 
 **Read** `docs/operational/verify.md` — the ladder, its flags, and the assert and states
 scripts' vocabulary (`drive`, `expect`, view paths, devices) — and the parts of the program the
@@ -43,21 +48,29 @@ question is about: `npx declare-help map <file>` lists each class and App member
 lines. You do not need the language guide: you are reading what the program does, not deciding
 how it should be written.
 
-**Check**, cheapest first, as `verify.md` lays out:
+**Check**, cheapest first:
 
-- `npx declare-verify <file>` for whether it compiles, boots, and what its layout checks say;
-- an assert script for a flow (`--assert`), on the device the question names
-  (`export const device = { width: 390, height: 844, touch: true }` for a phone), written to
-  take what is available now — a free seat, not a fixed one: a live service remembers what
-  earlier runs made;
-- a states script for screens to look at (`--states`), and `npx declare-look … --shot` with a
-  picture read only when the question is how something looks;
+- `npx declare-verify <file>` for whether it compiles, boots, and what its layout checks say.
+- **A flow is an assert script** (`--assert`): `drive` presses, types and waits as a person
+  does; `expect` checks what is shown and what the program sent (`expect.request`). A view is
+  named by its path or by what it says — `app.form."Pay $40.00"`. Write it for the device the
+  question names (`export const device = { width: 390, height: 844, touch: true }` for a
+  phone). Don't build a browser harness of your own: `page` in a script, and
+  `declare-look --js`, answer what the vocabulary doesn't.
+- **Every script ends by expecting what the flow should have done** — the order sent, the
+  screen reached, the message shown. A script that asserts nothing passes when nothing threw,
+  and R5's line says so ("it asserted nothing"): never report that as a pass.
+- **Take what is available now.** A live service remembers what earlier runs made: choose a
+  free item, not a fixed one, and say in the report when the service's state may explain a
+  failure.
+- A states script (`--states`) for screens to look at, and `npx declare-look … --shot` with a
+  picture read only when the question is how something appears.
 - `expect.explain(path, attr)` and the trace (`expect.traceStart()`, `expect.traceText()`)
   when a value is wrong, so the report can say where it came from.
 
 Rungs 5 and 6 report layout findings — a target too small for a finger, a control another
 view covers, text running past its box — wherever your script settles and in each state;
-report the ones the question touches.
+report the ones the question touches. Don't filter verify's output: read all of it.
 
 **Report** in this form, and nothing else — the builder reads every word of it:
 
@@ -77,6 +90,7 @@ UNCHECKED <what the question asked that you could not check, and why>
 SCRIPTS   <the scripts you wrote or ran, by path, so the builder can run them again>
 ```
 
-Keep it under about forty lines. Describe a picture in words when it matters; never paste
-output the builder did not ask for. If the question cannot be answered — the program does not
-compile, the service is down — say so in the verdict and stop.
+A pass names, under SCRIPTS, the expectation that proved each part of the question. Keep it
+under about forty lines. Describe a picture in words when it matters; never paste output the
+builder did not ask for. If the question cannot be answered — the program does not compile, the
+service is down — say so in the verdict and stop.

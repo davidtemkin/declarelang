@@ -22,6 +22,13 @@ import { coerceFilter } from "./effects.js";
 const ok = (value: AttrValue): Coerced => ({ ok: true, value });
 const fail = (expected: string, found?: string): Coerced => ({ ok: false, expected, found });
 
+/** A value from another platform that a vocabulary leaves out on purpose,
+ *  answered with what Declare writes instead — the refusal says it where the
+ *  instinct is met. */
+const VALUE_INSTINCTS: Readonly<Record<string, string>> = {
+  "AccessibilityRole.alert": "'alert' — an alert is `accessibilityRole = status` with `accessibilityLive = assertive`, said at once on every host",
+};
+
 // The literal forms for Color: navy / #354D5B / 0x354D5B / null (language
 // §6), plus the ruled alpha forms #RGBA / #RRGGBBAA (`0x…` stays 6-digit
 // opaque — the R2 ruling intact; see the Color doc). A decimal number is
@@ -353,7 +360,8 @@ export function parseLiteral(type: AttrType, lit: Literal): Coerced {
         return fail(diag`a ${type.name} (one of ${type.tokens.join(" | ")}, or a number ${lo}–${hi})`);
       }
       // Vowel-aware article: R7's Axis is the first enum that needs "an".
-      return fail(diag`${/^[AEIOU]/.test(type.name) ? "an" : "a"} ${type.name} (one of ${type.tokens.join(" | ")}${type.numeric !== undefined ? `, or a number ${type.numeric[0]}–${type.numeric[1]}` : ""})`);
+      return fail(diag`${/^[AEIOU]/.test(type.name) ? "an" : "a"} ${type.name} (one of ${type.tokens.join(" | ")}${type.numeric !== undefined ? `, or a number ${type.numeric[0]}–${type.numeric[1]}` : ""})`,
+        lit.kind === "ident" ? VALUE_INSTINCTS[`${type.name}.${lit.name}`] : undefined);
     case "fn":
       // Like a class slot: `null` is the one literal form ("no callback").
       // A real function arrives by assignment from a { } body, never as a

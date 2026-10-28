@@ -803,8 +803,13 @@ export function providedRead(self: object, name: string, hasDefault: boolean, df
   // and an error built only to be dropped costs its stack (measured: ~3 ms of
   // a 22-row build). The rule's own run still meets the refusal below.
   if (S.collecting !== null) return undefined;
+  // the reader's OWN attribute of that name is not above it: provided() reads
+  // from above, so a view reading its own value names it
+  const own = tableFor(DEFAULTS, (self as object).constructor) !== null && name in (self as Record<string, unknown>);
   throw new DeclareError(
-    `provided("${name}"): no ancestor provides '${name}', and this read declares no default — provide '${name}' on an ancestor, or give the read a default`
+    `provided("${name}"): no ancestor provides '${name}', and this read declares no default — ` +
+    (own ? `'${name}' is this ${(self as object).constructor.name}'s own attribute, and provided() reads from above: read it here as ${name}`
+      : `provide '${name}' on an ancestor, or give the read a default`)
   );
 }
 

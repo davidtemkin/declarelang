@@ -292,7 +292,7 @@ const ownClasses = async () => ((await compiledProgram()).classes ?? []).filter(
 const driven = { checks: [], flagged: [] };
 
 // ── rung 5: behavior (drive + assert, real browser) ──────────────────────
-const behave = { ran: false, ok: false, failures: [], log: [], writes: [], serviceNote: null };
+const behave = { ran: false, ok: false, failures: [], log: [], writes: [], serviceNote: null, asserted: 0 };
 if (failedRung === null && flags.rung >= 5 && flags.assert !== null) {
   behave.ran = true;
   const { runBehavior } = await import("./internal/verify-behave.mjs");
@@ -312,6 +312,8 @@ if (failedRung === null && flags.rung >= 5 && flags.assert !== null) {
     behave.ok = r.ok;
     behave.failures = r.failures;
     behave.log = r.log;
+    behave.asserted = r.asserted ?? 0;
+    behave.warned = r.warned ?? [];
     behave.writes = r.writes ?? [];
     // A LIVE SERVICE REMEMBERS. What earlier runs wrote to a service is still
     // there for this one: a script that bought seats meets them sold the next
@@ -438,7 +440,7 @@ if (flags.json) {
     const note =
       optionalIdle || r.n > effectiveBuilt ? ` — ${r.what}` :
       r.n === 4 && boot.ran && boot.ok ? ` (${boot.nodes} nodes, in ${boot.where === "chrome" ? "Chrome, real text" : "Node, stand-in text"}${sized ? "" : ", a laptop and a phone"})${findings(boot.layout.length)}` :
-      r.n === 5 && behave.ran && behave.ok ? ` (${behave.log.length} steps, real input)` :
+      r.n === 5 && behave.ran && behave.ok ? ` (${behave.log.length} steps, real input${behave.asserted === 0 ? "; it asserted nothing, so the pass says only that nothing threw and what the layout checks found — end a flow with an expect of what it should have done" : `, ${behave.asserted} assertion${behave.asserted === 1 ? "" : "s"}`})` :
       r.n === 6 && visual.ran && visual.ok ? ` (${visual.results.length} states${flags.bless ? ", blessed" : ""})` : "";
     console.log(`  R${r.n} ${mark} ${r.name}${note}`);
     if (failedRung != null && r.n === failedRung) {
@@ -454,6 +456,7 @@ if (flags.json) {
   for (const h of hints) console.log(`  hint ${show(h)}`);
   for (const n of boot.notes) console.log(`  note ${n}`);
   if (behave.serviceNote) console.log(`  note ${behave.serviceNote}`);
+  for (const w of behave.warned ?? []) console.log(`  note the runtime said: ${w}`);
   if (behave.writes.length > 0) {
     const shown = [...new Set(behave.writes)];
     console.log(`  note the script sent ${behave.writes.length} write${behave.writes.length === 1 ? "" : "s"} to the live service (${shown.slice(0, 4).join(", ")}${shown.length > 4 ? ", …" : ""}) — what they made stays there; --fixtures <dir> answers requests from files instead, so a run leaves nothing behind (verify.md)`);
@@ -486,9 +489,9 @@ if (flags.json) {
       console.log(`       runtime's own, but text is measured by a stand-in, so the checks that rest on`);
       console.log(`       text did not run, and nothing was painted.`);
     } else if (climbed === 4) {
-      console.log(`  note R4 booted the program as it starts; a screen it reaches only after a press or`);
-      console.log(`       data is checked by driving it there: --assert <script.mjs> (R5) asks the same layout`);
-      console.log(`       questions wherever the script settles, and --states <states.mjs> (R6) in each state.`);
+      console.log(`  note R4 booted the program as it starts; what it does after a press or once data`);
+      console.log(`       arrives is a checker's question: npx declare-check "<what to find out>" --program ${file}`);
+      console.log(`       writes and runs the scripts and reports; rerun one it saved with --assert <script.mjs>.`);
     }
   } else {
     console.log(`  verify: ${file} — FAILED at R${failedRung}`);

@@ -77,8 +77,9 @@ comfortably selectable.
 **Read-only.** The person's accessibility preferences, kept live: `reduceMotion`
 (`prefers-reduced-motion`), `increaseContrast` (`prefers-contrast: more`),
 `reduceTransparency` (`prefers-reduced-transparency`), and `textScale` (1 until a host
-supplies one). Read it anywhere as `provided("accessibilitySettings")`: a program whose
-motion should stand still for someone who asks reads `.reduceMotion` where it moves things.
+supplies one). Below the App, read it as `provided("accessibilitySettings")`, which reads
+from above; on the App itself, as `accessibilitySettings`. A program whose motion should
+stand still for someone who asks reads `.reduceMotion` where it moves things.
 The motion system does not act on it by itself.
 
 ## systemDark

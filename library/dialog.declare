@@ -360,13 +360,13 @@ class Dialog extends Floating [
         ttl: Text [ fontWeight = bold, wrap = true, width = 100%,
             visible = { classroot.title != "" },
             fontSize = { provided("theme").dialogTitleFontSize },
-            textAlign = { classroot.centered ? "center" : "left" },
+            textAlign = { classroot.centered ? "center" : "start" },
             textColor = { classroot.tone == "error" ? (provided("theme").error) : provided("theme").text },
             text = { classroot.title } ],
 
         msg: Text [ wrap = true, width = 100%,
             fontSize = { provided("theme").dialogBodyFontSize },
-            textAlign = { classroot.centered ? "center" : "left" },
+            textAlign = { classroot.centered ? "center" : "start" },
             visible = { classroot.message != "" },
             textColor = { provided("theme").textMuted }, text = { classroot.message } ],
 

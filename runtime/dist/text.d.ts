@@ -24,7 +24,7 @@ export declare class Text extends View {
     maxLines: number;
     /** True when the clamp actually dropped something (schema.ts). Read-only. */
     truncated: boolean;
-    textAlign: "left" | "center" | "right";
+    textAlign: "start" | "center" | "end" | "left" | "right";
     italic: boolean;
     textFill: Fill | null;
     outline: Outline | null;

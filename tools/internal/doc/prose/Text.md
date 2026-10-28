@@ -64,8 +64,10 @@ clamped preview measures exactly as tall as it draws.
 "Show more" reads: `more: Text [ visible = { app.summary.truncated }, … ]`.
 
 ## textAlign
-Horizontal alignment of wrapped lines within the run's width — `left` (default),
-`center`, or `right`. Only meaningful once the run has a width to align within.
+Horizontal alignment of wrapped lines within the run's width — `start` (the default),
+`center` or `end`, which follow the run's [`direction`](declare-docs:View.direction): a
+right-to-left paragraph starts at the right. `left` and `right` are the page's own sides,
+whatever the direction. Only meaningful once the run has a width to align within.
 
 ## italic
 Renders the glyphs italic (default `false`) — the one slanted-style toggle, separate

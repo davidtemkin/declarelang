@@ -32,6 +32,14 @@ import { holdsFamily, heldFamily, type FamilyValue } from "./font-value.js";
 const clampN = (n: number, max: number): number => (max > 0 ? Math.min(n, max) : n);
 import { bindDerived, defineAttributes, faceSlots, isSet, ownerOf, providedDefault, setBound } from "./attributes.js";
 
+/** A Text's alignment on the page: `start` and `end` by the run's direction,
+ *  `left`, `center` and `right` as written. */
+function physicalAlign(a: string, dir: "ltr" | "rtl"): "left" | "center" | "right" {
+  if (a === "start") return dir === "rtl" ? "right" : "left";
+  if (a === "end") return dir === "rtl" ? "left" : "right";
+  return a === "center" || a === "right" ? a : "left";
+}
+
 /** The base direction a Text's run is laid out in: its own `direction`, else
  *  the nearest ancestor's; "auto" reads the first strong letter of the text. */
 function runDirection(t: { text?: unknown; direction?: string; parent?: unknown }): "ltr" | "rtl" {
@@ -92,7 +100,7 @@ export class Text extends View {
   declare maxLines: number;
   /** True when the clamp actually dropped something (schema.ts). Read-only. */
   declare truncated: boolean;
-  declare textAlign: "left" | "center" | "right";
+  declare textAlign: "start" | "center" | "end" | "left" | "right";
   declare italic: boolean;
   declare textFill: Fill | null;
   declare outline: Outline | null;
@@ -270,8 +278,9 @@ export class Text extends View {
           shadow: this.textShadow,
           wrap: this.wrap && this.$bounded(),
           maxLines: this.maxLines,
-          // a right-to-left paragraph starts at the right unless told otherwise
-          align: !isSet(this, "textAlign") && runDirection(this) === "rtl" ? "right" : this.textAlign,
+          // start and end follow the run's direction: a right-to-left paragraph
+          // starts at the right; left and right are the page's own sides
+          align: physicalAlign(this.textAlign, runDirection(this)),
           direction: runDirection(this),
           italic: this.italic,
           textFill: this.textFill,
@@ -338,7 +347,7 @@ defineAttributes(Text, {
   wrapWidth: { def: 0 },
   maxLines: { def: 0 },
   truncated: { def: false },
-  textAlign: { def: "left" },
+  textAlign: { def: "start" },
   italic: { def: false },
   textFill: { def: null },
   // Typographical treatments — a Text wears them like textShadow/textFill; runs

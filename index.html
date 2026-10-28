@@ -426,7 +426,6 @@ panel: View [                                                // on a DESCENDANT,
 bg: View [ dim: State [ applied = { app.open }, opacity = 0.5 ]
     ]   // or owns a state</code></pre>
 <p><strong>Inside a state, an override is the view's.</strong> Its value is computed on the view it changes, so <code>this</code>, a bare name and <code>parent</code> mean what they would written on that view: <code>height = { width / 2 }</code> is half the card's own width, and <code>parent</code> is the card's container. The children declared in a state mount onto the view, and read it the same way. The state's own members — <code>applied</code>, anything it declares, <code>onApply</code>/<code>onRemove</code> — are the state's: there <code>this</code> is the state and <code>parent</code> the view, so <code>applied = { parent.expanded }</code> reads the card's own flag. A method written in a state is a compile error, since a state changes attributes and children, never what a method does.</p>
-<p><strong>Inside a state, an override is the view's.</strong> Its value is computed on the view it changes, so <code>this</code>, a bare name and <code>parent</code> mean what they would written on that view: <code>height = { width / 2 }</code> is half the card's own width, and <code>parent</code> is the card's container. The children declared in a state mount onto the view, and read it the same way. The state's own members — <code>applied</code>, anything it declares, <code>onApply</code>/<code>onRemove</code> — are the state's: there <code>this</code> is the state and <code>parent</code> the view, so <code>applied = { parent.expanded }</code> reads the card's own flag. A method written in a state is a compile error, since a state changes attributes and children, never what a method does.</p>
 <p>A state is driven by its condition (<code>applied = { … }</code>) or imperatively by the verbs — <code>apply()</code>/<code>remove()</code>/<code>toggle()</code> from a handler. One or the other: the gate owns <code>applied</code>, so a gated state changes when what the gate reads changes.</p>
 <p>A <strong><code>Spring</code></strong> drives one attribute toward a reactive target. Declare where the thing belongs and the spring finds the path, so a change of target mid-flight is simply a new destination and interruption needs no code.</p>
 <pre><code class="language-declare-fragment">slide: Spring [ attribute = x, to = { on ? 340 : 20 }, stiffness = 170, damping = 20 ]</code></pre>
@@ -809,7 +808,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=2a23b8cbf3fb";
+  import boot from "./bundles/declare-boot.js?v=d521e18712bb";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().

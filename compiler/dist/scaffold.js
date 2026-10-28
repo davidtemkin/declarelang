@@ -247,6 +247,9 @@ interface BlockGeometry { maxWidth?: number; margin?: readonly [number, number];
  *  A \`pre\` with no entry of its own follows \`code\`. Keys open, values closed: a
  *  misspelled field is caught, a block type you invent is not. */
 type RichTextLayout = Readonly<Record<string, BlockGeometry>>;
+/** What the person has asked their system for — App.accessibilitySettings, fed live
+ *  by the host. */
+interface AccessibilitySettings { readonly reduceMotion: boolean; readonly increaseContrast: boolean; readonly reduceTransparency: boolean; readonly textScale: number }
 /** What measureText reports — a Text's own fact names. */
 interface TextMetrics { readonly width: number; readonly height: number; readonly baseline: number; readonly capHeight: number; readonly lines: number }
 /** Measure a run of text in a style, with the measurer and wrapping a \`Text\` uses —
@@ -571,7 +574,7 @@ export const HOST_VALUE_GLOBALS = new Set([...HOST_GLOBALS].filter((n) => new Re
  *  whose name is here is NOT given the generated open alias below — it has a
  *  real declaration, and a second one is a duplicate identifier. Add a name here
  *  when you write its shape into the prelude, and only then. */
-const PRELUDE_RECORDS = new Set(["Theme", "TextStyles", "RichTextLayout", "DelayHandle"]);
+const PRELUDE_RECORDS = new Set(["Theme", "TextStyles", "RichTextLayout", "DelayHandle", "AccessibilitySettings"]);
 /** One AttrType (value.ts) → its TypeScript type, mirroring the value model.
  *  Enum and record arms reference a NAMED type (`type Stretch = …`, `Theme`)
  *  emitted in the prelude / near-use; class references the peer

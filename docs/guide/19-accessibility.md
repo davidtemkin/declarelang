@@ -139,7 +139,8 @@ is fixed for a view's lifetime.
 
 ## The person's settings
 
-`provided("accessibilitySettings")` holds what the person has asked their system for:
+`provided("accessibilitySettings")` — on the App itself, `accessibilitySettings` — holds
+what the person has asked their system for:
 `reduceMotion`, `increaseContrast`, `reduceTransparency`. It is live — it changes when
 they change the setting. Nothing in Declare acts on it for you; a program that wants its
 motion to stand still, or its theme to raise its contrast, reads it where it decides.
