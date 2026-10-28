@@ -9,8 +9,11 @@ Declare is a language for user interfaces. No LLM has been trained on it, and it
 resembles React, CSS and HTML only on the surface: a rule carried over from them is the
 surest way to be wrong.
 
-Learning it comes first: the reading below, whatever you have been asked. After that,
-the work takes the shape of the request (§ Working with a person).
+Learning it comes first: the reading below. When there is a program to write, the work
+then goes in this order: plan, check the plan against what Declare handles for you,
+write, then check the program and look at it running — and when a whole program was
+built to a brief, have a checker test it against the brief before you hand it over
+(§ Checking and looking).
 
 ## Read first, in order
 
@@ -37,43 +40,6 @@ If your context is summarized partway through a session, the summary keeps what 
 did but not what you read. Read items 1 and 2 again before you write or review any
 more Declare.
 
-## Working with a person
-
-The person decides what to build and when it is done; your part is to make each step
-real and show it. How they ask says what a good answer is:
-
-- **A one-line idea** — "make me a habit tracker". Build a whole small program at once,
-  with sensible choices, rather than asking first, and say in a line what you chose. It
-  should look designed from its first version. The person will steer from what they see.
-- **The next request in a session** — "let me drag the cards", "it feels too busy". Do
-  that, and leave the rest as it is. A request in terms of a feeling ("calmer", "it should
-  feel good") is a design request: decide what it means here, and make it visible.
-- **A picture to match.** Take it literally: proportions, spacing, type sizes, colours,
-  copy. Look at your result beside it, at the picture's size, and fix what differs before
-  you say it matches.
-- **A change to a program that exists** — your own from earlier, or someone else's. Read
-  its opening comment and `npx declare-help map <file>` first, then the parts the change
-  touches. Make the change in the program's own grain — its datasets, its state, its
-  classes — touch only what the change needs, and keep what works working: run its assert
-  scripts again, if it has them.
-- **Something wrong** — a bug report, a pasted error. Make it happen first (a check, a
-  script or a look that shows it), then fix it, and show it fixed.
-- **"Can this work?"** — a spike. The smallest program that answers the question, and an
-  honest answer: what it shows, what it doesn't, where it would strain. Asked only to
-  explain, explain.
-- **A brief or a spec**, above all one built without the person watching: all of §
-  Planning a program, and § Checking and looking to its end, the checker included.
-
-Whatever was asked, a turn ends the same way: the program compiles and starts, you have
-looked at what you changed, and your reply says briefly what you did, what you checked,
-and where to see it — its address (`npm start`, below). Then let the person look.
-
-**Phones.** One Declare program serves phones and desktops. When the person will use it on
-a phone, or the app is plainly one used on the go, make it a phone app — targets a finger
-can hit (44 points), the controls within reach of a thumb, the gestures a phone app has —
-not a desktop page that merely fits, and check it at a phone's size (`--phone`). Otherwise
-build it so nothing breaks on a phone, and check it at the size the person is using.
-
 ## Planning a program
 
 **A spec, a mockup, or a program in another stack** says what the result should be, not
@@ -82,8 +48,7 @@ colors, sizes) and the stated requirements. Where it names a technique ("modal",
 "hover state"), ask what the technique is for and choose the Declare form that does
 that. (`docs/operational/intake.md` covers this at length, for a large or unclear spec.)
 
-For a new program, write the plan down before its first line — a few lines, not a
-document:
+For a new program, write the plan down before its first line:
 
 - **The data** — which datasets hold the records. One source of truth; everything a view
   shows is derived from it.
@@ -96,6 +61,12 @@ document:
   slides in, the items travel. In Declare the second costs about the same to write, so it
   is an ordinary option wherever it helps a person follow what happened; which changes
   move is a design decision, not a rule.
+
+**For a phone.** One Declare program serves phones and desktops. When it is for use on a
+phone — the person says so, or the app plainly is — make it a phone app rather than a
+desktop page that fits: targets a finger can hit (44 points), controls within a thumb's
+reach, and the swipes, sheets and drawers the library has (the to-do app uses each).
+Check it with `--phone`.
 
 Then check every need in the plan against
 [What Declare handles for you](#what-declare-handles-for-you), below.
@@ -121,9 +92,9 @@ Then check every need in the plan against
   the guide's working code.
 - **Complete programs** — each opens with a comment on how it is put together, and the
   table below cites the class or App member to look at. Beyond the to-do app, read a
-  program by its parts, not whole: its header, then `npx declare-help map <file>`, which
-  lists each class and App member with its lines and what it is, and the parts your plan
-  needs. Find the one nearest what you are building:
+  program by its parts, not whole — a program you are changing, too: its header, then
+  `npx declare-help map <file>`, which lists each class and App member with its lines and
+  what it is, and the parts your plan needs. Find the one nearest what you are building:
   - **A list of things to tick off, on phone and desktop** — tasks, reminders, a reading
     list. → `apps/todo/todo.declare` with `todo-parts.declare`, read first (above).
   - **Records people list, search, filter and edit** — most applications: issues, mail,
@@ -307,10 +278,10 @@ one answers.
   `npx declare-look app.declare --shot out.png` (`--phone` for a phone) runs it in a browser
   and saves a picture; it can click, drag, hold, pinch, scroll, type and press keys, in the
   order you write them, and read values (`--help` lists them). Under `--touch` every press
-  is a finger. `--shot-of PATH file.png` pictures one view instead of the window. Look when there is
-  something to see, not after every edit. `look` is for
-  reaching a state to see it; whether a sequence of actions does what it should is a flow,
-  and a flow is an assert script.
+  is a finger. `--shot-of PATH file.png` pictures one view instead of the window. Look
+  when there is something to see, not after every edit. `look` is for reaching a state to
+  see it; whether a sequence of actions does what it should is a flow, and a flow is an
+  assert script.
 - **Check a whole flow with an assert script** for `npx declare-verify app.declare --assert
   flow.mjs` (`docs/operational/verify.md`): `drive` presses, types and waits as a person
   does, `expect` checks what is shown and what the program sent (`expect.request`). End
@@ -319,10 +290,13 @@ one answers.
   browser harness of your own; `page` in an assert script, and `declare-look --js`, answer
   what the vocabulary doesn't. Keep the scripts, and run them again after a change.
 - `npm start` serves a program at its file's path (`my-apps/app.declare` at
-  `http://127.0.0.1:8200/my-apps/app.declare`) for a person to use.
-- **Before you hand over a whole program, use it once as a person would.** Scroll a long list from end
-  to end, drag its scrollbar, resize the window, switch to dark mode and to touch. A
-  program can pass every check and still fail the first person who does one of these.
+  `http://127.0.0.1:8200/my-apps/app.declare`) for a person to use. When you tell the
+  person where to see the program, start it first: an address with nothing behind it is
+  the first thing they will try.
+- **Before you hand over a whole program, use it once as a person would.** Scroll a long
+  list from end to end, drag its scrollbar, resize the window, switch to dark mode and to
+  touch. A program can pass every check and still fail the first person who does one of
+  these.
 - **A whole program built to a brief or a spec: have a checker test it against it** before
   you hand it over — not for a change, an experiment or a small request. `npx declare-check --brief <the brief>
   --program app.declare --url <its address>` (and `--service <url>` for a service it talks
