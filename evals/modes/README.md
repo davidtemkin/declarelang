@@ -80,10 +80,22 @@ Venue, the brief's own acceptance (`evals/apps/venue-checkout/drive.mjs`) run ag
 enhancement must not cost what already worked. A Declare run also gets the idiom read and
 names ledger of a craft report, over the program as it stands at the end.
 
-The report is filed in `evals/reports/<date>-<eval>-<stack>-<n>/` with the turns ledger
-(`turns.md`, written by the driver), the final program, and the pictures the user judged
-by. As with craft runs, **filing ends the logs**: every analysis is run at filing and goes
-into the report, then the run directory is deleted.
+Pictures are taken two ways: the person's own, as they look (`logs/user/shots/`), and
+the harness's — a **frame** of the app as each turn leaves it, at the address the person
+last looked at, in their browser profile, on the device they are on by then
+(`logs/frames/`). Pictures are never filed.
+
+`bin/transcript.mjs <run-dir>` writes the conversation two ways:
+
+- `logs/conversation.html` — a page to look at, published as a private artifact: each
+  turn's message, the agent's reply, the frame and the person's pictures, the verdict,
+  and what each side spent (time, tool uses, tokens). For looking at, not keeping.
+- `logs/turns.md` — the same conversation as text, no pictures.
+
+The report is filed in `evals/reports/<date>-<eval>-<stack>-<n>/`, **text only**: the
+analysis, `turns.md`, and the final program. As with craft runs, **filing ends the
+logs**: every analysis is run at filing and goes into the report, then the run directory
+is deleted, pictures and all.
 
 ## Running one
 

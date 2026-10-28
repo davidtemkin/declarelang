@@ -34,7 +34,10 @@ const DECLARE = STACK.toLowerCase() === "declare";
 if (existsSync(RUN)) { console.error(`${RUN} exists — a run directory is always fresh`); process.exit(1); }
 
 const LOGS = join(RUN, "logs"), WORK = join(RUN, "work"), USER = join(LOGS, "user");
-for (const d of [LOGS, join(WORK, "task"), join(USER, "shots"), join(USER, "profile")]) mkdirSync(d, { recursive: true });
+// frames: the harness's own picture of the app at each turn's end — for the conversation
+// page (transcript.mjs), never filed: they go with the run directory
+const FRAMES = join(LOGS, "frames");
+for (const d of [LOGS, join(WORK, "task"), join(USER, "shots"), join(USER, "profile"), FRAMES]) mkdirSync(d, { recursive: true });
 const sh = (cmd, args, o = {}) => execFileSync(cmd, args, { stdio: ["ignore", "pipe", "pipe"], encoding: "utf8", ...o });
 const now = () => new Date().toISOString();
 const record = [];
@@ -127,19 +130,34 @@ function session(name, model, cwd, tools, env = {}) {
     "--tools", tools, "--allowedTools", tools, "--permission-mode", "acceptEdits", "--permission-prompts", "none", "--strict-mcp-config"],
     { cwd, stdio: ["pipe", "pipe", openSync(join(LOGS, `${name}.stderr`), "a")], env: { ...process.env, CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1", ...env } });
   let buf = "", waiting = null, lastText = "";
+  // this message's work: each API call once, by its message id, at its latest usage (the
+  // stream repeats it per part of a reply), and the tools it used, by name
+  let calls = new Map(), used = {};
+  const spent = () => {
+    const u = { fresh: 0, cached: 0, written: 0, output: 0, calls: calls.size };
+    for (const c of calls.values()) { u.fresh += c.input_tokens ?? 0; u.cached += c.cache_read_input_tokens ?? 0; u.written += c.cache_creation_input_tokens ?? 0; u.output += c.output_tokens ?? 0; }
+    return { spent: u, tools: used };
+  };
   p.stdout.on("data", (d) => {
     stream.write(d); buf += d; let i;
     while ((i = buf.indexOf("\n")) >= 0) {
       const line = buf.slice(0, i); buf = buf.slice(i + 1);
       let e; try { e = JSON.parse(line); } catch { continue; }
-      if (e.type === "assistant") for (const c of e.message?.content ?? []) if (c.type === "text") lastText = c.text;
-      if (e.type === "result" && waiting) { const w = waiting; waiting = null; w({ ...e, text: e.result ?? lastText }); }
+      if (e.type === "assistant") {
+        if (e.message?.id) calls.set(e.message.id, e.message.usage ?? {});
+        for (const c of e.message?.content ?? []) {
+          if (c.type === "text") lastText = c.text;
+          if (c.type === "tool_use") used[c.name] = (used[c.name] ?? 0) + 1;
+        }
+      }
+      if (e.type === "result" && waiting) { const w = waiting; waiting = null; w({ ...e, ...spent(), text: e.result ?? lastText }); }
     }
   });
-  p.on("exit", (code) => { if (waiting) { const w = waiting; waiting = null; w({ type: "exit", code, text: lastText }); } });
+  p.on("exit", (code) => { if (waiting) { const w = waiting; waiting = null; w({ type: "exit", code, ...spent(), text: lastText }); } });
   return {
     proc: p,
     say(text) {
+      calls = new Map(); used = {};
       return new Promise((r) => { waiting = r; p.stdin.write(JSON.stringify({ type: "user", message: { role: "user", content: [{ type: "text", text }] } }) + "\n"); });
     },
     end() { try { p.stdin.end(); } catch { /* gone */ } },
@@ -178,6 +196,21 @@ const jsonOf = (text) => {
   return null;
 };
 const followups = new Map();
+// The harness's picture of the app as the turn leaves it: the address the person last
+// looked at, in their own browser profile (their saved data), on the device they are on
+// by then — the latest intent reached that names one (`--phone`, `--dark`).
+let reached = 0;
+function frame(name, at) {
+  reached = Math.max(reached, at ?? 0);
+  if (!url) return;
+  const dev = ev.intents.slice(0, reached + 1).map((t) => t.device).filter(Boolean).pop() ?? "";
+  const flags = dev.match(/--phone|--dark/g) ?? [];
+  const file = join(FRAMES, `${name}.png`);
+  try {
+    sh("node", [join(HERE, "see.mjs"), url, ...flags, "--profile", join(USER, "profile"), `shot:${file}`], { timeout: 90_000 });
+    appendFileSync(ledger, JSON.stringify({ at: now(), role: "frame", name, file, device: flags.join(" ") || "laptop" }) + "\n");
+  } catch (e) { appendFileSync(ledger, JSON.stringify({ at: now(), role: "frame", name, error: String(e.message).split("\n")[0] }) + "\n"); }
+}
 let message = first, turn = 1, asking = 0, url = null;
 const maxTurns = ev.maxTurns ?? 10;
 let userPrimed = false;
@@ -186,15 +219,17 @@ while (message && turn <= maxTurns) {
   appendFileSync(ledger, JSON.stringify({ turn, at: now(), role: "person", asking, text: message }) + "\n");
   const r = await builder.say(message);
   const secs = Math.round((Date.now() - t0) / 1000);
-  appendFileSync(ledger, JSON.stringify({ turn, at: now(), role: "agent", secs, agentTurns: r.num_turns, usage: r.usage, durationMs: r.duration_ms, text: r.text }) + "\n");
+  appendFileSync(ledger, JSON.stringify({ turn, at: now(), role: "agent", secs, agentTurns: r.num_turns, spent: r.spent, tools: r.tools, durationMs: r.duration_ms, text: r.text }) + "\n");
   console.log(`turn ${turn}: the agent replied after ${secs}s (${r.num_turns ?? "?"} turns)`);
   if (r.type === "exit") break;
   const ask = `${userPrimed ? "" : userBrief + "\n\n---\n\n"}This is turn ${turn}. The agent replied:\n\n<<<\n${r.text}\n>>>\n\nLook at the app now, as you would, and answer with the JSON block.`;
   userPrimed = true;
+  const u0 = Date.now();
   const u = await user.say(ask);
   const j = jsonOf(u.text) ?? { verdict: "unreadable", next: null };
   if (j.url) url = j.url;
-  appendFileSync(ledger, JSON.stringify({ turn, at: now(), role: "verdict", ...j }) + "\n");
+  appendFileSync(ledger, JSON.stringify({ turn, at: now(), role: "verdict", userSecs: Math.round((Date.now() - u0) / 1000), userSpent: u.spent, userTools: u.tools, ...j }) + "\n");
+  frame(`t${turn}`, j.judged ?? asking);
   console.log(`turn ${turn}: request ${j.judged} ${j.verdict} — ${j.saw ?? ""}`);
   // the bounds: two follow-ups per request, then on
   if (j.next && j.followup) {
@@ -212,8 +247,9 @@ while (message && turn <= maxTurns) {
 }
 
 // ── the end: the person's summary, the acceptance where there is one, then stop ─
+frame("final", ev.intents.length - 1);
 const summary = await user.say(`The session is over. For each of your requests (0–${ev.intents.length - 1}), give your final verdict as it stands now (look again if you need to). Answer with one JSON block: {"final": [{"request": 0, "verdict": "done | partly | not done | never asked", "why": "…"}], "overall": "one or two sentences, as the person, on how it went"}.`);
-appendFileSync(ledger, JSON.stringify({ at: now(), role: "summary", ...(jsonOf(summary.text) ?? { text: summary.text }) }) + "\n");
+appendFileSync(ledger, JSON.stringify({ at: now(), role: "summary", userSpent: summary.spent, ...(jsonOf(summary.text) ?? { text: summary.text }) }) + "\n");
 if (ev.accept && url) {
   try {
     const out = sh("node", [join(REPO, ev.accept), url, `--service=http://127.0.0.1:${PORT}`, `--out=${join(LOGS, "accept")}`], { timeout: 900_000 });
@@ -239,5 +275,5 @@ await new Promise((r) => setTimeout(r, 3000));
 for (const s of [builder, user]) { try { process.kill(s.proc.pid); } catch { /* exited */ } }
 ended = true;
 appendFileSync(join(LOGS, "started.txt"), `ENDED=${now()}\nSERVICE_PID=${servicePid ?? "none"} (left up for scoring; stop it by pid once filed)\n`);
-console.log(`done — ${ledger}`);
+console.log(`done — ${ledger}\nthe conversation: node ${join(HERE, "transcript.mjs")} ${RUN}`);
 process.exit(0);
