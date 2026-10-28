@@ -1,0 +1,65 @@
+.reactions {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: -6px;
+  padding: 0 10px;
+}
+
+.row[data-face='true'] .reactions {
+  padding-left: 46px;
+}
+
+.row--mine .reactions {
+  justify-content: flex-end;
+}
+
+.reaction {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 26px;
+  padding: 0 7px;
+  border-radius: 13px;
+  background: var(--surface);
+  box-shadow: 0 0 0 1.5px var(--paper), 0 0 0 2.5px var(--theirs-edge);
+  font-size: 13px;
+  line-height: 1;
+  animation: reaction-in 320ms cubic-bezier(0.3, 1.5, 0.5, 1);
+}
+
+/* A larger target than it looks. */
+.reaction::after {
+  content: '';
+  position: absolute;
+  inset: -9px -2px;
+}
+
+.reaction {
+  position: relative;
+}
+
+.reaction[aria-pressed='true'] {
+  background: color-mix(in srgb, var(--mine) 14%, var(--surface));
+  box-shadow: 0 0 0 1.5px var(--paper), 0 0 0 2.5px color-mix(in srgb, var(--mine) 55%, transparent);
+  cursor: default;
+}
+
+.reaction__emoji {
+  font-size: 14px;
+}
+
+.reaction__count {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+
+@keyframes reaction-in {
+  from {
+    transform: scale(0.3);
+    opacity: 0;
+  }
+}

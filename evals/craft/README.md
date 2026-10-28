@@ -65,7 +65,6 @@ last report (and what the platform answered), and any reads of `library/` or `ru
 source. When the agent exits, the job stops and the run's report begins.
 - `tail.py [N]` — every tool call in order, or the last N.
 - `cost.py [N]` — cumulative tokens, and the tool results ranked by size.
-- `logs/checks.jsonl` — one line per checker the build started with `declare-check`: its question, verdict, time, turns, tokens and cost. A run's cost is the build's own plus these; report both.
 - `names.py <run-dir>` — the names ledger: every name a check refused, the platform's
   answer, and how it ended (below, report section 4).
 

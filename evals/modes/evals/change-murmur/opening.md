@@ -1,0 +1,1 @@
+This is my messaging app, Murmur, in `{{app}}`. Add search: I type a few words and see the matching messages from every conversation, newest first; picking one takes me to it in its conversation, highlighted, with the messages around it. Then let me step to the next and previous match.

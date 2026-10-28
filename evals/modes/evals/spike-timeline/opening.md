@@ -1,0 +1,1 @@
+Quick spike before I commit to anything: can we do a timeline of about 10,000 events that you can drag and zoom smoothly, from years down to hours? Make up the data. Just enough to see whether it works — I'll decide after.

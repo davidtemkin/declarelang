@@ -1,0 +1,1 @@
+This is my training log, Cadence, in `{{app}}`. Add weekly goals: let me set a goal per sport — like 3 runs, or 2 hours on the bike, a week — and show how I'm doing against it on the Today screen, and in the year which weeks I hit it. The goals can stay on this device; the service doesn't store them.

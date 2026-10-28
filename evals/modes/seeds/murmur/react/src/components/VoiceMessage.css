@@ -1,0 +1,137 @@
+.voice {
+  --voice-ink: var(--ink);
+  --voice-heard: var(--mine);
+  --voice-unheard: color-mix(in srgb, var(--ink) 22%, transparent);
+  --voice-button: var(--mine);
+  --voice-on-button: var(--on-mine);
+
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(300px, 74vw);
+  padding: 6px 14px 6px 6px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .voice {
+    --voice-heard: var(--on-mine-2);
+    --voice-button: var(--on-mine-2);
+    --voice-on-button: var(--theirs);
+  }
+}
+
+.bubble--mine .voice {
+  --voice-ink: var(--on-mine);
+  --voice-heard: var(--on-mine);
+  --voice-unheard: color-mix(in srgb, var(--on-mine) 32%, transparent);
+  --voice-button: var(--on-mine);
+  --voice-on-button: var(--mine);
+}
+
+.voice__play {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--voice-button);
+  color: var(--voice-on-button);
+  transition: transform 120ms;
+}
+
+.voice__play:active {
+  transform: scale(0.92);
+}
+
+.voice__play svg {
+  margin-left: 1px;
+}
+
+.voice[data-playing='true'] .voice__play svg {
+  margin-left: 0;
+}
+
+/* The waveform is the scrubber: it is as tall as a finger, and dragging
+   across it sideways is never mistaken for scrolling the conversation. */
+.voice__track {
+  position: relative;
+  flex: 1;
+  height: 44px;
+  cursor: pointer;
+  touch-action: pan-y;
+  border-radius: 6px;
+}
+
+.voice__bars {
+  position: absolute;
+  inset: 8px 0;
+  display: flex;
+  align-items: center;
+  gap: 1.5px;
+  overflow: hidden;
+}
+
+.voice__bar {
+  flex: 1;
+  min-width: 0;
+  height: calc(var(--peak) * 100%);
+  min-height: 3px;
+  border-radius: 2px;
+  background: var(--voice-unheard);
+  transition: background-color 80ms;
+}
+
+.voice__bar[data-heard='true'] {
+  background: var(--voice-heard);
+}
+
+/* The playhead: absent until there is a position to show. */
+.voice__head {
+  position: absolute;
+  top: 5px;
+  bottom: 5px;
+  left: calc(var(--progress) * 100%);
+  width: 2px;
+  margin-left: -1px;
+  border-radius: 1px;
+  background: var(--voice-heard);
+  opacity: 0;
+  transition: opacity 150ms;
+  pointer-events: none;
+}
+
+.voice__head::after {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  border-radius: 50%;
+  background: var(--voice-heard);
+  transform: scale(0.7);
+  transition: transform 150ms;
+}
+
+.voice[data-playing='true'] .voice__head,
+.voice[data-scrubbing='true'] .voice__head,
+.voice__track:focus-visible .voice__head,
+.voice__track[aria-valuenow]:not([aria-valuenow='0']) .voice__head {
+  opacity: 1;
+}
+
+.voice[data-scrubbing='true'] .voice__head::after {
+  transform: scale(1.3);
+}
+
+.voice__time {
+  flex: none;
+  min-width: 2.6em;
+  text-align: right;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  color: var(--voice-ink);
+  opacity: 0.75;
+}

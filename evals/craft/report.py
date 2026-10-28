@@ -19,6 +19,10 @@ if "--all" not in sys.argv and os.path.exists(STATE):
 reads, writes, runs, texts = [], [], [], []
 usage = {"output_tokens": 0, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0, "input_tokens": 0}
 turns, result, lines = 0, None, 0
+# the stream logs one event per part of a reply (thinking, text, each tool call), each
+# repeating that API call's usage: count every call once, by its message id, at its
+# latest usage (output grows as the reply streams)
+calls = {}
 for i, ln in enumerate(open(STREAM, errors="replace")):
     lines = i + 1
     try: j = json.loads(ln)
@@ -26,9 +30,7 @@ for i, ln in enumerate(open(STREAM, errors="replace")):
     t = j.get("type")
     if t == "assistant":
         m = j.get("message", {})
-        for k, v in (m.get("usage") or {}).items():
-            if k in usage and isinstance(v, int): usage[k] += v
-        turns += 1
+        calls[m.get("id") or i] = m.get("usage") or {}
         if i < start_line: continue
         for b in m.get("content", []):
             if b.get("type") == "tool_use":
@@ -53,6 +55,10 @@ if os.path.exists(STARTED):
 mins = (datetime.now(timezone.utc) - started).total_seconds() / 60 if started else 0
 quiet = (time.time() - os.path.getmtime(STREAM)) / 60
 
+for us in calls.values():
+    for key, v in us.items():
+        if key in usage and isinstance(v, int): usage[key] += v
+turns = len(calls)
 print(f"elapsed {mins:.1f} min · {turns} turns · output {usage['output_tokens']:,} tok · cache reads {usage['cache_read_input_tokens']:,} · stream quiet {quiet:.1f} min")
 if result:
     print(f"FINISHED: {'error' if result.get('is_error') else 'done'} · {result.get('num_turns')} turns · {(result.get('duration_ms') or 0)/60000:.1f} min")

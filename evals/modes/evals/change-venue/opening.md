@@ -1,0 +1,1 @@
+This is my Venue app, in `{{app}}`. I'd like a "best available" option: I say how many seats and the most I want to pay per seat, and it picks the best seats together for me, shows them on the plan, and I can take them or shift them along the row.

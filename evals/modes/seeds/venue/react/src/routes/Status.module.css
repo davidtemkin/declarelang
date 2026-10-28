@@ -1,0 +1,18 @@
+.status {
+  display: grid;
+  justify-items: center;
+  gap: 1rem;
+  padding: 6rem 0;
+  text-align: center;
+  color: var(--ink-2);
+}
+
+.title {
+  font: 500 var(--text-2xl) / 1.1 var(--font-serif);
+  color: var(--ink);
+}
+
+.message {
+  max-width: 30rem;
+  font-size: var(--text-lg);
+}

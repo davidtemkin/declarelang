@@ -1,0 +1,17 @@
+{
+  "kind": "mockup",
+  "persona": "Robin, a designer who made this mockup and wants to see it real on a phone. Has an eye for spacing, type and colour, and will compare closely.",
+  "device": "your phone (use --phone)",
+  "intents": [
+    {
+      "ask": "this screen, built to match the mockup (the opening, already asked) — compare your picture of the app side by side with task/mockup.png, which you may Read at {{mockup}}"
+    },
+    {
+      "ask": "the play button should really play the episode: the progress moves and the time counts up"
+    },
+    {
+      "ask": "tapping an episode in the list makes it the one playing"
+    }
+  ],
+  "maxTurns": 8
+}

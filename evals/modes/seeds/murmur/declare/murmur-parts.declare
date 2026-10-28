@@ -1,0 +1,142 @@
+/*
+# Murmur: the parts
+
+The look, kept apart from how the app works: the palette, the drawn marks,
+and the small pieces every screen is made of (an avatar, a round button, the
+voice waveform). `murmur.declare` includes this file.
+*/
+
+// ── Colors ──────────────────────────────────────────────────────────────────
+//
+// Laid over the library's `SanFrancisco` preset, so library controls (the
+// popover, the dialog) read the same paper. Ours are read by name:
+// `provided("theme").mine`.
+//
+// Paper, ink and one deep green. Your own words sit on the green; everyone
+// else's sit on white paper with a hairline. Persimmon is kept for one job
+// only: something new.
+
+theme Murmur [
+    background = #F4F1EA, surface = #FBFAF6, card = #FFFFFF,
+    line = #E3DED3, lineStrong = #CFC8BA, hover = #EEEAE1, selection = #E7E2D6,
+    text = #1C1B18, textMuted = #6B665C, textFaint = #9A9488,
+    accent = #1F4D45, linkColor = #1F4D45,
+    mine = #1F4D45, mineText = #F3F0E8, mineFaint = #9DB8B1,
+    theirs = #FFFFFF, theirsText = #1C1B18,
+    fresh = #D4572F, freshTint = #FBE9E1,
+    placeholder = #E6E1D6, scrim = #0E0D0B,
+
+    // A person's name in a group, and the disc behind their initials.
+
+    hues = [#B4532A, #2F6F8F, #7A5AA6, #3E7F4F, #A23E6B, #8A6D1F, #2B6E6A, #5A6B7D]
+    ]
+
+
+// ── Marks ───────────────────────────────────────────────────────────────────
+//
+// One pen for every mark: a round-ended stroke on the 16-unit icon grid.
+
+class Glyph extends Icon [
+    shape: string = "",
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.fillStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        if (shape == "back") {              // a chevron pointing back
+            d.moveTo(10, 2.5); d.lineTo(4.5, 8); d.lineTo(10, 13.5); d.stroke()
+        } else if (shape == "send") {       // an arrow rising
+            d.moveTo(8, 13.5); d.lineTo(8, 2.8); d.moveTo(3.5, 7.2); d.lineTo(8, 2.8); d.lineTo(12.5, 7.2); d.stroke()
+        } else if (shape == "down") {       // an arrow falling
+            d.moveTo(8, 2.5); d.lineTo(8, 13.2); d.moveTo(3.5, 8.8); d.lineTo(8, 13.2); d.lineTo(12.5, 8.8); d.stroke()
+        } else if (shape == "photo") {      // a frame with a hill and a sun
+            d.roundRect(1.8, 3, 12.4, 10, 2)
+            d.moveTo(2.5, 11.5); d.lineTo(6.2, 7.8); d.lineTo(9, 10.4); d.lineTo(10.6, 9); d.lineTo(13.6, 11.8)
+            d.stroke(); d.beginPath(); d.arc(10.6, 6.1, 1.2, 0, 6.3); d.fill()
+        } else if (shape == "play") {       // a solid triangle, nudged right to look centered
+            d.moveTo(5, 2.8); d.lineTo(13.2, 8); d.lineTo(5, 13.2); d.closePath(); d.fill()
+        } else if (shape == "pause") {      // two solid bars
+            d.roundRect(4, 3, 2.8, 10, 1); d.roundRect(9.2, 3, 2.8, 10, 1); d.fill()
+        } else if (shape == "react") {      // a face, and a small plus beside it
+            d.arc(7, 8.5, 5.5, 0, 6.3); d.stroke(); d.beginPath()
+            d.arc(7, 9, 2.6, 0.35, 2.8); d.stroke(); d.beginPath()
+            d.arc(5.2, 7, 0.7, 0, 6.3); d.arc(8.8, 7, 0.7, 0, 6.3); d.fill(); d.beginPath()
+            d.moveTo(13.5, 1); d.lineTo(13.5, 5); d.moveTo(11.5, 3); d.lineTo(15.5, 3); d.stroke()
+        } else if (shape == "close") {      // a cross
+            d.moveTo(3.5, 3.5); d.lineTo(12.5, 12.5); d.moveTo(12.5, 3.5); d.lineTo(3.5, 12.5); d.stroke()
+        }
+        }
+    ]
+
+
+// ── People ──────────────────────────────────────────────────────────────────
+//
+// A person's face, or, for someone with no picture (and while a picture is
+// still on its way), their initials on a disc in their own hue.
+
+class Avatar [ width = 36, height = { this.width }, cornerRadius = { this.width / 2 }, clip = true,
+    pid: string = "",
+    person: Person? = { app.convos.person(classroot.pid) },
+    fill = { app.hueOf(classroot.pid) },
+    accessibilityLabel = { classroot.person?.name ?? "" },
+    TextLabel [ x = center, fontSize = { classroot.width * 0.38 }, fontWeight = semibold, textColor = white,
+        visible = { !(classroot.pic?.loaded ?? false) },
+        text = { initials(classroot.person?.name ?? "") } ],
+    pic: Image [ exists = { (classroot.person?.avatar ?? "") != "" }, width = 100%, height = 100%, stretches = cover,
+        source = { app.media(classroot.person?.avatar ?? "") } ]
+    ]
+
+
+// ── Small controls ──────────────────────────────────────────────────────────
+
+// A round button holding one mark: back, the photo tray, send, jump down.
+
+class RoundButton extends Control [ width = { app.tap }, height = { this.width }, cornerRadius = { this.width / 2 },
+    shape: string = "",
+    tone: Color = { provided("theme").accent },
+    filled: boolean = false,
+    fill = { hovered || pressed ? provided("theme").hover : null },
+    State [ applied = { classroot.filled }, fill = { classroot.tone } ],
+    State [ applied = { classroot.disabled }, opacity = 0.35 ],
+    Glyph [ x = center, y = center, iconSize = { app.wide ? 17 : 19 }, weight = 1.9, shape = { classroot.shape },
+        ink = { classroot.filled ? provided("theme").mineText : classroot.tone } ]
+    ]
+
+
+// ── The voice waveform ──────────────────────────────────────────────────────
+//
+// The clip's loudness as bars, drawn from `peaks`. What has been heard is
+// drawn in full ink and what has not in a faint one, so the bars themselves
+// are the progress. While a clip is the one in hand, a thin playhead stands
+// at the point being heard.
+
+class Waveform [ height = 30,
+    peaks: number[] = [],
+    progress: number = 0,          // 0 to 1
+    active: boolean = false,
+    ink: Color = black,
+    faint: Color = gray,
+    draw(d: DrawContext) {
+        const n = Math.max(1, Math.floor(width / 3.5))
+        const step = width / n
+        const bar = Math.max(1.5, step * 0.58)
+        const mid = height / 2
+        for (let i = 0; i < n; i++) {
+            const p = peaks.length == 0 ? 0 : peaks[Math.min(peaks.length - 1, Math.floor(i * peaks.length / n))]
+            const h = Math.max(3, p * (height - 4))
+            d.fillStyle = (i + 0.5) / n <= progress ? ink : faint
+            d.beginPath()
+            d.roundRect(i * step + (step - bar) / 2, mid - h / 2, bar, h, bar / 2)
+            d.fill()
+            }
+        if (active) {
+            d.fillStyle = ink
+            d.beginPath()
+            d.roundRect(Math.min(width - 2, Math.max(0, progress * width - 1)), 0, 2, height, 1)
+            d.fill()
+            }
+        }
+    ]

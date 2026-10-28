@@ -1,0 +1,21 @@
+{
+  "kind": "change",
+  "seed": "venue",
+  "service": "venue-checkout",
+  "accept": "evals/apps/venue-checkout/drive.mjs",
+  "persona": "Morgan, who runs the box office's web shop. Tries changes on a laptop first, then on their phone, because most buyers use phones. An account for trying it: a@a.co, password pass (its saved card's security code is 123).",
+  "device": "a laptop",
+  "intents": [
+    {
+      "ask": "best available (the opening, already asked)"
+    },
+    {
+      "ask": "does it work on my phone too?",
+      "device": "your phone (use --phone)"
+    },
+    {
+      "ask": "and buying the seats it picked still works all the way to the tickets"
+    }
+  ],
+  "maxTurns": 8
+}

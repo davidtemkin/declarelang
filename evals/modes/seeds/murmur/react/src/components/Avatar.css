@@ -1,0 +1,60 @@
+.avatar {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  width: var(--size);
+  height: var(--size);
+  border-radius: 50%;
+  overflow: hidden;
+  background: oklch(0.86 0.05 var(--hue));
+  color: oklch(0.36 0.07 var(--hue));
+  font-size: calc(var(--size) * 0.38);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  user-select: none;
+}
+
+@media (prefers-color-scheme: dark) {
+  .avatar {
+    background: oklch(0.38 0.06 var(--hue));
+    color: oklch(0.88 0.05 var(--hue));
+  }
+}
+
+.avatar__image {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  transition: opacity 200ms ease-out;
+}
+
+.avatar__image[data-loaded='true'] {
+  opacity: 1;
+}
+
+.group-avatar {
+  position: relative;
+  display: inline-block;
+  flex: none;
+  width: var(--size);
+  height: var(--size);
+}
+
+.group-avatar__back {
+  position: absolute;
+  top: 0;
+  right: 0;
+}
+
+.group-avatar__front {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--surface);
+}

@@ -1,0 +1,117 @@
+:root {
+  --serif: ui-serif, 'New York', 'Iowan Old Style', 'Charter', Georgia, serif;
+  --sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+
+  --paper: #f4f1ea;
+  --surface: #fbfaf6;
+  --ink: #1d1c1a;
+  --ink-2: #5b5850;
+  --ink-3: #8c877c;
+  --rule: #e2ddd1;
+  --hover: #ece8de;
+  --selected: #e6e1d4;
+
+  /* Green is you; vermilion is new. Nothing else carries colour. */
+  --mine: #24473d;
+  --on-mine: #f4f1ea;
+  --on-mine-2: #b9cbc3;
+  --theirs: #ffffff;
+  --theirs-edge: #e4dfd3;
+  --new: #cf4b26;
+  --on-new: #fff8f3;
+
+  --shadow-float: 0 1px 2px rgb(40 30 10 / 0.08), 0 8px 24px rgb(40 30 10 / 0.14);
+
+  --msg-size: 16px;
+  --radius: 20px;
+  --radius-tight: 6px;
+
+  color-scheme: light dark;
+  font-family: var(--sans);
+  color: var(--ink);
+  background: var(--paper);
+  -webkit-font-smoothing: antialiased;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #161513;
+    --surface: #1c1b18;
+    --ink: #ece8df;
+    --ink-2: #a9a498;
+    --ink-3: #767168;
+    --rule: #2d2b27;
+    --hover: #25231f;
+    --selected: #2c2a25;
+
+    --mine: #34604f;
+    --on-mine: #f1efe8;
+    --on-mine-2: #b3cabf;
+    --theirs: #262521;
+    --theirs-edge: #2f2d29;
+    --new: #ec7249;
+    --on-new: #1b0f0a;
+
+    --shadow-float: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 28px rgb(0 0 0 / 0.5);
+  }
+}
+
+@media (min-width: 900px) {
+  :root {
+    --msg-size: 15px;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+  overscroll-behavior: none;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: pointer;
+}
+
+button:focus-visible,
+[tabindex]:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--mine);
+  outline-offset: 2px;
+}
+
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}

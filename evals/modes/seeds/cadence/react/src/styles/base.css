@@ -1,0 +1,241 @@
+/* Ink and paper, one accent, one type family. Size, weight and width do the
+   work that boxes and borders usually do. */
+
+:root {
+  --paper: #f1eee6;
+  --paper-2: #e7e3d8;
+  --ink: #121110;
+  --ink-2: color-mix(in srgb, var(--ink) 62%, transparent);
+  --ink-3: color-mix(in srgb, var(--ink) 34%, transparent);
+  --ink-bar: color-mix(in srgb, var(--ink) 72%, var(--paper));
+  --rule: color-mix(in srgb, var(--ink) 12%, transparent);
+  /* The accent means one thing: a hard session. */
+  --accent: #ff4a14;
+
+  --font: "Archivo Variable", "Archivo", system-ui, sans-serif;
+  --fs-xs: 0.75rem; /* 12px — the smallest text anywhere */
+  --fs-s: 0.9375rem;
+  --fs-m: 1.25rem;
+  --fs-l: clamp(2.25rem, 7vw, 3.5rem);
+  --fs-xl: clamp(3.5rem, 13vw, 6.5rem);
+  --fs-hero: clamp(5.75rem, 27vw, 13rem);
+
+  --gutter: clamp(1.25rem, 5vw, 3.5rem);
+  --tap: 3.5rem; /* 56px — comfortably a thumb */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --dock-h: calc(4.5rem + env(safe-area-inset-bottom));
+
+  color-scheme: light;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html {
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font);
+  font-size: var(--fs-s);
+  font-stretch: 100%;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: default; }
+
+:focus-visible {
+  outline: 3px solid var(--ink);
+  outline-offset: 3px;
+}
+
+h1, h2, h3, p, dl, dd, ol, ul, blockquote, figure { margin: 0; padding: 0; }
+ol, ul { list-style: none; }
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The small voice: every label, caption and axis. */
+.label {
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.unit {
+  font-size: 0.34em;
+  font-weight: 600;
+  font-stretch: 100%;
+  letter-spacing: 0.02em;
+  margin-left: 0.04em;
+}
+
+/* ── layout ─────────────────────────────────────────────────────────────── */
+
+.app {
+  padding: 0 var(--gutter) calc(var(--dock-h) + 2rem);
+  max-width: 90rem;
+  margin: 0 auto;
+  display: grid;
+  gap: clamp(3rem, 8vw, 5rem);
+}
+
+/* ── buttons ────────────────────────────────────────────────────────────── */
+
+.button {
+  min-height: var(--tap);
+  padding: 0 1.4rem;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: transparent;
+  font-weight: 700;
+  font-size: var(--fs-s);
+}
+.button:active { background: var(--ink); color: var(--paper); }
+.button--quiet { border-color: transparent; color: var(--ink-2); }
+.button--quiet.is-confirming { border-color: var(--ink); color: var(--ink); background: var(--paper-2); }
+
+.chip {
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 999px;
+  background: var(--paper-2);
+  font-weight: 650;
+}
+.chip.is-on { background: var(--ink); color: var(--paper); }
+.chip--wide { width: 100%; min-height: var(--tap); }
+
+/* ── the thumb's button ─────────────────────────────────────────────────── */
+
+.dock {
+  position: fixed;
+  inset: auto 0 0 0;
+  padding: 0.75rem var(--gutter) calc(0.75rem + env(safe-area-inset-bottom));
+  background: linear-gradient(to top, var(--paper) 60%, transparent);
+  pointer-events: none;
+  z-index: 10;
+}
+.dock__add {
+  pointer-events: auto;
+  width: 100%;
+  min-height: var(--tap);
+  border: 0;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 1.0625rem;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  box-shadow: 0 8px 24px -12px rgb(0 0 0 / 0.5);
+  transition: transform 120ms var(--ease-out);
+}
+.dock__add:active { transform: scale(0.98); }
+.dock__plus { font-size: 1.6em; line-height: 0; font-weight: 400; }
+
+/* At a desk the button sits at the top, by the date, out of the chart's way. */
+@media (min-width: 900px) {
+  .dock {
+    position: absolute;
+    inset: 0.5rem max(var(--gutter), calc((100% - 90rem) / 2 + var(--gutter))) auto auto;
+    background: none;
+    padding: 0;
+  }
+  .dock__add { width: auto; padding: 0 1.75rem; min-height: 3rem; box-shadow: none; }
+  .app { padding-bottom: 4rem; }
+  .toast { bottom: 1.5rem; }
+}
+
+/* ── toast ──────────────────────────────────────────────────────────────── */
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--dock-h) + 0.75rem);
+  translate: -50% 0;
+  width: min(calc(100% - 2 * var(--gutter)), 30rem);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.5rem 0.5rem 0.5rem 1.25rem;
+  border-radius: 1rem;
+  background: var(--ink);
+  color: var(--paper);
+  font-weight: 600;
+  z-index: 20;
+  animation: toast-in 280ms var(--ease-out);
+}
+.toast__undo {
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  border: 0;
+  border-radius: 0.75rem;
+  background: color-mix(in srgb, var(--paper) 16%, transparent);
+  font-weight: 750;
+}
+@keyframes toast-in { from { opacity: 0; transform: translateY(1rem); } }
+
+/* ── loading & failure ──────────────────────────────────────────────────── */
+
+.status {
+  min-height: 100dvh;
+  display: grid;
+  place-content: center;
+  gap: 1rem;
+  padding: var(--gutter);
+  text-align: center;
+  justify-items: center;
+}
+.status__big {
+  font-size: var(--fs-xl);
+  font-weight: 850;
+  font-stretch: 70%;
+  line-height: 0.9;
+  letter-spacing: -0.02em;
+}
+.status[aria-busy="true"] .status__big { color: var(--ink-3); }
+
+.form__error {
+  color: var(--ink);
+  background: var(--paper-2);
+  border-left: 4px solid var(--ink);
+  padding: 0.6rem 0.9rem;
+  font-weight: 600;
+}
+
+/* ── effort meter ───────────────────────────────────────────────────────── */
+
+.meter { display: inline-flex; gap: 3px; align-items: flex-end; }
+.meter__tick {
+  width: 6px;
+  height: 14px;
+  border-radius: 1px;
+  background: var(--rule);
+}
+.meter--large .meter__tick { width: 12px; height: 28px; border-radius: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}

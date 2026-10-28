@@ -1,0 +1,207 @@
+.today {
+  display: grid;
+  gap: 2.25rem;
+  grid-template-areas: "mast" "week" "streak" "shape" "recent";
+}
+
+.masthead {
+  grid-area: mast;
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  padding-top: 1.25rem;
+}
+.masthead__mark {
+  font-weight: 850;
+  font-stretch: 75%;
+  font-size: var(--fs-m);
+  letter-spacing: -0.01em;
+}
+.masthead__date { font-size: var(--fs-xs); font-weight: 650; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-2); }
+
+/* ── this week: the answer, from across the room ────────────────────────── */
+
+.today__week { grid-area: week; display: grid; gap: 0.5rem; }
+
+.headline {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.18em;
+  font-size: var(--fs-hero);
+  line-height: 0.84;
+}
+.headline__fig {
+  font-weight: 850;
+  font-stretch: 66%;
+  letter-spacing: -0.035em;
+}
+.headline__fig .unit { font-size: 0.3em; margin-right: 0.08em; }
+.headline__word {
+  font-size: clamp(1.25rem, 4.6vw, 2.25rem);
+  font-weight: 600;
+  font-stretch: 100%;
+  letter-spacing: -0.01em;
+}
+.today__aside { color: var(--ink-2); font-weight: 550; }
+
+/* ── the streak ─────────────────────────────────────────────────────────── */
+
+.today__streak { grid-area: streak; display: grid; gap: 0.35rem; }
+.streak { display: flex; align-items: baseline; gap: 0.25em; line-height: 0.85; }
+.streak__fig {
+  font-size: var(--fs-xl);
+  font-weight: 850;
+  font-stretch: 66%;
+  letter-spacing: -0.03em;
+}
+.streak__word, .streak__none {
+  font-size: var(--fs-m);
+  font-weight: 650;
+}
+.streak__none { font-size: var(--fs-l); font-weight: 800; font-stretch: 75%; color: var(--ink-2); }
+
+/* ── the week's shape ───────────────────────────────────────────────────── */
+
+.shape { grid-area: shape; display: grid; gap: 0.75rem; }
+.shape__days {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: clamp(0.25rem, 1.5vw, 0.75rem);
+}
+.shape__hit {
+  width: 100%;
+  height: clamp(10rem, 40vw, 13rem);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.4rem;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: center;
+}
+.shape__value {
+  font-size: var(--fs-xs);
+  font-weight: 750;
+  white-space: nowrap;
+  padding-bottom: 0.2rem;
+}
+.shape__track {
+  flex: 1;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+  border-bottom: 2px solid var(--ink);
+}
+.shape__bar {
+  display: block;
+  border-radius: 3px 3px 0 0;
+  transition: height 600ms var(--ease-out), background-color 300ms;
+}
+@starting-style {
+  .shape__bar { height: 0 !important; }
+}
+.shape__name {
+  font-size: var(--fs-xs);
+  font-weight: 650;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.is-today .shape__name { color: var(--ink); font-weight: 850; }
+.is-today .shape__track { border-bottom-width: 5px; }
+.is-future .shape__track { border-bottom: 2px dotted var(--ink-3); }
+.is-future .shape__name { color: var(--ink-3); }
+
+/* ── recent: the one running now, and the last one finished ─────────────── */
+
+.today__recent { grid-area: recent; display: grid; gap: 1rem; align-content: start; }
+
+.live {
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: 1.25rem;
+  padding: 1.25rem 1.5rem 1.4rem;
+  display: grid;
+  gap: 0.3rem;
+}
+.live__status {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: var(--fs-xs);
+  font-weight: 750;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+/* The pulse says one thing: this is happening now. */
+.live__pulse {
+  width: 0.7rem;
+  height: 0.7rem;
+  border-radius: 50%;
+  background: var(--paper);
+  animation: pulse 1.6s ease-out infinite;
+}
+@keyframes pulse {
+  0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--paper) 60%, transparent); }
+  100% { box-shadow: 0 0 0 0.8rem transparent; }
+}
+.live__clock {
+  font-size: var(--fs-xl);
+  font-weight: 850;
+  font-stretch: 66%;
+  line-height: 0.9;
+  letter-spacing: -0.02em;
+}
+.live__meta { display: flex; gap: 1.25rem; font-weight: 650; color: color-mix(in srgb, var(--paper) 75%, transparent); }
+
+.last {
+  display: grid;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 1rem 0 0;
+  border: 0;
+  border-top: 2px solid var(--ink);
+  background: none;
+  text-align: left;
+}
+.last__main {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.4em;
+  font-size: var(--fs-l);
+  line-height: 1;
+}
+.last__sport { font-weight: 850; font-stretch: 75%; letter-spacing: -0.01em; }
+.last__fig { font-weight: 500; font-stretch: 75%; }
+.last__fig--dim { color: var(--ink-2); }
+.last__how {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  font-weight: 600;
+  color: var(--ink-2);
+}
+
+/* ── at a desk: the same answers, arranged across the width ─────────────── */
+
+@media (min-width: 900px) {
+  .today {
+    grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr);
+    grid-template-areas:
+      "mast   mast"
+      "week   streak"
+      "week   shape"
+      "recent shape";
+    column-gap: clamp(3rem, 6vw, 6rem);
+    padding-top: 0.5rem;
+    row-gap: 2.5rem;
+  }
+  .masthead { padding-right: 13rem; }
+  .masthead__date { margin-left: auto; }
+  .headline { font-size: clamp(8rem, 13vw, 13rem); }
+  .today__streak { align-self: end; }
+}

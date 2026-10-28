@@ -1,0 +1,130 @@
+.dialog {
+  width: min(26rem, calc(100vw - 2rem));
+  max-height: calc(100svh - 2rem);
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--paper-raised);
+  color: var(--ink);
+  box-shadow: 0 24px 64px rgb(23 19 15 / 0.28);
+}
+
+.dialog::backdrop {
+  background: rgb(23 19 15 / 0.45);
+}
+
+.dialog[open] {
+  animation: rise 220ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+/* On a phone, a sheet from the bottom edge, within reach of a thumb. */
+@media (max-width: 34rem) {
+  .dialog {
+    width: 100vw;
+    max-width: none;
+    margin: auto 0 0;
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+.form {
+  display: grid;
+  gap: 1.125rem;
+  padding: 1.75rem 1.5rem 1.5rem;
+}
+
+.head {
+  display: grid;
+  gap: 0.375rem;
+}
+
+.title {
+  font: 600 var(--text-xl) / 1.15 var(--font-serif);
+  letter-spacing: -0.01em;
+}
+
+.lede {
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+}
+
+.field {
+  display: grid;
+  gap: 0.375rem;
+}
+
+.field label {
+  font-weight: 600;
+  font-size: var(--text-sm);
+}
+
+.field input {
+  width: 100%;
+  min-height: 3rem;
+  padding: 0 0.875rem;
+  border: 1.5px solid var(--rule-strong);
+  border-radius: var(--radius);
+  background: #fff;
+  font-size: max(16px, var(--text-base));
+}
+
+.field input:focus {
+  outline: none;
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px rgb(29 25 22 / 0.12);
+}
+
+.field input[aria-invalid='true'] {
+  border-color: var(--error);
+}
+
+.password {
+  position: relative;
+}
+
+.password input {
+  padding-right: 4.5rem;
+}
+
+.reveal {
+  position: absolute;
+  inset: 0.375rem 0.375rem 0.375rem auto;
+  min-width: 3.75rem;
+  padding: 0 0.75rem;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--ink-2);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.reveal:hover {
+  background: var(--paper);
+}
+
+.error {
+  color: var(--error);
+  font-weight: 550;
+  font-size: var(--text-sm);
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+}
+
+.actions > :first-child {
+  flex: 1;
+}

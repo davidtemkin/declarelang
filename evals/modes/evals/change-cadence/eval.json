@@ -1,0 +1,19 @@
+{
+  "kind": "change",
+  "seed": "cadence",
+  "service": "cadence",
+  "persona": "Riley, 29, trains five times a week and logs sessions on their phone right after. Not technical.",
+  "device": "your phone (use --phone)",
+  "intents": [
+    {
+      "ask": "weekly goals (the opening, already asked)"
+    },
+    {
+      "ask": "let me change a goal, or drop one"
+    },
+    {
+      "ask": "the goals should still be there when I come back tomorrow"
+    }
+  ],
+  "maxTurns": 8
+}

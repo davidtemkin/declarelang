@@ -1,0 +1,189 @@
+.row {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  padding-top: var(--space);
+}
+
+.row--mine {
+  align-items: flex-end;
+}
+
+.row__name {
+  max-width: 80%;
+  margin: 0 0 3px 50px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12.5px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: oklch(0.48 0.1 var(--hue));
+}
+
+@media (prefers-color-scheme: dark) {
+  .row__name {
+    color: oklch(0.78 0.09 var(--hue));
+  }
+}
+
+.row__line {
+  display: flex;
+  align-items: flex-end;
+  gap: 8px;
+  width: 100%;
+}
+
+.row--mine .row__line {
+  justify-content: flex-end;
+}
+
+.row__face {
+  flex: none;
+  width: 28px;
+  display: flex;
+}
+
+.row__stack {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: min(80%, 540px);
+}
+
+.row--mine .row__stack {
+  flex-direction: row-reverse;
+}
+
+/* —— Bubbles —— */
+
+.bubble {
+  position: relative;
+  min-width: 0;
+  max-width: 100%;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.bubble--theirs {
+  background: var(--theirs);
+  box-shadow: inset 0 0 0 1px var(--theirs-edge);
+}
+
+.bubble--mine {
+  background: var(--mine);
+  color: var(--on-mine);
+}
+
+/* A run of messages from one person reads as one voice: the corners on
+   their side close up between bubbles. */
+.row--theirs:not([data-run-start='true']) .bubble {
+  border-top-left-radius: var(--radius-tight);
+}
+.row--theirs:not([data-run-end='true']) .bubble {
+  border-bottom-left-radius: var(--radius-tight);
+}
+.row--mine:not([data-run-start='true']) .bubble {
+  border-top-right-radius: var(--radius-tight);
+}
+.row--mine:not([data-run-end='true']) .bubble {
+  border-bottom-right-radius: var(--radius-tight);
+}
+
+.bubble__text {
+  margin: 0;
+  padding: 8px 14px 9px;
+  font-size: var(--msg-size);
+  line-height: 1.38;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.bubble--photo {
+  background: none;
+  box-shadow: none;
+}
+
+.bubble__photo {
+  display: block;
+  cursor: zoom-in;
+}
+
+.bubble--photo.bubble--theirs::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.06);
+  pointer-events: none;
+}
+
+.bubble[data-pending='true'] {
+  animation: bubble-pending 400ms 800ms both;
+}
+
+@keyframes bubble-pending {
+  to {
+    opacity: 0.6;
+  }
+}
+
+@media (hover: none) {
+  .bubble {
+    -webkit-touch-callout: none;
+    user-select: none;
+  }
+}
+
+/* —— React affordance, for pointers that can hover —— */
+
+.row__react {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  color: var(--ink-3);
+  opacity: 0;
+  transition: opacity 120ms, background-color 120ms;
+}
+
+.row:hover .row__react,
+.row__react:focus-visible {
+  opacity: 1;
+}
+
+.row__react:hover {
+  background: var(--hover);
+  color: var(--ink-2);
+}
+
+@media (hover: none) {
+  .row__react {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+  }
+}
+
+/* —— Who has read this far —— */
+
+.row__seen {
+  align-self: flex-end;
+  display: flex;
+  gap: 3px;
+  margin-top: 5px;
+  padding-right: 2px;
+  animation: seen-in 300ms ease-out;
+}
+
+@keyframes seen-in {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+}

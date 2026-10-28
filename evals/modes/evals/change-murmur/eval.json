@@ -1,0 +1,19 @@
+{
+  "kind": "change",
+  "seed": "murmur",
+  "service": "murmur",
+  "persona": "Casey, 38, has years of messages and is always looking for something someone said. Uses it on a laptop.",
+  "device": "a laptop",
+  "intents": [
+    {
+      "ask": "search (the opening, already asked)"
+    },
+    {
+      "ask": "I'd like to do all of that from the keyboard — a key to start searching, arrows through the results"
+    },
+    {
+      "ask": "and the rest still works as before: sending, reactions, the photos"
+    }
+  ],
+  "maxTurns": 8
+}

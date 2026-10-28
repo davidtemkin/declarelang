@@ -1,0 +1,442 @@
+.page {
+  padding-top: 1.25rem;
+}
+
+.intro {
+  display: grid;
+  gap: 0.25rem;
+  padding-bottom: 1.25rem;
+}
+
+.back {
+  justify-self: start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-height: 2.75rem;
+  margin-left: -0.375rem;
+  padding-right: 0.5rem;
+  color: var(--ink-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.back svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.title {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  column-gap: 0.75rem;
+  font: 500 var(--text-2xl) / 1.1 var(--font-serif);
+  letter-spacing: -0.02em;
+}
+
+.time {
+  color: var(--ink-2);
+}
+
+.meta {
+  color: var(--ink-2);
+}
+
+.layout {
+  display: grid;
+  /* minmax(0, …) so a zoomed-in house scrolls inside its frame instead of widening the page. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1.25rem;
+}
+
+/* On a phone the house runs edge to edge. */
+.map {
+  min-width: 0;
+  margin-inline: calc(var(--gutter) * -1);
+}
+
+.map > div {
+  border-radius: 0;
+}
+
+/* Key */
+
+.key {
+  display: grid;
+  gap: 1rem;
+  align-content: start;
+}
+
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1.25rem;
+  font-size: var(--text-sm);
+  font-weight: 550;
+}
+
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* Small chairs, drawn as in the house so the key reads without its words. */
+.chair {
+  display: inline-grid;
+  place-items: center;
+  width: 1.375rem;
+  height: 1.375rem;
+  border-radius: 6px;
+  background: var(--house);
+}
+
+.chair::before {
+  content: '';
+  grid-area: 1 / 1;
+  width: 64%;
+  height: 58%;
+  border-radius: 32% 32% 24% 24%;
+  background: #f4e5c6;
+}
+
+.chair[data-state='mine']::before {
+  width: 76%;
+  height: 70%;
+  background: var(--accent-bright);
+}
+
+.chair[data-state='mine'] svg {
+  grid-area: 1 / 1;
+  position: relative;
+  width: 62%;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.chair[data-state='sold']::before {
+  width: 32%;
+  height: 32%;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px #7a6d5e;
+}
+
+.prices {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--text-sm);
+}
+
+.prices th,
+.prices td {
+  padding: 0.5rem 0;
+  border-top: 1px solid var(--rule);
+  text-align: left;
+  font-weight: 500;
+}
+
+.prices th {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  font-weight: 600;
+}
+
+.prices td {
+  text-align: right;
+  font-weight: 650;
+}
+
+.prices td.left {
+  width: 6.5rem;
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.swatch {
+  width: 0.75rem;
+  height: 0.75rem;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px rgb(0 0 0 / 0.12);
+}
+
+.swatch[data-section='ORCH'] {
+  background: #f4e5c6;
+  box-shadow: inset 0 0 0 1px #c8b48c;
+}
+.swatch[data-section='GT'] {
+  background: #dccaa7;
+}
+.swatch[data-section='DC'] {
+  background: #bcab8b;
+}
+.swatch[data-section='BALC'] {
+  background: #9a8c74;
+}
+
+/* Selection: a bar along the bottom edge on a phone, a panel at a desk. */
+
+.selection {
+  position: sticky;
+  bottom: 0;
+  z-index: 10;
+  display: grid;
+  margin-inline: calc(var(--gutter) * -1);
+  padding: 0.75rem var(--gutter) calc(0.75rem + env(safe-area-inset-bottom));
+  background: var(--paper-raised);
+  box-shadow:
+    0 -1px 0 var(--rule),
+    0 -12px 32px rgb(23 19 15 / 0.08);
+}
+
+.selectionTitle {
+  composes: visually-hidden from global;
+}
+
+/* Always in the page, so its live region is there before a notice arrives. */
+.notice {
+  display: flex;
+}
+
+.notice[data-visible] {
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding: 0.625rem 0.5rem 0.625rem 0.875rem;
+  border-radius: var(--radius);
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+  animation: arrive 260ms ease-out;
+}
+
+.noticeText {
+  flex: 1;
+  padding-top: 0.125rem;
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+@keyframes arrive {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
+.dismiss,
+.remove {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  margin: -0.25rem 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+
+.dismiss svg,
+.remove svg {
+  width: 0.875rem;
+  height: 0.875rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
+
+@media (hover: hover) {
+  .remove:hover,
+  .dismiss:hover {
+    background: rgb(29 25 22 / 0.06);
+  }
+}
+
+.chosen {
+  display: grid;
+  max-height: 40svh;
+  overflow: auto;
+  margin-bottom: 0.75rem;
+}
+
+.chosen li {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--rule);
+  font-size: var(--text-sm);
+}
+
+.chosenName {
+  display: grid;
+  font-weight: 600;
+}
+
+.chosenSection {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  min-height: 3rem;
+}
+
+.summary {
+  flex: 1;
+  display: grid;
+  min-width: 0;
+}
+
+.summaryToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  justify-self: start;
+  margin: -0.25rem -0.5rem;
+  padding: 0.25rem 0.5rem;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+}
+
+.caret {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: var(--ink-2);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 200ms ease-out;
+}
+
+.summaryToggle[aria-expanded='false'] .caret {
+  transform: rotate(180deg);
+}
+
+.count {
+  font-size: var(--text-lg);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  animation: tick 240ms cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
+@keyframes tick {
+  from {
+    opacity: 0.2;
+    transform: translateY(0.35em);
+  }
+}
+
+.fees {
+  color: var(--ink-3);
+  font-size: var(--text-xs);
+}
+
+.empty {
+  color: var(--ink-2);
+  font-weight: 550;
+}
+
+.pointerOnly {
+  display: none;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .touchOnly {
+    display: none;
+  }
+  .pointerOnly {
+    display: inline;
+  }
+}
+
+.continue {
+  flex: none;
+  min-width: 8.5rem;
+}
+
+@media (min-width: 40rem) {
+  .map {
+    margin-inline: 0;
+  }
+  .map > div {
+    border-radius: var(--radius-lg);
+  }
+}
+
+@media (min-width: 60rem) {
+  .layout {
+    grid-template-columns: minmax(0, 1fr) 20rem;
+    grid-template-rows: auto 1fr;
+    align-items: start;
+    column-gap: 2rem;
+  }
+
+  .map {
+    grid-row: 1 / span 2;
+  }
+
+  .key {
+    grid-column: 2;
+  }
+
+  .selection {
+    grid-column: 2;
+    position: sticky;
+    top: calc(var(--header-height) + 1.5rem);
+    bottom: auto;
+    margin: 0;
+    padding: 1.25rem;
+    border-radius: var(--radius-lg);
+    box-shadow:
+      0 0 0 1px var(--rule),
+      0 8px 24px rgb(23 19 15 / 0.05);
+  }
+
+  .selectionTitle {
+    position: static !important;
+    width: auto;
+    height: auto;
+    margin: 0 0 0.5rem;
+    overflow: visible;
+    clip: auto;
+    white-space: normal;
+    font: 600 var(--text-lg) / 1.2 var(--font-serif);
+  }
+
+  .bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.875rem;
+    padding-top: 0.25rem;
+  }
+
+  .continue {
+    width: 100%;
+  }
+}

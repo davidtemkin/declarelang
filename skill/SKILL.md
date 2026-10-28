@@ -11,9 +11,7 @@ surest way to be wrong.
 
 Learning it comes first: the reading below. When there is a program to write, the work
 then goes in this order: plan, check the plan against what Declare handles for you,
-write, then check the program and look at it running — and when a whole program was
-built to a brief, have a checker test it against the brief before you hand it over
-(§ Checking and looking).
+write, then check the program and look at it running (§ Checking and looking).
 
 ## Read first, in order
 
@@ -297,15 +295,6 @@ one answers.
   list from end to end, drag its scrollbar, resize the window, switch to dark mode and to
   touch. A program can pass every check and still fail the first person who does one of
   these.
-- **A whole program built to a brief or a spec: have a checker test it against it** before
-  you hand it over — not for a change, an experiment or a small request. `npx declare-check --brief <the brief>
-  --program app.declare --url <its address>` (and `--service <url>` for a service it talks
-  to). A second agent, started fresh and knowing nothing of how you built it, reads the
-  brief, checks each requirement it can — most important first — and reports each as
-  passed, failed or unchecked, with the program line for what failed. It waits up
-  to 100 s, then prints an id for `npx declare-check --wait <id>`.
-  Fix what failed, rerun the scripts it saved (`checks/`), and for what it did not reach,
-  ask again with `--continue <id>`. (`docs/operational/checking.md`)
 - **When it runs but is wrong**, don't re-read the source to guess: ask the running program
   why a value is what it is, which view is under a point, where a value came from
   (`05-run-and-check.md` § Debugging a running program; `docs/operational/introspection.md`).

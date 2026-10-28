@@ -1,0 +1,446 @@
+/*
+# The Venue: the hall
+
+The seat map: the records (`Hall`, the service's seat map with its own rules),
+the geometry that lays the Grand Hall out as a room, and the views drawn from
+it — the seats, the row letters, the stage and the floors, and the phone's
+overview of the whole house.
+
+The house is laid out in **units of one seat**. A row of `n` seats is centred
+on the hall's axis and bowed, so its ends come round towards the stage the way
+real rows do; sections follow one another back from the stage with a gap for
+their name. `app.pitch` turns units into points: at a desk the whole house
+fits, on a phone it is a close-up big enough for a thumb, with the overview
+beside it.
+*/
+
+script {
+    const STAGE_UNITS = 3.2      // the stage, at the top
+    const LABEL_UNITS = 1.7      // room above each section for its name
+    const ROW_UNITS = 0.92       // one row back
+    const GAP_UNITS = 2.1        // between sections
+    const BOW = 0.0042           // how far a row bows: its middle sits BOW·x² behind its ends
+    const SIDE_UNITS = 2.6       // either side of the widest row, for the row letters
+
+    // The house's width in units, from its widest row.
+    function hallUnitsW(widest: number): number { return widest + SIDE_UNITS * 2 }
+
+    // Where a seat sits, in units: across, then back from the stage. Seats are
+    // numbered left to right as seen from the stage, so seat 1 is on the right
+    // of a plan that has the stage at its top.
+    function seatUnitX(w: number, n: number, i: number): number { return w / 2 + ((n - 1) / 2 - i) }
+    function bowAt(w: number, ux: number, widest: number): number {
+        const half = widest / 2, dx = ux - w / 2
+        return BOW * (half * half - dx * dx)
+    }
+    function rowUnitY(top: number, r: number): number { return top + r * ROW_UNITS }
+
+    // Each section's top, and the house's depth, from the rows per section.
+    function sectionTops(rows: number[], widest: number): number[] {
+        const half = widest / 2
+        let t = STAGE_UNITS + LABEL_UNITS
+        return rows.map((n) => {
+            const top = t
+            t = top + n * ROW_UNITS + BOW * half * half + GAP_UNITS
+            return top
+        })
+    }
+    function hallUnitsH(rows: number[], widest: number): number {
+        const tops = sectionTops(rows, widest)
+        const half = widest / 2
+        if (tops.length == 0) return STAGE_UNITS
+        return tops[tops.length - 1] + rows[rows.length - 1] * ROW_UNITS + BOW * half * half + 0.6
+    }
+    function stageUnits(): number { return STAGE_UNITS }
+    function labelUnits(): number { return LABEL_UNITS }
+    function rowUnits(): number { return ROW_UNITS }
+    }
+
+
+// ── The records ─────────────────────────────────────────────────────────────
+//
+// The seat map for one performance, as the service sends it, and what is true
+// of it whoever is looking: where each seat is, what it costs, how full the
+// house is, and the one write other people's purchases make — a seat gone.
+
+class Hall extends DataSource [ autoFetch = true, schema = SeatMap,
+
+    sections() -> Section[] { return this.value?.sections ?? [] },
+
+    widest: number = { Math.max(1, ...classroot.sections().flatMap((s) => s.rows.map((r) => r.seats.length))) },
+    rowCounts: number[] = { classroot.sections().map((s) => s.rows.length) },
+    unitsW: number = { hallUnitsW(classroot.widest) },
+    unitsH: number = { hallUnitsH(classroot.rowCounts, classroot.widest) },
+    tops: number[] = { sectionTops(classroot.rowCounts, classroot.widest) },
+
+    seatCount: number = { classroot.sections().reduce((n, s) => n + s.rows.reduce((m, r) => m + r.seats.length, 0), 0) },
+    freeCount: number = {
+        classroot.sections().reduce((n, s) => n + s.rows.reduce((m, r) => m + r.seats.filter((x) => x.status == "available").length, 0), 0)
+        },
+
+    // A seat by id, with what checkout needs to show it.
+
+    find(id: string) -> Chosen? {
+        for (const s of this.sections()) {
+            for (const r of s.rows) {
+                const seat = r.seats.find((x) => x.id == id)
+                if (seat != null) return ({ id: id, section: s.name, row: r.name, number: seat.number,
+                    priceCents: s.priceCents, feeCents: s.feeCents })
+                }
+            }
+        return null
+        },
+    isFree(id: string) -> boolean {
+        for (const s of this.sections()) for (const r of s.rows) {
+            const seat = r.seats.find((x) => x.id == id)
+            if (seat != null) return seat.status == "available"
+            }
+        return false
+        },
+
+    // Someone else bought it.
+
+    markSold(id: string) {
+        this.sections().forEach((s, si) => s.rows.forEach((r, ri) => {
+            const i = r.seats.findIndex((x) => x.id == id)
+            if (i >= 0 && r.seats[i].status != "sold") this.set(["sections", si, "rows", ri, "seats", i, "status"], "sold")
+            }))
+        },
+
+    // The seat an arrow key moves to: along the row as it looks on the plan, or to
+    // the nearest free seat in the row in front or behind.
+
+    neighbour(id: string, dir: string) -> string {
+        const rows = this.sections().flatMap((s) => s.rows)
+        const ri = rows.findIndex((r) => r.seats.some((x) => x.id == id))
+        if (ri < 0) return ""
+        const row = rows[ri]
+        const i = row.seats.findIndex((x) => x.id == id)
+        if (dir == "left" || dir == "right") {
+            // seat 1 is on the right of the plan, so the plan's left is further along the row
+            const step = dir == "left" ? 1 : -1
+            for (let j = i + step; j >= 0 && j < row.seats.length; j += step) {
+                if (row.seats[j].status == "available") return row.seats[j].id
+                }
+            return ""
+            }
+        const at = seatUnitX(this.unitsW, row.seats.length, i)
+        const step = dir == "up" ? -1 : 1
+        for (let k = ri + step; k >= 0 && k < rows.length; k += step) {
+            let best = "", dist = 1e9
+            rows[k].seats.forEach((x, j) => {
+                const d = Math.abs(seatUnitX(this.unitsW, rows[k].seats.length, j) - at)
+                if (x.status == "available" && d < dist) { dist = d; best = x.id }
+                })
+            if (best != "") return best
+            }
+        return ""
+        }
+    ]
+
+
+// ── The seats ───────────────────────────────────────────────────────────────
+//
+// A seat is a control: a press or Space chooses it, and again unchooses it.
+// Its three states differ in shape as well as colour, so they read with the
+// legend covered and to someone who can't tell red from grey:
+//
+//   free   — a solid disc, darker the better the section
+//   theirs — a larger disc in the accent, with a white tick
+//   gone   — a small hollow ring, faint
+//
+// Choosing pops the disc on a spring; a seat someone else takes shrinks into
+// its ring, so it is seen to go.
+
+class SeatMark extends Control [
+    seatId: string = { :id ?? "" },
+    num: number = { :number ?? 0 },
+    sold: boolean = { (:status ?? "sold") != "available" },
+
+    // set by the row that places it
+
+    section: string = "",
+    row: string = "",
+    price: number = 0,
+    tone: Color = gray,
+    count: number = 1,
+    index: number = 0,
+    rowY: number = 0,
+
+    mine: boolean = { app.chosen.includes(classroot.seatId) },
+    ux: number = { seatUnitX(app.hall.unitsW, classroot.count, classroot.index) },
+    uy: number = { classroot.rowY + bowAt(app.hall.unitsW, classroot.ux, app.hall.widest) },
+
+    x = { classroot.ux * app.pitch - app.pitch / 2 },
+    y = { classroot.uy * app.pitch - app.pitch / 2 },
+    width = { app.pitch },
+    height = { app.pitch },
+
+    accessibilityRole = toggle,
+    accessibilityLabel = { classroot.section + ", row " + classroot.row + ", seat " + classroot.num },
+    accessibilityPressed = { classroot.mine },
+    accessibilityHint = { money(classroot.price) + (classroot.mine ? ", chosen" : classroot.sold ? ", taken" : ", free") },
+    disabled = { classroot.sold && !classroot.mine },
+    press() { app.toggleSeat(classroot.seatId) },
+
+    // the arrow keys move about the plan as it looks
+
+    onKeyDown(e: KeyEvent) {
+        const dirs: Record<string, string> = { ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down" }
+        const dir = dirs[e.key] ?? ""
+        if (dir == "") { super.onKeyDown(e); return }
+        const to = app.hall.neighbour(classroot.seatId, dir)
+        if (to != "") app.keySeat = to
+        },
+    wanted: boolean = { app.keySeat == classroot.seatId },
+    trackChanges = ["wanted"],
+    onChange() { if (classroot.wanted) Focus.focus(this) },
+
+    focusShape() -> object {
+        const p = app.pitch
+        return ({ x: p * 0.08, y: p * 0.08, w: p * 0.84, h: p * 0.84, rad: p * 0.42 })
+        },
+
+    popT: number = { classroot.mine ? 1 : 0 },
+    Spring [ attribute = popT, to = { classroot.mine ? 1 : 0 }, stiffness = 520, damping = 17 ],
+    goneT: number = { classroot.sold ? 1 : 0 },
+    Spring [ attribute = goneT, to = { classroot.sold && !classroot.mine ? 1 : 0 }, stiffness = 160, damping = 20 ],
+
+    draw(d: DrawContext) {
+        const p = app.pitch
+        const c = p / 2
+        const r = p * (app.close ? 0.33 : 0.36)
+        const t = provided("theme")
+        if (popT > 0.02) {
+            // theirs: the disc grows into the accent, with a tick
+            const rr = r * (0.9 + 0.22 * popT)
+            d.globalAlpha = Math.min(1, popT)
+            d.fillStyle = t.accent
+            d.beginPath(); d.arc(c, c, rr, 0, Math.PI * 2); d.fill()
+            d.strokeStyle = 0xFFFFFF
+            d.lineWidth = Math.max(1.4, p * 0.075)
+            d.lineCap = "round"; d.lineJoin = "round"
+            d.beginPath()
+            d.moveTo(c - rr * 0.45, c + rr * 0.02); d.lineTo(c - rr * 0.1, c + rr * 0.36); d.lineTo(c + rr * 0.48, c - rr * 0.34)
+            d.stroke()
+            d.globalAlpha = 1
+            if (popT >= 0.98) return
+            }
+        if (goneT > 0.02) {
+            // gone: a small hollow ring
+            d.strokeStyle = t.seatGone
+            d.lineWidth = Math.max(1, p * 0.06)
+            d.beginPath(); d.arc(c, c, r * (1 - 0.5 * goneT), 0, Math.PI * 2); d.stroke()
+            if (goneT >= 0.98) return
+            d.globalAlpha = 1 - goneT
+            }
+        d.fillStyle = tone
+        d.beginPath(); d.arc(c, c, r * (1 - 0.5 * goneT), 0, Math.PI * 2); d.fill()
+        d.globalAlpha = 1
+        if (hovered && !sold) {
+            d.strokeStyle = t.accent
+            d.lineWidth = 1.5
+            d.beginPath(); d.arc(c, c, r + 2.5, 0, Math.PI * 2); d.stroke()
+            }
+        }
+    ]
+
+
+// A row: its seats, and its letter at both ends. It lays nothing out itself —
+// every seat places itself from the geometry above.
+
+class RowLine [
+    sectionName: string = "",
+    price: number = 0,
+    tone: Color = gray,
+    top: number = 0,
+    rowName: string = { :name ?? "" },
+    seatsIn: number = { (:seats ?? []).length },
+    uy: number = { rowUnitY(classroot.top, rowIndex) },
+    endBow: number = { bowAt(app.hall.unitsW, seatUnitX(app.hall.unitsW, classroot.seatsIn, 0) + 1.3, app.hall.widest) },
+
+    RowLetter [ text = { classroot.rowName },
+        x = { (seatUnitX(app.hall.unitsW, classroot.seatsIn, 0) + 1.25) * app.pitch - this.width / 2 },
+        y = { (classroot.uy + classroot.endBow) * app.pitch - this.height / 2 } ],
+    RowLetter [ text = { classroot.rowName },
+        x = { (seatUnitX(app.hall.unitsW, classroot.seatsIn, classroot.seatsIn - 1) - 1.25) * app.pitch - this.width / 2 },
+        y = { (classroot.uy + classroot.endBow) * app.pitch - this.height / 2 } ],
+
+    SeatMark [ datapath = :seats[],
+        section = { classroot.sectionName }, row = { classroot.rowName },
+        price = { classroot.price }, tone = { classroot.tone },
+        count = { classroot.seatsIn }, index = { rowIndex }, rowY = { classroot.uy } ]
+    ]
+
+
+class RowLetter extends Text [ accessibilityHidden = true,
+    fontSize = { Math.max(9, Math.round(app.pitch * 0.42)) }, fontWeight = semibold,
+    textColor = { provided("theme").textFaint }
+    ]
+
+
+// A section: its name and price over it, and its rows.
+
+class SectionBlock [
+    name: string = { :name ?? "" },
+    price: number = { :priceCents ?? 0 },
+    top: number = { app.hall.tops[rowIndex] ?? 0 },
+    tone: Color = { app.toneOf(rowIndex) },
+
+    caption: View [ accessibilityHidden = true,
+        x = { app.hall.unitsW / 2 * app.pitch - this.width / 2 },
+        y = { (classroot.top - labelUnits() * 0.92) * app.pitch },
+        layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
+        Text [ text = { classroot.name }, fontFamily = { app.titleFace }, fontWeight = semibold,
+            fontSize = { Math.max(12, Math.min(19, app.pitch * 0.72)) } ],
+        Text [ text = { money(classroot.price) }, numeralWidth = tabular,
+            fontSize = { Math.max(11, Math.min(15, app.pitch * 0.58)) }, textColor = { provided("theme").textMuted } ]
+        ],
+
+    RowLine [ datapath = :rows[], sectionName = { classroot.name }, price = { classroot.price },
+        tone = { classroot.tone }, top = { classroot.top } ]
+    ]
+
+
+// The room itself: the stage everything faces, and a floor under each section
+// that follows its rows' bow. Drawn, since it is a picture and nothing in it
+// is pressed.
+
+class HallFloor [ accessibilityHidden = true,
+    draw(d: DrawContext) {
+        const p = app.pitch
+        const w = app.hall.unitsW
+        const widest = app.hall.widest
+        const t = provided("theme")
+        // the stage: an apron curving out towards the house
+        const sw = Math.min(w - 4, widest * 0.72)
+        const sx = (w - sw) / 2
+        d.fillStyle = t.stage
+        d.beginPath()
+        d.moveTo(sx * p, 0.3 * p)
+        d.lineTo((sx + sw) * p, 0.3 * p)
+        d.lineTo((sx + sw) * p, 1.6 * p)
+        d.quadraticCurveTo(w / 2 * p, 3.3 * p, sx * p, 1.6 * p)
+        d.closePath()
+        d.fill()
+        // the floors
+        d.fillStyle = t.floor
+        app.hall.sections().forEach((s, i) => {
+            const top = app.hall.tops[i] ?? 0
+            const longest = Math.max(...s.rows.map((r) => r.seats.length))
+            const half = longest / 2 + 1.9
+            const depth = s.rows.length * rowUnits()
+            d.beginPath()
+            const steps = 24
+            for (let k = 0; k <= steps; k++) {
+                const ux = w / 2 - half + (2 * half) * k / steps
+                const uy = top - 0.75 + bowAt(w, ux, widest)
+                if (k == 0) d.moveTo(ux * p, uy * p); else d.lineTo(ux * p, uy * p)
+                }
+            for (let k = steps; k >= 0; k--) {
+                const ux = w / 2 - half + (2 * half) * k / steps
+                const uy = top + depth - 0.2 + bowAt(w, ux, widest)
+                d.lineTo(ux * p, uy * p)
+                }
+            d.closePath()
+            d.fill()
+            })
+        }
+    ]
+
+
+// The whole house in miniature, for a phone: every seat a dot, the close-up's
+// window a frame over it. A press or a drag on it moves the close-up there.
+
+class HallOverview [ accessibilityHidden = true,
+    unit: number = { this.width / Math.max(1, app.hall.unitsW) },
+    height = { app.hall.unitsH * this.unit },
+    lens: View? = null,
+    claim = both,
+    aim(e: PointerEvent) {
+        if (this.lens == null) return
+        const p = app.pitch
+        const ux = e.x / this.unit, uy = e.y / this.unit
+        this.lens.scrollTo(({ x: ux * p - this.lens.width / 2, y: uy * p - this.lens.height / 2 }))
+        },
+    onPointerDown(e: PointerEvent) { this.aim(e) },
+    onPointerMove(e: PointerEvent) { this.aim(e) },
+    draw(d: DrawContext) {
+        const u = unit
+        const w = app.hall.unitsW
+        const widest = app.hall.widest
+        const t = provided("theme")
+        d.fillStyle = t.stage
+        d.fillRect((w - widest * 0.72) / 2 * u, 0.3 * u, widest * 0.72 * u, 1.6 * u)
+        app.hall.sections().forEach((s, si) => {
+            const top = app.hall.tops[si] ?? 0
+            const tone = app.toneOf(si)
+            s.rows.forEach((r, ri) => {
+                const ry = rowUnitY(top, ri)
+                r.seats.forEach((seat, i) => {
+                    const ux = seatUnitX(w, r.seats.length, i)
+                    const uy = ry + bowAt(w, ux, widest)
+                    const mine = app.chosen.includes(seat.id)
+                    d.fillStyle = mine ? t.accent : seat.status == "available" ? tone : t.seatGone
+                    const rad = mine ? u * 0.55 : seat.status == "available" ? u * 0.36 : u * 0.2
+                    d.beginPath(); d.arc(ux * u, uy * u, rad, 0, Math.PI * 2); d.fill()
+                    })
+                })
+            })
+        if (lens != null) {
+            const p = app.pitch
+            d.strokeStyle = t.text
+            d.lineWidth = 1.5
+            d.strokeRect(lens.scrollX / p * u, lens.scrollY / p * u, lens.width / p * u, lens.height / p * u)
+            }
+        }
+    ]
+
+
+// The legend: the three states, drawn as the seats draw them.
+
+class LegendMark [ width = 16, height = 16, accessibilityHidden = true,
+    kind: string = "free",
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        if (kind == "mine") {
+            d.fillStyle = t.accent
+            d.beginPath(); d.arc(8, 8, 7, 0, Math.PI * 2); d.fill()
+            d.strokeStyle = 0xFFFFFF; d.lineWidth = 1.6; d.lineCap = "round"; d.lineJoin = "round"
+            d.beginPath(); d.moveTo(4.8, 8.1); d.lineTo(7.2, 10.5); d.lineTo(11.4, 5.6); d.stroke()
+        } else if (kind == "gone") {
+            d.strokeStyle = t.seatGone; d.lineWidth = 1.3
+            d.beginPath(); d.arc(8, 8, 3.2, 0, Math.PI * 2); d.stroke()
+        } else {
+            d.fillStyle = t.seatBest
+            d.beginPath(); d.arc(8, 8, 5.8, 0, Math.PI * 2); d.fill()
+        }
+        }
+    ]
+
+
+class LegendItem [
+    kind: string = "free",
+    label: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    LegendMark [ kind = { classroot.kind } ],
+    Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = { classroot.label } ]
+    ]
+
+
+class Legend [
+    layout: SimpleLayout [ axis = x, spacing = 16, align = center ],
+    LegendItem [ kind = "free", label = "Free" ],
+    LegendItem [ kind = "mine", label = "Yours" ],
+    LegendItem [ kind = "gone", label = "Taken" ]
+    ]
+
+
+// How full the house is, as a bar: the dark part is what has gone.
+
+class FullnessBar [ height = 4, cornerRadius = 2, fill = { provided("theme").line },
+    sold: number = 0,                  // 0 to 1
+    nearlyFull: boolean = false,
+    View [ height = 100%, cornerRadius = 2, width = { parent.width * classroot.sold },
+        fill = { classroot.nearlyFull ? provided("theme").text : provided("theme").textMuted } ]
+    ]

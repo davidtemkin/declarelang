@@ -1,0 +1,13 @@
+{
+  "kind": "tweak",
+  "seed": "venue",
+  "service": "venue-checkout",
+  "persona": "Morgan, who runs the box office's web shop. Laptop. An account for trying it: a@a.co, password pass (its saved card's security code is 123).",
+  "device": "a laptop",
+  "intents": [
+    {
+      "ask": "Add to calendar on the tickets (the opening, already asked) — to see it you will need to buy a ticket"
+    }
+  ],
+  "maxTurns": 4
+}

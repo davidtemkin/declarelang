@@ -1,0 +1,330 @@
+/* The house is drawn dark, as it is when the lights go down: free seats glow,
+   gone seats all but disappear, so how full it is reads before anything else. */
+
+.house {
+  position: relative;
+  background: var(--house);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  color: var(--house-ink);
+  isolation: isolate;
+}
+
+.viewport {
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: #4a4036 transparent;
+  padding-block: 0.25rem 0.75rem;
+}
+
+.viewport[data-zoomed] {
+  height: calc(100svh - var(--header-height) - env(safe-area-inset-top) - 6.5rem);
+  min-height: 18rem;
+  padding: 0;
+}
+
+.canvas {
+  position: relative;
+  margin-inline: auto;
+}
+
+.layer {
+  position: absolute;
+  inset: 0;
+}
+
+.room {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.stage {
+  fill: #3a3129;
+}
+
+.stageLabel {
+  font: 600 0.62px var(--font-sans);
+  letter-spacing: 0.5px;
+  fill: #a2927d;
+  text-anchor: middle;
+  dominant-baseline: middle;
+}
+
+/* Each tier stands a step higher than the one in front, so each is a shade lighter. */
+.platform {
+  fill: #1f1a16;
+}
+.platform[data-level='1'] {
+  fill: #241e1a;
+}
+.platform[data-level='2'] {
+  fill: #29221d;
+}
+.platform[data-level='3'] {
+  fill: #2e2620;
+}
+
+.sectionLabel {
+  font-family: var(--font-sans);
+  font-size: 0.66px;
+  text-anchor: middle;
+  dominant-baseline: middle;
+  letter-spacing: 0.1px;
+}
+
+.sectionName {
+  fill: #a99c89;
+  font-weight: 600;
+}
+
+.sectionPrice {
+  fill: #f1e4cb;
+  font-weight: 700;
+}
+
+.rowLabel {
+  font: 600 0.46px var(--font-sans);
+  fill: #6f6559;
+  text-anchor: middle;
+  dominant-baseline: central;
+}
+
+/* A seat: the whole pitch is the target; the chair inside is what you see. */
+.seat {
+  position: absolute;
+  left: calc(var(--x) * var(--pitch));
+  top: calc(var(--y) * var(--pitch));
+  width: var(--pitch);
+  height: var(--pitch);
+  margin: calc(var(--pitch) / -2) 0 0 calc(var(--pitch) / -2);
+  transform: rotate(var(--a));
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.seat[data-section='ORCH'] {
+  --tone: #f4e5c6;
+}
+.seat[data-section='GT'] {
+  --tone: #dccaa7;
+}
+.seat[data-section='DC'] {
+  --tone: #bcab8b;
+}
+.seat[data-section='BALC'] {
+  --tone: #9a8c74;
+}
+
+.chair {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 70%;
+  height: 64%;
+  border-radius: 32% 32% 24% 24%;
+  background: var(--tone);
+  transition:
+    transform 160ms ease-out,
+    background-color 200ms ease-out,
+    width 300ms ease-out,
+    height 300ms ease-out,
+    box-shadow 200ms ease-out;
+}
+
+/* The back of the chair, away from the stage. */
+.chair::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 26%;
+  border-radius: 0 0 inherit inherit;
+  background: rgb(0 0 0 / 0.22);
+}
+
+.seat[data-state='sold'] {
+  cursor: default;
+}
+
+.seat[data-state='sold'] .chair {
+  width: 30%;
+  height: 30%;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: inset 0 0 0 max(1px, calc(var(--pitch) * 0.07)) #4f453b;
+}
+
+.seat[data-state='sold'] .chair::after {
+  display: none;
+}
+
+.seat[data-state='mine'] .chair {
+  width: 86%;
+  height: 80%;
+  background: var(--accent-bright);
+  box-shadow:
+    0 0 0 max(1px, calc(var(--pitch) * 0.06)) var(--house),
+    0 0 0 max(2px, calc(var(--pitch) * 0.13)) var(--accent-bright);
+  animation: choose 260ms cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+.seat[data-state='mine'] .chair::after {
+  background: rgb(0 0 0 / 0.16);
+}
+
+.check {
+  position: relative;
+  z-index: 1;
+  width: 72%;
+  height: 72%;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Taken from this person's choice by someone else: a ring that rings out. */
+.seat[data-lost] .chair {
+  animation: lost 900ms ease-out 3;
+}
+
+@keyframes choose {
+  0% {
+    transform: scale(0.6);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes lost {
+  0% {
+    box-shadow: 0 0 0 0 var(--accent-bright);
+  }
+  100% {
+    box-shadow: 0 0 0 calc(var(--pitch) * 0.6) rgb(242 96 62 / 0);
+  }
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .seat[data-state='free']:hover .chair {
+    transform: scale(1.22);
+    background: #fff;
+  }
+}
+
+.seat:focus-visible {
+  outline: none;
+  z-index: 2;
+}
+
+.seat:focus-visible .chair {
+  box-shadow:
+    0 0 0 2px var(--house),
+    0 0 0 4px #fff;
+}
+
+.seat[data-state='sold']:focus-visible .chair {
+  width: 50%;
+  height: 50%;
+}
+
+/* On a phone the whole house is a map to tap into, not a place to choose from. */
+.house[data-overview] .seat {
+  cursor: zoom-in;
+}
+
+.zoomBar {
+  position: absolute;
+  inset: 0.5rem 0.5rem auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  pointer-events: none;
+}
+
+.zoomButton {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  min-height: 2.75rem;
+  padding: 0 1rem;
+  border: 1px solid #4a4036;
+  border-radius: 999px;
+  background: rgb(23 19 15 / 0.9);
+  color: #f1e4cb;
+  font: 600 var(--text-sm) / 1 var(--font-sans);
+  cursor: pointer;
+  backdrop-filter: blur(6px);
+}
+
+.zoomButton:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+.miniMapButton {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.25rem;
+  min-height: 0;
+  padding: 0.5rem 0.625rem 0.5rem;
+  border-radius: 14px;
+}
+
+.miniMap {
+  width: 4.25rem;
+  height: auto;
+  align-self: center;
+}
+
+.miniPlatform {
+  fill: #4a4036;
+}
+
+.miniView {
+  fill: rgb(255 255 255 / 0.12);
+  stroke: #fff;
+  stroke-width: 0.7;
+}
+
+.miniMapLabel {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: var(--text-xs);
+}
+
+.icon {
+  width: 1.125rem;
+  height: 1.125rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chair,
+  .seat[data-state='mine'] .chair,
+  .seat[data-lost] .chair {
+    transition: none;
+    animation: none;
+  }
+  .seat[data-lost] .chair {
+    box-shadow: 0 0 0 calc(var(--pitch) * 0.12) var(--accent-bright);
+  }
+}

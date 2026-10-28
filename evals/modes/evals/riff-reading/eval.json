@@ -1,0 +1,26 @@
+{
+  "kind": "riff",
+  "persona": "Alex, 41, reads a lot and keeps losing track. Works on a laptop all day and will use this there. Comfortable with computers, not a programmer.",
+  "device": "a laptop",
+  "intents": [
+    {
+      "ask": "a reading-list board with those three columns (the opening, already asked)"
+    },
+    {
+      "ask": "move a book from one column to another by dragging it"
+    },
+    {
+      "ask": "when I finish a book, let me give it a rating and a line about it"
+    },
+    {
+      "ask": "I'll have a couple of hundred books on here — let me find one quickly"
+    },
+    {
+      "ask": "let me add a book without touching the mouse"
+    },
+    {
+      "ask": "show me how many I finished this year"
+    }
+  ],
+  "maxTurns": 14
+}

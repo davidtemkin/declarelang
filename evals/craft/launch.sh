@@ -103,15 +103,11 @@ TOOLS="Read,Glob,Grep,Bash,Write,Edit,WebSearch,WebFetch,Agent"
   echo "CWD=$RUN/work (logs outside it)"
   echo "PORT=$PORT (the brief names ${APP_PORT:-none})"
   echo "SERVICE=node ${SERVICE[*]}"
-  echo "CHECKERS=declare-check runs on $MODEL; its ledger: logs/checks.jsonl"
 } > "$LOGS/started.txt"
 
 # the agent: headless, the full event stream, exactly these tools — and no
 # auto-memory: a run's notes to itself (Murmur run 11 wrote one) must not reach
 # a later run that reuses a directory, nor sit outside the run's own record
-# Declare's checkers (npx declare-check) run on the build's model, and each one's time,
-# turns, tokens and cost land in the run's logs: a run's cost is the build's plus theirs
-export DECLARE_CHECK_MODEL="$MODEL" DECLARE_CHECK_LEDGER="$LOGS/checks.jsonl"
 CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 nohup claude -p --model "$MODEL" \
   --output-format stream-json --verbose \
   --tools "$TOOLS" --allowedTools "$TOOLS" \

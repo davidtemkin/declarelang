@@ -1,0 +1,14 @@
+{
+  "kind": "spike",
+  "persona": "Jordan, an engineer deciding on an approach for a product. Wants an honest answer fast, not a finished product. Laptop.",
+  "device": "a laptop",
+  "intents": [
+    {
+      "ask": "the spike (the opening, already asked) — judge whether it really holds ten thousand events and drags and zooms smoothly from years to hours, and whether the agent's account of it is honest"
+    },
+    {
+      "ask": "what would it take to make the events editable — dragging one to a new time? Don't build it, just tell me"
+    }
+  ],
+  "maxTurns": 5
+}

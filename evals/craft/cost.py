@@ -9,15 +9,15 @@ calls = {}   # tool_use_id -> (name, arg)
 sizes = []   # (chars, name, arg)
 u = {"input_tokens": 0, "cache_creation_input_tokens": 0, "cache_read_input_tokens": 0, "output_tokens": 0}
 turns = 0
+# one event per part of a reply, each repeating that call's usage: count each call once
+seen = {}
 for ln in open(p, errors="replace"):
     try: j = json.loads(ln)
     except Exception: continue
     t = j.get("type")
     if t == "assistant":
         m = j.get("message", {})
-        us = m.get("usage") or {}
-        for k in u: u[k] += us.get(k, 0) or 0
-        turns += 1
+        seen[m.get("id") or len(seen)] = m.get("usage") or {}
         for b in m.get("content", []):
             if b.get("type") == "tool_use":
                 i = b.get("input", {}); name = b.get("name")
@@ -30,8 +30,11 @@ for ln in open(p, errors="replace"):
                 txt = c if isinstance(c, str) else "".join(x.get("text", "") for x in c if isinstance(x, dict))
                 sizes.append((len(txt), *calls[b["tool_use_id"]]))
 tot = sum(s for s, *_ in sizes)
-print(f"assistant messages: {turns} · tool results: {len(sizes)} · result bytes total: {tot:,} (≈{tot//4:,} tokens once)")
-print(f"usage summed over messages: fresh(cache_creation)={u['cache_creation_input_tokens']:,} · cache_read={u['cache_read_input_tokens']:,} · uncached input={u['input_tokens']:,} · output={u['output_tokens']:,}")
+for us in seen.values():
+    for key in u: u[key] += us.get(key, 0) or 0
+turns = len(seen)
+print(f"API calls: {turns} · tool results: {len(sizes)} · result bytes total: {tot:,} (≈{tot//4:,} tokens once)")
+print(f"usage, each API call once: fresh(cache_creation)={u['cache_creation_input_tokens']:,} · cache_read={u['cache_read_input_tokens']:,} · uncached input={u['input_tokens']:,} · output={u['output_tokens']:,}")
 print(f"top {n} results by size:")
 for s, name, arg in sorted(sizes, reverse=True)[:n]:
     print(f"  {s:>8,}  {name:5} {arg}")

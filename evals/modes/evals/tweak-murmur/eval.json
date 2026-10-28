@@ -1,0 +1,13 @@
+{
+  "kind": "tweak",
+  "seed": "murmur",
+  "service": "murmur",
+  "persona": "Casey, 38, has one very noisy group conversation. Laptop.",
+  "device": "a laptop",
+  "intents": [
+    {
+      "ask": "mute a conversation (the opening, already asked)"
+    }
+  ],
+  "maxTurns": 4
+}

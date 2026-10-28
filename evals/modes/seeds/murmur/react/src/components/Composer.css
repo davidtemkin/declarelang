@@ -1,0 +1,145 @@
+.composer {
+  flex: none;
+  padding: 8px 12px calc(env(safe-area-inset-bottom) + 10px);
+  background: linear-gradient(to bottom, transparent, var(--paper) 14px);
+}
+
+.composer__bar {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  padding: 4px;
+  border-radius: 24px;
+  background: var(--surface);
+  box-shadow: inset 0 0 0 1px var(--rule), 0 1px 2px rgb(40 30 10 / 0.04);
+  transition: box-shadow 150ms;
+}
+
+.composer__bar:has(.composer__field:focus-visible) {
+  box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--mine) 55%, var(--rule)), 0 1px 2px rgb(40 30 10 / 0.04);
+}
+
+.composer__icon {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  color: var(--ink-2);
+  transition: background-color 120ms, color 120ms;
+}
+
+.composer__icon[aria-expanded='true'] {
+  background: var(--hover);
+  color: var(--ink);
+}
+
+@media (hover: hover) {
+  .composer__icon:hover {
+    background: var(--hover);
+  }
+}
+
+.composer__field {
+  flex: 1;
+  min-width: 0;
+  min-height: 40px;
+  padding: 9px 4px;
+  border: 0;
+  outline: none !important;
+  resize: none;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+  line-height: 22px;
+}
+
+.composer__field::placeholder {
+  color: var(--ink-3);
+}
+
+.composer__send {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: var(--mine);
+  color: var(--on-mine);
+  transition: opacity 150ms, transform 150ms;
+}
+
+.composer__send:disabled {
+  opacity: 0;
+  transform: scale(0.6);
+  pointer-events: none;
+}
+
+.composer__send:active {
+  transform: scale(0.9);
+}
+
+/* —— The photographs on offer —— */
+
+.composer__tray {
+  margin: 0 -12px 8px;
+  animation: tray-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes tray-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+.composer__photos {
+  display: flex;
+  gap: 8px;
+  margin: 0;
+  padding: 4px 12px;
+  list-style: none;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+}
+
+.composer__photos li {
+  flex: none;
+  scroll-snap-align: start;
+}
+
+.composer__photo {
+  display: block;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px var(--rule);
+  transition: transform 140ms;
+}
+
+.composer__photo:active {
+  transform: scale(0.95);
+}
+
+@media (hover: hover) {
+  .composer__photo:hover {
+    transform: translateY(-2px);
+  }
+}
+
+.photo--thumb {
+  --max-h: 112px;
+  --max-w: 240px;
+  width: calc(var(--max-h) * var(--ratio));
+}
+
+@media (min-width: 900px) {
+  .photo--thumb {
+    --max-h: 128px;
+    --max-w: 280px;
+  }
+}

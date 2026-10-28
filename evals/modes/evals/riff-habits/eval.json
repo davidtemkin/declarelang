@@ -1,0 +1,30 @@
+{
+  "kind": "riff",
+  "persona": "Sam, 34, not technical. Wants to build a few habits — stretching in the morning, reading twenty minutes, no phone after ten. Tries things out on a laptop first, but would really use this on their phone, in bed, at night.",
+  "device": "a laptop",
+  "intents": [
+    {
+      "ask": "a habit tracker (the opening, already asked)"
+    },
+    {
+      "ask": "see a streak for each habit — how many days in a row"
+    },
+    {
+      "ask": "it looks like a spreadsheet; make it feel calmer and nicer to look at"
+    },
+    {
+      "ask": "I'd mostly use this on my phone, in bed at night",
+      "device": "your phone, at night (use --phone --dark)"
+    },
+    {
+      "ask": "let me put the habits in my own order"
+    },
+    {
+      "ask": "marking one done should feel good — a little something when I tap it"
+    },
+    {
+      "ask": "it should all still be there tomorrow when I open it again"
+    }
+  ],
+  "maxTurns": 16
+}
