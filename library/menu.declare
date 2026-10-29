@@ -68,7 +68,8 @@ Esc closes the whole chain.
 ## picked()
 **The delivery seam — override it at the use site.** Receives the picked row's `id`,
 and the id is the whole message. Called *after* the menu has left the screen, so a slow
-action can never freeze an open menu.
+action can never freeze an open menu; `opener` is still what it was opened for, so one menu
+serving every row knows which row was picked.
 
 ## openFor()
 Opens the menu **anchored below a control**, flipping above it when there is not room
@@ -459,10 +460,18 @@ class Menu extends Floating [
     // synchronously to the root: the chain closes as one, and only the root
     // defers the app-facing delivery.
 
+    // `opener` outlives the close until the pick is delivered: a menu one instance
+    // serves for every row reads which row in `picked()`
+
     pick(id: string) {
         if (!isRoot) { this.picked(id); this.close(); return }
+        const o = opener
         this.close()
-        afterDelay(0, () => this.picked(id))
+        opener = o
+        afterDelay(0, () => {
+            this.picked(id)
+            if (!shown && opener == o) opener = null
+            })
         },
 
     // ── the cascade ────────────────────────────────────────────────────────

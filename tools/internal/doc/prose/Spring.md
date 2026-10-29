@@ -24,6 +24,10 @@ replicated class is *N* springs, one per row; three hundred rows of "the same ha
 constraints" each carrying their own springs is three hundred integrators for motion that
 only one row at a time is ever in.
 
+**Move it, and it comes back.** Writing the attribute moves it from where the spring has it;
+the spring carries it from there to `to`. Offset a thing by how far it just jumped, and it
+glides into its new place.
+
 **It starts where it is going.** The first target a spring computes is where its attribute
 begins: a `Switch` declared checked renders checked, a panel whose spring targets "closed"
 starts closed — nothing flies in from 0 as the program opens. The same holds for a spring

@@ -16,6 +16,8 @@ export declare class Spring extends Animator {
     private springLastNow;
     private vel;
     private primed;
+    /** Watches the driven slot while the spring sleeps ($watchSlot). */
+    private slotWatch;
     /** Called by the `to` pusher on every retarget: (re)enroll on the clock.
      *  A no-op while already live, so a moving target does not pile up tickers. */
     $wake(): void;
@@ -37,6 +39,13 @@ export declare class Spring extends Animator {
      *  a lazy primer would then swallow the first REAL change instead — the
      *  calendar's month→year zoom snapping while year→month animated. */
     $prime(): void;
+    /** A spring at rest holds its attribute at `to`. A write that moves it off —
+     *  a program offsetting a card to where it was, so it springs into its new
+     *  place — wakes the spring, which carries it back from there: the slot is
+     *  the spring's position state, as it is in flight. Its own writes are never
+     *  a displacement (in flight it is running; at rest the slot is at `to`). */
+    $watchSlot(): void;
+    $teardown(): void;
     /** ARRIVAL (recycling / materialization). A recycled or freshly built
      *  instance is presenting a record it was not presenting before, so the
      *  geometry it lands on is a FACT ABOUT THAT RECORD, not a change this

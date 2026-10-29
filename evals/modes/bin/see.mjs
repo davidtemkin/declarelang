@@ -15,14 +15,19 @@
 //   shot:<file.png>        a picture of the window
 //   text                   the words on screen (as read top to bottom)
 //   click:<name>           press what is named <name> (its label, or its words)
+//   tap:<x>,<y>            press a point (a tap on a phone, a click on a laptop)
 //   type:<label>=<words>   type into the field named <label> (empty label: the focused one)
 //   key:<Key>              press a key (Enter, Escape, Tab, ArrowDown, Meta+K, …)
 //   scroll:<dy>[@x,y]      scroll by dy pixels (a wheel; on a phone, a swipe)
-//   drag:<x1>,<y1>,<x2>,<y2>  drag from one point to another (a finger on a phone)
+//   drag:<x1>,<y1>,<x2>,<y2>[,<hold ms>]  drag from one point to another (a finger on a
+//                          phone), holding still first for <hold ms> (press and hold)
 //   pinch:<x>,<y>,<scale>  a two-finger pinch about a point (phone)
 //   hover:<name>           rest the pointer on what is named <name>
 //   wait:<ms>              wait
 //   reload                 reload the page, as a person coming back would
+//
+// Points are read off this tool's own pictures: x and y are the picture's pixels, whatever
+// the screen's density (a phone's picture is twice its points; that is undone here).
 //
 // Downloads land in <profile or tmp>/downloads and are listed in the report.
 import { existsSync, mkdirSync, mkdtempSync, readdirSync } from "node:fs";
@@ -53,12 +58,15 @@ page.on("pageerror", (e) => said.push(`page error: ${String(e.message ?? e).slic
 page.on("requestfailed", (r) => said.push(`request failed: ${r.url().slice(0, 160)} (${r.failure()?.errorText ?? "?"})`));
 const cdp = await page.createCDPSession();
 await cdp.send("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: downloads }).catch(() => {});
-if (PHONE) await page.setViewport({ width: 390, height: 844, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+const DPR = PHONE ? 2 : 1;
+const pt = (v) => Number(v) / DPR;   // a picture's pixel → the page's point
+if (PHONE) await page.setViewport({ width: 390, height: 844, deviceScaleFactor: DPR, isMobile: true, hasTouch: true });
 else await page.setViewport({ width: 1280, height: 800, deviceScaleFactor: 1 });
 await page.emulateMediaFeatures([{ name: "prefers-color-scheme", value: DARK ? "dark" : "light" }]);
 
 const out = [];
-const settle = (ms = 400) => new Promise((r) => setTimeout(r, ms));
+// a step's own pause is short, so a picture taken next catches what a press set moving
+const settle = (ms = 150) => new Promise((r) => setTimeout(r, ms));
 try {
   await page.goto(URL, { waitUntil: "networkidle2", timeout: 30_000 });
 } catch (e) {
@@ -118,7 +126,7 @@ for (const step of STEPS) {
     }
     else if (verb === "scroll") {
       const [dy, at] = arg.split("@");
-      const [x, y] = (at ?? (PHONE ? "195,500" : "640,400")).split(",").map(Number);
+      const [x, y] = at ? at.split(",").map(pt) : PHONE ? [195, 500] : [640, 400];
       if (PHONE) {
         await cdp.send("Input.synthesizeScrollGesture", { x, y, yDistance: -Number(dy), speed: 1200, gestureSourceType: "touch" });
       } else {
@@ -128,22 +136,30 @@ for (const step of STEPS) {
       out.push(`scrolled ${dy}`);
     }
     else if (verb === "drag") {
-      const [x1, y1, x2, y2] = arg.split(",").map(Number);
+      const [x1, y1, x2, y2] = arg.split(",").slice(0, 4).map(pt), hold = Number(arg.split(",")[4] ?? 0);
       if (PHONE) {
         await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x: x1, y: y1 }] });
+        if (hold > 0) await settle(hold);
         for (let k = 1; k <= 12; k++) { await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: x1 + (x2 - x1) * k / 12, y: y1 + (y2 - y1) * k / 12 }] }); await settle(16); }
         await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
       } else {
         await page.mouse.move(x1, y1); await page.mouse.down();
+        if (hold > 0) await settle(hold);
         for (let k = 1; k <= 12; k++) { await page.mouse.move(x1 + (x2 - x1) * k / 12, y1 + (y2 - y1) * k / 12); await settle(16); }
         await page.mouse.up();
       }
-      out.push(`dragged from ${x1},${y1} to ${x2},${y2}`);
+      out.push(`dragged from ${arg.split(",").slice(0, 2)} to ${arg.split(",").slice(2, 4)}${hold > 0 ? `, holding ${hold} ms first` : ""}`);
     }
     else if (verb === "pinch") {
-      const [x, y, scale] = arg.split(",").map(Number);
+      const [x, y] = arg.split(",").slice(0, 2).map(pt), scale = Number(arg.split(",")[2]);
       await cdp.send("Input.synthesizePinchGesture", { x, y, scaleFactor: scale, gestureSourceType: "touch" });
       out.push(`pinched ×${scale} about ${x},${y}`);
+    }
+    else if (verb === "tap") {
+      const [x, y] = arg.split(",").map(pt);
+      if (![x, y].every(Number.isFinite) || x < 0 || y < 0 || x > (PHONE ? 390 : 1280) || y > (PHONE ? 844 : 800)) { out.push(`tap: ${arg} is not on the screen`); continue; }
+      await pressAt(x, y);
+      out.push(`${PHONE ? "tapped" : "clicked"} at ${arg}`);
     }
     else if (verb === "wait") { await settle(Number(arg) || 500); out.push(`waited ${arg} ms`); }
     else if (verb === "reload") { await page.reload({ waitUntil: "networkidle2" }); out.push("reloaded"); }

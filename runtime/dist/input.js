@@ -232,7 +232,9 @@ topLevel = true) {
     // pointing at it). Not when the pressed view claims a drag itself (a Slider,
     // a Switch's thumb: its own nearest owner), not across the owner's axis, not
     // when a mouse press began on text or a field (that drag selects), and, for
-    // an owner that claims from a hold, at the hold rather than here.
+    // an owner that claims from a hold, at the hold rather than here — for a finger
+    // or a pen only: the hold is there so a swipe still scrolls, and a mouse drag
+    // never competes with scrolling, so a mouse leaving the control hands off at once.
     const handOff = (from, to) => {
         dragDecided = true;
         disarmHold();
@@ -247,8 +249,8 @@ topLevel = true) {
             dragDecided = true;
             return;
         }
-        if (to.fromHold)
-            return; // decided at the hold
+        if (to.fromHold && pressFinger)
+            return; // a finger's is decided at the hold
         if (pressFinger ? !wandered : under !== null && under.key === h.key)
             return;
         dragDecided = true;

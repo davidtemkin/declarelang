@@ -147,6 +147,12 @@ A drag that must land somewhere needs to know what it is over. Ask the tree:
 itself is routed by — clipping, scale, scrolling and [`pointerEvents`](declare-docs:View.pointerEvents) all count — so what
 your handler computes and what a press would hit never disagree.
 
+**A drag that rearranges is a change to the data.** What the person moves by hand, a row up a
+list or a card to another column, is a record changing its place. Move the record as the
+drag crosses a place, and let the arrangement show it: the views follow their records, and
+[a layout that animates](declare-docs:guide:animated-arrangements) glides the rest. Only the
+dragged view is the pointer's.
+
 The idiomatic drop target: the dragger decides with [`viewAt`](declare-docs:View.method.viewAt) and writes **one**
 attribute; every target derives its look from it.
 

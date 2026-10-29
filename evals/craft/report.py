@@ -59,7 +59,13 @@ for us in calls.values():
     for key, v in us.items():
         if key in usage and isinstance(v, int): usage[key] += v
 turns = len(calls)
-print(f"elapsed {mins:.1f} min · {turns} turns · output {usage['output_tokens']:,} tok · cache reads {usage['cache_read_input_tokens']:,} · stream quiet {quiet:.1f} min")
+# the stream logs each call's usage before its reply has finished, so its output is an
+# undercount; the run's result carries the real figures, once it has finished
+out = f"output {usage['output_tokens']:,} tok (so far, undercounted)"
+if result and result.get("usage"):
+    for key in usage: usage[key] = result["usage"].get(key, usage[key]) or 0
+    out = f"output {usage['output_tokens']:,} tok"
+print(f"elapsed {mins:.1f} min · {turns} turns · {out} · cache reads {usage['cache_read_input_tokens']:,} · stream quiet {quiet:.1f} min")
 if result:
     print(f"FINISHED: {'error' if result.get('is_error') else 'done'} · {result.get('num_turns')} turns · {(result.get('duration_ms') or 0)/60000:.1f} min")
 print(f"READ ({len(reads)}):");  [print("  " + r) for r in reads]

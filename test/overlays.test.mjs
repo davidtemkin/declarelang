@@ -351,7 +351,9 @@ await test("a hosted program's dialog in its window keeps Tab inside it; Esc giv
     assert.ok(n === tenant.dlg, "every Tab stays inside the dialog");
   }
   Keys.keyDown(KEY("Escape")); Keys.keyUp(KEY("Escape")); settle();
-  await new Promise((r) => setTimeout(r, 10)); settle();
+  // the hand-back runs a frame later, on timers: wait for it rather than a fixed time,
+  // which a loaded run outlasts
+  for (let i = 0; i < 50 && Focus.getFocus() !== tenant.field; i++) { await new Promise((r) => setTimeout(r, 10)); settle(); }
   assert.equal(tenant.dlg.shown, false, "Esc closes it");
   same(Focus.getFocus(), tenant.field, "and focus is back where it was in the program");
   unlink();

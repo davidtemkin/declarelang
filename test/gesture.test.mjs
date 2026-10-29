@@ -1487,6 +1487,14 @@ await test("a touch whose element leaves the page under the finger still ends: `
       assert.deepEqual({ held: s.held, holdDragged: s.holdDragged, taps: s.taps }, { held: 1, holdDragged: 50, taps: 0 }, "after the hold the board drags, from where the finger landed");
     });
 
+    await test(`${r}: a mouse drags a view that drags from a hold as soon as it leaves the control — no hold`, async () => {
+      await load(mp, `/${r}-handoff`);
+      const at = await centre(mp, "board.card");
+      await mouse(mp, at, 120, 0);
+      const s = await read(mp);
+      assert.deepEqual({ holdDragged: s.holdDragged, taps: s.taps }, { holdDragged: 120, taps: 0 }, "the hold is a finger's rule: a mouse never competes with a scroll");
+    });
+
     await test(`${r}: a mouse stays the control's while it is inside it, and drags the claimant once it leaves`, async () => {
       await load(mp, `/${r}-handoff`);
       const at = await centre(mp, "surface.tap");

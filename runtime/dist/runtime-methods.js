@@ -76,7 +76,7 @@ export const RUNTIME_FIELDS = {
     DataSource: ["autoUrl", "inFlight", "seq"],
     Animator: ["autoStarted", "grouped", "perpetual", "run"],
     AnimatorGroup: ["active", "autoStarted", "cyclesLeft", "grouped", "live"],
-    Spring: ["arriving", "primed", "springLastNow", "springRunning", "vel"],
+    Spring: ["arriving", "primed", "slotWatch", "springLastNow", "springRunning", "vel"],
     Keys: ["wired"],
     Focus: ["wired"],
     Tooltips: ["wired"],

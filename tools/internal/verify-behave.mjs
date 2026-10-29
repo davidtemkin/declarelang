@@ -159,7 +159,13 @@ bootHost(cfg);
       onPage?.(page);
       // what the page writes to its console, from its first line (declare-look --console)
       // (the browser's own request for a favicon is not the program's)
-      if (echoConsole) page.on("console", (m) => { if (!/favicon\.ico$/.test(m.location()?.url ?? "")) console.log("console." + m.type() + ": " + m.text()); });
+      // asked for the console, and the page logged nothing: say so, or an empty run reads as
+      // a tool that did not run (riff-habits run 1: a handler that never fired logged nothing)
+      if (echoConsole) {
+        let logged = 0;
+        page.on("console", (m) => { if (!/favicon\.ico$/.test(m.location()?.url ?? "")) { logged++; console.log("console." + m.type() + ": " + m.text()); } });
+        page.once("close", () => { if (logged === 0) console.log("console: the page logged nothing"); });
+      }
       // scrollbars drawn or not is the page's from its first paint
       if (hideScrollbars) await (await page.target().createCDPSession()).send("Emulation.setScrollbarsHidden", { hidden: true });
       // `touch`: a phone or tablet — touch is the device's input, and every

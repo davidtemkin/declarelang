@@ -19,6 +19,7 @@ import { Animator } from "./animator.js";
 import type { Node } from "./node.js";
 import { sharedClock } from "./animate.js";
 import { defineAttributes, asRuntimeWrite, setBound } from "./attributes.js";
+import { Constraint } from "./reactive.js";
 
 /** A spring's write is a DRIVEN ASSIGNMENT, not a bound push: it must
  *  DISPLACE whatever owns the slot (§5's rule — assignment wins), or an
@@ -53,6 +54,8 @@ export class Spring extends Animator {
   private springLastNow: number | null = null;
   private vel = 0;
   private primed = false;
+  /** Watches the driven slot while the spring sleeps ($watchSlot). */
+  private slotWatch: Constraint | null = null;
 
   /** Called by the `to` pusher on every retarget: (re)enroll on the clock.
    *  A no-op while already live, so a moving target does not pile up tickers. */
@@ -113,6 +116,32 @@ export class Spring extends Animator {
     const t = this.$resolveTarget();
     if (t !== null && this.attribute !== "") drive(t, this.attribute, this.to);
     this.vel = 0;
+    this.$watchSlot();
+  }
+
+  /** A spring at rest holds its attribute at `to`. A write that moves it off —
+   *  a program offsetting a card to where it was, so it springs into its new
+   *  place — wakes the spring, which carries it back from there: the slot is
+   *  the spring's position state, as it is in flight. Its own writes are never
+   *  a displacement (in flight it is running; at rest the slot is at `to`). */
+  $watchSlot(): void {
+    if (this.slotWatch !== null) return;
+    const k = new Constraint(
+      "Spring (its attribute)",
+      () => { const t = this.$resolveTarget(), a = this.attribute; return t !== null && a !== "" ? numOf(t, a) : NaN; },
+      (pos) => {
+        if (this.springRunning || typeof pos !== "number" || !Number.isFinite(pos) || !Number.isFinite(this.to)) return;
+        if (Math.abs(pos - this.to) >= this.epsilon) { this.vel = 0; this.$wake(); }
+      },
+    );
+    this.slotWatch = k;
+    k.run();
+  }
+
+  override $teardown(): void {
+    this.slotWatch?.dispose();
+    this.slotWatch = null;
+    super.$teardown();
   }
 
   /** ARRIVAL (recycling / materialization). A recycled or freshly built

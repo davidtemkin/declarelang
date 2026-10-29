@@ -2299,6 +2299,24 @@ await test("defaultPlacement: the checker names a missing child, and a use of it
   assert.match(check(parseProgram(`App [ v: View [ defaultPlacement = x, x: View [ ] ] ]`)).map((e) => e.message).join("\\n"), /defaultPlacement belongs on a class/);
 });
 
+await test("Spring: a write that moves its attribute off a resting target wakes it, and it springs back from there", async () => {
+  let tNow = 0; let pending = null;
+  setClock(new Clock({ now: () => tNow, request: (cb) => { pending = cb; return 1; }, cancel: () => { pending = null; } }));
+  const frames = (n) => { for (let i = 0; i < n; i++) { tNow += 16.7; const cb = pending; pending = null; if (cb) cb(tNow); settle(); } };
+  try {
+    const app = buildProgram(await compiled(`App [ width = 100, height = 100,
+      shift: number = 0,
+      Spring [ attribute = shift, to = 0, stiffness = 300, damping = 30 ] ]`));
+    try {
+      app.shift = 90; settle();
+      frames(5);
+      assert.ok(app.shift > 0 && app.shift < 90, `on its way back (shift ${app.shift})`);
+      frames(120);
+      assert.equal(app.shift, 0, "at rest on its target again");
+    } finally { app.discard(); }
+  } finally { setClock(new Clock()); }
+});
+
 await test("Spring.arrive(): the next target is taken outright; a later change still travels", async () => {
   const clock = new Clock({ now: () => tNow, request: (cb) => { pending = cb; return 1; }, cancel: () => { pending = null; } });
   let tNow = 0; let pending = null;

@@ -35,8 +35,46 @@ for (const r of rows) {
   else if (r.role === "frame") frames[r.name] = r;
   else if (r.role === "summary") summary = r;
 }
+// What the agent said while it worked — the interim notes a person watching the session
+// sees before the reply ("Reading the docs first…"), and its background tasks finishing —
+// from its stream, each placed in the turn whose time span holds it.
+const notesOf = new Map();
+if (existsSync(join(LOGS, "agent.stream.jsonl"))) {
+  const seen = new Set(), all = [];
+  for (const l of readFileSync(join(LOGS, "agent.stream.jsonl"), "utf8").split("\n")) {
+    let e; try { e = JSON.parse(l); } catch { continue; }
+    const at = Date.parse(e.timestamp ?? "");
+    if (e.type === "assistant" && e.parent_tool_use_id == null) {
+      (e.message?.content ?? []).forEach((c, i) => {
+        const k = `${e.message?.id}:${i}`;
+        if (c.type === "text" && c.text.trim() && !seen.has(k)) { seen.add(k); all.push({ at, kind: "said", text: c.text.trim() }); }
+      });
+    } else if (e.type === "system" && e.subtype === "task_notification" && e.summary) all.push({ at, kind: "task", text: e.summary });
+  }
+  for (const t of turns) {
+    const from = Date.parse(t.at), to = Date.parse(t.agent?.at ?? "") || Infinity;
+    // the reply itself is the last thing said: not an interim note
+    const mine = all.filter((n) => n.at >= from && n.at <= to);
+    if (mine.length && mine.at(-1).kind === "said" && t.agent?.text && mine.at(-1).text === t.agent.text.trim()) mine.pop();
+    notesOf.set(t.n, mine.map((n) => ({ ...n, after: Number.isFinite(n.at) ? Math.round((n.at - from) / 1000) : null })));
+  }
+}
 const followupOf = new Map();
 for (const t of turns) { const k = t.asking; t.followup = followupOf.has(k); followupOf.set(k, (followupOf.get(k) ?? 0) + 1); }
+
+// The turns' tokens, from the results that end them, in order: a ledger written before
+// the driver took them from there counted output from the stream's per-call usage, which
+// is logged before a reply finishes and undercounts it.
+const resultsOf = (f) => !existsSync(join(LOGS, f)) ? [] : readFileSync(join(LOGS, f), "utf8").split("\n").flatMap((l) => { try { const e = JSON.parse(l); return e.type === "result" && e.usage ? [e.usage] : []; } catch { return []; } });
+const asSpent = (u, calls) => ({ fresh: u.input_tokens ?? 0, cached: u.cache_read_input_tokens ?? 0, written: u.cache_creation_input_tokens ?? 0, output: u.output_tokens ?? 0, calls: calls ?? 0 });
+const ar = resultsOf("agent.stream.jsonl"), ur = resultsOf("user.stream.jsonl");
+const answered = turns.filter((t) => t.agent);
+if (ar.length === answered.length) answered.forEach((t, i) => { t.agent.spent = asSpent(ar[i], t.agent.spent?.calls); });
+const judged = turns.filter((t) => t.verdict);
+if (ur.length === judged.length + (summary ? 1 : 0)) {
+  judged.forEach((t, i) => { t.verdict.userSpent = asSpent(ur[i], t.verdict.userSpent?.calls); });
+  if (summary) summary.userSpent = asSpent(ur.at(-1), summary.userSpent?.calls);
+}
 
 // ── figures ──────────────────────────────────────────────────────────────────
 const add = (a, b) => { for (const k of ["fresh", "cached", "written", "output", "calls"]) a[k] = (a[k] ?? 0) + (b?.[k] ?? 0); return a; };
@@ -69,8 +107,9 @@ const md = [
 ];
 for (const t of turns) {
   const v = t.verdict ?? {};
-  md.push(`## Turn ${t.n} — request ${t.asking}${t.followup ? " (follow-up)" : ""}`, "",
+  md.push(`## Turn ${t.n} — request ${t.asking}${t.followup ? " (follow-up)" : ""}${t.agent?.compacted ? " — the agent's context was summarized during this turn" : ""}`, "",
     "**Person:**", "", quote(t.person), "",
+    ...((notesOf.get(t.n) ?? []).length ? ["**While it worked:**", "", ...notesOf.get(t.n).map((x) => `- +${dur(x.after)}${x.kind === "task" ? " (task)" : ""}: ${x.text.replace(/\n+/g, " ")}`), ""] : []),
     `**Agent** (${dur(t.agent?.secs)}; ${toolLine(t.agent?.tools)}; ${spentLine(t.agent?.spent)}):`, "", quote(t.agent?.text), "",
     `**Verdict on request ${v.judged ?? "?"}: ${v.verdict ?? "—"}.** ${v.saw ?? ""}${v.broke ? ` Broke: ${v.broke}` : ""}`,
     `(Person looked for ${dur(v.userSecs)}; ${toolLine(v.userTools)}; ${spentLine(v.userSpent)}.)`, "");
@@ -113,8 +152,9 @@ const turnHtml = turns.map((t) => {
   const frameSrc = fr ? picture(fr.file) : null;
   const long = (t.agent?.text ?? "").length > 1400;
   return `<section class="turn" id="t${t.n}">
-  <header class="turn-head"><span class="num">Turn ${t.n}</span><span class="req">request ${t.asking}${t.followup ? " · follow-up" : ""} — ${esc(intentText(t.asking))}</span></header>
+  <header class="turn-head"><span class="num">Turn ${t.n}</span>${t.agent?.compacted ? `<span class="chip part">context summarized</span>` : ""}<span class="req">request ${t.asking}${t.followup ? " · follow-up" : ""} — ${esc(intentText(t.asking))}</span></header>
   <div class="msg person"><div class="who">Person</div><div class="body">${prose(t.person)}</div></div>
+  ${(notesOf.get(t.n) ?? []).length ? `<details class="notes"><summary>While it worked · ${notesOf.get(t.n).length} interim notes</summary><ol>${notesOf.get(t.n).map((x) => `<li class="${x.kind}"><span class="mono">+${dur(x.after)}</span> ${prose(x.text)}</li>`).join("")}</ol></details>` : ""}
   <div class="msg agent"><div class="who">Agent</div>
     ${long ? `<details><summary><span class="body clip">${prose(t.agent.text.slice(0, 600))}…</span><span class="more">the whole reply</span></summary><div class="body">${prose(t.agent.text)}</div></details>` : `<div class="body">${prose(t.agent?.text)}</div>`}
     <div class="meta">${dur(t.agent?.secs)} · ${esc(toolLine(t.agent?.tools))}<br>${esc(spentLine(t.agent?.spent))}</div>
@@ -170,9 +210,16 @@ pre { white-space: pre-wrap; background: var(--na-bg); padding: 8px 10px; border
 .meta { color: var(--muted); font-size: 13px; margin-top: 6px; }
 details summary { cursor: pointer; list-style: none; }
 details summary::-webkit-details-marker { display: none; }
-details[open] summary { display: none; }
+.agent details[open] summary { display: none; }
 .clip { display: block; }
 .more { display: inline-block; margin-top: 4px; color: var(--agent-edge); font-weight: 500; }
+.notes { margin-left: 8%; color: var(--muted); font-size: 14px; }
+.notes summary { color: var(--agent-edge); font-weight: 500; }
+.notes ol { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 4px; }
+.notes li { white-space: pre-wrap; overflow-wrap: anywhere; }
+.notes li.task { font-style: italic; }
+.notes .mono { color: var(--fg); margin-right: 6px; }
+@media (max-width: 560px) { .notes { margin-left: 0; } }
 .seen { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-start; }
 figure { margin: 0; }
 .frame img { max-height: 520px; border: 1px solid var(--line); border-radius: 8px; display: block; }

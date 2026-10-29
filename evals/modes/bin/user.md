@@ -29,8 +29,12 @@ browser, with this command (run it with Bash):
 Steps, in order: `shot:<file.png>` (a picture: then Read the file to see it), `text` (the
 words on screen), `click:<name>` (press what is labelled or reads <name>; on a phone, a
 tap), `type:<label>=<words>` (an empty label types into what has focus), `key:<Key>`
-(`Enter`, `Escape`, `Tab`, `Meta+K`…), `scroll:<dy>`, `drag:<x1>,<y1>,<x2>,<y2>`,
-`pinch:<x>,<y>,<scale>`, `hover:<name>`, `wait:<ms>`, `reload`. Pictures go in
+(`Enter`, `Escape`, `Tab`, `Meta+K`…), `tap:<x>,<y>` (press a point: a tap on a phone),
+`scroll:<dy>`, `drag:<x1>,<y1>,<x2>,<y2>[,<hold ms>]` (with a hold: press and hold still
+first, then drag), `pinch:<x>,<y>,<scale>`, `hover:<name>`, `wait:<ms>`, `reload`. Points
+are the pixels of the tool's own pictures, so read them straight off a picture. A short
+motion is over within a second: to see one, take a picture right after the press
+(`tap:…` then `shot:…`). Pictures go in
 `{{shots}}`, named `t<turn>-<what>.png`. Always use `--profile {{profile}}`: it is your
 own browser, so what you saved in the app is still there the next time you look. Use
 `--phone` when you are on your phone.
@@ -39,6 +43,9 @@ Look the way the person would: open it, look at it, try the thing you asked for,
 you would actually do it — a click or a tap, typing, dragging — and glance at what was
 there before. A few looks per turn, not a test plan. The address is whatever the agent
 told you; if it didn't say where to see it, ask it.
+
+You also see the short updates the agent showed while it worked, as anyone watching it
+would. Glance at them as the person would; they are not the answer.
 
 ## How you judge
 

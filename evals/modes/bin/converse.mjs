@@ -130,34 +130,44 @@ function session(name, model, cwd, tools, env = {}) {
     "--tools", tools, "--allowedTools", tools, "--permission-mode", "acceptEdits", "--permission-prompts", "none", "--strict-mcp-config"],
     { cwd, stdio: ["pipe", "pipe", openSync(join(LOGS, `${name}.stderr`), "a")], env: { ...process.env, CLAUDE_CODE_DISABLE_AUTO_MEMORY: "1", ...env } });
   let buf = "", waiting = null, lastText = "";
-  // this message's work: each API call once, by its message id, at its latest usage (the
-  // stream repeats it per part of a reply), and the tools it used, by name
-  let calls = new Map(), used = {};
+  // this message's work: its API calls, counted once each by message id, and the tools it
+  // used, by name; its tokens come from the result that ends it
+  let calls = new Map(), used = {}, notes = [], compacted = false;
   const spent = () => {
     const u = { fresh: 0, cached: 0, written: 0, output: 0, calls: calls.size };
     for (const c of calls.values()) { u.fresh += c.input_tokens ?? 0; u.cached += c.cache_read_input_tokens ?? 0; u.written += c.cache_creation_input_tokens ?? 0; u.output += c.output_tokens ?? 0; }
-    return { spent: u, tools: used };
+    return { spent: u, tools: used, notes: notes.slice(0, -1), compacted };
   };
   p.stdout.on("data", (d) => {
     stream.write(d); buf += d; let i;
     while ((i = buf.indexOf("\n")) >= 0) {
       const line = buf.slice(0, i); buf = buf.slice(i + 1);
       let e; try { e = JSON.parse(line); } catch { continue; }
+      // the context was summarized: the session goes on from a summary
+      if (e.type === "system" && /compact/.test(e.subtype ?? "")) compacted = true;
       if (e.type === "assistant") {
         if (e.message?.id) calls.set(e.message.id, e.message.usage ?? {});
         for (const c of e.message?.content ?? []) {
+          // what the person sees as it works: each note the agent writes (the last is its reply)
+          if (c.type === "text" && e.parent_tool_use_id == null && c.text.trim()) notes.push(c.text.trim());
           if (c.type === "text") lastText = c.text;
           if (c.type === "tool_use") used[c.name] = (used[c.name] ?? 0) + 1;
         }
       }
-      if (e.type === "result" && waiting) { const w = waiting; waiting = null; w({ ...e, ...spent(), text: e.result ?? lastText }); }
+      if (e.type === "result" && waiting) {
+        // the turn's own figures are the result's: the stream's per-call usage undercounts
+        // output (it is logged before the reply has finished streaming)
+        const got = spent(), u = e.usage ?? {};
+        if (e.usage) Object.assign(got.spent, { fresh: u.input_tokens ?? 0, cached: u.cache_read_input_tokens ?? 0, written: u.cache_creation_input_tokens ?? 0, output: u.output_tokens ?? 0 });
+        const w = waiting; waiting = null; w({ ...e, ...got, text: e.result ?? lastText });
+      }
     }
   });
   p.on("exit", (code) => { if (waiting) { const w = waiting; waiting = null; w({ type: "exit", code, ...spent(), text: lastText }); } });
   return {
     proc: p,
     say(text) {
-      calls = new Map(); used = {};
+      calls = new Map(); used = {}; notes = []; compacted = false;
       return new Promise((r) => { waiting = r; p.stdin.write(JSON.stringify({ type: "user", message: { role: "user", content: [{ type: "text", text }] } }) + "\n"); });
     },
     end() { try { p.stdin.end(); } catch { /* gone */ } },
@@ -219,10 +229,13 @@ while (message && turn <= maxTurns) {
   appendFileSync(ledger, JSON.stringify({ turn, at: now(), role: "person", asking, text: message }) + "\n");
   const r = await builder.say(message);
   const secs = Math.round((Date.now() - t0) / 1000);
-  appendFileSync(ledger, JSON.stringify({ turn, at: now(), role: "agent", secs, agentTurns: r.num_turns, spent: r.spent, tools: r.tools, durationMs: r.duration_ms, text: r.text }) + "\n");
+  appendFileSync(ledger, JSON.stringify({ turn, at: now(), role: "agent", secs, agentTurns: r.num_turns, spent: r.spent, tools: r.tools, durationMs: r.duration_ms, compacted: r.compacted, text: r.text }) + "\n");
   console.log(`turn ${turn}: the agent replied after ${secs}s (${r.num_turns ?? "?"} turns)`);
   if (r.type === "exit") break;
-  const ask = `${userPrimed ? "" : userBrief + "\n\n---\n\n"}This is turn ${turn}. The agent replied:\n\n<<<\n${r.text}\n>>>\n\nLook at the app now, as you would, and answer with the JSON block.`;
+  // a person watching the session sees the agent's notes as it works, then its reply
+  const seen = (r.notes ?? []).filter((x) => x !== r.text?.trim());
+  const working = seen.length ? `While it worked (${Math.round(secs / 60)} min), it showed these updates, in order:\n\n${seen.map((x) => `- ${x.replace(/\n+/g, " ")}`).join("\n")}\n\nThen it replied:` : "The agent replied:";
+  const ask = `${userPrimed ? "" : userBrief + "\n\n---\n\n"}This is turn ${turn}. ${working}\n\n<<<\n${r.text}\n>>>\n\nLook at the app now, as you would, and answer with the JSON block.`;
   userPrimed = true;
   const u0 = Date.now();
   const u = await user.say(ask);

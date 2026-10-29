@@ -147,6 +147,24 @@ await test("ContextMenu: open(v, e) anchors at the pointer; pick delivers and cl
   assert.equal(app.m.shown, false, "…and closed");
 });
 
+await test("ContextMenu: picked() still knows its opener — one menu serving every row acts on the row picked", async () => {
+  const app = await boot(`App [ width = 500, height = 400,
+    last: string = "",
+    m: ContextMenu [ items = { [({ id: "delete", label: "Delete" })] },
+      picked(id: string) { app.last = id + " " + (this.opener == null ? "nothing" : (this.opener as any).tag) },
+    ],
+    a: View [ tag: string = "first", x = 0, y = 0, width = 200, height = 50, onContextMenu(e: PointerEvent) { app.m.open(this, e) } ],
+    b: View [ tag: string = "second", x = 0, y = 60, width = 200, height = 50, onContextMenu(e: PointerEvent) { app.m.open(this, e) } ],
+  ]`);
+  app.b.onContextMenu({ x: 10, y: 10 }); settle();
+  app.m.pick("delete");
+  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => setTimeout(r, 0));
+  settle();
+  assert.equal(app.last, "delete second", "picked() reads the row it was opened for");
+  assert.equal(app.m.opener, null, "and lets it go once delivered");
+});
+
 await test("ContextMenu: a serving view inside a SCROLLED pane anchors where the user sees it", async () => {
   const app = await boot(`App [ width = 500, height = 400,
     m: ContextMenu [ items = { [({ id: "a", label: "A" })] } ],
