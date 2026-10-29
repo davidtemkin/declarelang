@@ -2,6 +2,8 @@ import type { InputSink } from "./backend.js";
 /** Is a hold-gated drag capture live right now? (Backends consult this in
  *  their non-passive touchmove listeners.) */
 export declare const holdCaptureActive: () => boolean;
+/** Is a finger held whole by the program's drag right now? */
+export declare const fingerHeldByDrag: () => boolean;
 /** A resolved input point: the sink of the view under it, that view's
  *  identity (`key`, for the click pairing — any stable per-view object),
  *  and the point in the view's local space. */

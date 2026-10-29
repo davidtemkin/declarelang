@@ -16,8 +16,14 @@ import { View } from "./view.js";
 const BAND = 48; // px from a scroller's edge where scrolling begins
 const MAX_STEP = 20; // px per frame at the very edge (and beyond it)
 let drag = null;
+/** The edge scrolling is moving a scroller now (its last step moved it). */
+let scrolling = false;
 /** The view being dragged right now, if any (the anchor skips it). */
 export function draggingView() { return drag?.view ?? null; }
+/** Is a drag's edge scrolling moving a scroller now? A scroll under the drag's
+ *  finger is then the program's, not the user's (dom-backend watchScrolling)
+ *  and not the browser taking the gesture (input.ts takeover). */
+export function dragScrolling() { return scrolling; }
 function scrollerOf(v) {
     for (let n = v.parent; n instanceof View; n = n.parent)
         if (n.scrolls !== "none")
@@ -49,6 +55,7 @@ function step() {
     if (d === null)
         return;
     d.frame = null;
+    scrolling = false;
     const s = scrollerOf(d.view);
     if (s === null || d.view.parent === null)
         return;
@@ -76,6 +83,7 @@ function step() {
     }
     if (!moved)
         return; // the range ended: nothing more to reveal
+    scrolling = true;
     d.redeliver(d.x, d.y, d.extra); // the content moved under a still pointer
     d.frame = raf(step);
 }
@@ -96,5 +104,6 @@ export function dragEnded() {
     if (drag !== null && drag.frame !== null)
         caf(drag.frame);
     drag = null;
+    scrolling = false;
 }
 //# sourceMappingURL=drag-autoscroll.js.map

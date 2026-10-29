@@ -797,7 +797,34 @@ bootHost(cfg);
       };
       // a pointer held down between press() and release(): where it is, and the finger
       let held = null;
+      // What the platform did with the input while `fn` ran, read from Chrome's own
+      // trace — observed, never altered: how many scroll updates the browser's
+      // compositor handled (a scroll the platform owns, on its own thread and time),
+      // and how many input events had to wait for the page's main thread first (a
+      // non-passive listener in the way). A scroll a program sets shows no updates.
+      const traceInput = async (fn) => {
+        const s = await page.target().createCDPSession();
+        const events = [];
+        s.on("Tracing.dataCollected", (d) => events.push(...d.value));
+        const complete = new Promise((r) => s.once("Tracing.tracingComplete", r));
+        await s.send("Tracing.start", { traceConfig: { includedCategories: ["input", "cc", "benchmark", "latencyInfo"] }, transferMode: "ReportEvents" });
+        try { await fn(); }
+        finally { await s.send("Tracing.end"); await complete; await s.detach().catch(() => {}); }
+        const thread = {};
+        for (const e of events) if (e.ph === "M" && e.name === "thread_name") thread[`${e.pid}:${e.tid}`] = e.args?.name ?? "";
+        const on = (e) => thread[`${e.pid}:${e.tid}`] ?? "";
+        return {
+          platformScrollUpdates: events.filter((e) => e.name === "InputHandler::ScrollUpdate" && /Compositor/.test(on(e))).length,
+          waitedOnPage: events.filter((e) => e.name === "WidgetInputHandlerManager::DidHandleInputEventSentToMain").length,
+        };
+      };
       const drive = {
+        /** Run `fn` (gestures) and answer what the platform did with them, from
+         *  Chrome's trace: `{ platformScrollUpdates, waitedOnPage }`. */
+        async traceInput(fn) {
+          step("traceInput");
+          return traceInput(fn);
+        },
         /** Bring a view into sight as a person does — swiping the page (and any
          *  pane holding it) until it is in the window, waiting each time for the
          *  platform to say the scroll is over. Nothing is pressed. */

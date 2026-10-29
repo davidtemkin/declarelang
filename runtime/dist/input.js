@@ -49,6 +49,7 @@
 // per-sprite clickable state and a global event broker); read for intent —
 // deliver input to the view the user sees under the pointer — and rewritten
 // as one shared rule over one resolution seam.
+import { dragScrolling } from "./drag-autoscroll.js";
 // ── The HOLD-GATED drag claim (ruled 2026-07-29) ─────────────────────────────
 // A view declaring `onHold` ALONGSIDE its raw drag handlers claims the finger
 // AT THE HOLD, not at touchdown — the least-claim rule read precisely: the
@@ -66,6 +67,15 @@ let holdCapture = false;
 /** Is a hold-gated drag capture live right now? (Backends consult this in
  *  their non-passive touchmove listeners.) */
 export const holdCaptureActive = () => holdCapture;
+// A finger the program's drag has whole — claimed on both axes at touchdown
+// (the browser was told at once it may not pan there), or handed to such a
+// drag — cannot be scrolling anything for the user; with a hold-gated claim,
+// that is true from the hold (holdCapture). Whatever moves a scroller under it
+// is the program's: the backend's scroll watcher does not take it for the
+// user's scroll, and the takeover detector does not take it for the browser's.
+let dragFinger = false;
+/** Is a finger held whole by the program's drag right now? */
+export const fingerHeldByDrag = () => dragFinger || holdCapture;
 /** Movement past which a gesture is no longer an activation, by pointer kind.
  *  Touch is looser: a fingertip is wide, jitters on contact, and its motion is
  *  how a user scrolls. (The calendar hand-rolled exactly the mouse figure for
@@ -240,6 +250,8 @@ topLevel = true) {
         disarmHold();
         from.sink("pointerUp", lastX, lastY, { canceled: true, ...moved(lastX, lastY) });
         held = { key: to.key, sink: to.sink, wantsDrag: true, x: 0, y: 0 };
+        if (pressFinger && to.axis === "both" && !to.fromHold)
+            dragFinger = true;
         to.sink("pointerDown", pressX, pressY, { deltaX: 0, deltaY: 0 });
     };
     const travelled = (under, x, y) => {
@@ -429,6 +441,10 @@ topLevel = true) {
         pressY = p0.y;
         pressId = e.pointerId;
         pressFinger = e.pointerType !== "mouse";
+        {
+            const own = t !== null && t.drag !== undefined && t.drag.key === t.key ? t.drag : undefined;
+            dragFinger = pressFinger && t !== null && t.wantsDrag === true && (own?.axis ?? "both") === "both" && !(own?.fromHold ?? t.wantsHold === true);
+        }
         pressEl = typeof Element !== "undefined" && e.target instanceof Element ? e.target : null;
         lastX = p0.x;
         lastY = p0.y;
@@ -643,6 +659,7 @@ topLevel = true) {
         suppressSelection(false);
         disarmHold();
         holdCapture = false; // a hold-gated drag ends with its finger
+        dragFinger = false;
         // a pinch ends when EITHER of its fingers lifts (the gesture is the pair)
         if (pinchGesture !== null && (e.pointerId === pinchGesture.a || e.pointerId === pinchGesture.b))
             endPinch();
@@ -726,6 +743,7 @@ topLevel = true) {
         suppressSelection(false);
         disarmHold();
         holdCapture = false;
+        dragFinger = false;
         // a canceled finger ends its pinch exactly as a lifted one does
         if (pinchGesture !== null && (e.pointerId === pinchGesture.a || e.pointerId === pinchGesture.b))
             endPinch();
@@ -770,7 +788,10 @@ topLevel = true) {
     // cancel — momentum scroll after a lift lands here); `pressFinger` (a mouse
     // drag never competes with scrolling — wheeling mid-drag must not cancel
     // it); `!holdCapture` (past the hold the app owns the finger; any scroll
-    // then is programmatic and must not break the claimed drag); containment
+    // then is programmatic and must not break the claimed drag — and the same for a
+    // finger a drag has whole from touchdown, fingerHeldByDrag); `!dragScrolling()`
+    // (the drag's own edge scrolling moved it — the program's motion, the same);
+    // containment
     // (another pane's programmatic scroll is not this gesture's takeover).
     // A press landing DURING deceleration gets canceled by the tail's scroll
     // events — matching the platform: a touch that stops a scroll is the
@@ -781,7 +802,7 @@ topLevel = true) {
                 window.removeEventListener("scroll", scrollListener, true);
                 return;
             }
-            if (held === null || !pressFinger || holdCapture)
+            if (held === null || !pressFinger || fingerHeldByDrag() || dragScrolling())
                 return;
             const s = e.target;
             const isEl = typeof Element !== "undefined" && s instanceof Element;

@@ -33,7 +33,8 @@ import { renderClamped, type ClampRule } from "./text-clamp.js";
 import { replay, rasterEntryCap, rasterLooksBlank, blankRasterMessage, rasterPad, RASTER_MAX_DIM, RASTER_MAX_AREA, type DisplayList } from "./draw.js";
 import { deferral, firstFramePainted, afterFirstFrame } from "./boot-deferrals.js";
 import { onDprChange } from "./dpr.js";
-import { routeInput, holdCaptureActive } from "./input.js";
+import { routeInput, holdCaptureActive, fingerHeldByDrag } from "./input.js";
+import { dragScrolling } from "./drag-autoscroll.js";
 import { lockFocusZoom } from "./viewport-lock.js";
 import { observeVisibility, refreshObserved, type VisibilityCb } from "./dom-visibility.js";
 import { installDomSemantics } from "./semantics-dom.js";
@@ -3004,7 +3005,12 @@ export function watchScrolling(target: HTMLElement | Window, report: (active: bo
     if (handOn()) return false;
     return r.h - r.box < was - 0.5 && r.top >= r.h - r.box - 1;
   };
+  // A finger the program's drag holds is not scrolling anything: what moves the
+  // scroller under it is the program's (a drag's edge scrolling) — counted as the
+  // user's, it held every request, the edge scrolling's own, until the drag ended.
+  const dragHolds = (): boolean => dragScrolling() || fingerHeldByDrag();
   const onScroll = (): void => {
+    if (touches > 0 && dragHolds()) { last = range(); return; }
     if (touches > 0) programEnds();                       // a finger is down: whatever moved, the user did
     if (program) {
       // the program's own motion: not the user's scroll. Without scrollend a

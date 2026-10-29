@@ -27,9 +27,16 @@ interface Drag {
 }
 
 let drag: Drag | null = null;
+/** The edge scrolling is moving a scroller now (its last step moved it). */
+let scrolling = false;
 
 /** The view being dragged right now, if any (the anchor skips it). */
 export function draggingView(): View | null { return drag?.view ?? null; }
+
+/** Is a drag's edge scrolling moving a scroller now? A scroll under the drag's
+ *  finger is then the program's, not the user's (dom-backend watchScrolling)
+ *  and not the browser taking the gesture (input.ts takeover). */
+export function dragScrolling(): boolean { return scrolling; }
 
 function scrollerOf(v: View): View | null {
   for (let n: unknown = v.parent; n instanceof View; n = n.parent) if (n.scrolls !== "none") return n;
@@ -57,6 +64,7 @@ function step(): void {
   const d = drag;
   if (d === null) return;
   d.frame = null;
+  scrolling = false;
   const s = scrollerOf(d.view);
   if (s === null || d.view.parent === null) return;
   const b = s.rootBounds();
@@ -75,6 +83,7 @@ function step(): void {
     if (next !== s.scrollX) { s.scrollToX(next); moved = true; }
   }
   if (!moved) return;                          // the range ended: nothing more to reveal
+  scrolling = true;
   d.redeliver(d.x, d.y, d.extra);              // the content moved under a still pointer
   d.frame = raf(step);
 }
@@ -92,4 +101,5 @@ export function dragMoved(view: View, x: number, y: number, extra: Record<string
 export function dragEnded(): void {
   if (drag !== null && drag.frame !== null) caf(drag.frame);
   drag = null;
+  scrolling = false;
 }
