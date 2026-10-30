@@ -661,7 +661,20 @@ const headerProse = (src, cls) => {
   if (!blocks.length) return { class: null, members: {}, methods: {}, internal: new Set() };
   const own = cls ? blocks.find((b) => headingNames(b).includes(cls)) : null;
   const blockIndex = own ? blocks.indexOf(own) : 0;
-  const text = (own ?? blocks[0]).replace(/^\s*#\s*\S[^\n]*\n/, "");   // drop the leading "# Name" line
+  // a class can also have its own `# Name` heading partway through another's block
+  // (CarouselLayout after Carousel): its prose runs from there to the next `# `
+  if (!own && cls) {
+    for (const [i, b] of blocks.entries()) {
+      const m = b.match(new RegExp(`^#\\s+${cls}\\s*$`, "m"));
+      if (!m) continue;
+      const rest = b.slice(m.index + m[0].length);
+      const next = rest.search(/^#\s+\S/m);
+      return headerProseOf(next < 0 ? rest : rest.slice(0, next), i);
+    }
+  }
+  return headerProseOf((own ?? blocks[0]).replace(/^\s*#\s*\S[^\n]*\n/, ""), blockIndex);   // drop the leading "# Name" line
+};
+const headerProseOf = (text, blockIndex) => {
   const parts = text.split(/^## +(.+)$/m);
   const members = {}, methods = {}, internal = new Set();
   for (let i = 1; i < parts.length; i += 2) {
@@ -693,6 +706,10 @@ for (const [tag, file] of Object.entries(LIBRARY)) {
   if (!cls) continue;
   const prose = headerProse(src, tag);
   PROSE[tag] = prose;
+  // A class whose own prose opens **Internal.** is a part another class makes and a
+  // program never writes (a calendar's day cell, a grid's row): not API, and not
+  // listed, members and all — so its members need no `_` of their own.
+  const classInternal = /^\*\*Internal\.\*\*/.test(prose.class ?? "");
   // the class's SET attributes (`name = value` — a re-default of an inherited slot,
   // an override) and its source slice, for the post-pass below
   {
@@ -704,9 +721,9 @@ for (const [tag, file] of Object.entries(LIBRARY)) {
   for (const d of cls.body.decls) {
     const id = `${tag}.${d.name}`;
     const pd = prose.members[d.name] ?? null;
-    checkNaming(tag, d.name, prose.internal.has(d.name));
+    if (!classInternal) checkNaming(tag, d.name, prose.internal.has(d.name));
     nodes[id] = { id, name: d.name, kind: "attribute", doc: pd, docSegs: await segmentize(pd, id),
-      api: !prose.internal.has(d.name), internal: prose.internal.has(d.name),
+      api: !classInternal && !prose.internal.has(d.name), internal: classInternal || prose.internal.has(d.name),
       source: { file: rel, line: 0 }, parent: tag, seeAlso: [],
       type: d.type, default: renderDefault(d.def),
       readOnly: !!d.readOnly, inheritedFrom: null };
@@ -725,9 +742,9 @@ for (const [tag, file] of Object.entries(LIBRARY)) {
     const evName = isEvent ? m.name[2].toLowerCase() + m.name.slice(3) : m.name;
     const id = `${tag}.${isEvent ? "event" : "method"}.${evName}`;
     const pm = prose.methods[m.name] ?? prose.members[m.name] ?? null;
-    checkNaming(tag, m.name, prose.internal.has(m.name));
+    if (!classInternal) checkNaming(tag, m.name, prose.internal.has(m.name));
     nodes[id] = { id, name: evName, kind: isEvent ? "event" : "method", doc: pm, docSegs: await segmentize(pm, id),
-      api: !prose.internal.has(m.name), internal: prose.internal.has(m.name),
+      api: !classInternal && !prose.internal.has(m.name), internal: classInternal || prose.internal.has(m.name),
       source: { file: rel, line: 0 }, parent: tag, seeAlso: [],
       signature: `${m.name}(${(m.params ?? []).map((p) => p.name ?? p).join(", ")})` };
     (isEvent ? events : methods).push(id);
@@ -735,11 +752,11 @@ for (const [tag, file] of Object.entries(LIBRARY)) {
   const baseName = cls.base ?? null;
   if (baseName) (subclassIndex[baseName] ??= []).push(tag);
   nodes[tag] = { id: tag, name: tag, kind: "class",
-    doc: prose.class, docSegs: await segmentize(prose.class, tag), api: true,
+    doc: prose.class, docSegs: await segmentize(prose.class, tag), api: !classInternal, internal: classInternal,
     source: { file: rel, line: 0 }, parent: null, seeAlso: [],
     extends: baseName, subclasses: [], origin: "library",
     attributes, methods, events, example: await readExample(tag) };
-  roots.push(tag);
+  if (!classInternal) roots.push(tag);
 }
 
 // ── the THEME PRESETS — one reference entry per declared record ──
@@ -887,7 +904,8 @@ for (const c of Object.values(nodes)) {
     } else text = renderDefault(set.value);
     const doc = prose.members[set.name] ?? null;
     const id = `${c.id}.${set.name}`;
-    nodes[id] = { id, name: set.name, kind: "attribute", doc, docSegs: await segmentize(doc, id), api: true, internal: false,
+    const setInternal = prose.internal?.has(set.name) === true;
+    nodes[id] = { id, name: set.name, kind: "attribute", doc, docSegs: await segmentize(doc, id), api: !setInternal, internal: setInternal,
       source: { file: "library/" + LIBRARY[c.id], line: set.value?.pos?.line ?? 0 }, parent: c.id, seeAlso: [],
       type: anc?.type ?? "", default: text, readOnly: false, inheritedFrom: null,
       overrides: { from, was: anc?.default ?? null } };
@@ -986,7 +1004,7 @@ const CLASS_GROUPS = [
   // reference is read by agents as often as by people, so the collision was one
   // we would have been adding on purpose. It is also the word the language file's
   // own map already uses for these — "controls, structure, layouts, embedding".
-  ["Structure",     ["Gauge", "Card", "Divider", "MenuBar", "Accordion", "AccordionPane", "Carousel", "CarouselLayout", "Disclosure", "Tree", "TreeRow", "Breadcrumb", "BreadcrumbStep", "BreadcrumbLink", "BreadcrumbCurrent", "Window", "WindowClose"]],
+  ["Structure",     ["Gauge", "Card", "Divider", "MenuBar", "Accordion", "AccordionPane", "Carousel", "CarouselLayout", "Disclosure", "Tree", "TreeRow", "Breadcrumb", "BreadcrumbStep", "BreadcrumbLink", "BreadcrumbCurrent", "Window"]],
   // what paints above everything in its context (planes.md §3.3): one base, the
   // objects every platform converges on, and the layers they paint in
   ["Overlays",      ["Floating", "Menu", "ContextMenu", "Popover", "Dialog", "Sheet", "Toast", "Tooltip", "OverlayStrata"]],
@@ -1006,7 +1024,7 @@ const groupProblems = [];
   for (const [g, names] of CLASS_GROUPS) for (const n of names) {
     if (filed.has(n)) groupProblems.push(`class ${n} is filed twice (${filed.get(n)}, ${g})`);
     filed.set(n, g);
-    if (!roots.includes(n)) groupProblems.push(`group '${g}' files ${n}, which is not a documented class`);
+    if (!roots.includes(n) && nodes[n]?.internal !== true) groupProblems.push(`group '${g}' files ${n}, which is not a documented class`);
   }
   for (const id of roots) if (!filed.has(id)) groupProblems.push(`class ${id} is in no group — file it in CLASS_GROUPS (extract.mjs)`);
 }

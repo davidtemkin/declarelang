@@ -101,6 +101,9 @@ export interface Provenance {
             col: number;
             file?: string;
         } | null;
+        /** For a size the parent's layout gave: what it gave and why, in the child's
+         *  own facts (a share, a shrink, a stretch, a range it was held at). */
+        why?: string | null;
     } | null;
     /** A Spring child currently driving this slot, with its live target. */
     spring: {

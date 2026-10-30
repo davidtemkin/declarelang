@@ -196,9 +196,9 @@ export const CAPABILITIES: readonly Capability[] = [
     when: [{ classes: ["RichText"] }, { syntax: ["unrouted"] }, { build: { debug: true } }, { build: { inspector: true } }] },
   { id: "schema-table", describe: "the built-in class schemas, whole (a build ships the ones its program constructs)",
     modules: ["schema"], when: [], hostsKeep: true, refusal: "unused", subset: { export: "SCHEMAS", keys: "classes" } },
-  { id: "size-report", describe: "the authoring report of a child sized from a parent with no size to give",
+  { id: "size-report", describe: "the authoring reports of a size nothing decides: a child sized from a parent with no size to give, a container whose children all take their size from it",
     modules: ["size-report"], when: [{ build: { debug: true } }], refusal: "unused",
-    inert: { noteNegativeSize: "noop", judgeNegativeSizes: "noop" } },
+    inert: { noteNegativeSize: "noop", judgeNegativeSizes: "noop", judgeEmptyContainers: "noop" } },
   // ── classes and constructs the core recognises but need not carry ─────────
   // (data — Dataset, cursors, region cells and the path selectors — ships in
   // every build: a datapath can arrive as a view's member, from createView's
@@ -358,7 +358,7 @@ export function programFacts(program: ProgramLike, usedClasses: Iterable<string>
       if (v?.kind === "code" && v.src) readBody(v.src, f);
       literalCalls(v, f.calls);
       if (planful(v)) f.syntax.add("selector-path");
-      if (v?.kind === "schema" || ((a.name === "schema" || a.name === "errorSchema") && v?.kind === "ident" && v.name !== "null")) f.syntax.add("schema");
+      if (v?.kind === "schema" || (a.name === "schema" && v?.kind === "ident" && v.name !== "null")) f.syntax.add("schema");
       if (v?.kind === "path" && (v as { many?: boolean }).many === true) f.syntax.add("replication");
       if (a.bind === "two") f.syntax.add("two-way");
     }

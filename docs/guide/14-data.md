@@ -63,10 +63,6 @@ dashes; the reference page for `:path` lists them. A `:path` works inside a `{ }
 `text = { :done ? "✓ " + :title : :title }` — and a non-visual child such as a
 [`Spring`](declare-docs:Spring) or a [`DataSource`](declare-docs:DataSource) reads the cursor of the view it belongs to.
 
-One current limit: when an array holds bare values (`"tags": ["new", "sale"]`),
-replicating over it works, but there is no `:path` naming the string itself. Give the
-values a field (`[{ "label": "new" }, …]`) and read `:label`.
-
 ## Writing a record
 
 A handler or method writes a field of the record its view is attached to with the same
@@ -105,6 +101,12 @@ the *shape* of a collection go through the dataset's verbs:
   and `d.set("/rows/-", value)` appends;
 - `d.move(path, from, to)` reorders, and the rows move with their records.
 
+The path names the array and the index a place in it: `app.tasks.removeAt("/items", 2)`.
+The index is the source array's. A row shown through a filtered or sorted dataset has a
+`rowIndex` in *that* list, so to remove the record a row shows, find it in the source —
+`app.tasks.value.items.indexOf(:@)`, `:@` being the row's own record — rather than passing
+the row's own index.
+
 A path is a list of segments (`["rows", 0, "name"]`) or a pointer string
 (`"/rows/0/name"`). A dataset's `value` is read-only — data changes through these verbs,
 never by assigning `value`.
@@ -130,10 +132,10 @@ When the records are objects, `:@` is the object — rarely needed for reading, 
 `onClick() { app.open(:@) }`. Under a schema the record is typed, so a row can hold it as
 one — `rec: Task = { :@ }` — and pass it on, instead of looking it up again by id.
 
-**`[( … )]` is a key computed by TypeScript.** Inside `[ ]` a path takes JSONPath's
+**`[( … )]` is a key computed by an expression.** Inside `[ ]` a path takes JSONPath's
 selectors — `[0]`, `['name']`, `[1:3]`; inside `[( )]` it takes an expression, and the
-field (or index) is whatever the expression gives. It is for the field you do not know
-when you write the code — a grid cell whose column names the field it shows:
+field (or index) is whatever the expression gives. It is for the field you do not know when
+you write the code — a grid cell whose column names the field it shows:
 
 ```declare-fragment
 Text [ text = { "" + :@[(classroot.field)] } ],                // the field this column shows
@@ -192,12 +194,14 @@ replicate, is not supported; only views replicate.)
 ### Deriving summaries: methods, and a typed result
 
 Most apps also compute things *from* the whole collection — a category's total, a
-running balance, the largest item. They are **methods**, on the App while there are a few of
-them; when the logic of one dataset's records grows into a thing in its own right, the dataset
-becomes a class that extends `Dataset` (or `DataSource`, when it arrives from a server), carrying its
-derivations, its queries and the few writes that are more than a field. The compiler reads through a method, so what a constraint
-depends on is known and `explain` can show it; through a `script` function it traces nothing,
-so a constraint depends only on the arguments it passes. Give a result a `schema` and it arrives typed, with no casts:
+running balance, the largest item. They are **methods**, on the App while there are a few
+of them; when the logic of one dataset's records grows into a thing in its own right, the
+dataset becomes a class that extends `Dataset`, carrying its derivations, its queries and
+the few writes that are more than a field
+([Program structure](declare-docs:guide:structure@where-things-go)). The compiler reads
+through a method, so what a constraint depends on is known and `explain` can show it; through a `script` function it
+traces nothing, so a constraint depends only on the arguments it passes. Give a result a
+`schema` and it arrives typed, with no casts:
 
 ```declare
 schema Expense [ id: number, category: string, amount: number ]
@@ -231,15 +235,6 @@ expenses change, and its `schema` makes `app.ledger.food.value.count` a `number`
 body. A dataset class holds members that paint nothing — a derived dataset, a `Time` — and
 never views. [Data in a whole app](declare-docs:guide:data@data-in-a-whole-app), below,
 binds views to a dataset class and its derived dataset together.
-
-When logic moves out of the App, where it goes follows what it is about: the logic of one
-dataset's records — its derivations, queries over them, how a record is created, the rules a
-write must keep — moves onto the dataset, as its class; other logic with no view — a
-service, a connection feeding several datasets, an undo history — moves into a class that
-extends `Node`, of which a dataset class is the special case that holds data. What the user is looking at — the selection, the page, the mode — is never
-on the data.
-What stays in `script` is code that knows nothing about your model — date arithmetic,
-formatting — functions of their arguments alone.
 
 ## Where data comes from
 
@@ -284,32 +279,11 @@ the source fetches, and the screens follow. The fetch-then-set-state choreograph
 deleted, not abstracted.
 
 **Logic about one feed belongs on it.** A dataset with rules of its own becomes a class
-that extends `Dataset` (below); one whose data arrives from a server becomes a class
-that extends `DataSource`, carrying its address, its queries over what arrived, and
-whatever its arrival must do. The class is declared at the top level, beside its schema:
-
-```declare-fragment
-schema Quote [ sym: string, price: number ]
-
-class Quotes extends DataSource [ url = "/api/quotes", autoFetch = true, schema = [ rows[]: Quote ],
-    priceOf(sym: string) -> number { return this.value?.rows.find((q) => q.sym == sym)?.price ?? 0 },
-    expensive: Dataset [ contents = { { rows: (classroot.value?.rows ?? []).filter((q) => q.price > 100) } } ]
-    ]
-```
-
-and the App holds an instance, which views read and bind to exactly as to any dataset — its
-records, its queries, and its derived datasets:
-
-```declare-fragment
-quotes: Quotes [ ],
-Text [ text = { "ACME " + app.quotes.priceOf("ACME") } ],
-pricey: View [ datapath = { app.quotes.expensive.value },
-    layout: SimpleLayout [ axis = y ],
-    Text [ datapath = :rows[], text = :sym ]
-    ]
-```
-
-The marketmap's `Market` is one at full size.
+that extends `Dataset`, as `Ledger` did above; one whose data arrives from a server becomes
+a class that extends `DataSource`, carrying its address, its queries over what arrived, and
+whatever its arrival must do. The App holds an instance, which views read and bind to
+exactly as to any dataset — its records, its queries, and its derived datasets
+([Program structure](declare-docs:guide:structure@where-things-go) sketches one).
 
 ## Talking to a server
 
@@ -380,16 +354,15 @@ video are not this: `Image`, `Audio` and `Video` load their own.)
 `ready: boolean = { app.people.loaded && app.rooms.loaded }`. There is no join to write
 and no order to wait in.
 
-**Refreshing on a schedule** is a [`Time`](declare-docs:Time) with a period in milliseconds, calling the
-source:
+**Refreshing on a schedule** is a [`Time`](declare-docs:Time) with a period in milliseconds,
+calling the source ([Time](declare-docs:guide:time@tick-the-resolution)):
 
 ```declare-fragment
 poll: Time [ tick = 30000, running = { app.tasks.loaded }, onTick() { app.tasks.fetch() } ]
 ```
 
 A refresh keeps `loaded` true and the old data showing until the new data lands, so
-nothing flashes. The period counts from when the `Time` starts, and a hidden page pauses
-it.
+nothing flashes.
 
 **Reacting once to a failure** — logging it, moving focus — is a change event on the
 source, since `failed` is an ordinary attribute:
@@ -397,8 +370,7 @@ source, since `failed` is an ordinary attribute:
 the failure is not that case; a constraint on `failed` does it.
 
 The host's `fetch` is not available in a `{ }` body; the compiler names `DataSource`
-instead. A request a `DataSource` genuinely cannot express belongs in a
-`script [ "file.ts" ]` module, which is plain TypeScript
+instead. A request a `DataSource` genuinely cannot express belongs in a `script` module
 ([Program structure](declare-docs:guide:structure@what-script-is-for)).
 
 ## Streams
@@ -483,8 +455,8 @@ copy** — a plain `draft: Dataset { { } }`, filled when editing starts with
 `app.draft.set([], structuredClone(app.record.value))` — let every control write to it, and
 copy it across when it is saved. The copy is what makes it a draft: a derived dataset would
 hold the record itself, and its writes would land at once. Values can just as well live on
-the App or on a model class of their own, as computed defaults that follow an account until
-the person types.
+the App or on a model class of their own, as computed defaults that follow
+something else until the person types (as in [A form in a sheet](declare-docs:guide:data@a-form-in-a-sheet), below).
 
 ### A form
 
@@ -520,38 +492,31 @@ There is no flag to keep and no handler for failure:
 
 - **A field says what is wrong once it has been left**, and from then on at every edit, so the
   message goes the moment the value is right. Nothing is marked wrong while it is first typed.
-- **[`submit()`](declare-docs:Form.method.submit) judges every field at once** — the ones the person never reached and the ones
-  autofill filled included — so every problem shows together, each under its own field, and
-  the focus goes to the first. Return in a field submits too — or, in a form filled in
-  order (a checkout, an address), set [`enterMoves`](declare-docs:Form.enterMoves) and Return takes the person to the
-  next field, submitting from the last; a phone's keyboard says "Next" and then "Go". Nothing is sent while anything
+- **[`submit()`](declare-docs:Form.method.submit) judges every field at once** — the ones the person
+  never reached and the ones autofill filled included — so every problem shows together,
+  each under its own field, and the focus goes to the first. Nothing is sent while anything
   is wrong, and nothing twice while `pending`.
-- **Keep Submit enabled.** A button disabled until the form is valid hides the reason, and an
-  autofilled form can leave it disabled for good; pressing it is what explains. (`pending` is
-  the one time it waits: say so in its label.)
 - **The service's refusal lands on the field it names.** A reply such as
   `{ "field": "email", "message": "That address already has an account." }` puts the
   sentence under the email field until the email changes; one that names no field
-  (`{ "message": "This account is locked." }`) becomes the form's `error`. Lists of errors,
-  RFC 9457 problem details and JSON:API errors are read the same way, matched to each field's
-  `name`; [`refusal(body)`](declare-docs:Form.method.refusal) is overridable for a service with its own shape, and
-  [`refusedWith(body)`](declare-docs:Form.method.refusedWith) is where the program reacts (clearing a code the service will not accept again).
-- **A rule may read other values.** A confirmation field's
+  (`{ "message": "This account is locked." }`) becomes the form's `error`. Lists of errors
+  and the common standard shapes are read the same way, matched to each field's `name`; the
+  [`Form`](declare-docs:Form) reference lists them.
+- **A rule may read other values.** A confirmation field whose rule is
   `validate(v: string) -> string { return v == app.password ? "" : "The passwords don't match." }`
   judges again when the password changes. A rule that belongs to no one field is the form's
   own `validate()`.
 
-[`Field`](declare-docs:Field) puts the label beside or above its control and the control's `error` under it
-(its arrangement is a [`FieldLayout`](declare-docs:FieldLayout)).
+[`Field`](declare-docs:Field) puts the label beside or above its control and the control's `error` under it.
 Any control that holds a value is a field: a `Checkbox`, `Switch`, `RadioGroup`, `Combobox`,
 `DatePicker`, `Slider` or `Stepper` takes `name`, `required` and `validate` the same way, and a
 control of your own does by extending [`ValueControl`](declare-docs:ValueControl).
 
 ### A form with no service
 
-A form that saves locally says what sending is: [`send()`](declare-docs:Form.method.send) runs when `submit()` finds
-nothing wrong. A check only the program can make — a name already taken — is said on the
-field with `refuse(message)`, and holds until the value changes:
+A form that saves locally says what sending is: [`send()`](declare-docs:Form.method.send) runs when
+`submit()` finds nothing wrong. A check only the program can make — a name already taken —
+is said on the field with `refuse`, and holds until the value changes:
 
 ```declare
 App [ width = 380, height = 220, fill = white, textColor = black,
@@ -574,7 +539,8 @@ App [ width = 380, height = 220, fill = white, textColor = black,
     ]
 ```
 
-Slow work in `send()` sets `pending` itself while it runs.
+Try "Ada": the refusal appears under the field, exactly where a service's would. Slow work
+in `send()` sets `pending` itself while it runs.
 
 ### Errors shown your own way
 
@@ -582,17 +548,16 @@ The form and its fields hold facts, not a look; `Field` is one way to show them.
 has `problem` — what is wrong **now**, whatever has been judged — beside `error`, the default
 rule (`problem` once judged). The form has `problems` (every field's, in reading order),
 `error`, `submitted` and `valid`. One message in a place of your choosing is
-`text = { app.signIn.problems[0]?.message ?? app.signIn.error }`; nothing until a submit and
-then everything reads `problem` where `submitted` is true; a summary at the top replicates
-over `problems` and overrides [`showProblems()`](declare-docs:Form.method.showProblems) to take the focus there.
+`text = { app.signIn.problems[0]?.message ?? app.signIn.error }`; a summary at the top
+replicates over `problems` and overrides [`showProblems()`](declare-docs:Form.method.showProblems)
+to take the focus there.
 
 ### A form in a sheet
 
 A form that opens for each new thing (a sheet that creates a page, a dialog that adds an
-entry) is its own view class, and it **exists only while it is open**: `exists` builds it
-when the sheet opens and discards it once the sheet has closed — keyed on the sheet's
-`present`, which stays true through the closing motion, so the form doesn't vanish while
-the panel is still sliding away (`18-overlays.md`). Its fields are its own
+entry) is its own view class, and it **exists only while it is open** — built when the sheet
+opens and discarded once it has closed, keyed on the sheet's `present`
+([Open as state](declare-docs:guide:overlays@open-as-state)). Its fields are its own
 attributes, so every opening starts from its defaults, with nothing to reset. A sheet is a
 boundary for forms: the `Form` goes inside it.
 
@@ -622,10 +587,7 @@ App [ width = 400, height = 300, fill = white, textColor = black,
     pages: Dataset { { "rows": [ { "title": "About", "slug": "about" } ] } },
     adding: boolean = false,
     create(p: NewPage) {
-        if ((app.pages.value?.rows ?? []).some((r) => r.slug == p.slug)) {
-            p.refuse([({ name: "slug", message: "A page already has that address." })])
-            return
-            }
+        if ((app.pages.value?.rows ?? []).some((r) => r.slug == p.slug)) { p.refuse([({ name: "slug", message: "A page already has that address." })]); return }
         app.pages.set("/rows/-", ({ title: p.title, slug: p.slug }))
         app.adding = false
         },
@@ -634,7 +596,8 @@ App [ width = 400, height = 300, fill = white, textColor = black,
         Text [ text = { (app.pages.value?.rows ?? []).map((r) => "/" + r.slug).join("  ") } ] ],
     sheet: Sheet [ accessibilityLabel = "New page", shown = { app.adding },
         input(open: boolean) { app.adding = open },
-        NewPage [ exists = { app.sheet.present } ] ]
+        NewPage [ exists = { app.sheet.present } ]
+        ]
     ]
 ```
 
@@ -715,7 +678,7 @@ and the views. Lanes and cards replicate over `app.board.lanes.value`; a view th
 wanted the flat list would bind to `app.board.value` the same way. Both user actions are
 one write each, and the dataset never touches a view.
 
-Note where the card's click writes: `:col = :col + 1`, on the card itself, although the
+Note where the card's click writes: `:col = …`, on the card itself, although the
 card is attached to the *derived* lanes. `byColumn` groups the cards — it does not copy
 them — so `lanes` holds the board's own records, and writing one writes the board. The
 lanes re-derive from that write and the card moves to its new column. **A derived

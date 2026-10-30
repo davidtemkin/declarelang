@@ -49,8 +49,8 @@ says what is wrong. It runs when `required` is met, and it is **reactive** — a
 reads another value (`app.form.country`) judges again when that value changes.
 
 ## refused
-An outside message about the value — usually a service's refusal, laid here by a form's
-`refuse` or the control's own `refuse(message)`. It is the control's `problem` while the
+**Read-only.** An outside message about the value — usually a service's refusal, laid here by a
+form's `refuse` or the control's own `refuse(message)`, the one way to say it. It is the control's `problem` while the
 value is the one refused, and stops counting when the value changes.
 
 ## refuse()
@@ -67,16 +67,12 @@ Whether `problem` is empty.
 
 ## error
 `problem` once the control is judged, else empty — the default display rule, and what a
-`Field` shows under the control and a screen reader hears with it. Under `judgeOn = edit`
-it is `problem` at every moment.
+`Field` shows under the control and a screen reader hears with it. A control that should
+say what is wrong at every moment is judged from the start: `judged = true`.
 
 ## judged
 Whether the control has been judged: left, `judge()`d, or submitted with its form.
 Writable: set it back to false for a fresh try (a security code emptied after a decline).
-
-## judgeOn
-When `error` first says what is wrong: `leave` (the default) once the control has been
-left, `edit` at every moment.
 
 ## judge()
 Judges the control now, as leaving it would.
@@ -137,7 +133,6 @@ include [ "control.declare" ]
 class ValueControl extends Control [
     name: string = "",
     required: boolean | string = false,
-    judgeOn: JudgeOn = leave,
     judged: boolean = false,
 
     // what the rules judge, set by each concrete control from its own value
@@ -161,7 +156,7 @@ class ValueControl extends Control [
     _requiredSays: string = { typeof this.required == "string" ? this.required : "Required" },
     problem: string = { this._refusing ? this.refused : this._missing ? this._requiredSays : this.validate(this.fieldValue) },
     valid: boolean = { this.problem == "" },
-    error: string = { this.judgeOn == "edit" || this.judged ? this.problem : "" },
+    error: string = { this.judged ? this.problem : "" },
 
     // the form above, unless set; what is inside this control is part of it,
     // so it provides "no form" (and "no field") to its own parts
@@ -214,7 +209,7 @@ class ValueControl extends Control [
             sync()
             // leaving judges — but not for the control's own popup (a date
             // picker's calendar), which the focus visits while choosing
-            if (e.changed.some((c) => c.name == "here") && !here && classroot.judgeOn == "leave"
+            if (e.changed.some((c) => c.name == "here") && !here
                 && classroot.accessibilityExpanded !== true) classroot.judged = true
             },
         retire() {

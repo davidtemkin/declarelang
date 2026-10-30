@@ -1,9 +1,12 @@
-App [ width = 360, height = 200, theme = { SanFrancisco }, fill = { provided("theme").background },
+App [ width = 340, height = 120, theme = { SanFrancisco }, fill = { provided("theme").background },
     textColor = { provided("theme").text },
-    sent: string = "",
-    Text [ x = 20, y = 20, text = { app.sent == "" ? "Return sends; Shift-Return breaks the line" : "sent: " + app.sent } ],
-    TextInput [ x = 20, y = 56, width = 300, multiline = true, enterSubmits = true,
-        placeholder = "Message", height = { Math.min(contentHeight, 96) },
-        onEnter() { app.sent = this.text }
+    page: string = "list",
+    col: View [ x = 20, y = 20,
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        Segmented [ width = 300, value = { app.page },
+            choices = { [ ({ id: "list", label: "List" }), ({ id: "grid", label: "Grid" }) ] },
+            input(v: string) { app.page = v }
+            ],
+        Text [ text = { "showing: " + app.page } ]
         ]
     ]

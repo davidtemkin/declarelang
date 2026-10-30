@@ -30,7 +30,7 @@ async function boot(src) {
 }
 
 // a field of the form by its name
-const field = (form, name) => form.members.find((m) => m.name === name);
+const field = (form, name) => form._members.find((m) => m.name === name);
 
 // ── the shared vocabulary ────────────────────────────────────────────────────
 
@@ -41,7 +41,6 @@ await test("TextInput and ValueControl share the form vocabulary", async () => {
     assert.match(vc, new RegExp(`^\\s*${name}: ${type} = `, "m"), `ValueControl declares ${name}: ${type}`);
     assert.equal(SCHEMAS.TextInput.attrs[name]?.kind, type, `TextInput's schema declares ${name} as ${type}`);
   }
-  assert.match(vc, /^\s*judgeOn: JudgeOn = leave,/m, "ValueControl judges on leave by default");
   assert.match(vc, /^\s*required: boolean \| string = false,/m);
   assert.equal(SCHEMAS.TextInput.attrs.required?.written, "boolean | string");
   for (const m of ["refuse(message: string)", "judge()", "validate(v: any)"]) assert.ok(vc.includes(m), `ValueControl has ${m}`);
@@ -49,10 +48,9 @@ await test("TextInput and ValueControl share the form vocabulary", async () => {
 
 // ── one field: what is wrong, and when it says so ────────────────────────────
 
-await test("a TextInput: problem is now, error waits for judging (judgeOn = leave by default)", async () => {
+await test("a TextInput: problem is now, error waits for judging (the field is left, or judged)", async () => {
   const app = await boot(`App [ width = 300, height = 100,
     t: TextInput [ width = 200, required = "Enter a name." ] ]`);
-  assert.equal(app.t.judgeOn, "leave");
   assert.equal(app.t.problem, "Enter a name.");
   assert.equal(app.t.valid, false);
   assert.equal(app.t.error, "", "not judged yet: nothing said");
@@ -69,7 +67,7 @@ await test("a TextInput: problem is now, error waits for judging (judgeOn = leav
 await test("a TextInput: validate is reactive over what it reads", async () => {
   const app = await boot(`App [ width = 300, height = 100,
     country: string = "US",
-    zip: TextInput [ width = 100, text = "1234", judgeOn = edit,
+    zip: TextInput [ width = 100, text = "1234", judged = true,
       validate(v: string) -> string { return app.country == "US" && v.length != 5 ? "Enter a 5-digit ZIP code." : "" } ] ]`);
   assert.equal(app.zip.error, "Enter a 5-digit ZIP code.");
   app.country = "GB"; settle();
@@ -78,7 +76,7 @@ await test("a TextInput: validate is reactive over what it reads", async () => {
 
 await test("a TextInput: a refusal counts while the text is the one refused", async () => {
   const app = await boot(`App [ width = 300, height = 100,
-    t: TextInput [ width = 200, text = "taken@x.io", judgeOn = edit ] ]`);
+    t: TextInput [ width = 200, text = "taken@x.io", judged = true ] ]`);
   app.t.refuse("That address already has an account."); settle();
   assert.equal(app.t.problem, "That address already has an account.");
   assert.equal(app.t.valid, false);
@@ -114,7 +112,7 @@ const FORM = `App [ width = 500, height = 600,
 
 await test("a Form gathers what is inside it: not a control's parts, not an overlay's fields", async () => {
   const app = await boot(FORM);
-  const names = app.f.members.map((m) => m.name).sort();
+  const names = app.f._members.map((m) => m.name).sort();
   assert.deepEqual(names, ["agree", "country", "email", "hidden", "off", "outside"],
     "the combobox's entry is part of the combobox, the sheet's field belongs to no form here, and a field elsewhere joins by naming the form");
   assert.equal(app.f._counts(field(app.f, "off")), false, "a disabled field does not count");

@@ -68,13 +68,19 @@ entry stating what it can place, as a function of its literal configuration:
 | | `axis = x`, `align` set | `x`, `y` |
 | | `axis = y`, no `align` | `y` |
 | | `axis = y`, `align` set | `x`, `y` |
-| | any, for a child with `flexes = true` | + that child's flow-axis size |
-| `WrappingLayout` | any | `x`, `y` (+ flow size for a flexing child) |
+| | any, for a child that flexes (`true` or a weight) or shrinks | + that child's flow-axis size |
+| | `align = stretch`, for a child its content sizes | + that child's cross-axis size, as a stretch (never a claim: a child that states the size keeps it) |
+| `WrappingLayout` | any | `x`, `y` (+ flow size for a flexing or shrinking child) |
 | `ResponsiveLayout` | any | `x`, `y` — both axes in every tier (§7) |
+| | any, for a child that flexes or shrinks | + that child's flow-axis size |
+| | a tier aligned `"stretch"`, for a child its content sizes | + that child's cross-axis size, as a stretch |
 | | any, for a child a tier names in `share` | + that child's `width` |
 | | any, for a child a tier gives `share: 0` | + that child's `visible` |
-| `Grid` | any | `x`, `y`, `width`, `height` |
-| `TweenLayout` | `from`, `to` | the union of what `from` and `to` place |
+| `TweenLayout` | any | what its own `place()` returns, reached through `t` |
+
+Every size a layout gives a child — a flow share, a shrink, a stretch, a `w` or `h` of
+your own — is kept within the child's range (`minWidth`, `maxWidth`, `minHeight`,
+`maxHeight`; 0 is no limit) by the runtime, whichever layout gave it.
 
 When a configuration attribute is **computed** — `axis = { app.narrow ? "y" : "x" }`, a
 `plan` built by an expression, a `layout` slot bound to an expression — the answer is
@@ -221,7 +227,7 @@ A plan entry, in full:
 | `from` | number | this tier applies when the view is at least this wide |
 | `flow` | `"row"` \| `"stack"` | the direction |
 | `gap` | number | space between consecutive *visible* children along the flow; not padding; comes off before shares are cut |
-| `align` | `"start"` \| `"center"` \| `"end"` \| `"baseline"` | where children sit across the flow |
+| `align` | `"start"` \| `"center"` \| `"end"` \| `"baseline"` \| `"stretch"` | where children sit across the flow |
 | `share` | `{ name: number \| "auto" }` | a child's width; `0` drops the child |
 | `offset` | `{ name: number }` | a child's shift across the flow, from its aligned position |
 

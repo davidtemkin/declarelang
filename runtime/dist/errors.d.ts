@@ -80,13 +80,16 @@ export declare function discardedValueMessage(childClass: string, slot: string, 
  *  arithmetic runs from nothing — and lands below zero in every state, not
  *  only a collapsed one. Names both views and how to give the parent a size. */
 export declare function negativeSizeMessage(childClass: string, size: "width" | "height", value: number, parentClass: string, onlyContent: boolean, where?: Where | null): string;
+/** A view that takes its size from its children, every one of which takes its
+ *  size from the view: each waits for the other, and nothing decides it. */
+export declare function emptyContainerMessage(parentClass: string, size: "width" | "height", childClass: string): string;
 /** The checker's form: what the layout places is known from the source, so the
  *  message can also say HOW the author gets what they meant. `kind` is why the
  *  layout places this attribute — along its flow, across it by `align` (a
  *  ResponsiveLayout's cross axis also takes a tier `offset`), because its
  *  configuration is computed and may place either axis, a plan's `share`, a
  *  plan's drop (`share: 0`), or an arrangement that places everything. */
-export declare function placedAttributeMessage(childClass: string, slot: string, arranger: string, kind: "flow" | "cross" | "cross-offset" | "computed" | "share" | "drop" | "all" | "flex", where?: Where | null): string;
+export declare function placedAttributeMessage(childClass: string, slot: string, arranger: string, kind: "flow" | "cross" | "cross-offset" | "computed" | "share" | "drop" | "all" | "flex" | "shrink", where?: Where | null): string;
 /** The diagnostic tag — an identity join, and the third constructor the
  *  production error-prose strip (tools/internal/error-codes.mjs) recognizes.
  *  A sentence that reaches its reader through a helper — a builder's return,

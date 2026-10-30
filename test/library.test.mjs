@@ -284,7 +284,7 @@ const ROWS = (n) =>
 
 const gridRows = (g) => g.children.filter((c) => c._isGridRow === true);
 const cellsOf = (row) => row.cells.children.filter((c) => c._isGridCell === true);
-const cellTexts = (row) => cellsOf(row).map((c) => c.drawn()?.t?.text);
+const cellTexts = (row) => cellsOf(row).map((c) => c._drawn()?.t?.text);
 
 await test("DataGrid: no children — rows from items, cells from the columns' records, offsets run", async () => {
   const app = await boot(GRID);
@@ -327,7 +327,7 @@ await test("DataGrid: reorder and resize are value-pattern state — deliveries 
   assert.ok(app.g._dropBarX(app.g._dropAt) > 0, "…at a real boundary");
   app.g._commitDrop("id");
   settle();
-  assert.deepEqual(app.g.currentOrder(), ["title", "id", "state"], "the release committed the reorder");
+  assert.deepEqual(app.g._currentOrder(), ["title", "id", "state"], "the release committed the reorder");
   assert.equal(app.g._dragCol, "", "drag state cleared");
   assert.deepEqual(cellTexts(gridRows(app.g)[0]), ["Issue 0", "0", "done"], "cells follow the order");
   app.g.resizeInput("title", 150);
@@ -381,16 +381,16 @@ await test("DataGrid: a column's cell is a class of the app's own, bound to its 
   const rows = gridRows(app.g);
   const [title1, done1] = cellsOf(rows[0]);
   const done2 = cellsOf(rows[1])[1];
-  assert.deepEqual([title1.kind(), done1.kind()], ["edit", "own"]);
-  assert.equal(done1.drawn().constructor.name, "DoneCell", "the column's class is what the cell draws");
-  assert.deepEqual([done1.drawn().box.checked, done2.drawn().box.checked], [false, true],
+  assert.deepEqual([title1._kind(), done1._kind()], ["edit", "own"]);
+  assert.equal(done1._drawn().constructor.name, "DoneCell", "the column's class is what the cell draws");
+  assert.deepEqual([done1._drawn().box.checked, done2._drawn().box.checked], [false, true],
     "each copy reads its own row's record");
-  done1.drawn().box.input(true);
+  done1._drawn().box.input(true);
   settle();
   assert.equal(app.d.value.rows[0].done, true, "the app's class writes its row's record — the dataset's own");
   assert.equal(app.d.value.rows[1].done, true, "…and no other");
   // an edit column writes as you type, and Esc puts back where the edit began
-  const ed = title1.editor();
+  const ed = title1._editor();
   ed.onFocus();
   ed.onInput("Renamed");
   settle();
@@ -401,7 +401,7 @@ await test("DataGrid: a column's cell is a class of the app's own, bound to its 
   // the grid's keyboard: Space on a cell of the app's own presses its control
   app.g.activeIndex = 1; app.g.active = app.d.value.rows[1]; app.g.activeCol = 1;
   settle();
-  app.g.enterCell(app.g.activeCell(), " ");
+  app.g._enterCell(app.g._activeCell(), " ");
   settle();
   assert.equal(app.d.value.rows[1].done, false, "Space pressed the row's checkbox");
 });
@@ -471,7 +471,7 @@ await test("DataGrid: a FOCUSED cell's row is never recycled — focus is touch 
   app.d.value = { rows: Array.from({ length: 1000 }, (_, i) => ({ id: i, done: i % 2 == 1 })) };
   settle();
   const row = app.g.children.find((c) => c._isGridRow === true && c.tableIndex() === 3);
-  const box = cellsOf(row)[1].drawn().box;
+  const box = cellsOf(row)[1]._drawn().box;
   Focus.setRoot(app);
   Focus.focus(box);
   settle();

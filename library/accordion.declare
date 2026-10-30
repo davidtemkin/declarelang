@@ -90,10 +90,8 @@ from state, constrain the group's `value` instead**.
 ## open
 Whether this pane is the group's current one. Derived; read it to style your content.
 
-## twist
-The header chevron's angle, in radians, sprung between 0 and −π/2. **It turns in step
-with the height animation rather than snapping**, which is the whole reason it is a
-number and not a swap between two marks — a number can be sprung.
+## _twist
+**Internal.** The header chevron's angle in radians, sprung between 0 and −π/2 in step with the height.
 
 ## tabOrder()
 Contributes the pane's contents to keyboard traversal only while it is open. A closed
@@ -178,8 +176,8 @@ class AccordionPane extends Control [ width = 100%, clip = true,
     // exactly this: `dir` is the sugar for four resting orientations, the angle
     // underneath is a number, and a number can be sprung.
 
-    twist: number = 0,
-    Spring [ attribute = twist, to = { classroot.open ? 0 : -Math.PI / 2 },
+    _twist: number = 0,
+    Spring [ attribute = _twist, to = { classroot.open ? 0 : -Math.PI / 2 },
         stiffness = 220, damping = 26, epsilon = 0.004 ],
 
     header: View [ width = 100%, height = { provided("theme").accordionHeaderHeight },
@@ -189,7 +187,7 @@ class AccordionPane extends Control [ width = 100%, clip = true,
         cornerRadius = { provided("theme").controlCornerRadius },
         fill = { classroot.open || classroot.hovered || classroot.pressed ? provided("theme").controlSelected : ((provided("theme").accordionHeaderFill ?? provided("theme").control)) },
         chev: ChevronIcon [ x = 11, y = center, iconSize = 14,
-            angle = { classroot.twist }, ink = { provided("theme").textMuted } ],
+            angle = { classroot._twist }, ink = { provided("theme").textMuted } ],
         t: TextLabel [ x = 32, fontSize = { provided("theme").accordionFontSize }, fontWeight = { classroot.open ? "semibold" : "medium" },
             textColor = { provided("theme").text }, text = { classroot.label } ]
         ],

@@ -40,9 +40,8 @@ own the destination.
 Opens a closed section and closes an open one, routing through `input`. What the line's
 press calls.
 
-## twist
-The chevron's angle, in radians, sprung between −π/2 (closed) and 0 (open), so it turns in
-step with the slide.
+## _twist
+**Internal.** The chevron's angle in radians, sprung between −π/2 (closed) and 0 (open) in step with the slide.
 
 ## clip
 The section is carried by this clip while it slides: present the whole way, revealed and
@@ -58,7 +57,7 @@ The `label`.
 
 include [ "control.declare", "icons/core.declare" ]
 
-class Disclosure [ clip = true,
+class Disclosure [ clip = true, width = 100%,
     label: string = "",
     detail: string = "",
     open: boolean = false,
@@ -80,8 +79,8 @@ class Disclosure [ clip = true,
 
     slide: Spring [ attribute = height, to = { classroot.open ? classroot.contentHeight : classroot.line.height },
         stiffness = 220, damping = 26, epsilon = 0.4 ],
-    twist: number = { -Math.PI / 2 },
-    Spring [ attribute = twist, to = { classroot.open ? 0 : -Math.PI / 2 }, stiffness = 220, damping = 26, epsilon = 0.004 ],
+    _twist: number = { -Math.PI / 2 },
+    Spring [ attribute = _twist, to = { classroot.open ? 0 : -Math.PI / 2 }, stiffness = 220, damping = 26, epsilon = 0.004 ],
 
     line: Control [ width = 100%, height = { provided("theme").accordionHeaderHeight },
         accessibilityRole = button,
@@ -89,10 +88,13 @@ class Disclosure [ clip = true,
         press() { classroot.toggle() },
         cornerRadius = { provided("theme").controlCornerRadius },
         fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
-        chev: ChevronIcon [ x = 8, y = center, iconSize = 14, angle = { classroot.twist }, ink = { provided("theme").textMuted } ],
-        t: TextLabel [ x = 30, wrap = false, fontSize = { provided("theme").accordionFontSize }, fontWeight = medium,
+        padding = [0, 10, 0, 8],
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        chev: ChevronIcon [ y = center, iconSize = 14, angle = { classroot._twist }, ink = { provided("theme").textMuted } ],
+        t: TextLabel [ shrinks = true, maxLines = 1, fontSize = { provided("theme").accordionFontSize }, fontWeight = medium,
             textColor = { provided("theme").text }, text = { classroot.label } ],
-        more: TextLabel [ visible = { classroot.detail != "" }, x = { parent.width - this.width - 10 }, wrap = false,
+        Spacer [ ],
+        more: TextLabel [ visible = { classroot.detail != "" }, wrap = false,
             fontSize = { provided("theme").accordionFontSize }, textColor = { provided("theme").textMuted }, text = { classroot.detail } ]
         ],
 

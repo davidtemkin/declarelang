@@ -45,7 +45,7 @@ compiler, no source library, no server — and nothing beyond it is ever asked f
   renderer (DOM, or `--render=canvas`), and one reactive kernel — the WebAssembly one by default, or
   with `--kernel=js` the JavaScript one, about 9 KB gzipped smaller and somewhat slower on
   view-heavy work. For the flagship calendar it is about
-  <!--stat:calendar.wireKB-->157<!--/stat--> KB gzipped, the figure the homepage reports;
+  <!--stat:calendar.wireKB-->158<!--/stat--> KB gzipped, the figure the homepage reports;
 - **your program's folder, swept in** — its data, images, fonts, anything beside the
   `.declare` file — minus its sources and its `tests/` folder of verify fixtures;
 - **`BUILD.json`**, what the package was built from, so a committed build can say whether
@@ -101,12 +101,9 @@ would carry if it were packaged alone: its compiled program, its folder's data a
 assets, its own `ship` block. That holds however deep the nesting goes, and each program
 ships once, however many hosts name it — a program that embeds itself included.
 
-A tenant reads its *own* files through its host. Its relative `url` resolves in its
-host's space, so it asks where home is — `hostProvided("base", "")` — and falls back to
-beside itself when it runs alone ([Embedding](declare-docs:guide:embedding@loading-foreign-code-at-runtime) has the
-pattern). The desktop provides each app window's `base`; the package answers those same
-addresses from the copies it carries, so Calendar, Birds, and Market Map open with their
-data in the desktop's package as on the site.
+A tenant that reads its own files through its host's `base`
+([Embedding](declare-docs:guide:embedding@the-boundary-provides-exposes-and-post)) finds them in
+the package at the same addresses as on the site.
 
 A package carries no compiler unless its program says so. An island that names a
 program the build never compiled is a reported error at the moment it mounts, naming the

@@ -55,32 +55,30 @@ theme Green [
 /*
 ## The score panel
 
-Three columns in a row, the outer two a fixed width so the middle one sits on
-the center line. The spare lives are claw marks, one per record of the derived
+Three columns in a row, the outer two sharing what the middle one leaves, so
+it sits on the center line. The spare lives are claw marks, one per record of the derived
 `spares` dataset.
 */
 
 class Hud [ width = 100%, padding = [18, 28, 0, 28],
     layout: SimpleLayout [ axis = x ],
 
-    left: View [ width = 220,
+    left: View [ flexes = true,
         layout: SimpleLayout [ axis = y, spacing = 4 ],
         score: Text [ fontSize = 30, fontWeight = bold, textColor = { provided("theme").score }, text = { "" + app.score } ],
         spares: View [ datapath = { app.spares.value },
             layout: SimpleLayout [ axis = x, spacing = -6 ],
             ClawMark [ datapath = :lives[], scale = 0.6 ]
             ],
-        zap: Text [ fontSize = 11, letterSpacing = 2, textColor = { provided("theme").faint },
+        zap: Text [ width = 100%, fontSize = 11, letterSpacing = 2, textColor = { provided("theme").faint },
             text = { app.zaps == 2 ? "SUPERZAPPER READY" : app.zaps == 1 ? "SUPERZAPPER ×1" : "SUPERZAPPER USED" } ]
         ],
-    Spacer [ ],
     middle: View [
         layout: SimpleLayout [ axis = y, spacing = 2, align = center ],
         Text [ fontSize = 11, letterSpacing = 3, textColor = { provided("theme").faint }, text = "LEVEL" ],
         Text [ fontSize = 24, fontWeight = bold, textColor = { provided("theme").ink }, text = { "" + app.level } ]
         ],
-    Spacer [ ],
-    right: View [ width = 220,
+    right: View [ flexes = true,
         layout: SimpleLayout [ axis = y, spacing = 2, align = end ],
         Text [ fontSize = 11, letterSpacing = 3, textColor = { provided("theme").faint }, text = "HIGH SCORE" ],
         Text [ fontSize = 24, fontWeight = bold, textColor = { provided("theme").ink }, text = { "" + Math.max(app.hiScore, app.score) } ]

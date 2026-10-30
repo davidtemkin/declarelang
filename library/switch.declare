@@ -26,10 +26,8 @@ still scrolls the page.
 ## dragging
 True from pointer-down until the release.
 
-## dragged
-True once the pointer has moved the thumb during a press: the thumb follows the pointer,
-and the release settles on the side the thumb is nearer. A drag past the slop raises no
-click, so it never also toggles.
+## _dragged
+**Internal.** True once the pointer has moved the thumb during a press, so the release settles on the nearer side and does not toggle.
 
 ## _x0
 **Internal.** The root-space pointer x at pointer-down.
@@ -109,7 +107,7 @@ class Switch extends ValueControl [
 
     claim = x,
     dragging: boolean = false,
-    dragged: boolean = false,
+    _dragged: boolean = false,
     _x0: number = 0,
     _grab: number = 0,
     _restX(on: boolean) -> number { return on ? width - thumb.width - 2 : 2 },
@@ -120,18 +118,18 @@ class Switch extends ValueControl [
         focusVisible = false
         Focus.focus(this)
         dragging = true
-        dragged = false
+        _dragged = false
         _x0 = app.pointerX
         _grab = _restX(checked)
         },
-    onPointerMove() { if (dragging && Math.abs(app.pointerX - _x0) > 3) dragged = true },
+    onPointerMove() { if (dragging && Math.abs(app.pointerX - _x0) > 3) _dragged = true },
     onPointerUp() {
-        if (dragged) {
+        if (_dragged) {
             const on = _dragX() + thumb.width / 2 > width / 2
             if (on != checked) input(on)
             }
         dragging = false
-        dragged = false
+        _dragged = false
         },
 
     opacity = { disabled ? (provided("theme").disabledOpacity) : 1 },
@@ -146,6 +144,6 @@ class Switch extends ValueControl [
         height = { this.width },
         y = center,
         fill = { provided("theme").switchThumbFill ?? provided("theme").surface },
-        slide: Spring [ attribute = x, to = { classroot.dragged ? classroot._dragX() : classroot._restX(classroot.checked) }, stiffness = 300, damping = 26 ]
+        slide: Spring [ attribute = x, to = { classroot._dragged ? classroot._dragX() : classroot._restX(classroot.checked) }, stiffness = 300, damping = 26 ]
         ]
     ]

@@ -279,7 +279,7 @@ await test("in a stop the arrows move among the members by default; a member's o
   assert.ok(Focus.getFocus() === a, "Home goes to the first");
   press(key("ArrowRight", { shift: true }));
   assert.ok(Focus.getFocus() === a, "not with a modifier");
-  const rs = app.radios.radios();
+  const rs = app.radios._radios();
   stopAt(rs[0]);
   press(key("ArrowDown"));
   assert.ok(Focus.getFocus() === rs[1] && app.sel === "b", "a radio group's arrows move and check");

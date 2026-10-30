@@ -136,8 +136,8 @@ what the person is then shown.
 What `error` says when the request failed with nothing readable — no reply at all, or a
 reply that is not a refusal. Say it in the program's own words.
 
-## members
-The controls in the form, counted or not. Kept by the controls themselves.
+## _members
+**Internal.** The controls in the form, counted or not. Kept by the controls themselves.
 
 ## _form
 **Internal.** what the controls inside read to find their form.
@@ -195,9 +195,9 @@ class Form [
     source: DataSource? = null,
     failedMessage: string = "That didn't go through, and nothing was saved. Try again.",
 
-    members: any[] = [],
-    _join(c: any) { if (!members.includes(c)) members = [...members, c] },
-    _leave(c: any) { members = members.filter((m) => m !== c) },
+    _members: any[] = [],
+    _join(c: any) { if (!_members.includes(c)) _members = [..._members, c] },
+    _leave(c: any) { _members = _members.filter((m) => m !== c) },
 
     // a member counts while it is enabled and shown, up to the form
 
@@ -221,7 +221,7 @@ class Form [
     // the counted members in reading order: top to bottom, then left to right
 
     _ordered() -> any[] {
-        return members.filter((c) => this._counts(c)).sort((a, b) => {
+        return _members.filter((c) => this._counts(c)).sort((a, b) => {
             const p = a.rootOrigin()
             const q = b.rootOrigin()
             return p.y != q.y ? p.y - q.y : p.x - q.x
@@ -258,7 +258,7 @@ class Form [
         if (pending) return
         submitted = true
         error = ""
-        for (const c of members) {
+        for (const c of _members) {
             if (c.refused != "") c.refuse("")
             if (this._counts(c)) c.judged = true
             }
@@ -279,11 +279,11 @@ class Form [
     // it refused nothing: the fields are judged afresh from here
 
     _landed() {
-        if (pending || error != "" || members.some((c) => c.refused != "")) return
+        if (pending || error != "" || _members.some((c) => c.refused != "")) return
         _succeeded()
         },
     _succeeded() {
-        for (const c of members) c.judged = false
+        for (const c of _members) c.judged = false
         submitted = false
         error = ""
         },
@@ -308,7 +308,7 @@ class Form [
     refuse(list: FormProblem[]) {
         const rest: string[] = []
         for (const p of list) {
-            const c = p.name == "" ? null : members.find((m) => m.name == p.name && this._counts(m))
+            const c = p.name == "" ? null : _members.find((m) => m.name == p.name && this._counts(m))
             if (c != null && p.message != "") c.refuse(p.message)
             else if (p.message != "") rest.push(p.message)
             }

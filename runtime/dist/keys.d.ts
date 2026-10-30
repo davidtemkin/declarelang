@@ -81,7 +81,7 @@ export declare class KeysService {
     navClaimed(): boolean;
     /** The overlay the keys go to now: the latest claim that holds (focus is not
      *  in another context than its own), or null. */
-    claimant(): object | null;
+    _claimant(): object | null;
     /** A program is leaving (its island unlinks): the claims its views hold go,
      *  as their closes would have released them. */
     releaseProgram(root: object): void;
@@ -149,7 +149,7 @@ export declare class KeysService {
     /** The declared shortcut sets, as their `Shortcuts` nodes register. */
     private readonly shortcutOwners;
     /** A `Shortcuts` node declares its set (it registers at init). */
-    declareShortcuts(owner: object): void;
+    _declareShortcuts(owner: object): void;
     /** The owners in force, nearest scope first: each paired with its depth on
      *  the focus chain. */
     private ownersInForce;

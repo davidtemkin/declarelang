@@ -285,13 +285,10 @@ const DECLARED_TYPES = {
     // is a cross axis the strategy leaves to the children (SimpleLayout's
     // default); `baseline` aligns children by the baseline each DECLARES.
     Justify: enumType("Justify", "start", "center", "end", "fill"),
-    CrossAlign: enumType("CrossAlign", "none", "start", "center", "end", "baseline"),
+    CrossAlign: enumType("CrossAlign", "none", "start", "center", "end", "baseline", "stretch"),
     // What a text field holds (TextInput.purpose): declarable so a control built
     // around a field (a combobox of countries) can say it and hand it on.
     InputPurpose: enumType("InputPurpose", ...PURPOSE_NAMES),
-    // When a field first says what is wrong (TextInput.judgeOn): declarable so a
-    // value control of the library or a program says it the same way.
-    JudgeOn: enumType("JudgeOn", "edit", "leave"),
 };
 /** Resolve a written declaration type name (`count: number`), or null when
  *  the name is not in the declarable vocabulary. */

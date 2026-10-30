@@ -127,11 +127,11 @@ export class KeysService {
     }
     /** Is any navigation-keys claim live right now? */
     navClaimed() {
-        return this.claimant() !== null;
+        return this._claimant() !== null;
     }
     /** The overlay the keys go to now: the latest claim that holds (focus is not
      *  in another context than its own), or null. */
-    claimant() {
+    _claimant() {
         this.dropTornDown();
         let top = null;
         for (const c of this.navClaims)
@@ -260,7 +260,7 @@ export class KeysService {
     /** Is this `Keys` member inside the overlay that claimed the keys last — the
      *  topmost? A dialog's Enter is not also the menu's open over it. */
     inClaimant(owner) {
-        const top = this.claimant();
+        const top = this._claimant();
         return top !== null && PROGRAMS.inside(owner, top);
     }
     /** The keyboard may have moved to another program (focus moved): the one
@@ -307,7 +307,7 @@ export class KeysService {
     /** The declared shortcut sets, as their `Shortcuts` nodes register. */
     shortcutOwners = new Set();
     /** A `Shortcuts` node declares its set (it registers at init). */
-    declareShortcuts(owner) {
+    _declareShortcuts(owner) {
         this.shortcutOwners.add(owner);
     }
     /** The owners in force, nearest scope first: each paired with its depth on
@@ -357,7 +357,7 @@ export class KeysService {
      *  keeps its own, while the page's behind it stand down. */
     ownersHeard() {
         const all = this.ownersInForce();
-        const top = this.claimant();
+        const top = this._claimant();
         if (top === null)
             return all;
         return all.filter(({ owner }) => {

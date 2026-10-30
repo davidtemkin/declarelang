@@ -1,7 +1,0 @@
-App [ width = 300, height = 80,
-    view: string = "day",
-    TabBar [ x = 20, y = 20, width = 240, value = { app.view },
-        choices = { [ ({ id: "day", label: "Day" }), ({ id: "week", label: "Week" }) ] },
-        input(v: string) { app.view = v }
-        ]
-    ]

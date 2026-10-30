@@ -24,6 +24,32 @@ it computes for the program, opaquely, and renders nothing. Reach for an
 island or a hosted box only when the foreign thing *draws*; reach for script
 when it *computes*.
 
+## The one boundary rule
+
+Each direction draws the border in the same place: **a box, owned by the
+outside; a world, owned by the inside**. A page gives Declare a sized div
+and keeps the rest; Declare gives a page a sized island and keeps the rest;
+an app gives another app its box and neither reads the other's tree.
+
+What crosses the border is **named**, and each name says its direction. Nothing crosses
+that neither side named, and no value has two owners. There are two kinds of crossing,
+and the difference between them is the load-bearing distinction of this chapter:
+
+- **Values** — the host *provides* a name down, the tenant *exposes* a name up. A value is
+  continuous: meaningful whenever read, re-derived on the other side when it changes, and
+  owned by exactly one side — the tenant cannot write what the host provides, and the host
+  cannot write what the tenant exposes.
+- **Verbs** — a *post*, in either direction, is consumed once, ordered, and never
+  re-readable: "do this", never "this is so".
+
+Only data crosses: numbers, strings, booleans, arrays, plain objects. A view is an
+identity in one program's graph and cannot cross.
+
+When you find yourself wanting to reach across a boundary — a constraint on the tenant's
+internals, a DOM query into an island — the design is telling you the boundary is in the
+wrong place: name the value, send the command as a post, or move the border. The rest of
+this chapter is the three directions, each drawing its border this way.
+
 ## A Declare app inside your page
 
 A page embeds a Declare app by giving it a **sized element marked as the
@@ -75,12 +101,14 @@ its [`location`](declare-docs:App.location) moves neither the URL nor the page's
 page books **zero animation frames** — the host is notified when an app
 writes; nothing polls.
 
-**The page is a host, in an island's words.** [`boot()`](declare-docs:boot) resolves to a
+**The page is the topmost host.** [`boot()`](declare-docs:boot) resolves to a
 [`Tenant`](declare-docs:Tenant) — the page's handle on the app — and the host element carries
-it too (`el.__declareTenant`):
+it too (`el.__declareTenant`). The page crosses the border with it exactly as an island does:
 
-- **values in** — `boot({ provides: {…} })`, then `tenant.provide(name, value)` any time
-  later; everything reading it with `hostProvided` re-derives (below), and `undefined`
+- **values in** — `boot({ provides: {…} })`, JSON on the element
+  (`<div data-declare-embed data-declare-provide='{"dark":true}'>`), or
+  `tenant.provide(name, value)` any time later; the app reads them with the same
+  `hostProvided` a tenant uses (below), everything reading one re-derives, and `undefined`
   withdraws it. The page-visibility fact ([`app.pageVisible`](declare-docs:App.pageVisible)) arrives on its own;
 - **values out** — `tenant.exposed(name, default)` reads one the App lists in
   [`exposes`](declare-docs:App.exposes), and [`observe`](declare-docs:observe)`(() => tenant.exposed("total", 0), v => …)`
@@ -141,6 +169,28 @@ island is closed; flip it reactively to swap tenants. (The empty box above
 renders as just that — a styled, empty frame — which is the honest preview of
 an island whose page hasn't mounted anything.)
 
+**Foreign tenants reach the same boundary.** A raw-JS tenant in a `DOMIsland`
+reaches it through the island element's one sanctioned handle, an
+[`IslandHandle`](declare-docs:IslandHandle), whose verbs keep the island's own names
+(`post`, `onPost`):
+
+```js
+const h = box.__declareIsland;         // the island's element, after mount
+h.provides();                          // ["volume"] — what the host provides here
+h.hostProvided("volume");              // read it now
+h.watchProvided("volume", v => audio.volume = v);   // now, then on every change
+h.expose("pos", 12.5);                 // up — the host reads exposed("pos", 0)
+h.post("clicked", id);                 // → the island's onPost
+h.onPost(m => { … });                  // ← the island's post()
+```
+
+Three handles are sanctioned, and only three: `el.__declareTenant` (the page's handle
+on the app it booted into this element, which `boot()` also returns), `el.__declareIsland` (the foreign
+tenant's handle, above), and `__childApp` on an island's element — or, on
+canvas, its view — (the Declare tenant an island mounted). Everything else a
+backend or host plants is internal and may vanish without notice. None of
+them is a global: a page's own scripts share no names with Declare.
+
 ## A Declare app inside a Declare app
 
 [`AppIsland`](declare-docs:AppIsland) (standard library) composes the island into the strongest form:
@@ -158,16 +208,16 @@ App [ fill = #F4F5F7,
 That is a real, second application running above — its own `app`, its own
 state, its own settle loop — not a copy of this one's. [`program`](declare-docs:AppIsland.program) is the
 program's path without its `.declare`, relative to the program that names it, like
-any address in a program — so `"../calendar/calendar"` reaches the real calendar from
-an app beside it, with no copy, and `"player"` is `player.declare` beside your own. `""` detaches the island. Input stays honest at the seam, too: a
+any address in a program — so `"../calendar/calendar"` reaches a calendar app from
+an app beside it, with no copy, and `"player"` is `player.declare` beside your own.
+`""` detaches the island. Input stays honest at the seam, too: a
 click inside the tenant belongs to the tenant, while the host hears only *a
-press on the island* — which is how a desktop window raises itself when you
+press on the island* — which is how a window raises itself when you
 click into the app it hosts. On the canvas renderer the tenant mounts by
 **surface composition** — its tree becomes a subtree of the sealed surface,
 no DOM anywhere — which is also exactly how the native Mac host mounts one.
 
-This is not a corner feature. The desktop demo's windows, the homepage's
-live previews, and this documentation's own runnable examples are all
+This is not a corner feature: this documentation's own runnable examples are all
 `AppIsland` — the page you are reading is an app hosting apps.
 
 The boundary is transparent where a person would expect it to be. Tab walks
@@ -183,8 +233,7 @@ When you ship a build (`declarec`), the tenants ship with it: every island whose
 `program` is a literal is compiled ahead and written beside the app, loaded the
 moment the island first names it — no compiler on the page. An island whose
 `program` is computed (`program = { app.current }`) can't be read by a build, so
-the program says what it may be, in its `ship` block — the declaration that
-states what a package carries beyond what the source names:
+the program says what it may be, in its `ship` block:
 
 ```declare-fragment
 ship [ islands = ["player", "queue", "../settings/settings"] ]
@@ -192,13 +241,11 @@ ship [ islands = ["player", "queue", "../settings/settings"] ]
 
 Names are spelled exactly as `program` spells them. A name the build did not
 produce is a reported error at run time, naming the fix — never a blank box.
-[Packaging for production](declare-docs:guide:packaging@what-your-program-says-it-needs-ship) has the whole block, and
-[Building for production](declare-docs:operational:building) the layout.
+[Packaging for production](declare-docs:guide:packaging@what-your-program-says-it-needs-ship) has the whole block.
 
 ## The boundary: `provides`, `exposes`, and `post`
 
-What crosses the boundary is **named** — and each name says its direction.
-Nothing crosses that neither side named, and no value has two owners.
+Here is the boundary rule in code, from both sides of an `AppIsland`.
 
 **Down, from host to tenant.** The island lists the names it offers in
 [`provides`](declare-docs:DOMIsland.provides), and each resolves *at the island* the way `provided()` does: the
@@ -207,6 +254,10 @@ provide. The tenant reads one with `hostProvided(name, default)`.
 
 **Up, from tenant to host.** The tenant's App lists the names it offers in
 [`exposes`](declare-docs:App.exposes); the host reads one with `island.exposed(name, default)`.
+
+**Verbs.** [`postToHost(topic, payload)`](declare-docs:App.method.postToHost) arrives at the
+island's `onPost`; the island's `post(topic, payload)` arrives as the tenant's
+[`onHostMessage`](declare-docs:App.event.hostMessage).
 
 ```declare-fragment
 player: AppIsland [ program = "player",
@@ -247,46 +298,10 @@ where home is, and falls back to beside itself when it runs alone:
 data: DataSource [ autoFetch = true, url = { hostProvided("base", "") + "data/events.json" } ]
 ```
 
-That is how the desktop's Calendar, Birds, and Market Map find their data,
-with the desktop's windows providing each one's `base`. A package follows the
-same addresses, so a tenant written this way reads its data there exactly as
-on the site ([Packaging for production](declare-docs:guide:packaging)).
-
-Values vs. verbs is the load-bearing distinction. A provided or exposed value
-is continuous — meaningful whenever read, and owned by exactly one side: the
-tenant cannot write what the host provides, and the host cannot write what
-the tenant exposes. [`postToHost(topic, payload)`](declare-docs:App.method.postToHost) / `onHostMessage(m)` are **verbs** —
-consumed once, ordered, never re-readable: "do this", never "this is so".
-Only data crosses: numbers, strings, booleans, arrays, plain objects. A
-view is an identity in one program's graph and cannot cross.
-
-**The page is the topmost host.** A top-level app reads what its *page*
-provides with the same `hostProvided`: pass `boot({ …, provides: { dark: true } })`,
-put JSON on the element (`<div data-declare-embed data-declare-provide='{"dark":true}'>`),
-or call `tenant.provide("dark", false)` any time later. Reading back out is
-`tenant.exposed(name, default)`, over the names the App's `exposes` lists.
-
-**Foreign tenants reach the same boundary.** A raw-JS tenant in a `DOMIsland`
-reaches it through the island element's one sanctioned handle, an
-[`IslandHandle`](declare-docs:IslandHandle), whose verbs keep the island's own names
-(`post`, `onPost`):
-
-```js
-const h = box.__declareIsland;         // the island's element, after mount
-h.provides();                          // ["volume"] — what the host provides here
-h.hostProvided("volume");              // read it now
-h.watchProvided("volume", v => audio.volume = v);   // now, then on every change
-h.expose("pos", 12.5);                 // up — the host reads exposed("pos", 0)
-h.post("clicked", id);                 // → the island's onPost
-h.onPost(m => { … });                  // ← the island's post()
-```
-
-Three handles are sanctioned, and only three: `el.__declareTenant` (the page's handle
-on the app it booted into this element, which `boot()` also returns), `el.__declareIsland` (the foreign
-tenant's handle, above), and `__childApp` on an island's element — or, on
-canvas, its view — (the Declare tenant an island mounted). Everything else a
-backend or host plants is internal and may vanish without notice. None of
-them is a global: a page's own scripts share no names with Declare.
+The host provides each tenant's `base` — an island's `provides`, or a page's
+`boot({ provides: { base } })` as above. A package follows the same addresses, so a
+tenant written this way reads its data there exactly as on the site
+([Packaging for production](declare-docs:guide:packaging)).
 
 ## Tenants requiring navigation
 
@@ -336,8 +351,7 @@ The [`IslandNavigation`](declare-docs:type:IslandNavigation) arrives worked out:
 `n.to` is the address made absolute, `n.program` the Declare program it names (a
 directory taken as its same-named program; `""` for anything else), `n.location` the
 place after its `#`, and `n.newWindow` whether the tenant asked for a window of its
-own. That is how the desktop opens a reference page from the Viewer: the Viewer's
-link names the docs app, and the desktop opens it in a window at that page.
+own.
 
 **Back and forward across a tenant.** The page's Back walks the page, never a
 tenant's moves. A host that wants back and forward for its tenant keeps them itself:
@@ -346,36 +360,9 @@ person to where they were scrolled as well, the island reports
 [`departedPlace`](declare-docs:AppIsland.departedPlace) each time the tenant leaves a
 location — how far its panes, and the island's own box, were scrolled. Keep it with
 the location, and hand it back as [`place`](declare-docs:AppIsland.place) when you
-step:
-
-```declare-fragment
-schema Stop [ at: string, place: string ]
-
-App [
-    stops: Stop[] = [],
-    stepping: boolean = false,                          // a step back is not a new stop
-    pane: AppIsland [ program = "../docs/docs",
-        trackChanges = ["location"],
-        onChange(e: ChangeEvent) {
-            if (app.stepping) { app.stepping = false; return }
-            app.stops = [...app.stops, { at: "" + e.changed[0].previousValue, place: this.departedPlace }]
-            }
-        ],
-    back() {
-        const s = app.stops[app.stops.length - 1]
-        if (s == null) return
-        app.stops = app.stops.slice(0, -1)
-        app.stepping = true
-        app.pane.place = s.place                          // the place first, then the location it belongs to
-        app.pane.location = s.at
-        }
-    ]
-```
-
-The place lands once the move has settled and the content can hold it, and the
+step — the place first, then the location it belongs to. The place lands once the move has settled and the content can hold it, and the
 person's first scroll cancels a landing still under way — the same landing as the
-page's own Back. The desktop's Docs and Birds windows do exactly this, forward
-included, with ‹ › in their title bars.
+page's own Back.
 
 ## Loading foreign code at runtime
 
@@ -418,17 +405,6 @@ simpler when the thing loaded is small and draws nothing — but note which
 specifier defers: a **URL** stays external and is genuinely fetched later,
 while a **bare** specifier (`import("some-package")`) resolves from
 `node_modules` and is bundled whole at build time, deferred in appearance only.
-
-## The one boundary rule
-
-Each direction draws the border in the same place: **a box, owned by the
-outside; a world, owned by the inside**. A page gives Declare a sized div
-and keeps the rest; Declare gives a page a sized island and keeps the rest;
-an app gives another app its box and neither reads the other's tree. When
-you find yourself wanting to reach across a boundary — a constraint on the
-tenant's internals, a DOM query into an island — the design is telling you
-the boundary is in the wrong place: name the value in `provides` or `exposes`,
-send the command as `post`, or move the border.
 
 ---
 

@@ -83,9 +83,11 @@ Assignment meets constraints in two ways, and both come down to one rule.
 **An attribute set with a constraint refuses a direct write.** If a view says
 `width = { … }`, a handler that assigns `width` is refused at run time: "bound by a
 constraint — a direct write would be silently overwritten; change what the constraint
-reads instead." You cannot clobber a standing relationship by accident. (Springs,
-animators and states can take an attribute over, but through a sanctioned path that
-suspends the constraint and hands the attribute back when they finish.)
+reads instead." You cannot clobber a standing relationship by accident. (States and
+animators can take an attribute over, through a sanctioned path that suspends the
+constraint and hands the attribute back when they finish. A spring cannot: it owns the
+attribute it moves for as long as it lives, so that attribute has no constraint of its
+own, and the target goes in the spring's `to`.)
 
 **A declaration with a computed default is a formula, not a guard.** A declared
 attribute whose default is an expression — `mode: string = { … }` — reads as that
@@ -108,10 +110,8 @@ for hot inner computation — covers almost every performance question.
 
 The same holds for a fact you give a name: `overdue: boolean = { … }` is worked out once,
 and every constraint that reads it reads a name rather than repeating a condition. Name the
-conditions a value depends on, and it reads as a decision instead of a puzzle. A choice
-keyed by a value (a kind, a mode) is a lookup; a look a view takes in some state is a
-[`State`](declare-docs:State). The compiler warns (`DECLARE4025`) when `? :` choices nest
-three deep, or one condition runs to four parts.
+conditions a value depends on, and it reads as a decision instead of a puzzle
+([Formatting](declare-docs:guide:formatting) shows the shape).
 
 ## The settle: when writes take effect
 
@@ -163,10 +163,12 @@ hands back; that constraint stays on runtime tracking, where each read is observ
 it runs, and nothing changes for you. What it cannot follow at all is a compile error
 (`DECLARE7001`) that names the rewrite. The common cases:
 
-- **Indexing by a runtime key**, `this[someName]` — name the attribute, or move the
-  lookup into a method the compiler can read through.
+- **Indexing a scope word by a runtime key**, `this[someName]` or `parent[name]` — name the
+  attribute, or move the lookup into a method the compiler can read through. A view reached
+  by name is different: `toolbar[name]` looks up a member
+  ([Program structure](declare-docs:guide:structure@a-member-by-a-name-known-at-run-time)).
 - **Aggregating over the live view tree**, `children.map((c) => c.width)` — arranging
-  children is a layout's job ([Size, position and layout](declare-docs:guide:layout@what-a-layout-controls)),
+  children is a layout's job ([Size, position and layout](declare-docs:guide:layout@what-a-layout-decides)),
   and counts come from data, not from views.
 - **Passing a node into a `script` function** — script is outside the reactive
   system, so a constraint depends only on the values it passes. Pass the values

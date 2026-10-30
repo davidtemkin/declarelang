@@ -40,16 +40,7 @@ class TabBar extends Segmented [
 /*
 # TabBarTab
 
-One tab of a `TabBar`: a `SegmentedItem` that is a tab to a screen reader. Built by a `TabBar` from its
-`choices` — never authored directly:
-
-```declare
-App [ width = 300, height = 80, view: string = "day",
-    TabBar [ x = 20, y = 20, width = 240, value = { app.view },
-        choices = { [ ({ id: "day", label: "Day" }), ({ id: "week", label: "Week" }) ] },
-        input(v: string) { app.view = v } ]
-    ]
-```
+**Internal.** One tab of a `TabBar`, built from its `choices`: a `SegmentedItem` that is a tab to a screen reader.
 
 ## accessibilitySelected
 Follows `on`.

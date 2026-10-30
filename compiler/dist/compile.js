@@ -665,6 +665,22 @@ function idiomDiagnostics(program, schemas) {
                 }
             }
         }
+        // 4030 — minWidth/maxWidth (or the heights) beside a width the view states
+        // itself, at the same level, where nothing in its class reads the range
+        // (Window's resize and Menu's own width do): a range bounds a size a layout
+        // gives, so here it bounds nothing.
+        for (const [range, size] of [["minWidth", "width"], ["maxWidth", "width"], ["minHeight", "height"], ["maxHeight", "height"]]) {
+            const r = el.attrs.find((a) => a.name === range);
+            if (r === undefined || !el.attrs.some((a) => a.name === size))
+                continue;
+            const word = new RegExp(`\\b${range}\\b`);
+            const levels = [el, ...chainBodies(decl !== undefined ? decl.base : el.tag)];
+            const readsIt = levels.some((b) => b.methods.some((m) => word.test(m.body)) ||
+                b.attrs.some((a) => a !== r && a.value.kind === "code" && word.test(a.value.src)) ||
+                b.decls.some((d) => d.def?.kind === "code" && word.test(d.def.src)));
+            if (!readsIt)
+                warnings.push(Diag.rangeWithoutEffect(decl !== undefined ? decl.name : el.tag, range, size, r.pos));
+        }
         // 4013 — a press() override where the receiver descends from Button. A
         // class BODY is judged by its base, so `class Button extends Control`
         // declaring press() is the definition, not an override of itself, while

@@ -69,7 +69,9 @@ export const SURFACES = [
       const rail = railNames(model);
       return expected.flatMap((n) => [
         ...(n in model.reference ? [] : [`${n} — no reference entry`]),
-        ...(rail.has(n) ? [] : [`${n} — absent from the browse rail`]),
+        // a class marked **Internal.** (made by another class, never written) has its
+        // reference entry, deliberately off the rail
+        ...(rail.has(n) || model.reference[n]?.internal === true ? [] : [`${n} — absent from the browse rail`]),
       ]);
     },
   },

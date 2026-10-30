@@ -1,7 +1,0 @@
-App [ width = 400, height = 80,
-    at: string = "",
-    Breadcrumb [ x = 20, y = 20,
-        items = { [ ({ id: "shop", label: "Shop" }), ({ id: "bags", label: "Bags" }), ({ id: "tote", label: "Tote" }) ] },
-        input(id: string) { app.at = id }
-        ]
-    ]

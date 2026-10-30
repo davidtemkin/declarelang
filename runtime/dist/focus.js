@@ -487,7 +487,7 @@ export class FocusService {
     /** Is focus inside the overlay that holds the keys? Then the keys the
      *  overlay owns are still the focused view's. */
     focusInClaimant(keys) {
-        const c = keys.claimant();
+        const c = keys._claimant();
         return c instanceof View && this.holds(c);
     }
     /** Can the person still reach `v` — focusable, shown, and in Tab's reach? A
@@ -1149,7 +1149,7 @@ export function deliverKeys(keys, focus) {
             // the row its keys are on): Tab closes it as Esc would, then moves on from
             // its opener — the web's menu-button rule; focus never goes behind a menu
             // left open
-            const c = keys.claimant();
+            const c = keys._claimant();
             if (c instanceof View && (!focus.holds(c) || (focus.getFocus() === c && c.focusScope !== "modal"))) {
                 const held = c;
                 const back = focus.getFocus() === c ? held._savedFocus ?? null : null;

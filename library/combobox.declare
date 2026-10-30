@@ -207,9 +207,8 @@ class Combobox extends ValueControl [
     ensureList() {
         if (list != null) return
         // a list of choices: a listbox of options, as a combobox's is everywhere
-        list = (this.parent as View).createView("Menu", ({ accessibilityRole: "listbox", asList: true }))
+        list = (this.parent as View).createView("Menu", ({ accessibilityRole: "listbox" }))
         const m = this.list as any
-        m.typeahead = false                       // its letters are the entry's
         m.takesFocus = false                      // the focus stays in the entry, which names the row
         m.picked = (id) => this.pickIndex(parseInt(id))
         },
@@ -258,7 +257,7 @@ class Combobox extends ValueControl [
         accessibilityError = { classroot.error },
         stroke = { stroke(1, classroot.error != "" ? provided("theme").error : this.focused ? provided("theme").accent : provided("theme").line) },
         accessibilityRequired = { classroot.accessibilityRequired },
-        onBlur() { if (classroot.judgeOn == "leave" && !classroot.listShown()) classroot.judged = true },
+        onBlur() { if (!classroot.listShown()) classroot.judged = true },
         accessibilityActiveItem = { classroot.list == null ? null : (classroot.list as any).accessibilityActiveItem },
         focusable = { !classroot.disabled },
         onInput(t: string) {

@@ -123,9 +123,8 @@ followed on Enter, as a link is, not on the arrow.
 ## focusEntry()
 The segment Tab lands on: the selected one, else the first.
 
-## rad
-The control's corner radius, from the theme's `segmentedCornerRadius` (8 by default); the
-pill and each segment's hover sit 2 inside it.
+## _rad
+**Internal.** The corner radius from the theme's `segmentedCornerRadius`, which the pill and each hover sit 2 inside.
 
 ## fill
 The track: the theme's `trackFill`, else `control`. The pill is `segmentedSelectedFill`, else
@@ -143,7 +142,7 @@ Roots the control on its own `items` data, so the segments replicate from `choic
 From the theme's `segmentedHeight` (30 by default); the labels' size is `segmentedFontSize` (13).
 
 ## cornerRadius
-The control's `rad`.
+The control's `_rad`.
 */
 
 /*
@@ -247,8 +246,8 @@ class Segmented [
     // pushing.
 
     height = { provided("theme").segmentedHeight },
-    rad: number = { provided("theme").segmentedCornerRadius },
-    cornerRadius = { this.rad },
+    _rad: number = { provided("theme").segmentedCornerRadius },
+    cornerRadius = { this._rad },
     fill = { provided("theme").trackFill ?? provided("theme").control },
     opacity = { disabled ? (provided("theme").disabledOpacity) : 1 },
 
@@ -284,7 +283,7 @@ class Segmented [
     Spring [ attribute = lane, to = { classroot.idx < 0 ? 0 : classroot.idx },
         stiffness = 260, damping = 30, mass = 0.9, epsilon = 0.002 ],
 
-    pill: View [ y = 2, height = { parent.height - 4 }, cornerRadius = { Math.max(0, (parent as Segmented).rad - 2) },
+    pill: View [ y = 2, height = { parent.height - 4 }, cornerRadius = { Math.max(0, (parent as Segmented)._rad - 2) },
         x = { 2 + (parent as Segmented).lane * (parent as Segmented).segW },
         width = { (parent as Segmented).segW },
         visible = { (parent as Segmented).idx >= 0 },
@@ -347,7 +346,7 @@ class SegmentedItem extends Control [
     // these, not a fill of their own. That is what lets it travel between them.
 
     bg: View [ x = 2, y = 2, width = { parent.width - 4 }, height = { parent.height - 4 },
-        cornerRadius = { Math.max(0, (parent.parent as Segmented).rad - 2) },
+        cornerRadius = { Math.max(0, (parent.parent as Segmented)._rad - 2) },
         stateFill: Color? = { parent.pressed ? provided("theme").controlPressed : parent.hovered ? provided("theme").controlHovered : null },
         fill = { parent.on ? null : this.stateFill }
         ],
@@ -392,5 +391,5 @@ class SegmentedItem extends Control [
 
     // the ring hugs the segment's pill, not its whole box
 
-    focusShape() { return { x: 2, y: 2, w: this.width - 4, h: this.height - 4, rad: Math.max(0, (this.parent as Segmented).rad - 2) } }
+    focusShape() { return { x: 2, y: 2, w: this.width - 4, h: this.height - 4, rad: Math.max(0, (this.parent as Segmented)._rad - 2) } }
     ]

@@ -61,10 +61,6 @@ export class TextInput extends View {
   // ── the edit session (editor.ts): `text` is the draft ──
   /** "input" (live) | "blur" | "enter" | "manual" — when a valid draft commits. */
   declare commitOn: string;
-  /** "leave" (the default) | "edit" — when `error` first says what is wrong:
-   *  once the field has been left (or judged), or at every edit. `problem`
-   *  and `valid` are true to the draft either way. */
-  declare judgeOn: string;
   /** What is wrong with the value now, "" when nothing is: the refusal, then
    *  `required`, then `validate`, then the schema floor (reactive). */
   declare problem: string;
@@ -118,7 +114,7 @@ export class TextInput extends View {
     this.$judges = true;
     bindDerived(this, "problem", () => this.$problem());
     bindDerived(this, "valid", () => this.problem === "");
-    bindDerived(this, "error", () => (this.judgeOn === "edit" || this.judged ? this.problem : ""));
+    bindDerived(this, "error", () => (this.judged ? this.problem : ""));
   }
   private $judges = false;
 
@@ -159,7 +155,7 @@ export class TextInput extends View {
     // the truth now — the refusal, `required`, the field's own `validate`,
     // the schema floor — and reactive over whatever `validate` reads; `valid`
     // is its emptiness; `error` is the default display rule, `problem` once
-    // the field is judged (or at every edit, under judgeOn = edit).
+    // the field is judged (a field that speaks at every edit is judged from the start).
     this.$judging();
     if (!isSet(this, "accessibilityRequired") && ownerOf(this, "accessibilityRequired") === null)
       bindDerived(this, "accessibilityRequired", () => this.required !== false && this.required !== "");
@@ -471,7 +467,6 @@ defineAttributes(TextInput, {
   selectionEnd: { def: 0 },
   disabled: { def: false, push: (t) => t.$syncEditable() },
   commitOn: { def: "input" },
-  judgeOn: { def: "leave" },
   problem: { def: "" },
   error: { def: "" },
   valid: { def: true },
@@ -479,8 +474,8 @@ defineAttributes(TextInput, {
   judged: { def: false },
   name: { def: "" },
   required: { def: false },
-  // a refusal is said OF a value: written, it remembers the text it was said of
-  refused: { def: "", push: (t, v) => { if (v !== "") (t as TextInput).$refusedValue = (t as TextInput).text; } },
+  // read-only: a refusal is said through refuse(), which remembers the text it was said of
+  refused: { def: "" },
   form: { def: null, defBinding: providedDefault("_form", null) },
 });
 

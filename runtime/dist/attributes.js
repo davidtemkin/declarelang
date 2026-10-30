@@ -362,8 +362,11 @@ export function defineAttributes(ctor, specs) {
                     let base = self.$base;
                     if (base === undefined) {
                         // untouched instance: an untracked read is the class default, no
-                        // allocation; a tracked read needs a cell to subscribe to
-                        if (S.collecting === null && ACTIVE[0] < 0)
+                        // allocation; a tracked read needs a cell to subscribe to. Not when
+                        // a value already left the table (a number written to a boolean
+                        // slot before anything read it — `flexes = 2`): that is in the JS
+                        // store below, and the default would hide it
+                        if (S.collecting === null && ACTIVE[0] < 0 && self.$esc === undefined)
                             return defRule ? evalDefault(self, name, defBinding, defOuter) : defaults[name];
                         base = ensureBase(self);
                     }

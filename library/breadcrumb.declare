@@ -56,16 +56,7 @@ class Breadcrumb [
 /*
 # BreadcrumbStep
 
-One step of a `Breadcrumb`, built from its records — not authored directly. Its separator
-comes before it; the first has none.
-
-```declare
-App [ width = 400, height = 80, at: string = "",
-    Breadcrumb [ x = 20, y = 20,
-        items = { [ ({ id: "shop", label: "Shop" }), ({ id: "bags", label: "Bags" }), ({ id: "tote", label: "Tote" }) ] },
-        input(id: string) { app.at = id } ]
-    ]
-```
+**Internal.** One step of a `Breadcrumb`, built from its records, with its separator before it (the first has none).
 
 ## label
 The step's text.
@@ -137,15 +128,7 @@ class BreadcrumbStep extends Control [
 /*
 # BreadcrumbLink
 
-A step of a `Breadcrumb` whose record names a `location`: a link to it, built in place of a
-`BreadcrumbStep` — not authored directly.
-
-```declare
-App [ width = 400, height = 80,
-    Breadcrumb [ x = 20, y = 20,
-        items = { [ ({ id: "home", label: "Home", location: "home" }), ({ id: "here", label: "Here" }) ] } ]
-    ]
-```
+**Internal.** A step of a `Breadcrumb` whose record names a `location`: a link to it, built in place of a `BreadcrumbStep`.
 
 ## accessibilityRole
 A link.
@@ -159,15 +142,7 @@ class BreadcrumbLink extends BreadcrumbStep [
 /*
 # BreadcrumbCurrent
 
-The last step of a `Breadcrumb` — where you are: its text, in the stronger ink, not
-pressable, read as the end of the path. Built in place of a `BreadcrumbStep` — not authored directly.
-
-```declare
-App [ width = 400, height = 80,
-    Breadcrumb [ x = 20, y = 20,
-        items = { [ ({ id: "docs", label: "Docs" }), ({ id: "page", label: "This page" }) ] } ]
-    ]
-```
+**Internal.** The last step of a `Breadcrumb`, where you are: its text in the stronger ink, not pressable.
 
 ## accessibilityRole
 None of its own: its text is read as it stands.

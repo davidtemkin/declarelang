@@ -110,7 +110,7 @@ test("validate: an invalid draft is not committed and surfaces an error", async 
   assert.equal(app.store.value.rec.zip, "94110", "invalid draft never reaches the dataset");
   assert.equal(f.valid, false);
   assert.equal(f.problem, "5 digits");
-  assert.equal(f.error, "", "said once the field is judged (judgeOn = leave)");
+  assert.equal(f.error, "", "said once the field is judged");
   f.judge(); settle();
   assert.equal(f.error, "5 digits");
   // a valid value does commit

@@ -385,6 +385,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
     whySource: string = { app.why != null && app.why.constraint != null && app.why.constraint.source != null
         ? "{ " + app.why.constraint.source + " }" : "" },
     whyLabel: string = { app.why != null && app.why.constraint != null ? "" + app.why.constraint.label : "" },
+    whyLayout: string = { app.why != null && app.why.constraint != null && app.why.constraint.why != null ? "" + app.why.constraint.why : "" },
     whyStatic: boolean = { app.why != null && app.why.constraint != null && app.why.constraint.static == true },
     whyLive: boolean = { app.why != null && app.why.constraint != null && app.why.constraint.live == true },
     whyBound: boolean = { app.why != null && app.why.constraint != null },
@@ -747,6 +748,9 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                             text = { app.whyOrigin + (app.whyLabel != "" ? "  ·  " + app.whyLabel : "")
                                 + (app.whyHow != "" ? "  ·  " + app.whyHow : "") } ],
 
+                        layoutWhy: Text [ visible = { app.whyLayout != "" }, width = 100%, wrap = true, fontSize = 11.5,
+                            textColor = { app.c.text }, text = { app.whyLayout } ],
+
                         srcBox: View [ visible = { app.whySource != "" }, width = 100%,
                             height = { this.t.height + 18 }, cornerRadius = 6,
                             fill = { app.c.field }, stroke = { stroke(1, app.c.line) },
@@ -767,7 +771,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                             fontSize = 10, fontWeight = semibold, letterSpacing = 0.8,
                             textColor = { app.c.faint }, text = "DEPENDS ON" ],
 
-                        noDeps: Text [ visible = { app.whyLabel != "" && app.depCount == 0 },
+                        noDeps: Text [ visible = { app.whyLabel != "" && app.depCount == 0 && app.whyLayout == "" },
                             width = 100%, wrap = true, fontSize = 10.5,
                             textColor = { app.c.faint },
                             text = "No static edges — this one re-tracks its reads on every run (a derived extent, or a read through data)." ],

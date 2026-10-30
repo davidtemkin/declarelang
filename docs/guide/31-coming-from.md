@@ -34,7 +34,7 @@ what dissolves most of the left-hand columns below.
 | `useContext` / a provider | `provided("name")`; *providing* is just holding the value on an ancestor |
 | `items.map(…)` | `datapath = :items[]` on the node — one instance per record, reconciled for you |
 | `key={…}` | the record's `id`, by default and with nothing declared; `key = :field` when identity lives under another name |
-| `cond && <Thing/>` | `visible = { cond }` — the view stays constructed and keeps its state; it just paints and hit-tests nothing |
+| `cond && <Thing/>` | `visible = { cond }` — the view stays constructed and keeps its state; it just paints and hit-tests nothing. To build it only while `cond` holds, `exists = { cond }` |
 | `useRef` | there are no refs: a named member **is** the handle. `box: View [ … ]`, then `box.width` from anywhere in scope |
 | `useEffect` | usually nothing — propagation is the constraint graph's job. `onReady` for the first settle, `afterSettle(…)` for work that must *read* geometry your write just created, `onRetire` for teardown |
 | a flex container | `layout: SimpleLayout [ axis = y, spacing = 10 ]` — an attribute of the container, not a wrapper |
@@ -73,6 +73,10 @@ for, which is a narrower job than React context usually ends up doing.
 | a CSS custom property | a `theme` token, read with `provided("theme").accent` |
 | `display: flex` | `layout: SimpleLayout [ axis = x, spacing = 12 ]` |
 | `flex-wrap` | [`WrappingLayout`](declare-docs:WrappingLayout) |
+| `flex: 1`, `flex-grow` | [`flexes = true`](declare-docs:View.flexes) on the child, or a weight: `flexes = 2` |
+| `flex-shrink` with an ellipsis | [`shrinks = true`](declare-docs:View.shrinks) with `maxLines = 1` — the child keeps its own width until the row runs short |
+| `align-items: stretch` | `align = stretch` on the layout — every child its content sizes is as tall as the row's tallest |
+| `min-width`, `max-width` on a flex item | [`minWidth`](declare-docs:View.minWidth), `maxWidth` — they bound what a layout gives the child |
 | `padding` | [`padding`](declare-docs:View.padding) on the view — it gives the view a **content box**, and every child's `x = 0` is that box's origin, arranged or absolutely placed alike |
 | `box-sizing` | there is no second model: `width` is always the outer box, and `padding` and `stroke` are always inside it — `border-box`, with nothing to set |
 | `width: 100%` | `width = 100%` — a percent of the parent's **content box**, as in CSS, so it already stops inside the parent's padding. `{ parent.width }` is the escape hatch that means the parent's literal box |
@@ -164,7 +168,7 @@ override `place()` — the same seam every library layout is built on. Reaching 
 | `Modifier.fillMaxWidth()` | `width = 100%` — the parent's content box, the inset already taken off |
 | `Column` / `Row` | `layout: SimpleLayout [ axis = y ]` / `[ axis = x ]` on the container |
 | `Box` | a plain `View` — children at their own `x`/`y` is the base case, with no layout attached |
-| `Modifier.weight(1f)` | there is no weight: constrain the child's width, let `Spacer [ ]` absorb the slack, or divide the width by percentage with a `ResponsiveLayout` plan's `share` |
+| `Modifier.weight(1f)` | [`flexes = true`](declare-docs:View.flexes) — a share of the room the row leaves; `flexes = 2` takes twice the share, and [`minWidth`](declare-docs:View.minWidth)/`maxWidth` keep it within a range |
 | `LazyColumn` / `LazyRow` | `datapath = :items[]` on the node, plus [`virtualize`](declare-docs:View.virtualize) when the collection is large |
 | `items(list, key = { it.id })` | the record's `id`, with nothing declared; `key = :field` to name another |
 | `Modifier.clickable { }` | an `onClick()` handler on the view itself |
@@ -368,6 +372,8 @@ what the language is for.
 | state as a pile of variables on the root | somewhere to keep it | records in a **dataset** where their scope is, the logic of those records on the dataset's class, other logic with no view in a class that extends **`Node`** ([Data](declare-docs:guide:data)) |
 | a loop that creates views | a list | a path that matches many: `Row [ datapath = :items[] ]` |
 | hand-set `x`/`y` for a row or a column | arrangement | a **layout** ([Size, position and layout](declare-docs:guide:layout)) |
+| a width worked out by subtracting the siblings | the rest of a row | `flexes = true` on the child that takes it |
+| a height read off the tallest sibling | equal heights | `align = stretch` on the row's layout |
 | a clickable plain view as a button | a command | a library control, or a class extending `Control` ([Controls](declare-docs:guide:controls)) |
 | copying data into state when it arrives | showing fetched data | point views at the `DataSource`; screens derive from `loaded` |
 | an "is loading" flag you set | a spinner | `visible = { source.loading }` |

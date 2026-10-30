@@ -56,7 +56,7 @@ import { afterPush, bindDerived, blockOf, defineAttributes, disposeBindings, fre
 import {} from "./value.js";
 import { hostValuesFor } from "./boundary.js";
 import { armVisibility, reattachVisibility, retireVisibility } from "./visibility.js";
-import { judgeNegativeSizes, noteNegativeSize } from "./size-report.js";
+import { judgeEmptyContainers, judgeNegativeSizes, noteNegativeSize } from "./size-report.js";
 import { handlerName } from "./handlers.js";
 import { splitPath } from "./path-plan.js";
 import { selectValue } from "./select.js";
@@ -1442,6 +1442,9 @@ export class View extends Node {
     $paintGuests = [];
     /** Does this view paint somewhere other than its parent? */
     $paintsElsewhere() { return this.$travelHost !== null; }
+    /** Does this view never paint at all (an Audio)? A layout does not lay it:
+     *  it would take a slot, and a gap, for nothing anyone sees. */
+    $paintsNothing() { return false; }
     $applyTravel() {
         const scroller = this.$travelHost;
         const s = this.$surface;
@@ -1941,8 +1944,16 @@ defineAttributes(View, {
     apparentScale: { def: 1, onTrack: (v) => v.$armVisibility() },
     ignoreLayout: { def: false, push: (v) => { const p = v.parent; if (p instanceof View)
             p.$childrenMutated(); } },
+    // `equal` keeps it out of the kernel table, whose slot is a boolean OR a number:
+    // a bound weight (`flexes = { :n }`) landed there as `true`
     flexes: { def: false, push: (v) => { const p = v.parent; if (p instanceof View)
+            p.$childrenMutated(); }, equal: (a, b) => a === b },
+    shrinks: { def: false, push: (v) => { const p = v.parent; if (p instanceof View)
             p.$childrenMutated(); } },
+    minWidth: { def: 0 },
+    maxWidth: { def: 0 },
+    minHeight: { def: 0 },
+    maxHeight: { def: 0 },
     ignoreClip: { def: false, push: (v, b) => v.$surface?.setIgnoreClip?.(b) },
     direction: { def: "inherit", push: (v, d) => v.$surface?.setDirection?.(d) },
     ignoreScroll: { def: false, push: (v, b) => v.$surface?.setIgnoreScroll?.(b && v.$pinsToFrame()) },
@@ -2360,6 +2371,7 @@ export class App extends View {
             afterSettle(() => fireEvent(this, "ready"));
             // the program has its room from here: sizes noted before it did are judged now
             afterSettle(judgeNegativeSizes);
+            afterSettle(() => judgeEmptyContainers(this));
         }
     }
     /** app→host navigation channel: `navigate(to)` sets it when no host services
@@ -2913,9 +2925,6 @@ defineAttributes(App, {
     waypoint: { def: "", push: (a) => a.$departing() },
     demoSources: { def: {} },
     liveReport: { def: "" },
-    // the size floor (bindExtent) — author-settable, 0 = none
-    minWidth: { def: 0 },
-    minHeight: { def: 0 },
     // the app's human name (page title etc.) — author-settable, "" = host default
     appName: { def: "" },
     // the language its text is in (BCP 47), said to the host's surface

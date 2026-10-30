@@ -438,9 +438,10 @@ await test("a container's auto-extent sees a child that stops flexing (the slot 
 });
 
 // A child that flexes in a run is sized along the flow by the run, so it does not
-// declare that size — at its use site, or as a rule in its class — and the
-// checker says so before anything runs, built at boot or not.
-await test("a flexing child's size along the flow is refused at compile time", async () => {
+// declare that size where it is used, and the checker says so before anything
+// runs, built at boot or not. What its CLASS says is a default the run replaces:
+// a field written to fill its column (`width = 100%`) flexes in a row.
+await test("a flexing or shrinking child's size along the flow is refused at compile time where it is used, not in its class", async () => {
   const errs = (await compileOnly(`class Slot [ width = 100%, height = 40 ]
 App [ width = 400, height = 600,
     later: boolean = false,
@@ -450,12 +451,15 @@ App [ width = 400, height = 600,
     row: View [ exists = { app.later }, width = 300, layout: SimpleLayout [ axis = x ],
         View [ flexes = true, width = 100%, height = 20 ],
         Slot [ flexes = true ],
-        View [ width = 40, height = 20 ] ] ]`)).errors.map((e) => e.message);
+        View [ width = 40, height = 20 ],
+        View [ flexes = 2, width = 30 ],
+        Text [ shrinks = true, width = 80, text = "title" ] ] ]`)).errors.map((e) => e.message);
   const flex = errs.filter((e) => /it flexes, so the run gives it its/.test(e));
   assert.equal(flex.length, 3, errs.join("\n"));
+  assert.ok(errs.some((e) => /^Text\.width.*it shrinks, so the run gives it its width.*'maxWidth'/.test(e)), errs.join("\n"));
   assert.match(flex[0], /^Spacer\.height/);
   assert.match(flex[1], /^View\.width/);
-  assert.match(flex[2], /^Slot\.width/);
+  assert.ok(!errs.some((e) => /^Slot\.width/.test(e)), "the class's own width is a default the run replaces");
 });
 
 summarize("layout-claims");

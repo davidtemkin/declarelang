@@ -54,12 +54,6 @@ leaves the cross placement to the child, which is what lets an ordinary
 `baseline` only where each child can report one: a `Text` does by itself, and a
 composite must **declare** which of its parts carries it.
 
-## JudgeOn
-
-When a field first says what is wrong (`TextInput.judgeOn`, `ValueControl.judgeOn`): `leave`
-(the default) once it has been left, `judge()`d or submitted with its form — and at every edit
-after — or `edit` at every moment.
-
 ## SafeAreaMode
 
 How an app meets the device's **own** chrome — a notch, a home-indicator bar.

@@ -66,8 +66,8 @@ layer. Same recording, three realizations, the same pixels.
 None of this is a slogan; it is *tested*, three ways. The **perceptual suite**
 holds DOM and canvas renders of one program pixel-for-pixel within
 anti-aliasing tolerance. The **Mac gate** holds the native host to per-program
-baselines across a corpus of real apps — blends, frost, rotation, rich text,
-the whole desktop. And the **conformance oracle** — run before release rather
+baselines across a corpus of real apps — blends, frost, rotation, rich text.
+And the **conformance oracle** — run before release rather
 than per commit, since it needs the live host — asks all three the same
 behavioral questions — where does this press land, what does this scroll move,
 what does the wheel-claim walk decide, where does keyboard focus go — and
@@ -126,8 +126,8 @@ DOM, the canvas, or the Mac host, where it runs natively with no DOM anywhere.
 
 ### Getting the Mac host
 
-It is not shipped with this repo and not committed to it — the Swift sources are
-tracked, the built application is a per-machine artifact. You build it:
+It is not shipped with this repo — the Swift sources are tracked, the built application
+is a per-machine artifact. You build it:
 
 ```bash
 npm run build:mac
@@ -136,20 +136,16 @@ npm run build:mac
 It installs to `/Applications` when that is writable, else `~/Applications`, else
 beside its sources in `mac-host/`. An Applications directory is what lets macOS
 offer it as a document handler, so that is where a double-click starts working.
-
 The built app carries the whole platform — compiler, library, chrome programs — so
-it reads nothing from the tree it came from. Only the *program* comes from
-elsewhere.
+only the *program* comes from elsewhere.
 
 Once installed it opens a program three ways: a URL served by the dev server (the
 server compiles, nothing is downloaded), a directory holding a built artifact, or
 a `.declare` file **anywhere on disk** — double-clicked, dropped on the app, or
 `open`ed from a shell. A file outside the tree still resolves its own `include`s
-beside itself and its library classes from the Declare tree the app was
-stamped with, so you can copy a program's folder to the Desktop and run it.
+beside itself, so you can copy a program's folder to the Desktop and run it.
 
-What it is not is a way to *ship* an application. It runs Declare programs with
-the whole language and the standard library, but it is a runtime environment, not
+What it is not is a way to *ship* an application. It is a runtime environment, not
 a packaging story: no standalone signed app with its own identity, no system
 integration, no per-program installer, and `declarec` has no Mac target. The full
 operational detail — the build chain, the stamp, the gates — is in

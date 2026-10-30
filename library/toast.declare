@@ -29,8 +29,8 @@ and its action is a control inside it.
 ## accessibilityLabel
 The `message`.
 
-## held
-Whether the toast is held open: the pointer is over it, or its action has the focus. A
+## _held
+**Internal.** Whether the toast is held open: the pointer is over it, or its action has the focus. A
 toast whose time runs out while held stays, and goes a moment after it is let go, so a
 person reaching for "Undo" is never cut off.
 
@@ -51,13 +51,6 @@ action from the keyboard gives it a shortcut of its own.
 
 ## _round
 **Internal.** Which showing is current, so an earlier one's timer does not close a later.
-
-## hostW
-The width of the layer it paints in: its window's, or the browser window's — not the
-App's, which on a page that scrolls is as tall as the page.
-
-## hostH
-The height of the layer it paints in: its window's, or the browser window's.
 
 ## x
 Centered in its layer.
@@ -86,7 +79,7 @@ include [ "floating.declare" ]
 include [ "button.declare" ]
 
 class Toast extends Floating [
-    kind = "notice",
+    _notice = true,
     pressPolicy = "ignore",
     scrollPolicy = "allow",
 
@@ -101,11 +94,8 @@ class Toast extends Floating [
     duration: number = 4000,
     _round: number = 0,
 
-    hostW: number = { this.host != null ? this.host.width : app.hostWidth > 0 ? app.hostWidth : app.width },     // a window's, else the browser window's
-    hostH: number = { this.host != null ? this.host.height : app.hostHeight > 0 ? app.hostHeight : app.height },
-
-    x = { (this.hostW - this.width) / 2 },
-    y = { this.hostH - this.height - 24 + 16 * (1 - this.openT) },
+    x = { (this._hostW - this.width) / 2 },
+    y = { this._hostH - this.height - 24 + 16 * (1 - this.openT) },
     opacity = { this.openT },
     cornerRadius = { provided("theme").toastCornerRadius },
     fill = { provided("theme").tooltipFill },
@@ -122,26 +112,26 @@ class Toast extends Floating [
         // heard as it arrives, so the notice is also said, without the focus moving
         Accessibility.announce(m)
         _expired = false
-        afterDelay(duration, () => { if (this._round == mine) { if (held) _expired = true; else this.close() } })
+        afterDelay(duration, () => { if (this._round == mine) { if (_held) _expired = true; else this.close() } })
         },
 
     // held open while the pointer is over it or its action has the focus
 
-    held: boolean = { hovered || this.row.act.focused },
+    _held: boolean = { hovered || this.row.act.focused },
     _expired: boolean = false,
 
     // a toast let go after its time ran out goes a moment later — heard by this
     // member, so a use site's `trackChanges` and `onChange` are its own
 
     _holdWatch: Node [
-        h: boolean = { classroot.held },
+        h: boolean = { classroot._held },
         trackChanges = ["h"],
         onChange() { classroot._letGo() }
         ],
     _letGo() {
-        if (held || !_expired) return
+        if (_held || !_expired) return
         const mine = _round
-        afterDelay(1500, () => { if (this._round == mine && !held) this.close() })
+        afterDelay(1500, () => { if (this._round == mine && !_held) this.close() })
         },
 
     picked(id: string) { },

@@ -512,7 +512,7 @@ export class FocusService {
   /** Is focus inside the overlay that holds the keys? Then the keys the
    *  overlay owns are still the focused view's. */
   focusInClaimant(keys: KeysService): boolean {
-    const c = keys.claimant();
+    const c = keys._claimant();
     return c instanceof View && this.holds(c);
   }
 
@@ -1094,7 +1094,7 @@ export function deliverKeys(keys: KeysService, focus: FocusService): () => void 
       // the row its keys are on): Tab closes it as Esc would, then moves on from
       // its opener — the web's menu-button rule; focus never goes behind a menu
       // left open
-      const c = keys.claimant();
+      const c = keys._claimant();
       if (c instanceof View && (!focus.holds(c) || (focus.getFocus() === c && c.focusScope !== "modal"))) {
         const held = c as unknown as { escape?: () => void; _savedFocus?: View | null };
         const back = focus.getFocus() === c ? held._savedFocus ?? null : null;

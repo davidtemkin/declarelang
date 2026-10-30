@@ -128,12 +128,11 @@ Whether two items are the same one, by `idOf`.
 The keyboard position as a logical index. A program that moves the keyboard itself sets
 it together with `active`, the record at that position.
 
-## activeView
-The row view at the keyboard position, reported by the row itself (in a `DataGrid`, the
-cell). Null while no row presents it.
+## _activeView
+**Internal.** The row view at the keyboard position, reported by the row itself (in a `DataGrid`, the cell).
 
 ## accessibilityActiveItem
-The `activeView`: a screen reader hears the row the arrows land on while the table keeps
+The row view at the keyboard position: a screen reader hears the row the arrows land on while the table keeps
 the focus.
 
 ## accessibilityMultiselectable
@@ -193,8 +192,8 @@ class Table extends Control [
     // reports it, since only a row knows it is the one shown for that index,
     // and a screen reader is told of it while the table keeps the focus
 
-    activeView: View? = null,
-    accessibilityActiveItem = { activeView },
+    _activeView: View? = null,
+    accessibilityActiveItem = { _activeView },
     accessibilityMultiselectable = { selects == "multi" },
 
     // ── identity — the ladder's keyless rungs, shared with the reconciler
@@ -384,7 +383,7 @@ grid's rows, whose cells report themselves.
 
 ## _reportActive()
 **Internal.** The row that becomes its table's keyboard position records itself as the
-table's `activeView`; one that stops being it, a recycled row handed another record, takes
+table's `_activeView`; one that stops being it, a recycled row handed another record, takes
 itself back.
 
 ## item()
@@ -468,8 +467,8 @@ class TableRow extends Control [
     _reportActive() {
         const t = parent as Table
         if (t._isTable !== true) return
-        if (_reportsActive && active) t.activeView = this
-        else if (t.activeView == this) t.activeView = null
+        if (_reportsActive && active) t._activeView = this
+        else if (t._activeView == this) t._activeView = null
         },
 
     // rows are never tab stops (the one-stop policy): the table is the stop

@@ -35,6 +35,8 @@ export class Audio extends Media {
     $makeElement() {
         return document.createElement("audio");
     }
+    /** Sound only: no layout lays it (layout.ts laid()). */
+    $paintsNothing() { return true; }
     /** Held in memory, by a host that can hold it. */
     $held() {
         return this.inMemory && clipHost() !== null;

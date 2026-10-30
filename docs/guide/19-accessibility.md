@@ -71,9 +71,7 @@ View [ datapath = :items[], layout: SimpleLayout [ axis = x, spacing = 8 ],
 **One control at a time.** A control holds no other control: a checkbox inside a button is
 read as part of the button's name, and a screen reader that takes a button as one element
 (VoiceOver does) never reaches it. Lay the two side by side in a plain `View`, which says
-nothing; the compiler warns where one is written inside another. A list's row is not a
-control in this sense: a row that opens into an editor holds its fields and buttons, each
-reached on its own, and the row is named by its own words, not theirs.
+nothing; the compiler warns where one is written inside another.
 
 **A hint, where the name is not enough** — `accessibilityHint` is read after the name and
 the value: what pressing will do, or what a field expects. A control with a tooltip uses

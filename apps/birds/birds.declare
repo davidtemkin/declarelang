@@ -128,9 +128,15 @@ class Section [ width = 100%,
 class Recap [ width = 100%, height = 26,
     mark: Text [ x = 0, y = center, fontSize = 14, textColor = { :ok ? provided("theme").right : provided("theme").wrong },
         text = { :ok ? "✓" : "✗" } ],
-    who: Text [ x = 26, y = center, fontSize = 14, textColor = { provided("theme").oxblood }, wrap = false,
+
+    // the name stops before what you said, which keeps its column at 300 where
+    // there is room and comes in from the edge where there is not
+
+    who: Text [ x = 26, y = center, fontSize = 14, textColor = { provided("theme").oxblood }, maxLines = 1,
+        width = { Math.max(0, Math.min(this.contentWidth, (parent.call.visible ? parent.call.x - 8 : parent.width) - 26)) },
         link = { "#b/" + :slug }, text = :name ],
-    call: Text [ x = 300, y = center, fontSize = 13, textColor = { provided("theme").muted }, wrap = false,
+    call: Text [ x = { Math.max(26, Math.min(300, parent.width - this.width)) }, y = center, fontSize = 13,
+        textColor = { provided("theme").muted }, wrap = false,
         visible = { !:ok }, text = { "you said " + :said } ]
     ]
 
@@ -382,11 +388,13 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
                     ]
                 ],
             walk: View [ width = 100%, height = 30,
-                prev: Text [ x = 0, y = center, fontSize = 14, textColor = { provided("theme").muted }, wrap = false,
+                layout: SimpleLayout [ axis = x, spacing = 12 ],
+                prev: Text [ y = center, shrinks = true, maxLines = 1, fontSize = 14, textColor = { provided("theme").muted },
                     onClick() { app.turnPage() },
                     visible = { app.birdIndex > 0 }, link = { "#b/" + app.slugOf(app.birdIndex - 1) }, text = { "← " + app.nameOf(app.birdIndex - 1) }
                     ],
-                next: Text [ x = end, y = center, fontSize = 14, textColor = { provided("theme").muted }, wrap = false,
+                Spacer [ ],
+                next: Text [ y = center, shrinks = true, maxLines = 1, fontSize = 14, textColor = { provided("theme").muted },
                     onClick() { app.turnPage() },
                     visible = { app.birdIndex < app.birds.length - 1 }, link = { "#b/" + app.slugOf(app.birdIndex + 1) }, text = { app.nameOf(app.birdIndex + 1) + " →" }
                     ]

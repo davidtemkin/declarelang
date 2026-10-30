@@ -10,6 +10,8 @@ export declare class Audio extends Media {
     private $voices;
     private $clipSeq;
     protected $makeElement(): HTMLMediaElement;
+    /** Sound only: no layout lays it (layout.ts laid()). */
+    $paintsNothing(): boolean;
     /** Held in memory, by a host that can hold it. */
     private $held;
     $load(): void;

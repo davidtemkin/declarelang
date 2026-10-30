@@ -782,7 +782,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                                 Text [ x = 12, y = 12, fontSize = 13, text = "Mailboxes" ]
                                 ],
                             split: Splitter [ value = 140, min = 90, max = 260, accessibilityLabel = "Sidebar width" ],
-                            main: View [ width = { parent.width - parent.side.width - parent.split.width }, height = 100%,
+                            main: View [ flexes = true, height = 100%,
                                 Text [ x = 12, y = 12, fontSize = 13, text = { "Message — sidebar " + parent.parent.split.value + " px" } ]
                                 ]
                             ]

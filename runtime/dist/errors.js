@@ -95,6 +95,12 @@ export function negativeSizeMessage(childClass, size, value, parentClass, onlyCo
     const only = onlyContent ? diag `, and this child is the only content it has` : "";
     return diag `${childClass}.${size} is ${shown}${at(where)} — it is sized from its parent (${parentClass}), which takes its ${size} from its content${only}; a child sized from its parent does not count toward that content, so on this axis the parent has no size to give. Give ${parentClass} a ${size}, or use its padding instead of arithmetic.`;
 }
+/** A view that takes its size from its children, every one of which takes its
+ *  size from the view: each waits for the other, and nothing decides it. */
+export function emptyContainerMessage(parentClass, size, childClass) {
+    const most = size === "height" ? "as tall as the tallest" : "as wide as the widest";
+    return diag `${parentClass}.${size} is 0 — it takes its ${size} from its children, and every one of them (${childClass}) takes its ${size} from it, so nothing decides it. To make them ${most}, use align = stretch on ${parentClass}'s layout; or give ${parentClass} a ${size}.`;
+}
 /** The checker's form: what the layout places is known from the source, so the
  *  message can also say HOW the author gets what they meant. `kind` is why the
  *  layout places this attribute — along its flow, across it by `align` (a
@@ -115,6 +121,8 @@ export function placedAttributeMessage(childClass, slot, arranger, kind, where) 
             return diag `${head} — a plan gives it a share of the width. Remove it and let the plan size the child, or leave the child out of the share (or name it "auto") to keep its own width.`;
         case "flex":
             return diag `${head} — it flexes, so the run gives it its ${slot}: the room left, shared among the children that flex. Remove the ${slot} to let it flex, or remove 'flexes' to keep its own ${slot}.`;
+        case "shrink":
+            return diag `${head} — it shrinks, so the run gives it its ${slot}: its content's, less what it gives up when the room is short. Remove the ${slot} (bound it with '${slot === "width" ? "maxWidth" : "maxHeight"}' instead), or remove 'shrinks' to keep your own ${slot}.`;
         case "drop":
             return diag `${head} — a plan drops it (share: 0). Remove it and let the plan show and hide the child, or take the child out of that share.`;
         default:

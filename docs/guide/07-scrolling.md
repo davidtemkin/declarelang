@@ -67,8 +67,8 @@ and contribute nothing to the scroll range. It is a child's opt-out from its **o
 parent's** scroll, so the pinned view is a child of the App (for the page) or of the
 pane: one declared deeper, inside a screen that does not scroll, has nothing to opt out
 of and moves with that screen. A bar that belongs to one screen is still a child of the
-App, shown with the screen's condition (`visible = { app.stage == "pay" }`); the boot
-check names one that is nested. It is the third of the opt-outs a child
+scroller it pins against, shown with that screen's condition; the boot check names one
+that is nested. It is the third of the opt-outs a child
 declares for itself, with [`ignoreLayout`](declare-docs:View.ignoreLayout) and [`ignoreClip`](declare-docs:View.ignoreClip)
 ([Size, position and layout](declare-docs:guide:layout)).
 
@@ -84,14 +84,6 @@ App [ edges = cover,
 The browser itself holds it against the window's bottom edge, so it stays put while a
 phone's browser shows and hides its own bars and while the page bounces past its end. A
 position written from `app.hostHeight` follows those a frame late, and the bar jumps.
-With `edges = cover`, the page reaching under the phone's own chrome, such a bar also
-runs down through the band the home indicator uses: its fill reaches the screen's edge
-while what it holds stays above the band, and the browser sizes that band itself as
-Safari's bars come and go. Nothing is declared for it. One rule is Safari's own and no
-page changes it: while its bars are hidden, a tap near the bottom of the screen — in the
-strip they occupy, taller than the band — brings them back and does not reach the page.
-A button in a bar at the foot then takes a second tap. Where that matters, the primary
-action sits higher, in the page itself.
 
 A bar pinned against an edge also tells the keyboard where the scroller's view really
 starts. When Tab moves to a control the scroller has to bring into view, it scrolls the
@@ -118,8 +110,7 @@ The page sees one frame-sized layer; the panel sliding in and out of it adds no 
 range. The [`Spring`](declare-docs:Spring) drives `away`, a number of the panel's own,
 rather than `x`: a spring owns the attribute it moves, so that attribute carries no
 constraint, while `x` stays one and keeps the panel against the edge as the window
-resizes. `away` starts at its closed value, so the panel waits offstage from the first
-frame ([Motion and states](declare-docs:guide:motion)).
+resizes ([Motion and states](declare-docs:guide:motion)).
 
 ## Moving a scroller
 
@@ -262,9 +253,7 @@ While it is dragged, a view counts toward the size of what holds it from where i
 picked up, not from where the hand has taken it, so the range ends at the real content: a
 card dragged past the last row reaches the end and the scrolling stops there, and a box
 sized by the card it holds does not collapse when the card is lifted. Where the release puts
-it counts from then on. To keep a dragged thing inside the rows, clamp what `onPointerMove`
-writes; to let it stray a little past them and come back, write a resisting value under the
-hand and spring it home on release ([Motion and states](declare-docs:guide:motion)).
+it counts from then on.
 
 Which gesture a draggable thing on a scrolling surface gets — and how press-and-hold
 lets a quick swipe still scroll — is [Touch and gestures](declare-docs:guide:touch@dragging-on-a-scrolling-surface).

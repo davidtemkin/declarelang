@@ -58,6 +58,6 @@ class Shortcuts extends Node [
     items: ShortcutRecord[] = [],
     on: View? = null,
     title: string = "",
-    onInit() { Keys.declareShortcuts(this) },
+    onInit() { Keys._declareShortcuts(this) },
     picked(id: string) { }
     ]

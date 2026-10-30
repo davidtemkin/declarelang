@@ -636,14 +636,34 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // given a layer while it moves; the profiler's hooks on the runtime's busiest
   // paths; a message names a class by the program's name, never its minified one —
   // measured 157.0 KB (160,803 B).
+  // 158 → 159 KB (2026-10-29, layout facts): every view states a range, shrinks
+  // and a weighted flex; the runtime keeps a layout's sizes within the range; a
+  // layout stretches what its content sizes; the library's runs share their room
+  // by those facts; a Text that stops flexing sizes to its words again —
+  // measured 158.0 KB.
   const wire = out.files.reduce((n, f) => n + gzipSync(Buffer.from(f.contents)).length, 0);
-  assert.ok(wire > 20 * 1024 && wire < 158 * 1024,
+  assert.ok(wire > 20 * 1024 && wire < 159 * 1024,
     `unexpected FIRST-LOAD size ${(wire / 1024).toFixed(1)} KB — ` +
     out.files.map((f) => `${f.name} ${(gzipSync(Buffer.from(f.contents)).length / 1024).toFixed(1)}`).join(", "));
 
   // THE MERGE (2026-09-19): main's ceiling was 92 KB on the app module alone; the
   // arc's kernel rides inside that module now, so the number this guards is the
   // FIRST-LOAD sum above, and the band is the arc's own measured one.
+});
+
+// THE BUDGETS: the runtime itself — what the smallest program ships, before any
+// app's own code — and the language in one file, docs/declare.md. The calendar
+// above stands in for what a real app carries; these are the two numbers the
+// language's own growth shows in. A limit moves only with an accounting of what
+// grew and why, like the calendar's.
+//   2026-10-30: the runtime 122.5 KB (125,445 B); declare.md 9,982 words.
+await test("the runtime and the one-file language stay within their budgets", async () => {
+  const out = await buildProduction("App [ ]", { name: "empty", originDir: resolve(HERE, "..") });
+  assert.ok(out.ok, "build should succeed: " + (out.errors?.map((e) => e.message).join("; ") ?? ""));
+  const wire = out.files.reduce((n, f) => n + gzipSync(Buffer.from(f.contents)).length, 0);
+  assert.ok(wire < 123 * 1024, `the runtime is ${(wire / 1024).toFixed(1)} KB on the wire — past its 123 KB budget`);
+  const words = readFileSync(resolve(HERE, "../docs/declare.md"), "utf8").split(/\s+/).filter(Boolean).length;
+  assert.ok(words < 10000, `docs/declare.md is ${words} words — past its 10,000-word budget`);
 });
 
 // THE STUB-DRIFT TRAP, made structural. The production build replaces

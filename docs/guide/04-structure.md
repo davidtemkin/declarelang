@@ -169,7 +169,9 @@ App [ width = 640, height = 220, theme = { SanFrancisco }, fill = { provided("th
 `app.toolbar[:target]` reads the step's `target` and looks that name up on the toolbar, so
 the callout moves to Export when the step changes. A string literal, `toolbar["share"]`, is
 checked like a path. A name known only at run time cannot be checked, which is why a path
-stays the form for names you know as you write.
+stays the form for names you know as you write. (`theme = { SanFrancisco }` gives the app
+one of the library's palettes, and `provided("theme")` reads it; both have their chapter,
+[Paint and themes](declare-docs:guide:paint-and-themes).)
 
 ## Where things go
 
@@ -209,7 +211,7 @@ class Issues extends DataSource [ url = "issues.json", autoFetch = true, schema 
     restore(removed: array) { … }
     ]
 
-class IssueRow extends ListRow [ … ]                 // the parts it has many of
+class IssueRow extends TableRow [ … ]                 // the parts it has many of
 class Chip extends Control [ … ]
 class EditorCard [ … ]
 
@@ -236,13 +238,12 @@ App [
 
 The `Issues` class is where the records come from (`issues.json`) and everything that is
 true of them whoever is looking: what statuses there are, the counts by status, who holds
-the open work, what a save must also change. It extends `DataSource`, the dataset whose
-data arrives from a server, and its writes go into the same records the fetch filled. The App holds
-everything about this person's view of them: the query, the sort, the selection, the
-draft. The list's `shown` dataset sits on the App, not on `Issues`, because it is derived
-from the user's filters as much as from the records. A delete is one call to
-`issues.removeEach`, and the App's `performDelete` adds what the user sees around it: the
-selection clears and a toast offers Undo.
+the open work, what a save must also change. The App holds everything about this person's
+view of them: the query, the sort, the selection, the draft. The list's `shown` dataset
+sits on the App, not on `Issues`, because it is derived from the user's filters as much as
+from the records. A delete is one call to `issues.removeEach`, and the App's
+`performDelete` adds what the user sees around it: the selection clears and a toast
+offers Undo.
 
 Inside any one node, the same question has smaller answers:
 
@@ -291,6 +292,13 @@ code to write or to forget. A state changes only its own view, and a child it br
 exists only while it holds; another view that follows the same condition has a state of
 its own, written beside everything else that view is.
 
+A view that belongs only to some of those places says so with
+`exists`: `exists = { app.editing }` builds it when the
+condition starts to hold and discards it, with its state, when it ends. `visible` is the
+lighter cousin — the view stays built and keeps its state, and only stops painting and
+taking presses. Use `exists` for a part that should start fresh each time; `visible` for
+one that should come back as it was.
+
 The condition is any constraint: a mode the person chose, `app.items.failed` when the
 data did not arrive, `app.width < 480`. A state can be driven by `apply()` and `remove()`
 instead, and the change can move rather than snap
@@ -313,8 +321,7 @@ do that. What does *not* earn a class is a single computed value: a URL built fr
 record is a function call in a constraint, [`Image [ source = { iconFor(:code) } ]`](declare-docs:Image),
 not a `class Icon` wrapped around it.
 
-A class with no `extends` is a view. A class with no view extends `Node`, or `Dataset`
-when it holds data, since a `Dataset` is a `Node` that holds data. Such classes are not a requirement. Many
+A class with no view is not a requirement. Many
 programs have none, and an App holding a dozen facts and the methods that change them
 reads well as it is. A class made only so that one exists moves the same lines somewhere
 else and adds a name to look up. Promote a group of state and logic when it is a thing in
@@ -424,20 +431,8 @@ needs no include; a bare [`Button [ … ]`](declare-docs:Button) finds it.
 
 Use `include` to partition your own program, not only to share libraries: the theme in
 one file, the classes in another, the dataset classes in a third, and the `App` left
-holding where the user is and the tree it shows.
-
-### An ordinary order
-
-The top level takes its declarations in any order, and a class may extend one declared
-further down, so order never changes what a program means. Most programs read well in
-one ordinary order, top to bottom: `include` and `use`; `script`; the `schema`s; the
-classes with no view, dataset classes first; the `theme` and `style` records; the view
-classes, each part before the classes that place it; and the `App` last. A reader then
-meets the data before the views that show it, and reaches the App knowing every class it
-names.
-
-It is a convention, not a rule. A program built around one large class may read better
-with that class first, and a program split into files follows its files instead.
+holding where the user is and the tree it shows. The order the declarations take is a
+convention ([Formatting](declare-docs:guide:formatting@an-ordinary-order)).
 
 ---
 

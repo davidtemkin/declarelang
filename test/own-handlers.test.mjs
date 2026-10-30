@@ -38,7 +38,7 @@ await test("a Form with its own trackChanges and onChange still hears its slow l
   app.f.submit(); settle(); await turn(); settle();
   assert.equal(app.f.pending, true, "the slow send is out");
   app.f.pending = false; settle(); await turn(); settle();
-  assert.equal(app.f.members[0].judged, false, "it landed: the field is judged afresh");
+  assert.equal(app.f._members[0].judged, false, "it landed: the field is judged afresh");
   app.f.note = "x"; settle(); await turn(); settle();
   assert.equal(app.heard, 1, "and the use site's onChange heard its own attribute");
 });
@@ -51,7 +51,7 @@ await test("a TableRow with its own trackChanges and onChange still reports itse
         trackChanges = ["mine"], onChange() { app.heard = app.heard + 1 } ] ] ]`);
   const rows = app.t.children.filter((c) => c._isTableRow === true);
   rows[1].onClick(); settle(); await turn(); settle();
-  assert.ok(app.t.activeView === rows[1], "the active row reports itself");
+  assert.ok(app.t._activeView === rows[1], "the active row reports itself");
   assert.equal(app.heard, 1, "the use site's onChange heard its own attribute");
 });
 
@@ -64,7 +64,7 @@ await test("a DataGrid's active cell reports itself; its rows do not", async () 
   const rows = app.g.children.filter((c) => c._isGridRow === true);
   rows[1].onClick(); settle();
   Focus.focus(app.g); settle(); await turn(); settle();
-  const v = app.g.activeView;
+  const v = app.g._activeView;
   assert.ok(v !== null && v !== undefined, "something is active");
   assert.ok(v._isGridRow !== true, "not a row");
   assert.equal(v.constructor.name.includes("Cell") || "activeHere" in v, true, "a cell");
@@ -74,10 +74,10 @@ await test("a Sheet with its own closed() still opens at rest after a swipe put 
   const app = await boot(`App [ width = 400, height = 600, n: number = 0,
     s: Sheet [ closed() { app.n = app.n + 1 }, Text [ text = "sheet" ] ] ]`);
   app.s.show(); settle();
-  app.s.dragY = 150; settle();
+  app.s._dragY = 150; settle();
   app.s.close(); settle(); await turn(); settle();
   assert.equal(app.n, 1, "the use site's closed() ran");
-  assert.equal(app.s.dragY, 0, "and the swipe's offset is gone");
+  assert.equal(app.s._dragY, 0, "and the swipe's offset is gone");
 });
 
 summarize("own-handlers");

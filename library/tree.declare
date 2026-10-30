@@ -116,32 +116,23 @@ Disabled dims the whole tree to the theme's `disabledOpacity`.
 ## indent
 How far each level sits inside its parent, 16 by default.
 
-## hasIcons
-Whether any record, at any depth, carries an `icon`. Decides whether there is an icon
-column at all, so that every label in the tree starts on the same line whether or not
-its own row has an icon.
+## _hasIcons
+**Internal.** Whether any record, at any depth, carries an `icon`, which decides whether there is an icon column.
 
-## anyIcon()
-Whether any record in a list, at any depth, carries an `icon`.
+## _anyIcon()
+**Internal.** Whether any record in a list, at any depth, carries an `icon`.
 
-## flatten()
-The visible rows, in order: the outline walked from the top, descending only into open
-rows. Each row record wraps its source record (`item`) and adds what the row shows from
-the outline — `level` (1 at the top), `hasChildren`, `open`, the `parent` row's id, and
-its place among its siblings, `pos` of `size`. The tree's own dataset of these rows,
-re-derived whenever `items` or `expanded` changes, is what the `TreeRow`s replicate over;
-the rows stack flush.
+## _flatten()
+**Internal.** The visible rows in order, each wrapping its record with its `level`, `hasChildren`, `open`, `parent`, `pos` and `size`.
 
-## rowAt()
-The row view at a visible index, or null. A handler-only walk — a constraint may not
-aggregate the view tree.
+## _rowAt()
+**Internal.** The row view at a visible index, or null; a handler-only walk.
 
-## rowFor()
-The row view showing an id, or null when that row is not visible. A handler-only walk.
+## _rowFor()
+**Internal.** The row view showing an id, or null when that row is not visible.
 
-## focusRow()
-Moves focus to a row, and scrolls it into view when the tree scrolls. The keyboard's
-moves land here.
+## _focusRow()
+**Internal.** Moves focus to a row and scrolls it into view, where the keyboard's moves land.
 
 ## _clickId
 **Internal.** The row last clicked, which the next click pairs with.
@@ -204,7 +195,7 @@ class Tree [
     // carries its id at the top so the reconciler keeps one row per id —
     // which is what lets a chevron turn on its own row instead of a new one.
 
-    flatten(list: array, open: array) -> array {
+    _flatten(list: array, open: array) -> array {
         const out = []
         const walk = (rs: any[], level: number, parentId: string) => {
             const n = (rs ?? []).length
@@ -222,22 +213,22 @@ class Tree [
         return out
         },
 
-    anyIcon(list: array) -> boolean {
-        return (list ?? []).some((it) => it.icon != null || (Array.isArray(it.children) && this.anyIcon(it.children)))
+    _anyIcon(list: array) -> boolean {
+        return (list ?? []).some((it) => it.icon != null || (Array.isArray(it.children) && this._anyIcon(it.children)))
         },
-    hasIcons: boolean = { this.anyIcon(this.items ?? []) },
+    _hasIcons: boolean = { this._anyIcon(this.items ?? []) },
 
-    shown: Dataset [ contents = { { rows: classroot.flatten(classroot.items ?? [], classroot.expanded ?? []) } } ],
+    shown: Dataset [ contents = { { rows: classroot._flatten(classroot.items ?? [], classroot.expanded ?? []) } } ],
 
     // the row walks — handlers only; a constraint may not aggregate the tree
 
-    rowAt(i: number) -> View? {
+    _rowAt(i: number) -> View? {
         return (this.children.find((c) => (c as TreeRow)._isTreeRow === true && c.rowIndex == i) ?? null) as View | null
         },
-    rowFor(id: string) -> View? {
+    _rowFor(id: string) -> View? {
         return (this.children.find((c) => (c as TreeRow)._isTreeRow === true && (c as TreeRow).rowId == id) ?? null) as View | null
         },
-    focusRow(v: View?) {
+    _focusRow(v: View?) {
         if (v == null) return
         Focus.focus(v)
         if (Focus.getFocus() == v) v.scrollIntoView("nearest")
@@ -253,7 +244,7 @@ class Tree [
     // one Tab stop, landing on the selected row; focus moves among the rows
 
     focusScope = stop,
-    focusEntry() -> View? { return this.rowFor(this.value) ?? this.rowAt(0) },
+    focusEntry() -> View? { return this._rowFor(this.value) ?? this._rowAt(0) },
 
     layout: SimpleLayout [ axis = y, spacing = 0 ],
     datapath = { this.shown.value },
@@ -264,26 +255,8 @@ class Tree [
 /*
 # TreeRow
 
-One row of a `Tree`, **materialized from the tree's visible rows — never authored
-directly**. It is a `Control`, so focus lands on the row itself and a screen reader
-announces it as a tree item, with its level, whether it is open, and whether it is
-selected.
-
-A row is the library's row look: a rounded highlight, `controlHovered` under the pointer
-and `controlSelected` when selected, the label in the theme's `text` at the menu's size.
-A row with children leads with a chevron that turns on a spring as it opens and closes,
-the same turn as an `Accordion` pane's; a row without one leaves the space blank, so
-labels at one level line up.
-
-```declare
-App [ width = 280, height = 140,
-    Tree [ x = 20, y = 20, accessibilityLabel = "Mailboxes", expanded = ["in"],
-        items = { [ ({ id: "in", label: "Inbox", children: [
-                        ({ id: "work", label: "Work" }), ({ id: "home", label: "Home" }) ] }),
-                    ({ id: "sent", label: "Sent" }) ] }
-        ]
-    ]
-```
+**Internal.** One row of a `Tree`, made from the tree's visible rows: a `Control` a screen
+reader hears as a tree item, with a chevron that turns on a spring as it opens and closes.
 
 ## _isTreeRow
 **Internal.** The marker the tree's walks key on — not API.
@@ -397,21 +370,21 @@ class TreeRow extends Control [
         const t = parent as Tree
         if (e.ctrl || e.alt || e.meta) { super.onKeyDown(e); return }
         const n = (t.shown.value?.rows ?? []).length
-        if (e.key == "ArrowDown") t.focusRow(t.rowAt(Math.min(n - 1, rowIndex + 1)))
-        else if (e.key == "ArrowUp") t.focusRow(t.rowAt(Math.max(0, rowIndex - 1)))
-        else if (e.key == "Home") t.focusRow(t.rowAt(0))
-        else if (e.key == "End") t.focusRow(t.rowAt(n - 1))
+        if (e.key == "ArrowDown") t._focusRow(t._rowAt(Math.min(n - 1, rowIndex + 1)))
+        else if (e.key == "ArrowUp") t._focusRow(t._rowAt(Math.max(0, rowIndex - 1)))
+        else if (e.key == "Home") t._focusRow(t._rowAt(0))
+        else if (e.key == "End") t._focusRow(t._rowAt(n - 1))
         else if (e.key == "ArrowRight") {
             if (hasChildren && !open) t.openRow(rowId)
             else if (hasChildren) {
                 // an open row whose `children` is empty has no first child to move to
-                const c = t.rowAt(rowIndex + 1)
-                if (c != null && (c as TreeRow).level > level) t.focusRow(c)
+                const c = t._rowAt(rowIndex + 1)
+                if (c != null && (c as TreeRow).level > level) t._focusRow(c)
                 }
             }
         else if (e.key == "ArrowLeft") {
             if (hasChildren && open) t.closeRow(rowId)
-            else t.focusRow(t.rowFor("" + (:parent ?? "")))
+            else t._focusRow(t._rowFor("" + (:parent ?? "")))
             }
         else if ((e.key == "Enter" || e.key == " ") && !e.repeat) press()
         else super.onKeyDown(e)
@@ -450,7 +423,7 @@ class TreeRow extends Control [
     ico: IconHost [ y = center, x = { classroot.inset + 18 }, iconSize = 16, kind = { "" + (:icon ?? "") }, ink = { classroot.ink } ],
 
     lbl: TextLabel [ wrap = false, maxLines = 1,
-        x = { classroot.inset + 18 + ((classroot.parent as Tree).hasIcons ? 22 : 0) },
+        x = { classroot.inset + 18 + ((classroot.parent as Tree)._hasIcons ? 22 : 0) },
         width = { Math.max(0, parent.width - this.x - 8) },
         fontSize = { provided("theme").menuFontSize },
         textColor = { classroot.ink },

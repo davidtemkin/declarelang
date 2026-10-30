@@ -17,10 +17,18 @@ export interface Box {
     w?: number;
     h?: number;
     vis?: boolean;
+    /** A size to FILL, applied only where the child's own size on that axis is
+     *  decided by its content (`sizedByContent`): never a claim, never a
+     *  conflict, so a child that states its size keeps it. How `align = stretch`
+     *  makes children as tall as the tallest. `w`/`h` beside it win. */
+    stretch?: {
+        w?: number;
+        h?: number;
+    };
 }
 /** A Box with every slot present — what TweenLayout interpolates (its lerp
  *  needs both endpoints of all four geometry slots plus visibility). */
-export type FullBox = Required<Box>;
+export type FullBox = Required<Omit<Box, "stretch">>;
 /** The abstract strategy. A layout is its `place()` — pure geometry, one Box
  *  per laid child — and the base turns that into STANDING constraints over the
  *  children's own slots (install below). `laid()` is the one definition of
@@ -115,6 +123,14 @@ export declare abstract class Layout extends Node implements LayoutStrategy {
      *  costs its siblings nothing. Re-derived from scratch at every install —
      *  ownership can change with the tier, and a rearm is when we may look. */
     private readonly authorSized;
+    /** This layout's own stretch claims: a child it stretches is still sized by
+     *  its content, as far as `sizedByContent` is concerned. */
+    private readonly stretching;
+    /** Is `child`'s size on this axis decided by its content: no size stated for
+     *  it (a literal, a constraint, a percent, in its class or where it is used),
+     *  only the runtime's own content measure, or this layout's stretch. What a
+     *  `stretch` in a box fills; a layout of your own asks it too. */
+    sizedByContent(child: View, size: "width" | "height"): boolean;
     /** Pure geometry — one Box per laid child, from this strategy's own
      *  attributes and `this.view`'s box. No time, no side effects. THE seam: a
      *  strategy IS its place(); everything else is shared machinery. The boxes'
@@ -140,6 +156,12 @@ export declare abstract class Layout extends Node implements LayoutStrategy {
      *  the view derives that extent from these very children. A strategy that
      *  needs the cycle-safe answer (an alignment band) wants `viewExtent`. */
     contentExtent(size: "width" | "height"): number;
+    /** While the pass computes: which of the view's extents place() read. A
+     *  size cut from the view's own room (a flexing share) stays out of the view's
+     *  content size, or the two would chase each other; a size worked out from
+     *  the children alone (a layout of your own making them as tall as the
+     *  tallest) counts, so the view is as large as what it placed. */
+    private extentRead;
     /** Claim `slot` on `child` for constraint `k`: capture the authored base
      *  (first claim only — rearm must not capture the arrangement's own writes),
      *  then take ownership. Errors loudly on a standing AUTHOR binding (two

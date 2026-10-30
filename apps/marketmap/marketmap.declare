@@ -1087,10 +1087,12 @@ App [ theme = { { ...SanFrancisco, ...MarketMap } }, fill = { provided("theme").
             head: View [ width = 100%, height = { STAGE_HEAD_H }, fill = { provided("theme").highlight }, clip = true,
                 padding = [0, 36, 0, 10],                     // the right inset leaves room for the close box
                 onPointerOver() { app.hotStaged = "" },       // the bar is not a subitem
-                Text [ y = center, fontSize = 11, letterSpacing = 2, fontWeight = bold,
+                layout: SimpleLayout [ axis = x, spacing = 12 ],
+                Text [ y = center, shrinks = true, maxLines = 1, fontSize = 11, letterSpacing = 2, fontWeight = bold,
                     textColor = { provided("theme").inkOnHighlight }, opacity = { app.zoom },
                     text = { stageTitle(app.stageKey) } ],
-                Text [ x = end, y = center, fontSize = 10,
+                Spacer [ ],
+                Text [ y = center, fontSize = 10,
                     letterSpacing = 1, textColor = { provided("theme").inkOnHighlight }, opacity = { app.zoom * 0.75 },
                     text = { app.zoom > 0.3 ? app.market.groupStat(app.stageKey, app.day) : "" } ]
                 ]
@@ -1134,7 +1136,7 @@ App [ theme = { { ...SanFrancisco, ...MarketMap } }, fill = { provided("theme").
     legend: View [ y = { parent.height - app.legendH }, width = 100%, height = { app.legendH },
         fill = { provided("theme").panel }, clip = true,
         readout: Text [ x = 24, y = 8, fontSize = 11, textColor = { provided("theme").inkSoft },
-            opacity = 0.85, width = { parent.width - 48 },
+            opacity = 0.85, maxLines = 1, width = { app.narrow ? parent.width - 48 : parent.gamut.x - 40 },
             text = { app.spotLine } ],
         gamut: View [ height = 18,
             x = { app.narrow ? (parent.width - this.width) / 2 : parent.width - this.width - 24 },

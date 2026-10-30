@@ -159,7 +159,9 @@ periodLabel: string = {
 
 Top to bottom it reads as a decision table — tests on the left, answers on the right. The
 contrast is the point: a multi-arm ternary jammed onto one line is unscannable at exactly
-the moment the logic most needs scanning.
+the moment the logic most needs scanning. The compiler warns (`DECLARE4025`) when `? :`
+choices nest three deep, or one condition runs to four parts: name the conditions as facts
+(`overdue: boolean = { … }`) and the value reads as a decision instead of a puzzle.
 
 ## Comments
 
@@ -226,3 +228,16 @@ shows what you changed rather than what the alignment did.
 How attributes group into lines is a judgment call. The canon recommends by example and
 never legislates it — there are more useful arrangements than a rule could anticipate, and
 the formatter keeps the one you chose.
+
+## An ordinary order
+
+The top level takes its declarations in any order, and a class may extend one declared
+further down, so order never changes what a program means. Most programs read well in
+one ordinary order, top to bottom: `include` and `use`; `script`; the `schema`s; the
+classes with no view, dataset classes first; the `theme` and `style` records; the view
+classes, each part before the classes that place it; and the `App` last. A reader then
+meets the data before the views that show it, and reaches the App knowing every class it
+names.
+
+It is a convention, not a rule. A program built around one large class may read better
+with that class first, and a program split into files follows its files instead.

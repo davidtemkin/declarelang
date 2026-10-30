@@ -36,6 +36,10 @@ export function declareName(n) {
         if (d?.configurable === false)
             return d.value; // stamped: always a name
         registered ??= NAMED.get(c) ?? null;
+        // a class written in JavaScript (a host's own subclass): a development build
+        // keeps its name, so it names itself there; a shipped one minifies it
+        if (c === ctor && registered === null && typeof d?.value === "string" && d.value !== "" && (typeof __DECLARE_PRODUCTION__ === "undefined" || !__DECLARE_PRODUCTION__))
+            return d.value;
     }
     return registered ?? (ctor.name || "View");
 }

@@ -231,7 +231,7 @@ export declare function isPercent(v: AttrValue): v is Percent;
  *  written as the member `layout: SimpleLayout [ … ]` (the checker routes
  *  that member shape here; the only literal such a slot coerces is `null`). */
 export type AttrType = {
-    readonly kind: "length" | "number" | "boolean" | "string" | "color" | "shape" | "radius" | "inset";
+    readonly kind: "length" | "number" | "boolean" | "string" | "color" | "shape" | "radius" | "inset" | "flex";
     readonly nullable?: true;
 } | {
     readonly kind: "dataschema";

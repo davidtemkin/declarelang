@@ -1,6 +1,9 @@
 App [ width = 360, height = 160, theme = { SanFrancisco },
-    note: Toast [ ],
-    Button [ x = 20, y = 20, label = "Copy link",
-        onClick() { app.note.say("Link copied", null) }
-        ]
+    removed: number = 0,
+    note: Toast [ picked(id: string) { if (id == "undo") app.removed = app.removed - 1 }
+        ],
+    Button [ x = 20, y = 20, label = "Delete",
+        onClick() { app.removed = app.removed + 1; app.note.say("Deleted", ({ id: "undo", label: "Undo" })) }
+        ],
+    Text [ x = 20, y = 64, text = { app.removed + " deleted" } ]
     ]

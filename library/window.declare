@@ -79,10 +79,10 @@ Whether it has a close button and closes on Esc.
 Whether its bottom and right edges and the corner between them resize it.
 
 ## minWidth
-The narrowest a resize makes it.
+The narrowest a resize makes it, as it is the narrowest a layout makes it.
 
 ## minHeight
-The shortest a resize makes it.
+The shortest a resize makes it, as it is the shortest a layout makes it.
 
 ## titleBarHeight
 The height of the title bar; the body starts below it. None without a frame.
@@ -104,8 +104,8 @@ Opens it, through `input(true)`, and brings it to the front.
 ## visible
 Present while it is open.
 
-## bringForward()
-Brings it in front of the windows beside it — its siblings that are windows — and keeps it
+## _bringForward()
+**Internal.** Brings it in front of the windows beside it — its siblings that are windows — and keeps it
 beneath whatever its parent holds above them. A press in a framed window, focus arriving in
 it and `show()` all call it.
 
@@ -118,8 +118,8 @@ Gives the window the keyboard: focus goes back to the control that last had it i
 window, else to the first. What a press inside the window does; a program's own way of
 bringing a window to the front calls it too.
 
-## holdsFocus()
-Whether focus is inside the window now, in a program it hosts included.
+## _isWindow
+**Internal.** The marker a window finds the windows beside it by.
 
 ## focusScope
 `region`: Tab stays among the window's controls, and F6 moves between windows.
@@ -190,36 +190,6 @@ one moves (`"r"`, `"b"` or `"rb"`), no smaller than the minimum.
 **Internal.** The release: an interrupted resize puts the size back.
 */
 
-/*
-# WindowClose
-
-The close button of a `Window`: a quiet round button with a small cross, filled only while
-hovered or pressed.
-
-```declare
-App [ width = 300, height = 140, fill = { provided("theme").background },
-    Window [ x = 20, y = 20, width = 260, height = 100, title = "Press the cross" ]
-    ]
-```
-
-## width
-A 24-pixel round target.
-
-## height
-A 24-pixel round target.
-
-## cornerRadius
-Round.
-
-## fill
-None at rest; the theme's `controlHovered` while hovered and `controlPressed` while pressed.
-
-## accessibilityRole
-`button`.
-
-## accessibilityLabel
-"Close".
-*/
 
 include [ "control.declare" ]
 
@@ -234,8 +204,8 @@ class Window [ width = 360, height = 240,
     title: string = "",
     closable: boolean = true,
     resizable: boolean = false,
-    minWidth: number = 200,
-    minHeight: number = 120,
+    minWidth = 200,
+    minHeight = 120,
     titleBarHeight: number = { frame ? 36 : 0 },
 
     fill = { frame ? provided("theme").surface : null },
@@ -246,26 +216,26 @@ class Window [ width = 360, height = 240,
     open: boolean = true,
     input(v: boolean) { open = v },
     close() { this.input(false) },
-    show() { this.input(true); this.bringForward() },
+    show() { this.input(true); this._bringForward() },
 
     overlays: View? = { this.layer },
 
-    holdsFocus() -> boolean { return Focus.holds(this) },
+    _isWindow: boolean = true,
 
-    enter() { if (!this.holdsFocus()) Focus.focusIn(this) },
+    enter() { if (!Focus.holds(this)) Focus.focusIn(this) },
 
     onPointerDown() {
-        if (frame) this.bringForward()
+        if (frame) this._bringForward()
         this.enter()
         },
 
     // in front of the windows beside it, and still beneath whatever the parent
     // keeps above its windows (the focus ring, the overlay layers)
 
-    bringForward() {
+    _bringForward() {
         const kids = (this.parent as View).children
         let last = -1
-        for (let i = 0; i < kids.length; i++) if (typeof (kids[i] as any).holdsFocus == "function") last = i
+        for (let i = 0; i < kids.length; i++) if ((kids[i] as any)._isWindow === true) last = i
         if (last < 0 || kids[last] == this) return
         if (last + 1 < kids.length) this.raise(kids[last + 1] as View)
         else this.raise()
@@ -280,7 +250,7 @@ class Window [ width = 360, height = 240,
     _sizeH: number = 0,
 
     _moveStart() {
-        this.bringForward()
+        this._bringForward()
         this.enter()
         _dragX = x
         _dragY = y
@@ -293,7 +263,7 @@ class Window [ width = 360, height = 240,
     _moveEnd(canceled: boolean) { if (canceled) { x = _dragX; y = _dragY } },
 
     _sizeStart() {
-        this.bringForward()
+        this._bringForward()
         this.enter()
         _sizeW = width
         _sizeH = height
@@ -329,9 +299,13 @@ class Window [ width = 360, height = 240,
                 textColor = { provided("theme").text },
                 text = { classroot.title } ],
 
-            closer: WindowClose [ x = { parent.width - this.width - 7 }, y = center,
+            closer: Control [ x = { parent.width - this.width - 7 }, y = center,
+                width = 24, height = 24, cornerRadius = 12,
+                accessibilityRole = button, accessibilityLabel = "Close",
+                fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
                 visible = { classroot.closable },
-                press() { classroot.close() }
+                press() { classroot.close() },
+                CloseIcon [ x = center, y = center, iconSize = 14, ink = { provided("theme").textMuted } ]
                 ],
 
             rule: View [ y = { parent.height - 1 }, width = 100%, height = 1, fill = { provided("theme").line } ]
@@ -379,21 +353,13 @@ class Window [ width = 360, height = 240,
 
     escKeys: Keys [
         onKeyDown(e: KeyEvent) {
-            if (e.key == "Escape" && classroot.frame && classroot.closable && classroot.open && classroot.holdsFocus()) classroot.close()
+            if (e.key == "Escape" && classroot.frame && classroot.closable && classroot.open && Focus.holds(classroot)) classroot.close()
             }
         ],
 
     // focus arriving by F6 or a press on a control brings a framed window forward
 
     focusWatch: Focus [
-        onFocusChange(v: View) { if (v != null && classroot.frame && classroot.holdsFocus()) classroot.bringForward() }
+        onFocusChange(v: View) { if (v != null && classroot.frame && Focus.holds(classroot)) classroot._bringForward() }
         ]
-    ]
-
-
-class WindowClose extends Control [ width = 24, height = 24, cornerRadius = 12,
-    accessibilityRole = button,
-    accessibilityLabel = "Close",
-    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
-    CloseIcon [ x = center, y = center, iconSize = 14, ink = { provided("theme").textMuted } ]
     ]

@@ -99,9 +99,9 @@ export const LANGUAGE_METHOD_EFFECTS = new Map([
     // browser's scroll defaults (keys.ts). Mutates a plain claim set, reads no
     // reactive cell → pure for analysis. A Menu claims at open, releases at close.
     ["navClaim", []],
-    // Keys.claimant() — which overlay's claim holds now; reads the claim set
+    // Keys._claimant() — which overlay's claim holds now; reads the claim set
     // and the focus, no reactive cell → pure for analysis.
-    ["claimant", []],
+    ["_claimant", []],
     // View.$setData(path, v) — the datapath WRITE (view.ts). The this-receiver
     // literal-path form is special-cased in dep-extract (the plan currency);
     // this row covers OTHER receivers — a cell writing through its ROW's cursor

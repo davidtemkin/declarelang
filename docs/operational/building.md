@@ -36,7 +36,7 @@ build only does that to a folder it made: one that is absent, empty, or holds an
 build (its `BUILD.json`). Any other folder is refused, as is the program's own folder or
 one that holds it, so a mistyped `-o` can't empty a folder you care about.
 Deployable to any static host, as a folder that needs nothing outside itself. On the flagship calendar it lands
-around **<!--stat:calendar.wireKB-->157<!--/stat--> KB gzipped** — and that is the figure the
+around **<!--stat:calendar.wireKB-->158<!--/stat--> KB gzipped** — and that is the figure the
 homepage prints, measured on the build its own calendar page ships. The module carries
 everything a page needs and nothing else: the runtime's run path, your program, and the web
 host — the URL and history mirror (`app.location` ↔ the fragment, Back and Forward), island

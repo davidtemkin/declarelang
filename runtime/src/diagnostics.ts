@@ -382,6 +382,10 @@ export const Diag = {
   // quiet: the guide teaches both, and both read at a glance.
   tangledConstraint: (attr: string, depth: number, parts: number, pos: Pos): DeclareError =>
     err(code4(4025), `${attr} decides ${depth >= 3 ? "through " + depth + " nested ? : choices" : "on one condition of " + parts + " parts"} — give the facts it decides on names of their own (an attribute with a { } default: open: boolean = { … }), and the constraint reads them; a choice keyed by a value (an id, a kind, a mode) is a lookup in data or a theme list, and a look a view takes in some state is a State. A named value costs nothing: it is worked out once and kept`, pos),
+  // A range bounds a size a layout gives; beside a size the view states itself
+  // it bounds nothing, and the cap the author meant is ordinary arithmetic.
+  rangeWithoutEffect: (owner: string, range: string, size: string, pos: Pos): DeclareError =>
+    err(code4(4030), `${owner}.${range} has no effect here — a range bounds the ${size} ${owner === "App" ? "the host gives an app" : "a layout gives a view (a share, a shrink, a stretch)"}, and ${owner} states its own ${size}. To cap a stated ${size}, write it: ${size} = { Math.${range.startsWith("max") ? "min" : "max"}(900, parent.${size}) }`, pos),
   accessibilityDrawnFocusable: (owner: string, pos: Pos): DeclareError =>
     err(code4(4018), `${owner} draws itself and takes the focus, but has no accessibilityRole — what it draws is pixels, not anything a screen reader can read. Give it the role it plays and the facts that role reads, or make it a Control`, pos),
   afterInValue: (pos: Pos): DeclareError =>
@@ -532,6 +536,7 @@ export const DIAGNOSTIC_CATALOG: ReadonlyArray<{ code: string; phase: DiagPhase;
   { code: code4(4026), phase: "name", summary: "sibling toggles that each turn on for one value of the same thing — one of several, said as separate toggles (warning)" },
   { code: code4(4028), phase: "name", summary: "a State's own member read bare in an override value, which runs on the view" },
   { code: code4(4029), phase: "name", summary: "a method in a State that the State does not have — a State cannot change the view's methods" },
+  { code: code4(4030), phase: "name", summary: "a size range beside a size the view states itself, where it bounds nothing (warning)" },
   { code: code4(4027), phase: "name", summary: "a control hidden from a screen reader that the keyboard still reaches (warning)" },
   { code: code4(4025), phase: "name", summary: "a constraint whose decisions are nested three deep, or one condition with four or more parts (warning)" },
   { code: code4(4014), phase: "name", summary: "afterDelay() in a { } value — a value computes and never waits" },

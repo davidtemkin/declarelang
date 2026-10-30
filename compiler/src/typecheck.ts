@@ -855,8 +855,6 @@ class CaseEmitter {
       // DataSource's — which arrives later — may be null
       const doc = this.docTypeOf(el);
       if (doc !== null) members.push(`  value: ${doc}${this.isDataSource(el) ? " | null" : ""};`);
-      const refusal = this.docTypeOf(el, "errorSchema");
-      if (refusal !== null) members.push(`  readonly errorBody: ${refusal} | null;`);
       if (members.length > 0) this.classExtras.set(el.tag, members);
       this.instType.set(el, el.tag);
       return el.tag;
@@ -927,9 +925,6 @@ class CaseEmitter {
     // a Dataset with a literal body or a `contents` constraint always has one.
     const doc = this.docTypeOf(el);
     if (doc !== null) members.push(`  value: ${doc}${this.valueAlwaysHeld(el) ? "" : " | null"};`);
-    // a refusal's body, typed by the source's errorSchema — null until one arrives
-    const refusal = this.docTypeOf(el, "errorSchema");
-    if (refusal !== null) members.push(`  readonly errorBody: ${refusal} | null;`);
     if (members.length === 0) {
       this.instType.set(el, el.tag);
       return el.tag;

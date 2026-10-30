@@ -64,12 +64,13 @@ export declare function bindDatapath(view: Node, path: string | readonly string[
  *  the slot this constraint defines — the same rule bindDatapath states. */
 export declare function bindCursor(view: Node, src: string, pos: Pos, classroot: Node | null): void;
 export declare function percentAxis(name: string): "width" | "height" | null;
-export declare function bindPercent(view: View, name: string, percent: number, pos: Pos): void;
+export declare function bindPercent(view: View, name: string, percent: number, pos: Pos, yielding?: boolean): void;
 /** The JavaScript form of `name = p%`, unowned: what bindPercent installs off
  *  the kernel, and what a State's percent override drives while it is the top
  *  of its slot (state.ts) — the same rule either way, so a state's `100%`
  *  resolves against the parent exactly as a declared one does. */
-export declare function percentRule(view: View, name: string, percent: number, pos: Pos | null): Constraint;
+/** `yielding`: a class's own size, a default that gives way to a layout (instantiate.ts CLASS_DEFAULT_GEOMETRY). */
+export declare function percentRule(view: View, name: string, percent: number, pos: Pos | null, yielding?: boolean): Constraint;
 export declare function isTransformSlot(name: string): boolean;
 /** Bind `x = center` / `y = end` — the position literals (value.ts Align).
  *  Symbolic like a percent, resolved as a standing constraint over the
@@ -84,10 +85,10 @@ export declare function isTransformSlot(name: string): boolean;
  *  as a layout places it — one geometry: two bars rotated ±45° about their
  *  corner and both centered cross at the middle. `transformLater` says a
  *  transform slot binds after this, in the same batch. */
-export declare function bindAlign(view: View, name: "x" | "y", align: "center" | "end", pos: Pos, transformLater?: boolean): void;
+export declare function bindAlign(view: View, name: "x" | "y", align: "center" | "end", pos: Pos, transformLater?: boolean, yielding?: boolean): void;
 /** The JavaScript form of `name = center | end`, unowned — bindAlign's, and a
  *  State's position override's (as percentRule). */
-export declare function alignRule(view: View, name: "x" | "y", align: "center" | "end", pos: Pos | null, transformed?: boolean): Constraint;
+export declare function alignRule(view: View, name: "x" | "y", align: "center" | "end", pos: Pos | null, transformed?: boolean, yielding?: boolean): Constraint;
 /** A DECLARED slot's `{ }` default as a standing rule (attributes.ts
  *  AttrSpec.defRule): installed at construction on a slot no attribute channel
  *  set, YIELDING — an author write, a newer owner, or a runtime write retires

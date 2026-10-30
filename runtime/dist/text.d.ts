@@ -68,6 +68,12 @@ export declare class Text extends View {
     /** True when the run sizes its own width: nothing set it, and what owns it, if
      *  anything, is the run's own auto-size. */
     get $ownWidth(): boolean;
+    /** Size to the text: installed at attach, and again when a layout or a
+     *  State lets go of a size (View.$sizeReleased → $bindExtent), so a Text
+     *  that stops flexing is as wide as its words again — never the number its
+     *  width held when the layout first took it. */
+    private $bindTextSize;
+    protected $bindExtent(): void;
     $attach(backend: RenderBackend, parentSurface: Surface | null, before?: Surface | null): void;
     /** A Text's own content folds into `contentWidth`/`contentHeight` as its
      *  MEASURED glyph extent — the way an Image folds in its bitmap (view.ts

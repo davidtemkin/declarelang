@@ -23,7 +23,7 @@ the form.
 
 **Any field can be judged**, two-way or not. A `text <-> :path` field also commits and keeps
 `dirty`; a field the program fills itself (`text = { app.found.address }` with `onInput`) has
-nothing to commit, and is judged the same way: `validate`, `error`, `valid`, `judgeOn` and
+nothing to commit, and is judged the same way: `validate`, `error`, `valid` and
 `judge()` all apply, and a screen reader hears `error` with the field.
 
 **A field that regroups as it is typed** (a card number in fours) writes its text from
@@ -167,7 +167,7 @@ schema's own check ("must be a number"). `""` when nothing is. The fact a presen
 own is built on; a `Form` lists its fields' problems.
 
 ## error
-**Read-only.** `problem` once the field is judged (at every moment under `judgeOn = "edit"`),
+**Read-only.** `problem` once the field is judged (a field judged from the start, `judged = true`, speaks at every edit),
 else `""` — the default display rule. A `Field` shows it under the field, a screen reader hears
 it with the field, and the field's edge takes the theme's `error` colour while it says
 something. What you own is `validate()` and `required`, not this attribute.
@@ -178,7 +178,10 @@ something. What you own is `validate()` and `required`, not this attribute.
 ## judged
 Whether the field has been judged: left once, `judge()`d, or submitted with its form. Writable:
 set it back to `false` for a fresh try (a security code emptied after a decline), and the
-field says nothing until it is left again.
+field says nothing until it is left again. Waiting for the field to be left is the point: a
+field marked wrong while the person is still typing in it for the first time is the common
+annoyance it avoids. Once judged, the field follows each edit, so the message goes the moment
+the text is right; a field that should speak from the first keystroke is `judged = true`.
 
 ## name
 The field's address in its form — the key a service names it by when it refuses a value
@@ -191,8 +194,8 @@ of the field's name in the view tree; leave it empty for a field no service name
 wherever a person will read it. A screen reader hears the field as required either way.
 
 ## refused
-An outside message about the field's text — a service's refusal, laid here by its form or by
-`refuse()`. It is the field's `problem` while the text is the one refused, and stops counting
+**Read-only.** An outside message about the field's text — a service's refusal, laid here by
+its form or by `refuse()`, the one way to say it. It is the field's `problem` while the text is the one refused, and stops counting
 as soon as the text changes.
 
 ## refuse()
@@ -209,17 +212,6 @@ entry) is part of that control.
 **Read-only.** Whether the draft of a two-way field differs from the committed dataset
 value — the session maintains it; `commit()` and `revert()` are what clear it. For enabling a Save affordance
 or an unsaved-changes prompt.
-
-## judgeOn
-**When** `error` first says what is wrong: `leave` (the default) — once the field has been
-left, `judge()`d, or submitted with its form — or `edit`, at every moment. A field marked wrong
-while the person is still typing in it for the first time is the common annoyance `leave`
-avoids. Once judged, the field follows each edit, so the message goes the moment the text is
-right. `problem` and `valid` are true to the text either way.
-
-Judging on leave is the field's own: it does not run through `onBlur`, so an `onBlur` of yours
-neither starts nor stops it, and has no base body to call (there is no `super.onBlur()`). To keep
-a field from being judged, set `judged = false`; to judge it now, `judge()`.
 
 ## judge()
 Judge the field now, without waiting for it to be left. A `Form`'s `submit()` judges every

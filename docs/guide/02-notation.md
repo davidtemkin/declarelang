@@ -64,11 +64,15 @@ Each world has its own vocabulary, and the boundary between them is exact.
   identifier inside braces.
 - **A value `{ }` is one expression.** Ternaries, template literals, array methods,
   closures and casts (`x as T`) are all fine; a `let` or a second statement is not. Move
-  that logic into a method and call it: `width = { classroot.measure() }`.
+  that logic into a method and call it: `width = { classroot.measure() }`. You will often see
+  an object literal written `({ id: 3 })`: an arrow that returns one needs the parentheses,
+  as in TypeScript, and the examples keep them elsewhere so braces that hold data never
+  read as a block.
 - **A method's `{ }` holds statements**, like any function body.
-- **Types are written on declarations, not in bodies.** `count: number = 0` states a
-  type; `(x: number) => …` or `type K = …` inside a body is an error that says where
-  the type belongs.
+- **An attribute's type is written on its declaration.** `count: number = 0` states it,
+  once, where the attribute is declared. Inside a body, TypeScript's own annotations work
+  as they do anywhere: a parameter's type (`(x: number) => …`), a local's, a method's own
+  `type`.
 
 Crossing the boundary the wrong way is one of the first mistakes everyone makes, and
 the compiler catches it. In the example above, change the last [`textColor`](declare-docs:Text.textColor) to

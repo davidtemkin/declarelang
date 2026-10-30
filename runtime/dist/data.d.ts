@@ -160,10 +160,6 @@ export declare class DataSource extends Dataset {
      *  decision can read the code without any of the three fighting. */
     statusCode: number;
     errorBody: unknown;
-    /** The shape a refusal's body has (`errorSchema = [ message: string, … ]`,
-     *  or a named schema): `errorBody` is typed by it, and a body that does not
-     *  match is not handed over — `error` says why. */
-    errorSchema: DataShape | null;
     /** The reply's headers, names lowercased — `{ "content-type": …, "etag": … }`
      *  — the paging link, the rate limit, the version tag. Set with `statusCode`
      *  on every reply, a refusal's included; null before one. */

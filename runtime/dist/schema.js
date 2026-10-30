@@ -135,10 +135,18 @@ const ViewSchema = {
         // and cannot also define them — the percent-slot rule's sibling). An
         // ancestor's clip above the parent still applies.
         ignoreLayout: { kind: "boolean" },
-        // `flexes` — the child takes an equal share of the room its parent's
-        // layout leaves along the flow (the layout sizes it there; across, it is
-        // aligned like any child). A Spacer is an empty view that flexes.
-        flexes: { kind: "boolean" },
+        // `flexes` — the child takes a share of the room its parent's layout
+        // leaves along the flow (the layout sizes it there; across, it is aligned
+        // like any child): true, or a number that weights the share. A Spacer is
+        // an empty view that flexes. `shrinks` — it keeps its content's size and
+        // gives some up when the run is too long. The four ranges bound any size
+        // a layout gives the child (0 = no limit).
+        flexes: { kind: "flex" },
+        shrinks: { kind: "boolean" },
+        minWidth: { kind: "number" },
+        maxWidth: { kind: "number" },
+        minHeight: { kind: "number" },
+        maxHeight: { kind: "number" },
         ignoreClip: { kind: "boolean" },
         // …and `ignoreScroll` — the third member (ruled 2026-07-29): the scroll
         // carries everyone but me. The child rides its nearest enclosing scroll
@@ -419,6 +427,8 @@ const ViewSchema = {
     // Nothing writes the facts — not an assignment, not an Animator (an animator
     // drives a slot; a fact is not one — the checker refuses both, naming the
     // verb). This is what makes "who scrolls" invisible to a program.
+    // the overlay router's side of Floating's pressPolicy / scrollPolicy
+    internal: ["outsidePress", "scrollBelow"],
     readOnly: ["contentWidth", "contentHeight", "childViews", "virtualized", "rowIndex", "firstVisibleRow", "lastVisibleRow", "hovered", "pressed", "focused", "onScreen", "visibleRect", "apparentScale", "scrollX", "scrollY", "userScrolling"],
     // R5: the pointer trio (click = press and release on the same view — the
     // shared router's rule, input.ts) plus the construction-complete lifecycle
@@ -566,11 +576,6 @@ const AppSchema = {
         // attribute — a link/button CALLS it in an activation handler (capabilities.md
         // §6). The runtime channel it writes (`pendingNav`) is a plain host-polled
         // field, deliberately not a schema attribute, so no Declare source names it.
-        // the app's size floor: the auto-extent never derives below it — in a
-        // narrower host the app holds the floor and the stage pans natively.
-        // A declared policy (readable statically), not clamp math in a constraint.
-        minWidth: { kind: "number" },
-        minHeight: { kind: "number" },
         // `appName` — the app's human name; hosts surface it where names go (today:
         // the browser page title, mirrored per settle by host-client; the extractor
         // reads the SETTLED value for the crawled page's <title>). A literal
@@ -893,7 +898,6 @@ const TextInputSchema = {
         // The edit session (language §9, the leaf-input exception; editor.ts):
         // `text` is the draft — its validity/error/dirtiness and WHEN it commits.
         commitOn: { kind: "string" }, // "input" (live) | "blur" | "enter" | "manual"
-        judgeOn: enumType("JudgeOn", "edit", "leave"), // when `error` first speaks: at every edit, or once the field has been left
         // What is wrong, and whether to say so (forms; library form.declare):
         problem: { kind: "string" }, // what is wrong with the value now, "" when nothing is
         error: { kind: "string" }, // `problem` once judged: the default display rule
@@ -934,7 +938,7 @@ const TextInputSchema = {
         selectionEnd: { kind: "number" },
     },
     // the session's facts (editor.ts maintains them; a write would be recomputed on the next keystroke)
-    readOnly: ["selectionStart", "selectionEnd", "problem", "error", "valid", "dirty"],
+    readOnly: ["selectionStart", "selectionEnd", "problem", "error", "valid", "dirty", "refused"],
     events: ["input", "enter"],
 };
 // RichText (docs/system-design/text-and-markdown.md): the ABSTRACT family of flowing,
@@ -1127,9 +1131,6 @@ const DataSourceSchema = {
         error: { kind: "string" },
         statusCode: { kind: "number" },
         errorBody: { kind: "object" },
-        // the shape a refusal's body has, as `schema` is the value's: `errorBody`
-        // is then typed, and a body that does not match is said in `error`
-        errorSchema: { kind: "dataschema" },
         // the reply's headers, names lowercased; null before a reply
         responseHeaders: { kind: "object" },
     },

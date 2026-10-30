@@ -42,12 +42,8 @@ Every compile type-checks every `{ }` body, with no opt-out, and the checker is 
 zero false positives across the repository's own programs — so an error always means
 something is actually wrong, never noise to talk past. Every diagnostic names the rule and
 the position, and for the mistakes the compiler anticipates — a CSS property name, a React
-habit, a percentage inside braces — it names the fix:
-
-```
-Text has no attribute 'color' — the CSS instinct: text color is 'textColor'
-(a provided value — set it on a container to cascade) [DECLARE2000] (line 2, col 28)
-```
+habit, a percentage inside braces — it names the fix
+([Reading an error](declare-docs:guide:run-and-check@reading-an-error)).
 
 Feedback quality bounds how fast a write-check-revise loop converges; a compiler that
 explains beats one that only rejects. An LLM's job is to apply the named fix, not to
@@ -59,8 +55,8 @@ When a program compiles and still behaves wrongly, reading the source again is t
 path. Ask the running program. `__declare.explain(path, attr)` returns a value, the
 expression that produced it, and every value that expression read; `__declare.explainHit(x,
 y)` names what a click at a point actually reaches. The Inspector is the same answers with a
-face ([Running and checking](declare-docs:guide:run-and-check)). An agent driving a browser
-can call these directly.
+face ([Debugging a running program](declare-docs:guide:run-and-check@debugging-a-running-program)).
+An agent driving a browser can call these directly.
 
 ## 4. Prove the change
 
@@ -68,7 +64,8 @@ can call these directly.
 behavior against a drive-and-assert script, then pixels against named screenshots — and
 reports the first real problem. The first four need no browser, so an agent can prove its
 output boots before handing it back; the last two prove it does what was asked. Every rung
-reports what it proved and what it cannot see.
+reports what it proved and what it cannot see
+([Checking a program](declare-docs:guide:run-and-check@checking-a-program-declare-verify)).
 
 ## Reviewing what comes back
 

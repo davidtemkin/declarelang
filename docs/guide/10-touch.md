@@ -91,7 +91,9 @@ Declare `onHold` (or `onContextMenu`) on a message bubble, and a hold anywhere o
 on its photo, on its time label — reaches the bubble, even where those children take a
 tap of their own. Each gesture is answered once, by the one view that declares it, so
 nothing bubbles; and once a hold has gone to the bubble, the release does not also tap the
-photo.
+photo. A hold on the view that was pressed leaves that view's own click alone
+([Raw and resolved events](declare-docs:guide:pointer-and-keyboard@raw-and-resolved-events));
+it is a child's tap that a hold answered above it ends.
 
 ```declare-fragment
 Bubble [ onHold(e: PointerEvent) { app.rowMenu.open(this, e) },
@@ -144,65 +146,33 @@ A surface a person moves through — a long axis, a large drawing — is one vie
 `draw` reads two numbers: where the window starts, and how much it shows. Every way of
 moving it writes those two numbers, and the drawing follows. What makes it feel held is one
 rule: **the point under the hand stays under the hand.** A drag moves the window by exactly
-the finger's travel; a pinch or a wheel zoom changes the span and moves the start so the
-value under the fingers (or the pointer) does not move.
+the finger's travel, read as `deltaX` against the start latched at the press — never as an
+accumulation of small moves, which drifts. A pinch reads `scale` against the start and span
+latched when it began, and moves the start so the value under the fingers does not move:
 
-```declare
-// a number line from 0 to 10,000: a finger drags and pinches it, a trackpad pinches
-// and swipes it, a wheel zooms it — always about the point under the hand
-App [ width = 600, height = 200, fill = white, textColor = black,
-    start: number = 0,          // the value at the left edge
-    span: number = 1000,        // how much of the line the width shows
-    clampSpan(s: number) -> number { return Math.max(10, Math.min(10000, s)) },
-    clampStart(v: number, s: number) -> number { return Math.max(0, Math.min(10000 - s, v)) },
-    // the span becomes s, and the value at x (of a width w) stays at x
-    zoomAbout(x: number, w: number, from: number, fromSpan: number, s: number) {
-        const at = from + fromSpan * x / w
-        const ns = clampSpan(s)
-        span = ns
-        start = clampStart(at - ns * x / w, ns)
-        },
-    line: View [ x = 20, y = 20, width = 560, height = 160, fill = #F3F5F8, clip = true,
-        accessibilityLabel = "Number line",
-        claim = x,            // sideways is the line's; up and down still scroll the page
-        grabStart: number = 0,
-        grabSpan: number = 0,
-        onPointerDown(e: PointerEvent) { grabStart = app.start },
-        onPointerMove(e: PointerEvent) { app.start = app.clampStart(grabStart - e.deltaX * app.span / this.width, app.span) },
-        onPinchStart(e: PinchEvent) { grabStart = app.start; grabSpan = app.span },
-        onPinch(e: PinchEvent) { app.zoomAbout(e.x, this.width, grabStart, grabSpan, grabSpan / e.scale) },
-        onWheel(e: WheelEvent) {
-            if (e.pinch || Math.abs(e.deltaY) > Math.abs(e.deltaX))
-                app.zoomAbout(e.x, this.width, app.start, app.span, app.span * Math.exp(e.deltaY * (e.pinch ? 0.01 : 0.002)))
-            else app.start = app.clampStart(app.start + e.deltaX * app.span / this.width, app.span)
-            },
-        draw(d: DrawContext) {
-            const step = Math.pow(10, Math.floor(Math.log10(app.span / 4)))
-            d.fillStyle = 0x5A6475
-            for (let v = Math.ceil(app.start / step) * step; v <= app.start + app.span; v += step) {
-                const x = (v - app.start) / app.span * this.width
-                const major = Math.round(v / step) % 10 == 0
-                d.fillRect(x, 0, 1, major ? 40 : 16)
-                if (major) d.fillText("" + Math.round(v), x + 4, 56)
-                }
-            }
-        ]
+```declare-fragment
+// on the App: the value at x stays at x while the span becomes s
+zoomAbout(x: number, w: number, from: number, fromSpan: number, s: number) {
+    const at = from + fromSpan * x / w
+    span = s
+    start = at - s * x / w
+    },
+
+line: View [ claim = x,            // sideways is the line's; up and down still scroll the page
+    grabStart: number = 0,
+    grabSpan: number = 0,
+    onPointerDown(e: PointerEvent) { grabStart = app.start },
+    onPointerMove(e: PointerEvent) { app.start = grabStart - e.deltaX * app.span / this.width },
+    onPinchStart(e: PinchEvent) { grabStart = app.start; grabSpan = app.span },
+    onPinch(e: PinchEvent) { app.zoomAbout(e.x, this.width, grabStart, grabSpan, grabSpan / e.scale) }
     ]
 ```
 
-- **Drag** reads `deltaX`, the finger's travel since the press, against the start it
-  latched at the press — never an accumulation of small moves, which drifts.
-- **Pinch** (two fingers on a touch screen) reads `scale` since the pinch began, against
-  the start and span it latched then, and keeps the value at `e.x` in place.
-- **A trackpad pinch** arrives as a wheel with `e.pinch` true — the same zoom; a wheel turned
-  up and down zooms too, and a sideways swipe pans.
-- **`claim = x`** takes only sideways movement, so on a phone a finger moving up the line
-  still scrolls the page.
-
-A button that jumps the window somewhere ("show all") would rather glide than jump: give
-`start` and `span` each a [`Spring`](declare-docs:Spring) whose target the button writes, and have the hand
-write the value and its target together, so nothing trails the fingers
-([Motion](declare-docs:guide:motion)).
+A trackpad pinch is the same zoom arriving on `onWheel` with `e.pinch` true. A button that
+jumps the window somewhere ("show all") would rather glide than jump: give `start` and
+`span` each a [`Spring`](declare-docs:Spring) whose target the button writes, and have the
+hand write the value and its target together, so nothing trails the fingers
+([Motion](declare-docs:guide:motion@springs)).
 
 ## Dragging on a scrolling surface
 

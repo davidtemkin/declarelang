@@ -160,28 +160,16 @@ attribute; every target derives its look from it.
 // on the dragger
 onPointerMove(e: PointerEvent) { app.dropTarget = app.viewAt(e.rootX, e.rootY) },
 
-// on each target — no handler, just a constraint
-hovered = { app.dropTarget == this }
+// on each target — no handler, just a fact of its own and a look that reads it
+under: boolean = { app.dropTarget == this },
+fill = { under ? 0xDCE8F8 : null }
 ```
 
-One thing to get right: `viewAt` answers *what a press would hit*, and your drag ghost is
-under the pointer. Pass it as the third argument, `app.viewAt(e.rootX, e.rootY, app.ghost)`,
-and the walk goes past the ghost and everything in it — its labels too, which
-`pointerEvents = "none"` on the ghost alone would leave in the way. A container with no
-size set grows with a ghost that follows the pointer, becoming an invisible box over the
-very targets you are dragging onto: pass that container instead. If a target never
-highlights, `__declare.explainHit(x, y)` in the console names what actually takes the press.
+`hovered` is the pointer's own fact and nothing may set it; a target names its own
+(`under` here) and derives from that.
 
-The answer is the deepest view — a card's label, not the card. A class name is a value in a
-body, so walk up until it is the kind you want, and past the loop it is typed as one:
-
-```declare-fragment
-onPointerUp(e: PointerUpEvent) {
-    let t = app.viewAt(e.rootX, e.rootY, app.ghost)
-    while (t != null && !(t instanceof Column)) t = t.parent
-    if (t != null) t.accept(this)
-    }
-```
+`viewAt` answers what a press would hit, and the dragged view is under the pointer: pass it
+as the third argument, `app.viewAt(e.rootX, e.rootY, ghost)`, and the walk skips it.
 
 ## Keyboard events
 
@@ -249,7 +237,7 @@ App [ width = 520, height = 240,
 A set covers the view it is declared on. A press is looked up from the focused view outward,
 and the nearest set that declares the key takes it — so a pane can give ⌘F a meaning of its
 own while the rest of the program keeps the App's. The walk goes on past the program: a
-program in a desktop's window reaches the desktop's ⌘N. A shortcut that fires is not also a
+program in an island reaches its host's shortcuts. A shortcut that fires is not also a
 `Keys` event, and not also the browser's (⌘S does not save the page). A plain key (`"?"`)
 stands down while a text field has focus. While an open menu, dialog or sheet holds the
 keyboard, its keys are its own: the shortcuts declared inside it are in force — a form in a
@@ -259,8 +247,8 @@ stands down, as do the keys the overlay itself uses (Esc, and a menu's arrows).
 A [`MenuBar`](declare-docs:MenuBar)'s items carry their keys already (`key: "⌘N"`), and
 those are its program's shortcuts, so a program with a menu bar declares them once.
 [`Keys.shortcutsInForce()`](declare-docs:Keys.method.shortcutsInForce) lists what is in force
-where focus is, for a panel of them — the desktop shows one while ⌘ is held alone, which a
-`Keys` member hears as [`onCommandHeld`](declare-docs:Keys.event.commandHeld).
+where focus is, for a panel of them, and a `Keys` member hears ⌘ held alone as
+[`onCommandHeld`](declare-docs:Keys.event.commandHeld).
 
 `Keys` stays the channel for keys that are not commands: a game's arrows, a key held to
 extend a selection.

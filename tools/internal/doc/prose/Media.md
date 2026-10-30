@@ -51,8 +51,7 @@ already holds changes nothing, so to start a sound over, call `play()`.
 For a playhead that moves smoothly, keep your own number and advance it in a
 `Time [ tick = frame ]` member's `onTick(dt)`, taking the clip's `position` whenever the
 two disagree by more than a fraction of a second. Reading `position` every frame
-without integrating is polling (DECLARE4006). The guide's
-[scrubber](declare-docs:guide:media@a-scrubber) has the whole pattern.
+without integrating is polling (DECLARE4006).
 
 ## volume
 `0`–`1`, default `1`. Independent of `muted`, which gates it — muting does not zero the

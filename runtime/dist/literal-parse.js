@@ -349,6 +349,12 @@ export function parseLiteral(type, lit) {
             if (type.nullable === true && lit.kind === "ident" && lit.name === "null")
                 return ok(null);
             return fail(diag `a boolean (true or false)`);
+        case "flex":
+            if (lit.kind === "ident" && (lit.name === "true" || lit.name === "false"))
+                return ok(lit.name === "true");
+            if (lit.kind === "number" && lit.value >= 0)
+                return ok(lit.value);
+            return fail(diag `true, false, or a weight (a number, 0 or more: 2 takes twice the share 1 does)`);
         case "string":
             if (lit.kind === "string")
                 return ok(lit.value);

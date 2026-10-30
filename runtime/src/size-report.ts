@@ -7,8 +7,8 @@
 import { View } from "./view.js";
 import type { Node } from "./node.js";
 import { afterSettle } from "./reactive.js";
-import { isSet, ownerOf, percentOwned } from "./attributes.js";
-import { negativeSizeMessage } from "./errors.js";
+import { cellIdsOf, isSet, ownerOf, percentOwned } from "./attributes.js";
+import { emptyContainerMessage, negativeSizeMessage } from "./errors.js";
 import { declareName } from "./declare-name.js";
 
 /** A CHILD SIZED FROM A PARENT THAT HAS NO SIZE TO GIVE is reported
@@ -66,4 +66,33 @@ export function judgeNegativeSizes(): void {
       console.error("[Declare] " + negativeSizeMessage(declareName(v), axis, value, declareName(p), onlyContent, ownerOf(v, axis)?.sourcePos));
     }
   }
+}
+
+/** A VIEW WHOSE SIZE NOTHING DECIDES: it takes its size from its children, and
+ *  every one of them takes its size from it (`height = 100%` in a row as tall as
+ *  its children). Nothing changes, so nothing is noted as it is written: each
+ *  size stays at its first 0, and the view draws nothing. Looked for once, when
+ *  the program first has its room. A layout that STRETCHES them is the way to say
+ *  "as tall as the tallest", which is what the message offers. */
+export function judgeEmptyContainers(root: View): void {
+  const said = new Set<string>();
+  const walk = (v: View): void => {
+    if (!v.visible) return;
+    const kids = v.children.filter((c): c is View => c instanceof View && c.visible && !c.ignoreLayout);
+    for (const axis of ["width", "height"] as const) {
+      if (kids.length === 0 || v.contentBox(axis) > 0.5) continue;
+      // the view takes its size from its content: no size of its own, or one
+      // worked out from its children — a branch of `{ … ? this.contentHeight : … }`
+      // takes it from the content in that branch alone
+      const o = ownerOf(v, axis);
+      if (!(o === null ? !isSet(v, axis) : o.isAutoExtent || o.readsAny(new Set(kids.flatMap(cellIdsOf))))) continue;
+      if (!kids.every((c) => percentOwned(c, axis))) continue;           // and every child takes its size from the view
+      const key = `${declareName(v)}.${axis}`;
+      if (said.has(key)) continue;
+      said.add(key);
+      console.error("[Declare] " + emptyContainerMessage(declareName(v), axis, declareName(kids[0])));
+    }
+    for (const c of kids) walk(c);
+  };
+  walk(root);
 }

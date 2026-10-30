@@ -27,10 +27,7 @@ App [ width = 400, height = 300, fill = white, textColor = black,
     pages: Dataset { { "rows": [ { "title": "About", "slug": "about" } ] } },
     adding: boolean = false,
     create(p: NewPage) {
-        if ((app.pages.value?.rows ?? []).some((r) => r.slug == p.slug)) {
-            p.refuse([({ name: "slug", message: "A page already has that address." })])
-            return
-            }
+        if ((app.pages.value?.rows ?? []).some((r) => r.slug == p.slug)) { p.refuse([({ name: "slug", message: "A page already has that address." })]); return }
         app.pages.set("/rows/-", ({ title: p.title, slug: p.slug }))
         app.adding = false
         },

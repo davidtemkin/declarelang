@@ -51,7 +51,7 @@ export class TextInput extends View {
         this.$judges = true;
         bindDerived(this, "problem", () => this.$problem());
         bindDerived(this, "valid", () => this.problem === "");
-        bindDerived(this, "error", () => (this.judgeOn === "edit" || this.judged ? this.problem : ""));
+        bindDerived(this, "error", () => (this.judged ? this.problem : ""));
     }
     $judges = false;
     /** What is wrong with the value now — the one rule `problem` derives. */
@@ -93,7 +93,7 @@ export class TextInput extends View {
         // the truth now — the refusal, `required`, the field's own `validate`,
         // the schema floor — and reactive over whatever `validate` reads; `valid`
         // is its emptiness; `error` is the default display rule, `problem` once
-        // the field is judged (or at every edit, under judgeOn = edit).
+        // the field is judged (a field that speaks at every edit is judged from the start).
         this.$judging();
         if (!isSet(this, "accessibilityRequired") && ownerOf(this, "accessibilityRequired") === null)
             bindDerived(this, "accessibilityRequired", () => this.required !== false && this.required !== "");
@@ -420,7 +420,6 @@ defineAttributes(TextInput, {
     selectionEnd: { def: 0 },
     disabled: { def: false, push: (t) => t.$syncEditable() },
     commitOn: { def: "input" },
-    judgeOn: { def: "leave" },
     problem: { def: "" },
     error: { def: "" },
     valid: { def: true },
@@ -428,9 +427,8 @@ defineAttributes(TextInput, {
     judged: { def: false },
     name: { def: "" },
     required: { def: false },
-    // a refusal is said OF a value: written, it remembers the text it was said of
-    refused: { def: "", push: (t, v) => { if (v !== "")
-            t.$refusedValue = t.text; } },
+    // read-only: a refusal is said through refuse(), which remembers the text it was said of
+    refused: { def: "" },
     form: { def: null, defBinding: providedDefault("_form", null) },
 });
 // what a TextInput is to assistive technology (View.$leafRole), in a build with the layer

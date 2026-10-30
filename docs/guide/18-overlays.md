@@ -52,9 +52,7 @@ choice comes back through `picked(id)`.
 A menu whose rows carry `checked` is a choice of one: derive `checked` from your state
 (`checked: app.sort == "date"`) and set the state in `picked`. Put it on a `Button` whose
 label names the current choice, and that button is a pop-up button, the `<select>` of
-other platforms. For two to five choices shown at once, use `Segmented`; for a long list
-the user filters by typing, `Combobox`
-([Controls](declare-docs:guide:controls@choosing-one-of-many)).
+other platforms ([Controls](declare-docs:guide:controls@choosing-one-of-many)).
 
 ## Opening at a view or at the pointer
 
@@ -151,7 +149,7 @@ dialog was about, deleted — focus goes to the next Tab stop after the place it
 Tab from there would. Somewhere else makes more sense, sometimes: say so with
 [`restoresFocusTo`](declare-docs:View.restoresFocusTo), read as the dialog closes —
 `restoresFocusTo = { app.deleted ? app.listHeading : null }`, with the heading
-`focusable = quiet`.
+`focusable = quiet` ([Keyboard focus](declare-docs:guide:controls@keyboard-focus)).
 
 A dialog's content can also be yours: its children go between the message and the buttons,
 and focus opens on the first of them.
@@ -224,12 +222,16 @@ App [ width = 560, height = 300, theme = { SanFrancisco },
 
 A [`Toast`](declare-docs:Toast) is a short message that appears at the bottom of its context and goes away by
 itself. It takes no focus and blocks nothing — it even stays clickable above an open
-dialog. An action record adds one button, whose id arrives at `picked`.
+dialog. `say(message, action)` shows it; an action record, `{ id, label }`, adds one button,
+and its id arrives at `picked` — the shape of an undo:
 
 ```declare
 App [ width = 360, height = 160, theme = { SanFrancisco },
-    note: Toast [ ],
-    Button [ x = 20, y = 20, label = "Copy link", onClick() { app.note.say("Link copied", null) } ]
+    removed: number = 0,
+    note: Toast [ picked(id: string) { if (id == "undo") app.removed = app.removed - 1 } ],
+    Button [ x = 20, y = 20, label = "Delete",
+        onClick() { app.removed = app.removed + 1; app.note.say("Deleted", ({ id: "undo", label: "Undo" })) } ],
+    Text [ x = 20, y = 64, text = { app.removed + " deleted" } ]
     ]
 ```
 
@@ -261,11 +263,11 @@ What makes a view a context is one attribute: it provides `overlays`, the view i
 paint in. A `Window` provides an unclipped layer of its own, above its content; any view of
 yours can do the same — a zoomable canvas whose menus should zoom with it, say.
 
-**A program running inside another** — in an [`AppIsland`](declare-docs:AppIsland), in a
-desktop's window — opens its overlays in the nearest such layer above it, crossing into the
-program that hosts it: its menus hang past the island's box and take the window's tilt and
-scale, and the program's own scale where it is shown smaller. Where no host provides a layer,
-they stay inside the island. `containOverlays = true` on the island keeps them inside always.
+**A program running inside another** — in an [`AppIsland`](declare-docs:AppIsland) — opens its
+overlays in the nearest such layer above it, crossing into the program that hosts it: its
+menus hang past the island's box and take the window's tilt and scale. Where no host provides
+a layer, they stay inside the island, and `containOverlays = true` on the island keeps them
+inside always ([A Declare app inside a Declare app](declare-docs:guide:embedding@a-declare-app-inside-a-declare-app)).
 
 ## A control that opens a layer
 
@@ -320,12 +322,10 @@ class Viewer extends Dialog [ presentation = "full",
     ]
 ```
 
-Each overlay opens into its context's layer: the App keeps two — one for overlays, stacked in
-the order they opened, and a notice layer above it for toasts — in a small internal view,
-[`OverlayStrata`](declare-docs:OverlayStrata), which you never write, fixed to the App's
-viewport so a dialog opened with the page scrolled down is on screen. A view that should paint
-somewhere other than where it is declared, without being an overlay — a desktop's minimized
-window parked in its dock — says so with [`paintsIn`](declare-docs:View.paintsIn).
+Each overlay opens into its context's layer, stacked in the order they opened, with toasts
+in a notice layer above. A view that should paint somewhere other than where it is declared,
+without being an overlay — a minimized window parked in a dock — says so with
+[`paintsIn`](declare-docs:View.paintsIn).
 
 ---
 

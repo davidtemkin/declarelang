@@ -53,7 +53,7 @@ App [ width = 320, height = 130,
 The rows, as **records — never children**. A menu arranges its own rows, so handing it
 views is not merely discouraged, there is nowhere to put them. The record is
 `{ id, label, key?, icon?, enabled?, checked?, selected?, divider?, submenu?, kind?, props?, minWidth? }`
-(`selected` is read only in a list of choices: see `asList`);
+(`selected` is read only in a list of choices, a menu whose role is `listbox`);
 a plain array is fine (no `Dataset` required). Because it is an ordinary attribute it
 can be a constraint — **derive it from `opener` and one menu serves every row of a
 table**, live while it is open.
@@ -111,10 +111,10 @@ the keys are on.
 ## accessibilityActiveItem
 The highlighted row's item: a screen reader hears each row as the arrows reach it.
 
-## asList
-A list of choices rather than commands: each row is an `option`, not a `menuItem`, selected
-when its record says `selected: true`. A `Combobox` makes its list this way, with the `listbox`
-role given at creation (`createView("Menu", { accessibilityRole: "listbox", asList: true })`).
+## _asList
+**Internal.** A list of choices rather than commands — the menu's role is `listbox`, as a
+`Combobox` makes its list: each row is an `option`, not a `menuItem`, selected when its
+record says `selected: true`.
 
 ## accessibilityLabel
 The opener's name, so a menu opened from "Styling" is the "Styling" menu.
@@ -200,11 +200,6 @@ both do.
 Moves the keyboard rover by ±1 over the pickable rows, skipping dividers, disabled rows
 and custom-content rows, and scrolls the landing row into view.
 
-## typeahead
-Whether typing a letter moves the keyboard highlight to a row — `true` by default, as in
-every desktop menu: type "ex" to land on Export. The highlight only moves; Return picks.
-A `Combobox` turns it off on its list, whose letters belong to its text field.
-
 ## _typed
 **Internal.** The letters typed so far, while typing continues.
 
@@ -212,8 +207,8 @@ A `Combobox` turns it off on its list, whose letters belong to its text field.
 **Internal.** When the last letter was typed; after a second's pause the next letter starts
 over.
 
-## typeTo()
-Moves the highlight to the first enabled row whose label starts with what has been typed:
+## _typeTo()
+**Internal.** Moves the highlight to the first enabled row whose label starts with what has been typed:
 the prefix grows while typing continues and starts over after a pause, and the same
 letter again goes on to the next row that starts with it.
 
@@ -286,12 +281,12 @@ class Menu extends Floating [
     // on, so a screen reader follows the highlight; it hands the focus back on close
 
     takesFocus = true,
-    accessibilityActiveItem = { this.activeRow == null ? null : this.asList ? (this.activeRow as any).opt : (this.activeRow as any).item },
+    accessibilityActiveItem = { this.activeRow == null ? null : this._asList ? (this.activeRow as any).opt : (this.activeRow as any).item },
 
     // a list of choices rather than commands — a combobox's list, made with the
     // listbox role: its rows are options
 
-    asList: boolean = false,
+    _asList: boolean = { accessibilityRole == "listbox" },
     focusFirst() { this._holdFocusItself() },        // the menu itself, never a view inside it
 
     // its keys are its rover's (the keys member below): a menu holding the focus
@@ -305,7 +300,6 @@ class Menu extends Floating [
     // appears and goes at once — no motion. An outside press closes the chain
     // and goes no further; a submenu lets a press on its parent menu through.
 
-    kind = "floating",
     pressPolicy = { this.isRoot ? "dismiss" : "dismissAndDeliver" },
     scrollPolicy = "block",
     visible = { shown },
@@ -344,7 +338,7 @@ class Menu extends Floating [
     // The house floor: a menu narrower than this reads as a mistake rather
     // than as a tight fit.
 
-    minWidth:    number = 120,
+    minWidth = 120,
     width = { Math.max(minWidth, widestCustom, textEdge + widestLabel + (widestKey > 0 ? 26 + widestKey + 16 : hasSubs ? 34 : 18)) },
 
     items: MenuItemRecord[]? = null,
@@ -387,9 +381,9 @@ class Menu extends Floating [
     // typeahead: letters typed while the menu has the keys move the rover to the
     // first row whose label starts with them — the prefix grows while typing
     // continues and starts over after a pause; one letter again goes on to the
-    // next row with it. It moves the highlight only; Return still picks.
+    // next row with it. It moves the highlight only; Return still picks. Not
+    // while a text field has the focus (a combobox's entry): its letters are its own.
 
-    typeahead: boolean = true,
     _typed: string = "",
     _typedAt: number = 0,
 
@@ -420,8 +414,8 @@ class Menu extends Floating [
         opener = v
         this.show()
         const h = this.expectedHeight()
-        const k = (host != null ? host.transformTo(this.screen()).scale : 1) * _baseScale
-        const up = this.toScreen(v, 0, v.height + 4).y + h * k > this.screen().height - 4 && this.toScreen(v, 0, -4).y - h * k >= 4
+        const k = (host != null ? host.transformTo(this._screen()).scale : 1) * _baseScale
+        const up = this._toScreen(v, 0, v.height + 4).y + h * k > this._screen().height - 4 && this._toScreen(v, 0, -4).y - h * k >= 4
         const p = up ? this.toLayer(v, 0, -4) : this.toLayer(v, 0, v.height + 4)
         this.place(p.x, up ? p.y - h * _baseScale : p.y)
         },
@@ -520,7 +514,7 @@ class Menu extends Floating [
 
     _revealRow(r: View?) { if (r != null) r.scrollIntoView("nearest") },
 
-    typeTo(ch: string) {
+    _typeTo(ch: string) {
         const now = Date.now()
         const t = (now - _typedAt < 1000 ? _typed : "") + ch.toLowerCase()
         _typed = t
@@ -581,8 +575,8 @@ class Menu extends Floating [
             else if (e.key == "ArrowLeft") { if (!classroot.isRoot) classroot.close(); else classroot.sideways(-1) }
             // a printable letter moves the rover (not while a text field is
             // typing into the menu's opener — a combobox's own entry)
-            else if (classroot.typeahead && e.key.length == 1 && e.key != " " && !e.meta && !e.ctrl && !e.alt
-                     && (Focus.getFocus() as any)?.placeholder === undefined) classroot.typeTo(e.key)
+            else if (e.key.length == 1 && e.key != " " && !e.meta && !e.ctrl && !e.alt
+                     && (Focus.getFocus() as any)?.placeholder === undefined) classroot._typeTo(e.key)
             }
         ],
 
@@ -663,7 +657,7 @@ class Menu extends Floating [
                 // submenu. A divider row is not an item, so this is shown only on
                 // the rows that are — one template serves both.
 
-                item: View [ width = 100%, height = 100%, visible = { !parent.divider && !classroot.asList },
+                item: View [ width = 100%, height = 100%, visible = { !parent.divider && !classroot._asList },
                     accessibilityRole = menuItem,
                     accessibilityLabel = { parent.label },
                     accessibilityChecked = { :checked == null ? null : !!:checked },
@@ -677,7 +671,7 @@ class Menu extends Floating [
                 // the same row, in a list of choices (a combobox's): an option,
                 // selected when its record says so
 
-                opt: View [ width = 100%, height = 100%, visible = { !parent.divider && classroot.asList },
+                opt: View [ width = 100%, height = 100%, visible = { !parent.divider && classroot._asList },
                     accessibilityRole = option,
                     accessibilityLabel = { parent.label },
                     accessibilitySelected = { :selected == true },

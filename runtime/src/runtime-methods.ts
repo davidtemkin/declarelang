@@ -37,7 +37,7 @@ export const RUNTIME_METHODS: Readonly<Record<string, readonly string[]>> = {
   RichText: [],
   Markdown: [],
   HTMLText: [],
-  Layout: ["attachTo", "rearm", "laid", "place", "contentExtent", "refuseBaseline", "viewExtent", "refuseStackBaseline"],
+  Layout: ["attachTo", "rearm", "laid", "place", "contentExtent", "refuseBaseline", "viewExtent", "refuseStackBaseline", "sizedByContent"],
   TweenLayout: ["retarget"],
   Dataset: ["read", "set", "insert", "removeAt", "move"],
   DataSource: ["fetch", "clear"],

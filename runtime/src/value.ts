@@ -427,7 +427,8 @@ export type AttrType =
   // slot told authors and agents that padding rounds corners.
   // `nullable` (number and boolean): a declared `number | null` — a table slot
   // whose cell carries null beside its number (attributes.ts, kernel.c)
-  | { readonly kind: "length" | "number" | "boolean" | "string" | "color" | "shape" | "radius" | "inset"; readonly nullable?: true }
+  // `flex`: true, false, or a number — `flexes`, whose number weights the share
+  | { readonly kind: "length" | "number" | "boolean" | "string" | "color" | "shape" | "radius" | "inset" | "flex"; readonly nullable?: true }
   // A data-shape (B4, language §9's optional `schema` — the "shape" kind
   // above is the SVG clip path, unrelated): the slot holds parsed ShapeField
   // declarations, literal-only (`[ city: string, rows[]: [ … ] ]`).
@@ -563,13 +564,10 @@ const DECLARED_TYPES: Readonly<Record<string, AttrType>> = {
   // is a cross axis the strategy leaves to the children (SimpleLayout's
   // default); `baseline` aligns children by the baseline each DECLARES.
   Justify: enumType("Justify", "start", "center", "end", "fill"),
-  CrossAlign: enumType("CrossAlign", "none", "start", "center", "end", "baseline"),
+  CrossAlign: enumType("CrossAlign", "none", "start", "center", "end", "baseline", "stretch"),
   // What a text field holds (TextInput.purpose): declarable so a control built
   // around a field (a combobox of countries) can say it and hand it on.
   InputPurpose: enumType("InputPurpose", ...PURPOSE_NAMES),
-  // When a field first says what is wrong (TextInput.judgeOn): declarable so a
-  // value control of the library or a program says it the same way.
-  JudgeOn: enumType("JudgeOn", "edit", "leave"),
 };
 
 /** Resolve a written declaration type name (`count: number`), or null when

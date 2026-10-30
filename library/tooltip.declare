@@ -87,16 +87,16 @@ Chrome, never prose: a tip's text does not select, even inside a `selectable` re
 ## cornerRadius
 From the theme's `tooltipCornerRadius` (4 by default).
 
-## pointerY
-Where the chip sits for `"pointer"` placement: below the resting pointer, or above it when
+## _pointerY
+**Internal.** Where the chip sits for `"pointer"` placement: below the resting pointer, or above it when
 there is no room below.
 
-## aboveY
-Where the chip sits for `"above"` placement: over the target, or under it when there is no
+## _aboveY
+**Internal.** Where the chip sits for `"above"` placement: over the target, or under it when there is no
 room above.
 
-## belowY
-Where the chip sits for `"below"` placement: under the target, or over it when there is no
+## _belowY
+**Internal.** Where the chip sits for `"below"` placement: under the target, or over it when there is no
 room below.
 */
 
@@ -107,7 +107,6 @@ class Tooltip extends Floating [
     // the app, taking no focus and no keys; presses pass through it, and a
     // scroll aimed past it puts it away. It appears and goes at once.
 
-    kind = "floating",
     pressPolicy = "ignore",
     scrollPolicy = "dismiss",
     visible = { shown && label != "" },
@@ -143,10 +142,10 @@ class Tooltip extends Floating [
 
     // where each placement puts it, each flipping when it would leave the window
 
-    pointerY: number = { _py + 18 + this.height > app.height ? _py - this.height - 8 : _py + 18 },
-    aboveY: number = { _ey - this.height - 7 < 0 ? _ey + _eh + 7 : _ey - this.height - 7 },
-    belowY: number = { _ey + _eh + 7 + this.height > app.height ? _ey - this.height - 7 : _ey + _eh + 7 },
-    y = { placement == "pointer" ? this.pointerY : placement == "above" ? this.aboveY : this.belowY },
+    _pointerY: number = { _py + 18 + this.height > app.height ? _py - this.height - 8 : _py + 18 },
+    _aboveY: number = { _ey - this.height - 7 < 0 ? _ey + _eh + 7 : _ey - this.height - 7 },
+    _belowY: number = { _ey + _eh + 7 + this.height > app.height ? _ey - this.height - 7 : _ey + _eh + 7 },
+    y = { placement == "pointer" ? this._pointerY : placement == "above" ? this._aboveY : this._belowY },
 
     cornerRadius = { provided("theme").tooltipCornerRadius },
     fill   = { provided("theme").tooltipFill },

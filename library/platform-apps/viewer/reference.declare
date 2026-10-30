@@ -20,6 +20,6 @@ script {
         "TabBarTab", "Table", "TableRow", "Text", "TextInput", "TextLabel", "TextLargeIcon", "TextMediumIcon",
         "TextSizeIcon", "TextSizeSwitch", "TextSmallIcon", "Time", "Toast", "ToolButton", "Toolbar", "ToolbarDivider",
         "Tooltip", "Tooltips", "Tree", "TreeRow", "TweenLayout", "ValueControl", "Video", "View",
-        "Window", "WindowClose", "WrappingLayout"
+        "Window", "WrappingLayout"
         ]
     }

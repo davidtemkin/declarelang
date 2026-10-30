@@ -159,8 +159,8 @@ it. Paint only, never input — a blurred button is still its box. `null` (the d
 The same vocabulary, sampled **beneath** the view, is `backdrop`.
 
 ## outsidePress
-What a press **aimed past** this view does while it is shown — an overlay's policy, read by
-the router before the press is delivered. `none` (the default) for every ordinary view.
+**Internal.** What a press **aimed past** this view does while it is shown — the router's side of
+`Floating.pressPolicy`, read before the press is delivered. `none` (the default) for every ordinary view.
 `dismiss`: the view hears `onOutsidePress` and the press goes no further (a menu).
 `dismissAndDeliver`: it hears `onOutsidePress` and the press goes on to what was pressed (a
 popover). `block`: the press goes nowhere and the view stays (a dialog). `ignore`: the press
@@ -169,7 +169,7 @@ that lets the press go on hands it to the next one down. The library's overlays 
 you.
 
 ## scrollBelow
-What a scroll — wheel or touch — **aimed past** this view does while it is shown: `none`
+**Internal.** The router's side of `Floating.scrollPolicy` — what a scroll aimed past this view does while it is shown: `none`
 (the default), `block` (nothing behind it scrolls), `allow`, or `dismiss` (it hears
 `onOutsidePress` and the scroll goes on). An overlay's other policy, beside `outsidePress`.
 
@@ -204,16 +204,47 @@ its own position on both axes (the decoration/overlay case: a badge floating ove
 a laid list). Its size still counts toward the parent's auto-extent.
 
 ## flexes
-Take an equal share of the room the parent's layout leaves along its axis. In a
-column the layout sets this child's height to that share, in a row its width; the
-children that do not flex keep their own sizes, and the flexing ones divide what is
-left. It is how a page frame is written: a header, a toolbar, a body with
-`flexes = true` that takes the rest, a footer. Across the flow it is aligned like any
-other child — a search field that takes a toolbar's spare width still centres on the
-row. A `Spacer` is an empty view that flexes.
-`SimpleLayout` and `ResponsiveLayout` honour it, and in a `WrappingLayout` a flexing
-child takes the rest of the row it lands on; a layout that does not divide a run
-ignores it.
+Take a share of the room the parent's layout leaves along its flow. In a column the
+layout sets this child's height to that share, in a row its width; the children that
+do not flex keep their own sizes, and the flexing ones divide what is left. It is how a
+page frame is written: a header, a toolbar, a body with `flexes = true` that takes the
+rest, a footer. `true` is a weight of 1; a number weights the share, so `flexes = 2`
+beside `flexes = 1` takes two thirds. A share stays within the child's range
+(`minWidth`, `maxWidth`, and the heights), and what one cannot take the others share.
+Across the flow it is aligned like any other child — a search field that takes a
+toolbar's spare width still centres on the row. A `Spacer` is an empty view that
+flexes. `SimpleLayout` and `ResponsiveLayout` honour it, and in a `WrappingLayout` a
+flexing child takes the rest of the row it lands on; a layout that does not divide a
+run ignores it.
+
+## shrinks
+Keep the size this child's content gives it along the parent's flow, and give some of
+it up when the run is too long for the room: the children that shrink give way in
+proportion to their size, down to their `minWidth` (`minHeight` in a column). A
+toolbar's title that is whole when there is room and cut short when there is not.
+The layout sizes this child along the flow, so it does not state that size; bound it
+with `maxWidth` instead. `SimpleLayout`, `WrappingLayout` and `ResponsiveLayout`
+honour it.
+
+## minWidth
+The smallest width a layout gives this child: a flexing share, a stretch, a shrink.
+`0` (the default) is no limit. On an `App` it is the floor of the size its host gives:
+below it the app holds its size and the page pans, instead of reflowing into a shape that
+does not work. A field that flexes in a row keeps `minWidth = 120`
+however narrow the row gets; in a `WrappingLayout` a flexing child with a minimum is a
+cell that goes to a new row when its minimum no longer fits. It bounds what a layout
+gives, not a size the child states or takes from its content.
+
+## maxWidth
+The largest width a layout gives this child; `0` (the default) is no limit. A flexing
+share that would pass it holds there, and the other flexing children share the rest.
+
+## minHeight
+The smallest height a layout gives this child; `0` (the default) is no limit.
+
+## maxHeight
+The largest height a layout gives this child; `0` (the default) is no limit — a
+stretched child stays within it.
 
 ## ignoreClip
 Opt this child out of its parent's `clip`: outside the parent's frame it still
@@ -876,8 +907,8 @@ focus ring off it.
 The view lost keyboard focus — the partner of `focus`.
 
 ## onOutsidePress
-A press — or, with `scrollBelow = dismiss`, a scroll — was aimed past this view while its
-policy asked to hear it: the cue for an overlay to close.
+A press — or a scroll — was aimed past this view while its policy (an overlay's
+`pressPolicy`, `scrollPolicy`) asked to hear it: the cue for an overlay to close.
 
 ## onKeyDown
 A key was pressed while the view holds focus; the event carries the key. For app-wide

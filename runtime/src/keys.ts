@@ -206,12 +206,12 @@ export class KeysService {
 
   /** Is any navigation-keys claim live right now? */
   navClaimed(): boolean {
-    return this.claimant() !== null;
+    return this._claimant() !== null;
   }
 
   /** The overlay the keys go to now: the latest claim that holds (focus is not
    *  in another context than its own), or null. */
-  claimant(): object | null {
+  _claimant(): object | null {
     this.dropTornDown();
     let top: object | null = null;
     for (const c of this.navClaims) if (PROGRAMS === null || PROGRAMS.claimHolds(c)) top = c;
@@ -336,7 +336,7 @@ export class KeysService {
   /** Is this `Keys` member inside the overlay that claimed the keys last — the
    *  topmost? A dialog's Enter is not also the menu's open over it. */
   private inClaimant(owner: object): boolean {
-    const top = this.claimant();
+    const top = this._claimant();
     return top !== null && PROGRAMS!.inside(owner, top);
   }
 
@@ -380,7 +380,7 @@ export class KeysService {
   private readonly shortcutOwners = new Set<ShortcutOwner>();
 
   /** A `Shortcuts` node declares its set (it registers at init). */
-  declareShortcuts(owner: object): void {
+  _declareShortcuts(owner: object): void {
     this.shortcutOwners.add(owner as ShortcutOwner);
   }
 
@@ -426,7 +426,7 @@ export class KeysService {
    *  keeps its own, while the page's behind it stand down. */
   private ownersHeard(): Array<{ owner: ShortcutOwner; depth: number }> {
     const all = this.ownersInForce();
-    const top = this.claimant();
+    const top = this._claimant();
     if (top === null) return all;
     return all.filter(({ owner }) => {
       for (let n: unknown = owner; n != null; n = (n as { parent?: unknown }).parent) if (n === top) return true;

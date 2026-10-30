@@ -448,6 +448,12 @@ bytecode) {
         markPercent(k);
     k.declDefault = declDefault;
     own(view, name, k);
+    // A YIELDING rule arriving where a layout already places the slot is retired
+    // by own() on the spot (a class's own `y` under a column): it must not then be
+    // landed or run, or a rule that lost the slot keeps writing it (two TextLabels
+    // in a column stacked on one line).
+    if (yielding && ownerOf(view, name) !== k)
+        return;
     // a numeric slot: the kernel lands the value (gate, store, wake; the surface
     // push follows at the settle's close, as for an EXPR rule)
     const land = kernelLanding(view, name);
@@ -614,7 +620,7 @@ const CONTENT_BOX = [
 export function percentAxis(name) {
     return Object.hasOwn(PERCENT_AXIS, name) ? PERCENT_AXIS[name] : null;
 }
-export function bindPercent(view, name, percent, pos) {
+export function bindPercent(view, name, percent, pos, yielding = false) {
     const cls = declareName(view);
     const axis = Object.hasOwn(PERCENT_AXIS, name) ? PERCENT_AXIS[name] : null;
     if (axis === null) {
@@ -630,9 +636,9 @@ export function bindPercent(view, name, percent, pos) {
     // arithmetic, so the derive survives the rule. The JavaScript form below is
     // the fallback (a non-numeric slot) and the A/B.
     const inset = axis === "width" ? "$insetX" : "$insetY";
-    if (kernelDerives() && bindKernelExpr(view, name, { code: [...CONTENT_BOX, OP_CONST, 1, OP_MUL, OP_END], paths: [`parent.${axis}`, `parent.${inset}`], consts: [0, percent / 100] }, null, `${cls}.${name} = ${percent}%`, `parent.contentBox(${axis}) * ${percent / 100}`, pos, false, [], true))
+    if (kernelDerives() && bindKernelExpr(view, name, { code: [...CONTENT_BOX, OP_CONST, 1, OP_MUL, OP_END], paths: [`parent.${axis}`, `parent.${inset}`], consts: [0, percent / 100] }, null, `${cls}.${name} = ${percent}%`, `parent.contentBox(${axis}) * ${percent / 100}`, pos, yielding, [], true))
         return;
-    const k = percentRule(view, name, percent, pos);
+    const k = percentRule(view, name, percent, pos, yielding);
     own(view, name, k);
     k.run();
 }
@@ -640,12 +646,13 @@ export function bindPercent(view, name, percent, pos) {
  *  the kernel, and what a State's percent override drives while it is the top
  *  of its slot (state.ts) — the same rule either way, so a state's `100%`
  *  resolves against the parent exactly as a declared one does. */
-export function percentRule(view, name, percent, pos) {
+/** `yielding`: a class's own size, a default that gives way to a layout (instantiate.ts CLASS_DEFAULT_GEOMETRY). */
+export function percentRule(view, name, percent, pos, yielding = false) {
     const cls = declareName(view);
     const axis = percentAxis(name);
     if (axis === null)
         throw new DeclareError(`${cls}.${name} = ${percent}%: no axis to resolve a percent against`, pos);
-    const k = new Constraint(`${cls}.${name} = ${percent}%`, () => (view.parent instanceof View ? view.parent.contentBox(axis) : 0) * (percent / 100), (v) => setBound(view, name, v));
+    const k = new Constraint(`${cls}.${name} = ${percent}%`, () => (view.parent instanceof View ? view.parent.contentBox(axis) : 0) * (percent / 100), (v) => setBound(view, name, v), 0, yielding);
     markPercent(k); // auto-extent excludes percent-bound child slots (view.ts)
     k.sourcePos = sourceAt(pos); // a percent can lose its slot to a layout — name the line
     return k;
@@ -684,7 +691,7 @@ function mayTransform(view) {
  *  as a layout places it — one geometry: two bars rotated ±45° about their
  *  corner and both centered cross at the middle. `transformLater` says a
  *  transform slot binds after this, in the same batch. */
-export function bindAlign(view, name, align, pos, transformLater = false) {
+export function bindAlign(view, name, align, pos, transformLater = false, yielding = false) {
     const cls = declareName(view);
     const size = name === "x" ? "width" : "height";
     if (!(view.parent instanceof View)) {
@@ -705,15 +712,15 @@ export function bindAlign(view, name, align, pos, transformLater = false) {
         view.$endAnchor.add(name);
     if (kernelDerives() && !transformed && !frameChild && view.$alignBand === View.prototype.$alignBand && bindKernelExpr(view, name, align === "end"
         ? { code: [...CONTENT_BOX, OP_LOAD, 2, OP_SUB, OP_END], paths: [`parent.${size}`, `parent.${insetA}`, `this.${size}`], consts: [0] }
-        : { code: [...CONTENT_BOX, OP_LOAD, 2, OP_SUB, OP_CONST, 1, OP_DIV, OP_END], paths: [`parent.${size}`, `parent.${insetA}`, `this.${size}`], consts: [0, 2] }, null, `${cls}.${name} = ${align}`, align === "end" ? `parent.contentBox(${size}) - this.${size}` : `(parent.contentBox(${size}) - this.${size}) / 2`, pos, false, [], true))
+        : { code: [...CONTENT_BOX, OP_LOAD, 2, OP_SUB, OP_CONST, 1, OP_DIV, OP_END], paths: [`parent.${size}`, `parent.${insetA}`, `this.${size}`], consts: [0, 2] }, null, `${cls}.${name} = ${align}`, align === "end" ? `parent.contentBox(${size}) - this.${size}` : `(parent.contentBox(${size}) - this.${size}) / 2`, pos, yielding, [], true))
         return;
-    const k = alignRule(view, name, align, pos, transformed);
+    const k = alignRule(view, name, align, pos, transformed, yielding);
     own(view, name, k);
     k.run();
 }
 /** The JavaScript form of `name = center | end`, unowned — bindAlign's, and a
  *  State's position override's (as percentRule). */
-export function alignRule(view, name, align, pos, transformed = mayTransform(view)) {
+export function alignRule(view, name, align, pos, transformed = mayTransform(view), yielding = false) {
     const cls = declareName(view);
     const size = name === "x" ? "width" : "height";
     const k = new Constraint(`${cls}.${name} = ${align}`, () => {
@@ -733,7 +740,7 @@ export function alignRule(view, name, align, pos, transformed = mayTransform(vie
             return P - view[size];
         const band = view.$alignBand(name);
         return (P - band.size) / 2 - band.lead;
-    }, (v) => setBound(view, name, v));
+    }, (v) => setBound(view, name, v), 0, yielding);
     markPercent(k); // like a percent: excluded from the parent's auto-extent (no cycle)
     k.sourcePos = sourceAt(pos); // `x = center` meeting a layout's claim names this line
     return k;

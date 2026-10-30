@@ -19,6 +19,10 @@ export interface ClassSchema {
      *  assignment; the runtime accessor's setter throws). Part of the slot's
      *  identity. Absent = none of its own. */
     readonly readOnly?: readonly string[];
+    /** Which of this schema's OWN attrs are the runtime's plumbing for a library
+     *  class (Floating's policies) — settable, but not the class's interface: the
+     *  reference leaves them out (tools/internal/doc/extract.mjs). */
+    readonly internal?: readonly string[];
     /** Events this class itself fires — a handler member `on<Event>` must
      *  answer one (language §8: a class *declares* the events it fires, and
      *  the checker verifies against the declaration, so a typo'd handler is a

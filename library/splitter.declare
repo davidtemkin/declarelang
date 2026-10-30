@@ -13,7 +13,7 @@ App [ width = 600, height = 300, fill = { provided("theme").surface },
         side: View [ width = { app.row.split.value }, height = 100%, fill = { provided("theme").background },
             Text [ x = 16, y = 16, text = "Mailboxes" ] ],
         split: Splitter [ value = 200, min = 120, max = 400, accessibilityLabel = "Sidebar width" ],
-        main: View [ width = { app.row.width - app.row.side.width - app.row.split.width }, height = 100%,
+        main: View [ flexes = true, height = 100%,
             Text [ x = 16, y = 16, text = "Message" ] ]
         ]
     ]
@@ -63,11 +63,11 @@ when it differs from `value`. Every change the splitter makes routes through it.
 Collapses the pane before the divider to `min`, remembering where it stood; called again
 from there, it restores that size. What Enter runs.
 
-## home
-The value the splitter had when it was built — what a double-click puts back.
+## _home
+**Internal.** The value the splitter had when it was built, which a double-click puts back.
 
-## saved
-Where `toggle()` restores to: the value the pane had when it was collapsed.
+## _saved
+**Internal.** Where `toggle()` restores to: the value the pane had when it was collapsed.
 
 ## active
 Hovered, dragged, or focused from the keyboard — the state the accent line shows.
@@ -83,7 +83,7 @@ false when the pointer leaves the strip, and a drag must survive exactly that.
 **Internal.** The value at the start of a drag, which the pointer's movement is added to.
 
 ## onInit
-Records `home`. An override must call `super.onInit()`, or a double-click has nothing to
+Records `_home`. An override must call `super.onInit()`, or a double-click has nothing to
 restore.
 
 ## onPointerDown
@@ -104,7 +104,7 @@ An override calls `super.onPointerUp(e)`: it is what ends the drag.
 Does nothing: a press on the divider that does not move is not a command.
 
 ## onDblClick
-Restores `home`, the size the pane was built with.
+Restores `_home`, the size the pane was built with.
 
 ## onKeyDown
 The window-splitter keys: Left and Right (Up and Down on `axis = y`) move by `step` through
@@ -144,9 +144,8 @@ Follows `max`.
 ## height
 The parent's height on an upright divider; `thickness` when it lies across.
 
-## span()
-The length the divider runs across its axis: the parent's content height on an upright
-divider, its content width on one that lies across.
+## _span()
+**Internal.** The length the divider runs across its axis, from the parent's content box.
 
 ## cursor
 `col-resize` on an upright divider, `row-resize` on one that lies across.
@@ -179,13 +178,13 @@ class Splitter extends Control [
 
     // where a double-click returns to, and where Enter restores a collapsed pane to
 
-    home: number = 0,
-    saved: number = 0,
-    onInit() { home = value },
+    _home: number = 0,
+    _saved: number = 0,
+    onInit() { _home = value },
 
     toggle() {
-        if (value > min) { saved = value; setTo(min) }
-        else setTo(saved > min ? saved : home)
+        if (value > min) { _saved = value; setTo(min) }
+        else setTo(_saved > min ? _saved : _home)
         },
 
     accessibilityIncrement() { if (!disabled) setTo(value + step) },
@@ -211,7 +210,7 @@ class Splitter extends Control [
         if (e.canceled) setTo(_v0)
         },
     onClick() { },
-    onDblClick() { if (!disabled) setTo(home) },
+    onDblClick() { if (!disabled) setTo(_home) },
 
     onKeyDown(e: KeyEvent) {
         if (disabled) return
@@ -225,13 +224,13 @@ class Splitter extends Control [
         else if (e.key != " ") super.onKeyDown(e)
         },
 
-    span() {
+    _span() {
         const p = this.parent as any
         if (p == null) return 0
         return p.contentBox(this.axis == "x" ? "height" : "width")
         },
-    width = { axis == "x" ? thickness : span() },
-    height = { axis == "x" ? span() : thickness },
+    width = { axis == "x" ? thickness : _span() },
+    height = { axis == "x" ? _span() : thickness },
     cursor = { disabled ? "" : axis == "x" ? "col-resize" : "row-resize" },
     opacity = { disabled ? provided("theme").disabledOpacity : 1 },
 

@@ -5,7 +5,7 @@ App [ width = 600, height = 300, fill = { provided("theme").surface },
             Text [ x = 16, y = 16, text = "Mailboxes" ]
             ],
         split: Splitter [ value = 200, min = 120, max = 400, accessibilityLabel = "Sidebar width" ],
-        main: View [ width = { app.row.width - app.row.side.width - app.row.split.width }, height = 100%,
+        main: View [ flexes = true, height = 100%,
             Text [ x = 16, y = 16, text = "Message" ]
             ]
         ]

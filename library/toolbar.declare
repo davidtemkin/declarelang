@@ -129,9 +129,8 @@ A hairline in the theme's `line` around a toggle that is on, as around a segment
 ## opacity
 Disabled dims the button, to the theme's `disabledOpacity`.
 
-## stateFill
-The ground for the pressed or hovered state, or none at rest; `fill` uses it when the button
-is not `on`.
+## _stateFill
+**Internal.** The ground for the pressed or hovered state, or none at rest, that `fill` uses when not `on`.
 */
 
 class ToolButton extends Control [
@@ -151,8 +150,8 @@ class ToolButton extends Control [
     height = { (parent as View).height - 4 },
     width = { Math.max(this.height, (icon != "" ? this.ico.width : this.t.width) + 20) },
     cornerRadius = { Math.max(0, provided("theme").segmentedCornerRadius - 2) },
-    stateFill: Color? = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
-    fill = { toggle && on ? (provided("theme").segmentedSelectedFill ?? provided("theme").surface) : this.stateFill },
+    _stateFill: Color? = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
+    fill = { toggle && on ? (provided("theme").segmentedSelectedFill ?? provided("theme").surface) : this._stateFill },
     stroke = { toggle && on ? stroke(1, provided("theme").line) : null },
     opacity = { disabled ? provided("theme").disabledOpacity : 1 },
 

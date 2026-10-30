@@ -1,6 +1,0 @@
-App [ width = 280, height = 140,
-    Tree [ x = 20, y = 20, accessibilityLabel = "Mailboxes", expanded = ["in"],
-        items = { [ ({ id: "in", label: "Inbox", children: [
-                        ({ id: "work", label: "Work" }), ({ id: "home", label: "Home" }) ] }),
-                    ({ id: "sent", label: "Sent" }) ] } ]
-    ]

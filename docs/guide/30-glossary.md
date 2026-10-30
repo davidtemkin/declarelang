@@ -142,8 +142,9 @@ name the same thing, the one here is the one the platform means.
   false while `disabled`, and [`pressed`](declare-docs:View.pressed) true for a keyboard press too.
 - **focus-visible** — focused, with the focus arrived by keyboard; what a focus ring shows
   for.
-- **light-dismiss** — an overlay closes on a press outside it, and that press is
-  swallowed. **Dismiss first, deliver second.** → [Menus, dialogs and overlays](declare-docs:guide:overlays)
+- **light-dismiss** — an overlay closes on a press outside it; whether that press then
+  reaches what it landed on depends on the kind (a menu swallows it, a popover passes it
+  on). **Dismiss first, deliver second.** → [Menus, dialogs and overlays](declare-docs:guide:overlays@dismissal-by-kind)
 - **opener** — the view a menu was opened for; read it in `items` so one menu serves many
   places.
 

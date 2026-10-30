@@ -96,15 +96,8 @@ class Field [
 /*
 # FieldLayout
 
-How a `Field` arranges what it holds: the caption in its column beside the control, or
-above it when the field is `stacked`; the control, or a row of them; and the message under
-the control, as wide as what it holds. A `Field` makes its own; nothing else needs one.
-
-```declare
-App [ fill = white,
-    Field [ x = 20, y = 20, label = "Name", stacked = true, TextInput [ width = 220, required = "Enter your name." ] ]
-    ]
-```
+**Internal.** How a `Field` arranges what it holds: the caption beside the control, or
+above it when `stacked`; the control, or a row of them; and the message under the control.
 */
 
 class FieldLayout extends Layout [

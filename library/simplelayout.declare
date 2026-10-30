@@ -6,10 +6,18 @@ The stacking idiom: siblings placed one after another along
 and all sizes stay the children's own — a child centers itself across a row
 with the ordinary `y = center`. Invisible children are skipped and their
 space reclaimed; a skipped child still gets the place it would occupy, so
-re-showing it needs no special case. A child with `flexes = true` takes an
-equal share of the run's slack along the axis: a list that fills the room
-between a header and a footer, or an empty `Spacer` (between two groups it
-pushes them apart; one on each side centers the run).
+re-showing it needs no special case. A child with `flexes = true` takes a
+share of the run's slack along the axis: a list that fills the room between a
+header and a footer, or an empty `Spacer` (between two groups it pushes them
+apart; one on each side centers the run).
+
+**How a run shares its room.** Every child keeps its own size along the axis,
+except the ones that flex or shrink. If the run is too long for the view, the
+children with `shrinks = true` give way, in proportion to their size, down to
+their `minWidth` (`minHeight` in a column). If room is left, the children that
+flex share it by weight (`flexes = 2` takes twice what `true` takes), each
+within its range. A run that only shrinks needs a view with a size of its own;
+sized from these children, it is never short.
 
 Written in Declare over the Layout kernel: the whole strategy is this one
 pure place() — one box per laid child, aligned by index.
@@ -49,6 +57,11 @@ split evenly — falling back to the **line**, the tallest (widest) laid child's
 that derives its own cross size from these very children (reading an extent this
 arrangement feeds would be a cycle, and on such a view the line *is* that extent). A
 child wider than the band keeps the line, so it never hangs out both sides.
+`stretch` makes every child its content sizes as large as the line across the
+flow — the row as tall as its tallest child, a menu's items as wide as its widest —
+within each child's range; a child that states its own size keeps it (an avatar of
+32 beside bubbles that stretch). The line is counted from each child's content, so
+it shrinks again when the tallest one does.
 `baseline` — a row only — sits every child on one
 baseline: a `Text` reports its own, and a composite **declares** which part carries it
 (`baseline: number = { cap.y + cap.baseline }`); a laid child that declares none is
@@ -60,8 +73,10 @@ which keeps each line on its own baseline. A bare literal.
 
 ## place()
 The whole strategy: one box per laid child, positioned along the axis in child order.
-**Every size stays the children's own, and so does the cross axis unless `align` says
-otherwise** — then the boxes carry that attribute too, and own it. Override it in a subclass
+**Every size stays the children's own, except along the axis for a child that flexes
+or shrinks, and the cross axis stays theirs unless `align` says otherwise** — then the
+boxes carry that attribute too, and own it; under `stretch` a box carries a `stretch`
+size, which fills only a child its content sizes. Override it in a subclass
 for custom geometry; a `Layout`'s `place()` **may** aggregate over children, which is the
 one place that is allowed.
 */
@@ -75,31 +90,108 @@ class SimpleLayout extends Layout [
         const axis = this.axis
         const size = axis == "x" ? "width" : "height"
         const kids = this.laid()
-        // a flexing child's flow-axis size is this run's to write, so its box is
-        // never read as a footprint (that reads both sizes): across the flow it
-        // is its own raw extent, untransformed, and it aligns like any child
-        const flexing = (c) => c.flexes === true
-
-        // slack, only when someone flexes: the view's extent along the axis
-        // minus the rigid content and the gaps between visible children.
-        // A child's slot is its footprint (the scale/rotation-composed box),
-        // so a scale = 0.5 child occupies half the run and a rotated card
-        // reserves what it visibly covers; the box's lead compensates the
-        // transform's own offset so the visible edge lands on the slot
-        let each = 0
-        let flexN = 0
-        for (const c of kids) if (c.visible && flexing(c)) flexN = flexN + 1
-        if (flexN > 0) {
-            let content = 0
-            let visN = 0
-            for (const c of kids) {
-                if (!c.visible) continue
-                visN = visN + 1
-                if (!flexing(c)) content = content + (c as any).footprint()[size]
+        // a child the run sizes along the flow — it flexes (a weight above 0)
+        // or shrinks — has its flow-axis size written here, so its box is never
+        // read as a footprint (that reads both sizes): across the flow it is its
+        // own raw extent, untransformed, and it aligns like any child
+        const weight = (c) => {
+            const f = (c as any).flexes
+            return f === true ? 1 : (typeof f == "number" && f > 0 ? f : 0)
             }
-            const extent = this.contentExtent(size)
-            each = Math.max(0, (extent - content - this.spacing * Math.max(0, visN - 1)) / flexN)
-        }
+        const shrinking = (c) => weight(c) == 0 && (c as any).shrinks === true
+        const flexing = (c) => weight(c) > 0 || shrinking(c)
+        const minKey = axis == "x" ? "minWidth" : "minHeight"
+        const maxKey = axis == "x" ? "maxWidth" : "maxHeight"
+        const clamp = (c, v) => {
+            const hi = (c as any)[maxKey]
+            const lo = (c as any)[minKey]
+            const capped = hi > 0 ? Math.min(v, hi) : v
+            return Math.max(capped, lo)
+            }
+
+        // the sizes the run gives, in the model's order: every other child keeps
+        // its own; if they do not fit, the shrinking children give way in
+        // proportion to their size, down to their minimums; if room is left, the
+        // flexing ones share it by weight, within their ranges. A child's slot is
+        // its footprint (the scale/rotation-composed box), so a scale = 0.5 child
+        // occupies half the run and a rotated card reserves what it visibly
+        // covers; the box's lead compensates the transform's own offset so the
+        // visible edge lands on the slot
+        const given = kids.map((c) => 0)
+        let flexN = 0
+        let shrinkN = 0
+        let visN = 0
+        let fixed = 0
+        kids.forEach((c, i) => {
+            if (!c.visible) return
+            visN = visN + 1
+            if (weight(c) > 0) { flexN = flexN + 1; given[i] = clamp(c, 0) }
+            else if (shrinking(c)) { shrinkN = shrinkN + 1; given[i] = clamp(c, (c as any)[axis == "x" ? "contentWidth" : "contentHeight"]) }
+            else fixed = fixed + (c as any).footprint()[size]
+            })
+        if (flexN + shrinkN > 0) {
+            fixed = fixed + this.spacing * Math.max(0, visN - 1)
+            // the room: a run that flexes divides the view's own; one that only
+            // shrinks needs a view with a size of its own (on a view sized from
+            // these children there is no shortage, and reading it is a cycle)
+            const own = flexN > 0 ? this.contentExtent(size) : this.viewExtent(size)
+            const room = flexN == 0 && own <= 0 ? Infinity : own
+            let used = fixed
+            kids.forEach((c, i) => { used = used + given[i] })
+            const held = kids.map((c) => false)
+            if (used > room) {
+                // proportional to each size, down to the minimum: one that would
+                // go below it holds there, and the rest share what is still over
+                let over = used - room
+                for (let round = 0; round <= kids.length; round = round + 1) {
+                    let basis = 0
+                    kids.forEach((c, i) => { if (c.visible && shrinking(c) && !held[i]) basis = basis + given[i] })
+                    if (basis <= 0) break
+                    let again = false
+                    kids.forEach((c, i) => {
+                        if (!c.visible || !shrinking(c) || held[i]) return
+                        const lo = (c as any)[minKey]
+                        if (given[i] - over * given[i] / basis < lo) {
+                            over = over - (given[i] - lo)
+                            given[i] = lo
+                            held[i] = true
+                            again = true
+                            }
+                        })
+                    if (!again) {
+                        kids.forEach((c, i) => { if (c.visible && shrinking(c) && !held[i]) given[i] = given[i] - over * given[i] / basis })
+                        break
+                        }
+                    }
+            } else if (flexN > 0) {
+                // by weight, within each range: a share outside its range holds at
+                // the bound, and the rest share again what is left
+                let free = room - fixed
+                kids.forEach((c, i) => { if (c.visible && shrinking(c)) free = free - given[i] })
+                for (let round = 0; round <= kids.length; round = round + 1) {
+                    let total = 0
+                    kids.forEach((c, i) => { if (c.visible && weight(c) > 0 && !held[i]) total = total + weight(c) })
+                    if (total <= 0) break
+                    const each = Math.max(0, free) / total
+                    let off = 0
+                    kids.forEach((c, i) => {
+                        if (!c.visible || weight(c) == 0 || held[i]) return
+                        const want = each * weight(c)
+                        given[i] = clamp(c, want)
+                        off = off + given[i] - want
+                        })
+                    if (Math.abs(off) < 0.001) break
+                    kids.forEach((c, i) => {
+                        if (!c.visible || weight(c) == 0 || held[i]) return
+                        const want = each * weight(c)
+                        if ((off > 0 && given[i] > want) || (off < 0 && given[i] < want)) {
+                            held[i] = true
+                            free = free - given[i]
+                            }
+                        })
+                    }
+                }
+            }
 
         // the cross axis, when `align` claims it: children align within the
         // BAND — the view's own cross extent, or the largest laid cross extent
@@ -118,21 +210,26 @@ class SimpleLayout extends Layout [
             }
         let line = 0
         let lineBase = 0
+        // stretch: a child its content sizes counts by that content, never by the
+        // size a stretch gave it (that would hold the line up once it shrank)
+        const natural = axis == "x" ? "contentHeight" : "contentWidth"
+        const extentOf = (c) => al == "stretch" && this.sizedByContent(c, crossSize) ? (c as any)[natural] : crossOf(c).extent
         if (al != "none") {
             if (al == "baseline" && axis != "x") this.refuseStackBaseline()
             for (const c of kids) {
                 if (!c.visible) continue
-                line = Math.max(line, crossOf(c).extent)
+                line = Math.max(line, extentOf(c))
                 const b = (c as any).baseline
                 if (al == "baseline" && typeof b == "number") lineBase = Math.max(lineBase, b)
             }
             // `start` places at the band's origin and `baseline` on the shared
             // line — neither reads the band, so only center/end ask for it
-            if (al == "center" || al == "end") line = Math.max(line, this.viewExtent(crossSize))
+            // a view with a cross size of its own: center, end and stretch work in it
+            if (al == "center" || al == "end" || al == "stretch") line = Math.max(line, this.viewExtent(crossSize))
         }
 
         let pos = 0
-        return kids.map((c) => {
+        return kids.map((c, i) => {
             const flex = c.visible && flexing(c)
             // footprint, never bounds: the strategy must not read the attribute it
             // writes (one-pass discipline). A flexing child's size is allocated
@@ -140,7 +237,7 @@ class SimpleLayout extends Layout [
             const f = flex ? null : (c as any).footprint()
             const lead = f == null ? 0 : (axis == "x" ? f.x : f.y)
             const box = (axis == "x" ? ({ x: pos - lead }) : ({ y: pos - lead })) as any
-            if (flex) box[axis == "x" ? "w" : "h"] = each
+            if (flex) box[axis == "x" ? "w" : "h"] = given[i]
             if (al != "none") {
                 // start = the line's origin; center/end offset the child's
                 // extent within the line; baseline sits the child's declared
@@ -157,8 +254,11 @@ class SimpleLayout extends Layout [
                     else if (c.visible) this.refuseBaseline(c)
                 }
                 box[cross] = off - (al == "baseline" ? 0 : leadC)
+                // every child its content sizes is made as large as the line;
+                // one that states its size keeps it (the runtime skips it)
+                if (al == "stretch") box.stretch = axis == "x" ? ({ h: line }) : ({ w: line })
             }
-            if (c.visible) pos = pos + (flex ? each : (f as any)[size]) + this.spacing
+            if (c.visible) pos = pos + (flex ? given[i] : (f as any)[size]) + this.spacing
             return box
             })
         }

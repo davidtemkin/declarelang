@@ -1,4 +1,0 @@
-App [ width = 400, height = 80,
-    Breadcrumb [ x = 20, y = 20,
-        items = { [ ({ id: "home", label: "Home", location: "home" }), ({ id: "here", label: "Here" }) ] } ]
-    ]

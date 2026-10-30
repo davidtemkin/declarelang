@@ -74,11 +74,6 @@ Reach for `key` only when the convention does not fit:
 View [ datapath = :people[], key = :email ]
 ```
 
-Or when a record's `id` changes while it is on screen: a message sent before the server
-has named it. Key it on what does not change: the record gets a `ref` of the client's own
-when it is made, the list says `key = :ref`, and the server's `id` can arrive later without
-the row being rebuilt.
-
 **A small fixed set is replicated too.** Four filters across a row, five stars, a handful of
 sizes: a literal `Dataset` holds them, and one class shows each, which is shorter than writing
 the same control out with a different constant each time, and stays one change to edit. A set
@@ -179,36 +174,14 @@ badge: SaleBadge [ exists = { (:discount ?? 0) > 0 }, discount = { :discount } ]
 
 **What sits between records belongs to the row after it.** A section heading over the
 first item of each aisle, a divider where the price band changes: the row decides from its
-neighbour whether it carries one. The list provides its records, the row reads the one
-before it by [`rowIndex`](declare-docs:View.rowIndex), and the heading is a part that
-exists only on the rows that start a section:
+neighbour whether it carries one. The list provides its records (`rows: array = { :items ?? [] }`
+on the list), the row reads the one before it by [`rowIndex`](declare-docs:View.rowIndex),
+and the heading is a part that exists only on the rows that start a section:
 
-```declare
-class Item [ width = 100%,
-    rows: array = { provided("rows") },
-    starts: boolean = { rowIndex == 0 || rows[rowIndex - 1]?.aisle != :aisle },
-    layout: SimpleLayout [ axis = y ],
-    head: Text [ exists = { classroot.starts }, fontWeight = bold, text = :aisle ],
-    name: Text [ text = :name ]
-    ]
-
-App [ width = 260, height = 220, fill = white, textColor = black,
-    shop: Dataset { { "items": [
-        { "id": 1, "aisle": "Bakery", "name": "Bread" },
-        { "id": 2, "aisle": "Bakery", "name": "Rolls" },
-        { "id": 3, "aisle": "Dairy", "name": "Milk" },
-        { "id": 4, "aisle": "Dairy", "name": "Butter" },
-        { "id": 5, "aisle": "Produce", "name": "Apples" } ] } },
-    list: View [ x = 20, y = 16, width = 220, datapath = { app.shop.value },
-        rows: array = { :items ?? [] },
-        layout: SimpleLayout [ axis = y, spacing = 4 ],
-        Item [ datapath = :items[], virtualize = true ]
-        ]
-    ]
+```declare-fragment
+starts: boolean = { rowIndex == 0 || provided("rows")[rowIndex - 1]?.aisle != :aisle },
+head: Text [ exists = { classroot.starts }, fontWeight = bold, text = :aisle ],
 ```
-
-`list` provides its records as `rows`; each `Item` reads the one before it and builds its
-heading only where the aisle changes.
 
 The records stay the records: no derived list of headings and items to keep in step, and
 a record that moves to another aisle re-decides its own heading and its neighbour's.

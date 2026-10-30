@@ -68,6 +68,10 @@ runtime source with the TypeScript compiler, the class schemas, and the prose fi
   governs the whole reference: *for a human, docs cut effort; for an LLM, they cut error.*
   Description is near-worthless to a model that already predicted your sentence. **Write the
   non-derivable** — the constraint, the interaction, the reason it is the way it is.
+- **A library class's public members are its interface, and nothing else is.** A fact a
+  class names only so its own code reads better — the intermediate a long constraint was
+  split into, a helper its handlers call — is `_name`, its section opening **Internal.**; a
+  class a program never writes (one another class makes) opens its own prose that way too.
 - **If it changes how someone thinks, it also belongs in the [guide](docs/guide/)**, which
   has its own voice: every chapter opens with running code, states **one memorable law**, and
   places negative knowledge *after* the positive model, never before. A ```declare fence

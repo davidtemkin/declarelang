@@ -127,11 +127,9 @@ visible in it, and each one is a habit worth taking on from the start.
 often fetched — and the [`schema`](declare-docs:Dataset.schema) states the shape the program relies on, so the
 compiler checks every read and the runtime checks every write. State that is not a
 record, such as `nextId`, is a declared attribute. Nothing else holds a copy; everything
-else reads it — and writes it: the checkbox writes its own record. Logic with no view
-of its own — a clock several views drive, a connection — goes in a class that extends
-`Node`; when it is the logic of one dataset's records, the dataset itself becomes the class
-(`extends Dataset`, a `Node` that holds data). [Program structure](declare-docs:guide:structure) is
-where each kind of state goes; the data chapters are [Data](declare-docs:guide:data) and
+else reads it — and writes it: the checkbox writes its own record.
+[Program structure](declare-docs:guide:structure@where-things-go) is where each kind of
+state and logic goes; the data chapters are [Data](declare-docs:guide:data) and
 [Typed data](declare-docs:guide:schemas).
 
 **Everything visible derives from that state.** `open` is a constraint over the
@@ -288,12 +286,6 @@ where that is taught.
   <!--stat:calendar.total-->930<!--/stat--> with its comments — which you will be able to read end to end.
 - **The appendix** holds the formatting rules, a glossary, and
   [a phrasebook for readers coming from React, CSS, SwiftUI and others](declare-docs:guide:coming-from).
-
-If you are an LLM or an agent: the language itself is [one file](declare-docs:spec:core);
-`npx declare-help <name>` answers any class, attribute or error code; and
-`npx declare-verify <file>` checks a program from parse to boot. The whole-app section
-above is the shape to aim for, and [Program structure](declare-docs:guide:structure) is
-how it scales.
 
 The page you are reading is a Declare app, and so is the calendar you will finish
 on. Everything this guide claims, it demonstrates on itself.

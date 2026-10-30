@@ -1435,24 +1435,33 @@ function checkPlacedAttributes(
     }
     // A FLEXING CHILD of a run is sized along the flow by the run (the room
     // left, shared among the flexing children), so it does not declare that
-    // size either — at its use site, or as a percent or a { } in its class
-    // (a plain number there is a default the run replaces: Spacer's own 0).
-    if (flow !== null && flexesStatically(c)) {
+    // size where it is used. What its CLASS says is a default, not a claim (a
+    // field written to fill its column, `width = 100%`): the run's share
+    // replaces it, as it replaces any class geometry (instantiate.ts
+    // CLASS_DEFAULT_GEOMETRY).
+    const sized = flow === null ? null : flexesStatically(c) ? "flex" : saysStatically(c, "shrinks") ? "shrink" : null;
+    if (flow !== null && sized !== null) {
       const size = flow === "x" ? "width" : "height";
       const here = c.attrs.find((a) => a.name === size);
-      const inClass = here === undefined ? classSizeRule(c, size) : undefined;
-      const a = here ?? inClass;
-      if (a !== undefined) errors.push(new DeclareError(placedAttributeMessage(c.tag, size, arranger, "flex", null), (here ?? { pos: c.pos }).pos));
+      if (here !== undefined) errors.push(new DeclareError(placedAttributeMessage(c.tag, size, arranger, sized, null), here.pos));
     }
   }
   return errors;
 }
 
-/** Does this child flex — `flexes = true` where it is used, or in its class? */
+/** Does this child flex — `flexes = true` or a weight above 0, where it is
+ *  used or in its class? */
 function flexesStatically(c: Element): boolean {
+  return saysStatically(c, "flexes");
+}
+
+/** Does this child say `name = true` (or a number above 0) where it is used,
+ *  or failing that in its class? */
+function saysStatically(c: Element, name: string): boolean {
   const says = (el: Element): boolean | null => {
-    const f = el.attrs.find((a) => a.name === "flexes");
-    return f === undefined ? null : f.value.kind === "ident" && f.value.name === "true";
+    const f = el.attrs.find((a) => a.name === name);
+    if (f === undefined) return null;
+    return (f.value.kind === "ident" && f.value.name === "true") || (f.value.kind === "number" && f.value.value > 0);
   };
   const here = says(c);
   if (here !== null) return here;
@@ -1463,19 +1472,6 @@ function flexesStatically(c: Element): boolean {
     if (v !== null) return v;
   }
   return false;
-}
-
-/** A size the child's class states as a rule — a percent or a { } — which a
- *  run that sizes the child cannot replace (a literal there is a default it can). */
-function classSizeRule(c: Element, size: string): { pos: Element["pos"] } | undefined {
-  const seen = new Set<string>();
-  for (let d = CHECK_CLASSES.get(c.tag); d !== undefined && !seen.has(d.name); d = CHECK_CLASSES.get(d.base)) {
-    seen.add(d.name);
-    const a = d.body.attrs.find((x) => x.name === size);
-    if (a === undefined) continue;
-    return a.value.kind === "number" ? undefined : { pos: a.pos };
-  }
-  return undefined;
 }
 
 /** What a layout places, from the source alone: `placed` for every laid
@@ -1778,6 +1774,8 @@ export function checkAttr(schema: ClassSchema, attr: Attr): CheckedAttr {
     const scroll = attr.name === "scrollY" || attr.name === "scrollX" || attr.name === "userScrolling";
     const msg = scroll
       ? `${schema.name}.${attr.name} is a fact the platform reports — nothing may set it. To move the scroller, call ${attr.name === "scrollX" ? "scrollToX(x" : "scrollTo(y"}[, { duration, motion }]); for a declared starting offset use ${attr.name === "scrollX" ? "scrollStartX" : "scrollStartY"}`
+      : attr.name === "refused"
+      ? `${schema.name}.refused is read-only — a refusal is said of the value it concerns, with refuse(message) (a form's submit does it for a service's reply)`
       : `${schema.name}.${attr.name} is read-only — it is computed, so a constraint may read it but nothing may set it`;
     return { ok: false, error: new DeclareError(msg, attr.pos) };
   }

@@ -1,5 +1,0 @@
-App [ fill = white,
-    Field [ x = 20, y = 20, label = "Name", stacked = true,
-        TextInput [ width = 220, required = "Enter your name." ]
-        ]
-    ]

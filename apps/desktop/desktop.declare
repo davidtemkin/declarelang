@@ -365,7 +365,7 @@ class DeskWindow extends Window [ width = 560, height = 400,
 
     takeKeyboard() {
         this.enter()
-        if (!this.holdsFocus()) Focus.blur()
+        if (!Focus.holds(this)) Focus.blur()
         },
 
     // Raising is split by pointer kind. A mouse raises the instant it touches
@@ -570,7 +570,11 @@ class DeskWindow extends Window [ width = 560, height = 400,
                 ]
             ],
 
-        cap: Text [ x = center, y = center, fontSize = 13, fontWeight = semibold,
+        // centred on the window, never over the lights or the arrows: as wide as
+        // its words, cut short where the chrome either side leaves less room
+
+        cap: Text [ x = center, y = center, fontSize = 13, fontWeight = semibold, maxLines = 1,
+            width = { Math.max(0, Math.min(this.contentWidth, parent.width - (classroot.backForward ? 280 : 152))) },
             textColor = { classroot.active ? provided("theme").text : provided("theme").textMuted },
             text = { classroot.title } ],
 
@@ -959,9 +963,11 @@ menu each sits in. A heading and a shortcut are two kinds of record, so two clas
 class ShortcutRow [ width = 100% ]
 
 class ShortcutLine extends ShortcutRow [ height = 24,
-    Text [ y = center, fontSize = 13, text = { "" + :label },
+    layout: SimpleLayout [ axis = x, spacing = 12 ],
+    Text [ y = center, shrinks = true, maxLines = 1, fontSize = 13, text = { "" + :label },
         textColor = { :enabled == false ? provided("theme").textFaint : provided("theme").text } ],
-    Text [ x = end, y = center, fontSize = 13, text = { "" + :key }, textColor = { provided("theme").textMuted } ]
+    Spacer [ ],
+    Text [ y = center, fontSize = 13, text = { "" + :key }, textColor = { provided("theme").textMuted } ]
     ]
 
 

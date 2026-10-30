@@ -36,10 +36,6 @@ export declare class TextInput extends View {
     disabled: boolean;
     /** "input" (live) | "blur" | "enter" | "manual" — when a valid draft commits. */
     commitOn: string;
-    /** "leave" (the default) | "edit" — when `error` first says what is wrong:
-     *  once the field has been left (or judged), or at every edit. `problem`
-     *  and `valid` are true to the draft either way. */
-    judgeOn: string;
     /** What is wrong with the value now, "" when nothing is: the refusal, then
      *  `required`, then `validate`, then the schema floor (reactive). */
     problem: string;

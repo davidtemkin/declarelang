@@ -46,3 +46,16 @@ worth running again, with its `package.json`, can be kept in `runs/`.
 **Never hand an agent this directory.** It holds the briefs' hidden acceptance, reference
 solutions and every earlier agent's program, so a sandbox is built by deleting `evals/`
 outright ([`apps/README.md`](apps/README.md)).
+
+## Acting on a finding
+
+A finding is evidence about the language, not a request for a feature. Fix the cause: a
+missing concept, a misleading name, a doc that teaches the wrong model, a runtime fault.
+Before adding anything, ask whether an existing mechanism already says it, and whether the
+fix is a principle a developer can carry to the next case rather than a recipe for this
+one. That holds for the guide as much as the API: a paragraph that answers one symptom is
+an attribute in prose.
+
+Keep out of the language what fits one app, a second way to say what can already be said,
+and a component an app writes in a few lines. New material is described at the weight of
+what it is, not of how recently it arrived.

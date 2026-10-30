@@ -29,31 +29,24 @@ the preferred one has no room.
 ## gap
 The space between the anchor and the bubble.
 
-## asSheet
-Whether it presents as a bottom sheet — by default when the screen is narrower than 560.
+## _asSheet
+**Internal.** Whether it presents as a bottom sheet — by default when the screen is narrower than 560.
 As a sheet, a press outside it closes it and goes no further.
 
-## anchorView
-The view it is anchored to now: the opener, else `anchorTo`.
+## _anchorView
+**Internal.** The view it is anchored to now: the opener, else `anchorTo`.
 
-## ab
-The anchor's box in the popover's frame.
+## _ab
+**Internal.** The anchor's box in the popover's frame.
 
-## below
-Whether it sits below its anchor now.
+## _below
+**Internal.** Whether it sits below its anchor now.
 
-## hostW
-The width of the layer it paints in: its window's, or the browser window's — not the
-App's, which on a page that scrolls is as tall as the page.
+## _roomBelow
+**Internal.** Whether it fits below its anchor.
 
-## hostH
-The height of the layer it paints in: its window's, or the browser window's.
-
-## roomBelow
-Whether it fits below its anchor.
-
-## roomAbove
-Whether it fits above its anchor.
+## _roomAbove
+**Internal.** Whether it fits above its anchor.
 
 ## pressPolicy
 `dismissAndDeliver` — a press outside closes it and goes on; `dismiss` as a sheet.
@@ -98,8 +91,7 @@ include [ "floating.declare" ]
 class Popover extends Floating [
     accessibilityRole = dialog,
     accessibilityLabel = { this.opener == null ? "" : "" + ((this.opener as any).accessibilityLabel || (this.opener as any).label || "") },
-    kind = "floating",
-    pressPolicy = { this.asSheet ? "dismiss" : "dismissAndDeliver" },
+    pressPolicy = { this._asSheet ? "dismiss" : "dismissAndDeliver" },
     scrollPolicy = "allow",
     takesFocus = true,
     focusScope = modal,
@@ -108,44 +100,42 @@ class Popover extends Floating [
     anchorTo: View? = null,
     placement: string = "below",
     gap: number = 8,
-    asSheet: boolean = { app.width < 560 },
+    _asSheet: boolean = { app.width < 560 },
 
-    anchorView: View? = { this.opener != null ? this.opener : this.anchorTo },
-    ab: object = { this.anchorBox(this.anchorView) },
-    hostW: number = { this.host != null ? this.host.width : app.hostWidth > 0 ? app.hostWidth : app.width },     // a window's, else the browser window's
-    hostH: number = { this.host != null ? this.host.height : app.hostHeight > 0 ? app.hostHeight : app.height },
-    roomBelow: boolean = { this.ab.y + this.ab.h + this.gap + this.height <= this.hostH - 8 },
-    roomAbove: boolean = { this.ab.y - this.gap - this.height >= 8 },
-    below: boolean = { this.placement == "above" ? !this.roomAbove && this.roomBelow : this.roomBelow || !this.roomAbove },
+    _anchorView: View? = { this.opener != null ? this.opener : this.anchorTo },
+    _ab: object = { this.anchorBox(this._anchorView) },
+    _roomBelow: boolean = { this._ab.y + this._ab.h + this.gap + this.height <= this._hostH - 8 },
+    _roomAbove: boolean = { this._ab.y - this.gap - this.height >= 8 },
+    _below: boolean = { this.placement == "above" ? !this._roomAbove && this._roomBelow : this._roomBelow || !this._roomAbove },
 
-    width = { this.asSheet ? this.hostW : this.body.width },
+    width = { this._asSheet ? this._hostW : this.body.width },
     height = { this.body.height },
-    x = { this.asSheet ? 0 : Math.max(8, Math.min(this.hostW - this.width - 8, this.ab.x + this.ab.w / 2 - this.width / 2)) },
-    y = { this.asSheet ? this.hostH - this.height * this.openT
-        : this.below ? this.ab.y + this.ab.h + this.gap : this.ab.y - this.gap - this.height },
+    x = { this._asSheet ? 0 : Math.max(8, Math.min(this._hostW - this.width - 8, this._ab.x + this._ab.w / 2 - this.width / 2)) },
+    y = { this._asSheet ? this._hostH - this.height * this.openT
+        : this._below ? this._ab.y + this._ab.h + this.gap : this._ab.y - this.gap - this.height },
 
     // motion: a bubble grows from its anchor's side; a sheet rises
 
-    opacity = { this.asSheet ? 1 : this.openT },
-    scale = { this.asSheet ? 1 : this._baseScale * (0.92 + 0.08 * this.openT) },
-    rotation = { this.asSheet ? 0 : this._baseRotation },
+    opacity = { this._asSheet ? 1 : this.openT },
+    scale = { this._asSheet ? 1 : this._baseScale * (0.92 + 0.08 * this.openT) },
+    rotation = { this._asSheet ? 0 : this._baseRotation },
     pivotX = { this.width / 2 },
-    pivotY = { this.asSheet || this.below ? 0 : this.height },
+    pivotY = { this._asSheet || this._below ? 0 : this.height },
 
-    scrim: View [ visible = { classroot.asSheet }, pointerEvents = "none",
+    scrim: View [ visible = { classroot._asSheet }, pointerEvents = "none",
         x = { -classroot.x }, y = { -classroot.y },
-        width = { classroot.hostW }, height = { classroot.hostH },
+        width = { classroot._hostW }, height = { classroot._hostH },
         fill = { provided("theme").scrimFill },
         opacity = { (provided("theme").scrimOpacity) * classroot.openT } ],
 
     panel: View [ width = 100%, height = 100%,
-        cornerRadius = { classroot.asSheet ? [(provided("theme").sheetCornerRadius) - 2, (provided("theme").sheetCornerRadius) - 2, 0, 0] : (provided("theme").popoverCornerRadius) },
+        cornerRadius = { classroot._asSheet ? [(provided("theme").sheetCornerRadius) - 2, (provided("theme").sheetCornerRadius) - 2, 0, 0] : (provided("theme").popoverCornerRadius) },
         fill = { provided("theme").surface },
-        stroke = { classroot.asSheet ? null : stroke(1, provided("theme").line) },
+        stroke = { classroot._asSheet ? null : stroke(1, provided("theme").line) },
         shadow = { provided("theme").popoverShadow } ],
 
-    body: View [ padding = { classroot.asSheet ? [18, 18, 28, 18] : 14 },
-        width = { classroot.asSheet ? classroot.hostW : this.contentWidth },
+    body: View [ padding = { classroot._asSheet ? [18, 18, 28, 18] : 14 },
+        width = { classroot._asSheet ? classroot._hostW : this.contentWidth },
         layout: SimpleLayout [ axis = y, spacing = 10 ]
         ]
     ]

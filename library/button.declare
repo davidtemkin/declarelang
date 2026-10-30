@@ -119,13 +119,11 @@ run — put the work here, not in `press()`.
 ## textColor
 Follows `inkColor`, the button's one ink decision, so the label and the icon can never disagree. Override `inkColor`, not this.
 
-## primaryFill
-The primary look's ground for the current state: the theme's accent, its hovered or pressed
-shade, and pressed while its menu is open. `fill` picks it when `primary`.
+## _primaryFill
+**Internal.** The primary look's ground for the current state, that `fill` picks when `primary`.
 
-## plainFill
-The plain look's ground for the current state: the theme's control colour and its hovered and
-pressed shades. `fill` picks it when not `primary`.
+## _plainFill
+**Internal.** The plain look's ground for the current state, that `fill` picks when not `primary`.
 */
 
 include [ "control.declare", "icons/icon.declare" ]
@@ -172,9 +170,9 @@ class Button extends Control [
 
     // the fill by state: pressed (or its menu open), hovered, at rest
 
-    primaryFill: Color = { pressed || menuOpen ? provided("theme").accentPressed : hovered ? provided("theme").accentHovered : provided("theme").accent },
-    plainFill: Color = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
-    fill = { primary ? this.primaryFill : menuOpen ? provided("theme").controlSelected : this.plainFill },
+    _primaryFill: Color = { pressed || menuOpen ? provided("theme").accentPressed : hovered ? provided("theme").accentHovered : provided("theme").accent },
+    _plainFill: Color = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+    fill = { primary ? this._primaryFill : menuOpen ? provided("theme").controlSelected : this._plainFill },
 
     // platforms whose secondary buttons are bordered say so in the theme
     // (Cupertino's and Redmond's hairline) — flat systems leave it null

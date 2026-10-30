@@ -1410,7 +1410,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                         datapath = { app.issues.byStatus.value },
                         layout: SimpleLayout [ axis = x ],
                         View [ datapath = :rows[], height = 6, fill = { app.statusColor(:status) },
-                            width = { parent.width * :n / Math.max(1, app.issues.total) } ]
+                            flexes = { :n } ]
                         ],
                     rows: View [ width = 100%, datapath = { app.issues.byStatus.value },
                         layout: SimpleLayout [ axis = y, spacing = 2 ],

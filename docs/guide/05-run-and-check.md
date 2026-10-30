@@ -81,8 +81,8 @@ cascade of consequences:
 5. **behavior** — does it do what a drive-and-assert script says?
 6. **visual** — does it match its named screenshots?
 
-The first four need no browser and no flags. The last two are worth adding once a
-program does something. A behavior script drives the real app and asserts by **view
+The first four need no flags. The last two are worth adding once a program does
+something. A behavior script drives the real app and asserts by **view
 path** rather than by DOM selector, so it keeps working whatever renderer draws the
 view:
 
@@ -97,6 +97,11 @@ export default async ({ drive, expect }) => {
 
 `settleMotion` takes the app's clock and runs animation to rest deterministically, so a
 spring's end state can be asserted at all.
+
+To look at a program as a person would, without writing a script, `npx declare-look` opens
+it at a size, uses it a little and takes a picture: `npx declare-look app.declare --size
+390x844 --touch --click app.card.add --shot phone.png`. `--touch` makes the window a touch
+device and `--dark` a dark one ([Checking and looking](declare-docs:operational:verify)).
 
 ## Debugging a running program
 

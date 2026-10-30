@@ -472,9 +472,9 @@ function installBatchNow(ordered, ctx) {
             bindDeclDefault(p.view, p.declDefault, p.rec.source, p.rec.pos, p.rec.outer ? (v.classroot ?? null) : p.view, p.rec.deps ?? undefined, p.rec.expr);
         }
         else if ("align" in p)
-            bindAlign(p.view, p.attr.name, p.align, p.attr.value.pos, transforming?.has(p.view) === true);
+            bindAlign(p.view, p.attr.name, p.align, p.attr.value.pos, transforming?.has(p.view) === true, p.yielding === true);
         else
-            bindPercent(p.view, p.attr.name, p.percent, p.attr.value.pos);
+            bindPercent(p.view, p.attr.name, p.percent, p.attr.value.pos, p.yielding === true);
     }
 }
 /** Order a batch's provisions so each installs after any it depends on. Groups
@@ -1268,10 +1268,11 @@ function constructNode(el, outer, ctx, parentEl) {
             }
         }
         else if (isPercent(r.value)) {
-            ctx.pending.push({ view, attr, percent: r.value.percent });
+            // a class's own percent or alignment is a default too, like its { } (above)
+            ctx.pending.push(!useSite && CLASS_DEFAULT_GEOMETRY.has(attr.name) ? { view, attr, percent: r.value.percent, yielding: true } : { view, attr, percent: r.value.percent });
         }
         else if (isAlign(r.value)) {
-            ctx.pending.push({ view, attr, align: r.value.align });
+            ctx.pending.push(!useSite && CLASS_DEFAULT_GEOMETRY.has(attr.name) ? { view, attr, align: r.value.align, yielding: true } : { view, attr, align: r.value.align });
         }
         else {
             // checkAttr guarantees the value matches the field's declared type, so

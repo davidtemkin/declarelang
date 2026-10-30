@@ -756,7 +756,7 @@ App [ fill = { provided("theme").background },
 
                 whole: View [ width = 100%, height = 10, cornerRadius = 5, clip = true, datapath = { app.sizeView.value },
                     layout: SimpleLayout [ axis = x, spacing = 0 ],
-                    View [ datapath = :parts[], height = 100%, width = { parent.width * :share }, fill = { app.partTint(:part) } ]
+                    View [ datapath = :parts[], height = 100%, flexes = { :share }, fill = { app.partTint(:part) } ]
                     ],
                 key: View [ width = 100%, datapath = { app.sizeView.value },
                     layout: WrappingLayout [ spacing = 18, rowSpacing = 6 ],

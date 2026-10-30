@@ -184,11 +184,23 @@ export declare class View extends Node {
     /** Opt out of the parent's LAYOUT (this child owns its own position; the
      *  arrangement skips it) — the decoration/overlay case. */
     ignoreLayout: boolean;
-    /** Take an equal share of the room the parent's layout leaves along its
-     *  flow axis: the layout sizes this child along the flow (height in a
-     *  column, width in a row); across the flow it is aligned like any other
-     *  child. A `Spacer` is an empty view that flexes. */
-    flexes: boolean;
+    /** Take a share of the room the parent's layout leaves along its flow
+     *  axis: the layout sizes this child along the flow (height in a column,
+     *  width in a row); across the flow it is aligned like any other child.
+     *  `true` is a weight of 1; a number weights the share (2 takes twice what
+     *  1 does); `false` or 0 does not flex. A `Spacer` is an empty view that
+     *  flexes. */
+    flexes: boolean | number;
+    /** Keep the size the content gives along the parent's flow, and give some
+     *  of it up when the run is too long for the room — down to `minWidth`
+     *  (`minHeight` in a column), in proportion to the size. */
+    shrinks: boolean;
+    /** The range a size the layout gives this child stays in — a flexing
+     *  share, a stretch, a shrink. 0 = no limit. */
+    minWidth: number;
+    maxWidth: number;
+    minHeight: number;
+    maxHeight: number;
     /** Opt out of the parent's CLIP (outside the parent's frame this child
      *  still paints and still hits) and of its auto-extent — frame chrome that
      *  straddles the frame. Parent-scoped: ancestors' clips still apply. */
@@ -820,6 +832,9 @@ export declare class View extends Node {
     $paintGuests: View[];
     /** Does this view paint somewhere other than its parent? */
     $paintsElsewhere(): boolean;
+    /** Does this view never paint at all (an Audio)? A layout does not lay it:
+     *  it would take a slot, and a gap, for nothing anyone sees. */
+    $paintsNothing(): boolean;
     private $applyTravel;
     /** @internal Re-send x/y through the seam against the CURRENT position host
      *  — the one case where the realized position changes without either slot
@@ -1285,16 +1300,6 @@ export declare class App extends View {
     $onDepart: (() => void) | null;
     private $departArmed;
     $departing(): void;
-    /** The app's size floor. An app that degrades below some width declares
-     *  `minWidth = 600` and the auto-extent never goes under it: in a narrower
-     *  host the app holds its floor and the STAGE pans natively (the page
-     *  scrolls horizontally at top level; an embedded island scrolls its box).
-     *  A declared policy, not clamp arithmetic in a constraint — tools and
-     *  models can read the floor statically. 0 (the default) = no floor. Only
-     *  the auto-extent honours it; an explicit `width = { … }` is the author's
-     *  own formula and wins untouched. */
-    minWidth: number;
-    minHeight: number;
     /** Linking knobs (location.md §0): `revealInset` — pixels of fixed chrome a
      *  reveal must clear (the scroll-margin analogue); `crawlSeeds` — extra
      *  references the extraction crawl seeds beyond the registry. */

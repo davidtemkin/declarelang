@@ -136,10 +136,11 @@ export class Text extends View {
         const o = ownerOf(this, "width");
         return !isSet(this, "width") && (o === null || autoWidths.has(o) || installing.has(this));
     }
-    $attach(backend, parentSurface, before = null) {
-        // A switch to a font still inside its wait keeps this run in the family it
-        // had until the font settles (font-value.ts) — measure and paint alike.
-        holdsFamily(this);
+    /** Size to the text: installed at attach, and again when a layout or a
+     *  State lets go of a size (View.$sizeReleased → $bindExtent), so a Text
+     *  that stops flexing is as wide as its words again — never the number its
+     *  width held when the layout first took it. */
+    $bindTextSize() {
         // Auto-size installs at attach (measurement is a browser activity — the
         // model stays Node-importable) and only for unowned, never-set slots: an
         // author literal, constraint, or percent takes precedence untouched.
@@ -175,6 +176,17 @@ export class Text extends View {
                 return Math.ceil(lineH * lines) + top + bottom;
             });
         }
+    }
+    $bindExtent() {
+        if (this.$backend !== null)
+            this.$bindTextSize();
+        super.$bindExtent();
+    }
+    $attach(backend, parentSurface, before = null) {
+        // A switch to a font still inside its wait keeps this run in the family it
+        // had until the font settles (font-value.ts) — measure and paint alike.
+        holdsFamily(this);
+        this.$bindTextSize();
         super.$attach(backend, parentSurface, before);
     }
     /** A Text's own content folds into `contentWidth`/`contentHeight` as its

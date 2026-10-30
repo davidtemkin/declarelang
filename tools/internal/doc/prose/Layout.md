@@ -30,13 +30,13 @@ App [
 
 **`place()`** is the whole contract — no time, no side effects. `this.laid()`
 answers the managed children (the view's children minus any with
-`ignoreLayout = true`), in child order — **replicated instances included**: a
+`ignoreLayout = true`, and any that never paints, such as an `Audio`), in child order — **replicated instances included**: a
 layout composes with datapath replication, arranging one box per record's
 instance exactly as it would hand-written children, and re-placing as records
 come and go. And the boxes it returns land as the children's ordinary
 `x`/`y`/`width`/`height` — readable by any handler or constraint, hit-tested by
 `viewAt`, like geometry from any other source. Return one box per laid child,
-aligned by index — a plain object naming any of `x`, `y`, `w`, `h`, `vis`.
+aligned by index — a plain object naming any of `x`, `y`, `w`, `h`, `vis`, `stretch`.
 The boxes' shape declares ownership: carry exactly the attributes the strategy
 manages, uniformly across children — a `{ x }` box owns each child's
 horizontal position and nothing else, so sizes, fills, and the cross axis
@@ -83,9 +83,30 @@ attributes you name are the attributes this strategy owns for that child: a box 
 positions a stack and leaves every width to the children, which is how a child sizes itself
 inside an arrangement. What you omit stays the author's.
 
+**A child states facts; read them.** Its natural size (`contentWidth`, `contentHeight`),
+its range (`minWidth`, `maxWidth`, `minHeight`, `maxHeight`), whether it `flexes` (and by
+what weight) and whether it `shrinks` are ordinary attributes of the child, there for your
+`place()` as they are for the library's. A size you give in `w` or `h` is kept within the
+child's range by the runtime, so a strategy of your own honours ranges without code.
+
+**`stretch` fills only what the content decides.** `stretch: { h: 80 }` in a box makes
+that child 80 tall **only if its content would otherwise decide its height**; a child that
+states a height keeps it, and nothing is refused. It is how a row of your own makes its
+children as tall as the tallest. Measure the tallest by each child's content
+(`contentHeight`), never its height, or the line holds itself up once the tallest
+shrinks. A view sized from its children is as large as what its layout placed, stretched
+children included.
+
 The base takes your boxes from there and installs them as claims, so `place()` never
 mentions ownership — and never mentions padding either, since the coordinates it returns
 are already the view's content coordinates.
+
+## sizedByContent()
+Whether `child`'s size on `"width"` or `"height"` is decided by its content: it states no
+size of its own (a literal, a constraint or a percent, in its class or where it is used),
+or this layout's `stretch` is what gives it one. What a `stretch` in a box fills; a
+`place()` that measures a line from the children it stretches asks it, and counts those
+children by their content instead.
 
 ## laid()
 The children this layout manages, in order — **the one definition of what a strategy is

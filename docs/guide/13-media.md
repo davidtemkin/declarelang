@@ -122,35 +122,15 @@ by `dt` and takes the clip's word whenever the two disagree: a clip still loadin
 stall, a seek.
 
 Seeking is an assignment to `position`; the clip's own write-backs are not seeks, so they
-never stutter it. The track takes the press and the drag. `onPointerMove` also fires when the pointer merely
-passes over, so it seeks only while the track is `pressed`:
+never stutter it. A track the person drags takes the press and the drag, and since
+`onPointerMove` also fires when the pointer merely passes over, it seeks only while the
+track is `pressed`.
 
-```declare-fragment
-class TrackRow [ height = 36,
-    clipId: string = "", src: string = "",
-    head: number = 0,                                  // seconds heard, moving smoothly
-    on: boolean = { app.playing == clipId },
-    audio: Audio [ source = { classroot.src }, playing = { classroot.on },
-        onEnded() { app.playing = ""; classroot.head = 0 } ],
-    Time [ exists = { classroot.on }, tick = frame,
-        onTick(dt: number) {
-            const next = classroot.head + dt, heard = classroot.audio.position
-            classroot.head = Math.abs(next - heard) > 0.35 ? heard : next } ],
-    seek(frac: number) { head = Math.max(0, Math.min(1, frac)) * audio.duration; audio.position = head },
-    track: View [ width = 180, height = 36, fill = #E4E8EC, claim = x,
-        onPointerDown(e: PointerEvent) { classroot.seek(e.x / this.width) },
-        onPointerMove(e: PointerEvent) { if (this.pressed) classroot.seek(e.x / this.width) },
-        View [ height = 36, fill = #3A7BD5,
-            width = { classroot.audio.duration > 0 ? parent.width * classroot.head / classroot.audio.duration : 0 } ] ]
-    ]
-```
-
-Only one of these plays at a time, and nothing stops the others: `app.playing` holds one
-clip's id, and every `on` is a comparison against it. Pressing play on another track
-changes the id, and the track that was playing goes quiet because its condition stopped
-holding. The frame `Time` exists only while its track plays, so a playlist of a hundred
-tracks runs one clock. `claim = x` leaves vertical scrolling to the list on a touch
-screen.
+When only one clip may play at a time, nothing has to stop the others: an id on the App
+names the one playing, and each clip's `playing = { app.playing == clipId }` is a
+comparison against it. Pressing play on another changes the id, and the one that was
+playing goes quiet because its condition stopped holding. Give the frame `Time`
+`exists = { … }` on the same condition, and a list of a hundred clips runs one clock.
 
 ---
 

@@ -75,7 +75,7 @@ export function resolveShapes(program, isBuiltinClass = () => false) {
                 resolveFields(a.value.shape);
                 continue;
             }
-            if ((a.name !== "schema" && a.name !== "errorSchema") || a.value.kind !== "ident" || a.value.name === "null")
+            if (a.name !== "schema" || a.value.kind !== "ident" || a.value.name === "null")
                 continue;
             const written = a.value.name;
             const arrayRoot = written.endsWith("[]");

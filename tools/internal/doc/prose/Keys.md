@@ -83,10 +83,11 @@ page unscrollable. While an overlay holds the claim, the keys it uses — Esc, E
 arrows — reach only the `Keys` members inside it, not the program's others. A claim made
 by an overlay that opened in a `Window` holds only while focus is in that window.
 
-## claimant()
-The overlay the keys go to now: the latest claim that holds, or null. Esc closes this one.
+## _claimant()
+**Internal.** The overlay the keys go to now: the latest claim that holds, or null — what the
+library's overlays and focus ring read. Esc closes this one.
 
-## declareShortcuts()
+## _declareShortcuts()
 **Internal.** How a `Shortcuts` set registers itself when it starts. A program declares a
 `Shortcuts` member instead.
 

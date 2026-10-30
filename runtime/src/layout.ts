@@ -92,8 +92,8 @@
 // rAF, zero polling.
 
 import { Node } from "./node.js";
-import { Constraint, afterSettle, kernel, kernelLoaded } from "./reactive.js";
-import { blockOf, cellIdsOf, isSet, markPercent, own, ownerOf, release, setBound, setPosOf, slotCellOf, useSiteSet } from "./attributes.js";
+import { Cell, Constraint, afterSettle, kernel, kernelLoaded } from "./reactive.js";
+import { blockOf, cellIdsOf, isSet, markPercent, own, ownerOf, release, setBound, setPercentMark, setPosOf, slotCellOf, useSiteSet } from "./attributes.js";
 import { LAYOUT_NOWRITE } from "./kernel-loader.js";
 import { DeclareError, discardedValueMessage, layoutConflictMessage, noBaselineMessage, stackBaselineMessage } from "./errors.js";
 import { isWindowedBlock, View, viewLayoutReady, type LayoutStrategy } from "./view.js";
@@ -115,11 +115,16 @@ export interface Box {
   w?: number;
   h?: number;
   vis?: boolean;
+  /** A size to FILL, applied only where the child's own size on that axis is
+   *  decided by its content (`sizedByContent`): never a claim, never a
+   *  conflict, so a child that states its size keeps it. How `align = stretch`
+   *  makes children as tall as the tallest. `w`/`h` beside it win. */
+  stretch?: { w?: number; h?: number };
 }
 
 /** A Box with every slot present — what TweenLayout interpolates (its lerp
  *  needs both endpoints of all four geometry slots plus visibility). */
-export type FullBox = Required<Box>;
+export type FullBox = Required<Omit<Box, "stretch">>;
 
 /** Box key → the child slot it drives, in a stable order. */
 const BOX_SLOTS: readonly (readonly [keyof Box, "x" | "y" | "width" | "height" | "visible"])[] = [
@@ -178,7 +183,7 @@ export abstract class Layout extends Node implements LayoutStrategy {
       const keys: string[] = [];
       if (xAxis || aligned) keys.push("x");
       if (!xAxis || aligned) keys.push("y");
-      if (c.visible && c.flexes === true) keys.push(xAxis ? "w" : "h");
+      if (c.visible && allocates(c)) keys.push(xAxis ? "w" : "h");
       out.push(keys.join());
     }
     return out.join("|");
@@ -277,6 +282,7 @@ export abstract class Layout extends Node implements LayoutStrategy {
         c instanceof View &&
         (c as { ignoreLayout?: boolean }).ignoreLayout !== true &&
         !c.$paintsElsewhere() &&
+        !c.$paintsNothing() &&
         !this.authorSized.has(c)
     );
   }
@@ -298,6 +304,20 @@ export abstract class Layout extends Node implements LayoutStrategy {
    *  costs its siblings nothing. Re-derived from scratch at every install —
    *  ownership can change with the tier, and a rearm is when we may look. */
   private readonly authorSized = new Set<View>();
+
+  /** This layout's own stretch claims: a child it stretches is still sized by
+   *  its content, as far as `sizedByContent` is concerned. */
+  private readonly stretching = new Set<Constraint>();
+
+  /** Is `child`'s size on this axis decided by its content: no size stated for
+   *  it (a literal, a constraint, a percent, in its class or where it is used),
+   *  only the runtime's own content measure, or this layout's stretch. What a
+   *  `stretch` in a box fills; a layout of your own asks it too. */
+  sizedByContent(child: View, size: "width" | "height"): boolean {
+    if (isSet(child, size)) return false;
+    const o = ownerOf(child, size);
+    return o === null || o.yielding || this.stretching.has(o);
+  }
 
   /** Pure geometry — one Box per laid child, from this strategy's own
    *  attributes and `this.view`'s box. No time, no side effects. THE seam: a
@@ -336,8 +356,16 @@ export abstract class Layout extends Node implements LayoutStrategy {
     // floor an UNPADDED box (a degenerate width stays what the author wrote,
     // so `padding = 0` is indistinguishable from no padding everywhere it is
     // read); this is the strategy-facing promise, and it says "never below 0".
+    if (this.extentRead !== null) this.extentRead[size] = true;
     return v === null ? 0 : Math.max(0, v.contentBox(size));
   }
+
+  /** While the pass computes: which of the view's extents place() read. A
+   *  size cut from the view's own room (a flexing share) stays out of the view's
+   *  content size, or the two would chase each other; a size worked out from
+   *  the children alone (a layout of your own making them as tall as the
+   *  tallest) counts, so the view is as large as what it placed. */
+  private extentRead: { width: boolean; height: boolean } | null = null;
 
   /** Claim `slot` on `child` for constraint `k`: capture the authored base
    *  (first claim only — rearm must not capture the arrangement's own writes),
@@ -609,7 +637,7 @@ export abstract class Layout extends Node implements LayoutStrategy {
     const slot = me.axis === "x" ? "x" : "y";
     const words: number[] = [view.$structureCellId(), spacingCell];
     for (const c of kids) {
-      if (c.flexes === true) return why("flexing child");   // the pass sizes it
+      if (allocates(c)) return why("flexing child");   // the pass sizes it
       if (c.$is3D()) return why("3D child");
       if (blockOf(c) < 0) return why("child without a block");
     }
@@ -667,7 +695,7 @@ export abstract class Layout extends Node implements LayoutStrategy {
     let kids: View[] = [];
     let probe: Box[] = [];
     const passClaims: { child: View; slot: string; key: keyof Box; i: number }[] = [];
-    const sizeClaims: { child: View; slot: string; key: keyof Box; i: number }[] = [];
+    const sizeClaims: { child: View; slot: string; key: "w" | "h"; i: number; stretch?: true }[] = [];
     const discards: [View, string][] = [];
     // One pass per child at worst: each re-probe drops at least one child from
     // the arrangement, and a dropped child is never reconsidered.
@@ -718,33 +746,61 @@ export abstract class Layout extends Node implements LayoutStrategy {
           if (key === "w" || key === "h") sizeClaims.push({ child, slot, key, i });
           else passClaims.push({ child, slot, key, i });
         }
+        // a size to fill, where the child leaves its size to its content: no
+        // claim against a size it states, so nothing to refuse or report
+        if (box.stretch !== undefined) {
+          for (const [key, slot] of [["w", "width"], ["h", "height"]] as const) {
+            if (box.stretch[key] === undefined || box[key] !== undefined) continue;
+            if (!this.sizedByContent(child, slot)) continue;
+            sizeClaims.push({ child, slot, key, i, stretch: true });
+          }
+        }
       });
       if (!dropped) break;
     }
     for (const [child, slot] of discards) this.$reportDiscarded(child, slot, arranger);
     const installed: { child: View; slot: string; k: Constraint }[] = [];
+    // ONE place() per wave. The pass computes the arrangement and lands the
+    // positions; each size this layout gives reads its box from what the pass
+    // computed, never calling place() again — one per sized child was most of a
+    // flexing run's cost (the calendar's zoom, a stretched row of cards).
+    let boxes: Box[] = [];
+    let readExtent = { width: false, height: false };
+    const placed = new Cell();
+    let pass: Constraint | null = null;
     const detach = () => {
       const seen = new Set<Constraint>();
       for (const o of installed) {
         if (!seen.has(o.k)) {
           seen.add(o.k);
+          this.stretching.delete(o.k);
           o.k.dispose();
         }
         this.$unclaim(o.child, o.slot, o.k);
       }
+      if (pass !== null && !seen.has(pass)) pass.dispose();
+      placed.free();
     };
     try {
-      if (passClaims.length > 0) {
-        const pass = new Constraint(
+      if (passClaims.length > 0 || sizeClaims.length > 0) {
+        pass = new Constraint(
           label,
-          () => this.place(),
+          () => {
+            // which of the view's extents place() read: a size cut from the
+            // view's own room stays out of the view's content size
+            const was = this.extentRead;
+            this.extentRead = { width: false, height: false };
+            try { return this.place(); }
+            finally { readExtent = this.extentRead; this.extentRead = was; }
+          },
           (v) => {
+            boxes = v as Box[];
+            placed.changed();
             // While the WINDOWING KERNEL owns this block's placement
             // (materialization.md — a windowed vertical stack), the pass
             // computes but does not apply: rows sit at their LOGICAL
             // positions, and disengaging re-arms through childrenMutated.
             if (this.view !== null && isWindowedBlock(this.view)) return;
-            const boxes = v as Box[];
             for (const c of passClaims) {
               const b = boxes[c.i];
               if (b !== undefined && b[c.key] !== undefined) setBound(c.child, c.slot, b[c.key]);
@@ -759,9 +815,17 @@ export abstract class Layout extends Node implements LayoutStrategy {
         pass.run();
       }
       for (const c of sizeClaims) {
-        const k = new Constraint(
-          `${label} → ${declareName(c.child)}.${c.slot}`,
-          () => this.place()[c.i]?.[c.key],
+        const axis = c.slot as "width" | "height";
+        const k: Constraint = new Constraint(
+          `${label} → ${declareName(c.child)}.${c.slot}${c.stretch ? " (stretch)" : ""}`,
+          () => {
+            placed.track();
+            const b = boxes[c.i];
+            if (c.stretch) return withinRange(c.child, axis, b?.stretch?.[c.key]);
+            // out of the view's content size only if it was cut from the view's room
+            setPercentMark(k, readExtent[axis]);
+            return withinRange(c.child, axis, b?.[c.key]);
+          },
           (v) => {
             if (this.view !== null && isWindowedBlock(this.view)) return;
             // a child that stopped flexing has no size in place() any more; this
@@ -772,7 +836,11 @@ export abstract class Layout extends Node implements LayoutStrategy {
             setBound(c.child, c.slot, v);
           }
         );
-        markPercent(k);
+        // a share of the room is cut from the parent's extent, so it stays out
+        // of the parent's content size; a stretch comes from the children's own
+        // sizes, so it counts: the row is as tall as its tallest child
+        if (c.stretch) this.stretching.add(k);
+        else markPercent(k);
         k.arrangedBy = arranger;
         this.$claim(c.child, c.slot, k);
         installed.push({ child: c.child, slot: c.slot, k });
@@ -793,3 +861,22 @@ export abstract class Layout extends Node implements LayoutStrategy {
 // A strategy still reads the room through `contentExtent(size)`, which now
 // simply asks the arranged view for its content box; nothing in place() or the
 // kernel names an inset.
+
+/** Does a run size this child along its flow: it flexes (a weight above 0) or
+ *  it shrinks. What SimpleLayout's place() gives a `w`/`h`, so the kernel's
+ *  own stack (which only positions) steps aside for it. */
+function allocates(c: View): boolean {
+  const f = c.flexes;
+  return f === true || (typeof f === "number" && f > 0) || c.shrinks === true;
+}
+
+/** A size a layout gives `child`, kept within the child's range
+ *  (`minWidth`/`maxWidth`, the heights; 0 = no limit): every layout honours
+ *  ranges, one of your own included, without writing code for it. */
+function withinRange(child: View, size: "width" | "height", v: number | undefined): number | undefined {
+  if (v === undefined) return v;
+  const lo = size === "width" ? child.minWidth : child.minHeight;
+  const hi = size === "width" ? child.maxWidth : child.maxHeight;
+  if (hi > 0 && v > hi) v = hi;
+  return lo > 0 && v < lo ? lo : v;
+}

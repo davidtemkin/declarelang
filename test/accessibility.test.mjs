@@ -439,14 +439,14 @@ await test("the item a composite names as the one the keys are on is marked acti
 });
 
 // A field says what is wrong with its value, and that it needs one: its own
-// `error` is passed to `accessibilityError`, and with `judgeOn = leave` the
+// `error` is passed to `accessibilityError`, and until the field is judged the
 // message waits until the field has been left (or judge() asked) while `valid`
 // is true to the draft throughout.
 await test("an invalid field says what is wrong, once judged, and that it is required", async () => {
   const app = await boot(`App [ width = 400, height = 300,
     d: Dataset { { "name": "" } },
     name: TextInput [ width = 240, accessibilityLabel = "Display name", accessibilityRequired = true,
-        text <-> :name, datapath = { app.d.value }, judgeOn = leave,
+        text <-> :name, datapath = { app.d.value },
         validate(v: string) -> string { return v.trim().length < 3 ? "Use at least three letters." : "" } ] ]`);
   app.$attach(new HeadlessBackend(), null);
   settle();

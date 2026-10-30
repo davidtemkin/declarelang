@@ -312,7 +312,9 @@ There is no `<Stack>`, no `<Row>`, no flexbox, and no grid. A view positions its
 absolutely by `x`/`y` until you set a `layout:` member — and because that member is an ordinary
 reactive attribute, it can be swapped, derived, or animated. **A layout places its children, and what it
 places a child does not declare**: a row places `x`, `align` adds `y`, a `ResponsiveLayout` places
-both; a child that declares one anyway is refused at its line, in any spelling.
+both; a child that declares one anyway is refused at its line, in any spelling. A child asks the
+layout for a size by stating a fact — `flexes`, `shrinks`, a `minWidth`/`maxWidth` range — and
+`align = stretch` sizes what its content would.
 
 ```declare-fragment
 layout: SimpleLayout   [ axis = y, spacing = 10 ],

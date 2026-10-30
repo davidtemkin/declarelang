@@ -334,7 +334,7 @@ class FocusRing [
     // is shown: the ring stands down only for what lies behind it
 
     _noteOverlayFocus() {
-        const c = Keys.claimant() as View | null
+        const c = Keys._claimant() as View | null
         const f = Focus.getFocus() as View | null
         let n = f
         while (n != null && n != c) n = n.parent as View | null

@@ -82,14 +82,6 @@ inventory: DataSource [ url = "/api/inventory", autoFetch = true, onLoad() { app
 
 A delivery then rolls the count over; opening the app does not.
 
-The same shape opens a *view* on its data: a map that should first show every pin
-cannot know where the pins are until they arrive. Derive the fact that says they have
-(`ready: boolean = { app.places.loaded }`), track it, and
-place the view once when it turns true — `trackChanges = ["ready"]`,
-`onChange(e: ChangeEvent) { if (ready) { fitPins() } }`. The flag is derived, not set by a
-handler, so it cannot drift from the data; `loaded` stays up through a refresh, so the view
-is placed once.
-
 **Under the hand, write the value and its target together.** A surface the user drags — a
 strip, a carousel, a map — is also one a button or a released fling moves, and that motion
 wants a spring. While the finger drives, set the sprung value *and* the spring's `to` to
@@ -152,10 +144,11 @@ App [ width = 360, height = 240, fill = black, textColor = whitesmoke,
 
 While `open` holds, the height, the fill, and the extra [`Text`](declare-docs:Text) apply *together*;
 when it lifts, they all revert, and **a state cannot leak**: there is no exit code to
-forget. States compose (two that hold each contribute; on a conflict the later
-declaration wins), and a state overrides its own element's attributes only:
-`bg.opacity = 0.5` inside one is a compile error. What a state does not do is move. It
-snaps; a spring whose target reads the same flag is what makes the change glide (below).
+forget. States compose (two that hold each
+contribute; on a conflict the later declaration wins), and a state overrides its own
+element's attributes only: `bg.opacity = 0.5` inside one is a compile error. What a state
+does not do is move. It snaps; a spring whose target reads the same flag is what makes the
+change glide (below).
 
 ## Animators
 

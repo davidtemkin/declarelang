@@ -63,12 +63,11 @@ is an array of `Task`. From then on:
 - **The typed value is typed everywhere.** `app.tasks.value.items` is `Task[]` to every
   constraint and method, so in the `filter` above `t` is a `Task`, and `t.don` is an error
   that suggests `done`. No `as` cast is needed anywhere.
-- **The runtime checks every boundary.** A fetched response that does not match lands in
-  `.failed` with the exact path of the mismatch. An embedded body that does not match fails
-  the build. And a write is held to the schema: `:done = "yes"` or
-  `d.set(["items", 0, "done"], "yes")` is refused at the write, naming the path and what
-  was expected. A refusal throws, so route values a person typed through a text field's
-  edit session ([Data](declare-docs:guide:data@editing-text-and-forms)), which validates before writing.
+- **The runtime checks every boundary** where data comes in — a fetched response, an
+  embedded body, a write — as the table at the end of this chapter sets out. A write that
+  does not match (`:done = "yes"`) is refused and throws, naming the path and what was
+  expected, so route values a person typed through a text field's edit session
+  ([Data](declare-docs:guide:data@editing-text-and-forms)), which validates before writing.
 
 Validation is permissive about extra keys: a schema declares what you *rely on*, and keys
 it does not mention pass through untouched, because real data is ragged. That has one

@@ -42,9 +42,8 @@ group does.
 ## focusEntry()
 The radio Tab lands on: the checked one, else the first that is enabled.
 
-## radios()
-The group's radios, for the Tab entry. A handler-only walk.
-
+## _radios()
+**Internal.** The group's radios, for the Tab entry; a handler-only walk.
 
 ## fieldValue
 Follows `value`, the chosen `choice`: what `required` and `validate` judge (see `ValueControl`).
@@ -71,10 +70,10 @@ class RadioGroup extends ValueControl [
 
     focusScope = stop,
     focusEntry() -> View? {
-        const rs = this.radios()
+        const rs = this._radios()
         return (rs.find((r) => (r as Radio).choice == this.value) ?? rs.find((r) => !(r as Radio).disabled) ?? null) as View | null
         },
-    radios() -> array {
+    _radios() -> array {
         const out = []
         for (const c of this.children) { if ((c as Radio).choice !== undefined) out.push(c) }
         return out
@@ -170,7 +169,7 @@ class Radio extends Control [ height = { Math.max(this.dot.width + 4, app.touchF
     onBlur() {
         super.onBlur()
         const g = parent as any
-        if (g != null && g.judgeOn == "leave") g.judged = true
+        if (g != null) g.judged = true
         },
 
     onKeyDown(e: KeyEvent) {

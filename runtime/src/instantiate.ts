@@ -296,8 +296,8 @@ function resolveProvisionLiteral(attr: Attr, ctx: Ctx): unknown {
 type ProvisionPending = { view: Node; attr: Attr; provideCode: string; classroot: View | null };
 type Pending =
   | { view: Node; attr: Attr; code: string; classroot: View | null; yielding?: true }
-  | { view: View; attr: Attr; percent: number }
-  | { view: View; attr: Attr; align: "center" | "end" }
+  | { view: View; attr: Attr; percent: number; yielding?: true }
+  | { view: View; attr: Attr; align: "center" | "end"; yielding?: true }
   | { view: View; attr: Attr; dataPath: string; type: AttrType; plan?: readonly PathSeg[] }
   | { view: View; attr: Attr; twoWay: string | readonly string[]; type: AttrType }
   | { view: View; attr: Attr; twoWayCode: string; type: AttrType; classroot: View | null }
@@ -550,8 +550,8 @@ function installBatchNow(ordered: readonly Pending[], ctx: Ctx): void {
       const v = p.view as unknown as { classroot?: View | null };
       bindDeclDefault(p.view, p.declDefault, p.rec.source!, p.rec.pos as Pos, p.rec.outer ? (v.classroot ?? null) : p.view, p.rec.deps ?? undefined, p.rec.expr);
     }
-    else if ("align" in p) bindAlign(p.view, p.attr.name as "x" | "y", p.align, p.attr.value.pos, transforming?.has(p.view) === true);
-    else bindPercent(p.view, p.attr.name, p.percent, p.attr.value.pos);
+    else if ("align" in p) bindAlign(p.view, p.attr.name as "x" | "y", p.align, p.attr.value.pos, transforming?.has(p.view) === true, p.yielding === true);
+    else bindPercent(p.view, p.attr.name, p.percent, p.attr.value.pos, p.yielding === true);
   }
 }
 
@@ -1335,9 +1335,10 @@ function constructNode(el: Element, outer: View | null, ctx: Ctx, parentEl: Elem
         ctx.pending.push({ view, attr, dataPath: r.datapath.path, type: slotTypeOf(attr, el.tag), plan: r.datapath.plan });
       }
     } else if (isPercent(r.value)) {
-      ctx.pending.push({ view, attr, percent: r.value.percent });
+      // a class's own percent or alignment is a default too, like its { } (above)
+      ctx.pending.push(!useSite && CLASS_DEFAULT_GEOMETRY.has(attr.name) ? { view, attr, percent: r.value.percent, yielding: true } : { view, attr, percent: r.value.percent });
     } else if (isAlign(r.value)) {
-      ctx.pending.push({ view, attr, align: r.value.align });
+      ctx.pending.push(!useSite && CLASS_DEFAULT_GEOMETRY.has(attr.name) ? { view, attr, align: r.value.align, yielding: true } : { view, attr, align: r.value.align });
     } else {
       // checkAttr guarantees the value matches the field's declared type, so
       // this dynamic assignment (the parse-path bridge) is sound.

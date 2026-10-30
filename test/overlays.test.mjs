@@ -189,9 +189,9 @@ await test("an overlay's keyboard claim holds while focus is in its window, and 
   const app = await boot(WINDOWS);
   Focus.focus(app.a.fa); settle();
   app.a.dlg.notice("In A", ""); settle();
-  same(Keys.claimant(), app.a.dlg, "focus in A: the dialog has the keys");
+  same(Keys._claimant(), app.a.dlg, "focus in A: the dialog has the keys");
   Focus.focus(app.b.fb); settle();
-  same(Keys.claimant(), null, "focus in B: it does not");
+  same(Keys._claimant(), null, "focus in B: it does not");
   assert.equal(app.a.dlg.isTop(), false, "…nor is it what Esc closes");
   app.a.dlg.close(); settle();
 });
@@ -271,7 +271,7 @@ await test("a hosted program's dialog holds back presses in its own window only,
   assert.equal(pressOutside(host, 120, 240), true, "a press elsewhere in its window is held");
   assert.equal(pressOutside(host, 600, 200), false, "a press in the other window goes on");
   Focus.focus(host.other.f); settle();
-  same(Keys.claimant(), null, "focus in the other window: the dialog does not have the keys");
+  same(Keys._claimant(), null, "focus in the other window: the dialog does not have the keys");
   tenant.dlg.close(); settle();
   unlink();
 });
@@ -283,7 +283,7 @@ await test("a hosted program's open menu leaves the host's layer when the progra
   unlink();
   tenant.discard(); settle();
   same(host.w.layer.$paintGuests.length, 0, "withdrawn when the program is torn down");
-  same(Keys.claimant(), null, "and its keyboard claim with it");
+  same(Keys._claimant(), null, "and its keyboard claim with it");
 });
 
 async function hostedIn(islandSrc) {
@@ -447,12 +447,12 @@ await test("an overlay's shown can be state: it opens when the state does, and E
   assert.equal(app.sh.present, false, "closed while the state is false");
   app.editing = true; settle(); await turns();
   assert.ok(app.sh.shown && app.sh.present, "the state opened it");
-  same(Keys.claimant(), app.sh, "and it holds the keyboard as an opened sheet does");
+  same(Keys._claimant(), app.sh, "and it holds the keyboard as an opened sheet does");
   assert.ok(Focus.holds(app.sh), "and took focus inside");
   press("Escape"); await turns();
   assert.equal(app.editing, false, "Esc delivered the close to the state");
   assert.equal(app.sh.shown, false, "and it closed");
-  same(Keys.claimant(), null, "its keyboard claim went with it");
+  same(Keys._claimant(), null, "its keyboard claim went with it");
   app.sh.show(); settle(); await turns();
   assert.equal(app.editing, true, "show() delivers through input too");
   app.sh.close(); settle(); await turns();
@@ -600,13 +600,13 @@ await test("a start sheet is a drawer at every width, and a swipe back past a qu
     app.nav.grip.onPointerMove({ x: 0, y: 0, deltaX: -60, deltaY: 4 }); settle();
     assert.equal(Math.round(app.nav.x), -60, "it follows a swipe back");
     app.nav.grip.onPointerUp({ x: 0, y: 0, deltaX: -60, deltaY: 4, canceled: false }); settle();
-    assert.equal(app.nav.dragX, 0, "a short swipe lets it spring back");
+    assert.equal(app.nav._dragX, 0, "a short swipe lets it spring back");
     assert.equal(app.open, true);
     app.nav.grip.onPointerMove({ x: 0, y: 0, deltaX: -120, deltaY: 0 }); settle();
     app.nav.grip.onPointerUp({ x: 0, y: 0, deltaX: -120, deltaY: 0, canceled: false }); settle();
     assert.equal(app.open, false, "past a quarter of its width it closes, through input");
     frames(120);
-    assert.equal(app.nav.dragX, 0, "and starts clean next time");
+    assert.equal(app.nav._dragX, 0, "and starts clean next time");
     assert.ok(app.nav.x <= -app.nav.width, "off past the start edge");
     app.hostWidth = 1200; app.hostHeight = 800; settle();
     assert.equal(app.nav.presentation, "start", "still a drawer on a wide screen");

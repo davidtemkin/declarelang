@@ -1381,7 +1381,7 @@ App [ textColor = whitesmoke, appName = "Weather",
                 dots: View [ width = 100%, height = 44,
                     layout: SimpleLayout [ axis = x, spacing = 0 ],
                     datapath = { app.data.loaded ? app.data.value : null },
-                    Dot [ width = { Math.max(6, parent.width / Math.max(1, app.cities.length)) },
+                    Dot [ flexes = true, minWidth = 6,
                         datapath = :cities[], key = :id ]
                     ]
                 ]
@@ -1402,12 +1402,13 @@ App [ textColor = whitesmoke, appName = "Weather",
     // ── the desktop dialect ───────────────────────────────────────────────
 
     deskUI: View [ width = 100%, height = 100%, visible = { !app.phone },
+        layout: SimpleLayout [ axis = x ],
 
         // Sidebar wide enough that a row's condition and its H/L do not meet
         // in the middle — the row is the phone's row, and it was designed at
         // the width of a phone
 
-        side: View [ x = 0, y = 0, width = { SIDEBAR_W }, height = 100%, scrolls = y,
+        side: View [ width = { SIDEBAR_W }, height = 100%, scrolls = y,
             fill = #0A1422B8, backdrop = { frost(30, 1.2) },
 
             // the sidebar has an inside: the field, the empty note and the list
@@ -1445,8 +1446,7 @@ App [ textColor = whitesmoke, appName = "Weather",
         // the content column is centred and capped: past ~1000px the cards
         // stop growing, which keeps a 10-day bar readable as a chart
 
-        content: View [ x = { SIDEBAR_W }, y = 0, width = { parent.width - SIDEBAR_W },
-            height = 100%, scrolls = y,
+        content: View [ flexes = true, height = 100%, scrolls = y,
             col: View [ x = center, width = { Math.min(1000, parent.width - 48) }, padding = [0, 0, 32, 0],
                 layout: SimpleLayout [ axis = y, spacing = 0 ],
                 head: View [ width = 100%, height = 132,

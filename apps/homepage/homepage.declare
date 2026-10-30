@@ -305,16 +305,16 @@ class SmallLink extends Text [ fontFamily = { app.uiFace },
 /*
 ### A compact figure
 
-A number over its note, sized to stay three-up in the space it is given — the
-calendar's row of figures sits inside a half-column, where a band-width figure
-that goes full-width on a narrow page would stack the three into a tower. The
-40 is the two 20px gaps its row's layout puts between them.
+A number over its note, sharing its row with the others so the three stay
+three-up in the space they are given — the calendar's row of figures sits
+inside a half-column, where a band-width figure that goes full-width on a
+narrow page would stack the three into a tower.
 */
 
 class MiniMetric [
     value: string = "",
     note:  string = "",
-    width = { (parent.width - 40) / 3 },
+    flexes = true,
     layout: SimpleLayout [ axis = y, spacing = 4 ],
     Display [ fontSize = 34, width = 100%, textFill = { provided("theme").brand },
         text = { classroot.value } ],
@@ -1163,11 +1163,6 @@ App [ tagline: string = "a UI language for you and your AI",
                 // is what keeps two accent rules on one line. Sliced into columns
                 // instead, unequal text staggers the rules and the grid reads
                 // broken.
-                //
-                // Each beat sits in a bare cell because the ResponsiveLayout
-                // sizes its own children and a Point carries a width of its own:
-                // one attribute, one owner. The cell takes the share; the Point
-                // fills the cell.
 
                 beats: View [ width = { Math.min(880, parent.width) }, x = center,
                     layout: SimpleLayout [ axis = y, spacing = 32 ],
@@ -1175,23 +1170,19 @@ App [ tagline: string = "a UI language for you and your AI",
                     first: View [ width = 100%,
                         layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 56, share: ({ a: 50, b: 50 }) }),
                                                              ({ from: 0, flow: "stack", gap: 32, share: ({ a: 100, b: 100 }) })] } ],
-                        a: View [ Point [ width = 100%, ptitle = "Start with context",
-                                body = "One installable skill: the language, the library, the conventions, the working loop — nothing to reconstruct from a repository. And declare-help answers any name or error code on demand." ]
-                            ],
-                        b: View [ Point [ width = 100%, ptitle = "Correct, don’t guess",
-                                body = "Every diagnostic names the broken rule and the valid rewrite. Try it: change textColor to color in the first panel above and read what comes back." ]
-                            ]
+                        a: Point [ ptitle = "Start with context",
+                            body = "One installable skill: the language, the library, the conventions, the working loop — nothing to reconstruct from a repository. And declare-help answers any name or error code on demand." ],
+                        b: Point [ ptitle = "Correct, don’t guess",
+                            body = "Every diagnostic names the broken rule and the valid rewrite. Try it: change textColor to color in the first panel above and read what comes back." ]
                         ],
 
                     second: View [ width = 100%,
                         layout: ResponsiveLayout [ plan = { [({ from: 760, flow: "row", gap: 56, share: ({ a: 50, b: 50 }) }),
                                                              ({ from: 0, flow: "stack", gap: 32, share: ({ a: 100, b: 100 }) })] } ],
-                        a: View [ Point [ width = 100%, ptitle = "Question the result",
-                                body = "The Inspector can tell you or an agent why a live value is what it is, what it depends on, and what happens if you change it — live, in the running program, not guessed from source." ]
-                            ],
-                        b: View [ Point [ width = 100%, ptitle = "Prove the change",
-                                body = "A formal six-rung ladder, from parse to pixels, is how an app is shown to be correct. Your AI climbs it one rung at a time, and every rung reports what it proved — and what it cannot see." ]
-                            ]
+                        a: Point [ ptitle = "Question the result",
+                            body = "The Inspector can tell you or an agent why a live value is what it is, what it depends on, and what happens if you change it — live, in the running program, not guessed from source." ],
+                        b: Point [ ptitle = "Prove the change",
+                            body = "A formal six-rung ladder, from parse to pixels, is how an app is shown to be correct. Your AI climbs it one rung at a time, and every rung reports what it proved — and what it cannot see." ]
                         ]
                     ],
 

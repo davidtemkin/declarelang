@@ -33,7 +33,7 @@ Takes an overlay off the stack.
 
 ## top()
 The open overlay the keyboard goes to — the one Esc closes — or null: the latest that
-took the keys and still holds them (`Keys.claimant()`). A toast, which takes nothing, is
+took the keys and still holds them (`Keys._claimant()`). A toast, which takes nothing, is
 never it; nor is a dialog open in one window while focus is in another.
 */
 
@@ -63,7 +63,7 @@ class OverlayStrata [ ignoreLayout = true,
     // the open overlay the keyboard goes to: the latest claim that holds
 
     top() -> View? {
-        const c = Keys.claimant()
+        const c = Keys._claimant()
         return (stack.indexOf(c) >= 0 ? c : null) as View | null
         },
 

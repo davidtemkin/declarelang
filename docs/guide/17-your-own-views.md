@@ -67,8 +67,8 @@ hover tracking, and the focus ring that travels to it was declared by nobody.
 - **`press()`** is the one activation path: Space, Enter and a click all land there.
   Override `press()` to say what activating your control does; override `onClick` only
   when a click should mean something else.
-- **Focus**: the control is a tab stop, a click focuses it, and the app's focus ring finds
-  it. Override `focusShape()` to ring only part of it, as a [`Radio`](declare-docs:Radio) rings its dot.
+- **Focus**: the control is a tab stop, a click focuses it, and the app's focus ring finds it.
+  Override `focusShape()` to ring only part of it, as a [`Radio`](declare-docs:Radio) rings its dot.
 - **The theme**: a control reads the app's theme the way any view does,
   `provided("theme").control`. Read tokens rather than literal colors, and the view follows
   any app's theme and dark mode.
@@ -137,27 +137,27 @@ its children read them.
 
 ## A frame around content
 
-A class is often a frame — a sheet with a title and padding, a card with a header and a row
+A class is often a frame — a panel with a title and padding, a card with a header and a row
 of actions — whose content each subclass or use site supplies. The children
 a subclass writes are appended to the instance, beside the base's own; the frame says where
 they belong instead with [`defaultPlacement`](declare-docs:View.defaultPlacement), naming one of
 its own children:
 
 ```declare-fragment
-class Sheet [ width = 300, fill = white, cornerRadius = 16, defaultPlacement = body,
+class Panel [ width = 300, fill = white, cornerRadius = 16, defaultPlacement = body,
     title: Text [ x = 16, y = 12, fontSize = 18, text = { classroot.heading } ],
     heading: string = "",
     body: View [ y = 44, width = 100%, padding = [0, 16, 16, 16],
         layout: SimpleLayout [ axis = y, spacing = 10 ] ]
     ]
-class DetailSheet extends Sheet [ heading = "Order",
+class DetailPanel extends Panel [ heading = "Order",
     figs: Text [ fontSize = 30, text = "$128.40" ],
     acts: Button [ label = "Cancel order" ]
     ]
 ```
 
 `figs` and `acts` go into `body`, after anything `body` declares, in order — and so do the
-children written where a `DetailSheet [ … ]` is used. The base's own children (`title`,
+children written where a `DetailPanel [ … ]` is used. The base's own children (`title`,
 `body`) never move. A placed child's `parent` is the child it went into (so `parent.width` is
 the padded width); it is still reachable by name from the class that wrote it
 (`classroot.figs`). A subclass may name its own `defaultPlacement` for the classes and use
@@ -165,11 +165,11 @@ sites after it.
 
 ## Delivering a control's value
 
-`press()` above calls `input()`; it does **not** write `value`. That is the value pattern
-of [Controls](declare-docs:guide:controls@the-value-pattern) from the other side. The use site constrained
-`value = { app.n }` and overrode `input`, so the control's edit lands in `app.n` and comes
-back down through the constraint. Had `press` written `value` directly, it would have
-been assigning to a constrained attribute, and the runtime would have refused it.
+`press()` above calls `input()`; it does **not** write `value`. That is
+[the value pattern](declare-docs:guide:controls@the-value-pattern) from the other side. The use
+site constrained `value = { app.n }` and overrode `input`, so the control's edit lands in
+`app.n` and comes back down through the constraint. Had `press` written `value` directly,
+it would have been assigning to a constrained attribute, and the runtime would have refused it.
 
 > **A control delivers; it never stores on behalf of its owner.**
 
@@ -242,8 +242,8 @@ Canvas2D's argument shapes) and draws nothing until the bitmap arrives. Reading
 
 **Text in a drawing.** `d.fillText` and `d.strokeText` take a style after the position — a
 `style` bundle ([Text and fonts](declare-docs:guide:text@reusing-a-text-style)) or an inline record with
-[`Text`](declare-docs:Text)'s attribute names — and `measureText` measures with the same record, so a drawing
-can size a run before painting it:
+[`Text`](declare-docs:Text)'s attribute names — and `measureText` measures with the same record,
+so a drawing can size a run before painting it:
 
 ```declare
 style Caption [ fontSize = 13, smallCaps = true, letterSpacing = 0.5, textColor = #1B2733 ]
@@ -357,7 +357,47 @@ index. A box names only the attributes the layout owns — `{ x, y }` here, so s
 the children's — and `this.contentExtent("width")` is the room to divide, the view's size
 less its padding. Note the one permission a layout has that a constraint does not: **a
 layout may aggregate over its children** — total their widths, find the longest row —
-because arranging children is its job. For an arrangement that glides between two
+because arranging children is its job. The runtime runs `place()` again whenever anything
+it read changes — the children, their sizes, the room, the layout's own attributes — so a
+layout attribute bound to a fact, or moved by a spring, re-arranges as it changes.
+
+A box can carry a size as well as a place. When what changes is **where the room goes** — a
+panel beside the main view on a wide screen, a strip under it on a narrow one — the layout
+divides the room it has, and neither child states a size or a place:
+
+```declare
+class SplitLayout extends Layout [
+    wide: boolean = true,
+    side: number = 160,
+    strip: number = 56,
+    place() {
+        const w = this.contentExtent("width")
+        const h = this.contentExtent("height")
+        const s = this.side, t = this.strip
+        return this.laid().map((c, i) => this.wide
+            ? (i == 0 ? ({ x: 0, y: 0, w: w - s, h: h }) : ({ x: w - s, y: 0, w: s, h: h }))
+            : (i == 0 ? ({ x: 0, y: 0, w: w, h: h - t }) : ({ x: 0, y: h - t, w: w, h: t })))
+        }
+    ]
+
+App [ width = 520, height = 200, fill = white, textColor = black,
+    frame: View [ width = 100%, height = 100%,
+        layout: SplitLayout [ wide = { app.width >= 480 } ],
+        main: View [ fill = whitesmoke, Text [ x = center, y = center, text = "main" ] ],
+        aside: View [ fill = gainsboro, Text [ x = center, y = center, text = "aside" ] ]
+        ]
+    ]
+```
+
+Written without it, each child carries the division itself — `width = { app.wide ? … : … }`,
+`y = { app.wide ? … : … }` — worked out again in each: a layout done by hand. A box may name
+`x`, `y`, `w`, `h`; `vis: false`, which hides that child; and
+`stretch: { w, h }`, a size that applies only where the child's content would otherwise
+decide it.
+
+A layout of your own reads the same facts the library's do — each child's natural size
+(`contentWidth`, `contentHeight`), its range, whether it flexes or shrinks — and a `w` or `h`
+in a box sizes that child within its range ([Sizes](declare-docs:guide:layout@sizes)). For an arrangement that glides between two
 layouts, extend [`TweenLayout`](declare-docs:TweenLayout) instead
 ([Animated arrangements](declare-docs:guide:animated-arrangements@tweenlayout)).
 
@@ -375,15 +415,17 @@ window — you reach for the same short list its own overlays use:
 | build structure that genuinely cannot be declared | `parent.createView("Name", props)` · `v.discard()` |
 | decide what Tab reaches inside a container | override [`tabOrder()`](declare-docs:View.method.tabOrder), compose [`tabDefault()`](declare-docs:View.method.tabDefault) |
 
-Two habits keep such a thing well-behaved. **Claim in pairs**: a `navClaim(…, true)` on
-open needs its `false` on close, or the page stays unscrollable. **Restore focus a turn
+Two habits keep such a thing well-behaved. **Claim in pairs**: a
+`navClaim(…, true)` on open needs its `false` on close, or the page stays unscrollable. **Restore focus a turn
 later**: a keystroke still in flight should finish against the old focus, or the key that
-closed your panel reopens it.
+closed your panel reopens it. [Menus, dialogs and overlays](declare-docs:guide:overlays)
+covers the library's own overlays built this way.
 
-[`createView`](declare-docs:View.method.createView) is for the rare structure that has no data to drive it; a collection comes
-from replication, which reconciles, keys and removes for you. A view you create is yours
-to [`discard()`](declare-docs:View.method.discard). A class you only ever name as a string needs `use [ Name ]` at the top
-level, or a production build, which drops classes nothing names, leaves it out.
+[`createView`](declare-docs:View.method.createView) is for the rare structure that has no data to
+drive it; a collection comes from replication, which reconciles, keys and removes for you. A view you create is yours
+to [`discard()`](declare-docs:View.method.discard). A
+class you only ever name as a string needs `use [ Name ]` at the top level, or a production
+build, which drops classes nothing names, leaves it out.
 
 ---
 

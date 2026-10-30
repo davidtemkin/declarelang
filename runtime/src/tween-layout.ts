@@ -9,7 +9,7 @@ import { DeclareError, layoutConflictMessage } from "./errors.js";
 import type { View } from "./view.js";
 import { Animator } from "./animator.js";
 import { motionToken } from "./easing.js";
-import { Layout, type Box, type FullBox } from "./layout.js";
+import { Layout, type FullBox } from "./layout.js";
 import { declareName } from "./declare-name.js";
 
 /** TweenLayout — the animated-reflow engine (the calendar's gridslider idiom,
@@ -95,7 +95,7 @@ export abstract class TweenLayout extends Layout {
         );
       }
     };
-    const SLOTS: readonly (readonly [string, keyof Box])[] = [
+    const SLOTS: readonly (readonly [string, "x" | "y" | "w" | "h"])[] = [
       ["x", "x"],
       ["y", "y"],
       ["width", "w"],

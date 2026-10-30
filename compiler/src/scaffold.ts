@@ -605,6 +605,7 @@ export function tsType(t: AttrType): string {
     case "inset": return "Inset";
     case "number": return t.nullable === true ? "number | null" : "number";
     case "boolean": return t.nullable === true ? "boolean | null" : "boolean";
+    case "flex": return "boolean | number";
     case "string": return "string";
     case "color": return "Color";
     case "shape": return "ClipPath | boolean | null";   // `clip`: a shape, or true for the view's own box
@@ -746,10 +747,10 @@ export const LANGUAGE_STATICS: Readonly<Record<string, readonly string[]>> = {
     // scroll defaults while an overlay roves — an open Menu's claim.
     `  static navClaim(owner: object, on: boolean): void;`,
     // the overlay the keys go to now (planes.md §9)
-    `  static claimant(): any;`,
+    `  static _claimant(): any;`,
     // declared shortcuts (planes.md §9): a Shortcuts set registers; the
     // resolved set where focus is, for a panel that lists them
-    `  static declareShortcuts(owner: object): void;`,
+    `  static _declareShortcuts(owner: object): void;`,
     `  static shortcutsInForce(): any[];`,
   ],
   Focus: [
@@ -942,7 +943,7 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
   State: [`  apply(): void;`, `  remove(): void;`, `  toggle(): void;`],
   // viewExtent: the alignment BAND — the arranged view's own extent on an
   // axis, or 0 when that extent is measured from the laid children (layout.ts).
-  Layout: [`  view: View;`, `  laid(): View[];`, `  refuseBaseline(child: View): void;`, `  refuseStackBaseline(): void;`, `  contentExtent(size: "width" | "height"): number;`, `  viewExtent(size: "width" | "height"): number;`], // view: runtime `View | null`, non-null by the time any body runs
+  Layout: [`  view: View;`, `  laid(): View[];`, `  refuseBaseline(child: View): void;`, `  refuseStackBaseline(): void;`, `  contentExtent(size: "width" | "height"): number;`, `  viewExtent(size: "width" | "height"): number;`, `  sizedByContent(child: View, size: "width" | "height"): boolean;`], // view: runtime `View | null`, non-null by the time any body runs
   TweenLayout: [`  laid(): View[];`, `  retarget(animate: boolean): void;`],
 };
 

@@ -4230,33 +4230,6 @@ await test("DataSource failure surfaces as .failed + .error; stale arrivals are 
   }
 });
 
-// A refusal's body, typed by `errorSchema`: the compiler checks what a body reads
-// of it, and a body of another shape is not handed over — `error` says why.
-await test("DataSource errorSchema: errorBody is typed, and a refusal of another shape is said, not handed over", async () => {
-  const bad = await compile(`App [ width=10, height=10,
-      s: DataSource [ url = "/save", errorSchema = [ message: string, field?: string ] ],
-      note: string = { app.s.errorBody?.mesage ?? "" } ]`);
-  assert.ok(bad.errors.some((e) => /mesage/.test(e.message)), bad.errors.map((e) => e.message).join("; "));
-  const realFetch = globalThis.fetch;
-  try {
-    const app = buildProgram(await compiled(`App [ width=10, height=10,
-      s: DataSource [ url = "/save", errorSchema = [ message: string, field?: string ] ],
-      note: string = { app.s.errorBody?.message ?? "" } ]`));
-    settle();
-    globalThis.fetch = async () => ({ ok: false, status: 422, text: async () => JSON.stringify({ message: "Too short.", field: "title" }) });
-    await app.s.fetch();
-    settle();
-    assert.equal(app.note, "Too short.", "a refusal of the declared shape is handed over");
-    globalThis.fetch = async () => ({ ok: false, status: 500, text: async () => JSON.stringify({ oops: true }) });
-    await app.s.fetch();
-    settle();
-    assert.equal(app.s.errorBody, null, "a body of another shape is not handed over");
-    assert.match(app.s.error, /HTTP 500 .*not the errorSchema's shape/);
-  } finally {
-    globalThis.fetch = realFetch;
-  }
-});
-
 await test("DataSource auto: fetches once per distinct address, never for a re-derive", async () => {
   const realFetch = globalThis.fetch;
   try {

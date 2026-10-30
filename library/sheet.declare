@@ -36,19 +36,12 @@ How it presents now: `"bottom"`, `"end"`, `"start"` or `"center"`.
 ## sheetWidth
 Its width as a side sheet, a drawer or a floating card.
 
-## dragY
-How far its handle has been pulled down — a swipe past a quarter of its height puts it away.
+## _dragY
+**Internal.** How far its handle has been pulled down — a swipe past a quarter of its height puts it away.
 
-## dragX
-How far a drawer has been swiped back toward the start edge by its trailing edge — a swipe
+## _dragX
+**Internal.** How far a drawer has been swiped back toward the start edge by its trailing edge — a swipe
 past a quarter of its width puts it away.
-
-## hostW
-The width of the layer it paints in: its window's, or the browser window's — not the
-App's, which on a page that scrolls is as tall as the page.
-
-## hostH
-The height of the layer it paints in: its window's, or the browser window's.
 
 ## width
 The whole width at the bottom; `sheetWidth` at the end edge or as a card; `sheetWidth` at the
@@ -67,24 +60,24 @@ end or start edge.
 ## opacity
 Its open blend, as a card; a sheet at an edge slides rather than fades.
 
-## widePresentation
-What the sheet is when the host has room to spare: an `edge = end` sheet stays at the end,
+## _widePresentation
+**Internal.** What the sheet is when the host has room to spare: an `edge = end` sheet stays at the end,
 any other is centred. `presentation` takes it unless the sheet comes from the start or the host is
 `narrow`.
 
-## keyboardH
-How far an on-screen keyboard reaches into this sheet's program (`app.keyboardHeight`), so a
+## _keyboardH
+**Internal.** How far an on-screen keyboard reaches into this sheet's program (`app.keyboardHeight`), so a
 bottom sheet rises above it; 0 for a sheet hosted in another program's layer.
 
-## footY
-Where the sheet's room ends: the host's height less the keyboard.
+## _footY
+**Internal.** Where the sheet's room ends: the host's height less the keyboard.
 
-## presentationMargin
-The room the sheet leaves beside it in its current `presentation`: more for a centred or start
+## _presentationMargin
+**Internal.** The room the sheet leaves beside it in its current `presentation`: more for a centred or start
 sheet, none for an end or bottom one.
 
-## restX
-Where a sheet that does not slide in from a side rests across: centred, or 0 for a bottom
+## _restX
+**Internal.** Where a sheet that does not slide in from a side rests across: centred, or 0 for a bottom
 sheet.
 */
 
@@ -92,8 +85,7 @@ include [ "floating.declare" ]
 
 class Sheet extends Floating [
     accessibilityRole = dialog,
-    kind = "modal",
-    sharesProgram = false,
+    _sharesProgram = false,
     pressPolicy = "dismiss",
     scrollPolicy = "block",
     takesFocus = true,
@@ -101,27 +93,25 @@ class Sheet extends Floating [
     defaultPlacement = body,
 
     edge: "bottom" | "end" | "start" = "bottom",
-    narrow: boolean = { this.hostW < 600 },
-    widePresentation: string = { this.edge == "end" ? "end" : "center" },       // what it is with room to spare
-    presentation: string = { this.edge == "start" ? "start" : this.narrow ? "bottom" : this.widePresentation },
+    narrow: boolean = { this._hostW < 600 },
+    _widePresentation: string = { this.edge == "end" ? "end" : "center" },       // what it is with room to spare
+    presentation: string = { this.edge == "start" ? "start" : this.narrow ? "bottom" : this._widePresentation },
     sheetWidth: number = { this.presentation == "end" ? 420 : this.presentation == "start" ? 320 : 520 },
-    dragY: number = 0,
-    dragX: number = 0,
+    _dragY: number = 0,
+    _dragX: number = 0,
 
-    hostW: number = { this.host != null ? this.host.width : app.hostWidth > 0 ? app.hostWidth : app.width },     // a window's, else the browser window's
-    hostH: number = { this.host != null ? this.host.height : app.hostHeight > 0 ? app.hostHeight : app.height },
-    keyboardH: number = { this._hostedLayer ? 0 : app.keyboardHeight },     // a bottom sheet rises above an on-screen keyboard (its own program's)
-    footY: number = { this.hostH - this.keyboardH },
+    _keyboardH: number = { this._hostedLayer ? 0 : app.keyboardHeight },     // a bottom sheet rises above an on-screen keyboard (its own program's)
+    _footY: number = { this._hostH - this._keyboardH },
 
-    presentationMargin: number = { ({ center: 48, start: 56 })[this.presentation] ?? 0 },     // the room it leaves beside it
-    width = { this.presentation == "bottom" ? this.hostW : Math.min(this.sheetWidth, this.hostW - this.presentationMargin) },
-    height = { this.presentation == "end" || this.presentation == "start" ? this.hostH : Math.min(this.body.contentHeight + (this.presentation == "bottom" ? 20 : 0), this.presentation == "bottom" ? this.footY - 24 : this.hostH - 48) },
-    restX: number = { this.presentation == "bottom" ? 0 : (this.hostW - this.width) / 2 },     // a sheet that does not slide in from a side
-    x = { this.presentation == "end" ? this.hostW - this.width * this.openT
-        : this.presentation == "start" ? this.width * (this.openT - 1) - this.dragX
-        : this.restX },
-    y = { this.presentation == "bottom" ? this.footY - this.height * this.openT + this.dragY
-        : this.presentation == "center" ? (this.hostH - this.height) / 2 + 16 * (1 - this.openT) : 0 },
+    _presentationMargin: number = { ({ center: 48, start: 56 })[this.presentation] ?? 0 },     // the room it leaves beside it
+    width = { this.presentation == "bottom" ? this._hostW : Math.min(this.sheetWidth, this._hostW - this._presentationMargin) },
+    height = { this.presentation == "end" || this.presentation == "start" ? this._hostH : Math.min(this.body.contentHeight + (this.presentation == "bottom" ? 20 : 0), this.presentation == "bottom" ? this._footY - 24 : this._hostH - 48) },
+    _restX: number = { this.presentation == "bottom" ? 0 : (this._hostW - this.width) / 2 },     // a sheet that does not slide in from a side
+    x = { this.presentation == "end" ? this._hostW - this.width * this.openT
+        : this.presentation == "start" ? this.width * (this.openT - 1) - this._dragX
+        : this._restX },
+    y = { this.presentation == "bottom" ? this._footY - this.height * this.openT + this._dragY
+        : this.presentation == "center" ? (this._hostH - this.height) / 2 + 16 * (1 - this.openT) : 0 },
     opacity = { this.presentation == "center" ? this.openT : 1 },
 
     // a sheet put away by a swipe opens next time at rest: reset here, when it
@@ -130,16 +120,16 @@ class Sheet extends Floating [
     _dragReset: Node [
         open: boolean = { classroot.shown },
         trackChanges = ["open"],
-        onChange() { if (!open) { classroot.dragY = 0; classroot.dragX = 0 } }
+        onChange() { if (!open) { classroot._dragY = 0; classroot._dragX = 0 } }
         ],
 
     scrim: View [ pointerEvents = "none",
         x = { -classroot.x }, y = { -classroot.y },
-        width = { classroot.hostW }, height = { classroot.hostH },
+        width = { classroot._hostW }, height = { classroot._hostH },
         fill = { provided("theme").scrimFill },
         opacity = { (provided("theme").scrimOpacity) * classroot.openT } ],
 
-    panel: View [ width = 100%, height = { parent.height + (classroot.presentation == "bottom" ? 40 + classroot.keyboardH : 0) },
+    panel: View [ width = 100%, height = { parent.height + (classroot.presentation == "bottom" ? 40 + classroot._keyboardH : 0) },
         cornerRadius = { classroot.presentation == "bottom" ? [(provided("theme").sheetCornerRadius), (provided("theme").sheetCornerRadius), 0, 0] : classroot.presentation == "end" || classroot.presentation == "start" ? 0 : (provided("theme").sheetCornerRadius) - 2 },
         fill = { provided("theme").surface },
         shadow = { provided("theme").sheetShadow } ],
@@ -148,10 +138,10 @@ class Sheet extends Floating [
 
     handle: View [ visible = { classroot.presentation == "bottom" }, width = 100%, height = 20, claim = y,
         bar: View [ x = center, y = 7, width = 36, height = 5, cornerRadius = 3, fill = { provided("theme").line } ],
-        onPointerMove(e: PointerEvent) { if (e.deltaY != 0 || classroot.dragY != 0) classroot.dragY = Math.max(0, e.deltaY) },
+        onPointerMove(e: PointerEvent) { if (e.deltaY != 0 || classroot._dragY != 0) classroot._dragY = Math.max(0, e.deltaY) },
         onPointerUp(e: PointerUpEvent) {
-            if (!e.canceled && classroot.dragY > classroot.height / 4) classroot.close()
-            else classroot.dragY = 0
+            if (!e.canceled && classroot._dragY > classroot.height / 4) classroot.close()
+            else classroot._dragY = 0
             }
         ],
 
@@ -166,10 +156,10 @@ class Sheet extends Floating [
     // toward the start edge past a quarter of the drawer to put it away
 
     grip: View [ visible = { classroot.presentation == "start" }, x = { classroot.width - 24 }, y = 0, width = 24, height = 100%, claim = x,
-        onPointerMove(e: PointerEvent) { if (e.deltaX != 0 || classroot.dragX != 0) classroot.dragX = Math.max(0, -e.deltaX) },
+        onPointerMove(e: PointerEvent) { if (e.deltaX != 0 || classroot._dragX != 0) classroot._dragX = Math.max(0, -e.deltaX) },
         onPointerUp(e: PointerUpEvent) {
-            if (!e.canceled && classroot.dragX > classroot.width / 4) classroot.close()
-            else classroot.dragX = 0
+            if (!e.canceled && classroot._dragX > classroot.width / 4) classroot.close()
+            else classroot._dragX = 0
             }
         ]
     ]

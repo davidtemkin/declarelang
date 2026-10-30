@@ -93,7 +93,7 @@ import { afterPush, bindDerived, blockOf, defineAttributes, disposeBindings, fre
 import { type AttrType } from "./value.js";
 import { hostValuesFor, type BoundaryValues } from "./boundary.js";
 import { armVisibility, reattachVisibility, retireVisibility } from "./visibility.js";
-import { judgeNegativeSizes, noteNegativeSize } from "./size-report.js";
+import { judgeEmptyContainers, judgeNegativeSizes, noteNegativeSize } from "./size-report.js";
 import { handlerName } from "./handlers.js";
 import { splitPath, type PathSeg } from "./path-plan.js";
 import { selectValue } from "./select.js";
@@ -522,11 +522,23 @@ export class View extends Node {
   /** Opt out of the parent's LAYOUT (this child owns its own position; the
    *  arrangement skips it) — the decoration/overlay case. */
   declare ignoreLayout: boolean;
-  /** Take an equal share of the room the parent's layout leaves along its
-   *  flow axis: the layout sizes this child along the flow (height in a
-   *  column, width in a row); across the flow it is aligned like any other
-   *  child. A `Spacer` is an empty view that flexes. */
-  declare flexes: boolean;
+  /** Take a share of the room the parent's layout leaves along its flow
+   *  axis: the layout sizes this child along the flow (height in a column,
+   *  width in a row); across the flow it is aligned like any other child.
+   *  `true` is a weight of 1; a number weights the share (2 takes twice what
+   *  1 does); `false` or 0 does not flex. A `Spacer` is an empty view that
+   *  flexes. */
+  declare flexes: boolean | number;
+  /** Keep the size the content gives along the parent's flow, and give some
+   *  of it up when the run is too long for the room — down to `minWidth`
+   *  (`minHeight` in a column), in proportion to the size. */
+  declare shrinks: boolean;
+  /** The range a size the layout gives this child stays in — a flexing
+   *  share, a stretch, a shrink. 0 = no limit. */
+  declare minWidth: number;
+  declare maxWidth: number;
+  declare minHeight: number;
+  declare maxHeight: number;
   /** Opt out of the parent's CLIP (outside the parent's frame this child
    *  still paints and still hits) and of its auto-extent — frame chrome that
    *  straddles the frame. Parent-scoped: ancestors' clips still apply. */
@@ -1701,6 +1713,10 @@ export class View extends Node {
   /** Does this view paint somewhere other than its parent? */
   $paintsElsewhere(): boolean { return this.$travelHost !== null; }
 
+  /** Does this view never paint at all (an Audio)? A layout does not lay it:
+   *  it would take a slot, and a gap, for nothing anyone sees. */
+  $paintsNothing(): boolean { return false; }
+
   private $applyTravel(): boolean {
     const scroller = this.$travelHost;
     const s = this.$surface as (Surface & { travelWith?(h: unknown): void; isTraveling?(): boolean }) | null;
@@ -2155,7 +2171,14 @@ defineAttributes(View, {
   visibleRect: { def: EMPTY_RECT, equal: rectEqual, onTrack: (v: View) => v.$armVisibility() },
   apparentScale: { def: 1, onTrack: (v: View) => v.$armVisibility() },
   ignoreLayout: { def: false, push: (v) => { const p = v.parent; if (p instanceof View) p.$childrenMutated(); } },
-  flexes: { def: false, push: (v) => { const p = v.parent; if (p instanceof View) p.$childrenMutated(); } },
+  // `equal` keeps it out of the kernel table, whose slot is a boolean OR a number:
+  // a bound weight (`flexes = { :n }`) landed there as `true`
+  flexes: { def: false, push: (v) => { const p = v.parent; if (p instanceof View) p.$childrenMutated(); }, equal: (a, b) => a === b },
+  shrinks: { def: false, push: (v) => { const p = v.parent; if (p instanceof View) p.$childrenMutated(); } },
+  minWidth: { def: 0 },
+  maxWidth: { def: 0 },
+  minHeight: { def: 0 },
+  maxHeight: { def: 0 },
   ignoreClip: { def: false, push: (v, b: boolean) => v.$surface?.setIgnoreClip?.(b) },
   direction: { def: "inherit", push: (v, d: string) => v.$surface?.setDirection?.(d) },
   ignoreScroll: { def: false, push: (v, b: boolean) => v.$surface?.setIgnoreScroll?.(b && v.$pinsToFrame()) },
@@ -2559,6 +2582,7 @@ export class App extends View {
       afterSettle(() => fireEvent(this, "ready"));
       // the program has its room from here: sizes noted before it did are judged now
       afterSettle(judgeNegativeSizes);
+      afterSettle(() => judgeEmptyContainers(this));
     }
   }
 
@@ -3042,16 +3066,12 @@ export class App extends View {
     this.$onDepart();
   }
 
-  /** The app's size floor. An app that degrades below some width declares
-   *  `minWidth = 600` and the auto-extent never goes under it: in a narrower
-   *  host the app holds its floor and the STAGE pans natively (the page
-   *  scrolls horizontally at top level; an embedded island scrolls its box).
-   *  A declared policy, not clamp arithmetic in a constraint — tools and
-   *  models can read the floor statically. 0 (the default) = no floor. Only
-   *  the auto-extent honours it; an explicit `width = { … }` is the author's
-   *  own formula and wins untouched. */
-  declare minWidth: number;
-  declare minHeight: number;
+  // `minWidth`/`minHeight` are View's range, and here the host is what gives
+  // the size: the auto-extent never goes under the floor, so in a narrower
+  // host the app holds it and the STAGE pans natively (the page scrolls
+  // horizontally at top level; an embedded island scrolls its box). Only the
+  // auto-extent honours it; an explicit `width = { … }` is the author's own
+  // formula and wins untouched (bindExtent below).
   /** Linking knobs (location.md §0): `revealInset` — pixels of fixed chrome a
    *  reveal must clear (the scroll-margin analogue); `crawlSeeds` — extra
    *  references the extraction crawl seeds beyond the registry. */
@@ -3233,9 +3253,6 @@ defineAttributes(App, {
   waypoint: { def: "", push: (a: App) => a.$departing() },
   demoSources: { def: {} },
   liveReport: { def: "" },
-  // the size floor (bindExtent) — author-settable, 0 = none
-  minWidth: { def: 0 },
-  minHeight: { def: 0 },
   // the app's human name (page title etc.) — author-settable, "" = host default
   appName: { def: "" },
   // the language its text is in (BCP 47), said to the host's surface

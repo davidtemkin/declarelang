@@ -139,10 +139,10 @@ class HeroStage [ height = { this.H },
         boxes: View [ x = { classroot.bw < 560 ? 12 : 100 }, y = { classroot.bw < 560 ? 40 : 12 },
             width = { parent.width - this.x - 12 }, height = { Math.max(26, parent.height - this.y - 12) },
             opacity = { unit(classroot.k * 4 - 3) },
-            layout: ResponsiveLayout [ plan = { [({ from: 0, flow: "row", gap: 8, share: ({ b1: 33, b2: 33, b3: 33 }) })] } ],
-            b1: HostBox [ height = 100%, label = "DOM", sub = "a <div> per view, geometry as inline style" ],
-            b2: HostBox [ height = 100%, label = "Canvas", sub = "one <canvas>, its own compositor" ],
-            b3: HostBox [ height = 100%, label = "Mac", sub = "a CALayer tree in a 7.8 MB app" ]
+            layout: SimpleLayout [ axis = x, spacing = 8 ],
+            b1: HostBox [ flexes = true, height = 100%, label = "DOM", sub = "a <div> per view, geometry as inline style" ],
+            b2: HostBox [ flexes = true, height = 100%, label = "Canvas", sub = "one <canvas>, its own compositor" ],
+            b3: HostBox [ flexes = true, height = 100%, label = "Mac", sub = "a CALayer tree in a 7.8 MB app" ]
             ]
         ],
 

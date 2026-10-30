@@ -230,6 +230,33 @@ export function explain(node, attr) {
             break;
         }
     }
+    // A size the parent's layout gave, said in the child's own facts: what it
+    // was given, and why — a share, a shrink, a stretch, a range it was held at.
+    const layoutWhy = () => {
+        if (owner === null || owner.source != null || (attr !== "width" && attr !== "height"))
+            return null;
+        const lay = node.parent?.layout;
+        if (lay == null || typeof lay.place !== "function")
+            return null;
+        const v = node;
+        const given = Math.round(Number(v[attr]));
+        const natural = Math.round(Number(attr === "width" ? v.contentWidth : v.contentHeight));
+        const [minName, maxName] = attr === "width" ? ["minWidth", "maxWidth"] : ["minHeight", "maxHeight"];
+        const lo = Number(v[minName]) || 0, hi = Number(v[maxName]) || 0;
+        const held = hi > 0 && given >= hi ? `, held at its ${maxName}` : lo > 0 && given <= lo ? `, held at its ${minName}` : "";
+        const run = lay.axis === "x" ? "row" : lay.axis === "y" ? "column" : "run";
+        const by = kindName(lay);
+        if (/\(stretch\)$/.test(owner.label))
+            return `${by} stretched it to ${given}: as large as the largest child across the ${run}; its content is ${natural}${held}`;
+        const f = v.flexes, weight = f === true ? 1 : typeof f === "number" ? f : 0;
+        if (weight > 0)
+            return `${by} gave it ${given}: a share of the room left along the ${run}${weight !== 1 ? ` (weight ${weight})` : ""}${held}`;
+        if (v.shrinks === true)
+            return natural > given
+                ? `${by} gave it ${given}: its content is ${natural}, and it gave up ${natural - given} because the ${run} was short${held}`
+                : `${by} gave it ${given}: its content's size — the ${run} had room`;
+        return `${by} gave it ${given}${held}`;
+    };
     return {
         attr,
         value: safeAttr(node[attr]),
@@ -257,6 +284,7 @@ export function explain(node, attr) {
                     : null,
                 source: owner.source,
                 pos: owner.sourcePos,
+                why: layoutWhy(),
             }
             : decl !== undefined
                 ? {

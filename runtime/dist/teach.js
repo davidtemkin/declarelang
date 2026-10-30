@@ -30,7 +30,7 @@ export const CSS_ATTRIBUTE_HINTS = {
     display: "arrangement is the 'layout' attribute — 'layout: SimpleLayout [ axis = y, spacing = 8 ]'",
     flexDirection: "arrangement is the 'layout' attribute — 'axis = x' or 'axis = y'",
     justifyContent: "arrangement is the 'layout' attribute; fine placement is x/y constraints",
-    alignItems: "arrangement is the 'layout' attribute; fine placement is x/y constraints",
+    alignItems: "arrangement is the 'layout' attribute; across the flow it is the layout's 'align' — start, center, end, baseline, or stretch (every child its content sizes as large as the largest)",
     gap: "spacing between arranged children rides the layout — 'layout: SimpleLayout [ axis = y, spacing = 8 ]'",
     margin: "there is no margin — space around a child is the PARENT's 'padding', a layout's 'spacing', or the child's own x/y",
     padding: "padding is the view's, not the layout's — 'View [ padding = 16, layout: SimpleLayout [ axis = y, spacing = 8 ] ]': it gives the view a content box that every child's x/y starts from (laid, self-placing or ignoreLayout alike) and that '100%' resolves against, while 'fill', 'stroke' and 'cornerRadius' stay on the full box; a Card brings one already",
@@ -60,14 +60,12 @@ export const CSS_ATTRIBUTE_HINTS = {
     // types, each with its one true equivalent. Question-shaped foreign names
     // (useState, VStack, ScrollView) live in the concept table instead —
     // they are asked, never written in an attribute position.
-    flex: "there is no flex — arrangement is the 'layout' attribute; leftover space goes to a child with 'flexes = true' (an empty one is a 'Spacer'); proportions are a ResponsiveLayout's shares, or your own arithmetic ('width = { parent.width * 0.4 }')",
+    flex: "there is no flex — arrangement is the 'layout' attribute; leftover space goes to a child with 'flexes = true' (an empty one is a 'Spacer'), or 'flexes = 2' for twice the share; 'shrinks = true' gives up room when the run is short; 'minWidth'/'maxWidth' bound what a layout gives",
     float: "there is no float — position with x/y, or let 'layout: WrappingLayout [ ]' flow and wrap children",
     position: "there is no position property — x/y place a view in its parent; 'ignoreScroll = true' is fixed chrome; 'ignoreLayout = true' opts out of arrangement; stacking is source order",
     visibility: "showing is 'visible' — a 'visible = false' view stays in the tree but paints nothing, and a layout reclaims its space",
     whiteSpace: "wrapping is Text's 'wrap' — 'wrap = false' is the nowrap; 'maxLines = 1' keeps one line that ends in an ellipsis where it would run past its width",
     textOverflow: "the ellipsis is 'maxLines' — 'maxLines = 1' keeps one line, ending in an ellipsis that fits the width; 'maxLines = 2' clamps a preview to two",
-    maxWidth: "there is no maxWidth — constrain it: 'width = { Math.min(contentWidth, 480) }'",
-    maxHeight: "there is no maxHeight — constrain it: 'height = { Math.min(contentHeight, 400) }'",
     transition: "there is no transition — motion is declared beside the attribute: an 'Animator' (timed), a 'Spring' (live target), or a 'State' for a bundle that snaps with motion",
     animation: "there is no animation property — motion is a member: an 'Animator' (timed, from→to), a 'Spring' (chases a live target), an 'AnimatorGroup' (sequence)",
     keyframes: "there are no keyframes — an 'Animator' drives one attribute from→to through a motion curve; sequence several with 'AnimatorGroup'",

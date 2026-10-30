@@ -98,14 +98,6 @@ both) — and the frame clock empties: a page nobody can see books nothing. A br
 covered by another window may still read `true` (Safari does not report occlusion;
 Chrome and the native host do). Per-document, so an embedded app inherits its page's.
 
-## minWidth
-The width below which the app **stops adapting** — in a narrower host it holds this width and
-the stage pans natively (the browser scrolls it), rather than reflowing into an unusable shape.
-Declare a floor instead of writing `Math.max` clamps into size constraints.
-
-## minHeight
-The height floor — the twin of `minWidth`. Below it the app holds its size and the stage pans.
-
 ## navigate()
 Navigate the host **out** of the app: `app.navigate("https://…")` for an external link, or
 `app.navigate("some/app.declare")` for another program (resolved against the distro root). It

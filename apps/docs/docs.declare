@@ -1127,13 +1127,13 @@ class FormChip [ height = { 24 * app.fontScale }, cornerRadius = 6, cursor = "po
 // the index: one form per row — its name as a link, its gist beside it
 
 class FormRow [ width = 100%,
-    height = { Math.max(this.syn.height, this.gist.height) },
+    layout: SimpleLayout [ axis = x, spacing = 16 ],
     cursor = "pointer",
     link = { "#language/" + :slug },
     onClick() { app.goForm("" + :slug) },
-    syn: Mono [ x = 0, y = 0, width = 260, fontSize = { 14 * app.fontScale }, fontWeight = semibold, lineHeight = 1.5,
+    syn: Mono [ width = 260, fontSize = { 14 * app.fontScale }, fontWeight = semibold, lineHeight = 1.5,
         textColor = { classroot.hovered ? provided("theme").accent : provided("theme").chipBlue }, text = { "" + :name } ],
-    gist: Markdown [ x = 276, width = { parent.width - 276 }, lineHeight = 1.55, bodyColor = { provided("theme").refDim }, fontScale = { app.fontScale },
+    gist: Markdown [ flexes = true, lineHeight = 1.55, bodyColor = { provided("theme").refDim }, fontScale = { app.fontScale },
         text = { "" + :gist } ]
     ]
 
@@ -1445,7 +1445,7 @@ class ChapterDetail [ width = 100%,
             layout: SimpleLayout [ axis = y, spacing = 24 ],
             Divider [ ],
             links: View [ width = 100%,
-                layout: SimpleLayout [ axis = x, spacing = 12 ],
+                layout: SimpleLayout [ axis = x, spacing = 12, align = stretch ],
                 ChapterLink [ step = -1, ch = { app.guideStep(classroot.cid, -1) } ],
                 ChapterLink [ step = 1, ch = { app.guideStep(classroot.cid, 1) } ]
                 ]
@@ -1573,8 +1573,7 @@ class SearchHit [ width = 100%, cornerRadius = 8,
     layout: SimpleLayout [ axis = y, spacing = 3 ],
     row: View [ width = 100%, height = 18,
         layout: SimpleLayout [ axis = x, spacing = 10 ],
-        Title [ fontSize = 14, wrap = false, maxLines = 1, text = { :title },
-            width = { Math.min(Math.ceil(measureText(this.text, providedTextStyle({ fontSize: 14, fontWeight: 600 })).width), parent.width - parent.crumb.width - 10) } ],
+        Title [ fontSize = 14, wrap = false, maxLines = 1, shrinks = true, text = { :title } ],
         crumb: Mono [ y = 3, fontSize = 10, letterSpacing = 0.6, textColor = { provided("theme").eyebrow }, wrap = false, text = { :crumb } ]
         ],
     snip: Markdown [ width = 100%, fontScale = 0.92, lineHeight = 1.45,

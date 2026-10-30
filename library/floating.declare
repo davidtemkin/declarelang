@@ -13,7 +13,7 @@ It carries, once, what every overlay needs:
 - **Motion** — it animates in and out on `openT` (0 closed, 1 open), and stays built until
   its closing motion lands: closing stops it taking input at once.
 - **Input** — `pressPolicy` and `scrollPolicy` say what a press and a scroll aimed past it do
-  (`outsidePress`, `scrollBelow`), while it is open. An outside press that dismisses closes it.
+  while it is open. An outside press that dismisses closes it.
 - **Keys and focus** — while open it holds the keyboard (a key it uses does not also reach
   the program's `Keys` members); Esc closes the topmost open overlay; one that takes focus
   focuses its first stop on opening and gives focus back on closing.
@@ -36,11 +36,10 @@ App [ width = 420, height = 220,
     ]
 ```
 
-## kind
-What kind of overlay it is: `"floating"` (menus, popovers), `"modal"` (dialogs, sheets) or
-`"notice"` (toasts). Floating and modal overlays share a layer and stack in the order they
-open — a menu opened from a dialog paints above it; notices paint above them all. A
-class-level fact.
+## _notice
+**Internal.** A notice (a toast): it paints in the layer above every other overlay. Other
+overlays share one layer and stack in the order they open, so a menu opened from a dialog
+paints above it.
 
 ## shown
 Whether it is open now. Open it with `show()` and close it with `close()` — or make it
@@ -62,22 +61,34 @@ The open blend, 0 closed and 1 open, sprung — what a subclass draws its motion
 ## host
 The view it paints in, chosen when it opens.
 
+## _hostW
+**Internal.** The width of the layer it paints in: its window's, or the browser window's — not the
+App's, which on a page that scrolls is as tall as the page.
+
+## _hostH
+**Internal.** The height of the layer it paints in: its window's, or the browser window's.
+
 ## opener
 The view it was opened for, when it was opened for one.
 
 ## pressPolicy
-What a press outside it does while it is open — `outsidePress`'s value then.
+What a press **aimed past** it does while it is open. `dismiss`: it hears `onOutsidePress` and
+the press goes no further (a menu). `dismissAndDeliver`: it hears `onOutsidePress` and the press
+goes on to what was pressed (a popover). `block`: the press goes nowhere and it stays (a
+dialog). `ignore`: the press goes on as if it were not there (a toast). Open overlays are
+walked top first: one that lets the press go on hands it to the next one down.
 
 ## scrollPolicy
-What a scroll outside it does while it is open — `scrollBelow`'s value then.
+What a scroll — wheel or touch — aimed past it does while it is open: `block` (nothing behind
+it scrolls), `allow`, or `dismiss` (it hears `onOutsidePress` and the scroll goes on).
 
 ## takesFocus
 Whether opening moves focus into it (its first stop) and closing gives it back — to where
 `restoresFocusTo` says, else to the view that had it, or, when that view is gone or hidden
 by then, to the next Tab stop after its place.
 
-## sharesProgram
-Whether, open in a host's layer (a program running in a window, say), it is shown at its
+## _sharesProgram
+**Internal.** Whether, open in a host's layer (a program running in a window, say), it is shown at its
 program's scale and turn there — as a menu or a popover is. `false` for what attaches to
 the window itself, edge to edge (a `Sheet`). `true` by default.
 
@@ -164,12 +175,12 @@ A view's box in this overlay's frame: `{ x, y, w, h }`.
 A point in `v`'s own frame, in the frame of the layer this paints in: `{ x, y }`. Exact
 through a turned or scaled window, and from a program hosted in a window into its host's.
 
-## screen()
-The App the layer belongs to — the host's, for a program whose overlays open in its host's
+## _screen()
+**Internal.** The App the layer belongs to — the host's, for a program whose overlays open in its host's
 window. An overlay may leave its window, never the screen.
 
-## toScreen()
-A point in `v`'s own frame, in the screen's frame.
+## _toScreen()
+**Internal.** A point in `v`'s own frame, in the screen's frame.
 
 ## _through()
 **Internal.** A point `(px, py)` through a `transformTo` similarity.
@@ -207,10 +218,10 @@ Follows `present`: it is drawn while open, and while its closing motion runs.
 Follows `host`: it paints in the layer it opened into.
 
 ## outsidePress
-`pressPolicy` while it is open, `none` once it closes — a closing overlay takes no presses.
+**Internal.** `pressPolicy` while it is open, `none` once it closes — a closing overlay takes no presses.
 
 ## scrollBelow
-`scrollPolicy` while it is open, `none` once it closes.
+**Internal.** `scrollPolicy` while it is open, `none` once it closes.
 
 ## _form
 **Internal.** an overlay is a form boundary — a control in it belongs to a `Form` inside the
@@ -233,11 +244,13 @@ class Floating [
     _form: any = null,
     _field: any = null,
 
-    kind: string = "floating",
+    _notice: boolean = false,
     shown: boolean = false,
     present: boolean = false,
     openT: number = 0,
     host: View? = null,
+    _hostW: number = { this.host != null ? this.host.width : app.hostWidth > 0 ? app.hostWidth : app.width },     // a window's, else the browser window's
+    _hostH: number = { this.host != null ? this.host.height : app.hostHeight > 0 ? app.hostHeight : app.height },
     opener: View? = null,
     pressPolicy: "dismiss" | "dismissAndDeliver" | "block" | "ignore" = "dismiss",
     scrollPolicy: "block" | "allow" | "dismiss" = "block",
@@ -246,7 +259,7 @@ class Floating [
     _savedParent: View? = null,
     _savedAt: number = -1,
     _hostedLayer: boolean = false,
-    sharesProgram: boolean = true,
+    _sharesProgram: boolean = true,
     _baseScale: number = 1,
     _baseRotation: number = 0,
 
@@ -277,7 +290,7 @@ class Floating [
     // always the App's
 
     _layerFor(s: OverlayStrata) -> View {
-        if (kind == "notice") return s.notice
+        if (_notice) return s.notice
         const own = provided("overlays", null) as View | null
         _hostedLayer = false
         if (own != null) return own
@@ -291,7 +304,7 @@ class Floating [
     // turn relative to the layer (the layer brings the window's own)
 
     _takeProgramTransform() {
-        if (!_hostedLayer || !sharesProgram || host == null) { _baseScale = 1; _baseRotation = 0; return }
+        if (!_hostedLayer || !_sharesProgram || host == null) { _baseScale = 1; _baseRotation = 0; return }
         const t = app.transformTo(host)
         _baseScale = t.scale
         _baseRotation = t.rotation * 180 / Math.PI
@@ -392,21 +405,21 @@ class Floating [
     // layer (transformTo crosses the island)
 
     toLayer(v: View, px: number, py: number) -> object {
-        return this._through(v.transformTo(host != null ? host : this.screen()), px, py)
+        return this._through(v.transformTo(host != null ? host : this._screen()), px, py)
         },
 
     // the screen: the App the layer belongs to — the host's, for a program
     // whose overlays open in its host's window. A menu may leave its window,
     // never the screen.
 
-    screen() -> View {
+    _screen() -> View {
         if (host == null) return app
         let n: View = host
         while (n.parent != null) n = n.parent as View
         return n
         },
 
-    toScreen(v: View, px: number, py: number) -> object { return this._through(v.transformTo(this.screen()), px, py) },
+    _toScreen(v: View, px: number, py: number) -> object { return this._through(v.transformTo(this._screen()), px, py) },
 
     _through(t: object, px: number, py: number) -> object {
         const a = t.rotation
@@ -417,7 +430,7 @@ class Floating [
     // shift maps back into the layer's frame
 
     keepOnApp(x: number, y: number, w: number, h: number) -> object {
-        const scr = this.screen()
+        const scr = this._screen()
         if (host == null) return ({ x: Math.max(4, Math.min(scr.width - w - 4, x)), y: Math.max(4, Math.min(scr.height - h - 4, y)) })
         const out = host.transformTo(scr)
         const cs = [this._through(out, x, y), this._through(out, x + w, y), this._through(out, x, y + h), this._through(out, x + w, y + h)]

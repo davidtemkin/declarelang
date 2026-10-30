@@ -23,9 +23,6 @@ was cut — what a "Show more" link reads. [`lineHeight`](declare-docs:Text.line
 font size. `selectable = true` lets the reader select it; set on a container, it applies
 to everything below.
 
-Words that must not part at a line's end, such as "3h 40m", are joined by a no-break
-space (`"3h\u00A040m"` in a `{ }` string): it looks like a space and is never a break.
-
 **Numbers, money and dates** are formatted by the host's `Intl`, which a `{ }` and a
 script function call like any other global: `new Intl.NumberFormat("en-US", { style:
 "currency", currency: "USD" }).format(1234.5)` is "$1,234.50", `(1234.5).toLocaleString("en-US")`
@@ -114,18 +111,10 @@ browser or system prefers, the same for a plain `Text` and for rich text. Declar
 face of its own.
 
 **The same face everywhere** comes down to one of two things. A **family nearly every
-system has** costs nothing, but "nearly" is the word: the Microsoft core families are the
-same face on Apple systems and Windows, and on Android the name resolves to Android's own
-face, so the text still reads but its metrics — and its line breaks — differ:
-
-| family | macOS | iOS | Windows | Android |
-|---|---|---|---|---|
-| Arial, Verdana | ✓ | ✓ | ✓ | the name → Roboto |
-| Georgia, Times New Roman | ✓ | ✓ | ✓ | the name → Noto Serif |
-| Courier New | ✓ | ✓ | ✓ | the name → Cutive Mono |
-| Trebuchet MS | ✓ | ✓ | ✓ | — |
-| Helvetica, Helvetica Neue, Menlo | ✓ | ✓ | — | — |
-| Segoe UI, Consolas | — | — | ✓ | — |
+system has** costs nothing, but "nearly" is the word: the Microsoft core families — Arial,
+Verdana, Georgia — are the same face on Apple systems and Windows, and on Android the name
+resolves to Android's own face, so the text still reads but its metrics — and its line
+breaks — differ.
 
 A **web font** is the same everywhere, and it is a download: every face is a file, often
 tens of kilobytes. Put the families that already look right ahead of it, and only the
@@ -232,23 +221,6 @@ HTMLText [ html = "<span class='Keyword'>class</span> Board [ ]",
 
 `textStyles` is provided like the text face, so a palette set high reaches every rich
 text below.
-
-**A run is one thing.** A number and its unit, a word and its punctuation, are one run of
-text, set together — the font spaces each pair of letters correctly. `"18°C"` is one
-`Text`. When the parts want different sizes — a large figure with small unit letters —
-it is still one run, with the sizes as a named style on a span:
-
-```declare-fragment
-style Unit [ fontSize = 40, fontWeight = medium ]
-
-HTMLText [ fontSize = 96, fontWeight = bold,
-    html = "18<span class='Unit'>°C</span>" ]
-```
-
-With no width it is exactly as wide as the figure it sets.
-
-Separate views are for things that are separate: a figure beside the caption that names
-it.
 
 ## Views inside text
 
