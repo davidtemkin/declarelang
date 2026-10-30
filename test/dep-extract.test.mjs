@@ -413,13 +413,13 @@ async function compileProgram(src) {
 
 section("\n─ C2. inlining rebase + path canonicalization (the Radio bug, 2026-07-13) ─");
 
-test("inlined computed default — parent-rooted reads REBASE to the reader's frame", async () => {
+test("a computed default is read through its SLOT — the reader re-fires when the default's value lands", async () => {
   // Radio's `on` formula reads `(parent as G).value`; the dot's constraint reads
-  // bare `on` (→ classroot.on), which INLINES the formula. Un-rebased, the literal
-  // `parent` would mean the DOT's parent (the radio — wrong node) and the stripped
-  // cast's parens would defeat the runtime's path probe: the constraint silently
-  // never re-fired. Both fixed: parens canonicalized away, nouns rebased onto the
-  // receiver (a member's scope nouns are relative to the instance carrying it).
+  // bare `on` (→ classroot.on). The default is a standing rule that lands in the
+  // slot (kernel.md §10a), so the slot's cell is the dot's one edge: it re-fires
+  // when `on` changes, and not on every change to what `on` reads. (Once, the
+  // formula was inlined here, and an un-rebased `parent` meant the dot's parent:
+  // the constraint never re-fired. Its reads are not the reader's at all now.)
   const r = await extract(`class G extends View [ value: string = "" ]
 class R extends View [ choice: string = "",
     on: boolean = { (parent as G).value == choice },
@@ -427,19 +427,15 @@ class R extends View [ choice: string = "",
     ]
 App [ width = 100, height = 100, g: G [ value = "a", R [ choice = "a" ] ] ]`);
   const reads = readsOf(r, "opacity");
-  assert.ok(reads.includes("classroot.parent.value"), "rebased through the inline: " + JSON.stringify(reads));
-  assert.ok(reads.includes("classroot.choice"), "this-rooted read rebased too: " + JSON.stringify(reads));
-  assert.ok(!reads.some((p) => p.includes("(")), "no parens in dep paths: " + JSON.stringify(reads));
+  assert.deepEqual(reads, ["classroot.on"], "the slot, and nothing the default reads: " + JSON.stringify(reads));
 });
 
-test("a written-to defaulted slot keeps its CELL edge alongside the inline (issue #20)", async () => {
-  // `retagFilenames: array = { [] }` is a computed default, so a read of it
-  // inlines the formula — whose deps are NOTHING here. But the slot is legal to
-  // WRITE (`app.retagFilenames = …` — default-until-edited), and that write
-  // fires the slot's cell. Inlining alone dropped that edge: the POST body
-  // below woke on retagTag (a literal default → ordinary slot) but stayed
-  // frozen at the first filenames forever. The read of the slot itself must be
-  // recorded IN ADDITION to the inlined formula.
+test("a written-to defaulted slot keeps its CELL edge (issue #20)", async () => {
+  // `retagFilenames: array = { [] }` is a computed default. The slot is legal to
+  // WRITE (`app.retagFilenames = …` — default-until-edited), and that write fires
+  // the slot's cell, as the default's rule landing does: the slot is the edge.
+  // (When the formula was inlined in its place, the POST body below woke on
+  // retagTag but stayed frozen at the first filenames forever.)
   const r = await extract(`App [ width = 400, height = 200,
     retagFilenames: array = { [] },
     retagTag: string = "",
@@ -459,7 +455,7 @@ test("a computed default does NOT shadow a same-named app slot (L-17)", async ()
   // returned nothing, and the edge to the app's slot was silently dropped — the
   // slot changed and no consumer re-ran (the Inspector's undraggable pane seams).
   // The receiver decides now: `app.colA` is a plain cell on the root and stays a
-  // subscribable read; `parent.colA` IS the inner default and still inlines.
+  // subscribable read; `parent.colA` IS the inner default, read through its slot.
   const r = await extract(`App [ width = 400, height = 300,
     colA: number = 250,
     panes: View [ width = 400, height = 200,
@@ -473,15 +469,13 @@ test("a computed default does NOT shadow a same-named app slot (L-17)", async ()
     "and never inlines itself into an impossible path: " + JSON.stringify(own));
 
   const consumer = readsOf(r, "width", "treeCol");
-  assert.ok(consumer.includes("parent.$root.colA"),
-    "the consumer inlines the default and inherits its app-slot edge: " + JSON.stringify(consumer));
-  assert.ok(consumer.includes("parent.parent.width"),
-    "and the default's other read, rebased: " + JSON.stringify(consumer));
+  assert.deepEqual(consumer, ["parent.colA"],
+    "the consumer reads the default's slot, which follows the app's slot through the default's own rule: " + JSON.stringify(consumer));
 });
 
-test("shadowing still inlines the RIGHT default when two elements share a name", async () => {
-  // Two different views each declare `k` as a computed default. Each reader must
-  // inline its own parent's formula, not whichever was registered last.
+test("two elements declaring the same default: each reader reads its own parent's slot", async () => {
+  // Two different views each declare `k` as a computed default. Each reader
+  // depends on its own parent's slot, never on another's formula.
   const r = await extract(`App [ width = 400, height = 300, a: number = 1, b: number = 2,
     one: View [ width = 100, height = 100,
         k: number = { app.a },
@@ -494,8 +488,7 @@ test("shadowing still inlines the RIGHT default when two elements share a name",
     ]`);
   const kids = r.filter((c) => c.name === "kid" && c.attr === "width").map((c) => c.reads.sort());
   assert.equal(kids.length, 2, "two consumers");
-  assert.ok(kids.some((k) => k.includes("parent.$root.a")), "one inlines app.a: " + JSON.stringify(kids));
-  assert.ok(kids.some((k) => k.includes("parent.$root.b")), "the other inlines app.b: " + JSON.stringify(kids));
+  assert.deepEqual(kids, [["parent.k"], ["parent.k"]], "each its parent's slot, and nothing either formula reads: " + JSON.stringify(kids));
 });
 
 section("\n─ D. self-dependence: a constraint may not read its own slot ─");

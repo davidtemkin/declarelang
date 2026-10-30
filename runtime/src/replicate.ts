@@ -51,6 +51,7 @@ import { selectNodes, type PathNode } from "./select.js";
 import { noteRowRecord, type Dataset } from "./data.js";
 import type { Surface } from "./backend.js";
 import type { WindowHost, Windowing, WindowingFactory } from "./virtualize.js";
+import { declareName } from "./declare-name.js";
 
 /** What the Replicator needs from instantiate.ts (which imports this module;
  *  the interface keeps the dependency one-way): construct one instance of
@@ -241,7 +242,7 @@ export class Replicator {
       ),
     };
     this.constraint = new Constraint(
-      `${parent.constructor.name}'s replication (:${path}[])`,
+      `${declareName(parent)}'s replication (:${path}[])`,
       () => this.classify(this.match()),
       (m) => this.reconcile(m as Match)
     );
@@ -719,7 +720,7 @@ function lastNodeOf(prev: Node | Replicator | null): Node | null {
  *  siblings' cursors and finishes must land regardless. */
 export function reportInstanceThrow(v: View, phase: string, e: unknown): void {
   console.error(
-    `[Declare] ${phase} a replicated ${v.constructor.name} instance (${nodeLabel(v)}) threw: ${(e as Error)?.message ?? e}`,
+    `[Declare] ${phase} a replicated ${declareName(v)} instance (${nodeLabel(v)}) threw: ${(e as Error)?.message ?? e}`,
     e
   );
 }

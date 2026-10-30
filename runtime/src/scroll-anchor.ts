@@ -38,6 +38,7 @@ import { View } from "./view.js";
 import { Constraint, afterSettle, untracked } from "./reactive.js";
 import { onDiscard } from "./node.js";
 import { draggingView } from "./drag-autoscroll.js";
+import { declareName } from "./declare-name.js";
 
 interface AnchorState {
   view: View | null;          // the view held still
@@ -146,7 +147,7 @@ export function installScrollAnchor(s: View): void {
   // there would pick wherever the content had got to by then — content still
   // moving above the reader would be taken as the new place, and the move it
   // made since the correction never paid back.)
-  const onScroll = new Constraint(`${s.constructor.name}.scrollAnchor.scroll`, () => `${s.scrollY}|${s.userScrolling}`, () => {
+  const onScroll = new Constraint(`${declareName(s)}.scrollAnchor.scroll`, () => `${s.scrollY}|${s.userScrolling}`, () => {
     if (s.userScrolling && st.wantEnd && !atEndOf(s)) st.wantEnd = false;   // the reader left the end mid-travel
     if (!s.userScrolling) st.held = false;                                  // the scroll is over: take the place as it is now
     // (it lands twice — the model's own write, then the engine's echo, which
@@ -165,7 +166,7 @@ export function installScrollAnchor(s: View): void {
 
   // THE CONTENT MOVED: where does the kept view sit now, and is the pane
   // still where its mode says it should be?
-  const onContent = new Constraint(`${s.constructor.name}.scrollAnchor.content`, () => {
+  const onContent = new Constraint(`${declareName(s)}.scrollAnchor.content`, () => {
     const m = mode();
     const h = s.contentHeight;
     const top = st.view !== null ? topIn(st.view, s) : null;

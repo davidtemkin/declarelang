@@ -46,6 +46,18 @@ R5 ✗ behavior
        it was running  {  let s = ""; while (s != "ready") { app.n = app.n + 1 }  }
 ```
 
+**A script step that never finishes** while the page goes on answering is the other kind: a
+`page.evaluate` waiting on a promise nothing resolves (a database open that an older
+version blocks, a request with no answer, an event that never fires). It is stopped at twice
+the budget, and the script line that asked is named, with what it was evaluating:
+
+```
+R5 ✗ behavior
+     checks/flow.mjs:42: an evaluate in the page has not finished in 30 s, though the page answers — it is waiting on something that never comes (…)
+       evaluating: () => new Promise((ok) => { const r = indexedDB.open("pagemap", 3); r.onsuccess = ok })
+       the step before it: click "Create account"
+```
+
 A clean run ends with a count — `clean through R4 (351 of 460 constraints statically
 wired)`. It says how many constraints the compiler wired ahead of time; the rest find their
 reads as they run, which is correct and costs a little at run time. It is information, not
@@ -62,7 +74,7 @@ a task: a program with a lower count is not wrong.
 | `--states <script.mjs>` · `--baselines <dir>` | rung-6 named states and their baseline images (default: `baselines/` beside the states script) |
 | `--bless` | write current renders as the baselines |
 | `--wrap` | wrap a bare `class … extends` in a probe app, so a library class verifies standalone |
-| `--boot-budget=ms` | how long a page may go without answering before the program is stopped and its line quoted, at rungs 4–6 (default 15000) |
+| `--boot-budget=ms` | how long a page may go without answering before the program is stopped and its line quoted, at rungs 4–6 (default 15000); a script's evaluate may wait twice this |
 | `--samples` | print the sample each `DataSource` was handed at rung 4 |
 | `--size WxH` · `--touch` | boot rung 4 in that window only (a touch device with `--touch`) |
 | `--read PATH.ATTR` | print a value from the booted program; repeatable |
@@ -208,10 +220,12 @@ user's scroll coming to rest, keep real time; only the program's time is the dri
 | `drive.press(path, x?, y?)`, `drive.moveBy(dx, dy)`, `drive.release()` | a drag a step at a time: the pointer goes down on the view (at a point inside it, else its centre) and stays down while `moveBy` moves it, so `expect` and pictures can look at the drag in progress — the ghost, the target lit — before `release` drops it |
 | `drive.clickAt(path, x, y)`, `drive.hold(path, ms?)` | a press at a point inside the view (from its top-left); a press held `ms` (default 600) of the program's time, then released — what `onHold` answers |
 | `drive.pinch(path, scale)` | a pinch about the view's centre to `scale`: two fingers on a touch device (`onPinch…` runs), a trackpad pinch otherwise (`onWheel` runs with `e.pinch`) |
+| `drive.profile(async () => { … }, { why?, drawings? })`, `drive.profileFromBoot({ itemize?, why? })`, `drive.profileReport()` | what the program did meanwhile, in its own terms — what opened each turn, what was built, what its drawings cost the GPU — and the time each frame took to reach the screen ([Profiling](declare-docs:operational:profile)): `{ report, text, frames }` |
 | `drive.traceInput(async () => { … })` | the gestures inside it, and what the platform did with them, read from Chrome's own trace: `{ platformScrollUpdates, waitedOnPage }` — scroll updates the browser handled itself, on its own thread and time (a swipe the page let it have), and input events that first waited for the page's main thread. A scroll the program sets counts none. Observation only: nothing is slowed or changed |
 | `drive.reveal(path)` | the view swiped into sight, as above, and nothing pressed — for a picture or a read of something below the fold |
 | `drive.device({ width, height, touch })` | the page becomes that device and the app loads again on it — a phone is `{ width: 390, height: 844, touch: true }` (to start on it, export `device` instead) |
 | `drive.requests()` | the requests the program has sent so far — its data sources and streams, not the page's own files: `{ method, url, path, body, status }` each, the body parsed when it is JSON |
+| `expect.budget(profile, { runsPerTurn?, built?, builtPerTurn?, reranForNothing?, turnMs?, frameMs?, settled? })` | a profile (`drive.profile`'s answer) within limits: counts hold on every machine, times on the one they were set on — failing, it names each limit passed and what spent it |
 | `expect.request(method, path, { count?, body? })` | the program sent that request: `path` a prefix or a RegExp, `count` how many times, `body` the fields it must carry — failing, it lists what was sent |
 | `drive.key(name)`, `drive.type(text)`, `drive.tab(n?)` | keys, to whatever has the focus; a chord is written with `+`: `"Shift+Tab"`, `"Meta+Z"` |
 | `drive.selectAll(path)` | focus the text field and select everything in it, as select-all does before typing over a value |

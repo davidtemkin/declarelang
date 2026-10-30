@@ -22,6 +22,7 @@ import { defineAttributes, disown, disposeBindings, own, ownerOf, setBound, slot
 import { DeclareError } from "./errors.js";
 import type { Element } from "./parser.js";
 import type { Surface } from "./backend.js";
+import { declareName } from "./declare-name.js";
 
 /** One captured override: the target slot and a factory that builds a FRESH
  *  driving Constraint against the target view on each apply (ephemerality —
@@ -207,7 +208,7 @@ export class State extends Node {
   private $drive(v: boolean): void {
     if (ownerOf(this, "applied") !== null) {
       throw new DeclareError(
-        `${this.constructor.name}.applied is bound by a constraint — a state is gated by { } OR driven by the verbs, not both; change what the gate reads instead of calling ${v ? "apply" : "remove"}()`
+        `${declareName(this)}.applied is bound by a constraint — a state is gated by { } OR driven by the verbs, not both; change what the gate reads instead of calling ${v ? "apply" : "remove"}()`
       );
     }
     setBound(this, "applied", v);

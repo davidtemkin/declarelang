@@ -84,9 +84,9 @@ difference. What the runtime decides:
   wandered far — about 4 pixels for a mouse, 10 for a finger. A gesture that moved
   further was a drag or a swipe, and it activates nothing.
 - A **double-click** is two clicks on the same view, in about the same place, within
-  400 ms. Declaring `onDblClick` makes a view hold its single click for that window, so
-  a double-click never runs the single action first; a view with only `onClick` fires
-  immediately.
+  400 ms. The first click arrives at once, as on every platform, and a view that declares
+  `onDblClick` hears the second as `onDblClick` rather than a second `onClick`. So make the
+  single click something the double builds on: select on one click, open on two.
 - A **hold** is a press that stays in place for half a second. It does not consume the
   gesture: the raw stream continues and the eventual click still fires, so a hold can
   open a menu, start a pick-up, or be ignored.
@@ -206,9 +206,12 @@ App [ width = 240, height = 100, fill = white, textColor = black,
 
 Click the preview, then use the arrow keys. The event carries `key` (`"ArrowUp"`,
 `"Escape"`, `"a"`), `code`, and modifier flags. `Keys` hears every key, even while a text
-field has focus, so gate single-key handling on app state where that matters. [`Keys.isDown("ShiftLeft")`](declare-docs:Keys.method.isDown)
-asks whether a key is held right now — how a click decides whether it extends a
-selection. Several `Keys` members all hear the keyboard; each lives with its owner.
+field has focus, so gate single-key handling on app state where that matters. A pointer
+event carries the keys held with it, by the same names — `e.shift`, `e.meta`, `e.ctrl`,
+`e.alt` — so a click decides from its own event whether it extends a selection (Shift) or
+adds to one (⌘, Ctrl off the Mac). [`Keys.isDown("ShiftLeft")`](declare-docs:Keys.method.isDown)
+asks about any key at any moment. Several `Keys` members all hear the keyboard; each lives
+with its owner.
 Keyboard focus itself is in [Controls](declare-docs:guide:controls@keyboard-focus).
 
 A key a view polls with `Keys.isDown` is the program's while that view is shown: the

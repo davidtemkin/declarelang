@@ -136,7 +136,9 @@ An override calls `super.onBlur()`, or `focusVisible` outlives the focus.
 ## onPointerDown
 Claims focus, clears the `:focus-visible` channel, and opens `menu` if there is one —
 menus open on **press**, not release, as the platform does. **An override calls
-`super.onPointerDown()`**, or clicking the control strands the keyboard elsewhere.
+`super.onPointerDown()`**, or clicking the control strands the keyboard elsewhere. An
+override may take the event, `onPointerDown(e: PointerEvent)`, for where the press landed
+and the keys held with it.
 
 ## onKeyDown
 Space and Enter run `press()`; ArrowDown opens `menu`. On a `slider`, the arrow keys

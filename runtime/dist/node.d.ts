@@ -14,6 +14,7 @@ export declare function provideCursorRead(fn: CursorRead): void;
 type CursorWrite = (node: Node, segs: readonly string[], v: unknown) => void;
 export declare function provideCursorWrite(fn: CursorWrite): void;
 export declare class Node {
+    constructor();
     parent: Node | null;
     /** The parent a removeChild just unlinked from — a re-link back to the SAME
      *  parent (what replication does to every row of a block on any change) is
@@ -161,6 +162,9 @@ export declare class Node {
 /** Run `fn` when `node` is discarded — how standing machinery that is not a
  *  slot owner (a Replicator, a subscription) retires with its host. */
 export declare function onDiscard(node: Node, fn: () => void): void;
+/** @internal How many `afterDelay` waits a node has outstanding (the profiler's
+ *  "what keeps it from settling"). */
+export declare function waitsOf(node: Node): number;
 /** Run and clear `node`'s registered teardowns. Called by Node.discard (the
  *  base) and by View.discard (which re-implements the recursion rather than
  *  calling super — each discard path runs it exactly once). */

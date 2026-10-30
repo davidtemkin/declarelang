@@ -254,6 +254,23 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
             }
         },
 
+    // ── the profiler ─────────────────────────────────────────────────────────
+    // Records the subject's turns while the developer uses it — the rules each
+    // ran, what was built, the drawings and the frames — and on stop puts the
+    // report in the console, opened tall enough to read. The refresh pulse rests
+    // while it records, so the Inspector's own work stays out of the frames.
+
+    profiling: boolean = false,
+    profileToggle() {
+        if (!Inspect.ready()) return
+        app.profiling = !app.profiling
+        if (app.profiling) { app.running = false; Inspect.profile.start(true); return }
+        const text = Inspect.profile.stop()
+        app.running = true
+        app.say(({ input: "profile", text: text, verb: "profile", ok: true, temp: false, at: app.sel }))
+        app.consoleH = Math.max(app.consoleH, Math.min(app.winH - 200, Math.round(app.winH * 0.6)))
+        },
+
     // ── selection helpers ────────────────────────────────────────────────────
 
     selKind: string = { Inspect.ready() ? Inspect.kindOf(app.sel) : "" },
@@ -540,6 +557,13 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                 Tool [ glyph = "◔ trace", on = { app.tracing },
                     tooltipLabel = "Record the app's settles into the console: what opened each one, and what it changed",
                     onClick() { app.traceToggle() }
+                    ],
+
+                // the profiler: use the app, then stop — the report lands in the console
+
+                Tool [ glyph = { app.profiling ? "■ stop" : "◉ profile" }, on = { app.profiling },
+                    tooltipLabel = "Profile the app while you use it: on stop, the console shows the rules that ran, what was built, the drawings and the frames",
+                    onClick() { app.profileToggle() }
                     ]
                 ],
             crumbBox: View [ x = { parent.row.x + parent.row.width + 18 }, y = 0,

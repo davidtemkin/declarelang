@@ -27,7 +27,32 @@ export interface TraceHook {
     origin(label: string, node: object | null): void;
 }
 export declare function setTraceHook(h: TraceHook | null): void;
+export interface ProfileHook {
+    /** An activity opens: a rule run, a handler, building a view, attaching one.
+     *  Activities nest; each one's time is reported exclusive of those inside it. */
+    begin(): void;
+    ran(rule: Constraint, ms: number, changed: boolean): void;
+    /** An activity that was not a rule closes: `kind` names it, `label` says whose. */
+    spent(kind: ProfileActivity, label: string, ms: number): void;
+    /** A drawing was rasterized into its canvas: whose, the recording, its pixel
+     *  size, and the script's share of the time (the GPU's comes later, out of sight). */
+    rastered(owner: object | undefined, list: object, w: number, h: number, ms: number, transform: readonly number[]): void;
+    built(node: object): void;
+    discarded(node: object): void;
+    before(): void;
+    after(kernelRuns: number): void;
+    origin(label: string, node: object | null): void;
+    /** A write outside any settle armed one: when nothing has named the cause,
+     *  the profiler looks for the program's code on the stack (a callback). */
+    armed(): void;
+}
+export type ProfileActivity = "handler" | "build" | "attach" | "install";
+export declare let profileHook: ProfileHook | null;
+export declare function setProfileHook(h: ProfileHook | null): void;
 export declare function noteWrite(self: object, name: string, from: unknown, to: unknown): void;
+/** A rule produced something new that is not a slot's value (a drawing handed to
+ *  its surface): counted as a change, as a write that changed a value is. */
+export declare function noteEffect(): void;
 /** Name the user code about to run — a handler, a tick, an arrival — so the
  *  settle its writes open can say what opened it. `node` is whose code it is,
  *  so a reader sharing the runtime with the subject can keep the subject's. */
@@ -132,6 +157,14 @@ export declare class Constraint {
      *  derives, percent/align bindings) and for live-bound ones typed at
      *  runtime, which are marked separately by `isStatic` being false. */
     source: string | null;
+    /** The node this rule belongs to — the view whose slot it holds, or whose
+     *  drawing, text style or accessibility it keeps — when known (tooling: the
+     *  profiler names and filters by it). Null for a rule of no one node's. */
+    owner: object | null;
+    /** Its value goes to the page (a surface's text style, the accessibility tree),
+     *  not into a slot: the profiler cannot tell a run that changed what was there
+     *  from one that did not, and says so rather than calling it unchanged. */
+    pushes: boolean;
     /** @internal Is this the view's AUTO-EXTENT — the rule that measures its
      *  children? The native form reads them through the kernel's slot blocks, not
      *  through JS cells, so `readsAny` cannot see the edge: a layout asking for
@@ -262,6 +295,7 @@ export declare class Constraint {
      *  structural wake (a child list changed under a read) re-probes the edges
      *  first — same read-paths, current cells. */
     runBody(): number;
+    private $runBody;
     /** Evaluate now. A tracking run REPLACES the active tracker for its
      *  duration (the JS core set `active = this`): a wire() probe that
      *  transitively runs one — the visibility feed arming on a first tracked

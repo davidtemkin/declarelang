@@ -10,13 +10,33 @@ npx declarec apps/calendar/calendar.declare -o dist
 
 ## What it emits, and why it's small
 
-The output is a directory with an `index.html`, a content-hashed `app.<hash>.js`, your
-data assets copied alongside (a program's `tests/` folder stays behind — verify fixtures,
-never read by the running program), and whatever the program's `ship` block names (below): a
-`programs/` folder with one compiled program per island, a `files/` folder for what it reads
-from elsewhere, the compiler and the library's source when it compiles at run time.
+The output is a directory with an `index.html`, a content-hashed `app.<hash>.js`, the files
+beside your program copied alongside it, and whatever the program's `ship` block names
+(below): a `programs/` folder with one compiled program per island, a `files/` folder for
+what it reads from elsewhere, the compiler and the library's source when it compiles at run
+time.
+
+**What is copied.** Everything in the program's folder, at the same paths, so a relative
+URL the program asks for (`data/rows.json`, `fonts/face.woff2`) finds its file. These stay
+behind:
+
+- `.declare` sources, which are compiled into the bundle;
+- `tests/`, the program's verify fixtures;
+- `scratch/`, yours for anything that should never ship: notes, probes, experiments,
+  reference images, a design you are working from;
+- `dist/`, `prebuilt/` and `node_modules/`;
+- dot-files and dot-folders;
+- an output folder inside the program's folder.
+
+Each file ships once. A file `ship [ files ]` names inside the program's folder is already
+in the copy, at the path the program asks for, so it is not shipped again.
+
+**The output folder is emptied first**, so nothing from an earlier build survives. The
+build only does that to a folder it made: one that is absent, empty, or holds an earlier
+build (its `BUILD.json`). Any other folder is refused, as is the program's own folder or
+one that holds it, so a mistyped `-o` can't empty a folder you care about.
 Deployable to any static host, as a folder that needs nothing outside itself. On the flagship calendar it lands
-around **<!--stat:calendar.wireKB-->156<!--/stat--> KB gzipped** — and that is the figure the
+around **<!--stat:calendar.wireKB-->157<!--/stat--> KB gzipped** — and that is the figure the
 homepage prints, measured on the build its own calendar page ships. The module carries
 everything a page needs and nothing else: the runtime's run path, your program, and the web
 host — the URL and history mirror (`app.location` ↔ the fragment, Back and Forward), island
@@ -40,9 +60,9 @@ for one. Five things keep it small:
 ## What the program says it needs: `ship`
 
 A build reads the source and collects what it can see: the classes the tree names, the
-data a literal `url` names beside the program, the island programs a literal `program`
-names. What it cannot see, the program states, in one top-level block — each member a fact
-about the program, never a build option:
+island programs a literal `program` names, and the files beside the program (above). What it
+cannot see, the program states, in one top-level block — each member a fact about the
+program, never a build option:
 
 ```declare-fragment
 ship [
@@ -56,7 +76,7 @@ ship [
 | member | says | the build ships |
 |---|---|---|
 | `islands` | an `AppIsland` may mount these when its `program` is computed | `programs/<hash>.json` per name — compiled ahead, fetched when an island first names one |
-| `files` | the program reads these, and no literal names them or they live outside its folder | `files/<hash>.<ext>` per path; the entry maps each URL the program will ask for to its copy, so the program's own paths are untouched. A `.declare` source also ships its highlighted reader segments, so a viewer asking `?segments` reads it as it would on the site |
+| `files` | the program reads these from outside its folder, or from a folder that stays behind | `files/<hash>.<ext>` per path; the entry maps each URL the program will ask for to its copy, so the program's own paths are untouched. A `.declare` source also ships its highlighted reader segments, so a viewer asking `?segments` reads it as it would on the site |
 | `compiler = true` | the program compiles source at run time — live editing, programs typed in | `bundles/declare-compiler.js`, `bundles/compile-worker.js`, `library/` — the distro's layout inside the folder, fetched lazily on the first compile |
 | `inspector = true` | the program answers questions about itself in production | the Inspector as a compiled program, the `__declare` bridge, source positions, error prose. Not the compiler: the Inspector's evaluate strip says so when it needs one |
 

@@ -44,11 +44,10 @@
 // you have stepped into TypeScript until the matching `}`") — the parser
 // finds the matching brace, nothing more; compiling the body is expr.ts's
 // job (and tsc's, later). Matching must respect TS's own lexical islands —
-// strings, template literals (with nested `${ }`), comments — so a brace
-// inside them cannot end the body. Known, accepted gap until the tsc
-// front-end owns real lexing: a regex literal containing a brace or quote
-// (`/}/`) defeats the scan (regex-vs-division needs full lexing context);
-// write such regexes as new RegExp("…"). Recorded in HANDOFF §R4.
+// strings, template literals (with nested `${ }`), comments and regular
+// expressions — so a brace inside them cannot end the body. A `/` is a regex
+// where a value can begin and division after one, TypeScript's own rule
+// (skipRegex below).
 
 import { DeclareError, DeclareErrors, type Pos } from "./errors.js";
 import { Diag } from "./diagnostics.js";
@@ -567,15 +566,40 @@ function tokenize(src: string): Token[] {
     if (i >= src.length) throw new DeclareError("unterminated template literal in { } expression", at);
     advance(); // closing backtick
   };
+  // A REGEX LITERAL is a lexical island too: `/\//g` holds `//`, which is no
+  // comment, and `/}/` a brace that ends nothing. A `/` starts one where a value
+  // can begin — after an operator, an opening bracket, a comma, or a keyword
+  // such as `return` — and is division after a value (a name, a number, a
+  // closing bracket, a string, a datapath's `@`, a postfix `!` or `++`),
+  // TypeScript's own rule.
+  const skipRegex = (at: Pos) => {
+    advance(); // opening slash
+    let inClass = false;
+    while (i < src.length && src[i] !== "\n") {
+      const c = src[i];
+      if (c === "\\") { advance(); advance(); continue; }
+      if (c === "[") inClass = true;
+      else if (c === "]") inClass = false;
+      else if (c === "/" && !inClass) break;
+      advance();
+    }
+    if (src[i] !== "/") throw new DeclareError("unterminated regular expression in { } expression", at);
+    advance(); // closing slash
+    while (i < src.length && /[a-z]/i.test(src[i])) advance(); // flags
+  };
+  const REGEX_AFTER_WORD = new Set(["return", "typeof", "instanceof", "in", "of", "new", "delete", "void", "throw", "case", "do", "else", "yield", "await"]);
   const skipBraces = (at: Pos) => {
     // Called just inside a `{`; consumes through its matching `}`.
     let depth = 1;
+    // what came last, outside comments and whitespace: decides whether a `/` is a
+    // regex or division ("" — the start, or an operator; "v" — a value; a word)
+    let prev = "";
     while (i < src.length && depth > 0) {
       const ch = src[i];
-      if (ch === "{") { depth++; advance(); }
-      else if (ch === "}") { depth--; advance(); }
-      else if (ch === '"' || ch === "'") skipString(ch, at);
-      else if (ch === "`") skipTemplate(at);
+      if (ch === "{") { depth++; advance(); prev = ""; }
+      else if (ch === "}") { depth--; advance(); prev = "v"; }
+      else if (ch === '"' || ch === "'") { skipString(ch, at); prev = "v"; }
+      else if (ch === "`") { skipTemplate(at); prev = "v"; }
       else if (ch === "/" && src[i + 1] === "/") { while (i < src.length && src[i] !== "\n") advance(); }
       else if (ch === "/" && src[i + 1] === "*") {
         advance(); advance();
@@ -583,7 +607,18 @@ function tokenize(src: string): Token[] {
         if (i >= src.length) throw new DeclareError("unterminated comment in { } expression", at);
         advance(); advance();
       }
-      else advance();
+      else if (ch === "/" && (prev === "" || REGEX_AFTER_WORD.has(prev))) { skipRegex(at); prev = "v"; }
+      else if (/[A-Za-z_$0-9]/.test(ch)) {
+        let w = "";
+        while (i < src.length && /[A-Za-z_$0-9]/.test(src[i])) { w += src[i]; advance(); }
+        prev = REGEX_AFTER_WORD.has(w) ? w : "v";
+      }
+      else if (ch === ")" || ch === "]" || ch === "@") { advance(); prev = "v"; }   // `@`: a datapath's own record (`:@`)
+      // after a value, a postfix keeps it one: TypeScript's non-null `x!`, and `i++`
+      else if (prev === "v" && ch === "!" && src[i + 1] !== "=") advance();
+      else if (prev === "v" && (ch === "+" || ch === "-") && src[i + 1] === ch) { advance(); advance(); }
+      else if (ch === " " || ch === "\t" || ch === "\r" || ch === "\n") advance();
+      else { advance(); prev = ""; }
     }
     if (depth > 0) throw new DeclareError("unterminated { } expression", at);
   };

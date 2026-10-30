@@ -60,7 +60,7 @@ function spawn() {
             }
             pending.delete(m.id);
             if (m.t === "raster" && m.bitmap !== undefined)
-                p.resolve({ bitmap: m.bitmap, rasterMs: m.rasterMs ?? 0, blank: m.blank === true });
+                p.resolve({ bitmap: m.bitmap, rasterMs: m.rasterMs ?? 0 });
             else
                 p.resolve(null);
         };

@@ -21,6 +21,11 @@
 //     if it is what the question asks for. A node the question passes over —
 //     pointer-transparent, or holding no input — lets the walk go on to the
 //     siblings beneath it.
+/** Is a point (in `c`'s frame) outside everything `c`'s subtree could answer? */
+function beyond(A, c, cx, cy) {
+    const r = A.reach?.(c);
+    return r === null || (r !== undefined && (cx < r.x0 || cy < r.y0 || cx >= r.x1 || cy >= r.y1));
+}
 /** Where the last hit was, in the hit node's own frame. */
 export const hitPoint = { x: 0, y: 0 };
 /** The deepest node under (lx, ly) — a point in `n`'s own frame — that
@@ -52,6 +57,8 @@ export function walkHit(n, lx, ly, A, accept, trace) {
             if (outside && !A.ignoresClip(c))
                 continue;
             const [cx, cy] = A.toChild(n, c, lx, ly);
+            if (trace === undefined && beyond(A, c, cx, cy))
+                continue;
             const hit = walkHit(c, cx, cy, A, accept, trace);
             if (hit !== null)
                 return hit;
@@ -70,6 +77,9 @@ export function walkHit(n, lx, ly, A, accept, trace) {
         if (outside && !A.ignoresClip(c))
             continue;
         const [cx, cy] = A.toChild(n, c, lx, ly);
+        // (a narrated walk visits everything: what it passed over, and why, is its account)
+        if (trace === undefined && beyond(A, c, cx, cy))
+            continue;
         const hit = walkHit(c, cx, cy, A, accept, trace);
         if (hit !== null)
             return hit;

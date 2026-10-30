@@ -61,6 +61,7 @@ let ringCap = 0;
 export function touchCell(cell) {
     if (traceHook !== null)
         traceHook.touched(cell, inSettle);
+    profileWrites++;
     // NOBODY LISTENS, nothing to wake: outside a settle, a write to a cell no
     // rule subscribes to schedules nothing (it was an empty settle — ~400 of
     // 750 in a weather-city window). A rule that subscribes later reads the
@@ -91,15 +92,28 @@ export function setOwnershipCheck(check) { stillOwns = check; }
 export function constraintOfRule(id) { return id >= 0 ? RULES[id] ?? null : null; }
 let traceHook = null;
 export function setTraceHook(h) { traceHook = h; }
+export let profileHook = null;
+export function setProfileHook(h) { profileHook = h; }
+/** Writes that changed a value, counted while a rule runs: what tells a rule
+ *  that produced something new from one that produced what was there. */
+let profileWrites = 0;
 export function noteWrite(self, name, from, to) {
     if (traceHook !== null)
         traceHook.wrote(self, name, from, to, inSettle);
+    profileWrites++;
 }
+/** A rule produced something new that is not a slot's value (a drawing handed to
+ *  its surface): counted as a change, as a write that changed a value is. */
+export function noteEffect() { profileWrites++; }
 /** Name the user code about to run — a handler, a tick, an arrival — so the
  *  settle its writes open can say what opened it. `node` is whose code it is,
  *  so a reader sharing the runtime with the subject can keep the subject's. */
-export function noteOrigin(label, node = null) { if (traceHook !== null)
-    traceHook.origin(label, node); }
+export function noteOrigin(label, node = null) {
+    if (traceHook !== null)
+        traceHook.origin(label, node);
+    if (profileHook !== null)
+        profileHook.origin(label, node);
+}
 /** An exception raised inside a body or a step during a settle: the kernel is
  *  told to abort, the settle unwinds cleanly on its side, and this is thrown
  *  from settle() (or run()) on ours. */
@@ -238,6 +252,8 @@ function schedule() {
     if (scheduled)
         return;
     scheduled = true;
+    if (profileHook !== null)
+        profileHook.armed();
     queueMicrotask(() => { scheduled = false; settle(); });
 }
 /** Load the kernel (once). Every program entry awaits this before it
@@ -732,6 +748,14 @@ export class Constraint {
      *  derives, percent/align bindings) and for live-bound ones typed at
      *  runtime, which are marked separately by `isStatic` being false. */
     source = null;
+    /** The node this rule belongs to — the view whose slot it holds, or whose
+     *  drawing, text style or accessibility it keeps — when known (tooling: the
+     *  profiler names and filters by it). Null for a rule of no one node's. */
+    owner = null;
+    /** Its value goes to the page (a surface's text style, the accessibility tree),
+     *  not into a slot: the profiler cannot tell a run that changed what was there
+     *  from one that did not, and says so rather than calling it unchanged. */
+    pushes = false;
     /** @internal Is this the view's AUTO-EXTENT — the rule that measures its
      *  children? The native form reads them through the kernel's slot blocks, not
      *  through JS cells, so `readsAny` cannot see the edge: a layout asking for
@@ -978,6 +1002,23 @@ export class Constraint {
      *  structural wake (a child list changed under a read) re-probes the edges
      *  first — same read-paths, current cells. */
     runBody() {
+        if (profileHook === null)
+            return this.$runBody();
+        profileHook.begin();
+        const t0 = performance.now(), w0 = profileWrites;
+        const was = this.landedCell >= 0 ? table[this.landedCell] : 0;
+        let got = was;
+        try {
+            got = this.$runBody();
+            return got;
+        }
+        finally {
+            // a kernel-landed rule's value lands after it returns: compare what it returned
+            const changed = profileWrites !== w0 || (this.landedCell >= 0 && got !== was && !(got !== got && was !== was));
+            profileHook?.ran(this, performance.now() - t0, changed);
+        }
+    }
+    $runBody() {
         if (this.wired) {
             if (this.probe !== null && (K.stateOf(this.id) & KERNEL_STATE.REWIRE) !== 0)
                 K.rewire(this.id, this.collect(this.probe));
@@ -1195,6 +1236,8 @@ export function settle() {
     }
     if (traceHook !== null)
         traceHook.before();
+    if (profileHook !== null)
+        profileHook.before();
     inSettle = true;
     stepsRan = false;
     let r;
@@ -1219,6 +1262,8 @@ export function settle() {
     }
     if (traceHook !== null)
         traceHook.after(r);
+    if (profileHook !== null)
+        profileHook.after(r);
     if (r < 0 || pendingError !== null) {
         const e = pendingError ?? new DeclareError(`kernel: settle failed (${r})`);
         pendingError = null;

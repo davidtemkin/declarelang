@@ -258,7 +258,8 @@ shows the Declare form.
 ## Checking and looking
 
 Start from the first check below and go only as far as the request needs: stop as soon as
-one answers.
+one answers. In a fresh checkout, run `npm install` once first: the tools need their
+packages. The runtime and compiler come built; there is no build step.
 
 - **Check as you go** with `npx declare-verify app.declare`: in a second or two it compiles
   the program, checks it, and boots it in a browser at a laptop's size (`--phone` for a
@@ -298,3 +299,7 @@ one answers.
 - **When it runs but is wrong**, don't re-read the source to guess: ask the running program
   why a value is what it is, which view is under a point, where a value came from
   (`05-run-and-check.md` § Debugging a running program; `docs/operational/introspection.md`).
+- **When it is slow, or won't settle**, profile it rather than guess: `npx declare-profile
+  app.declare --scenario <script.mjs>` names the rules that ran, how often to no effect, what
+  opened each costly turn, what was built, what drawings cost the GPU, and how long each frame
+  took to reach the screen; `expect.budget` holds a script to it (`docs/operational/profile.md`).

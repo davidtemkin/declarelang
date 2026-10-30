@@ -224,15 +224,6 @@ export interface DisplayList {
      *  else. Blur/shadow bleed is NOT in these (see `rasterPad`), exactly as it
      *  is not in `bounds`. */
     readonly extents: ReadonlyArray<Bounds | null>;
-    /** PER-OP point the op is known to ink, parallel to `ops`, in the same space
-     *  as `extents`: for a path's fill or stroke, where the pen last stood — on a
-     *  stroke's line, on a fill's edge. A box's centre is not on a curve or an
-     *  outline, so a check that the raster painted samples here. Null where the
-     *  extent's centre serves (rectangles, text, images). */
-    readonly probes?: ReadonlyArray<{
-        x: number;
-        y: number;
-    } | null>;
 }
 /** The write-only, Canvas2D-shaped context a draw method records into.
  *
@@ -255,8 +246,6 @@ export declare class DrawContext {
     private readonly ops;
     /** parallel to `ops` — see DisplayList.extents */
     private readonly extents;
-    /** parallel to `ops` — see DisplayList.probes */
-    private readonly probes;
     private push;
     /** THE VIEW'S OWN SIZE, for a drawing that sizes itself — `d.w` / `d.h`.
      *
@@ -283,9 +272,6 @@ export declare class DrawContext {
     /** Extent of the current path; reset by beginPath, kept by fill/stroke
      *  (mirroring Canvas2D, where filling does not clear the path). */
     private path;
-    /** Where the current path's pen last stood, in authoring coordinates: a
-     *  point a stroke inks, and on a fill's edge — the paint op's probe. */
-    private pen;
     /** Mirror of the recorded lineWidth, for stroke expansion. */
     private strokeHalf;
     /** Cleared once an op paints an extent the recorder can't bound locally. */
@@ -376,9 +362,6 @@ export declare class DrawContext {
     quadraticCurveTo(cpx: number, cpy: number, x: number, y: number): void;
     bezierCurveTo(cp1x: number, cp1y: number, cp2x: number, cp2y: number, x: number, y: number): void;
     closePath(): void;
-    /** The paint op just pushed inks where the pen stands: its probe, mapped
-     *  through the live transform as its extent is. */
-    private probe;
     fill(rule?: CanvasFillRule): void;
     /** Stroke ink extends half the line width beyond the path box. (A sharp
      *  miter join can poke further; bounds stay advisory until dirty-region
@@ -455,28 +438,6 @@ export declare const RASTER_MAX_DIM = 8192;
 export declare const RASTER_MAX_AREA = 16777216;
 export declare function rasterEntryCap(viewportBytes: number): number;
 export declare function rasterTotalCap(viewportBytes: number): number;
-/** The recording's covered area — see ListInfo.area. Pure over the recording,
- *  so every backend prices the same quantity; each applies its own scale² and
- *  its own threshold. This REPLACES the op-counting classifier: measured under
- *  Chrome tracing (2026-08-24), two lists of identical op count differed 205x
- *  in paint cost by covered area alone, and the op count called both
- *  "expensive". Op count is still a term — a stroke has real per-op setup
- *  cost — but it is the backend's term to weigh, from `list.ops.length`. */
-/** Did a raster of `list` paint NOTHING where the recording says it painted?
- *  The platform's silent failure: past its canvas budget Safari draws
- *  transparent, Firefox blanks a DOM canvas at ~130 MB (measured 2026-08-25),
- *  and no timing sees either — a blank frame is a fast one. Sampled at a few
- *  op centres, which is a GPU sync, so a caller runs it once per fresh raster
- *  and only past a size worth the sync — and never in a production build: it
- *  is a check for the developer, who is told which drawing the browser
- *  refused. It is a heuristic: a recording whose sampled centres are truly
- *  transparent (an op painted clear, or clipped away) reads as blank.
- *  `sx, sy` are the raster's density and `bx, by` its origin in recording
- *  units — the same numbers the raster was made with. */
-/** The developer's report of a raster that looks blank (rasterLooksBlank):
- *  which view's drawing (`who`, its path from the App, when known), and the
- *  size of the raster the browser was asked for. */
-export declare function blankRasterMessage(who: string | undefined, w: number, h: number): string;
 /** A canvas-shaped surface this module can draw into: an HTMLCanvasElement on
  *  the page, an OffscreenCanvas in the raster worker (the same 2D API). */
 export interface CanvasLike {
@@ -487,7 +448,13 @@ export interface CanvasLike {
 /** A scratch canvas wherever this module runs: the DOM's element on a page, an
  *  OffscreenCanvas in a worker (raster-worker.ts) where there is no document. */
 export declare function makeCanvas(w: number, h: number): CanvasLike;
-export declare function rasterLooksBlank(cv: CanvasLike, list: DisplayList, sx: number, sy: number, bx: number, by: number): boolean;
+/** The recording's covered area — see ListInfo.area. Pure over the recording,
+ *  so every backend prices the same quantity; each applies its own scale² and
+ *  its own threshold. This REPLACES the op-counting classifier: measured under
+ *  Chrome tracing (2026-08-24), two lists of identical op count differed 205x
+ *  in paint cost by covered area alone, and the op count called both
+ *  "expensive". Op count is still a term — a stroke has real per-op setup
+ *  cost — but it is the backend's term to weigh, from `list.ops.length`. */
 export declare function replayArea(list: DisplayList): number;
 /** Replay a recording into a real 2D context. `clip`, when given, is the
  *  region (recording-local) the replay can be SEEN in: paint ops entirely

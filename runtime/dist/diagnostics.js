@@ -374,7 +374,28 @@ export function renderReport(diagnostics) {
         warns > 0 ? `${warns} warning${warns === 1 ? "" : "s"}` : "",
         hints > 0 ? `${hints} hint${hints === 1 ? "" : "s"}` : "",
     ].filter((s) => s.length > 0).join(", ");
-    return [counts, ...diagnostics.map((d) => d.rendered)].join("\n");
+    // ADVICE ONCE. A warning is mostly "<what, here> — <what to do about it>", and
+    // one code's advice is the same sentence at every site (a program with six
+    // tangled conditions read the same paragraph six times, and missed the line
+    // that mattered). After its first full telling, a warning whose advice repeats
+    // keeps what is particular to it and points back. The diagnostics themselves
+    // are untouched: this is how the text reads, not what a tool receives.
+    const told = new Set();
+    const lines = diagnostics.map((d) => {
+        const cut = d.severity === "error" ? -1 : d.message.indexOf(" — ");
+        if (cut < 0)
+            return d.rendered;
+        // a collapsed entry's site count rides after the advice: kept with the point
+        const rest = d.message.slice(cut + 3), sites = / — (\d+ sites.*)$/.exec(rest);
+        const advice = sites === null ? rest : rest.slice(0, sites.index);
+        const key = `${d.code}\u0000${advice}`;
+        if (!told.has(key)) {
+            told.add(key);
+            return d.rendered;
+        }
+        return formatDiagnostic({ ...d, message: `${d.message.slice(0, cut)} — the same advice as above${sites === null ? "" : ` — ${sites[1]}`}`, hint: undefined });
+    });
+    return [counts, ...lines].join("\n");
 }
 /** The browsable catalog — every code, its phase, and a one-line summary. The
  *  data form of the "set of message templates" (docs / tooling / a future

@@ -32,7 +32,7 @@
 // View-free on purpose: hosts are typed structurally and view.ts injects its
 // own instance test at module init, so view.ts can import this module without
 // a cycle.
-import { Cell, Constraint, afterSettle, isSettling } from "./reactive.js";
+import { Cell, Constraint, afterSettle, isSettling, untracked } from "./reactive.js";
 import { affineFit, childHomography, unprojectChild } from "./projective.js";
 import { leavesPlane, IDENTITY as IDENTITY_AFFINE, apply as applyAffine, boxThrough as boxThroughAffine, compose as composeAffine, fromParts as affineFromParts, invert as invertAffine, isIdentity as affineIsIdentity, rotationOf as affineRotationOf, scaleOf as affineScaleOf } from "./affine.js";
 import { walkHit } from "./hit-walk.js";
@@ -163,7 +163,62 @@ function paintChildren(v) {
         out = out.concat(guests);
     return out;
 }
+const GEOMETRY = new Cell();
+let geoDirty = true, geoGen = 0;
+const REACH = new WeakMap();
+const UNBOUNDED = { x0: -Infinity, y0: -Infinity, x1: Infinity, y1: Infinity };
+/** Some view's box, place, transform, scroll, clip or children changed. */
+export function markGeometry() {
+    if (geoDirty)
+        return;
+    geoDirty = true;
+    GEOMETRY.changed();
+}
+function reachOf(v) {
+    const m = REACH.get(v);
+    if (m !== undefined && m.gen === geoGen)
+        return m.r;
+    let r = null;
+    if (v.visible) {
+        const w = v.width, h = v.height;
+        r = { x0: Math.min(0, w), y0: Math.min(0, h), x1: Math.max(0, w), y1: Math.max(0, h) };
+        // a scroller answers only inside its frame; a clip only inside its box, but
+        // for the children that ignore it
+        const scroller = v.scrolls !== "none";
+        const clips = VIEWS.clips(v);
+        for (const c of paintChildren(v)) {
+            if (!isView(c))
+                continue;
+            if (scroller || (clips && !c.ignoreClip))
+                continue;
+            const cr = reachOf(c);
+            if (cr === null)
+                continue;
+            if (leavesPlane(c) || !Number.isFinite(cr.x0 + cr.x1 + cr.y0 + cr.y1)) {
+                r = UNBOUNDED;
+                break;
+            }
+            // the child's frame into this one: its paint transform, its place, this content origin
+            const b = boxThroughAffine(localAffine(c), cr.x0, cr.y0, cr.x1 - cr.x0, cr.y1 - cr.y0);
+            const ox = c.x + contentLead(v, "x"), oy = c.y + contentLead(v, "y");
+            r.x0 = Math.min(r.x0, b.x + ox);
+            r.y0 = Math.min(r.y0, b.y + oy);
+            r.x1 = Math.max(r.x1, b.x + b.width + ox);
+            r.y1 = Math.max(r.y1, b.y + b.height + oy);
+        }
+    }
+    REACH.set(v, { gen: geoGen, r });
+    return r;
+}
 const VIEWS = {
+    reach: (v) => {
+        GEOMETRY.track();
+        if (geoDirty) {
+            geoDirty = false;
+            geoGen++;
+        }
+        return untracked(() => reachOf(v));
+    },
     isNode: (c) => isView(c),
     children: (v) => paintChildren(v),
     visible: (v) => v.visible,

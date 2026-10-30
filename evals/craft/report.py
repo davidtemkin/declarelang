@@ -51,7 +51,8 @@ started = None
 if os.path.exists(STARTED):
     for ln in open(STARTED):
         if ln.startswith("STARTED="):
-            started = datetime.strptime(ln.split("=", 1)[1].strip(), "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+            # whole seconds (the craft launcher) or with milliseconds (the engagement driver)
+            started = datetime.fromisoformat(ln.split("=", 1)[1].strip().replace("Z", "+00:00"))
 mins = (datetime.now(timezone.utc) - started).total_seconds() / 60 if started else 0
 quiet = (time.time() - os.path.getmtime(STREAM)) / 60
 

@@ -26,6 +26,7 @@ import { Constraint, kernel, kernelLoaded } from "./reactive.js";
 import { blockOf, setBound } from "./attributes.js";
 import { sharedClock } from "./animate.js";
 import { rootFrameBox, rootTransform } from "./interaction.js";
+import { declareName } from "./declare-name.js";
 const FEEDS = new WeakMap();
 function feedOf(v) {
     let f = FEEDS.get(v);
@@ -205,10 +206,11 @@ function startVisibility(v) {
                 v.$surface?.refreshVisibility?.();
             };
             if (installKernelVis(v, f)) {
-                f.wake = outputRule(v, f, `${v.constructor.name}.visibilityWake`, () => wake());
+                f.wake = outputRule(v, f, `${declareName(v)}.visibilityWake`, () => wake());
             }
             else {
-                f.wake = new Constraint(`${v.constructor.name}.visibilityWake`, () => readVisibility(v), wake);
+                f.wake = new Constraint(`${declareName(v)}.visibilityWake`, () => readVisibility(v), wake);
+                f.wake.owner = v;
                 f.wake.run();
             }
         }
@@ -222,10 +224,10 @@ function startVisibility(v) {
         return;
     } // already computing
     if (installKernelVis(v, f)) {
-        f.generic = outputRule(v, f, `${v.constructor.name}.visibility`, (on, rect, scale) => deliverVisibility(v, f, on, rect, scale));
+        f.generic = outputRule(v, f, `${declareName(v)}.visibility`, (on, rect, scale) => deliverVisibility(v, f, on, rect, scale));
         return;
     }
-    f.generic = new Constraint(`${v.constructor.name}.visibility`, () => readVisibility(v), (x) => {
+    f.generic = new Constraint(`${declareName(v)}.visibility`, () => readVisibility(v), (x) => {
         const r = x;
         deliverVisibility(v, f, r.on, r.rect, r.scale);
     });

@@ -7,12 +7,10 @@ export interface RasterRequest {
     by: number;
     w: number;
     h: number;
-    blankCheck: boolean;
 }
 export interface RasterResult {
     bitmap: ImageBitmap;
     rasterMs: number;
-    blank: boolean;
 }
 /** Can this engine raster off the main thread at all? */
 export declare function rasterWorkerAvailable(): boolean;

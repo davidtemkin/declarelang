@@ -58,6 +58,8 @@ export interface InspectNode {
     materialization?: MaterializationDiag;
     children: InspectNode[];
 }
+/** The class name to SHOW for a node: the program's name for its class, in
+ *  every build (declare-name.ts). */
 export declare function kindName(n: Node): string;
 /** The member name a child is reachable by — reverse-looked-up on its parent
  *  and its classroot (named children are installed as properties on both
@@ -155,6 +157,18 @@ export declare const clock: {
 /** The `window.__declare` surface boot.ts installs for a top-level app: the
  *  whole inspect API bound to that app's root. What verify's rung 5 drives,
  *  and what a human pokes in the console. */
+/** A node as the profiler names it: its path, and one held by an attribute
+ *  rather than as a child (a layout) by that attribute. */
+export declare function profileName(root: Node, n: object): string;
+/** The view an element of the page belongs to (the nearest one up whose surface
+ *  it is, or holds it), named, with what it declares that costs to paint: a shadow,
+ *  a filter or backdrop, opacity, a drawing. The profiler's way from the browser's
+ *  layers and invalidations back to the program. Null for an element no view of
+ *  this tree owns (the document itself). */
+export declare function elementView(root: Node, el: Element | null): {
+    view: string;
+    paints: string[];
+} | null;
 export declare function bridgeFor(root: Node): Record<string, unknown>;
 /** PICK the view under a point — what a press at that point would reach.
  *

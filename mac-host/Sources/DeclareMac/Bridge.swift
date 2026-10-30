@@ -164,6 +164,12 @@ final class Bridge {
     /// smoothness under a real gesture (a hitch is a long gap, not a long mean).
     var commitDurations: [Double] = []
     var commitGaps: [Double] = []
+    /// Did each commit make the frame it was made for? A commit that finishes
+    /// after its display-link tick's target time is shown a frame (or more) later.
+    /// Times on the display link's own clock (CACurrentMediaTime).
+    var madeFrame = 0
+    var missedFrame = 0
+    var missedByMs: [Double] = []
     var lastCommitAt: CFAbsoluteTime = 0
     /// Gaps between commits that actually carried geometry.
     var geomGaps: [Double] = []
@@ -308,9 +314,14 @@ final class Bridge {
             DispatchQueue.main.async { [weak self] in
             guard let self else { return }
             let t0 = CFAbsoluteTimeGetCurrent()
+            let due = self.frameTime / 1000            // the target of the tick that produced these ops
             if self.statsTracing, self.firstCommits.count < 4 { self.firstCommits.append(head) }
             Watchdog.shared.during("layer commit (\(ops.count) ops)") { self.tree.apply(ops: ops) }
             let dt = (CFAbsoluteTimeGetCurrent() - t0) * 1000
+            if due > 0 {
+                let late = (CACurrentMediaTime() - due) * 1000
+                if late > 0 { self.missedFrame += 1; if self.missedByMs.count < 4000 { self.missedByMs.append(late) } } else { self.madeFrame += 1 }
+            }
             self.commitCount += 1
             self.commitMsTotal += dt
             self.commitMsMax = max(self.commitMsMax, dt)
@@ -877,6 +888,7 @@ final class Bridge {
     func resetStats() {
         commitCount = 0; commitMsTotal = 0; commitMsMax = 0; commitBytes = 0
         commitDurations.removeAll(); commitGaps.removeAll()
+        madeFrame = 0; missedFrame = 0; missedByMs.removeAll()
         lastCommitAt = 0; linkTicks = 0; pumps = 0
         geomGaps.removeAll(); lastGeomCommitAt = 0
         tickLog.removeAll(); firstCommits.removeAll(); statsTracing = true
@@ -912,6 +924,7 @@ final class Bridge {
             pct(d, 0.5), pct(d, 0.95), d.max() ?? 0, commitCount > 0 ? commitBytes / commitCount : 0,
             pct(g, 0.5), pct(g, 0.95), g.max() ?? 0,
             budget, g.filter { $0 > budget * 1.5 }.count)
+          + String(format: "\n  PRESENT made=%d missed=%d  missedBy ms p50=%.2f max=%.2f", madeFrame, missedFrame, pct(missedByMs, 0.5), missedByMs.max() ?? 0)
           + String(format: "\n  MOTION gap ms p50=%.2f p95=%.2f max=%.2f  over=%d  (n=%d)",
                     pct(geomGaps, 0.5), pct(geomGaps, 0.95), geomGaps.max() ?? 0,
                     geomGaps.filter { $0 > budget * 1.5 }.count, geomGaps.count)

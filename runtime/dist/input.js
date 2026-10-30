@@ -50,6 +50,7 @@
 // deliver input to the view the user sees under the pointer — and rewritten
 // as one shared rule over one resolution seam.
 import { dragScrolling } from "./drag-autoscroll.js";
+import { noteModifiers } from "./modifiers.js";
 // ── The HOLD-GATED drag claim (ruled 2026-07-29) ─────────────────────────────
 // A view declaring `onHold` ALONGSIDE its raw drag handlers claims the finger
 // AT THE HOLD, not at touchdown — the least-claim rule read precisely: the
@@ -136,23 +137,6 @@ topLevel = true) {
     let lastClickAt = 0;
     let lastClickX = 0;
     let lastClickY = 0;
-    // A click withheld pending the double-click window (see HitTarget.wantsDbl):
-    // fired by the timer if no second tap arrives, dropped if one does.
-    let pendingClick = null;
-    const flushPendingClick = () => {
-        const p = pendingClick;
-        pendingClick = null;
-        if (p !== null) {
-            clearTimeout(p.timer);
-            p.fire();
-        }
-    };
-    const dropPendingClick = () => {
-        if (pendingClick !== null) {
-            clearTimeout(pendingClick.timer);
-            pendingClick = null;
-        }
-    };
     // The hold timer for the current press — armed at down on a view that wants
     // holds, disarmed by movement past slop, by release, or by cancellation.
     let holdTimer = null;
@@ -279,6 +263,7 @@ topLevel = true) {
                 window.removeEventListener(type, listener);
                 return;
             }
+            noteModifiers(e);
             handle(e);
         };
         window.addEventListener(type, listener);
@@ -361,6 +346,7 @@ topLevel = true) {
                 return;
             }
             const w = e;
+            noteModifiers(w);
             refuse(e, w.clientX, w.clientY);
         };
         const onTouchMove = (e) => {
@@ -491,11 +477,6 @@ topLevel = true) {
             // selection the browser is painting (an enclosing sink — a window's
             // activate-on-press — still captures, so events flow as ever).
             pressOnSelectable = editable || selectable;
-            // A press elsewhere ends any click still waiting on the double window:
-            // the user moved on, so the withheld single click fires now rather than
-            // arriving after whatever this press does.
-            if (pendingClick !== null && t.key !== lastClickKey)
-                flushPendingClick();
             if (t.wantsTouch === true) {
                 fingers.set(e.pointerId, { id: e.pointerId, x: p0.x, y: p0.y });
                 touchSink = t;
@@ -697,32 +678,23 @@ topLevel = true) {
                 const near = dx * dx + dy * dy <= (pressSlop * 3) * (pressSlop * 3);
                 const isSecond = lastClickKey === captor.key && now - lastClickAt < DBL_MS && near;
                 if (isSecond) {
-                    // The second tap of a pair: drop the withheld first click if this
-                    // view arbitrates, then fire the pair's own event.
-                    const held1 = pendingClick !== null;
-                    dropPendingClick();
-                    if (!held1)
+                    // The second tap of a pair. A view that answers double-clicks hears
+                    // the pair as `dblClick` alone — the double is what the second click
+                    // meant — and any other view hears a second click too, then the pair.
+                    if (captor.wantsDbl !== true)
                         captor.sink("click", p.x, p.y, moved(p.x, p.y));
                     captor.sink("dblClick", p.x, p.y, moved(p.x, p.y));
                     lastClickKey = null;
                 }
                 else {
+                    // The first click is delivered at once, as the platforms do: a view
+                    // that also answers double-clicks makes its single click something the
+                    // double builds on (select, then open), so nothing waits out the window.
                     lastClickKey = captor.key;
                     lastClickAt = now;
                     lastClickX = p.x;
                     lastClickY = p.y;
-                    const at = moved(p.x, p.y);
-                    const fire = () => captor.sink("click", p.x, p.y, at);
-                    if (captor.wantsDbl === true) {
-                        // This view answers double-clicks, so its single click waits out
-                        // the window — otherwise a double-click would perform the single
-                        // action first. Nothing else pays this latency.
-                        dropPendingClick();
-                        pendingClick = { timer: setTimeout(() => { pendingClick = null; fire(); }, DBL_MS), fire };
-                    }
-                    else {
-                        fire();
-                    }
+                    captor.sink("click", p.x, p.y, moved(p.x, p.y));
                 }
             }
         }

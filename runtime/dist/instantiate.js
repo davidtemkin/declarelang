@@ -60,7 +60,7 @@ import { Animator } from "./animator.js";
 import { AnimatorGroup } from "./animator-group.js";
 import { Spring } from "./spring.js";
 import { State } from "./state.js";
-import { Constraint } from "./reactive.js";
+import { Constraint, profileHook } from "./reactive.js";
 // The validators (check.js) and the router (route.js) are separate imports ON
 // PURPOSE: a compiled program was checked and routed at build time, so a
 // production bundle substitutes both with stand-ins (compiler/src/
@@ -93,6 +93,7 @@ import { validateDoc } from "./data-schema.js";
 import { resolveShapes, shapeNames } from "./shape-resolve.js";
 import { trackedView, unwrapValue } from "./data.js";
 import { TAGS, LAYOUTS, LAYOUT_BASES, DATA, ANIMATORS, ANIMATOR_GROUPS, SOURCES, STATES } from "./registry.js";
+import { declareName } from "./declare-name.js";
 /** A SOURCE node — duck-typed on the lifecycle hook rather than imported by
  *  class, so instantiate keeps no static edge to the individual services (which
  *  is what lets an app that never listens drop them entirely). */
@@ -412,7 +413,21 @@ function partitionPending(pending) {
     }
     return { provisions: orderProvisions(provisions), rest };
 }
+/** Bind a batch of rules and provisions — timed when a profile records. */
 function installBatch(ordered, ctx) {
+    const p = profileHook;
+    if (p === null || ordered.length === 0)
+        return installBatchNow(ordered, ctx);
+    p.begin();
+    const t0 = performance.now();
+    try {
+        installBatchNow(ordered, ctx);
+    }
+    finally {
+        p.spent("install", (ordered[0].view !== undefined ? declareName(ordered[0].view) : "rules"), performance.now() - t0);
+    }
+}
+function installBatchNow(ordered, ctx) {
     // a position literal on a view whose transform binds in this same batch is
     // told so: it places the transformed box (bind.ts bindAlign)
     let transforming = null;
@@ -763,7 +778,9 @@ isShapeType = () => false) {
             const at = (d.def?.kind === "code" ? d.def.pos : undefined) ?? d.pos;
             declRecords[d.name] = {
                 source: d.def?.kind === "code" ? d.def.src : null,
-                pos: at != null && typeof at.line === "number" ? { line: at.line, col: at.col ?? 0 } : null,
+                // the file too, for a default written in an included one (a library class's):
+                // its line alone would read as the program's own
+                pos: at != null && typeof at.line === "number" ? { line: at.line, col: at.col ?? 0, ...(at.file !== undefined ? { file: at.file } : {}) } : null,
                 deps: d.def?.kind === "code" ? (d.def.deps ?? null) : null,
                 expr: d.def?.kind === "code" ? d.def.expr : undefined,
                 type: d.type,
@@ -823,10 +840,13 @@ function ctorWithDecls(el, base, isShape = () => false) {
         // (routing validated the declarations of an unchecked tree)
         const defaults = () => Object.fromEntries(el.decls.map((d) => [d.name, declDefault(d, el.tag)]));
         // Named like its base — an anonymous subclass is still "a View" in every
-        // message — while the declared members make it the §5 one-off subtype.
+        // message — while the declared members make it the §5 one-off subtype. The
+        // name is the tag the program wrote, which is the base's: a shipped build
+        // shortens the base's JavaScript name, and stamping that (`t`) named every
+        // such view, the App among them, `t` in a shipped build's reports.
         // Inline declarations are written at the USE SITE, so their default
         // bindings' classroot points outward.
-        ctor = synthesize(base, base.name, el, defaults, true, isShape);
+        ctor = synthesize(base, el.tag, el, defaults, true, isShape);
         ANON.set(el, ctor);
     }
     return ctor;
@@ -1066,7 +1086,21 @@ function familyOf(tag, ctx) {
     ctx.families.set(tag, family);
     return family;
 }
+/** Build one element's node and its members — timed, by class, when a profile records. */
 function construct(el, outer, ctx, parentEl) {
+    const p = profileHook;
+    if (p === null)
+        return constructNode(el, outer, ctx, parentEl);
+    p.begin();
+    const t0 = performance.now();
+    try {
+        return constructNode(el, outer, ctx, parentEl);
+    }
+    finally {
+        p.spent("build", el.tag, performance.now() - t0);
+    }
+}
+function constructNode(el, outer, ctx, parentEl) {
     // Own-key lookups: a tag named `constructor` must not resolve through
     // Object.prototype.
     const baseCtor = Object.hasOwn(ctx.tags, el.tag) ? ctx.tags[el.tag] : null;
@@ -1589,7 +1623,7 @@ function constructState(el, outer, ctx, parentEl) {
             const fn = c.fn;
             overrides.push({
                 slot,
-                make: (t) => new Constraint(`${t.constructor.name}.${slot} (state ${label})`, () => fn.call(t, t.parent, croot), (v) => setBound(t, slot, v)),
+                make: (t) => new Constraint(`${declareName(t)}.${slot} (state ${label})`, () => fn.call(t, t.parent, croot), (v) => setBound(t, slot, v)),
             });
         }
         else if ("datapath" in r) {
@@ -1607,7 +1641,7 @@ function constructState(el, outer, ctx, parentEl) {
                 slot,
                 make: isPercent(value) ? (t) => percentRule(t, slot, value.percent, pos)
                     : isAlign(value) && (slot === "x" || slot === "y") ? (t) => alignRule(t, slot, value.align, pos)
-                        : (t) => new Constraint(`${t.constructor.name}.${slot} (state ${label})`, () => value, (v) => setBound(t, slot, v)),
+                        : (t) => new Constraint(`${declareName(t)}.${slot} (state ${label})`, () => value, (v) => setBound(t, slot, v)),
             });
         }
     }
@@ -1775,7 +1809,7 @@ function appendChildren(from, parentView, croot, ctx, parentEl, slot) {
                 // runtime's own surface and a member the class declares, the
                 // second with the attribute door named — so what reaches here is a
                 // path that skipped the checker (a direct instantiate).
-                throw new DeclareError(`'${childEl.name}' is already a member of the running ${parentView.constructor.name} — choose another name for this child`, childEl.pos);
+                throw new DeclareError(`'${childEl.name}' is already a member of the running ${declareName(parentView)} — choose another name for this child`, childEl.pos);
             }
             parentView[childEl.name] = child;
         }

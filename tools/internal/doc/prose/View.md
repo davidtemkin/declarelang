@@ -805,10 +805,10 @@ The **resolved** pair: a second click on this same view inside the double-click 
 (and, on touch, within a few pixels of the first tap). The desktop rule holds — a third
 click starts a fresh cycle, so triple is a double plus a single, not two doubles.
 
-Declaring it changes when `click` arrives, which is the part to know: a view that answers
-both **withholds** the first click for the length of the interval, so a single click fires
-late and a pair fires `click` then `dblClick` together. If a single click must feel
-immediate, keep the two handlers on different views.
+The first click arrives at once, as the platforms deliver it; on a view that declares
+`onDblClick`, the second arrives as `dblClick` alone, not as a second `click`. So the single
+click's action should be one the double builds on — select on one click, open on two — as a
+file list does.
 
 ## onTouchStart
 The **raw** multi-finger stream, and the layer below the recognized gestures: a finger

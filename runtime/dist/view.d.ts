@@ -407,6 +407,7 @@ export declare class View extends Node {
      *  the Surface API. After this, the attribute setters push changes to the
      *  live surface one Surface call at a time. */
     $attach(backend: RenderBackend, parentSurface: Surface | null, before?: Surface | null): void;
+    private $attachSelf;
     /** Read data relative to this view's inherited cursor — the runtime form
      *  every `:path` in a `{ }` body resolves to. The COMPILER emits the
      *  pre-parsed segments (`:location.city` → `this.$data(["location","city"])`,
@@ -460,6 +461,8 @@ export declare class View extends Node {
     private $pressHome;
     private $dragHome;
     private $freezeHome;
+    /** A view joined or left: the hit walk's reach changes with it (interaction.ts). */
+    protected $childListChanged(): void;
     /** This view as a developer's report names it: its path from the App and
      *  its class (`app.chart.plot (YearChart)`). */
     $drawingName(): string;
@@ -916,6 +919,10 @@ export declare class View extends Node {
     private $inputWants;
     /** Stand up the draw method as a tracked, re-recording computation. */
     private $bindDraw;
+    /** Hidden — this view or one above it — and no mask's stencil: no one sees
+     *  this drawing, so it is not re-recorded (a tracked read of each `visible`
+     *  on the way up, so showing it records it). */
+    $drawingQuiet(): boolean;
     /** Re-record right now — the explicit half of draw-on-invalidation (the
      *  attribute-driven half is the recording's own tracked reads). Also the
      *  entry point for a draw method assigned after attach. */

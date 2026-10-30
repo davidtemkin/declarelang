@@ -33,6 +33,7 @@
 import { Node, onDiscard } from "./node.js";
 import { defineAttributes, setBound } from "./attributes.js";
 import { currentStreams, defaultEventSource } from "./stream-seam.js";
+import { declareName } from "./declare-name.js";
 // ── The classes ───────────────────────────────────────────────────────────
 /** The abstract base: everything shared between SSE and WebSocket. Lifecycle
  *  is exactly the source contract (§5): node removal closes the connection,
@@ -201,7 +202,7 @@ export class Stream extends Node {
                 fn.call(this, arg);
             }
             catch (e) {
-                console.error(`[Declare] ${name} on ${this.constructor.name} threw: ${e?.message ?? e}`, e);
+                console.error(`[Declare] ${name} on ${declareName(this)} threw: ${e?.message ?? e}`, e);
             }
         }
     }

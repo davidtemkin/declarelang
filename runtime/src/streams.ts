@@ -34,6 +34,7 @@
 import { Node, onDiscard } from "./node.js";
 import { defineAttributes, setBound } from "./attributes.js";
 import { currentStreams, defaultEventSource, type StreamCallbacks, type StreamHandle, type StreamRequest } from "./stream-seam.js";
+import { declareName } from "./declare-name.js";
 
 // ── The classes ───────────────────────────────────────────────────────────
 
@@ -214,7 +215,7 @@ export abstract class Stream extends Node {
       // Loud and attributed, never fatal: a throwing onMessage must not kill
       // the stream (or the arrival burst it rode in on).
       try { (fn as (a?: unknown) => void).call(this, arg); }
-      catch (e) { console.error(`[Declare] ${name} on ${this.constructor.name} threw: ${(e as Error)?.message ?? e}`, e); }
+      catch (e) { console.error(`[Declare] ${name} on ${declareName(this)} threw: ${(e as Error)?.message ?? e}`, e); }
     }
   }
 }

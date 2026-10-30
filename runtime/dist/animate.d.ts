@@ -95,6 +95,8 @@ export declare class Clock {
     now(): number;
     /** Register a ticker and, if the clock was idle, start the frame loop.
      *  Idempotent on an already-registered ticker. */
+    /** What is on the clock now — the profiler's "what keeps it from settling". */
+    tickersNow(): Ticker[];
     add(t: Ticker): void;
     /** Drop a ticker (an explicit `stop()`); if it was the last, go idle. A
      *  ticker that finishes naturally is dropped by `frame` instead. */

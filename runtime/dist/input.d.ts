@@ -16,12 +16,12 @@ export interface HitTarget {
      *  on the hover walk (its host is one element; the DOM brushes per-element
      *  style.cursor instead and leaves this unset). */
     cursor?: string;
-    /** True when this view declares `onDblClick` — the router then HOLDS its
-     *  click for the double-click window instead of firing immediately, so a
-     *  double-tap does not also perform the single action first. Pay-per-use
-     *  gesture arbitration: the latency exists only where the app asked for the
-     *  ambiguity. (Resolution knows this because a sink's existence and its
-     *  declared handlers are the same fact — view.ts inputSink.) */
+    /** True when this view declares `onDblClick` — the second click of a pair
+     *  then reaches it as `dblClick` alone, not as a second `click` too. The
+     *  first click is delivered at once, as the platforms do: the view's single
+     *  click is something its double builds on. (Resolution knows this because a
+     *  sink's existence and its declared handlers are the same fact — view.ts
+     *  inputSink.) */
     wantsDbl?: boolean;
     /** True when this view declares `onHold`. */
     wantsHold?: boolean;

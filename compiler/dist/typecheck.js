@@ -543,6 +543,11 @@ function explainTs(d, u, synthTags) {
             if (m !== null)
                 return `'${m[1]}' is read-only — a fact the class maintains; write the thing it derives from, not the fact`;
             return msg;
+        // `T?` inside a body: the declaration sugar is not TypeScript, and tsc's
+        // suggestion (`T | undefined`) is wrong for Declare, whose absent value is null
+        case 17019:
+            m = msg.match(/Did you mean to write '(.+?) \| undefined'\?/s);
+            return `'?' after a type is the declaration's shorthand (a slot's or a parameter's: string? is string | null), not a { } body's — a body is TypeScript, so write ${m !== null ? `${m[1]} | null` : "the type | null"}`;
         case 1308:
             return `a { } body is synchronous — there is no 'await' (and no async handler). A request is a DataSource: its fetch() sends it, the screen derives from .value / .loading / .failed, and work that must follow the reply goes in its onLoad() — a POST and then a write is a DataSource with method = "POST" whose onLoad does the write`;
         // A host global the resolver let through (it admits only the prelude and

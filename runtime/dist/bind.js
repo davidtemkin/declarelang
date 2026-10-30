@@ -19,6 +19,10 @@ import { View, inheritedCursor, withCursorDefining } from "./view.js";
 import { authoredName, onDiscard } from "./node.js";
 import { coerceData, toCursor } from "./data.js";
 import { splitPath } from "./path-plan.js";
+import { declareName } from "./declare-name.js";
+/** The profiler's itemized mode (profile.ts): `globalThis.__declareProfileItemize`
+ *  set before the program boots keeps every rule off the kernel's native path. */
+const ITEMIZE = globalThis.__declareProfileItemize === true;
 /** Bind `name = { src }`: compile, install as the slot's owner, evaluate
  *  once now. check() already validated the syntax on the build path; a
  *  direct instantiate of an unchecked tree still fails soundly here with
@@ -34,11 +38,11 @@ import { splitPath } from "./path-plan.js";
  *  so a descendant's `provided("theme")` re-derives when the { } does. No slot
  *  owner (there is no slot); teardown rides onDiscard. */
 export function provideBind(view, name, src, pos, classroot, deps) {
-    const c = compileExpr(src, bodyLabel(view.constructor.name, name, pos));
+    const c = compileExpr(src, bodyLabel(declareName(view), name, pos));
     if ("error" in c)
-        throw new DeclareError(`${view.constructor.name} provides ${name} = { … } ${c.error}`, pos);
+        throw new DeclareError(`${declareName(view)} provides ${name} = { … } ${c.error}`, pos);
     const fn = c.fn;
-    const k = new Constraint(`${view.constructor.name} provides ${name}`, 
+    const k = new Constraint(`${declareName(view)} provides ${name}`, 
     // a read of `name` inside it is the value above this node, which it extends
     () => computingProvision(view, name, () => fn.call(view, view.parent, classroot)), (v) => provideWrite(view, name, v));
     k.source = src;
@@ -160,7 +164,7 @@ function dataCellFor(view, field) {
     const dc = { cell, rule: null, readers: [], escaped: false };
     m.set(field, dc);
     dataCellStats.cells++;
-    dc.rule = new Constraint(`${view.constructor.name} :${field}`, () => view.$data([field]), (raw) => {
+    dc.rule = new Constraint(`${declareName(view)} :${field}`, () => view.$data([field]), (raw) => {
         const v = numericData(raw);
         if (v !== null) {
             const t = kernel().table;
@@ -404,9 +408,11 @@ bytecode) {
     // on whatever the slot held at link time, and stay there when it changed.
     // Such a constraint runs on the tracking path, which subscribes afresh each run.
     const rebindable = deps !== undefined && deps.some((p) => readsThroughSlot(view, classroot, p));
-    const expr = plan !== null && !byBranch && !rebindable ? plan.expr : null;
+    // ITEMIZED PROFILING (profile.ts): every rule runs in JavaScript, so each run is
+    // counted and named — slower, and for profiling only; read once, before boot
+    const expr = plan !== null && !byBranch && !rebindable && !ITEMIZE ? plan.expr : null;
     if (expr !== null) {
-        if (bindKernelExpr(view, name, expr, classroot, `${view.constructor.name}.${name}`, src, pos, yielding, deps, derived)) {
+        if (bindKernelExpr(view, name, expr, classroot, `${declareName(view)}.${name}`, src, pos, yielding, deps, derived)) {
             exprStats.kernel++;
             return;
         }
@@ -414,9 +420,9 @@ bytecode) {
     }
     if (plan !== null)
         deps = plan.paths;
-    const c = compileExpr(src, bodyLabel(view.constructor.name, name, pos));
+    const c = compileExpr(src, bodyLabel(declareName(view), name, pos));
     if ("error" in c) {
-        throw new DeclareError(`${view.constructor.name}.${name} = { … } ${c.error}`, pos);
+        throw new DeclareError(`${declareName(view)}.${name} = { … } ${c.error}`, pos);
     }
     const rule = { k: null };
     const fn = byBranch ? branchWatched(view, name, c.fn, rule) : c.fn;
@@ -425,7 +431,7 @@ bytecode) {
     // fallback it replaces was never read before its inputs existed, so a
     // program that ran clean keeps running clean. The rule stays armed on what
     // it read up to the throw and lands the value when those inputs change.
-    const k = new Constraint(`${view.constructor.name}.${name}`, yielding ? () => { try {
+    const k = new Constraint(`${declareName(view)}.${name}`, yielding ? () => { try {
         return fn.call(view, view.parent, classroot);
     }
     catch {
@@ -505,7 +511,7 @@ function readsThroughSlot(view, classroot, path) {
 export function bindData(view, name, path, type, plan) {
     const UNRESOLVED = {}; // sentinel: coerceData returns the def verbatim
     const read = plan ?? path; // a selector-bearing path arrives pre-parsed (B3)
-    const k = new Constraint(`${view.constructor.name}.${name} = :${path}`, () => {
+    const k = new Constraint(`${declareName(view)}.${name} = :${path}`, () => {
         const v = coerceData(type, view.$data(read), UNRESOLVED);
         return v === UNRESOLVED ? defaultOf(view, name) : v;
     }, (v) => setBound(view, name, v));
@@ -518,7 +524,7 @@ export function bindData(view, name, path, type, plan) {
  *  stops at the equality gate. */
 export function bindDatapath(view, path) {
     const segs = typeof path === "string" ? splitPath(path) : path;
-    const k = new Constraint(`${view.constructor.name}.datapath = :${typeof path === "string" ? path : path.join(".")}`, () => {
+    const k = new Constraint(`${declareName(view)}.datapath = :${typeof path === "string" ? path : path.join(".")}`, () => {
         const base = inheritedCursor(view.parent);
         return base === null ? null : base.data.$cursorAt([...base.path, ...segs]);
     }, (v) => setBound(view, "datapath", v));
@@ -535,7 +541,7 @@ export function bindDatapath(view, path) {
 export function bindCursor(view, src, pos, classroot) {
     const c = compileExpr(src);
     if ("error" in c) {
-        throw new DeclareError(`${view.constructor.name}.datapath = { … } ${c.error}`, pos);
+        throw new DeclareError(`${declareName(view)}.datapath = { … } ${c.error}`, pos);
     }
     const fn = c.fn;
     // The label names the NODE, not just its class: "View.datapath" sent an
@@ -543,7 +549,7 @@ export function bindCursor(view, src, pos, classroot) {
     // meant (field report 2026-08-21). The name is how the author wrote it —
     // the member key on the parent or classroot — when there is one.
     const name = authoredName(view);
-    const label = `${view.constructor.name}${name === null ? "" : ` '${name}'`}.datapath`;
+    const label = `${declareName(view)}${name === null ? "" : ` '${name}'`}.datapath`;
     const k = new Constraint(label, () => withCursorDefining(view, () => toCursor(fn.call(view, view.parent, classroot), label)), (v) => setBound(view, "datapath", v));
     own(view, "datapath", k);
     k.run();
@@ -609,7 +615,7 @@ export function percentAxis(name) {
     return Object.hasOwn(PERCENT_AXIS, name) ? PERCENT_AXIS[name] : null;
 }
 export function bindPercent(view, name, percent, pos) {
-    const cls = view.constructor.name;
+    const cls = declareName(view);
     const axis = Object.hasOwn(PERCENT_AXIS, name) ? PERCENT_AXIS[name] : null;
     if (axis === null) {
         throw new DeclareError(`${cls}.${name} = ${percent}%: no axis to resolve a percent against`, pos);
@@ -635,7 +641,7 @@ export function bindPercent(view, name, percent, pos) {
  *  of its slot (state.ts) — the same rule either way, so a state's `100%`
  *  resolves against the parent exactly as a declared one does. */
 export function percentRule(view, name, percent, pos) {
-    const cls = view.constructor.name;
+    const cls = declareName(view);
     const axis = percentAxis(name);
     if (axis === null)
         throw new DeclareError(`${cls}.${name} = ${percent}%: no axis to resolve a percent against`, pos);
@@ -679,7 +685,7 @@ function mayTransform(view) {
  *  corner and both centered cross at the middle. `transformLater` says a
  *  transform slot binds after this, in the same batch. */
 export function bindAlign(view, name, align, pos, transformLater = false) {
-    const cls = view.constructor.name;
+    const cls = declareName(view);
     const size = name === "x" ? "width" : "height";
     if (!(view.parent instanceof View)) {
         throw new DeclareError(`${cls}.${name} = ${align}: the root has no parent to align against`, pos);
@@ -708,7 +714,7 @@ export function bindAlign(view, name, align, pos, transformLater = false) {
 /** The JavaScript form of `name = center | end`, unowned — bindAlign's, and a
  *  State's position override's (as percentRule). */
 export function alignRule(view, name, align, pos, transformed = mayTransform(view)) {
-    const cls = view.constructor.name;
+    const cls = declareName(view);
     const size = name === "x" ? "width" : "height";
     const k = new Constraint(`${cls}.${name} = ${align}`, () => {
         // pinned to the page's frame: the window's extent, which is what it stands against

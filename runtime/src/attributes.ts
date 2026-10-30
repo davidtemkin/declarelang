@@ -29,6 +29,7 @@ import { ACTIVE, Cell, Constraint, S, isSettling, isTracking, kernel, noteWrite,
 import { DeclareError, at, layoutConflictMessage, type Where } from "./errors.js";
 import { THEME_PRESETS, withThemeDefaults } from "./themes.js";
 import type { Theme } from "./value.js";
+import { declareName } from "./declare-name.js";
 
 /** One attribute's class-level declaration: its default, the Surface push a
  *  change makes (absent for purely model-side attributes), and an optional
@@ -177,6 +178,19 @@ function pushKernelWrites(cells: Uint32Array): void {
   }
 }
 setPushHook(pushKernelWrites);
+
+/** After each push of `names` on `ctor`'s instances (and its subclasses', whose
+ *  tables inherit its entries), run `then` — from the JavaScript write path and
+ *  the kernel's alike, since both push through this table. interaction.ts uses
+ *  it to know when a view's box, place or transform moved. */
+export function afterPush(ctor: object, names: readonly string[], then: (self: object) => void): void {
+  const t = PUSHERS.get(ctor);
+  if (t === undefined) return;
+  for (const n of names) {
+    const p = t[n];
+    t[n] = p === undefined ? (self) => then(self) : (self, v) => { p(self, v); then(self); };
+  }
+}
 
 /** The kernel cell of `self.name` when it is a table slot of this instance
  *  (numeric, not escaped, not retired); −1 otherwise. Allocates the block.
@@ -463,8 +477,13 @@ export function defineAttributes<S extends object>(
               // queued (or whose rule has not landed yet: the install batch)
               // takes the live value now and keeps the cell edge — a reader's
               // FIRST computed value (a spring's target it primes from) is the
-              // value the live fallback gave; the landing re-runs it to the same
-              if (defRule && declStale(self, name, true)) return evalDefault(self, name, defBinding!, defOuter);
+              // value the live fallback gave; the landing re-runs it if it
+              // differs. The value is worked out UNTRACKED: the reader depends on
+              // the slot, not on what its default reads. Tracked, those reads
+              // became the reader's own edges, re-taken each run — a row's
+              // `fill = { lit ? … }` ran for all forty rows on every click that
+              // changed `lit = { app.picked == :id }` for two (profile, 2026-10-29)
+              if (defRule && declStale(self, name, true)) return untracked(() => evalDefault(self, name, defBinding!, defOuter));
             } else if (defRule && declStale(self, name, isSettling())) {
               return evalDefault(self, name, defBinding!, defOuter);
             }
@@ -486,11 +505,12 @@ export function defineAttributes<S extends object>(
           // (declStale — the table path's own test, asked the same way)
           const o = self.$owners?.[name];
           if (o !== undefined && o.declDefault) {
+            // untracked, as on the table path: the reader's edge is the slot's cell
             if (!o.applied) {
               // not evaluable yet either (its inputs have not arrived): the
               // stored value stands, as it did before the rule existed
-              try { return evalDefault(self, name, defBinding!, defOuter); } catch { /* fall through */ }
-            } else if (declStale(self, name, isTracking() || isSettling())) return evalDefault(self, name, defBinding!, defOuter);
+              try { return untracked(() => evalDefault(self, name, defBinding!, defOuter)); } catch { /* fall through */ }
+            } else if (declStale(self, name, isTracking() || isSettling())) return untracked(() => evalDefault(self, name, defBinding!, defOuter));
           }
         }
         if (defBinding !== undefined && !provided(self, name)) {
@@ -508,7 +528,7 @@ export function defineAttributes<S extends object>(
       set(this: object, v: unknown): void {
         if (readOnly) {
           throw new DeclareError(
-            `${this.constructor.name}.${name} is read-only — it is computed from its declaration and cannot be assigned`
+            `${declareName(this)}.${name} is read-only — it is computed from its declaration and cannot be assigned`
           );
         }
         const self = this as Carrier;
@@ -522,8 +542,8 @@ export function defineAttributes<S extends object>(
         if (owner !== undefined) {
           if (!owner.yielding) {
             throw new DeclareError(owner.arrangedBy !== null
-              ? layoutConflictMessage(this.constructor.name, name, owner.arrangedBy, null, null, true)
-              : `${this.constructor.name}.${name} is bound by a constraint (${owner.label}) — a direct write would be silently overwritten; change what the constraint reads instead`
+              ? layoutConflictMessage(declareName(this), name, owner.arrangedBy, null, null, true)
+              : `${declareName(this)}.${name} is bound by a constraint (${owner.label}) — a direct write would be silently overwritten; change what the constraint reads instead`
             );
           }
           owner.dispose(); // a runtime derive yields: the author takes over
@@ -603,7 +623,7 @@ function evalDefault(
   let inFlight = EVALING.get(self);
   if (inFlight?.has(name) === true) {
     throw new DeclareError(
-      `${self.constructor.name}.${name}'s default binding (transitively) reads itself`
+      `${declareName(self)}.${name}'s default binding (transitively) reads itself`
     );
   }
   if (inFlight === undefined) EVALING.set(self, (inFlight = new Set()));
@@ -808,7 +828,7 @@ export function providedRead(self: object, name: string, hasDefault: boolean, df
   const own = tableFor(DEFAULTS, (self as object).constructor) !== null && name in (self as Record<string, unknown>);
   throw new DeclareError(
     `provided("${name}"): no ancestor provides '${name}', and this read declares no default — ` +
-    (own ? `'${name}' is this ${(self as object).constructor.name}'s own attribute, and provided() reads from above: read it here as ${name}`
+    (own ? `'${name}' is this ${declareName(self as object)}'s own attribute, and provided() reads from above: read it here as ${name}`
       : `provide '${name}' on an ancestor, or give the read a default`)
   );
 }
@@ -1083,7 +1103,7 @@ export function ownerOf(self: object, name: string): Constraint | null {
 export interface DeclRecord {
   /** The `{ }` default's source text, null for a plain (literal) declaration. */
   source: string | null;
-  pos: { line: number; col: number } | null;
+  pos: { line: number; col: number; file?: string } | null;
   /** The compiler's extracted read-paths for the default, when they rode along. */
   deps: readonly string[] | null;
   /** The default as kernel bytecode, when the compiler emitted it. */
@@ -1233,6 +1253,7 @@ export function percentOwned(self: object, name: string): boolean {
  *  write — reached when replication attaches an instance (installing
  *  auto-extent) before its bindings finish. */
 export function own(self: object, name: string, c: Constraint): void {
+  c.owner ??= self;
   const owners = ((self as Carrier).$owners ??= Object.create(null) as Record<string, Constraint>);
   const prior = owners[name];
   if (prior !== undefined && prior.yielding) {
@@ -1258,8 +1279,8 @@ export function own(self: object, name: string, c: Constraint): void {
       // The INCOMING constraint is the author's (bind.ts records the source text
       // and position on it before installing), so its `sourcePos` is the line
       // that wrote the losing value — which is the line an author needs.
-      ? layoutConflictMessage(self.constructor.name, name, prior.arrangedBy, null, c.sourcePos)
-      : `${self.constructor.name}.${name} is already bound (by ${prior.label})${at(c.sourcePos)}`);
+      ? layoutConflictMessage(declareName(self), name, prior.arrangedBy, null, c.sourcePos)
+      : `${declareName(self)}.${name} is already bound (by ${prior.label})${at(c.sourcePos)}`);
   }
   owners[name] = c;
   // the kernel learns the owner too: its pull runs a queued owner for a
@@ -1294,7 +1315,7 @@ export function release(self: object, name: string, c: Constraint): void {
  *  is not a reactive collection) can hold it. */
 export function bindDerived(self: object, name: string, compute: () => unknown): Constraint {
   const c = new Constraint(
-    `${self.constructor.name}.${name} (runtime derive)`,
+    `${declareName(self)}.${name} (runtime derive)`,
     compute,
     (v) => write(self, name, v),
     0,

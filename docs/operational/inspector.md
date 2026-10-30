@@ -80,6 +80,15 @@ be read mid-flight. **⏭ frame** advances exactly one frame. **▶ resume** han
 back. This is the same driven clock [`verify`](declare-docs:operational:verify) rung 5
 uses to make motion assertions deterministic.
 
+## Profiling
+
+**◉ profile** records the app while you use it: the turns, the rules each ran and how often
+to any effect, what was built, the drawings and what they cost the GPU, and the frames.
+**■ stop** puts the report in the console, opened tall enough to read. The Inspector's
+refresh rests while it records, and its own turns are left out, so what you read is the
+app's. A turn the two happen to share can still show one of the Inspector's rules. The
+report and what each part means: [Profiling](declare-docs:operational:profile).
+
 ## Typing at it
 
 The prompt at the bottom evaluates **in the scope of the selected object** — `parent`,

@@ -160,9 +160,9 @@ if (!argv.includes("--skip-corpus")) {
         walk(D.find("app"), "app");
         return out;
       });
-      // the DOM raster's own account (dom-backend.ts): a raster read back as
-      // blank is redrawn at half density — a different picture, so a pixel
-      // difference reports whether either build took that recovery
+      // the DOM raster's own account (dom-backend.ts): bytes held, and density
+      // requests the cap clamped — a different picture, so a pixel difference
+      // reports whether either build clamped
       const raster = await tab.evaluate(() => window.__declareDomRasterStats?.() ?? null);
       const png = Buffer.from(await tab.screenshot({ type: "png" }));
       return { tree, png, errors, raster };

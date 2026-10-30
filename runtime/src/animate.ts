@@ -123,6 +123,9 @@ export class Clock {
 
   /** Register a ticker and, if the clock was idle, start the frame loop.
    *  Idempotent on an already-registered ticker. */
+  /** What is on the clock now — the profiler's "what keeps it from settling". */
+  tickersNow(): Ticker[] { return [...this.tickers]; }
+
   add(t: Ticker): void {
     this.tickers.add(t);
     if (this.handle === null && !this.ticking) this.handle = this.sched.request(this.frame);

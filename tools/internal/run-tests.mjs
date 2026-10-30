@@ -56,6 +56,8 @@ const SUITE = [
   "test/library.test.mjs",
   "test/overlays.test.mjs",        // overlays by kind, windows, hosted programs (planes.md §3, §8, §11, §12)
   "test/shortcuts.test.mjs",       // shortcuts as declared data, across islands (planes.md §9)
+  "test/profile.test.mjs",         // the profiler: turns, rules, fan-out, builds, frames
+  "test/draw-quiet.test.mjs",      // a drawing no one can see is not re-recorded
   "test/drag-edge-scroll.test.mjs", // a drag in an edge band scrolls, under a finger as under a mouse
   "test/focus-place.test.mjs",     // where focus goes when the program changes (focus-place.md)
   "test/focus-ring.test.mjs",      // reveal clear of pinned chrome, the ring under it, turned rings, flight (planes.md §14)

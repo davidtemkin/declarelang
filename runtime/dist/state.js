@@ -19,6 +19,7 @@ import { View } from "./view.js";
 import { Constraint } from "./reactive.js";
 import { defineAttributes, disown, disposeBindings, own, ownerOf, setBound, slotCellOf } from "./attributes.js";
 import { DeclareError } from "./errors.js";
+import { declareName } from "./declare-name.js";
 const STACKS = Symbol("overrideStacks");
 function stacksFor(view) {
     const v = view;
@@ -168,7 +169,7 @@ export class State extends Node {
      *  sync), the sanctioned path, not a raw assignment. */
     $drive(v) {
         if (ownerOf(this, "applied") !== null) {
-            throw new DeclareError(`${this.constructor.name}.applied is bound by a constraint — a state is gated by { } OR driven by the verbs, not both; change what the gate reads instead of calling ${v ? "apply" : "remove"}()`);
+            throw new DeclareError(`${declareName(this)}.applied is bound by a constraint — a state is gated by { } OR driven by the verbs, not both; change what the gate reads instead of calling ${v ? "apply" : "remove"}()`);
         }
         setBound(this, "applied", v);
     }

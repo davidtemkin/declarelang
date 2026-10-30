@@ -47,6 +47,7 @@ import { defineAttributes, setBound } from "./attributes.js";
 import type { AttrType } from "./value.js";
 import { validateDoc, fieldValueError, type ShapeField } from "./data-schema.js";
 import { isArrayDoc, type DataShape } from "./shape-resolve.js";
+import { declareName } from "./declare-name.js";
 
 /** A place in a dataset: the `datapath` attribute's value. Interned per
  *  dataset (see Dataset.cursorAt), so equal places are equal values. */
@@ -1006,7 +1007,7 @@ export class DataSource extends Dataset {
         try { h.call(this); }
         catch (e) {
           const nm = authoredName(this);
-          console.error(`[Declare] onLoad on ${this.constructor.name}${nm !== null ? ` '${nm}'` : ""} threw: ${(e as Error)?.message ?? e}`, e);
+          console.error(`[Declare] onLoad on ${declareName(this)}${nm !== null ? ` '${nm}'` : ""} threw: ${(e as Error)?.message ?? e}`, e);
         }
       }
     } catch (e) {
@@ -1047,7 +1048,7 @@ function headerRecord(h: unknown): Record<string, string> | null {
 /** "DataSource 'weather'" — the source as a trace or a report names it. */
 function sourceLabel(d: DataSource): string {
   const nm = authoredName(d);
-  return `${d.constructor.name}${nm !== null ? ` '${nm}'` : ""}`;
+  return `${declareName(d)}${nm !== null ? ` '${nm}'` : ""}`;
 }
 
 defineAttributes(DataSource, {

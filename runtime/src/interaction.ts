@@ -33,7 +33,7 @@
 // own instance test at module init, so view.ts can import this module without
 // a cycle.
 
-import { Cell, Constraint, afterSettle, isSettling } from "./reactive.js";
+import { Cell, Constraint, afterSettle, isSettling, untracked } from "./reactive.js";
 import { affineFit, childHomography, unprojectChild, type Homography, type View3D } from "./projective.js";
 import { leavesPlane, IDENTITY as IDENTITY_AFFINE, apply as applyAffine, boxThrough as boxThroughAffine, compose as composeAffine, fromParts as affineFromParts, invert as invertAffine, isIdentity as affineIsIdentity, rotationOf as affineRotationOf, scaleOf as affineScaleOf, type Affine } from "./affine.js";
 import { walkHit, type HitAdapter, type HitAccept, type HitNote as WalkNote } from "./hit-walk.js";
@@ -242,7 +242,66 @@ function paintChildren(v: InteractionView): readonly unknown[] {
   return out;
 }
 
+// REACH: the box, in a view's own frame, holding everything its subtree could
+// answer a hit with — its own box, joined with each child's reach carried into
+// it, where the view lets its children's hits past its own edge (not a
+// scroller's, not past a clip but for children that ignore it). The hit walk
+// passes over a child whose reach misses the point, so a walk costs about the
+// tree's depth: over Pagemap's flatplan, a viewAt visited about 7,700 views.
+//
+// Kept per view and worked out lazily, UNTRACKED, once after any geometry
+// changed (`markGeometry`, from the pushes of every box, place, transform,
+// scroll and clip attribute, and from a child list changing). A walk reads one
+// cell, GEOMETRY, in its stead — so a rule that walks (`hovered`, `viewAt` in a
+// `{ }`) re-runs when anything moved, as it did when it read every view's
+// geometry, and no longer reads them all.
+type Reach = { x0: number; y0: number; x1: number; y1: number };
+const GEOMETRY = new Cell();
+let geoDirty = true, geoGen = 0;
+const REACH = new WeakMap<InteractionView, { gen: number; r: Reach | null }>();
+const UNBOUNDED: Reach = { x0: -Infinity, y0: -Infinity, x1: Infinity, y1: Infinity };
+
+/** Some view's box, place, transform, scroll, clip or children changed. */
+export function markGeometry(): void {
+  if (geoDirty) return;
+  geoDirty = true;
+  GEOMETRY.changed();
+}
+
+function reachOf(v: InteractionView): Reach | null {
+  const m = REACH.get(v);
+  if (m !== undefined && m.gen === geoGen) return m.r;
+  let r: Reach | null = null;
+  if (v.visible) {
+    const w = v.width, h = v.height;
+    r = { x0: Math.min(0, w), y0: Math.min(0, h), x1: Math.max(0, w), y1: Math.max(0, h) };
+    // a scroller answers only inside its frame; a clip only inside its box, but
+    // for the children that ignore it
+    const scroller = v.scrolls !== "none";
+    const clips = VIEWS.clips(v);
+    for (const c of paintChildren(v)) {
+      if (!isView(c)) continue;
+      if (scroller || (clips && !c.ignoreClip)) continue;
+      const cr = reachOf(c);
+      if (cr === null) continue;
+      if (leavesPlane(c as unknown as View3D) || !Number.isFinite(cr.x0 + cr.x1 + cr.y0 + cr.y1)) { r = UNBOUNDED; break; }
+      // the child's frame into this one: its paint transform, its place, this content origin
+      const b = boxThroughAffine(localAffine(c), cr.x0, cr.y0, cr.x1 - cr.x0, cr.y1 - cr.y0);
+      const ox = c.x + contentLead(v, "x"), oy = c.y + contentLead(v, "y");
+      r.x0 = Math.min(r.x0, b.x + ox); r.y0 = Math.min(r.y0, b.y + oy);
+      r.x1 = Math.max(r.x1, b.x + b.width + ox); r.y1 = Math.max(r.y1, b.y + b.height + oy);
+    }
+  }
+  REACH.set(v, { gen: geoGen, r });
+  return r;
+}
+
 const VIEWS: HitAdapter<InteractionView> = {
+  reach: (v) => {
+    GEOMETRY.track();
+    if (geoDirty) { geoDirty = false; geoGen++; }
+    return untracked(() => reachOf(v));
+  },
   isNode: (c): c is InteractionView => isView(c),
   children: (v) => paintChildren(v),
   visible: (v) => v.visible,

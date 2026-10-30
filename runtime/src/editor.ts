@@ -28,6 +28,7 @@ import type { ShapeField } from "./data-schema.js";
 import { compileExpr } from "./expr.js";
 import { DeclareError, type Pos } from "./errors.js";
 import type { AttrType } from "./value.js";
+import { declareName } from "./declare-name.js";
 
 interface Session {
   /** The bound field's path relative to the inherited cursor — a string, or
@@ -68,7 +69,7 @@ function register(view: View, name: string, path: () => string | readonly string
   if (map === undefined) SESSIONS.set(view, (map = new Map()));
   map.set(name, { path, type });
   const reseed = new Constraint(
-    `${view.constructor.name}.${name} <->`,
+    `${declareName(view)}.${name} <->`,
     () => coerceData(type, view.$data(path()), ""),
     (v) => { setBound(view, name, v); refresh(view, name); }
   );
@@ -88,7 +89,7 @@ export function bindTwoWay(view: View, name: string, path: string | readonly str
  *  tracking, so changing the field reseeds the editor onto the new place. */
 export function bindTwoWayDynamic(view: View, name: string, src: string, pos: Pos, classroot: View | null, type: AttrType): void {
   const c = compileExpr(src);
-  if ("error" in c) throw new DeclareError(`${view.constructor.name}.${name} <-> { … } ${c.error}`, pos);
+  if ("error" in c) throw new DeclareError(`${declareName(view)}.${name} <-> { … } ${c.error}`, pos);
   const fn = c.fn;
   register(view, name, () => String(fn.call(view, view.parent, classroot)), type);
 }

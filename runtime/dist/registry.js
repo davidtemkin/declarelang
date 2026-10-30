@@ -11,6 +11,7 @@
 // place an imperative `new Markdown()` in a body — or a future create-by-string —
 // resolves its class. Keep the table names in sync with schema.ts's SCHEMAS.
 import { View, App } from "./view.js";
+import { nameClassesFrom } from "./declare-name.js";
 import { DOMIsland } from "./island.js";
 import { Node } from "./node.js";
 import { Text } from "./text.js";
@@ -76,6 +77,8 @@ export const ANIMATOR_GROUPS = { AnimatorGroup };
 /** Tag → state class (docs/system-design/states.md) — captures its body's overrides
  *  for the enclosing view. */
 export const STATES = { State };
+// a message names a runtime class by these names, never its minified one (declare-name.ts)
+nameClassesFrom(() => [TAGS, LAYOUT_BASES, DATA, ANIMATORS, SOURCES, ANIMATOR_GROUPS, STATES]);
 /** Every built-in class NAME the tables register — the vocabulary the used-
  *  set intersects to decide which classes a production bundle keeps. (Includes
  *  each name maps to its export.) Consumed by the compiler side (declarec), never by the

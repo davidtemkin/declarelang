@@ -20,10 +20,12 @@ Uniform across renderers, and the part an author can rely on:
   "animation is over" is undetectable in this language (a spring, a pointer
   constraint and a stream are all just writers), so the runtime declares the
   tolerance instead of guessing at motion.
-- **Memory is bounded and failure is honest.** A raster the platform refuses is
-  a slow frame, never a wrong one; a raster the platform silently blanks is
-  reported to the developer in development, by the view whose drawing it is —
-  a production build never reads a raster back to look.
+- **Memory is bounded.** A raster the platform refuses is a slow frame, never
+  a wrong one. A raster the platform silently blanks (Safari past its canvas
+  budget, Firefox at ~130 MB) is not looked for: the readback that found it
+  was a GPU sync, and in Chrome a canvas read back can move off the GPU, so
+  development drew differently from production. It was removed 2026-10-29;
+  the caps below are set to keep rasters within the engines' budgets.
 - **Culling is invisible.** Skipping work that cannot reach the screen changes
   no pixel, ever — pinned by equality, not tolerance.
 
@@ -39,7 +41,6 @@ bounds the same thing:
 | `rasterPad(list)` | the overscan a blur or shadow paints past the bounds — from the ops' own radii, clamped at 128 |
 | `replayArea(list)` | covered area in recording units², **overdraw counted**, weighted per kind — `fill 1 · stroke 0.6 · shadow 4.3 · text 8.5 · gradient 30`, measured (§6); `Infinity` under a filter, which is superlinear in radius and not area-driven |
 | `replay(ctx, list, clip?)` | the one interpreter every backend uses; with a clip, paint ops entirely outside it are skipped (never under `copy`, `source-in/out`, `destination-in/out/atop`, whose effect reaches past the source) |
-| `rasterLooksBlank(...)` | samples a fresh raster at a few op centres; a large raster that painted nothing is the platform's silent failure |
 | caps | `RASTER_MAX_DIM` 8192, `RASTER_MAX_AREA` 16.7 MP (Safari's per-canvas floor), `rasterEntryCap` 3 viewports, `rasterTotalCap` 32–96 MB — **policy in viewport units**, because the platform ceiling is unknowable from a tab (§5) |
 | `canvas-filter.ts` | `ctx.filter` for engines that accept it and paint unfiltered (Safari): a calibrated three-pass box blur plus a colour matrix on a downsampled buffer, and an **approximate** resample-only path with no readback for a caller in motion |
 
@@ -70,9 +71,8 @@ memo makes the expensive ones cheap:
   generation is off-screen and worthless at any recency (largest first); among
   live entries, the lowest `rasterMs × hits / bytes`. A static scene does not
   advance the generation, so idling evicts nothing.
-- **Discovered ceilings**: a null context, a throw, or (in development) a raster
-  past 8 MB that samples blank halves the session budget — and never raises it.
-  The blank is also reported, naming the view.
+- **Discovered ceilings**: a null context or a throw halves the session budget —
+  and never raises it.
 - **The worker raster** (built 2026-09-10; `raster-client.ts` +
   `raster-worker.ts`): where the engine has `Worker` + `OffscreenCanvas`, a
   promoted recording's pixels are made OFF the main thread — the mac bridge
@@ -82,9 +82,8 @@ memo makes the expensive ones cheap:
   thereby ASYNCHRONOUS on canvas: the frame that promotes paints what it has —
   the prior raster of the same list scaled, or vectors — and the bitmap's
   arrival books the frame that shows it. Nothing else changes: admission,
-  stability, eviction (a worker bitmap is `close()`d on release), the blank
-  check (run in the worker before transfer) and the discovered-ceiling rule
-  are the same code paths. Fonts: the worker loads exactly the faces the page
+  stability, eviction (a worker bitmap is `close()`d on release) and the
+  discovered-ceiling rule are the same code paths. Fonts: the worker loads exactly the faces the page
   loaded (`font.ts noteLoadedFaces` → the `fonts` message), so text rasters
   identically; the filter probe and the fallback's scratch canvases are
   OffscreenCanvas there. DENIABLE: no worker (a Node rung, an old Safari, a
@@ -116,11 +115,8 @@ about not holding what cannot be seen.
   raster is owed, showing pays it — byte-identical across the round trip. (A
   fresh `<canvas>` is 300×150, 180 KB before anything draws; it is created 0×0.)
 - **Ceilings**: the entry cap is honoured by clamping density back to dpr,
-  never by refusing to draw. In development a large raster that samples blank
-  is reported once, naming the view and the raster's size, and is not redrawn:
-  a softer copy would hide what the developer needs to know. A production
-  build does not read back (`__DECLARE_PRODUCTION__`). The ledger is
-  `__declareDomRasterStats` (bytes, clamps, blanks).
+  never by refusing to draw. The ledger is `__declareDomRasterStats` (bytes,
+  clamps).
 - **Text-only drawings render.** They did not: `fillText` bounded to its anchor
   point, the canvas was sized to those bounds, and the glyphs were gone.
 - **Size is not windowed.** The canvas covers the whole recording, however
@@ -166,7 +162,7 @@ antialiasing between tiling wedges. Per-op conformance against Chrome is 30 of
 | | holds a drawing as | under a transform | admission | release | ceiling |
 |---|---|---|---|---|---|
 | canvas | memo raster, discardable | stretch for the beat, exact at rest | measured formula | relevance → value | discovered, budget halves |
-| DOM | per-view canvas, obligatory | re-raster at the at-rest composed density | none | hidden view releases | clamp density; blank → reported in development; no size window (§8) |
+| DOM | per-view canvas, obligatory | re-raster at the at-rest composed density | none | hidden view releases | clamp density; no size window (§8) |
 | mac | described layers; CG bitmap for the remainder | described: always exact; bitmap: composed density at rest | expressibility | n/a | bitmap: none; no size window (§8) |
 
 ## 4. Per engine
@@ -265,7 +261,7 @@ Nothing above is believed without one of these, and each says what it cannot see
 
 Levers, for an A/B rather than an argument: `__declareNoRasterMemo`,
 `__declareNoCull`, `__declareForceFilterFallback`, `__declareFilterGpuOnly`,
-`__declareNoFrost`, `__declareForceBlank`, `DECLARE_NO_LAYERS`.
+`__declareNoFrost`, `DECLARE_NO_LAYERS`.
 
 Traps the instruments were built to dodge, each learned by measuring something
 false first: a drive that touches what it measures (a `tick` the recording

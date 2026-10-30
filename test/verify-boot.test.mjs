@@ -53,6 +53,21 @@ await test("a boot that never settles is stopped at its budget, and the line it 
   assert.ok(r.boot.errors.some((e) => /while \(s != "ready"\)|this\.n = this\.n \+ 1/.test(e)), JSON.stringify(r.boot.errors));
 });
 
+await test("an evaluate that never finishes, while the page answers, is stopped and named by the script line that asked", () => {
+  const script = join(DIR, "waits.mjs");
+  writeFileSync(script, `export default async ({ drive, page }) => {
+  await drive.click('app.."Go"');
+  await page.evaluate(() => new Promise(() => {}));
+};`);
+  const file = join(DIR, "waits.declare");
+  writeFileSync(file, `App [ width = 200, height = 100, go: Button [ label = "Go" ] ]`);
+  const r = spawnSync("node", [join(ROOT, "tools/verify.mjs"), file, "--assert", script, "--boot-budget=1500"], { cwd: ROOT, encoding: "utf8" });
+  const out = r.stdout + r.stderr;
+  assert.match(out, /waits\.mjs:3: an evaluate in the page has not finished in 3 s, though the page answers/, out);
+  assert.match(out, /evaluating: \(\) => new Promise\(\(\) => \{\}\)/, "what it was evaluating");
+  assert.match(out, /the step before it: click app\.\."Go"/, "and the step before it");
+});
+
 // THE TOOLS RUN AS COMMANDS. npx runs a package's bin through a link to the
 // file itself, so a bin without its executable bit answers "Permission denied"
 // (Cadence 11 met it on declare-look and ran node tools/look.mjs instead).

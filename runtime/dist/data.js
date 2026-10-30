@@ -45,6 +45,7 @@ import { DeclareError } from "./errors.js";
 import { defineAttributes, setBound } from "./attributes.js";
 import { validateDoc, fieldValueError } from "./data-schema.js";
 import { isArrayDoc } from "./shape-resolve.js";
+import { declareName } from "./declare-name.js";
 // container → per-key region cells. Module-level (identity-keyed, so datasets
 // can never collide) and weak: cells live exactly as long as their data.
 const CELLS = new WeakMap();
@@ -998,7 +999,7 @@ export class DataSource extends Dataset {
                 }
                 catch (e) {
                     const nm = authoredName(this);
-                    console.error(`[Declare] onLoad on ${this.constructor.name}${nm !== null ? ` '${nm}'` : ""} threw: ${e?.message ?? e}`, e);
+                    console.error(`[Declare] onLoad on ${declareName(this)}${nm !== null ? ` '${nm}'` : ""} threw: ${e?.message ?? e}`, e);
                 }
             }
         }
@@ -1040,7 +1041,7 @@ function headerRecord(h) {
 /** "DataSource 'weather'" — the source as a trace or a report names it. */
 function sourceLabel(d) {
     const nm = authoredName(d);
-    return `${d.constructor.name}${nm !== null ? ` '${nm}'` : ""}`;
+    return `${declareName(d)}${nm !== null ? ` '${nm}'` : ""}`;
 }
 defineAttributes(DataSource, {
     // both pushes route through maybeAuto, so `autoFetch = true` + a url that lands

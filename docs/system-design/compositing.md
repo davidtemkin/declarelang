@@ -169,6 +169,14 @@ Two clauses that are part of this ruling, stated so no implementer has to guess:
   a with-children case for exactly this.
 - **Compositing is paint, never input.** Neither `blend` nor `backdrop` changes hit
   testing, focus, or the crawler document in any way.
+- **A layer the renderer makes for speed is not a boundary.** The DOM renderer gives a
+  view that moves on consecutive frames a layer of its own while it moves (dom-backend.ts
+  `noteMoved`), and a CSS layer is a stacking context, so it would isolate the blends
+  inside it, and it would hold a view fixed to the window. So a view holding a blend or a
+  fixed view is not promoted, and one that gains either gives its layer back. Nor is a
+  view with anything painted after it: under other views, Chrome layered each one over
+  it too and lost 7–13% of frames, so only the view painted last is promoted, and one
+  painted over later gives its layer back.
 
 ### 4.2 What a backdrop samples (same ruling, same list)
 

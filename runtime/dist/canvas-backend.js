@@ -27,6 +27,7 @@
 // the rest — arrived with the compositing arc (2026-08: `invertPoint` below,
 // so the hit walk tells the truth about a turned or scaled surface).
 import { watchSelection } from "./edit-selection.js";
+import { profileHook } from "./reactive.js";
 import { platformTimeout, clearPlatformTimeout } from "./platform-time.js";
 import { DeclareError } from "./errors.js";
 import { applyH, frontFacing, homography, inFront, invertH } from "./projective.js";
@@ -122,7 +123,7 @@ import { colorToCss, insetCss, insetSides, isGradient, radiusFit, radiusIsSquare
 import { filterCss } from "./filter-css.js";
 import { paintBox, paintBoxShadow, boxShape, realizeGradient } from "./boxpaint.js";
 import { clampLines, cssWeight, fontMetrics, fontString, textWidth, transformText, wrapLines } from "./measure.js";
-import { replay, replayArea, rasterPad, rasterEntryCap, rasterTotalCap, rasterLooksBlank, blankRasterMessage, listIsolated, makeCanvas, RASTER_MAX_DIM, RASTER_MAX_AREA, RASTER_GRACE_MS } from "./draw.js";
+import { replay, replayArea, rasterPad, rasterEntryCap, rasterTotalCap, listIsolated, makeCanvas, RASTER_MAX_DIM, RASTER_MAX_AREA, RASTER_GRACE_MS } from "./draw.js";
 import { applyFilterFallback, ctxFilterSupported, parseFilter } from "./canvas-filter.js";
 import { rasterWorkerAvailable, rasterInWorker } from "./raster-client.js";
 import { onDprChange } from "./dpr.js";
@@ -249,9 +250,8 @@ let memoAttempts = 0;
  *  evicts nothing. */
 let memoGeneration = 0;
 /** Multiplies the total cap. Halved whenever the platform hands back a
- *  DISCOVERED ceiling — a null context, a throw, or a large raster that came
- *  back blank (Safari's failure past its canvas budget is transparent, not
- *  slow) — so the session lives under the limit it actually hit. Never raised:
+ *  DISCOVERED ceiling — a null context or a throw — so the session lives
+ *  under the limit it actually hit. Never raised:
  *  the ceiling is unknowable and a guess that was once too high stays wrong. */
 let budgetScale = 1;
 const memoHolders = new Set();
@@ -270,11 +270,6 @@ const memoHolders = new Set();
 const OP_US = 1;
 const PX_US_PER_MPX = 50;
 const PROMOTE_US = 1000;
-/** Below this a blank check is not worth its GPU sync; above it, a raster that
- *  painted nothing is exactly the failure the check exists to catch. The check
- *  is the developer's: a production build never reads a raster back, and a
- *  development one reports the drawing by name (blankRasterMessage). */
-const BLANK_CHECK_BYTES = 8 << 20;
 // a diag window into the pool (the __declareDiag family): entries and bytes,
 // so a session growing rasters is visible rather than mysterious
 globalThis.__declareRasterStats =
@@ -1938,7 +1933,7 @@ class CanvasSurface {
     rasterEntry = null;
     /** A raster the worker is making for this surface (raster-client.ts); the
      *  arrival installs it only if this is still the request it answers. */
-    /** The view whose drawing this is (setDrawing), named by a blank report. */
+    /** The view whose drawing this is (setDrawing), named by the profiler. */
     owner = undefined;
     rasterPending = null;
     rasterSeen = null;
@@ -2084,7 +2079,7 @@ class CanvasSurface {
                 const req = { list, sx, sy, bx, by, w, h, bytes };
                 this.rasterPending = req;
                 memoAttempts++;
-                void rasterInWorker({ list, sx, sy, bx, by, w, h, blankCheck: (typeof __DECLARE_PRODUCTION__ === "undefined" || !__DECLARE_PRODUCTION__) && bytes > BLANK_CHECK_BYTES }).then((r) => {
+                void rasterInWorker({ list, sx, sy, bx, by, w, h }).then((r) => {
                     if (this.rasterPending !== req) {
                         r?.bitmap.close();
                         return;
@@ -2094,13 +2089,6 @@ class CanvasSurface {
                         this.compositor.invalidate(this);
                         return;
                     } // the worker could not: the next paint rasters in place
-                    if ((typeof __DECLARE_PRODUCTION__ === "undefined" || !__DECLARE_PRODUCTION__) && r.blank) {
-                        console.error(blankRasterMessage(this.owner?.$drawingName?.(), w, h));
-                        r.bitmap.close();
-                        budgetScale = Math.max(0.125, budgetScale * 0.5); // a DISCOVERED ceiling
-                        globalThis.__declareRasterErr = "raster came back blank";
-                        return;
-                    }
                     const rootNow = this.compositor.rootCanvas;
                     releaseRaster(this);
                     while (memoBytes + bytes > rasterTotalCap(viewportBytes(rootNow)) * budgetScale) {
@@ -2109,6 +2097,7 @@ class CanvasSurface {
                             return;
                         }
                     }
+                    profileHook?.rastered(this.owner, list, w, h, r.rasterMs, [sx, 0, 0, sy, -bx * sx, -by * sy]);
                     this.rasterEntry = { list, sx, sy, canvas: r.bitmap, bytes, bx, by, stamp: ++memoStamp, seen: memoGeneration, rasterMs: r.rasterMs, hits: 0 };
                     memoBytes += bytes;
                     memoHolders.add(this);
@@ -2146,10 +2135,6 @@ class CanvasSurface {
             // the platform may silently drop a raster later (GPU process restart);
             // a lost context releases the entry and the next paint re-derives
             cv.addEventListener?.("contextlost", () => { releaseRaster(this); this.compositor.invalidate(this); });
-            if ((typeof __DECLARE_PRODUCTION__ === "undefined" || !__DECLARE_PRODUCTION__) && bytes > BLANK_CHECK_BYTES && rasterLooksBlank(cv, list, sx, sy, bx, by)) {
-                console.error(blankRasterMessage(this.owner?.$drawingName?.(), w, h));
-                throw new Error("raster came back blank");
-            }
         }
         catch (err) {
             // a DISCOVERED ceiling: live under it for the rest of the session
@@ -2158,6 +2143,7 @@ class CanvasSurface {
             replayOnScene(ctx, list, clip); // a refused allocation is a slow frame, never a wrong one
             return;
         }
+        profileHook?.rastered(this.owner, list, w, h, rasterMs, [sx, 0, 0, sy, -bx * sx, -by * sy]);
         this.rasterEntry = { list, sx, sy, canvas: cv, bytes, bx, by, stamp: ++memoStamp, seen: memoGeneration, rasterMs, hits: 0 };
         memoBytes += bytes;
         memoHolders.add(this);
@@ -3243,12 +3229,14 @@ class CanvasSurface {
         if (!s.ownsInk())
             return EMPTY_BOX;
         let bleed = s.filter === null ? 0 : filterBleed(s.filter);
+        // a shadow's blur is a radius of 2σ, and its tail still shows out to 3σ:
+        // 1.5 radii (to 1 radius, a moving shadow left its outer edge behind)
         if (s.shadow !== null)
-            bleed = Math.max(bleed, Math.abs(s.shadow.dx) + s.shadow.blur, Math.abs(s.shadow.dy) + s.shadow.blur);
+            bleed = Math.max(bleed, Math.ceil(Math.max(Math.abs(s.shadow.dx), Math.abs(s.shadow.dy)) + 1.5 * s.shadow.blur));
         if (s.ascent > 0)
             bleed = Math.max(bleed, s.ascent);
         if (s.textShadow !== null)
-            bleed = Math.max(bleed, Math.abs(s.textShadow.dx) + s.textShadow.blur, Math.abs(s.textShadow.dy) + s.textShadow.blur);
+            bleed = Math.max(bleed, Math.ceil(Math.max(Math.abs(s.textShadow.dx), Math.abs(s.textShadow.dy)) + 1.5 * s.textShadow.blur));
         if (s.textOutline !== null)
             bleed = Math.max(bleed, s.textOutline.width);
         let b = CanvasSurface.mapBox(m, -bleed, -bleed, s.width + bleed, s.height + bleed);

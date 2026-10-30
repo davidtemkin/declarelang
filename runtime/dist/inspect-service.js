@@ -14,7 +14,8 @@
 import { Node } from "./node.js";
 import { View, App, inheritedCursor } from "./view.js";
 import { rootFrameBox } from "./interaction.js";
-import { inspect, find, explain, stats, pickAt, explainHit, dependentsOf, expandValue, slotsOf, clock, kindName, nameOf } from "./inspect.js";
+import { inspect, find, explain, stats, pickAt, explainHit, dependentsOf, expandValue, slotsOf, clock, kindName, nameOf, profileName } from "./inspect.js";
+import { startProfile, stopProfile, profiling, profileReport, profileText, measureDrawings } from "./profile.js";
 import { pathOf } from "./node-path.js";
 import { clearTrace, readTrace, startTrace, stopTrace, traceText, tracing } from "./wake-trace.js";
 import { compileExpr, validateExpr } from "./expr.js";
@@ -23,7 +24,8 @@ import { bindConstraint } from "./bind.js";
 import { ownerOf, disown, ownedSlots } from "./attributes.js";
 import { createElementIn } from "./instantiate.js";
 import { DeclareError, DeclareErrors } from "./errors.js";
-import { settle } from "./reactive.js";
+import { afterSettle, settle } from "./reactive.js";
+import { declareName } from "./declare-name.js";
 let TARGET = null;
 const ZERO = () => ({ x: 0, y: 0 });
 let ORIGIN = ZERO;
@@ -86,7 +88,7 @@ function rows(n, open, depth, path, out) {
     for (const c of n.children) {
         if (c instanceof View)
             kidCount++;
-        const cn = c.constructor.name;
+        const cn = declareName(c);
         if (!anyMotion && (cn === "Spring" || cn === "Animator" || cn === "AnimatorGroup"))
             anyMotion = true;
     }
@@ -149,7 +151,7 @@ function show(v) {
     if (t === "function")
         return "«fn»";
     if (v instanceof View)
-        return `${v.constructor.name} ›`;
+        return `${declareName(v)} ›`;
     if (Array.isArray(v))
         return `array[${v.length}]`;
     try {
@@ -511,6 +513,20 @@ export const Inspect = {
         active: tracing,
         read: () => readTrace(needTarget(), (n) => pathOf(needTarget(), n), { onlyTree: true }),
         text: (settles) => traceText(settles ?? readTrace(needTarget(), (n) => pathOf(needTarget(), n), { onlyTree: true })),
+    },
+    /** The profiler (profile.ts), recording the SUBJECT's turns only — the
+     *  Inspector's own are left out, as the trace leaves out its settles. `stop`
+     *  measures the drawings on the GPU and answers the report as text. */
+    profile: {
+        // after the settle the press opens, so the Inspector's own answer to it is not recorded
+        start: (why = true) => { const only = needTarget(); afterSettle(() => startProfile({ why, only })); },
+        stop: () => {
+            stopProfile();
+            measureDrawings();
+            const root = needTarget();
+            return profileText(profileReport((n) => profileName(root, n), root));
+        },
+        active: profiling,
     },
     /** Is this view under a datapath? The Object pane badges it, and the
      *  evaluate strip's `:` support depends on it. */

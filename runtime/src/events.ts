@@ -40,6 +40,11 @@ export class Touch {
 export class PointerEvent {
   declare x: number;
   declare y: number;
+  /** The keys held with the pointer — KeyEvent's names (modifiers.ts). */
+  declare shift: boolean;
+  declare ctrl: boolean;
+  declare alt: boolean;
+  declare meta: boolean;
 }
 
 /** `onMouseUp` — a release, which may be an INTERRUPTION rather than a drop.

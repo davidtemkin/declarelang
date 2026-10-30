@@ -641,7 +641,7 @@ export interface Surface {
    *  backend replays it during the composite walk; the DOM backend
    *  rasterizes it into this view's own <canvas>, sized by the recording's
    *  bounds. The same list renders identically either way (rule 5).
-   *  `owner` is the view drawing it, named when a raster of it is refused. */
+   *  `owner` is the view drawing it, named by the profiler (profile.ts). */
   setDrawing(list: DisplayList | null, owner?: object): void;
   /** The composed scale a drawing is SEEN at — device pixels per view unit
    *  (ancestor scales × devicePixelRatio), delivered AT REST by the view's

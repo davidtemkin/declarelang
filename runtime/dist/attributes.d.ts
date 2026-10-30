@@ -62,6 +62,11 @@ export declare function slotOfCell(cell: number): {
     name: string;
     kind: "n" | "b";
 } | null;
+/** After each push of `names` on `ctor`'s instances (and its subclasses', whose
+ *  tables inherit its entries), run `then` — from the JavaScript write path and
+ *  the kernel's alike, since both push through this table. interaction.ts uses
+ *  it to know when a view's box, place or transform moved. */
+export declare function afterPush(ctor: object, names: readonly string[], then: (self: object) => void): void;
 /** The kernel cell of `self.name` when it is a table slot of this instance
  *  (numeric, not escaped, not retired); −1 otherwise. Allocates the block.
  *  The EXPR binder resolves its read paths and its target through this. */
@@ -236,6 +241,7 @@ export interface DeclRecord {
     pos: {
         line: number;
         col: number;
+        file?: string;
     } | null;
     /** The compiler's extracted read-paths for the default, when they rode along. */
     deps: readonly string[] | null;

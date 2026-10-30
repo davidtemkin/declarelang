@@ -25,13 +25,16 @@ try {
   ({ programFromCompiled } = await import("../compiler/dist/program-build.js"));
 } catch (e) {
   const root = resolve(dirname(new URL(import.meta.url).pathname), "..");
-  if (e?.code === "ERR_MODULE_NOT_FOUND" && /compiler\/dist/.test(String(e.message))) {
-    console.error(`declare-verify: the compiler is not built — run \`npm run build\` in ${root}`);
+  // a missing PACKAGE first: Node names the file that imported it, which is in
+  // compiler/dist — so the not-built test below matched it, and a fresh checkout
+  // was told to build when it needed only `npm install` (riff run 3 did both)
+  const pkg = /Cannot find package '([^']+)'/.exec(String(e?.message))?.[1];
+  if (e?.code === "ERR_MODULE_NOT_FOUND" && pkg !== undefined) {
+    console.error(`declare-verify: ${pkg} is not installed — run \`npm install\` in ${root}, then try again`);
     process.exit(2);
   }
-  if (e?.code === "ERR_MODULE_NOT_FOUND") {
-    const pkg = /Cannot find package '([^']+)'/.exec(String(e.message))?.[1] ?? "a dependency";
-    console.error(`declare-verify: ${pkg} is not installed — run \`npm install\` in ${root}, then try again`);
+  if (e?.code === "ERR_MODULE_NOT_FOUND" && /Cannot find module '[^']*compiler\/dist/.test(String(e.message))) {
+    console.error(`declare-verify: the compiler is not built — run \`npm run build\` in ${root}`);
     process.exit(2);
   }
   throw e;

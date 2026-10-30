@@ -96,6 +96,7 @@ import { blockOf, cellIdsOf, isSet, markPercent, own, ownerOf, release, setBound
 import { LAYOUT_NOWRITE } from "./kernel-loader.js";
 import { DeclareError, discardedValueMessage, layoutConflictMessage, noBaselineMessage, stackBaselineMessage } from "./errors.js";
 import { isWindowedBlock, View, viewLayoutReady } from "./view.js";
+import { declareName } from "./declare-name.js";
 /** Box key → the child slot it drives, in a stable order. */
 const BOX_SLOTS = [
     ["x", "x"],
@@ -182,13 +183,13 @@ export class Layout extends Node {
      *  trigger) and is disposed only on detach. */
     attachTo(view) {
         if (this.view !== null) {
-            throw new DeclareError(`this ${this.constructor.name} already arranges a ${this.view.constructor.name} — one strategy per view`);
+            throw new DeclareError(`this ${declareName(this)} already arranges a ${declareName(this.view)} — one strategy per view`);
         }
         this.view = view;
         this.parent = view; // navigation back-ref (not a children entry: the layout lives in view.layout)
         this.undo = this.$install(view);
         let lastShape = null;
-        const watcher = new Constraint(`${this.constructor.name} shape`, () => this.$shapeSignature(), (sig) => {
+        const watcher = new Constraint(`${declareName(this)} shape`, () => this.$shapeSignature(), (sig) => {
             if (lastShape === null) {
                 lastShape = sig;
             }
@@ -269,7 +270,7 @@ export class Layout extends Node {
      *  for THAT child (per box, not per strategy: a box without `h` leaves that
      *  child's height alone, and its neighbour's box may well carry one). */
     place() {
-        throw new DeclareError(`${this.constructor.name} declares no place() — a layout strategy IS its place(): ` +
+        throw new DeclareError(`${declareName(this)} declares no place() — a layout strategy IS its place(): ` +
             `declare it and return one box per child of laid(), aligned by index`);
     }
     /** THE ROOM THIS ARRANGEMENT HAS: the arranged view's CONTENT BOX on `size`
@@ -323,7 +324,7 @@ export class Layout extends Node {
     $reportConflict(child, slot, arranger) {
         if (this.$firstReport(child, slot)) {
             console.error("[Declare] " +
-                layoutConflictMessage(child.constructor.name, slot, arranger, null, ownerOf(child, slot)?.sourcePos));
+                layoutConflictMessage(declareName(child), slot, arranger, null, ownerOf(child, slot)?.sourcePos));
         }
     }
     /** A LITERAL on an attribute this strategy places — `Spacer [ height = 40 ]`
@@ -358,14 +359,14 @@ export class Layout extends Node {
             return; // nothing written here — the ordinary case
         // Deduped by CLASS and slot, not by child: one authored line builds 30
         // replicated rows, and it is one line that wants fixing, not thirty.
-        const key = `${child.constructor.name}.${slot}`;
+        const key = `${declareName(child)}.${slot}`;
         if (this.discarded.has(key))
             return;
         this.discarded.add(key);
         const v = child[slot];
         const shown = typeof v === "number" || typeof v === "boolean" ? String(v) : null;
         console.error("[Declare] " +
-            discardedValueMessage(child.constructor.name, slot, shown, arranger, setPosOf(child, slot)));
+            discardedValueMessage(declareName(child), slot, shown, arranger, setPosOf(child, slot)));
     }
     /** `Class.slot` pairs already reported as discarded — see reportDiscarded. */
     discarded = new Set();
@@ -413,7 +414,7 @@ export class Layout extends Node {
             if (seen.has("baseline"))
                 return;
             seen.add("baseline");
-            console.error("[Declare] " + noBaselineMessage(child.constructor.name, this.constructor.name));
+            console.error("[Declare] " + noBaselineMessage(declareName(child), declareName(this)));
         });
     }
     /** THE BAND an alignment places children in: the arranged view's own extent
@@ -479,7 +480,7 @@ export class Layout extends Node {
         if (this.stackReported)
             return;
         this.stackReported = true;
-        console.error("[Declare] " + stackBaselineMessage(this.constructor.name));
+        console.error("[Declare] " + stackBaselineMessage(declareName(this)));
     }
     $claim(child, slot, k) {
         // The blocking-owner conflict is pre-filtered in install() (a contained,
@@ -521,7 +522,7 @@ export class Layout extends Node {
     $label() {
         const ax = this.axis;
         const tag = typeof ax === "string" ? `[${ax}]` : "";
-        return `${this.view === null ? "?" : this.view.constructor.name}'s ${this.constructor.name}${tag}`;
+        return `${this.view === null ? "?" : declareName(this.view)}'s ${declareName(this)}${tag}`;
     }
     /** Stand up standing constraints over `view`'s children from `place()` —
      *  the ONE kernel wiring every strategy shares. Each child's own probe box
@@ -591,7 +592,7 @@ export class Layout extends Node {
                 return why("child without a block");
         }
         const label = this.$label();
-        const arranger = `${view.constructor.name}'s ${this.constructor.name}`;
+        const arranger = `${declareName(view)}'s ${declareName(this)}`;
         const claims = [];
         const discards = [];
         for (const c of kids) {
@@ -646,7 +647,7 @@ export class Layout extends Node {
         if (native !== null)
             return native;
         const label = this.$label();
-        const arranger = `${this.view?.constructor.name ?? "?"}'s ${this.constructor.name}`;
+        const arranger = `${(this.view !== null ? declareName(this.view) : "?")}'s ${declareName(this)}`;
         // Ownership is re-derived from scratch here: a rearm is the one moment the
         // answer may change (a tier flip, a created child, a swapped binding), so
         // a child dropped by the LAST install gets a fresh hearing at this one.
@@ -749,7 +750,7 @@ export class Layout extends Node {
                 pass.run();
             }
             for (const c of sizeClaims) {
-                const k = new Constraint(`${label} → ${c.child.constructor.name}.${c.slot}`, () => this.place()[c.i]?.[c.key], (v) => {
+                const k = new Constraint(`${label} → ${declareName(c.child)}.${c.slot}`, () => this.place()[c.i]?.[c.key], (v) => {
                     if (this.view !== null && isWindowedBlock(this.view))
                         return;
                     // a child that stopped flexing has no size in place() any more; this

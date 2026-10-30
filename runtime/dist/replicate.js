@@ -47,6 +47,7 @@ import { Focus } from "./focus.js";
 import { arriveSubtree } from "./spring.js";
 import { selectNodes } from "./select.js";
 import { noteRowRecord } from "./data.js";
+import { declareName } from "./declare-name.js";
 // parent view → its replication blocks: the KERNEL WINDOW API's registry
 // (D5: the live window — realized instances + logical positions — is
 // first-class runtime/library API; the app-language childViews read refuses
@@ -153,7 +154,7 @@ export class Replicator {
                 !(a.name === "key" && a.value.kind === "path") &&
                 a.name !== "virtualize" && a.name !== "classFor"),
         };
-        this.constraint = new Constraint(`${parent.constructor.name}'s replication (:${path}[])`, () => this.classify(this.match()), (m) => this.reconcile(m));
+        this.constraint = new Constraint(`${declareName(parent)}'s replication (:${path}[])`, () => this.classify(this.match()), (m) => this.reconcile(m));
     }
     /** The live policy answer. A literal is itself; a `{ }` constraint is called
      *  — and callers must only do that from inside match(), so the read lands in
@@ -665,7 +666,7 @@ function lastNodeOf(prev) {
  *  going: the defect belongs to the instance whose member threw, and the
  *  siblings' cursors and finishes must land regardless. */
 export function reportInstanceThrow(v, phase, e) {
-    console.error(`[Declare] ${phase} a replicated ${v.constructor.name} instance (${nodeLabel(v)}) threw: ${e?.message ?? e}`, e);
+    console.error(`[Declare] ${phase} a replicated ${declareName(v)} instance (${nodeLabel(v)}) threw: ${e?.message ?? e}`, e);
 }
 /** Does the keyboard focus live inside this instance's subtree? A focused
  *  row is TOUCHED by definition (focus-as-touched — the D5 deferral, forced

@@ -37,6 +37,7 @@ import { View } from "./view.js";
 import { Constraint, afterSettle, untracked } from "./reactive.js";
 import { onDiscard } from "./node.js";
 import { draggingView } from "./drag-autoscroll.js";
+import { declareName } from "./declare-name.js";
 const STATE = new WeakMap();
 const END_SLOP = 4; // "at the end" within this many pixels
 /** A view's top in `scroller`'s content coordinates — tracked reads of every
@@ -138,7 +139,7 @@ export function installScrollAnchor(s) {
     // there would pick wherever the content had got to by then — content still
     // moving above the reader would be taken as the new place, and the move it
     // made since the correction never paid back.)
-    const onScroll = new Constraint(`${s.constructor.name}.scrollAnchor.scroll`, () => `${s.scrollY}|${s.userScrolling}`, () => {
+    const onScroll = new Constraint(`${declareName(s)}.scrollAnchor.scroll`, () => `${s.scrollY}|${s.userScrolling}`, () => {
         if (s.userScrolling && st.wantEnd && !atEndOf(s))
             st.wantEnd = false; // the reader left the end mid-travel
         if (!s.userScrolling)
@@ -162,7 +163,7 @@ export function installScrollAnchor(s) {
     onScroll.run();
     // THE CONTENT MOVED: where does the kept view sit now, and is the pane
     // still where its mode says it should be?
-    const onContent = new Constraint(`${s.constructor.name}.scrollAnchor.content`, () => {
+    const onContent = new Constraint(`${declareName(s)}.scrollAnchor.content`, () => {
         const m = mode();
         const h = s.contentHeight;
         const top = st.view !== null ? topIn(st.view, s) : null;

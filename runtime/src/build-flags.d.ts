@@ -51,10 +51,12 @@ declare const __DECLARE_JS_KERNEL__: boolean;
 declare const __DECLARE_KERNEL__: "wasm" | "js" | "native";
 //   __DECLARE_PRODUCTION__  a production app build (declarec without --debug).
 //     It drops the checks that exist to tell a DEVELOPER something about their
-//     program at a cost the person using it would pay — a raster read back to
-//     see whether the browser painted it (a GPU-to-CPU sync, dearest on
-//     Safari). Absent everywhere else — the dev server, the platform tree, the
-//     tests — where those checks run and report.
+//     program: the deferred-view invariant (view.ts noteDeferral) and a runtime
+//     accessibility role's contract (instantiate.ts createView). A check that
+//     changes what the browser does — the readback of a drawing's raster, once
+//     here — does not belong behind it: production equals development but for
+//     what the developer is told (removed 2026-10-29). Absent everywhere else —
+//     the dev server, the platform tree, the tests — where those checks run.
 declare const __DECLARE_PRODUCTION__: boolean;
 //   __DECLARE_ACCESSIBILITY__  whether the build carries the accessibility layer
 //     (docs/system-design/accessibility.md §4.1): the `accessibility…` attributes

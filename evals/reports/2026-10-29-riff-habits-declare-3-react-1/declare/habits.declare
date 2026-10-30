@@ -1,0 +1,879 @@
+/*
+# Habits
+
+A habit tracker: a few habits, each ticked off day by day. The week is laid
+out beside every habit, so a missed day can be filled in after the fact; a
+habit opens in place to show its streaks and the last few months as a grid.
+
+How it is put together:
+
+- **The records** are `app.habits`, an instance of the dataset class `Habits`.
+  Each habit is a name, a color (an index into the theme's `hues`) and the
+  days it was done, as "YYYY-MM-DD" strings. Every write is a method on
+  `Habits`, and every method saves to the browser's storage.
+- **Where the user is** is three attributes on the App: which habit is open,
+  whether the add form is up, and what Undo would put back.
+- **The week** is a derived dataset (`app.week`): the last seven days, which
+  the header and every row replicate over, so they line up by construction.
+- Streaks, counts and dates are plain functions in `script`, called from
+  constraints with the values they depend on.
+*/
+
+// The appearance switch names its icons by class name, so the build keeps them.
+
+use [ SunIcon, MoonIcon, AutoIcon ]
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+script {
+    const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August",
+        "September", "October", "November", "December"]
+
+    function pad(n: number): string { return n < 10 ? "0" + n : "" + n }
+    function isoDay(y: number, m: number, d: number): string {
+        const dt = new Date(y, m - 1, d)
+        return dt.getFullYear() + "-" + pad(dt.getMonth() + 1) + "-" + pad(dt.getDate())
+    }
+    // The habit day runs from 4am to 4am, so ticking things off in bed after
+    // midnight still counts for the day you are finishing.
+    const DAY_STARTS = 4
+    function dayOf(ms: number): string {
+        const d = new Date(ms - DAY_STARTS * 3600000)
+        return isoDay(d.getFullYear(), d.getMonth() + 1, d.getDate())
+    }
+    function isoToday(): string { return dayOf(Date.now()) }
+    function parts(iso: string): number[] { return iso.split("-").map(Number) }
+    function addDays(iso: string, n: number): string { const p = parts(iso); return isoDay(p[0], p[1], p[2] + n) }
+    function weekdayOf(iso: string): number { const p = parts(iso); return new Date(p[0], p[1] - 1, p[2]).getDay() }
+    function longDate(iso: string): string {
+        if (iso == "") return ""
+        const p = parts(iso)
+        return WEEKDAYS[weekdayOf(iso)] + ", " + MONTHS[p[1] - 1] + " " + p[2]
+    }
+
+    // The current streak counts back from today, or from yesterday while
+    // today is still open: a streak isn't broken until a day has passed.
+    function streakOf(days: string[], today: string): number {
+        const done = new Set(days)
+        let d = done.has(today) ? today : addDays(today, -1)
+        let n = 0
+        while (done.has(d)) { n = n + 1; d = addDays(d, -1) }
+        return n
+    }
+    function bestOf(days: string[]): number {
+        const sorted = [...days].sort()
+        let best = 0, run = 0, prev = ""
+        for (const d of sorted) {
+            run = prev != "" && addDays(prev, 1) == d ? run + 1 : 1
+            best = Math.max(best, run)
+            prev = d
+        }
+        return best
+    }
+    function countSince(days: string[], from: string, today: string): number {
+        return days.filter((d) => d >= from && d <= today).length
+    }
+    function statusLine(n: number, doneToday: boolean, best: number): string {
+        if (n == 0) return best == 0 ? "No streak yet — start one today" : "Start a new streak today"
+        if (!doneToday) return "Tick today to keep your streak"
+        return n >= best ? "Your best streak yet" : "Best streak: " + best + " days"
+    }
+
+    // Sample history for the first visit: a habit done on about `rate` of
+    // the last 120 days, ending in a streak of `run`. Deterministic, so the
+    // demo looks the same each time.
+    function seedDays(today: string, rate: number, run: number, salt: number): string[] {
+        const out: string[] = []
+        let s = salt * 9301 + 49297
+        for (let i = 119; i >= 0; i--) {
+            s = (s * 9301 + 49297) % 233280
+            const hit = i < run ? true : i == run ? false : s / 233280 < rate
+            if (hit) out.push(addDays(today, -i))
+        }
+        return out
+    }
+    }
+
+// Storage is the browser's, so this block says it is for the browser.
+
+script [ host = browser ] {
+    const KEY = "declare-habits-v1"
+    function loadHabits(): string { try { return window.localStorage.getItem(KEY) ?? "" } catch (e) { return "" } }
+    // Whether the write landed: a private window or a full disk can refuse it.
+    function saveHabits(s: string): boolean {
+        try { window.localStorage.setItem(KEY, s); return window.localStorage.getItem(KEY) == s } catch (e) { return false }
+    }
+    // Saved data that can't be read is set aside, never overwritten.
+    function setAside(s: string) { try { window.localStorage.setItem(KEY + "-unreadable-" + Date.now(), s) } catch (e) { } }
+    // Ask the browser to keep this site's storage rather than clear it to
+    // free space. It may say no; nothing here depends on the answer.
+    function keepStorage() { try { navigator.storage?.persist?.() } catch (e) { } }
+    // A light tap of the phone's motor, where the browser offers one.
+    function buzz(ms: number) { try { navigator.vibrate?.(ms) } catch (e) { } }
+    function loadMode(): string { try { return window.localStorage.getItem(KEY + "-mode") ?? "auto" } catch (e) { return "auto" } }
+    function saveMode(s: string) { try { window.localStorage.setItem(KEY + "-mode", s) } catch (e) { } }
+    }
+
+// ── The shape of the data ───────────────────────────────────────────────────
+
+schema Habit [ id: number, name: string, hue: number, days[]: string, rate?: number, run?: number ]
+schema Day [ id: string, letter: string, num: number, isToday: boolean ]
+schema Week [ days[]: Day ]
+schema Removed [ index: number, rec: Habit ]
+
+
+// ── The records ─────────────────────────────────────────────────────────────
+
+class Habits extends Dataset [ schema = [ habits[]: Habit ],
+    lastId: number = 0,
+
+    all() -> Habit[] { return this.read(["habits"]) ?? [] },
+    at(id: number) -> number { return this.all().findIndex((h) => h.id == id) },
+    byId(id: number) -> Habit? { return this.all().find((h) => h.id == id) ?? null },
+
+    // What was saved replaces the sample; with nothing saved, the sample's
+    // `rate` and `run` become real days ending today.
+
+    onInit() {
+        keepStorage()
+        const saved = loadHabits()
+        let restored = false
+        if (saved != "") {
+            try {
+                const list = JSON.parse(saved)
+                if (Array.isArray(list)) { this.set(["habits"], list); restored = true }
+            } catch (e) { }
+            if (!restored) setAside(saved)
+        }
+        if (!restored) {
+            const today = isoToday()
+            this.all().forEach((h, i) => {
+                this.set(["habits", i, "days"], seedDays(today, h.rate ?? 0.5, h.run ?? 0, h.id))
+                })
+            this.save()          // so the sample is the same tomorrow, not made up again
+        }
+        this.lastId = this.all().reduce((m, h) => Math.max(m, h.id), 0)
+        },
+
+    // Every write ends here. `unsaved` says the last save didn't land.
+
+    unsaved: boolean = false,
+    save() {
+        unsaved = !saveHabits(JSON.stringify(this.all().map((h) => ({ id: h.id, name: h.name, hue: h.hue, days: h.days }))))
+        },
+
+    // The writes.
+
+    toggleDay(id: number, day: string) {
+        const i = this.at(id)
+        if (i < 0) return
+        const days = this.all()[i].days
+        this.set(["habits", i, "days"], days.includes(day) ? days.filter((d) => d != day) : [...days, day])
+        this.save()
+        },
+    add(name: string, hue: number) {
+        this.lastId = this.lastId + 1
+        this.insert(["habits"], this.all().length, ({ id: this.lastId, name: name, hue: hue, days: [] }))
+        this.save()
+        },
+    rename(id: number, name: string) {
+        const i = this.at(id)
+        if (i >= 0) { this.set(["habits", i, "name"], name); this.save() }
+        },
+    recolor(id: number, hue: number) {
+        const i = this.at(id)
+        if (i >= 0) { this.set(["habits", i, "hue"], hue); this.save() }
+        },
+    remove(id: number) -> Removed? {
+        const i = this.at(id)
+        if (i < 0) return null
+        const rec = this.all()[i]
+        this.removeAt(["habits"], i)
+        this.save()
+        return ({ index: i, rec: rec })
+        },
+    restore(r: Removed) {
+        this.insert(["habits"], Math.min(r.index, this.all().length), r.rec)
+        this.save()
+        },
+
+    // The order on screen is the order of the records.
+
+    moveTo(id: number, to: number) {
+        const from = this.at(id)
+        if (from < 0 || to < 0 || to >= this.all().length || to == from) return
+        this.move(["habits"], from, to)
+        this.save()
+        }
+    ]
+
+
+// ── Colors ──────────────────────────────────────────────────────────────────
+//
+// Laid over the library's preset, so library controls read the same palette.
+// A quiet page: warm paper, one muted accent, and `hues` (a habit's color)
+// that are soft enough to sit side by side. `tints` are the same, fainter.
+
+theme HabitsLight [
+    background = #FAF8F4, surface = #FFFFFF, line = #ECE8E1, hover = #F3F0EA,
+    text = #2B2925, textMuted = #7A756D, textFaint = #ADA79D,
+    accent = #5F7F6B, accentHovered = #56755F, accentPressed = #4C6955, linkColor = #5F7F6B,
+    control = #F0EDE7, controlHovered = #E9E5DE, controlPressed = #E1DCD4, controlSelected = #E3E9E2, segmentedSelectedFill = #FFFFFF, trackFill = #F0EDE7,
+    cellEmpty = #F0EDE7, dayRing = #DCD6CC, danger = #B4574C, ringTrack = #ECE8E1,
+    hues = [#86A890, #8399B3, #C9A08A, #A897B5, #C99599, #85AAAB, #C4AA76],
+    tints = [#E4ECE5, #E3E8EF, #F2E7E0, #EBE6EF, #F2E5E6, #E2ECEC, #F0EADC]
+    ]
+
+
+// Night: for a phone in a dark room. Nearly black, warm rather than blue,
+// and nothing bright — the text is a soft parchment, not white, and the hues
+// are dimmed so a row of done days doesn't glow.
+
+theme HabitsNight [
+    background = #100F0E, surface = #181716, line = #24221F, hover = #1C1B19,
+    text = #C9C2B6, textMuted = #8A8379, textFaint = #5E5851,
+    accent = #7D9886, accentHovered = #86A18F, accentPressed = #718A79, accentTextColor = #100F0E, linkColor = #7D9886,
+    control = #201E1C, controlHovered = #282624, controlPressed = #2F2D2A, controlSelected = #232A25,
+    cellEmpty = #1D1C1A, dayRing = #34312D, danger = #B87468, ringTrack = #24221F,
+    segmentedSelectedFill = #2C2A27, trackFill = #1C1B19, scrimOpacity = 0.55, tooltipFill = #2A2826, tooltipTextColor = #C9C2B6,
+    hues = [#6F8C78, #6F7F94, #9E806E, #887A92, #9A7679, #6E8B8B, #9A8760],
+    tints = [#1E2621, #1E2229, #2A231F, #251F28, #2A2021, #1D2626, #29251C]
+    ]
+
+
+// ── Small parts ─────────────────────────────────────────────────────────────
+
+// A day's mark in a habit's row: a hairline ring, which a soft dot in the
+// habit's color fills once done. Today's ring is a shade darker, so the
+// column a person ticks most is easy to find without shouting.
+//
+// Marking a day done is worth a moment: the dot pops in on a bouncy spring
+// (it overshoots, then settles), and `celebrate()` sends a soft ring and a
+// few specks outward from it. Unmarking just lets the dot go quietly.
+
+class DayDot extends Control [ width = { app.tap }, height = { app.tap },
+    on: boolean = false,
+    isToday: boolean = false,
+    tone: Color = gray,
+    accessibilityRole = checkbox,
+    accessibilityChecked = { on },
+    fillT: number = 0,
+    Spring [ attribute = fillT, to = { classroot.on ? 1 : 0 }, stiffness = 360, damping = 13 ],
+
+    burst: number = 0,
+    burstRun: Animator [ attribute = burst, from = 0, to = 1, duration = 900, motion = cubicOut ],
+    celebrate() {
+        buzz(12)
+        if (!app.calm) burstRun.start()
+        },
+
+    // Drawn behind the dot, twice its size and centred on it; it takes no
+    // presses, and while at rest it isn't there at all.
+
+    bloom: View [ x = center, y = center, width = { app.dot * 2.6 }, height = { this.width }, pointerEvents = "none",
+        visible = { classroot.burst > 0 && classroot.burst < 1 },
+        t: number = { classroot.burst },
+        ink: Color = { classroot.tone },
+        r0: number = { app.dot / 2 },
+        draw(d: DrawContext) {
+            const c = width / 2
+            const fade = 1 - t
+            d.globalAlpha = 0.6 * fade
+            d.strokeStyle = ink
+            d.lineWidth = 1.5
+            d.beginPath(); d.arc(c, c, r0 + t * r0 * 0.9, 0, Math.PI * 2); d.stroke()
+            d.globalAlpha = 0.8 * fade
+            d.fillStyle = ink
+            for (let k = 0; k < 6; k++) {
+                const a = k * Math.PI / 3 - Math.PI / 2
+                const dist = r0 + 3 + t * r0 * 1.1
+                d.beginPath(); d.arc(c + Math.cos(a) * dist, c + Math.sin(a) * dist, 2.2 * fade + 0.4, 0, Math.PI * 2); d.fill()
+            }
+            }
+        ],
+    ring: View [ x = center, y = center, width = { app.dot }, height = { app.dot }, cornerRadius = { app.dot / 2 },
+        stroke = { stroke(1, classroot.isToday ? provided("theme").textFaint : provided("theme").dayRing) },
+        fill = { classroot.hovered && !classroot.on ? provided("theme").hover : null },
+        disc: View [ x = center, y = center, width = 100%, height = 100%, cornerRadius = { app.dot / 2 },
+            fill = { classroot.tone }, opacity = { Math.min(1, classroot.fillT) }, scale = { 0.5 + 0.5 * classroot.fillT },
+            pivotX = { this.width / 2 }, pivotY = { this.height / 2 } ]
+        ]
+    ]
+
+
+// A day's heading above the week: its initial and its date.
+
+class DayHead [ width = { app.tap },
+    layout: SimpleLayout [ axis = y, spacing = 1, align = center ],
+    Text [ fontSize = 10, fontWeight = medium, letterSpacing = 0.6,
+        textColor = { provided("theme").textFaint }, text = :letter ],
+    Text [ fontSize = 12, fontWeight = { :isToday ? "semibold" : "regular" },
+        textColor = { :isToday ? provided("theme").text : provided("theme").textFaint }, text = { "" + :num } ]
+    ]
+
+
+// A color to pick for a habit.
+
+class Swatch extends Control [ width = { app.tap }, height = { app.tap },
+    hue: number = 0,
+    on: boolean = false,
+    accessibilityRole = radio,
+    accessibilityChecked = { on },
+    View [ x = center, y = center, width = 22, height = 22, cornerRadius = 11,
+        fill = { provided("theme").hues[classroot.hue] },
+        stroke = { classroot.on ? stroke(1.5, provided("theme").textMuted) : null } ]
+    ]
+
+
+// A number and what it counts, in an open habit.
+
+class Stat [
+    value: string = "",
+    label: string = "",
+    tone: Color = gray,
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Text [ fontSize = 20, fontWeight = medium, textColor = { provided("theme").text }, text = { classroot.value } ],
+    Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = { classroot.label } ]
+    ]
+
+
+// A habit's handle: six dots in its color, to grab and drag the habit up or
+// down the list. It is also the habit's color mark, so it adds nothing to see.
+
+class Grip [
+    tone: Color = gray,
+    cursor = "grab",
+    draw(d: DrawContext) {
+        d.fillStyle = tone
+        const cx = width / 2, cy = height / 2
+        for (const dx of [-2.5, 2.5]) {
+            for (const dy of [-5, 0, 5]) { d.beginPath(); d.arc(cx + dx, cy + dy, 1.5, 0, Math.PI * 2); d.fill() }
+        }
+        }
+    ]
+
+
+// A flame, for streaks.
+
+class Flame extends Icon [
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.fillStyle = ink
+        d.beginPath()
+        d.moveTo(8, 1.2)
+        d.bezierCurveTo(9.2, 4.4, 13.2, 6, 13.2, 10.2)
+        d.bezierCurveTo(13.2, 13.1, 10.9, 15.2, 8, 15.2)
+        d.bezierCurveTo(5.1, 15.2, 2.8, 13.1, 2.8, 10.2)
+        d.bezierCurveTo(2.8, 8, 4.2, 6.6, 5.3, 5.6)
+        d.bezierCurveTo(5.4, 7.4, 6.2, 8.6, 7.2, 8.8)
+        d.bezierCurveTo(6.8, 6.2, 6.9, 3.6, 8, 1.2)
+        d.closePath()
+        d.fill()
+        }
+    ]
+
+
+// A habit's streak at a glance: a small flame and the days in a row, in a
+// column of their own down the list. The flame takes the habit's color once
+// today is kept; until then it, and a streak of 0, stay faint.
+
+class StreakBadge [ width = 48, height = 30,
+    streak: number = 0,
+    kept: boolean = false,
+    tone: Color = gray,
+    live: boolean = { classroot.streak > 0 },
+
+    // Kept today: the flame and the number swell once and settle.
+
+    pop: number = 0,
+    popRun: Animator [ attribute = pop, from = 0, to = 1, duration = 520, motion = sineOut ],
+    swell: number = { 1 + 0.35 * Math.sin(Math.PI * classroot.pop) },
+    cheer() { if (!app.calm) popRun.start() },
+    accessibilityLabel = { classroot.streak + "-day streak" },
+    row: View [ x = end, y = center,
+        layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+        Flame [ iconSize = 13, ink = { classroot.live && classroot.kept ? classroot.tone : provided("theme").textFaint },
+            scale = { classroot.swell }, pivotX = { this.width / 2 }, pivotY = { this.height * 0.8 } ],
+        TextLabel [ fontSize = 15, fontWeight = medium,
+            scale = { classroot.swell }, pivotX = { this.width / 2 }, pivotY = { this.height / 2 },
+            textColor = { classroot.live ? provided("theme").text : provided("theme").textFaint },
+            text = { "" + classroot.streak } ]
+        ]
+    ]
+
+
+// Today's progress: a ring that fills as habits are ticked, on a spring.
+
+class ProgressRing [ width = 48, height = 48,
+    done: number = 0,
+    total: number = 0,
+    t: number = 0,
+
+    // Everything done: a soft halo opens out from the ring, and the count
+    // gives way to a check.
+
+    complete: boolean = { classroot.total > 0 && classroot.done == classroot.total },
+    glow: number = 0,
+    glowRun: Animator [ attribute = glow, from = 0, to = 1, duration = 1100, motion = quartOut ],
+    cheer() { if (!app.calm) glowRun.start() },
+    halo: View [ x = center, y = center, width = 48, height = 48, cornerRadius = 24, pointerEvents = "none",
+        visible = { classroot.glow > 0 && classroot.glow < 1 },
+        stroke = { stroke(2, classroot.tone) },
+        opacity = { 0.6 * (1 - classroot.glow) }, scale = { 1 + 0.45 * classroot.glow },
+        pivotX = 24, pivotY = 24 ],
+    Spring [ attribute = t, to = { classroot.total == 0 ? 0 : classroot.done / classroot.total }, stiffness = 160, damping = 22 ],
+    track: Color = { provided("theme").ringTrack },
+    tone: Color = { provided("theme").accent },
+    draw(d: DrawContext) {
+        const r = width / 2 - 2
+        d.lineWidth = 3
+        d.lineCap = "round"
+        d.strokeStyle = track
+        d.beginPath(); d.arc(width / 2, height / 2, r, 0, Math.PI * 2); d.stroke()
+        if (t > 0.001) {
+            d.strokeStyle = tone
+            d.beginPath(); d.arc(width / 2, height / 2, r, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * Math.min(1, t)); d.stroke()
+        }
+        },
+    TextLabel [ visible = { !classroot.complete }, x = center, y = center, fontSize = 13, fontWeight = medium,
+        textColor = { provided("theme").textMuted }, text = { classroot.done + "/" + classroot.total } ],
+    CheckIcon [ visible = { classroot.complete }, x = center, y = center, iconSize = 18, ink = { classroot.tone } ]
+    ]
+
+
+// The last few months of a habit as a grid: a column per week, Sunday at
+// the top, today's column last. Drawn, because it is a picture of the data.
+
+class History [
+    days: string[] = [],
+    today: string = "",
+    weeks: number = 18,
+    cell: number = 12,
+    gap: number = 3,
+    tone: Color = gray,
+    empty: Color = { provided("theme").cellEmpty },
+    width = { weeks * (cell + gap) - gap },
+    height = { 7 * (cell + gap) - gap },
+    draw(d: DrawContext) {
+        const done = new Set(days)
+        const start = addDays(today, -weekdayOf(today) - (weeks - 1) * 7)
+        for (let c = 0; c < weeks; c++) {
+            for (let r = 0; r < 7; r++) {
+                const day = addDays(start, c * 7 + r)
+                if (day > today) continue
+                d.fillStyle = done.has(day) ? tone : empty
+                d.beginPath()
+                d.roundRect(c * (cell + gap), r * (cell + gap), cell, cell, 2.5)
+                d.fill()
+            }
+        }
+        }
+    ]
+
+
+// ── A habit ─────────────────────────────────────────────────────────────────
+//
+// The row is bound to its habit. Its name opens it in place; the week's
+// dots tick a day. On a wide screen the dots sit beside the name, on a phone
+// beneath it, lined up with the week heading either way.
+
+class HabitRow [ width = 100%, padding = [10, 4, 10, 4],
+    stroke = { [null, null, stroke(1, provided("theme").line), null] },
+
+    habitId: number = { :id ?? 0 },
+    name: string = { :name ?? "" },
+    hue: number = { :hue ?? 0 },
+    days: string[] = { :days ?? [] },
+    tone: Color = { provided("theme").hues[classroot.hue] },
+    doneToday: boolean = { classroot.days.includes(app.today) },
+    streak: number = { streakOf(classroot.days, app.today) },
+    best: number = { bestOf(classroot.days) },
+    open: boolean = { app.openId == classroot.habitId },
+
+    // Today ticked off by hand: the flame swells, and if it was the last
+    // one left, the day's ring blooms. (The writes land after this, so the
+    // count read here is still the one before.)
+
+    keptToday() {
+        main.opener.streakBadge.cheer()
+        if (app.doneToday == app.count - 1) app.ring.cheer()
+        },
+
+    // Picked up: lifted off the page while it is dragged.
+
+    State [ applied = { app.dragId == classroot.habitId }, cornerRadius = 10,
+        fill = { provided("theme").surface },
+        shadow = { shadow(0, 8, 24, app.isNight ? 0x00000099 : 0x0000001F) } ],
+
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+
+    main: View [ width = 100%,
+        // Side by side when there is room; stacked, the dots to the right,
+        // when there isn't. Both children are 46 tall, so the row needs no
+        // vertical alignment of its own.
+
+        layout: ResponsiveLayout [ align = end, plan = { [
+            { from: 540, flow: "row", gap: 12, share: { opener: 100, week: "auto" } },
+            { from: 0, flow: "stack", gap: 2, share: { opener: 100, week: "auto" } },
+        ] } ],
+
+        opener: Control [ height = 46, cornerRadius = 8,
+            accessibilityLabel = { classroot.name },
+            accessibilityExpanded = { classroot.open },
+            press() { app.toggleOpen(classroot.habitId) },
+            layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+
+            // Dragging the grip moves the habit's record as the finger passes
+            // half a row, and the rows follow their records. Only this small
+            // handle claims the finger, so a drag anywhere else still scrolls.
+
+            grip: Grip [ width = { app.touchFirst ? 32 : 18 }, height = 46, tone = { classroot.tone },
+                onPointerMove(e: PointerEvent) {
+                    if (Math.abs(e.deltaY) < 4) return
+                    if (app.dragId != classroot.habitId) { app.dragId = classroot.habitId; app.openId = 0 }
+                    const i = app.habits.at(classroot.habitId)
+                    if (e.y < -30) app.habits.moveTo(classroot.habitId, i - 1)
+                    else if (e.y > this.height + 30) app.habits.moveTo(classroot.habitId, i + 1)
+                    },
+                onPointerUp(e: PointerUpEvent) { app.dragId = 0 }
+                ],
+            View [ flexes = true,
+                layout: SimpleLayout [ axis = y, spacing = 2 ],
+                Text [ width = 100%, fontSize = { app.wide ? 16 : 17 }, fontWeight = medium, wrap = false, maxLines = 1,
+                    textColor = { provided("theme").text },
+                    text = { classroot.name } ],
+                Text [ width = 100%, fontSize = { app.wide ? 13 : 14 }, wrap = false, maxLines = 1,
+                    textColor = { provided("theme").textFaint },
+                    text = { statusLine(classroot.streak, classroot.doneToday, classroot.best) } ]
+                ],
+            streakBadge: StreakBadge [ streak = { classroot.streak }, kept = { classroot.doneToday }, tone = { classroot.tone } ]
+            ],
+
+        // The week, from the shared `app.week`. The habit is out of `:` reach
+        // in here, so the dots read it through `classroot`.
+
+        week: View [ height = 46, datapath = { app.week.value },
+            layout: SimpleLayout [ axis = x, spacing = { app.gap }, align = center ],
+            DayDot [ datapath = :days[], isToday = :isToday, tone = { classroot.tone },
+                on = { classroot.days.includes(:id) },
+                accessibilityLabel = { classroot.name + ", " + :letter + " " + :num },
+                press() {
+                    if (!this.on) {
+                        this.celebrate()
+                        if (:isToday) classroot.keptToday()
+                    }
+                    app.habits.toggleDay(classroot.habitId, :id)
+                    }
+                ]
+            ]
+        ],
+
+    // Open: the numbers, the history, and the habit's name and color to edit.
+
+    detail: View [ exists = { classroot.open }, width = 100%, padding = [8, 4, 4, 4],
+        stroke = { [stroke(1, provided("theme").line), null, null, null] },
+        layout: SimpleLayout [ axis = y, spacing = 16 ],
+        stats: View [ width = 100%, padding = [8, 0, 0, 0],
+            layout: WrappingLayout [ columns = { app.wide ? 0 : 2 }, spacing = 32, rowSpacing = 14 ],
+            Stat [ tone = { classroot.tone }, value = { "" + classroot.streak }, label = "Current streak" ],
+            Stat [ tone = { classroot.tone }, value = { "" + classroot.best }, label = "Best streak" ],
+            Stat [ tone = { classroot.tone }, value = { countSince(classroot.days, addDays(app.today, -29), app.today) + "/30" },
+                label = "Last 30 days" ],
+            Stat [ tone = { classroot.tone }, value = { "" + classroot.days.length }, label = "Days in all" ]
+            ],
+        History [ days = { classroot.days }, today = { app.today }, tone = { classroot.tone },
+            weeks = { app.wide ? 26 : 18 }, cell = { app.wide ? 13 : 12 } ],
+        edit: View [ width = 100%,
+            layout: WrappingLayout [ spacing = 12, rowSpacing = 10, align = center ],
+            TextInput [ width = { app.wide ? 240 : parent.contentBox("width") }, height = 36, placeholder = "Name",
+                fontSize = { app.touchFirst ? 16 : 14 },
+                accessibilityLabel = "Habit name",
+                text = { classroot.name },
+                onInput(v: string) { if (v.trim() != "") app.habits.rename(classroot.habitId, v) }
+                ],
+            colors: View [ datapath = { app.palette.value },
+                layout: SimpleLayout [ axis = x ],
+                Swatch [ datapath = :hues[], hue = :id, on = { classroot.hue == :id },
+                    accessibilityLabel = :name,
+                    press() { app.habits.recolor(classroot.habitId, :id) }
+                    ]
+                ],
+            Spacer [ ],
+            del: Control [ height = { app.tap }, padding = [0, 10, 0, 10], cornerRadius = 8, accessibilityLabel = "Delete habit",
+                fill = { hovered ? provided("theme").hover : null },
+                press() { app.remove(classroot.habitId) },
+                TextLabel [ y = center, fontSize = 13, fontWeight = semibold, textColor = { provided("theme").danger }, text = "Delete" ]
+                ]
+            ]
+        ],
+
+    onContextMenu(e: PointerEvent) { app.rowMenu.open(this, e) },
+    onHold(e: PointerEvent) { app.rowMenu.open(this, e) }
+    ]
+
+
+// ── The add form ────────────────────────────────────────────────────────────
+//
+// It exists only while open, so every opening starts fresh. Its fields are
+// its own attributes; the color starts at the next one not yet in use.
+
+class AddForm [ width = 100%,
+    name: string = "",
+    hue: number = { app.nextHue },
+    blank: boolean = { classroot.name.trim() == "" },
+    submit() {
+        if (blank) return
+        app.habits.add(name.trim(), hue)
+        app.adding = false
+        },
+    onInit() { afterSettle(() => Focus.focus(this.field)) },
+    layout: SimpleLayout [ axis = y, spacing = 14 ],
+    Text [ fontSize = 17, fontWeight = bold, text = "New habit" ],
+    field: TextInput [ width = 100%, height = 38, fontSize = 16, placeholder = "Drink water, read, stretch…",
+        accessibilityLabel = "Habit name",
+        text = { classroot.name },
+        onInput(v: string) { classroot.name = v },
+        onEnter() { classroot.submit() }
+        ],
+    colors: View [ datapath = { app.palette.value },
+        layout: SimpleLayout [ axis = x ],
+        Swatch [ datapath = :hues[], hue = :id, on = { classroot.hue == :id }, accessibilityLabel = :name,
+            press() { classroot.hue = :id }
+            ]
+        ],
+    buttons: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Spacer [ ],
+        Button [ label = "Cancel",
+            onClick() { app.adding = false }
+            ],
+        Button [ label = "Add habit", primary = true, disabled = { classroot.blank },
+            onClick() { classroot.submit() }
+            ]
+        ]
+    ]
+
+
+// ── The app ─────────────────────────────────────────────────────────────────
+
+App [ appName = "Habits", minWidth = 320,
+    scrolls = y,
+
+    // ── appearance. Auto goes to Night when the system is dark, and in the
+    //    evening regardless, so bedtime is never a bright page. A choice of
+    //    Day or Night holds until changed, and is remembered.
+
+    themeMode: string = "auto",
+    onInit() { themeMode = loadMode() },
+    setMode(m: string) { themeMode = m; saveMode(m) },
+    lateHour: boolean = { app.clock.hour >= 21 || app.clock.hour < 6 },
+    isNight: boolean = { app.themeMode == "night" || (app.themeMode == "auto" && (app.systemDark || app.lateHour)) },
+    theme = { app.isNight ? ({ ...SanFranciscoDark, ...HabitsNight }) : ({ ...SanFrancisco, ...HabitsLight }) },
+    fill = { provided("theme").background },
+    textColor = { provided("theme").text },
+    fontFamily = { ["-apple-system", "system-ui", "Segoe UI", "Helvetica Neue", "sans-serif"] },
+    titleFace: array = { ["New York", "Iowan Old Style", "Georgia", "serif"] },
+
+    // ── sizes
+
+    wide: boolean = { app.width >= 640 },
+    tap: number = { app.touchFirst ? 44 : 36 },     // a day's target
+    dot: number = { app.touchFirst ? 26 : 20 },     // the ring drawn inside it
+    gap: number = { app.wide ? 4 : 2 },
+
+    // ── today, from the clock
+
+    clock: Time [ tick = hour ],
+    today: string = { dayOf(app.clock.now) },
+
+    // ── the records. The sample shows on a first visit; after that, what
+    //    was saved.
+
+    habits: Habits {
+        { "habits": [
+            { "id": 1, "name": "Drink 8 glasses of water", "hue": 1, "days": [], "rate": 0.8, "run": 6 },
+            { "id": 2, "name": "Read 20 pages", "hue": 2, "days": [], "rate": 0.6, "run": 3 },
+            { "id": 3, "name": "Morning stretch", "hue": 0, "days": [], "rate": 0.7, "run": 12 },
+            { "id": 4, "name": "No phone after 10pm", "hue": 3, "days": [], "rate": 0.4, "run": 0 }
+        ] }
+        },
+
+    palette: Dataset { { "hues": [
+        { "id": 0, "name": "Sage" }, { "id": 1, "name": "Slate" }, { "id": 2, "name": "Clay" },
+        { "id": 3, "name": "Lavender" }, { "id": 4, "name": "Rose" }, { "id": 5, "name": "Sea" },
+        { "id": 6, "name": "Ochre" } ] } },
+
+    // The last seven days, oldest first: what the header and every row show.
+
+    week: Dataset [ schema = Week, contents = { app.weekOf(app.today) } ],
+    weekOf(today: string) -> Week {
+        const out = []
+        for (let i = 6; i >= 0; i--) {
+            const iso = addDays(today, -i)
+            const p = iso.split("-").map(Number)
+            out.push(({ id: iso, letter: "SMTWTFS"[weekdayOf(iso)], num: p[2], isToday: i == 0 }))
+        }
+        return ({ days: out })
+        },
+
+    count: number = { app.habits.all().length },
+    doneToday: number = { app.habits.all().filter((h) => h.days.includes(app.today)).length },
+    nextHue: number = {
+        [0, 1, 2, 3, 4, 5, 6].find((n) => !app.habits.all().some((h) => h.hue == n)) ?? app.count % 7 },
+    summary: string = {
+        app.count == 0 ? "" : app.doneToday == app.count ? "Everything done today. Nice." :
+        (app.count - app.doneToday) + " left for today" },
+
+    // ── where the user is
+
+    openId: number = 0,
+    dragId: number = 0,
+    ring: ProgressRing = { app.page.head.ring },
+    calm: boolean = { app.accessibilitySettings.reduceMotion },    // the system asked for less motion                 // the habit being dragged, 0 for none
+    adding: boolean = false,
+    lastRemoved: Removed? = null,
+
+    toggleOpen(id: number) { openId = openId == id ? 0 : id },
+    remove(id: number) {
+        const name = habits.byId(id)?.name ?? ""
+        lastRemoved = habits.remove(id)
+        if (openId == id) openId = 0
+        toast.say("Deleted “" + name + "”", ({ id: "undo", label: "Undo" }))
+        },
+    undo() {
+        if (lastRemoved == null || !toast.shown) return
+        habits.restore(lastRemoved)
+        lastRemoved = null
+        toast.close()
+        },
+
+    // ── the page
+
+    page: View [ x = center, width = { Math.min(720, app.width - (app.wide ? 48 : 24)) },
+        padding = { [app.wide ? 64 : 24 + app.safeTop, 0, app.wide ? 96 : 120 + app.safeBottom, 0] },
+        layout: SimpleLayout [ axis = y, spacing = 12 ],
+
+        head: View [ width = 100%, padding = [0, 4, 8, 4],
+            layout: SimpleLayout [ axis = x, spacing = 14, align = center ],
+            ring: ProgressRing [ done = { app.doneToday }, total = { app.count },
+                accessibilityLabel = { app.doneToday + " of " + app.count + " done today" } ],
+            View [ flexes = true,
+                layout: SimpleLayout [ axis = y, spacing = 2 ],
+                Text [ fontFamily = { app.titleFace }, fontSize = { app.wide ? 32 : 28 }, fontWeight = regular, letterSpacing = -0.3,
+                    text = "Habits" ],
+                Text [ width = 100%, fontSize = 14, wrap = true, maxLines = 2, textColor = { provided("theme").textFaint },
+                    text = { longDate(app.today) + (app.summary == "" ? "" : " · " + app.summary) } ],
+                Text [ visible = { app.habits.unsaved }, width = 100%, fontSize = 13, wrap = true,
+                    textColor = { provided("theme").danger },
+                    text = "This browser isn't saving your habits (a private window?), so today's changes won't be here tomorrow." ]
+                ],
+            plus: Button [ visible = { app.wide }, label = "New habit",
+                height = { app.touchFirst ? 44 : 32 },
+                onClick() { app.adding = true }
+                ]
+            ],
+
+        // The week's heading, lined up over every row's dots.
+
+        weekHead: View [ x = end, visible = { app.count > 0 }, padding = [12, 4, 0, 4], datapath = { app.week.value },
+            layout: SimpleLayout [ axis = x, spacing = { app.gap } ],
+            DayHead [ datapath = :days[] ]
+            ],
+
+        list: View [ width = 100%, datapath = { app.habits.value },
+            stroke = { [stroke(1, provided("theme").line), null, null, null] },
+            layout: SimpleLayout [ axis = y ],
+            HabitRow [ datapath = :habits[] ]
+            ],
+
+        empty: View [ visible = { app.count == 0 }, width = 100%, padding = [64, 24, 0, 24],
+            layout: SimpleLayout [ axis = y, spacing = 10, align = center ],
+            Text [ fontFamily = { app.titleFace }, fontSize = 22, text = "No habits yet" ],
+            Text [ width = 280, textAlign = center, wrap = true, fontSize = 14, textColor = { provided("theme").textMuted },
+                text = "Add something small you want to do every day, then tick it off as you go." ]
+            ],
+
+        // Day, Night, or Auto, at the foot of the list.
+
+        appearance: View [ width = 100%, padding = [28, 0, 0, 0],
+            layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+            Spacer [ ],
+            Segmented [ width = { app.touchFirst ? 168 : 132 }, height = { app.touchFirst ? 44 : 30 },
+                accessibilityLabel = "Appearance",
+                value = { app.themeMode },
+                choices = { [ ({ id: "day", icon: "SunIcon", label: "Day" }), ({ id: "night", icon: "MoonIcon", label: "Night" }),
+                    ({ id: "auto", icon: "AutoIcon", label: "Auto" }) ] },
+                input(v: string) { app.setMode(v) }
+                ],
+            Spacer [ ]
+            ]
+        ],
+
+    // A phone adds from the foot of the screen, where a thumb rests. The dock
+    // lets presses through around the button, and sits above the home
+    // indicator; it steps aside while the add sheet or a toast is up.
+
+    addDock: View [ visible = { !app.wide && !app.adding }, ignoreScroll = true,
+        y = end, width = { app.width }, height = { 84 + app.safeBottom + this.lift }, pointerEvents = "none",
+        lift: number = { app.toast.shown ? 56 : 0 },
+        padding = { [0, 0, 20 + app.safeBottom + this.lift, 0] },
+        add: Control [ x = center, y = end, height = 52, padding = [0, 26, 0, 22], cornerRadius = 26,
+            accessibilityLabel = "New habit",
+            fill = { provided("theme").control },
+            stroke = { stroke(1, provided("theme").line) },
+            shadow = { shadow(0, 6, 18, app.isNight ? 0x00000099 : 0x00000018) },
+            scale = { pressed ? 0.96 : 1 }, pivotX = { this.width / 2 }, pivotY = 26,
+            press() { app.adding = true },
+            layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+            PlusIcon [ iconSize = 15, ink = { provided("theme").textMuted } ],
+            TextLabel [ fontSize = 16, fontWeight = medium, textColor = { provided("theme").text }, text = "New habit" ]
+            ]
+        ],
+
+    // ── layers
+
+    addPanel: Popover [ anchorTo = { app.wide ? app.page.head.plus : app.addDock.add }, shown = { app.adding },
+        input(open: boolean) { app.adding = open },
+        accessibilityLabel = "New habit",
+        entry: AddForm [ exists = { app.adding }, width = { app.wide ? 360 : parent.contentBox("width") } ]
+        ],
+
+    rowMenu: ContextMenu [
+        habit: Habit? = { app.habits.byId((this.opener as HabitRow)?.habitId ?? 0) },
+        index: number = { app.habits.at(this.habit?.id ?? 0) },
+        items = { [
+            ({ id: "today", label: (this.habit?.days ?? []).includes(app.today) ? "Unmark today" : "Mark today done" }),
+            ({ id: "open", label: app.openId == (this.habit?.id ?? 0) ? "Close" : "Open" }),
+            ({ divider: true }),
+            ({ id: "up", label: "Move up", enabled: this.index > 0 }),
+            ({ id: "down", label: "Move down", enabled: this.index >= 0 && this.index < app.count - 1 }),
+            ({ divider: true }),
+            ({ id: "delete", label: "Delete" }),
+        ] },
+        picked(id: string) {
+            const h = this.habit
+            if (h == null) return
+            if (id == "today") app.habits.toggleDay(h.id, app.today)
+            else if (id == "open") app.toggleOpen(h.id)
+            else if (id == "up") app.habits.moveTo(h.id, this.index - 1)
+            else if (id == "down") app.habits.moveTo(h.id, this.index + 1)
+            else if (id == "delete") app.remove(h.id)
+            }
+        ],
+
+    shortcuts: Shortcuts [ title = "Habits",
+        items = { [ ({ id: "new", key: "n", label: "New habit" }),
+                    ({ id: "undo", key: "⌘Z", label: "Undo delete", enabled: app.toast.shown && app.lastRemoved != null }) ] },
+        picked(id: string) {
+            if (id == "new") app.adding = true
+            else if (id == "undo") app.undo()
+            }
+        ],
+    keys: Keys [ onKeyDown(e: KeyEvent) { if (e.key == "Escape" && !app.adding) app.openId = 0 }
+        ],
+
+    toast: Toast [ duration = 6000,
+        picked(id: string) { if (id == "undo") app.undo() }
+        ]
+    ]

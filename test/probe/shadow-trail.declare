@@ -1,0 +1,13 @@
+// A SHADOW'S TAIL, LEFT BEHIND — the canvas renderer's repaint around a moving
+// view. A box shadow's blur is a radius of 2σ and its tail shows out to 3σ; the
+// area repainted where the view had been reached 1 radius, so a moving shadow
+// left a faint edge of itself behind. A light ground shows the faint edge. The
+// line of text is part of the case: with the card alone the trail did not show.
+
+App [ width = 640, height = 400, fill = #E9EDF3,
+    pos: number = 40,
+    card: View [ x = { app.pos }, y = 120, width = 200, height = 150, cornerRadius = 10,
+        fill = #3A6EA5,
+        shadow = { shadow(0, 10, 30, 0x00000066) } ],
+    Text [ x = 300, y = 300, text = "text beside the card's path" ]
+    ]

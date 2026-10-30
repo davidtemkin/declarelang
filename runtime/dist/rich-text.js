@@ -23,7 +23,7 @@ import { DeclareError } from "./errors.js";
 import { coerce, isAlign, isAuthoredUnion } from "./value.js";
 import { fontMetrics, fontString } from "./measure.js";
 import { featureFamily, featureTags } from "./font-features.js";
-import { faceGeneration } from "./face-table.js";
+import { faceGeneration, familiesGeneration, collectFamilies } from "./face-table.js";
 import { heldFamily } from "./font-value.js";
 import { headingSlug } from "./slug.js";
 import { resolveAsset } from "./asset-base.js";
@@ -31,6 +31,7 @@ import { percentAxis } from "./bind.js";
 import { styleBundles, bundleRecord } from "./style-bundles.js";
 import { budgetTruncated, flowRichCanvas, layoutBlocks, startBudget } from "./rich-views.js";
 import { docNodes } from "./rich-doc.js";
+import { declareName } from "./declare-name.js";
 // ── prose style map ──────────────────────────────────────────────────────────
 // The role → style map that makes rendered Markdown look good with zero author
 // effort, on the theme tokens. A design artifact, deliberately data (not code).
@@ -338,7 +339,7 @@ class SlotHost {
         if (this.said.has(message))
             return;
         this.said.add(message);
-        console.error("[Declare] " + this.owner.constructor.name + ": " + message);
+        console.error("[Declare] " + declareName(this.owner) + ": " + message);
     }
     begin() { this.used = new Set(); this.seq = new Map(); }
     /** Resolve one inline-view tag against the program's classes: create or match
@@ -1206,6 +1207,8 @@ export function tableCells(b, cells, weight, color, ctx) {
 // parser. Shared attributes (lineHeight/bodyColor/fontScale) and the `link` event
 // live on the base, so both formats inherit them.
 export class RichText extends View {
+    /** The font families its last build measured with — what its render keys on. */
+    $families = null;
     $eagerSurface() { return true; }
     $measuresDetached() { return true; }
     built = [];
@@ -1234,14 +1237,17 @@ export class RichText extends View {
         // which is the apply — where reads are not tracked (face-table.ts). Without
         // it a face that lands after this flow was built leaves every run placed by
         // the fallback's widths, and paints the real face over those positions.
-        const c = new Constraint(`${this.constructor.name}.render`, () => `${this.$sourceKey()} ${this.lineHeight} ${this.maxLines} ${this.bodyColor} ${this.$paletteKey()} ${this.fontScale} ${this.codeBackground} ${this.codeRule} ${faceGeneration()} ${heldFamily(this, "fontFamily", this.fontFamily)} ${heldFamily(this, "codeFamily", this.codeFamily)}`, () => this.$rebuild(), 0);
+        // Keyed on the faces of the families it measured with (collected as it
+        // rebuilt): a face that lands for another family leaves it alone. Before its
+        // first build it knows none, so it keys on every face until then.
+        const c = new Constraint(`${declareName(this)}.render`, () => `${this.$sourceKey()} ${this.lineHeight} ${this.maxLines} ${this.bodyColor} ${this.$paletteKey()} ${this.fontScale} ${this.codeBackground} ${this.codeRule} ${this.$families === null ? `*${faceGeneration()}` : familiesGeneration(this.$families)} ${heldFamily(this, "fontFamily", this.fontFamily)} ${heldFamily(this, "codeFamily", this.codeFamily)}`, () => { this.$families = collectFamilies(() => this.$rebuild()); }, 0);
         c.run();
         onDiscard(this, () => c.dispose());
         // WIDTH — nothing structural depends on it, so re-width in place. Separate
         // constraint, and it must run AFTER the first build (c.run() above) so there
         // is something to re-width. A width nobody gives is the text's own (the
         // build fitted it), so there is nothing to re-width to.
-        const cw = new Constraint(`${this.constructor.name}.rewidth`, () => `${this.width}`, () => { if (!this.$ownWidth())
+        const cw = new Constraint(`${declareName(this)}.rewidth`, () => `${this.width}`, () => { if (!this.$ownWidth())
             this.$relayout(this.width > 0 ? this.width : this.$wrapAt()); }, 0);
         cw.run();
         onDiscard(this, () => cw.dispose());

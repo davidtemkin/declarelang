@@ -13,7 +13,7 @@
 
 import { readFile, writeFile, mkdir, cp, rm, readdir } from "node:fs/promises";
 import { existsSync, statSync, realpathSync, readFileSync } from "node:fs";
-import { dirname, resolve, basename, join, relative, sep, extname } from "node:path";
+import { dirname, resolve, basename, join, relative, sep, extname, isAbsolute } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import { gzipSync } from "node:zlib";
@@ -60,7 +60,8 @@ function slimRegistrySource(usedNames) {
       .map((e) => `get ${JSON.stringify(e.name)}() { return ${e.export}; }`);
     return `export const ${t} = { ${pairs.join(", ")} };`;
   };
-  return `${importLines}\n${TABLES.map(table).join("\n")}\n`;
+  // a message names a class by these names, never its minified one (declare-name.ts)
+  return `${importLines}\nimport { nameClassesFrom } from "./declare-name.js";\n${TABLES.map(table).join("\n")}\nnameClassesFrom(() => [${TABLES.join(", ")}]);\n`;
 }
 
 /** Minify every `{ }` body in a compiled program in place — comments and
@@ -263,11 +264,14 @@ async function buildFiles(program, originDir, alsoAbs = []) {
     if (originDir === undefined) throw new Error(`ship: this build has no source directory to resolve the file '${path}' against — build from a file (declarec <app.declare>)`);
     const abs = resolve(originDir, path);
     if (!existsSync(abs) || !statSync(abs).isFile()) throw new Error(`ship: the file '${path}' is not there — expected ${abs} (a path relative to the program, as its url or source would spell it)`);
+    // inside the program's folder, the copy beside the app already carries it, at
+    // the path the program asks for: shipped once, not again as files/<hash>
+    if (copiedAlready(originDir, abs)) continue;
     await add(path, abs);
   }
   // the islands' files (buildIslands): keyed by their path from THIS program,
   // which is the URL an island's own relative request resolves to in the package
-  for (const abs of alsoAbs) await add(relative(originDir, abs).split(sep).join("/"), abs);
+  for (const abs of alsoAbs) if (!copiedAlready(originDir, abs)) await add(relative(originDir, abs).split(sep).join("/"), abs);
   return out;
 }
 
@@ -911,24 +915,62 @@ export function renderSizes(r) {
 // files, dev host artifacts, VCS/OS cruft, and any dotdir (e.g. the server's
 // own `.prod-cache` output dir, which must not recurse into itself).
 // `tests/` holds a program's verify fixtures (baselines, assert scripts) —
-// read beside the source by `verify`, never by the running program.
-const SKIP_DIRS = new Set(["dist", "prebuilt", "node_modules", "tests"]);
+// read beside the source by `verify`, never by the running program — and
+// `scratch/` is the developer's own: notes, probes, experiments, anything that
+// stays behind (docs/operational/building.md).
+const SKIP_DIRS = new Set(["dist", "prebuilt", "node_modules", "tests", "scratch"]);
 const SKIP_FILES = new Set(["index.html", ".DS_Store"]);
+
+/** Would the build's copy carry this top-level sibling of the source? */
+function copiesBeside(name, isDir) {
+  if (name.startsWith(".") || name.endsWith(".declare") || name.startsWith("app.")) return false;
+  return isDir ? !SKIP_DIRS.has(name) : !SKIP_FILES.has(name);
+}
+
+/** Does the build's copy already carry this file (an absolute path)? A file
+ *  `ship [ files ]` names inside the program's folder is then shipped once, at
+ *  its own path, and not again as files/<hash>. */
+function copiedAlready(srcDir, abs) {
+  const rel = relative(srcDir, abs);
+  if (rel === "" || rel.startsWith("..") || isAbsolute(rel)) return false;
+  const parts = rel.split(sep);
+  if (parts.some((p) => p.startsWith("."))) return false;
+  return copiesBeside(parts[0], parts.length > 1);
+}
 
 /** Copy the runtime assets the app fetches by relative url (data/, fonts,
  *  images) — every sibling of the source EXCEPT `.declare` sources, the
- *  generated output, and dev/VCS cruft. */
+ *  generated output, `tests/`, `scratch/` and dev/VCS cruft. An output folder
+ *  inside the program's own is never copied into itself. */
 async function copyAssets(srcDir, outDir) {
   const copied = [];
+  const out = resolve(outDir);
   for (const entry of await readdir(srcDir, { withFileTypes: true })) {
     const { name } = entry;
-    if (name.startsWith(".") || name.endsWith(".declare") || name.startsWith("app.")) continue;
-    if (entry.isDirectory() && SKIP_DIRS.has(name)) continue;
-    if (entry.isFile() && SKIP_FILES.has(name)) continue;
-    await cp(join(srcDir, name), join(outDir, name), { recursive: true });
+    if (!copiesBeside(name, entry.isDirectory())) continue;
+    const from = resolve(srcDir, name);
+    if (from === out) continue;
+    await cp(from, join(outDir, name), { recursive: true, filter: (src) => resolve(src) !== out });
     copied.push(name);
   }
   return copied;
+}
+
+/** The output folder is emptied before each build: only when it is one — absent,
+ *  empty, or holding a previous build (BUILD.json, or an app.<hash>.js) — and
+ *  never the program's own folder or one that holds it. Anything else is refused,
+ *  so a mistyped -o cannot empty a folder the build did not make. */
+async function clearOutput(outDir, srcDir) {
+  const out = resolve(outDir);
+  if (srcDir !== null) {
+    const rel = relative(out, resolve(srcDir));
+    if (rel === "" || (!rel.startsWith("..") && !isAbsolute(rel))) throw new Error(`declarec: the output folder ${out} holds the program itself — choose another -o`);
+  }
+  if (!existsSync(out)) return;
+  const names = await readdir(out);
+  if (names.length > 0 && !names.includes("BUILD.json") && !names.some((n) => /^app\.[0-9a-f]+\.js$/.test(n)))
+    throw new Error(`declarec: ${out} is not empty and holds no earlier build — a build empties its output folder first, so it will only use one it made (choose another -o, or empty it)`);
+  await rm(out, { recursive: true, force: true });
 }
 
 /** Build an app AND write the deployable tree to `outDir` (generated files +
@@ -938,7 +980,7 @@ async function copyAssets(srcDir, outDir) {
 export async function writeProduction({ source, name = "app", srcDir = null, outDir, stripPos = true, render, slim = true, crawler, extract = false, kernel, accessibility, props, sizes = false }) {
   const out = await buildProduction(source, { name, originDir: srcDir, stripPos, render, slim, crawler, extract, kernel, accessibility, props, sizes });
   if (!out.ok) return out;
-  await rm(outDir, { recursive: true, force: true });
+  await clearOutput(outDir, srcDir);
   await mkdir(outDir, { recursive: true });
   for (const f of out.files) { await mkdir(dirname(join(outDir, f.name)), { recursive: true }); await writeFile(join(outDir, f.name), f.contents); }
   const assets = srcDir ? await copyAssets(srcDir, outDir) : [];
@@ -1215,7 +1257,8 @@ async function cli(argv) {
     for (const f of out.shipped.files) console.log(`  ship files: ${f.path} → ${f.file} (${kb(f.gzip)} gzip)`);
     if (out.shipped.inspector) console.log(`  ship inspector: ${out.shipped.inspector.file} (${kb(out.shipped.inspector.gzip)} gzip), positions and error prose kept`);
     if (out.shipped.compiler) console.log(`  ship compiler: bundles/declare-compiler.js, bundles/compile-worker.js, library/ (fetched on the first compile)`);
-    if (out.warnings.length) console.log(`  ${out.warnings.length} warning(s)`);
+    // the warnings themselves, each piece of advice told once (diagnostics.ts renderReport)
+    if (out.warnings.length && out.report) console.log("\n" + out.report.split("\n").map((l) => "  " + l).join("\n"));
   }
 }
 
@@ -1231,5 +1274,7 @@ async function cli(argv) {
 // (run as a command — directly, or through the `declarec` link npx makes, which is
 // why the paths are compared after resolving links)
 if (process.argv[1] !== undefined && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))) {
-  cli(process.argv).then(() => process.exit(0), (e) => { console.error(e); process.exit(1); });
+  // a refusal the build words for the developer (`declarec: …`) is said plainly;
+  // anything else is a fault in the build itself, and keeps its stack
+  cli(process.argv).then(() => process.exit(0), (e) => { console.error(e instanceof Error && e.message.startsWith("declarec: ") ? e.message : e); process.exit(1); });
 }

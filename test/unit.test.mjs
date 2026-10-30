@@ -126,6 +126,22 @@ await test("parse() reads the R0 sample into an Element tree", () => {
   assert.equal(el.children[0].attrs.length, 5);
 });
 
+await test("parse(): a regex literal in a { } body is a lexical island — `//` in it is no comment, a brace in it ends nothing", () => {
+  const src = String.raw`App [ s: string = "a/b",
+    t: string = { app.s.replace(/\//g, "-") },
+    u: string = { app.s.replace(/}/g, "").replace(/'/, "") },
+    v: number = { (6 / 2) / 3 },
+    f() -> boolean { return /\d+/.test("12") } ]`;
+  const el = parseProgram(src).root;
+  const code = (n) => el.decls.find((a) => a.name === n).def.src.trim();
+  assert.equal(code("t"), String.raw`app.s.replace(/\//g, "-")`);
+  assert.equal(code("u"), `app.s.replace(/}/g, "").replace(/'/, "")`);
+  assert.equal(code("v"), "(6 / 2) / 3", "a slash after a value is division");
+  const p2 = parseProgram(String.raw`App [ n: number? = 8, w: number = { app.n! / 2 }, View [ datapath = :xs[], height = { :@ / 2 } ] ]`).root;
+  assert.equal(p2.decls.find((d) => d.name === "w").def.src.trim(), "app.n! / 2", "a non-null `!` keeps a value: then division");
+  assert.equal(p2.children[0].attrs.find((a) => a.name === "height").value.src.trim(), ":@ / 2", "a datapath's `@` is a value");
+});
+
 await test("parse() accepts an optional trailing comma", () => {
   const el = parse("App [ width=1, height=1, ]");
   assert.equal(el.attrs.length, 2);
@@ -223,6 +239,21 @@ await test("check() names attribute, expected type, and found value per type", (
     assert.equal(errors.length, 1, src);
     assert.match(errors[0].message, want);
   }
+});
+
+await test("a rule reading a declared default depends on the slot, not on what the default reads — it runs when the slot changes", async () => {
+  const { startProfile, stopProfile, profileReport } = await import("../runtime/dist/profile.js");
+  const rows = Array.from({ length: 20 }, (_, i) => `Row [ n = ${i} ]`).join(", ");
+  const app = buildProgram(await compiled(`App [ width = 200, height = 400, picked: number = 0, ${rows} ]
+class Row [ height = 10, n: number = 0, lit: boolean = { app.picked == n }, fill = { lit ? 0xffcc00 : 0xeeeeee } ]`));
+  settle();
+  startProfile({ frames: false });
+  app.picked = 7;
+  settle();
+  stopProfile();
+  const fill = profileReport().rules.find((r) => r.label === "Row.fill");
+  assert.ok(fill !== undefined, "the fills that changed ran");
+  assert.ok(fill.runs <= 2, `only the two rows whose lit changed re-ran their fill, not all twenty: ${fill.runs}`);
 });
 
 await test("every pointer event carries both frames — local x/y through the view's transform, rootX/rootY, and deltaX/deltaY since the press", async () => {
@@ -350,6 +381,24 @@ await test("a constraint whose decisions tangle is warned of (DECLARE4025); the 
   assert.equal(await warned(`app.a && app.b && (app.c || app.d) ? 1 : 0`), false, "three parts, one of them a bracketed either");
   assert.equal(await warned(`({ x: 1, y: 2, z: 3 } as Record<string, number>)[app.k] ?? 4`), false, "a lookup");
   assert.equal(await warned(`[1, 2].map((v) => v == 1 ? 1 : v == 2 ? 2 : v == 3 ? 3 : 4)[0]`), false, "a callback inside the body is its own matter");
+});
+
+await test("`T?` in a body says the declaration's shorthand is not a body's, and gives the Declare form: T | null", async () => {
+  const r = await compile(`App [ width = 100, height = 100, n: number = 0,
+    pick() { let v: string? = null; app.n = v == null ? 0 : 1 } ]`);
+  assert.match(r.report, /'\?' after a type is the declaration's shorthand [^\n]*so write string \| null/, r.report);
+  assert.doesNotMatch(r.report, /undefined/, "never TypeScript's undefined, which Declare does not use");
+});
+
+await test("the report tells one code's advice once: a later site keeps what is particular to it and points back", async () => {
+  const r = await compile(`App [ width = 100, height = 100, a: boolean = true, b: boolean = false, c: boolean = true, d: boolean = false,
+    n: number = { app.a && app.b && app.c && app.d ? 1 : 0 },
+    m: number = { app.d && app.c && app.b && app.a ? 1 : 0 } ]`);
+  const lines = r.report.split("\n").filter((l) => l.includes("[DECLARE4025]"));
+  assert.equal(lines.length, 2, r.report);
+  assert.match(lines[0], /n decides on one condition of 4 parts — give the facts it decides on names of their own/, "the first is told in full");
+  assert.match(lines[1], /^warning: m decides on one condition of 4 parts — the same advice as above \[DECLARE4025\]/, "the second points back");
+  assert.equal((r.warnings ?? []).filter((w) => w.code === "DECLARE4025").every((w) => /give the facts/.test(w.message)), true, "the diagnostics themselves keep their advice");
 });
 
 await test("check(): a child may not take the name of one of the runtime's own members — a field or a method", () => {
@@ -1733,7 +1782,7 @@ await test("a canceled gesture says so: the release carries canceled: true", () 
   } finally { h.done(); }
 });
 
-await test("dblClick: two taps pair; a view declaring onDblClick HOLDS its single click", async () => {
+await test("dblClick: two taps pair; the first click arrives at once, and a view declaring onDblClick hears the pair as dblClick alone", async () => {
   const h = inputHarness({ A: {}, D: { wantsDbl: true } });
   try {
     // a plain view: click fires immediately, the pair adds dblClick
@@ -1742,19 +1791,13 @@ await test("dblClick: two taps pair; a view declaring onDblClick HOLDS its singl
     assert.deepEqual(h.types().filter((t) => t === "click" || t === "dblClick"),
       ["click", "click", "dblClick"], "no arbitration where none was asked for");
 
-    // a view that answers double-clicks: the FIRST click waits out the window
+    // a view that answers double-clicks: its first click is not held back
     h.log.length = 0;
     h.fire("pointerdown", "D"); h.fire("pointerup", "D");
-    assert.deepEqual(h.types().filter((t) => t === "click"), [], "single click withheld pending the double window");
+    assert.deepEqual(h.types().filter((t) => t === "click"), ["click"], "the single click arrives at once, as the platforms deliver it");
     h.fire("pointerdown", "D"); h.fire("pointerup", "D");
     assert.deepEqual(h.types().filter((t) => t === "click" || t === "dblClick"),
-      ["dblClick"], "the pair fires dblClick ONLY — the single action never ran");
-
-    // and a lone tap on that view still clicks, once the window passes
-    h.log.length = 0;
-    h.fire("pointerdown", "D"); h.fire("pointerup", "D");
-    await new Promise((r) => setTimeout(r, 450));
-    assert.deepEqual(h.types().filter((t) => t === "click"), ["click"], "the withheld click arrives when no pair comes");
+      ["click", "dblClick"], "the second click is the pair: dblClick, not a second click");
   } finally { h.done(); }
 });
 
@@ -8013,6 +8056,29 @@ await test("hovered: the hit chain — leaf and ancestors, updated by pointer wr
   assert.equal(app.hb, true, "chain includes b (leaf is the Text inside)");
   app.pointerX = 5; app.pointerY = 5; settle();
   assert.equal(app.hb, false, "moved off");
+});
+
+await test("hovered: the walk passes over subtrees the point misses, yet a child outside its parent's box still hits, and a view that moves or joins under a resting pointer is hovered", async () => {
+  const app = buildProgram(await compiled(`App [ width = 400, height = 300,
+    bx: number = 300, extra: boolean = false,
+    hOver: boolean = { this.box.out.hovered },
+    hMoved: boolean = { this.mover.hovered },
+    hJoined: boolean = { this.extra ? this.late.hovered : false },
+    box: View [ x = 20, y = 20, width = 40, height = 40,
+        out: View [ x = 100, y = 0, width = 30, height = 30 ] ],
+    mover: View [ x = { app.bx }, y = 200, width = 40, height = 40 ],
+    late: View [ visible = { app.extra }, x = 250, y = 100, width = 30, height = 30 ],
+    ]`));
+  app.pointerHovering = true;
+  app.pointerX = 130; app.pointerY = 30; settle();
+  assert.equal(app.hOver, true, "a child drawn past its parent's box is hit there");
+  app.pointerX = 210; app.pointerY = 210; settle();
+  assert.equal(app.hMoved, false, "nothing under the pointer yet");
+  app.bx = 200; settle();
+  assert.equal(app.hMoved, true, "the view moved under the resting pointer: hovered");
+  app.pointerX = 260; app.pointerY = 110; settle();
+  app.extra = true; settle();
+  assert.equal(app.hJoined, true, "a view shown under the resting pointer: hovered");
 });
 
 await test("hovered: occlusion — a covering view suppresses the chain; pointerEvents none falls through", async () => {

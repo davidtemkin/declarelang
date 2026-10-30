@@ -49,6 +49,13 @@ export declare function tracing(): boolean;
 export declare function readTrace(root: Node, pathOf: (n: Node) => string, opts?: {
     onlyTree?: boolean;
 }): TraceSettle[];
+/** How many settles the trace has recorded so far (0 when it is not running): a
+ *  reader recording beside it (the profiler) tags its own turns with this, to
+ *  find a turn's settle in the trace. */
+export declare function traceSeq(): number;
+/** Kernel cells as `path.attr`, against the live tree — a rule's inputs, named
+ *  (cells of no addressable slot are left out). */
+export declare function nameCells(root: Node, pathOf: (n: Node) => string, cells: readonly number[]): string[];
 /** The trace as lines a person reads — one settle per line, its triggers
  *  then its changes, each change with the rule that made it. */
 export declare function traceText(settles: TraceSettle[]): string;

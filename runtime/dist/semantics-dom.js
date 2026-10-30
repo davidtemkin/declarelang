@@ -280,6 +280,8 @@ function install(v) {
             afterSettle(() => { const e = elementOf(v); if (e !== null)
                 VIEW_OF.set(e, v); holdInert(v, attrs !== null); });
     });
+    k.pushes = true;
+    k.owner = v;
     RULE_OF.set(v, k);
     k.run();
     onDiscard(v, () => { k.dispose(); if (v.focusScope === "modal")

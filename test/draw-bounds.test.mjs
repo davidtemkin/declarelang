@@ -245,45 +245,11 @@ await test("a drawing under a large scale is exact at rest on the DOM backend (n
   assert.equal(dom <= canvas * 1.5 + 2, true, `DOM ring edge ramps over ${dom} device px against canvas's ${canvas} — still CSS-stretched`);
 });
 
-// A REFUSED CANVAS IS THE DEVELOPER'S TO HEAR. Past its canvas budget the
-// platform draws a TRANSPARENT canvas and nothing else says so (measured: a
-// 395 MB canvas that allocated, cost time, and painted nothing). Development
-// reads a large raster back and, when it looks blank, reports which view's
-// drawing and how large — and redraws nothing: a softer copy would hide the
-// fact. A production build never reads back (build-flags.d.ts). The failure
-// cannot be provoked on Chrome, so the lever forces the detector.
-await test("a DOM raster that comes back blank is reported by name, once, and not redrawn", async () => {
-  // the extent probe at k=4 is a ~33 MB canvas — past the 8 MB bar the check
-  // runs at. The lever is armed AFTER boot: the boot raster is already past the
-  // bar at 900x600 @2x, and arming it earlier spent the forced blank there
-  const pg = await open("test/probe/raster-extent.declare?render=dom");
-  const said = [];
-  pg.on("console", (m) => { if (m.type() === "error") said.push(m.text()); });
-  await pg.evaluate(`globalThis.__declareForceBlank = 2; window.__app.k = 4`);
-  await sleep(600);
-  await pg.evaluate(`window.__app.tick = 5`);          // a re-record: reported once, not again
-  await sleep(600);
-  const st = await pg.evaluate(`globalThis.__declareDomRasterStats()`);
-  const cv = await pg.evaluate(`(() => { const c = document.querySelector("canvas"); return { w: c.width, cssW: parseFloat(c.style.width) }; })()`);
-  await pg.close();
-  assert.equal(st.blank, 1, `expected the blank counted once, stats ${JSON.stringify(st)}`);
-  const reports = said.filter((t) => /came back blank/.test(t));
-  assert.equal(reports.length, 1, `one report: ${JSON.stringify(said)}`);
-  assert.match(reports[0], /the drawing on app\.paper \(View\)/, "it names the view: " + reports[0]);
-  assert.match(reports[0], /\d+×\d+ raster \(\d+ MB\)/, "and the raster's size");
-  assert.equal(Math.abs(cv.w / cv.cssW - 2) < 0.05, true, `the raster stays at device density, not halved: ${cv.w}/${cv.cssW}`);
-});
-
 // A CLIPPED VIEW'S RASTER IS ITS BOX. A drawing whose ink reaches 50,000 units
 // past a 300-wide view that clips showed nothing more than the box, but its
-// canvas was sized to the ink — tens of megabytes the browser refuses, and a
-// development report that told the author to draw less. And a blank check
-// deferred for that raster read the NEXT raster at the old one's origin, and
-// called a correct canvas blank.
-await test("a clipping view's drawing rasters only its box, follows a resize, and is not reported blank", async () => {
+// canvas was sized to the ink — tens of megabytes the browser refuses.
+await test("a clipping view's drawing rasters only its box, and follows a resize", async () => {
   const pg = await open("test/probe/raster-clipped.declare?render=dom");
-  const said = [];
-  pg.on("console", (m) => { if (m.type() === "error") said.push(m.text()); });
   const canvas = `(() => { const c = document.querySelector("canvas"); return { w: c.width, h: c.height, cssW: parseFloat(c.style.width) }; })()`;
   const at300 = await pg.evaluate(canvas);
   assert.equal(at300.cssW <= 304 && at300.w <= 304 * 2 + 4, true, `the raster is the box, not the ink: ${JSON.stringify(at300)}`);
@@ -295,7 +261,6 @@ await test("a clipping view's drawing rasters only its box, follows a resize, an
     return Array.from(g.getImageData(Math.round(c.width * 0.8), Math.round(c.height * 0.85), 1, 1).data); })()`);
   await pg.close();
   assert.deepEqual(mid.slice(0, 3), [0x2E, 0x6F, 0xE0], `the newly shown strip is painted: ${mid}`);
-  assert.equal(said.filter((t) => /came back blank/.test(t)).length, 0, `no blank report: ${JSON.stringify(said)}`);
 });
 
 // A PER-FRAME CLOCK IS NOT A GLIDE. The visibility facts hold their delivery
@@ -344,6 +309,32 @@ await test("a rotated box keeps its drop shadow on the canvas backend", async ()
   })()`);
   await pg.close();
   assert.equal(dark.shadow > 20, true, `the rotated card's shadow is missing: ${dark.shadow}/${dark.seen} shadow pixels below-right`);
+});
+
+// A MOVING SHADOW LEAVES NOTHING BEHIND on the canvas backend. The repaint
+// around where a view had been reached its shadow's blur radius, but the tail
+// shows out to 1.5 radii, so a card that moved left a faint band of shadow
+// where its old shadow's edge had been (test/probe/shadow-trail.declare).
+await test("a moving box shadow leaves no trail on the canvas backend", async () => {
+  const pg = await open("test/probe/shadow-trail.declare?render=canvas");
+  const r = await pg.evaluate(`(async () => {
+    const app = window.__declare.find("app");
+    for (let i = 0; i <= 30; i++) { app.pos = 40 + Math.round(220 * i / 30); await new Promise((r) => requestAnimationFrame(r)); }
+    await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+    const g = document.querySelector("canvas").getContext("2d");
+    const ground = Array.from(g.getImageData(4, 4, 1, 1).data);
+    // the band just past where the old shadow's repaint stopped: below the card
+    // where it began (x 40..200), between 1 and 1.5 radii past its shadow's edge
+    let off = 0, worst = 0;
+    for (let x = 40; x < 200; x += 2) for (let y = 310; y < 326; y++) {
+      const d = g.getImageData(x * 2, y * 2, 1, 1).data;
+      const k = Math.max(Math.abs(d[0] - ground[0]), Math.abs(d[1] - ground[1]), Math.abs(d[2] - ground[2]));
+      if (k > 0) off++; if (k > worst) worst = k;
+    }
+    return { off, worst };
+  })()`);
+  await pg.close();
+  assert.deepEqual(r, { off: 0, worst: 0 }, "where the card's shadow had been is the ground again");
 });
 
 await browser.close();

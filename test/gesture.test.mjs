@@ -302,6 +302,12 @@ const SINK_RAW = `App [ width = 640, height = 400, fill = #202830,
     ]`;
 const sinkCompiled = await compile(SINK_RAW);
 assert.deepEqual(sinkCompiled.errors, [], "scroller-sink fixture compiles clean");
+// MODIFIERS: the keys held with a click reach the handler, as KeyEvent names them
+const MODS_RAW = `App [ width = 400, height = 300, said: string = "",
+    pad: View [ x = 20, y = 20, width = 200, height = 100, fill = #66AA88,
+        onClick(e: PointerEvent) { app.said = (e.shift ? "shift " : "") + (e.meta ? "meta " : "") + (e.alt ? "alt " : "") + (e.ctrl ? "ctrl " : "") + "click" } ] ]`;
+const modsCompiled = await compile(MODS_RAW);
+assert.deepEqual(modsCompiled.errors, [], "modifiers fixture compiles clean");
 
 // DRAG HANDOFF (input.ts): controls inside views that claim a drag — a pan
 // surface holding a Button and a Slider, a Carousel with a Button on its page,
@@ -329,6 +335,8 @@ const pages = {
   "/canvas-handoff": pageHtml("CanvasBackend", handoffCompiled),
   "/dom-sink": pageHtml("DomBackend", sinkCompiled),
   "/canvas-sink": pageHtml("CanvasBackend", sinkCompiled),
+  "/dom-mods": pageHtml("DomBackend", modsCompiled),
+  "/canvas-mods": pageHtml("CanvasBackend", modsCompiled),
   "/dom-wheel": pageHtml("DomBackend", wheelCompiled),
   "/dom-jump": pageHtml("DomBackend", jumpCompiled),
   "/dom-claims": pageHtml("DomBackend", claimsCompiled),
@@ -428,6 +436,22 @@ await test("dom+canvas: a scroller takes the click — the control beneath it he
     await page.mouse.click(140, 70);            // over the button, and over the pane covering it
     const hits = await page.evaluate(() => window.__declare.find("app").hits);
     assert.equal(hits, 0, `${url}: the pane took the point`);
+  }
+  await open("/dom-claims"); // restore the suite's working page
+});
+
+await test("dom+canvas: a click says which keys were held — shift, meta, alt, ctrl — in both renderers", async () => {
+  for (const url of ["/dom-mods", "/canvas-mods"]) {
+    await open(url);
+    const said = () => page.evaluate(() => window.__declare.find("app").said);
+    await page.mouse.click(120, 70);
+    assert.equal(await said(), "click", `${url}: no keys held`);
+    for (const [key, word] of [["Shift", "shift"], ["Meta", "meta"], ["Alt", "alt"], ["Control", "ctrl"]]) {
+      await page.keyboard.down(key);
+      await page.mouse.click(120, 70);
+      await page.keyboard.up(key);
+      assert.equal(await said(), `${word} click`, `${url}: ${key} held`);
+    }
   }
   await open("/dom-claims"); // restore the suite's working page
 });

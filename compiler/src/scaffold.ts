@@ -396,8 +396,10 @@ interface ChangeEvent { readonly changed: readonly ValueChange[] }
  *  space — the frame a drag reads, since it does not move with the dragged view
  *  (and the one \`app.viewAt\` takes). \`deltaX\`/\`deltaY\` are how far the pointer
  *  has moved, in root space, since the press (0 with no press; on a wheel, the
- *  scroll amount). */
-interface PointerEvent { x: number; y: number; rootX: number; rootY: number; deltaX: number; deltaY: number }
+ *  scroll amount). \`shift\`, \`ctrl\`, \`alt\` and \`meta\` are the keys held with
+ *  it, as a \`KeyEvent\` names them: a Shift-click extends a selection, a
+ *  ⌘-click (Ctrl-click off the Mac) adds to one. */
+interface PointerEvent { x: number; y: number; rootX: number; rootY: number; deltaX: number; deltaY: number; shift: boolean; ctrl: boolean; alt: boolean; meta: boolean }
 /** A release, plus the one fact a drag handler must not miss: \`canceled\` is true
  *  when the browser reclaimed the gesture — a touch that became a scroll. Commit on
  *  release only when it is false, or an interruption reads as a drop. */
@@ -502,6 +504,8 @@ declare const Inspect: {
     read(): TraceSettle[];
     text(settles?: TraceSettle[]): string;
   };
+  /** The profiler, recording the subject's turns: stop() answers the report as text. */
+  profile: { start(why?: boolean): void; stop(): string; active(): boolean };
 };
 /** One attribute the wake trace saw change: the view it lives on (\`path\`) and
  *  the attribute, its value before and after, and — for a change the settle

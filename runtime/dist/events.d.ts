@@ -16,6 +16,11 @@ export declare class Touch {
 export declare class PointerEvent {
     x: number;
     y: number;
+    /** The keys held with the pointer — KeyEvent's names (modifiers.ts). */
+    shift: boolean;
+    ctrl: boolean;
+    alt: boolean;
+    meta: boolean;
 }
 /** `onMouseUp` — a release, which may be an INTERRUPTION rather than a drop.
  *  On a touch screen the browser can reclaim a gesture mid-flight to scroll the

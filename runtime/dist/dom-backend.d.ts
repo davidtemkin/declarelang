@@ -63,10 +63,8 @@ export declare class DomSurface implements Surface {
     /** Device px per view unit of the raster currently in the canvas; 0 = none. */
     private rasterK;
     private rasterBytes;
-    /** The view whose drawing this is (setDrawing), named by a blank report. */
+    /** The view whose drawing this is (setDrawing), named by the profiler. */
     private owner;
-    /** A blank raster of this drawing was reported: once is enough. */
-    private blankReported;
     /** Set once the drawing raster has ever existed (arms the dpr watch once). */
     private unwatchDpr;
     private gone;
@@ -478,16 +476,7 @@ export declare class DomSurface implements Surface {
      *  OBLIGATORY (retained-mode — the canvas IS the content), so the entry cap
      *  is honoured by CLAMPING density back to dpr, never by refusing to draw:
      *  a scaled drawing past the cap is soft, which is what it was before. */
-    private blankCheckedAt;
-    /** The largest raster this surface has painted non-blank, and the page's
-     *  canvas total when it did (the blank check's proof — rasterize). */
-    private provenBytes;
-    private provenTotal;
-    private blankTimer;
-    private lastRaster;
-    private blankDeferred;
     private rasterize;
-    private checkBlank;
     /** The at-rest composed scale, from the view's visibility feed (backend.ts).
      *  A change re-rasterizes at the new density; the same value is a no-op. */
     setRasterScale(scale: number): void;

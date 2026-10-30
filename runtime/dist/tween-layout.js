@@ -8,6 +8,7 @@ import { DeclareError, layoutConflictMessage } from "./errors.js";
 import { Animator } from "./animator.js";
 import { motionToken } from "./easing.js";
 import { Layout } from "./layout.js";
+import { declareName } from "./declare-name.js";
 /** TweenLayout — the animated-reflow engine (the calendar's gridslider idiom,
  *  generalized and shed of its Flash-era scaffolding). The layout owns every
  *  laid child's x/y/width/height/visible and glides them between two WHOLE
@@ -51,7 +52,7 @@ export class TweenLayout extends Layout {
             this.tween = a;
         }
         const kids = this.laid();
-        const arranger = `${this.view?.constructor.name ?? "?"}'s ${this.constructor.name}`;
+        const arranger = `${(this.view !== null ? declareName(this.view) : "?")}'s ${declareName(this)}`;
         const owned = [];
         // This strategy claims all four geometry slots plus visibility on every
         // laid child, unconditionally — the one arrangement in which a child
@@ -66,7 +67,7 @@ export class TweenLayout extends Layout {
         const refuseIfOwned = (child, slot) => {
             const prior = ownerOf(child, slot);
             if (prior !== null && !prior.yielding) {
-                throw new DeclareError(layoutConflictMessage(child.constructor.name, slot, arranger, null, prior.sourcePos));
+                throw new DeclareError(layoutConflictMessage(declareName(child), slot, arranger, null, prior.sourcePos));
             }
         };
         const SLOTS = [
@@ -85,13 +86,19 @@ export class TweenLayout extends Layout {
         try {
             kids.forEach((child, idx) => {
                 for (const [slot, key] of SLOTS) {
-                    const k = new Constraint(`${this.constructor.name}[${idx}].${slot}`, () => {
+                    const k = new Constraint(`${declareName(this)}[${idx}].${slot}`, () => {
                         const f = this.from[idx];
                         const g = this.to[idx];
                         if (f === undefined || g === undefined)
                             return 0;
                         const a = f[key];
                         const b = g[key];
+                        // a child this glide does not move reads no `t`: its rule re-records
+                        // what it reads on every run, so it then sleeps through the frames
+                        // (it ran every frame, unchanged, for each still child: Pagemap's
+                        // section heads, 14,000 runs a glide — profile, 2026-10-29)
+                        if (a === b)
+                            return a;
                         return a + (b - a) * this.t;
                     }, (v) => setBound(child, slot, v));
                     // The claim carries its arranger like every kernel claim, so a
@@ -106,7 +113,7 @@ export class TweenLayout extends Layout {
                     own(child, slot, k);
                     owned.push({ child, slot, k });
                 }
-                const kv = new Constraint(`${this.constructor.name}[${idx}].visible`, () => {
+                const kv = new Constraint(`${declareName(this)}[${idx}].visible`, () => {
                     const f = this.from[idx];
                     const g = this.to[idx];
                     // During the slide (t<1) show whoever was visible in `from` — a
@@ -116,6 +123,8 @@ export class TweenLayout extends Layout {
                     // original's 600ms reveal timer, made declarative.
                     if (f === undefined || g === undefined)
                         return true;
+                    if (f.vis === g.vis)
+                        return f.vis; // unchanged by the glide: no `t` (above)
                     return this.t < 1 ? f.vis : g.vis;
                 }, (v) => setBound(child, "visible", v));
                 kv.arrangedBy = arranger;

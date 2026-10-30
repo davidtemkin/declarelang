@@ -61,9 +61,7 @@ export class DrawContext {
     ops = [];
     /** parallel to `ops` — see DisplayList.extents */
     extents = [];
-    /** parallel to `ops` — see DisplayList.probes */
-    probes = [];
-    push(op) { this.ops.push(op); this.extents.push(null); this.probes.push(null); }
+    push(op) { this.ops.push(op); this.extents.push(null); }
     /** THE VIEW'S OWN SIZE, for a drawing that sizes itself — `d.w` / `d.h`.
      *
      *  The scaffold has typed these since draw() was typed at all, so arithmetic
@@ -93,9 +91,6 @@ export class DrawContext {
     /** Extent of the current path; reset by beginPath, kept by fill/stroke
      *  (mirroring Canvas2D, where filling does not clear the path). */
     path = null;
-    /** Where the current path's pen last stood, in authoring coordinates: a
-     *  point a stroke inks, and on a fill's edge — the paint op's probe. */
-    pen = null;
     /** Mirror of the recorded lineWidth, for stroke expansion. */
     strokeHalf = 0.5;
     /** Cleared once an op paints an extent the recorder can't bound locally. */
@@ -196,9 +191,9 @@ export class DrawContext {
         this.mark(x, y, x + w, y + h);
     }
     // ── path building ──
-    beginPath() { this.push({ op: "beginPath" }); this.path = null; this.pen = null; }
-    moveTo(x, y) { this.push({ op: "moveTo", x, y }); this.extend(x, y, x, y); this.pen = { x, y }; }
-    lineTo(x, y) { this.push({ op: "lineTo", x, y }); this.extend(x, y, x, y); this.pen = { x, y }; }
+    beginPath() { this.push({ op: "beginPath" }); this.path = null; }
+    moveTo(x, y) { this.push({ op: "moveTo", x, y }); this.extend(x, y, x, y); }
+    lineTo(x, y) { this.push({ op: "lineTo", x, y }); this.extend(x, y, x, y); }
     /** Bounds are the arc's own: its two ends, and each of the circle's four
      *  extremes the sweep passes — a shallow arc of a large circle is a thin
      *  box, not the circle's (a row of seats on a 900-unit radius). */
@@ -207,14 +202,18 @@ export class DrawContext {
         const TAU = Math.PI * 2;
         // the sweep as the canvas draws it: from `from`, increasing, by `sweep`
         const span = ccw ? a0 - a1 : a1 - a0;
-        const sweep = span >= TAU ? TAU : ((span % TAU) + TAU) % TAU;
+        // a whole circle passes all four extremes: its box, with no trig
+        if (span >= TAU) {
+            this.extend(x - Math.abs(r), y - Math.abs(r), x + Math.abs(r), y + Math.abs(r));
+            return;
+        }
+        const sweep = ((span % TAU) + TAU) % TAU;
         const from = ccw ? a1 : a0;
-        const at = (t) => this.extend(x + r * Math.cos(t), y + r * Math.sin(t), x + r * Math.cos(t), y + r * Math.sin(t));
+        const at = (t) => { const px = x + r * Math.cos(t), py = y + r * Math.sin(t); this.extend(px, py, px, py); };
         at(from);
         at(from + sweep);
         for (let k = Math.ceil(from / (Math.PI / 2)); k * (Math.PI / 2) <= from + sweep; k++)
             at(k * (Math.PI / 2));
-        this.pen = { x: x + r * Math.cos(a1), y: y + r * Math.sin(a1) };
     }
     /** The tangent arc's box is bounded by its two guide points (conservative:
      *  the curve stays within their span plus the corner it rounds). */
@@ -228,47 +227,32 @@ export class DrawContext {
         // conservative: the rotated ellipse fits in a circle of its larger radius
         const r = Math.max(Math.abs(rx), Math.abs(ry));
         this.extend(x - r, y - r, x + r, y + r);
-        const ex = rx * Math.cos(a1), ey = ry * Math.sin(a1);
-        this.pen = { x: x + ex * Math.cos(rot) - ey * Math.sin(rot), y: y + ex * Math.sin(rot) + ey * Math.cos(rot) };
     }
     rect(x, y, w, h) {
         this.push({ op: "rect", x, y, w, h });
         this.extend(x, y, x + w, y + h);
-        this.pen = { x, y };
     }
     roundRect(x, y, w, h, radii = 0) {
         this.push({ op: "roundRect", x, y, w, h, radii: Array.isArray(radii) ? radii.slice() : radii });
         this.extend(x, y, x + w, y + h);
-        this.pen = { x: x + w / 2, y }; // a rounded corner is not inked; the middle of its top edge is
     }
     quadraticCurveTo(cpx, cpy, x, y) {
         this.push({ op: "quadraticCurveTo", cpx, cpy, x, y });
         this.extend(cpx, cpy, cpx, cpy);
         this.extend(x, y, x, y);
-        this.pen = { x, y };
     }
     bezierCurveTo(cp1x, cp1y, cp2x, cp2y, x, y) {
         this.push({ op: "bezierCurveTo", cp1x, cp1y, cp2x, cp2y, x, y });
         this.extend(cp1x, cp1y, cp1x, cp1y);
         this.extend(cp2x, cp2y, cp2x, cp2y);
         this.extend(x, y, x, y);
-        this.pen = { x, y };
     }
     closePath() { this.push({ op: "closePath" }); }
-    /** The paint op just pushed inks where the pen stands: its probe, mapped
-     *  through the live transform as its extent is. */
-    probe() {
-        if (this.pen === null)
-            return;
-        const [a, b, c, d, e, f] = this.ctm;
-        this.probes[this.probes.length - 1] = { x: a * this.pen.x + c * this.pen.y + e, y: b * this.pen.x + d * this.pen.y + f };
-    }
     // ── paint ──
     fill(rule) {
         this.push({ op: "fill", rule });
         if (this.path) {
             this.mark(this.path.x, this.path.y, this.path.x + this.path.w, this.path.y + this.path.h);
-            this.probe();
         }
     }
     /** Stroke ink extends half the line width beyond the path box. (A sharp
@@ -279,7 +263,6 @@ export class DrawContext {
         if (this.path) {
             const e = this.strokeHalf;
             this.mark(this.path.x - e, this.path.y - e, this.path.x + this.path.w + e, this.path.y + this.path.h + e);
-            this.probe();
         }
     }
     /** Clip narrows subsequent painting to the current path — no ink of its own,
@@ -423,7 +406,7 @@ export class DrawContext {
     resetTransform() { this.ctm = [1, 0, 0, 1, 0, 0]; this.push({ op: "resetTransform" }); }
     /** The finished recording. Called by record(); a DrawContext is single-use. */
     list() {
-        return { ops: this.ops, bounds: this.ink, exact: this.exactBounds, extents: this.extents, probes: this.probes };
+        return { ops: this.ops, bounds: this.ink === null ? null : { ...this.ink }, exact: this.exactBounds, extents: this.extents };
     }
     readOnly(what) {
         throw new DeclareError(`the draw context is write-only — ${what} cannot be read back; inputs come in through attributes (rendering model)`);
@@ -462,12 +445,17 @@ function matMul(m, n) {
     const [a2, b2, c2, d2, e2, f2] = n;
     return [a * a2 + c * b2, b * a2 + d * b2, a * c2 + c * d2, b * c2 + d * d2, a * e2 + c * f2 + e, b * e2 + d * f2 + f];
 }
+/** Grow `b` to take in a box, in place (recording-internal boxes only: a
+ *  path's, the ink's, an op's extent): a new object only for the first. */
 function union(b, x0, y0, x1, y1) {
     if (b === null)
         return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
-    const nx = Math.min(b.x, x0);
-    const ny = Math.min(b.y, y0);
-    return { x: nx, y: ny, w: Math.max(b.x + b.w, x1) - nx, h: Math.max(b.y + b.h, y1) - ny };
+    const nx = Math.min(b.x, x0), ny = Math.min(b.y, y0);
+    b.w = Math.max(b.x + b.w, x1) - nx;
+    b.h = Math.max(b.y + b.h, y1) - ny;
+    b.x = nx;
+    b.y = ny;
+    return b;
 }
 /** Run a draw method against a fresh recorder and return its display list. */
 export function record(fn, boxW, boxH) {
@@ -653,33 +641,6 @@ function listInfo(list) {
     infoCache.set(list, info);
     return info;
 }
-/** The recording's covered area — see ListInfo.area. Pure over the recording,
- *  so every backend prices the same quantity; each applies its own scale² and
- *  its own threshold. This REPLACES the op-counting classifier: measured under
- *  Chrome tracing (2026-08-24), two lists of identical op count differed 205x
- *  in paint cost by covered area alone, and the op count called both
- *  "expensive". Op count is still a term — a stroke has real per-op setup
- *  cost — but it is the backend's term to weigh, from `list.ops.length`. */
-/** Did a raster of `list` paint NOTHING where the recording says it painted?
- *  The platform's silent failure: past its canvas budget Safari draws
- *  transparent, Firefox blanks a DOM canvas at ~130 MB (measured 2026-08-25),
- *  and no timing sees either — a blank frame is a fast one. Sampled at a few
- *  op centres, which is a GPU sync, so a caller runs it once per fresh raster
- *  and only past a size worth the sync — and never in a production build: it
- *  is a check for the developer, who is told which drawing the browser
- *  refused. It is a heuristic: a recording whose sampled centres are truly
- *  transparent (an op painted clear, or clipped away) reads as blank.
- *  `sx, sy` are the raster's density and `bx, by` its origin in recording
- *  units — the same numbers the raster was made with. */
-/** The developer's report of a raster that looks blank (rasterLooksBlank):
- *  which view's drawing (`who`, its path from the App, when known), and the
- *  size of the raster the browser was asked for. */
-export function blankRasterMessage(who, w, h) {
-    return `[Declare] ${who === undefined ? "a drawing" : `the drawing on ${who}`} came back blank from the browser: ` +
-        `a ${w}×${h} raster (${Math.round((w * h * 4) / (1 << 20))} MB), past what this browser will paint (Safari allows ` +
-        `the least). Draw less area — a drawing about the size of what is on screen, not of everything it could show. ` +
-        `(Checked in development only; a production build does not look.)`;
-}
 /** A scratch canvas wherever this module runs: the DOM's element on a page, an
  *  OffscreenCanvas in a worker (raster-worker.ts) where there is no document. */
 export function makeCanvas(w, h) {
@@ -691,53 +652,13 @@ export function makeCanvas(w, h) {
     }
     return new OffscreenCanvas(Math.max(1, w), Math.max(1, h));
 }
-export function rasterLooksBlank(cv, list, sx, sy, bx, by) {
-    // a test lever: the platform failure this detects cannot be provoked on
-    // demand (it is the engine's own budget), so a pin forces the DETECTOR and
-    // checks the recovery — halve and retry on DOM, vectors on canvas
-    const force = globalThis.__declareForceBlank;
-    if (typeof force === "number" && force > 0) {
-        globalThis.__declareForceBlank = force - 1;
-        return true;
-    }
-    const g = cv.getContext("2d");
-    const ext = list.extents ?? [];
-    const probes = list.probes ?? [];
-    if (g === null)
-        return false;
-    let sampled = 0;
-    for (let i = 0; i < ext.length && sampled < 12; i++) {
-        const e = ext[i];
-        if (!e || e.w <= 0 || e.h <= 0)
-            continue;
-        // a 3×3 PATCH about a point the op inks, not one pixel: a hairline's centre
-        // rounds one device pixel off the line at low density (measured — a 1 px
-        // lattice at density 1 read "blank" at every sample and the DOM backend
-        // halved a raster that had painted), and a false blank is a raster thrown
-        // away. A path's point is where its pen stood (an arc's box has no ink at
-        // its centre); anything else's is its box's centre.
-        const p = probes[i] ?? { x: e.x + e.w / 2, y: e.y + e.h / 2 };
-        const cx = Math.round((p.x - bx) * sx), cy = Math.round((p.y - by) * sy);
-        // an op centred off the raster says nothing about it — a panned drawing's
-        // early marks often are — and a patch clamped to the edge would read the
-        // transparent margin as a refusal
-        if (cx < 0 || cy < 0 || cx >= cv.width || cy >= cv.height)
-            continue;
-        const x = Math.min(Math.max(0, cv.width - 3), Math.max(0, cx - 1));
-        const y = Math.min(Math.max(0, cv.height - 3), Math.max(0, cy - 1));
-        sampled++;
-        try {
-            const d = g.getImageData(x, y, Math.min(3, cv.width), Math.min(3, cv.height)).data;
-            for (let k = 3; k < d.length; k += 4)
-                if (d[k] !== 0)
-                    return false;
-        }
-        catch {
-            return false;
-        }
-    }
-    return sampled > 0;
-}
+/** The recording's covered area — see ListInfo.area. Pure over the recording,
+ *  so every backend prices the same quantity; each applies its own scale² and
+ *  its own threshold. This REPLACES the op-counting classifier: measured under
+ *  Chrome tracing (2026-08-24), two lists of identical op count differed 205x
+ *  in paint cost by covered area alone, and the op count called both
+ *  "expensive". Op count is still a term — a stroke has real per-op setup
+ *  cost — but it is the backend's term to weigh, from `list.ops.length`. */
 export function replayArea(list) {
     return listInfo(list).area;
 }
@@ -803,6 +724,10 @@ class DrawingLengths {
     filter = "none";
     stack = [];
     applied = false;
+    /** Something the device lengths follow has changed since they were written:
+     *  a length, a restore, the transform. Until then they stand, so a run of
+     *  marks under one shadow pays for them once, not mark by mark. */
+    stale = true;
     constructor(ctxs, withFilter) {
         this.ctxs = ctxs;
         this.withFilter = withFilter;
@@ -812,27 +737,36 @@ class DrawingLengths {
         switch (k) {
             case "shadowBlur":
                 this.blur = Number(v) || 0;
+                this.stale = true;
                 return true;
             case "shadowOffsetX":
                 this.ox = Number(v) || 0;
+                this.stale = true;
                 return true;
             case "shadowOffsetY":
                 this.oy = Number(v) || 0;
+                this.stale = true;
                 return true;
             case "filter":
                 if (!this.withFilter)
                     return false;
                 this.filter = String(v);
+                this.stale = true;
                 return true;
         }
         return false;
     }
     save() { this.stack.push([this.blur, this.ox, this.oy, this.filter]); }
     restore() { const t = this.stack.pop(); if (t !== undefined)
-        [this.blur, this.ox, this.oy, this.filter] = t; }
+        [this.blur, this.ox, this.oy, this.filter] = t; this.stale = true; }
+    /** The transform changed: the device lengths are resolved through it. */
+    moved() { this.stale = true; }
     get filterCss() { return this.filter; }
     /** Write the device lengths for the mark about to be painted. */
     apply() {
+        if (!this.stale)
+            return;
+        this.stale = false;
         const live = this.blur !== 0 || this.ox !== 0 || this.oy !== 0 || (this.filter !== "none" && this.filter !== "");
         if (!live && !this.applied)
             return;
@@ -1019,21 +953,27 @@ function replayDirect(ctx, list, cull) {
                 break;
             case "translate":
                 ctx.translate(o.x, o.y);
+                lengths.moved();
                 break;
             case "rotate":
                 ctx.rotate(o.angle);
+                lengths.moved();
                 break;
             case "scale":
                 ctx.scale(o.x, o.y);
+                lengths.moved();
                 break;
             case "transform":
                 ctx.transform(o.m[0], o.m[1], o.m[2], o.m[3], o.m[4], o.m[5]);
+                lengths.moved();
                 break;
             case "setTransform":
                 setRelative(ctx, base, o.m);
+                lengths.moved();
                 break;
             case "resetTransform":
                 ctx.setTransform(base);
+                lengths.moved();
                 break;
         }
     }
@@ -1287,23 +1227,29 @@ function replayFiltered(ctx, list, cull) {
                 break;
             case "translate":
                 both((c) => c.translate(o.x, o.y));
+                lengths.moved();
                 break;
             case "rotate":
                 both((c) => c.rotate(o.angle));
+                lengths.moved();
                 break;
             case "scale":
                 both((c) => c.scale(o.x, o.y));
+                lengths.moved();
                 break;
             case "transform":
                 both((c) => c.transform(o.m[0], o.m[1], o.m[2], o.m[3], o.m[4], o.m[5]));
+                lengths.moved();
                 break;
             case "setTransform":
                 setRelative(ctx, base, o.m);
                 setRelative(sx, base, o.m);
+                lengths.moved();
                 break;
             case "resetTransform":
                 ctx.setTransform(base);
                 sx.setTransform(base);
+                lengths.moved();
                 break;
         }
     }

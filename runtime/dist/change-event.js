@@ -18,6 +18,7 @@
 // because a value is delivered at most ONCE per settle chain.
 import { Constraint } from "./reactive.js";
 import { DeclareError } from "./errors.js";
+import { declareName } from "./declare-name.js";
 let dispatchChange = null;
 /** view.ts installs the dispatcher (this module cannot import it). */
 export function setChangeDispatcher(fn) { dispatchChange = fn; }
@@ -38,10 +39,10 @@ export function trackNode(node, names) {
     const list = [];
     for (const name of names) {
         if (!(name in node)) {
-            throw new DeclareError(`trackChanges: '${name}' is not a value of ${node.constructor.name} — name an attribute this node declares or a fact it carries`);
+            throw new DeclareError(`trackChanges: '${name}' is not a value of ${declareName(node)} — name an attribute this node declares or a fact it carries`);
         }
         const t = { name, last: undefined, current: undefined, seeded: false };
-        t.c = new Constraint(`${node.constructor.name}.trackChanges(${name})`, () => node[name], (v) => {
+        t.c = new Constraint(`${declareName(node)}.trackChanges(${name})`, () => node[name], (v) => {
             if (!t.seeded) {
                 t.seeded = true;
                 t.last = v;

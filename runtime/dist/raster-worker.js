@@ -22,10 +22,10 @@
 //   → { t: "fonts", faces: [{ family, src, weight, style }] }
 //   → { t: "unfonts", family }                          (a family withdrawn)
 //   → { t: "image", h, bitmap }                          (a drawImage source, once per handle)
-//   → { t: "raster", id, list, sx, sy, bx, by, w, h, blankCheck }
-//   ← { t: "raster", id, bitmap, rasterMs, blank }      (bitmap transferred)
+//   → { t: "raster", id, list, sx, sy, bx, by, w, h }
+//   ← { t: "raster", id, bitmap, rasterMs }      (bitmap transferred)
 //   ← { t: "error", id, message }
-import { replay, rasterLooksBlank } from "./draw.js";
+import { replay } from "./draw.js";
 import { registerDrawImage } from "./draw-image.js";
 const scope = self;
 /** Faces still loading — a raster with text waits for them (a raster made
@@ -77,9 +77,8 @@ async function raster(m) {
         c2.setTransform(m.sx, 0, 0, m.sy, -m.bx * m.sx, -m.by * m.sy);
         replay(c2, m.list); // the WHOLE recording — a memo must not depend on the viewport
         const rasterMs = performance.now() - t0;
-        const blank = m.blankCheck && rasterLooksBlank(cv, m.list, m.sx, m.sy, m.bx, m.by);
         const bitmap = cv.transferToImageBitmap();
-        scope.postMessage({ t: "raster", id: m.id, bitmap, rasterMs, blank }, [bitmap]);
+        scope.postMessage({ t: "raster", id: m.id, bitmap, rasterMs }, [bitmap]);
     }
     catch (err) {
         scope.postMessage({ t: "error", id: m.id, message: String(err) });

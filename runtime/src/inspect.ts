@@ -10,6 +10,7 @@
 // allocates until asked). The `__declare` page bridge is installed by boot.ts
 // for top-level apps.
 
+import { startProfile, stopProfile, profiling, profileReport, profileText, measureDrawings, clearProfile, type ProfileReport } from "./profile.js";
 import { Node, authoredName } from "./node.js";
 import { findPath, pathOf } from "./node-path.js";
 
@@ -67,7 +68,7 @@ import { semanticTree, formatSemantics } from "./semantics.js";
 import { declarationsOf, isSet, ownerOf, ownValues, ownedSlots } from "./attributes.js";
 import { materializationInfo, type MaterializationDiag } from "./replicate.js";
 import { sharedClock, browserScheduler, type FrameScheduler } from "./animate.js";
-import { TAGS, LAYOUTS, DATA, ANIMATORS, ANIMATOR_GROUPS, STATES } from "./registry.js";
+import { declareName } from "./declare-name.js";
 import { settle } from "./reactive.js";
 import { clearTrace, readTrace, startTrace, stopTrace, traceText, tracing } from "./wake-trace.js";
 
@@ -122,58 +123,9 @@ export interface InspectNode {
 
 const isView = (n: Node): n is View => n instanceof View;
 
-/** The class name to SHOW for a node. A named user class carries its own
- *  (`FinderWindow`); an instance-declared anonymous subclass carries whatever
- *  the bundler left behind (`je`, `t`), which is noise. So: take the first name
- *  up the prototype chain that reads like a class name, and fall back to
- *  the registry's own name→class table, which is authoritative and survives
- *  minification because its KEYS are strings. */
-const REGISTRY_NAME = new WeakMap<object, string>();
-let registryIndexed = false;
-function indexRegistry(): void {
-  if (registryIndexed) return;
-  registryIndexed = true;
-  try {
-    for (const table of [TAGS, LAYOUTS, DATA, ANIMATORS, ANIMATOR_GROUPS, STATES] as Record<string, unknown>[]) {
-      for (const [name, ctor] of Object.entries(table ?? {})) {
-        if (typeof ctor === "function") REGISTRY_NAME.set(ctor as object, name);
-      }
-    }
-  } catch { /* a slim build may omit a table */ }
-}
-/** Was this class name STAMPED by the program (instantiate.ts synthesize()
- *  does `Object.defineProperty(cls, "name", …)`, which is non-configurable), or
- *  merely inferred by JavaScript from a binding — in which case a bundler will
- *  have minified it to noise like `Pe`? The descriptor tells them apart exactly,
- *  where the name's shape cannot: a real two-letter user class (`Ev`) and a
- *  minified one look identical. */
-function stampedName(ctor: object): string | null {
-  const d = Object.getOwnPropertyDescriptor(ctor, "name");
-  if (d === undefined || d.configurable !== false) return null;
-  const v = typeof d.value === "string" ? d.value : "";
-  return v === "" ? null : v;
-}
-
-export function kindName(n: Node): string {
-  indexRegistry();
-  let ctor: unknown = n.constructor;
-  let registryHit: string | null = null;
-  let hops = 0;
-  while (typeof ctor === "function" && hops++ < 12) {
-    // A name the program stamped wins outright — it is the class the developer
-    // wrote, and it survives minification.
-    const stamped = stampedName(ctor as object);
-    if (stamped !== null) return stamped;
-    if (registryHit === null) {
-      const own = REGISTRY_NAME.get(ctor as object);
-      if (own !== undefined) registryHit = own;
-    }
-    ctor = Object.getPrototypeOf(ctor);
-  }
-  if (registryHit !== null) return registryHit;
-  const raw = (n.constructor as { name: string }).name;
-  return raw === "" ? "View" : raw;
-}
+/** The class name to SHOW for a node: the program's name for its class, in
+ *  every build (declare-name.ts). */
+export function kindName(n: Node): string { return declareName(n); }
 
 
 /** Make an attribute value JSON-safe for transport (the InspectNode is API,
@@ -347,7 +299,7 @@ export function explain(node: Node, attr: string): Provenance {
   let spring: Provenance["spring"] = null;
   for (const c of node.children) {
     const s = c as unknown as { attribute?: unknown; to?: unknown; stiffness?: unknown; damping?: unknown };
-    if (c.constructor.name === "Spring" && s.attribute === attr) {
+    if (declareName(c) === "Spring" && s.attribute === attr) {
       spring = { target: s.to, stiffness: s.stiffness, damping: s.damping };
       break;
     }
@@ -515,9 +467,80 @@ function primeEvalService(): void {
 /** The `window.__declare` surface boot.ts installs for a top-level app: the
  *  whole inspect API bound to that app's root. What verify's rung 5 drives,
  *  and what a human pokes in the console. */
+/** A node as the profiler names it: its path, and one held by an attribute
+ *  rather than as a child (a layout) by that attribute. */
+export function profileName(root: Node, n: object): string {
+  const node = n as Node, cls = declareName(n);
+  const par = node.parent;
+  if (par != null && !par.children.includes(node)) {
+    if ((par as unknown as { layout?: unknown }).layout === node) return `${profileName(root, par)}.layout`;
+    return `${profileName(root, par)} · ${cls}`;
+  }
+  try { return pathOf(root, node); } catch { /* not under this root */ }
+  // inside an island's own App: named through the island that hosts it
+  let top: Node = node;
+  while (top.parent != null) top = top.parent;
+  const host = (top as { $hostIsland?: Node | null }).$hostIsland ?? null;
+  if (host != null && top !== root) { try { return `${profileName(root, host)} ▸ ${pathOf(top, node)}`; } catch { /* a host torn down */ } }
+  return cls;
+}
+
+/** The view an element of the page belongs to (the nearest one up whose surface
+ *  it is, or holds it), named, with what it declares that costs to paint: a shadow,
+ *  a filter or backdrop, opacity, a drawing. The profiler's way from the browser's
+ *  layers and invalidations back to the program. Null for an element no view of
+ *  this tree owns (the document itself). */
+export function elementView(root: Node, el: Element | null): { view: string; paints: string[] } | null {
+  if (el === null) return null;
+  const byEl = new Map<Element, View>();
+  const walk = (n: Node): void => {
+    const e = (n as unknown as { $surface?: { element?: Element } | null }).$surface?.element;
+    if (n instanceof View && e !== undefined) byEl.set(e, n);
+    for (const c of n.children) walk(c);
+  };
+  walk(root);
+  for (let cur: Element | null = el; cur != null; cur = cur.parentElement) {
+    const v = byEl.get(cur);
+    if (v === undefined) continue;
+    const paints: string[] = [];
+    const sh = (v as unknown as { shadow?: { blur: number } | null }).shadow;
+    if (sh != null) paints.push(`a shadow${sh.blur > 0 ? ` (${sh.blur} px blur)` : ""}`);
+    const f = (v as unknown as { filter?: unknown }).filter;
+    if (f != null && !(Array.isArray(f) && f.length === 0)) paints.push("a filter");
+    const b = (v as unknown as { backdrop?: unknown }).backdrop;
+    if (b != null && !(Array.isArray(b) && b.length === 0)) paints.push("a backdrop filter");
+    const o = (v as unknown as { opacity?: number }).opacity;
+    if (typeof o === "number" && o < 1) paints.push(`opacity ${o}`);
+    if (typeof (v as unknown as { draw?: unknown }).draw === "function") paints.push("a drawing");
+    return { view: `${profileName(root, v)} (${kindName(v)})`, paints };
+  }
+  return null;
+}
+
 export function bridgeFor(root: Node): Record<string, unknown> {
   primeEvalService();
   return {
+    /** The profiler (profile.ts): turns, the rules each ran — how often, how often
+     *  to any effect, how long — what was built, and what keeps the program from
+     *  settling, in the program's own terms. */
+    profile: (() => {
+      const name = (n: object): string => profileName(root, n);
+      const report = (): ProfileReport => profileReport(name, root);
+      return {
+        /** `why` records the wake trace beside it (which writes opened each turn);
+         *  `frames` (on by default) notes when each frame begins. */
+        start: (opts?: { cap?: number; mark?: boolean; why?: boolean; frames?: boolean }): void => startProfile(opts),
+        stop: stopProfile,
+        active: profiling,
+        clear: clearProfile,
+        report,
+        text: (r?: ProfileReport): string => profileText(r ?? report()),
+        /** Draw each recorded drawing alone and wait for its pixels: the GPU's share. */
+        measureDrawings: (opts?: { max?: number; reps?: number }): number => measureDrawings(opts),
+        /** The view an element belongs to, and what it declares that costs to paint. */
+        viewOf: (el: Element | null) => elementView(root, el),
+      };
+    })(),
     inspect: (path?: string) => {
       const n = path !== undefined ? find(root, path) : root;
       return n !== null ? inspect(n, path ?? "app") : null;
@@ -845,7 +868,7 @@ export function slotsOf(node: Node): {
     const owner = ownerOf(node, attr);
     const motion = node.children.some((c) => {
       const s = c as unknown as { attribute?: unknown };
-      const cn = c.constructor.name;
+      const cn = declareName(c);
       return (cn === "Spring" || cn === "Animator" || cn === "AnimatorGroup") && s.attribute === attr;
     });
     const colorish = typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 0xFFFFFF && isColorSlot(node, attr);

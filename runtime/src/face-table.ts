@@ -24,7 +24,7 @@
 // mechanism app code has to wire up by hand. Declare needs only the one, because
 // the measurement is already inside the graph.
 
-import { Cell } from "./reactive.js";
+import { Cell, noteOrigin } from "./reactive.js";
 
 const CELLS = new Map<string, Cell>();
 
@@ -55,6 +55,7 @@ function names(family: string): readonly string[] {
  *  every name in it counts, since a face landing for ANY of them can change
  *  which one wins). A no-op when nothing is tracking, which is most paints. */
 export function trackFamilies(family: string): void {
+  if (collecting !== null) collecting.add(family);
   for (const n of names(family)) {
     let c = CELLS.get(n);
     if (c === undefined) { c = new Cell(); CELLS.set(n, c); }
@@ -67,8 +68,28 @@ export function trackFamilies(family: string): void {
  *  happens. Nothing needs flushing alongside this: the measurer memoizes
  *  nothing (`textWidth`, `fontMetrics`, `capHeight` and `xHeight` all measure
  *  live), so re-running the constraint is the whole of the invalidation. */
+/** The families measured while `fn` runs (tracked or not): what a caller that
+ *  measures in an apply can key on afterwards (`familiesGeneration`). */
+let collecting: Set<string> | null = null;
+export function collectFamilies(fn: () => void): string[] {
+  const was = collecting, mine = new Set<string>();
+  collecting = mine;
+  try { fn(); } finally { collecting = was; if (was !== null) for (const f of mine) was.add(f); }
+  return [...mine];
+}
+
+/** A number that changes when a face lands for any of `families`, tracked per
+ *  family: a late face re-runs only what measured in it. */
+const GEN = new Map<string, number>();
+export function familiesGeneration(families: readonly string[]): number {
+  let g = 0;
+  for (const f of families) { trackFamilies(f); for (const n of names(f)) g += GEN.get(n) ?? 0; }
+  return g;
+}
+
 export function familyChanged(family: string): void {
-  for (const n of names(family)) CELLS.get(n)?.changed();
+  noteOrigin(`font '${family}' loaded`);   // a turn's cause, to the profiler and the wake trace
+  for (const n of names(family)) { GEN.set(n, (GEN.get(n) ?? 0) + 1); CELLS.get(n)?.changed(); }
   generation++;
   ALL.changed();
 }
@@ -82,8 +103,11 @@ export function familyChanged(family: string): void {
 // the program. Its render KEY is where it says what makes it different, so the
 // face table joins the key: one number, changing whenever any face lands.
 //
-// Coarser than the per-family read on purpose. A late face is rare, and a flow
-// rebuild is cheap next to being silently mis-measured.
+// Coarse: every face that lands. RichText keys on it only until its first
+// build has collected the families it measured in (`collectFamilies`), then on
+// those (`familiesGeneration`): a type specimen loading a few faces rebuilt every
+// rich text for each, in text set in other faces (swatchbook, 584 → 236 ms,
+// 2026-10-29). The one that remains is the first face after boot.
 let generation = 0;
 const ALL = new Cell();
 

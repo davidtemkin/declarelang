@@ -1,16 +1,17 @@
 // boot-deferrals — work that does not have to precede FIRST PAINT, moved after
 // it. Found in the boot profile of the desktop (2026-09-18, Chrome, 133 ms
-// render stage): the blank-raster readbacks (~6–11 ms — every first raster
-// above the byte threshold is read back before anything has been "proven"),
-// and the compiled dependency probes (a `new Function` per distinct read path,
-// only to touch the reads for wiring). A third — deferring the canvas-filter
-// capability probe — was tried and reverted: the fallback it chose meanwhile
-// cost far more than the probe (canvas-filter.ts). Each is switchable OFF for
-// an A/B in a profiling build:
+// render stage): the compiled dependency probes (a `new Function` per distinct
+// read path, only to touch the reads for wiring). The development build's
+// blank-raster readbacks were deferred here too, until they were removed
+// (2026-10-29: a readback is a GPU sync, and in Chrome it can move a canvas off
+// the GPU, so development drew differently from production). Deferring the
+// canvas-filter capability probe was tried and reverted: the fallback it chose
+// meanwhile cost far more than the probe (canvas-filter.ts). A deferral is
+// switchable OFF for an A/B in a profiling build:
 //   globalThis.__declareNoBootDeferral = true            (all off)
-//   globalThis.__declareNoBootDeferral = "blank"         (named ones off)
+//   globalThis.__declareNoBootDeferral = "probe"         (named ones off)
 // A shipped build folds the switch out and keeps the deferrals.
-type Kind = "blank" | "probe";
+type Kind = "probe";
 
 export function deferral(kind: Kind): boolean {
   if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__) {

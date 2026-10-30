@@ -6,15 +6,18 @@
 // rungs that need it: names/ids and `classroot` scope (R6), the reactive core
 // and construct/init events (R4/R5). Establishing the Node↔View seam now is
 // what lets those land without reshaping the base.
-import { Cell, isTracking, noteOrigin, afterSettle } from "./reactive.js";
+import { Cell, isTracking, noteOrigin, afterSettle, profileHook } from "./reactive.js";
 import { timeHost } from "./wallclock.js";
 import { trackNode, untrackNode } from "./change-event.js";
 import { providedRead, defineAttributes, providedChainMoved, PROVIDED_FACE, disposeBindings, freeCells } from "./attributes.js";
+import { declareName } from "./declare-name.js";
 let readCursor = null;
 export function provideCursorRead(fn) { readCursor = fn; }
 let writeCursor = null;
 export function provideCursorWrite(fn) { writeCursor = fn; }
 export class Node {
+    constructor() { if (profileHook !== null)
+        profileHook.built(this); }
     parent = null;
     /** The parent a removeChild just unlinked from — a re-link back to the SAME
      *  parent (what replication does to every row of a block on any change) is
@@ -85,8 +88,20 @@ export class Node {
             done = true;
             pending(this).delete(cancel);
             const name = authoredName(this);
-            noteOrigin(`after on ${name ?? this.constructor.name}`, this);
-            fn();
+            noteOrigin(`after on ${name ?? declareName(this)}`, this);
+            const p = profileHook;
+            if (p === null) {
+                fn();
+                return;
+            }
+            p.begin();
+            const t0 = performance.now();
+            try {
+                fn();
+            }
+            finally {
+                p.spent("handler", `afterDelay on ${name ?? declareName(this)}`, performance.now() - t0);
+            }
         };
         pending(this).add(cancel);
         const afterFrame = () => {
@@ -263,6 +278,8 @@ export class Node {
      *  standing, each stays subscribed to what it read and runs again, detached,
      *  when that changes (a discarded row's dataset reading `app` found no App). */
     $teardown() {
+        if (profileHook !== null)
+            profileHook.discarded(this);
         for (const child of this.children)
             child.$teardown();
         runRetire(this);
@@ -297,6 +314,9 @@ export function onDiscard(node, fn) {
 // A node's outstanding `after` waits, each held as its cancel — registered
 // with the node's teardowns on the first one, so a discarded node leaves none.
 const AFTER = new WeakMap();
+/** @internal How many `afterDelay` waits a node has outstanding (the profiler's
+ *  "what keeps it from settling"). */
+export function waitsOf(node) { return AFTER.get(node)?.size ?? 0; }
 function pending(node) {
     let set = AFTER.get(node);
     if (set === undefined) {

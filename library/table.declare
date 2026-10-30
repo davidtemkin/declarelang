@@ -483,11 +483,11 @@ class TableRow extends Control [
         if (!disabled && (parent as Table)._isTable === true) Focus.focus(parent as any)
         },
 
-    onClick() {
+    // a press with no pointer behind it (a screen reader's, a program's) holds no keys
+
+    onClick(e?: PointerEvent) {
         if (disabled || (parent as Table)._isTable !== true) return
-        (parent as Table).rowClick(this.tableIndex(), this.item(),
-            Keys.isDown("MetaLeft") || Keys.isDown("MetaRight") || Keys.isDown("ControlLeft") || Keys.isDown("ControlRight"),
-            Keys.isDown("ShiftLeft") || Keys.isDown("ShiftRight"))
+        (parent as Table).rowClick(this.tableIndex(), this.item(), e != null && (e.meta || e.ctrl), e != null && e.shift)
         },
 
     // quiet defaults, styled against the theme; use sites override freely

@@ -13,6 +13,7 @@ import { isSet, ownerOf, percentOwned, setBound } from "./attributes.js";
 import { semanticTree, formatSemantics } from "./semantics.js";
 import { DataSource } from "./data.js";
 import { settle } from "./reactive.js";
+import { declareName } from "./declare-name.js";
 export function bootCheck(app, opts = {}) {
     const record = { nodes: 0, notes: [], layout: [], unbuilt: [], answers: [], samples: [], flagged: [] };
     if (opts.feed) {
@@ -51,7 +52,7 @@ const isA = (v, name) => {
 function outOfReach(app) {
     const clips = (v) => v.clip !== null && v.clip !== false && v.clip !== "";
     const out = [];
-    const say = (v, why) => { out.push(`a control may be out of reach — ${pathOf(app, v)} (${v.constructor.name}) ${why}`); };
+    const say = (v, why) => { out.push(`a control may be out of reach — ${pathOf(app, v)} (${declareName(v)}) ${why}`); };
     const round = (b) => `x ${Math.round(b.x)}–${Math.round(b.x + b.width)}, y ${Math.round(b.y)}–${Math.round(b.y + b.height)}`;
     const box = (v, stop = null) => rootFrameBox(v, undefined, stop);
     const drags = (v) => typeof v.onPointerMove === "function";
@@ -264,7 +265,7 @@ function unbuiltClasses(app, classes) {
             built.add(c.name);
         const l = n.layout;
         if (l !== null && typeof l === "object")
-            built.add(l.constructor.name);
+            built.add(declareName(l));
         for (const c of n.children)
             walk(c);
     };
@@ -278,7 +279,7 @@ function answer(app, { reads = [], outline = null, semantics = null }) {
         const k = r.lastIndexOf(".");
         const n = k > 0 ? find(app, r.slice(0, k)) : null;
         const v = n === null ? `(no view at ${r.slice(0, k)})` : n[r.slice(k + 1)];
-        out.push(`${r} = ${typeof v === "object" && v !== null && "children" in v ? `(a ${v.constructor.name})` : JSON.stringify(v ?? null)}`);
+        out.push(`${r} = ${typeof v === "object" && v !== null && "children" in v ? `(a ${declareName(v)})` : JSON.stringify(v ?? null)}`);
     }
     if (outline !== null && outline !== undefined) {
         const root = outline === true ? app : find(app, outline);
@@ -291,7 +292,7 @@ function answer(app, { reads = [], outline = null, semantics = null }) {
                     return;
                 const name = pathOf(app, v).split(".").pop();
                 const text = v.text;
-                lines.push(`${"  ".repeat(d)}${name} ${v.constructor.name}  ${Math.round(v.x)},${Math.round(v.y)}  ${Math.round(v.width)}×${Math.round(v.height)}${v.scrolls !== "none" ? "  scrolls " + v.scrolls : ""}${typeof text === "string" && text !== "" ? `  "${text.slice(0, 40)}${text.length > 40 ? "…" : ""}"` : ""}`);
+                lines.push(`${"  ".repeat(d)}${name} ${declareName(v)}  ${Math.round(v.x)},${Math.round(v.y)}  ${Math.round(v.width)}×${Math.round(v.height)}${v.scrolls !== "none" ? "  scrolls " + v.scrolls : ""}${typeof text === "string" && text !== "" ? `  "${text.slice(0, 40)}${text.length > 40 ? "…" : ""}"` : ""}`);
                 for (const c of v.children)
                     w(c, d + 1);
             };
@@ -323,7 +324,7 @@ function feedSchemaSamples(app, samples) {
                 : undefined;
         if (value === undefined)
             continue;
-        samples.push({ source: d.name ?? ds.constructor.name, value });
+        samples.push({ source: d.name ?? declareName(ds), value });
         setBound(ds, "value", value);
         setBound(ds, "loading", false);
         if (typeof d.onLoad === "function") {
@@ -331,7 +332,7 @@ function feedSchemaSamples(app, samples) {
                 d.onLoad.call(ds);
             }
             catch (e) {
-                console.error(`[Declare] onLoad on ${ds.constructor.name} threw: ${e?.message ?? e}`);
+                console.error(`[Declare] onLoad on ${declareName(ds)} threw: ${e?.message ?? e}`);
             }
         }
         fed++;

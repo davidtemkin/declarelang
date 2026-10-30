@@ -9,6 +9,7 @@ import type { Node } from "./node.js";
 import { afterSettle } from "./reactive.js";
 import { isSet, ownerOf, percentOwned } from "./attributes.js";
 import { negativeSizeMessage } from "./errors.js";
+import { declareName } from "./declare-name.js";
 
 /** A CHILD SIZED FROM A PARENT THAT HAS NO SIZE TO GIVE is reported
  *  (docs/system-design/layout-ownership.md §4). A child whose size is derived
@@ -58,11 +59,11 @@ export function judgeNegativeSizes(): void {
       if (!(pOwner === null ? !isSet(p, axis) : pOwner.isAutoExtent)) continue;
       let said = NEGATIVE_SAID.get(root);
       if (said === undefined) NEGATIVE_SAID.set(root, (said = new Set()));
-      const key = `${v.constructor.name}.${axis}`;
+      const key = `${declareName(v)}.${axis}`;
       if (said.has(key)) continue;
       said.add(key);
       const onlyContent = !p.children.some((c) => c !== v && c instanceof View && c.visible && !percentOwned(c, axis));
-      console.error("[Declare] " + negativeSizeMessage(v.constructor.name, axis, value, p.constructor.name, onlyContent, ownerOf(v, axis)?.sourcePos));
+      console.error("[Declare] " + negativeSizeMessage(declareName(v), axis, value, declareName(p), onlyContent, ownerOf(v, axis)?.sourcePos));
     }
   }
 }

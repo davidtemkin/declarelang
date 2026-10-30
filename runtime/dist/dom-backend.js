@@ -29,8 +29,8 @@ import { revealRichAnchor as revealAnchorIn, richBlocks, richInlineSlots, richMe
 import {} from "./boxpaint.js";
 import { effectiveFamily, fontMetrics, fontString, cssWeight, transformText } from "./measure.js";
 import { renderClamped } from "./text-clamp.js";
-import { replay, rasterEntryCap, rasterLooksBlank, blankRasterMessage, rasterPad, RASTER_MAX_DIM, RASTER_MAX_AREA } from "./draw.js";
-import { deferral, firstFramePainted, afterFirstFrame } from "./boot-deferrals.js";
+import { profileHook } from "./reactive.js";
+import { replay, rasterEntryCap, rasterPad, RASTER_MAX_DIM, RASTER_MAX_AREA } from "./draw.js";
 import { onDprChange } from "./dpr.js";
 import { routeInput, holdCaptureActive, fingerHeldByDrag } from "./input.js";
 import { dragScrolling } from "./drag-autoscroll.js";
@@ -315,8 +315,10 @@ function realizeIgnoreScroll(el) {
         if (p.dataset !== undefined && p.dataset.declareApp !== undefined) {
             // the page regime — but only where the root's frame IS the viewport
             const embedded = p.parentElement?.closest("[data-declare-app], [data-declare-embed]") ?? null;
-            if (embedded === null)
+            if (embedded === null) {
                 el.style.position = "fixed";
+                unpromoteAbove(el);
+            }
             anchorEnds(el);
             sendHome(el); // this regime is not a pane's — never leave it in a frame
             return;
@@ -434,17 +436,8 @@ const TRANSFORMS = new WeakMap();
 // be countable rather than silent. The same diag family as the canvas memo's.
 let domRasterBytes = 0;
 let domRasterClamped = 0;
-let domRasterBlank = 0;
 globalThis.__declareDomRasterStats =
-    () => ({ bytes: domRasterBytes, clamped: domRasterClamped, blank: domRasterBlank });
-/** Past this a raster that came back blank is worth the one GPU sync it takes
- *  to notice, in development — the same bar the canvas memo uses. */
-/** The blank check reads pixels back (getImageData: a GPU sync — 16% of the
- *  main thread under a live resize, measured 2026-09-16). It runs at most this
- *  often per surface; a raster inside the interval is checked when the
- *  interval elapses, on whatever raster is current then. */
-const BLANK_CHECK_INTERVAL = 250;
-const DOM_BLANK_CHECK_BYTES = 8 << 20;
+    () => ({ bytes: domRasterBytes, clamped: domRasterClamped });
 let liveTransforms = 0;
 // The scroll offset each marked scroller was last TOLD to hold — the model's
 // answer, kept because the element's own is not always available to give
@@ -887,6 +880,84 @@ function ensureClipBoxFor(el) {
 const DRAWING_OF = new WeakMap();
 /** The roles a row count and a row index belong on. */
 const GRIDDY = new Set(["grid", "treegrid", "table", "row"]);
+/** A view that moves on consecutive frames gets a layer of its own while it
+ *  moves, so the browser moves its pixels instead of re-rasterizing what it
+ *  passes over: a dragged card with a shadow re-rasterized the page's layer
+ *  ~900 times in 3 s, and none promoted, at the same time to display (headed
+ *  Chrome, 2026-10-29). Released once it rests, so text returns to the page's
+ *  own paint. A layer is a stacking context and a containing block, which a
+ *  plain view is not: a blend inside would blend only within it (a plain view
+ *  does not isolate, compositing.md §4.1) and a fixed view inside would be
+ *  placed against it. So a view holding either is not promoted, and one that
+ *  gains either is released (`unpromoteAbove`). And only a view with nothing
+ *  painted after it is promoted: under other views, Chrome gave each one over
+ *  it a layer too, and 7–13% of frames never reached the screen (headed, 120 Hz);
+ *  over them, none were lost. A view painted over later gives its layer back. */
+const PROMOTED = new Map(); // → when it last moved
+/** when it last moved, and in how many frames running (each within 100 ms of the last) */
+const MOVES = new WeakMap();
+const LAYER_WOULD_CHANGE = '[style*="mix-blend-mode"], [style*="position: fixed"]';
+let restTimer = null;
+function noteMoved(el) {
+    if (typeof performance === "undefined")
+        return;
+    const now = performance.now();
+    if (PROMOTED.has(el)) {
+        PROMOTED.set(el, now);
+        return;
+    }
+    const m = MOVES.get(el);
+    if (m === undefined || now - m.t > 100) {
+        MOVES.set(el, { t: now, n: 1 });
+        return;
+    }
+    if (now - m.t < 4)
+        return; // the same frame: x and y, or two writes in one settle
+    m.t = now;
+    // three frames running: moving, not placed and then moved once
+    if (++m.n < 3 || el.style.willChange !== "" || !paintedLast(el) || el.querySelector(LAYER_WOULD_CHANGE) !== null)
+        return;
+    el.style.willChange = "transform";
+    PROMOTED.set(el, now);
+    restTimer ??= platformTimeout(releaseRested, 250); // the platform's time: a harness's clock does not rest it
+}
+function release(el) {
+    if (el.style.willChange === "transform")
+        el.style.willChange = "";
+    PROMOTED.delete(el);
+}
+function releaseRested() {
+    const now = performance.now();
+    for (const [el, t] of PROMOTED)
+        if (now - t > 500 || !el.isConnected)
+            release(el);
+    restTimer = PROMOTED.size === 0 ? null : platformTimeout(releaseRested, 250);
+}
+function unpromoteAbove(el) {
+    for (const [m] of PROMOTED)
+        if (m !== el && m.contains(el))
+            release(m);
+}
+/** Nothing paints after it: it is the last shown child of its parent, and so
+ *  is each element above it, up to the App's own. */
+function paintedLast(el) {
+    for (let e = el; e.dataset.declareApp === undefined;) {
+        for (let s = e.nextElementSibling; s !== null; s = s.nextElementSibling)
+            if (s.style.display !== "none")
+                return false;
+        const p = e.parentElement;
+        if (p === null)
+            return false;
+        e = p;
+    }
+    return true;
+}
+/** Something now paints after a promoted view: it gives its layer back. */
+function unpromoteCovered() {
+    for (const [m] of PROMOTED)
+        if (!paintedLast(m))
+            release(m);
+}
 export class DomSurface {
     element;
     textEl = null;
@@ -935,10 +1006,8 @@ export class DomSurface {
     /** Device px per view unit of the raster currently in the canvas; 0 = none. */
     rasterK = 0;
     rasterBytes = 0;
-    /** The view whose drawing this is (setDrawing), named by a blank report. */
+    /** The view whose drawing this is (setDrawing), named by the profiler. */
     owner = undefined;
-    /** A blank raster of this drawing was reported: once is enough. */
-    blankReported = false;
     /** Set once the drawing raster has ever existed (arms the dpr watch once). */
     unwatchDpr = null;
     gone = false;
@@ -969,8 +1038,10 @@ export class DomSurface {
     // same presented frame. Untransformed boxes keep the plain layout path.
     posX = 0;
     posY = 0;
-    setX(v) { this.posX = v; this.placeSelf(); }
-    setY(v) { this.posY = v; this.placeSelf(); }
+    setX(v) { if (v !== this.posX)
+        noteMoved(this.element); this.posX = v; this.placeSelf(); }
+    setY(v) { if (v !== this.posY)
+        noteMoved(this.element); this.posY = v; this.placeSelf(); }
     placeSelf() {
         if (!affineIsIdentity(this.xform) || this.spec3D !== null)
             this.applyTransform(this.pivotXCache, this.pivotYCache);
@@ -1166,6 +1237,8 @@ export class DomSurface {
     }
     setVisible(v) {
         this.element.style.display = v ? "" : "none";
+        if (v && PROMOTED.size > 0)
+            unpromoteCovered();
         // THE HIDDEN-RASTER SKIP. A hidden view's drawing is never seen, and its
         // per-view canvas is the largest thing this backend allocates — weather's
         // WSky comment records designing AROUND this ("a hidden draw() still
@@ -1347,6 +1420,8 @@ export class DomSurface {
         // boundaries CSS would NOT create on its own (the app root, a scroller)
         // get explicit `isolation: isolate` (attachRoot, applyScrollStyle).
         this.element.style.mixBlendMode = mode === "normal" ? "" : mode.replace(/[A-Z]/g, (c) => "-" + c.toLowerCase());
+        if (mode !== "normal")
+            unpromoteAbove(this.element);
     }
     setBackdrop(spec) {
         // Compositor-native, effectively free. The element's own border-radius /
@@ -2810,14 +2885,6 @@ export class DomSurface {
      *  OBLIGATORY (retained-mode — the canvas IS the content), so the entry cap
      *  is honoured by CLAMPING density back to dpr, never by refusing to draw:
      *  a scaled drawing past the cap is soft, which is what it was before. */
-    blankCheckedAt = -Infinity;
-    /** The largest raster this surface has painted non-blank, and the page's
-     *  canvas total when it did (the blank check's proof — rasterize). */
-    provenBytes = 0;
-    provenTotal = 0;
-    blankTimer = null;
-    lastRaster = null;
-    blankDeferred = false;
     rasterize(k) {
         const c = this.drawEl;
         // The canvas box is the recording's bounds PLUS the bleed pad: blur and
@@ -2880,90 +2947,17 @@ export class DomSurface {
         if (c.style.height !== height)
             c.style.height = height;
         ctx.setTransform(kk, 0, 0, kk, -b.x * kk, -b.y * kk);
-        replay(ctx, this.drawing);
+        const p = profileHook;
+        if (p === null)
+            replay(ctx, this.drawing);
+        else {
+            const t0 = performance.now();
+            replay(ctx, this.drawing);
+            p.rastered(this.owner, this.drawing, w, h, performance.now() - t0, [kk, 0, 0, kk, -b.x * kk, -b.y * kk]);
+        }
         if (this.maskUsers !== null)
             for (const u of this.maskUsers)
                 u.applyMask(); // a stencil re-rastered: its users re-export
-        // A REFUSED CANVAS, told to the developer. A canvas past the platform's
-        // budget (Safari's, Firefox's at ~130 MB) comes back TRANSPARENT and nothing
-        // else says so — measured on the extent probe: a 395 MB canvas that
-        // allocated, cost time, and painted nothing. Seeing it takes a readback, a
-        // GPU-to-CPU sync, so development looks and reports the drawing by name, and
-        // a production build does not look. Nothing is redrawn: a quieter, blurrier
-        // copy would hide the one fact the developer needs.
-        // ALREADY PROVEN: this surface painted a non-blank raster at least this big
-        // while the page held no more canvas bytes than now — a platform refusal is
-        // a function of allocation size (per canvas and in total), so the same or a
-        // smaller raster under the same total cannot newly fail. Weather's resize
-        // read pixels back 95 ms per window on rasters it had already proven.
-        // NOTE a raster no larger than one this device already drew, under a total no larger than
-        // one it already carried, skips the readback; a forced blank (the test hook) is synthetic,
-        // so it is never covered by that proof
-        const forced = (globalThis.__declareForceBlank ?? 0) > 0;
-        // a check still waiting was for the raster this one replaced: reading this
-        // canvas at that raster's origin and density samples the wrong pixels
-        this.lastRaster = null;
-        if ((typeof __DECLARE_PRODUCTION__ === "undefined" || !__DECLARE_PRODUCTION__) && !this.blankReported
-            && this.rasterBytes > DOM_BLANK_CHECK_BYTES && (forced || !(this.rasterBytes <= this.provenBytes && domRasterBytes <= this.provenTotal))) {
-            // BEFORE FIRST PAINT the readback waits (boot-deferrals.ts): nothing is
-            // proven yet, so every first raster would be read back before anything
-            // is on screen. A blank that persists is caught the same way one frame
-            // later; a blank for one frame is invisible. The forced (test) blank is
-            // synthetic and never deferred.
-            if (!forced && !firstFramePainted && deferral("blank")) {
-                this.lastRaster = { b, kk };
-                if (!this.blankDeferred) {
-                    this.blankDeferred = true;
-                    afterFirstFrame(() => {
-                        this.blankDeferred = false;
-                        const last = this.lastRaster;
-                        this.lastRaster = null;
-                        if (this.gone || last === null || this.drawEl === null || this.drawing === null)
-                            return;
-                        this.blankCheckedAt = performance.now();
-                        this.checkBlank(this.drawEl, last.kk, last.b);
-                    });
-                }
-                return;
-            }
-            const now = performance.now();
-            if (now - this.blankCheckedAt >= BLANK_CHECK_INTERVAL) {
-                this.blankCheckedAt = now;
-                this.lastRaster = null;
-                this.checkBlank(c, kk, b);
-            }
-            else {
-                // mid-motion: defer — the check lands on the raster current when the
-                // interval elapses, so a resize costs one readback per interval, not
-                // one per frame; a blank is still caught within the interval
-                this.lastRaster = { b, kk };
-                if (this.blankTimer === null)
-                    this.blankTimer = setTimeout(() => {
-                        this.blankTimer = null;
-                        const last = this.lastRaster;
-                        this.lastRaster = null;
-                        if (this.gone || last === null || this.drawEl === null || this.drawing === null)
-                            return;
-                        this.blankCheckedAt = performance.now();
-                        this.checkBlank(this.drawEl, last.kk, last.b);
-                    }, BLANK_CHECK_INTERVAL);
-            }
-        }
-    }
-    checkBlank(c, kk, b) {
-        // guarded here too, so a production build carries none of it
-        if (typeof __DECLARE_PRODUCTION__ === "undefined" || !__DECLARE_PRODUCTION__) {
-            if (!rasterLooksBlank(c, this.drawing, kk, kk, b.x, b.y)) {
-                if (this.rasterBytes > this.provenBytes || domRasterBytes > this.provenTotal) {
-                    this.provenBytes = Math.max(this.provenBytes, this.rasterBytes);
-                    this.provenTotal = Math.max(this.provenTotal, domRasterBytes);
-                }
-                return;
-            }
-            domRasterBlank++;
-            this.blankReported = true;
-            console.error(blankRasterMessage(this.owner?.$drawingName?.(), c.width, c.height));
-        }
     }
     /** The at-rest composed scale, from the view's visibility feed (backend.ts).
      *  A change re-rasterizes at the new density; the same value is a no-op. */
@@ -3028,6 +3022,11 @@ export class DomSurface {
         // gained — resolve it now that the context exists
         if (el.dataset.declareIgnorescroll !== undefined)
             realizeIgnoreScroll(el);
+        if (PROMOTED.size > 0) {
+            unpromoteCovered();
+            if (el.matches(LAYER_WOULD_CHANGE) || el.querySelector(LAYER_WOULD_CHANGE) !== null)
+                unpromoteAbove(el);
+        }
     }
     watchVisibility(cb) {
         this.unwatchVisibility?.();

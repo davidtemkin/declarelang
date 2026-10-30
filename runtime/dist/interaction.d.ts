@@ -71,6 +71,8 @@ export declare function initInteraction(test: (n: unknown) => n is InteractionVi
 /** The view a view PAINTS in (planes.md §3.1): its `paintsIn` when that is not
  *  its parent, else its parent. Paint, hit and root geometry follow it. */
 export declare function paintParentOf(v: InteractionView): InteractionView | null;
+/** Some view's box, place, transform, scroll, clip or children changed. */
+export declare function markGeometry(): void;
 /** The view a real press at this point would reach — `hitAt` passing over views
  *  that take no presses, as the backends' input routing does. The checking
  *  tools ask this, so a press they refuse is one a person's would miss. */

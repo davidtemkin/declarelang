@@ -645,18 +645,16 @@ function extractBody(sf, locals, inlinable, extraRoots, bodyPos) {
                 continue;
             }
             if (inl === "inline" && ts.isPropertyAccessExpression(s)) {
-                // A read of a computed `{ }` default is a formula: inline it like a method
-                // call so its (branch-union) deps become ours. AND record the slot itself
-                // (GitHub #20): the formula only answers while the slot is UNPROVIDED — a
-                // decl default yields to a direct write (`app.retagFilenames = …`, the
-                // default-until-edited pattern), and that write fires the slot's cell,
-                // which the runtime getter tracks on every read. Inlining alone dropped
-                // that edge, so a constraint over a written-to defaulted slot went
-                // silently stale. An extra edge while the default still answers is the
-                // file's standard over-approximation — a no-op wake, never a miss.
-                // A computed default takes no arguments and is inlined at the read, so it
-                // is never "projected through a returned parameter" — there are none.
-                calls.push({ kind: "method", name: s.name.text, receiver: pathTextOf(s.expression), args: [], projected: false, tail: null, body: bodyPos, ofDefault: true });
+                // A read of a computed `{ }` default is a read of its SLOT. The default is
+                // a standing rule that lands its value in the slot (kernel.md §10a), and a
+                // direct write lands there too (the default-until-edited pattern, GitHub
+                // #20), so the slot's cell is the one edge that answers both. Its formula's
+                // own reads are not ours: inlined (as when a default was a formula with no
+                // cell behind it), they woke every reader on every change to anything the
+                // default read — a row's `fill = { lit ? … }` ran for all forty rows on a
+                // click that changed `lit = { app.picked == :id }` for two (profile,
+                // 2026-10-29). A read before the rule has landed is answered live and
+                // untracked by the runtime (attributes.ts), keeping this one edge.
                 reads.add(pathTextOf(s));
                 pathEnd = base;
                 break;
@@ -1513,12 +1511,13 @@ function buildMethodSummaries() {
                 const data = ctx !== null && receiverIsData(c.receiver, ctx.owner, ctx.classRoot);
                 return { reads: new Set(data ? [] : [DYNAMIC]), errors: [] };
             }
+            // …and a default it does declare is read through its SLOT alone, as at a
+            // read site that resolves at once (extractBody: why its formula's reads are
+            // not the reader's)
             const home = defaultHome(el, c.name);
-            const per = home !== undefined ? ownDefault.get(home)?.get(c.name) : undefined;
-            if (per === undefined)
+            if (home === undefined)
                 return { reads: new Set(), errors: [] };
-            const r = followSummary(per, "d" + defaultElId.get(home) + ":" + c.name, c, stack, ctx);
-            return { reads: new Set([...r.reads, `${c.receiver}.${c.name}`]), errors: r.errors };
+            return { reads: new Set([`${c.receiver}.${c.name}`]), errors: [] };
         }
         else {
             // TYPED RESIDENCE (the `open` collision): resolve the receiver to an

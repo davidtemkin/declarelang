@@ -12,7 +12,8 @@
     "declare-verify": "tools/verify.mjs",
     "declare-format": "tools/format.mjs",
     "declare-help": "tools/declare-help.mjs",
-    "declare-look": "tools/look.mjs"
+    "declare-look": "tools/look.mjs",
+    "declare-profile": "tools/profile.mjs"
   },
   "scripts": {
     "prepare": "git config core.hooksPath tools/internal/hooks 2>/dev/null || true",

@@ -23,6 +23,17 @@ export interface HitAdapter<N> {
     insideClip(n: N, lx: number, ly: number): boolean;
     /** A point in `parent`'s frame, in `child`'s frame. */
     toChild(parent: N, child: N, lx: number, ly: number): [number, number];
+    /** The box, in `n`'s own frame, that holds everything in its subtree the walk
+     *  could hit — its own box joined with its children's reach — or null when it
+     *  holds nothing. A child whose reach misses the point is passed over whole, so
+     *  a walk costs about the tree's depth rather than its size. Optional: a tree
+     *  that cannot say walks every child, as before. */
+    reach?(n: N): {
+        x0: number;
+        y0: number;
+        x1: number;
+        y1: number;
+    } | null;
 }
 /** What a walk is looking for: null when `n` is a target, else why it is not
  *  (said in a narrated walk). Asked only for a node whose box holds the point. */

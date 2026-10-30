@@ -1,4 +1,4 @@
-type Kind = "blank" | "probe";
+type Kind = "probe";
 export declare function deferral(kind: Kind): boolean;
 /** Has the page painted its first frame after the first mount? Before that,
  *  deferrable work waits. A host with no document (a worker, node) has no

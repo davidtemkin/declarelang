@@ -17,9 +17,9 @@ import { drawImageBitmap, drawImageHandles } from "./draw-image.js";
 import { onFontsLoaded, onFontsUnloaded, loadedFontFaces } from "./face-table.js";
 
 export interface RasterRequest {
-  list: DisplayList; sx: number; sy: number; bx: number; by: number; w: number; h: number; blankCheck: boolean;
+  list: DisplayList; sx: number; sy: number; bx: number; by: number; w: number; h: number;
 }
-export interface RasterResult { bitmap: ImageBitmap; rasterMs: number; blank: boolean }
+export interface RasterResult { bitmap: ImageBitmap; rasterMs: number }
 
 type Pending = { resolve: (r: RasterResult | null) => void };
 
@@ -63,12 +63,12 @@ function spawn(): Worker | null {
       (import.meta.url.includes("/bundles/") ? "declare-raster-worker.js" : "raster-worker.js"),
       import.meta.url);
     const w = new Worker(url, { type: "module" });
-    w.onmessage = (e: MessageEvent<{ t: string; id: number; bitmap?: ImageBitmap; rasterMs?: number; blank?: boolean; message?: string }>) => {
+    w.onmessage = (e: MessageEvent<{ t: string; id: number; bitmap?: ImageBitmap; rasterMs?: number; message?: string }>) => {
       const m = e.data;
       const p = pending.get(m.id);
       if (p === undefined) { m.bitmap?.close(); return; }
       pending.delete(m.id);
-      if (m.t === "raster" && m.bitmap !== undefined) p.resolve({ bitmap: m.bitmap, rasterMs: m.rasterMs ?? 0, blank: m.blank === true });
+      if (m.t === "raster" && m.bitmap !== undefined) p.resolve({ bitmap: m.bitmap, rasterMs: m.rasterMs ?? 0 });
       else p.resolve(null);
     };
     w.onerror = () => { retire(); };

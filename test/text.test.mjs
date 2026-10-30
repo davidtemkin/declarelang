@@ -131,6 +131,34 @@ await test("a face that lands late re-measures its text — even a Text with bot
   assert.notEqual(app.fixed.$surface.textStyle, before, "the fixed-size Text re-pushed its style, so a backend re-wraps it");
 });
 
+await test("rich text re-renders when a face lands for a family it measured in, and not for another", async () => {
+  // A face landing anywhere used to rebuild every rich text on the page; a type
+  // specimen loading a few faces paid for each, in text set in other faces.
+  const app = await boot(`md: Markdown [ width = 400, fontFamily = ["Probe"], text = "alpha beta gamma delta" ]`);
+  let rebuilds = 0;
+  const rebuild = app.md.$rebuild.bind(app.md);
+  app.md.$rebuild = () => { rebuilds++; rebuild(); };
+  familyChanged("Probe"); settle();          // the first landing: before its first build it knew no families
+  rebuilds = 0;
+  assert.ok(app.md.$families.some((f) => /probe/i.test(f)), `it knows the families it measured in: ${app.md.$families}`);
+  familyChanged("Elsewhere"); settle();
+  assert.equal(rebuilds, 0, "a face for a family it does not use leaves it alone");
+  const before = drawnWidths(app.md);
+  FACES.probe = 16;
+  familyChanged("Probe"); settle();
+  delete FACES.probe;
+  assert.equal(rebuilds, 1, "a face for its own family re-renders it");
+  assert.notDeepEqual(drawnWidths(app.md), before, "and its runs are measured in the new face");
+});
+
+// The widths of the runs a rich text drew (headless lays it out in script).
+function drawnWidths(root) {
+  const out = [];
+  const walk = (v) => { for (const c of v.children ?? []) { if (typeof c.text === "string" && c.text !== "") out.push(c.width); walk(c); } };
+  walk(root);
+  return out;
+}
+
 // ── fonts as objects ──────────────────────────────────────────────────────────
 // A manual face loader: each load waits to be landed (or failed) by hand, and the
 // wait timers fire only when a case fires them — no race decides anything.

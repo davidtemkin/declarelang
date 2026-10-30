@@ -25,6 +25,7 @@ import { coerceData } from "./data.js";
 import { splitPath } from "./path-plan.js";
 import { compileExpr } from "./expr.js";
 import { DeclareError } from "./errors.js";
+import { declareName } from "./declare-name.js";
 /** Per-editor map of draft-slot → its two-way session. A WeakMap so a discarded
  *  editor's session is collected with it. */
 const SESSIONS = new WeakMap();
@@ -51,7 +52,7 @@ function register(view, name, path, type) {
     if (map === undefined)
         SESSIONS.set(view, (map = new Map()));
     map.set(name, { path, type });
-    const reseed = new Constraint(`${view.constructor.name}.${name} <->`, () => coerceData(type, view.$data(path()), ""), (v) => { setBound(view, name, v); refresh(view, name); });
+    const reseed = new Constraint(`${declareName(view)}.${name} <->`, () => coerceData(type, view.$data(path()), ""), (v) => { setBound(view, name, v); refresh(view, name); });
     onDiscard(view, () => reseed.dispose());
     reseed.run();
     refresh(view, name);
@@ -67,7 +68,7 @@ export function bindTwoWay(view, name, path, type) {
 export function bindTwoWayDynamic(view, name, src, pos, classroot, type) {
     const c = compileExpr(src);
     if ("error" in c)
-        throw new DeclareError(`${view.constructor.name}.${name} <-> { … } ${c.error}`, pos);
+        throw new DeclareError(`${declareName(view)}.${name} <-> { … } ${c.error}`, pos);
     const fn = c.fn;
     register(view, name, () => String(fn.call(view, view.parent, classroot)), type);
 }

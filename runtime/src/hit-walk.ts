@@ -48,6 +48,18 @@ export interface HitAdapter<N> {
   insideClip(n: N, lx: number, ly: number): boolean;
   /** A point in `parent`'s frame, in `child`'s frame. */
   toChild(parent: N, child: N, lx: number, ly: number): [number, number];
+  /** The box, in `n`'s own frame, that holds everything in its subtree the walk
+   *  could hit — its own box joined with its children's reach — or null when it
+   *  holds nothing. A child whose reach misses the point is passed over whole, so
+   *  a walk costs about the tree's depth rather than its size. Optional: a tree
+   *  that cannot say walks every child, as before. */
+  reach?(n: N): { x0: number; y0: number; x1: number; y1: number } | null;
+}
+
+/** Is a point (in `c`'s frame) outside everything `c`'s subtree could answer? */
+function beyond<N>(A: HitAdapter<N>, c: N, cx: number, cy: number): boolean {
+  const r = A.reach?.(c);
+  return r === null || (r !== undefined && (cx < r.x0 || cy < r.y0 || cx >= r.x1 || cy >= r.y1));
 }
 
 /** What a walk is looking for: null when `n` is a target, else why it is not
@@ -81,6 +93,7 @@ export function walkHit<N>(n: N, lx: number, ly: number, A: HitAdapter<N>, accep
       if (!A.visible(c) && trace === undefined) continue;
       if (outside && !A.ignoresClip(c)) continue;
       const [cx, cy] = A.toChild(n, c, lx, ly);
+      if (trace === undefined && beyond(A, c, cx, cy)) continue;
       const hit = walkHit(c, cx, cy, A, accept, trace);
       if (hit !== null) return hit;
     }
@@ -94,6 +107,8 @@ export function walkHit<N>(n: N, lx: number, ly: number, A: HitAdapter<N>, accep
     if (scroller && A.ignoresScroll(c)) continue;   // offered above
     if (outside && !A.ignoresClip(c)) continue;
     const [cx, cy] = A.toChild(n, c, lx, ly);
+    // (a narrated walk visits everything: what it passed over, and why, is its account)
+    if (trace === undefined && beyond(A, c, cx, cy)) continue;
     const hit = walkHit(c, cx, cy, A, accept, trace);
     if (hit !== null) return hit;
   }

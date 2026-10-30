@@ -57,7 +57,7 @@
 import { Node, onDiscard, authoredName } from "./node.js";
 import { sharedClock, type Ticker } from "./animate.js";
 import { defineAttributes, ownerOf, setBound } from "./attributes.js";
-import { noteOrigin, observe } from "./reactive.js";
+import { noteOrigin, observe, profileHook } from "./reactive.js";
 import { timeHost } from "./wallclock.js";
 
 export type Tick = "frame" | "second" | "minute" | "hour" | "day" | number;
@@ -282,6 +282,9 @@ export class Time extends Node {
    *  once a minute. */
   #refresh(t: number): void {
     const d = new Date(t);
+    // the settle this opens is the clock's: named, as a handler names its own
+    const name = authoredName(this);
+    noteOrigin(`Time${name !== null ? ` '${name}'` : ""} ticked`, this);
     setBound(this, "now", t);
     setBound(this, "year", d.getFullYear());
     setBound(this, "month", d.getMonth() + 1);
@@ -304,10 +307,13 @@ export class Time extends Node {
     const name = authoredName(this);
     const who = `Time${name !== null ? ` '${name}'` : ""}`;
     noteOrigin(`onTick on ${who}`, this);
+    const p = profileHook, t0 = p !== null ? (p.begin(), performance.now()) : 0;
     try {
       (fn as (dt: number) => void).call(this, dt);
       this.#throws = 0;
+      if (p !== null) p.spent("handler", `onTick on ${who}`, performance.now() - t0);
     } catch (e) {
+      if (p !== null) p.spent("handler", `onTick on ${who}`, performance.now() - t0);
       this.#throws++;
       console.error(`[Declare] onTick on ${who} threw: ${(e as Error)?.message ?? e}`, e);
       if (this.#throws >= 3) {

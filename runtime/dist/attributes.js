@@ -27,6 +27,7 @@
 import { ACTIVE, Cell, Constraint, S, isSettling, isTracking, kernel, noteWrite, nulls, retireValue, setPushHook, table, touchCell, trackCell, untracked, workPending, setOwnershipCheck } from "./reactive.js";
 import { DeclareError, at, layoutConflictMessage } from "./errors.js";
 import { THEME_PRESETS, withThemeDefaults } from "./themes.js";
+import { declareName } from "./declare-name.js";
 // Class → its attribute tables. All are prototype-chained objects mirroring
 // the class hierarchy (Text's defaults chain to View's), so "nearest declared
 // wins" is a plain property lookup — the same shape schema.ts's chain walk
@@ -109,6 +110,19 @@ function pushKernelWrites(cells) {
     }
 }
 setPushHook(pushKernelWrites);
+/** After each push of `names` on `ctor`'s instances (and its subclasses', whose
+ *  tables inherit its entries), run `then` — from the JavaScript write path and
+ *  the kernel's alike, since both push through this table. interaction.ts uses
+ *  it to know when a view's box, place or transform moved. */
+export function afterPush(ctor, names, then) {
+    const t = PUSHERS.get(ctor);
+    if (t === undefined)
+        return;
+    for (const n of names) {
+        const p = t[n];
+        t[n] = p === undefined ? (self) => then(self) : (self, v) => { p(self, v); then(self); };
+    }
+}
 /** The kernel cell of `self.name` when it is a table slot of this instance
  *  (numeric, not escaped, not retired); −1 otherwise. Allocates the block.
  *  The EXPR binder resolves its read paths and its target through this. */
@@ -365,9 +379,14 @@ export function defineAttributes(ctor, specs) {
                             // queued (or whose rule has not landed yet: the install batch)
                             // takes the live value now and keeps the cell edge — a reader's
                             // FIRST computed value (a spring's target it primes from) is the
-                            // value the live fallback gave; the landing re-runs it to the same
+                            // value the live fallback gave; the landing re-runs it if it
+                            // differs. The value is worked out UNTRACKED: the reader depends on
+                            // the slot, not on what its default reads. Tracked, those reads
+                            // became the reader's own edges, re-taken each run — a row's
+                            // `fill = { lit ? … }` ran for all forty rows on every click that
+                            // changed `lit = { app.picked == :id }` for two (profile, 2026-10-29)
                             if (defRule && declStale(self, name, true))
-                                return evalDefault(self, name, defBinding, defOuter);
+                                return untracked(() => evalDefault(self, name, defBinding, defOuter));
                         }
                         else if (defRule && declStale(self, name, isSettling())) {
                             return evalDefault(self, name, defBinding, defOuter);
@@ -395,16 +414,17 @@ export function defineAttributes(ctor, specs) {
                     // (declStale — the table path's own test, asked the same way)
                     const o = self.$owners?.[name];
                     if (o !== undefined && o.declDefault) {
+                        // untracked, as on the table path: the reader's edge is the slot's cell
                         if (!o.applied) {
                             // not evaluable yet either (its inputs have not arrived): the
                             // stored value stands, as it did before the rule existed
                             try {
-                                return evalDefault(self, name, defBinding, defOuter);
+                                return untracked(() => evalDefault(self, name, defBinding, defOuter));
                             }
                             catch { /* fall through */ }
                         }
                         else if (declStale(self, name, isTracking() || isSettling()))
-                            return evalDefault(self, name, defBinding, defOuter);
+                            return untracked(() => evalDefault(self, name, defBinding, defOuter));
                     }
                 }
                 if (defBinding !== undefined && !provided(self, name)) {
@@ -421,7 +441,7 @@ export function defineAttributes(ctor, specs) {
             },
             set(v) {
                 if (readOnly) {
-                    throw new DeclareError(`${this.constructor.name}.${name} is read-only — it is computed from its declaration and cannot be assigned`);
+                    throw new DeclareError(`${declareName(this)}.${name} is read-only — it is computed from its declaration and cannot be assigned`);
                 }
                 const self = this;
                 // The divergence bit (materialization.md §2): a DIRECT write on an
@@ -435,8 +455,8 @@ export function defineAttributes(ctor, specs) {
                 if (owner !== undefined) {
                     if (!owner.yielding) {
                         throw new DeclareError(owner.arrangedBy !== null
-                            ? layoutConflictMessage(this.constructor.name, name, owner.arrangedBy, null, null, true)
-                            : `${this.constructor.name}.${name} is bound by a constraint (${owner.label}) — a direct write would be silently overwritten; change what the constraint reads instead`);
+                            ? layoutConflictMessage(declareName(this), name, owner.arrangedBy, null, null, true)
+                            : `${declareName(this)}.${name} is bound by a constraint (${owner.label}) — a direct write would be silently overwritten; change what the constraint reads instead`);
                     }
                     owner.dispose(); // a runtime derive yields: the author takes over
                     delete self.$owners[name];
@@ -513,7 +533,7 @@ function evalDefault(self, name, fn, outer) {
         return (self.$attrs ?? {})[name];
     let inFlight = EVALING.get(self);
     if (inFlight?.has(name) === true) {
-        throw new DeclareError(`${self.constructor.name}.${name}'s default binding (transitively) reads itself`);
+        throw new DeclareError(`${declareName(self)}.${name}'s default binding (transitively) reads itself`);
     }
     if (inFlight === undefined)
         EVALING.set(self, (inFlight = new Set()));
@@ -747,7 +767,7 @@ export function providedRead(self, name, hasDefault, dflt) {
     // from above, so a view reading its own value names it
     const own = tableFor(DEFAULTS, self.constructor) !== null && name in self;
     throw new DeclareError(`provided("${name}"): no ancestor provides '${name}', and this read declares no default — ` +
-        (own ? `'${name}' is this ${self.constructor.name}'s own attribute, and provided() reads from above: read it here as ${name}`
+        (own ? `'${name}' is this ${declareName(self)}'s own attribute, and provided() reads from above: read it here as ${name}`
             : `provide '${name}' on an ancestor, or give the read a default`));
 }
 /** The one write path (public setters and setBound both land here):
@@ -1163,6 +1183,7 @@ export function percentOwned(self, name) {
  *  write — reached when replication attaches an instance (installing
  *  auto-extent) before its bindings finish. */
 export function own(self, name, c) {
+    c.owner ??= self;
     const owners = (self.$owners ??= Object.create(null));
     const prior = owners[name];
     if (prior !== undefined && prior.yielding) {
@@ -1191,8 +1212,8 @@ export function own(self, name, c) {
             // The INCOMING constraint is the author's (bind.ts records the source text
             // and position on it before installing), so its `sourcePos` is the line
             // that wrote the losing value — which is the line an author needs.
-            ? layoutConflictMessage(self.constructor.name, name, prior.arrangedBy, null, c.sourcePos)
-            : `${self.constructor.name}.${name} is already bound (by ${prior.label})${at(c.sourcePos)}`);
+            ? layoutConflictMessage(declareName(self), name, prior.arrangedBy, null, c.sourcePos)
+            : `${declareName(self)}.${name} is already bound (by ${prior.label})${at(c.sourcePos)}`);
     }
     owners[name] = c;
     // the kernel learns the owner too: its pull runs a queued owner for a
@@ -1231,7 +1252,7 @@ export function release(self, name, c) {
  *  re-run it on a non-tracked fact (auto-extent on tree mutation — `children`
  *  is not a reactive collection) can hold it. */
 export function bindDerived(self, name, compute) {
-    const c = new Constraint(`${self.constructor.name}.${name} (runtime derive)`, compute, (v) => write(self, name, v), 0, true);
+    const c = new Constraint(`${declareName(self)}.${name} (runtime derive)`, compute, (v) => write(self, name, v), 0, true);
     own(self, name, c);
     const land = kernelLanding(self, name);
     if (land !== null)

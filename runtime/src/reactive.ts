@@ -69,6 +69,7 @@ let ringCap = 0;
  *  the microtask ourselves, exactly as a kernel write would have. */
 export function touchCell(cell: number): void {
   if (traceHook !== null) traceHook.touched(cell, inSettle);
+  profileWrites++;
   // NOBODY LISTENS, nothing to wake: outside a settle, a write to a cell no
   // rule subscribes to schedules nothing (it was an empty settle — ~400 of
   // 750 in a weather-city window). A rule that subscribes later reads the
@@ -112,13 +113,52 @@ export interface TraceHook {
 }
 let traceHook: TraceHook | null = null;
 export function setTraceHook(h: TraceHook | null): void { traceHook = h; }
+
+// ── the profiler's seam (profile.ts) ──────────────────────────────────────────
+// Installed only while someone profiles; one null check on each path otherwise.
+// Told of every rule run the host makes (a rule's own body: a constraint, a
+// layout's place(), a draw()), how long it took and whether what it produced
+// changed anything, of every node built and torn down, of the settle around
+// them, and of what ran user code last — the turn's cause.
+export interface ProfileHook {
+  /** An activity opens: a rule run, a handler, building a view, attaching one.
+   *  Activities nest; each one's time is reported exclusive of those inside it. */
+  begin(): void;
+  ran(rule: Constraint, ms: number, changed: boolean): void;
+  /** An activity that was not a rule closes: `kind` names it, `label` says whose. */
+  spent(kind: ProfileActivity, label: string, ms: number): void;
+  /** A drawing was rasterized into its canvas: whose, the recording, its pixel
+   *  size, and the script's share of the time (the GPU's comes later, out of sight). */
+  rastered(owner: object | undefined, list: object, w: number, h: number, ms: number, transform: readonly number[]): void;
+  built(node: object): void;
+  discarded(node: object): void;
+  before(): void;
+  after(kernelRuns: number): void;
+  origin(label: string, node: object | null): void;
+  /** A write outside any settle armed one: when nothing has named the cause,
+   *  the profiler looks for the program's code on the stack (a callback). */
+  armed(): void;
+}
+export type ProfileActivity = "handler" | "build" | "attach" | "install";
+export let profileHook: ProfileHook | null = null;
+export function setProfileHook(h: ProfileHook | null): void { profileHook = h; }
+/** Writes that changed a value, counted while a rule runs: what tells a rule
+ *  that produced something new from one that produced what was there. */
+let profileWrites = 0;
 export function noteWrite(self: object, name: string, from: unknown, to: unknown): void {
   if (traceHook !== null) traceHook.wrote(self, name, from, to, inSettle);
+  profileWrites++;
 }
+/** A rule produced something new that is not a slot's value (a drawing handed to
+ *  its surface): counted as a change, as a write that changed a value is. */
+export function noteEffect(): void { profileWrites++; }
 /** Name the user code about to run — a handler, a tick, an arrival — so the
  *  settle its writes open can say what opened it. `node` is whose code it is,
  *  so a reader sharing the runtime with the subject can keep the subject's. */
-export function noteOrigin(label: string, node: object | null = null): void { if (traceHook !== null) traceHook.origin(label, node); }
+export function noteOrigin(label: string, node: object | null = null): void {
+  if (traceHook !== null) traceHook.origin(label, node);
+  if (profileHook !== null) profileHook.origin(label, node);
+}
 /** An exception raised inside a body or a step during a settle: the kernel is
  *  told to abort, the settle unwinds cleanly on its side, and this is thrown
  *  from settle() (or run()) on ours. */
@@ -228,6 +268,7 @@ function rethrow(): void {
 function schedule(): void {
   if (scheduled) return;
   scheduled = true;
+  if (profileHook !== null) profileHook.armed();
   queueMicrotask(() => { scheduled = false; settle(); });
 }
 
@@ -674,6 +715,14 @@ export class Constraint {
    *  derives, percent/align bindings) and for live-bound ones typed at
    *  runtime, which are marked separately by `isStatic` being false. */
   source: string | null = null;
+  /** The node this rule belongs to — the view whose slot it holds, or whose
+   *  drawing, text style or accessibility it keeps — when known (tooling: the
+   *  profiler names and filters by it). Null for a rule of no one node's. */
+  owner: object | null = null;
+  /** Its value goes to the page (a surface's text style, the accessibility tree),
+   *  not into a slot: the profiler cannot tell a run that changed what was there
+   *  from one that did not, and says so rather than calling it unchanged. */
+  pushes = false;
   /** @internal Is this the view's AUTO-EXTENT — the rule that measures its
    *  children? The native form reads them through the kernel's slot blocks, not
    *  through JS cells, so `readsAny` cannot see the edge: a layout asking for
@@ -882,6 +931,19 @@ export class Constraint {
    *  structural wake (a child list changed under a read) re-probes the edges
    *  first — same read-paths, current cells. */
   runBody(): number {
+    if (profileHook === null) return this.$runBody();
+    profileHook.begin();
+    const t0 = performance.now(), w0 = profileWrites;
+    const was = this.landedCell >= 0 ? table[this.landedCell] : 0;
+    let got = was;
+    try { got = this.$runBody(); return got; }
+    finally {
+      // a kernel-landed rule's value lands after it returns: compare what it returned
+      const changed = profileWrites !== w0 || (this.landedCell >= 0 && got !== was && !(got !== got && was !== was));
+      profileHook?.ran(this, performance.now() - t0, changed);
+    }
+  }
+  private $runBody(): number {
     if (this.wired) {
       if (this.probe !== null && (K!.stateOf(this.id) & KERNEL_STATE.REWIRE) !== 0) K!.rewire(this.id, this.collect(this.probe));
       const w = (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && phasesOn ? phased("rule bodies", () => this.compute()) : this.compute());
@@ -1055,6 +1117,7 @@ export function settle(): void {
     console.error(`[settle storm] ${settleCount} settles\n` + (new Error().stack ?? "").split("\n").slice(2, 14).join("\n"));
   }
   if (traceHook !== null) traceHook.before();
+  if (profileHook !== null) profileHook.before();
   inSettle = true;
   stepsRan = false;
   let r: number;
@@ -1067,6 +1130,7 @@ export function settle(): void {
     finally { inSettle = false; }
   }
   if (traceHook !== null) traceHook.after(r);
+  if (profileHook !== null) profileHook.after(r);
   if (r < 0 || pendingError !== null) {
     const e = pendingError ?? new DeclareError(`kernel: settle failed (${r})`);
     pendingError = null;

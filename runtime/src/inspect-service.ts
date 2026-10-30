@@ -16,7 +16,8 @@ import { Node } from "./node.js";
 import type { Program } from "./parser.js";
 import { View, App, inheritedCursor } from "./view.js";
 import { rootFrameBox } from "./interaction.js";
-import { inspect, find, explain, stats, pickAt, explainHit, dependentsOf, expandValue, slotsOf, clock, kindName, nameOf, type ValueSlice } from "./inspect.js";
+import { inspect, find, explain, stats, pickAt, explainHit, dependentsOf, expandValue, slotsOf, clock, kindName, nameOf, profileName, type ValueSlice } from "./inspect.js";
+import { startProfile, stopProfile, profiling, profileReport, profileText, measureDrawings } from "./profile.js";
 import { pathOf } from "./node-path.js";
 import { clearTrace, readTrace, startTrace, stopTrace, traceText, tracing, type TraceSettle } from "./wake-trace.js";
 import { compileExpr, validateExpr } from "./expr.js";
@@ -25,7 +26,8 @@ import { bindConstraint } from "./bind.js";
 import { ownerOf, disown, ownedSlots } from "./attributes.js";
 import { createElementIn } from "./instantiate.js";
 import { DeclareError, DeclareErrors } from "./errors.js";
-import { settle } from "./reactive.js";
+import { afterSettle, settle } from "./reactive.js";
+import { declareName } from "./declare-name.js";
 
 let TARGET: App | null = null;
 /** The subject's root-space origin in the Inspector's coordinate space (the
@@ -105,7 +107,7 @@ function rows(n: Node, open: Record<string, boolean>, depth: number, path: strin
   try { anyConstrained = ownedSlots(n).length > 0; } catch { /* not a bound node */ }
   for (const c of n.children) {
     if (c instanceof View) kidCount++;
-    const cn = c.constructor.name;
+    const cn = declareName(c);
     if (!anyMotion && (cn === "Spring" || cn === "Animator" || cn === "AnimatorGroup")) anyMotion = true;
   }
   const kids = { length: kidCount };
@@ -170,7 +172,7 @@ function show(v: unknown): string {
   if (t === "number") return Number.isInteger(v as number) ? String(v) : (v as number).toFixed(3);
   if (t === "boolean" || t === "bigint") return String(v);
   if (t === "function") return "«fn»";
-  if (v instanceof View) return `${v.constructor.name} ›`;
+  if (v instanceof View) return `${declareName(v)} ›`;
   if (Array.isArray(v)) return `array[${v.length}]`;
   try { return JSON.stringify(v).slice(0, 400); } catch { return String(v); }
 }
@@ -487,6 +489,20 @@ export const Inspect = {
     active: tracing,
     read: (): TraceSettle[] => readTrace(needTarget(), (n) => pathOf(needTarget(), n), { onlyTree: true }),
     text: (settles?: TraceSettle[]): string => traceText(settles ?? readTrace(needTarget(), (n) => pathOf(needTarget(), n), { onlyTree: true })),
+  },
+  /** The profiler (profile.ts), recording the SUBJECT's turns only — the
+   *  Inspector's own are left out, as the trace leaves out its settles. `stop`
+   *  measures the drawings on the GPU and answers the report as text. */
+  profile: {
+    // after the settle the press opens, so the Inspector's own answer to it is not recorded
+    start: (why = true): void => { const only = needTarget(); afterSettle(() => startProfile({ why, only })); },
+    stop: (): string => {
+      stopProfile();
+      measureDrawings();
+      const root = needTarget();
+      return profileText(profileReport((n) => profileName(root, n), root));
+    },
+    active: profiling,
   },
   /** Is this view under a datapath? The Object pane badges it, and the
    *  evaluate strip's `:` support depends on it. */

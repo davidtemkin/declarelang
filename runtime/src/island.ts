@@ -14,6 +14,7 @@ import { withdrawPaintGuests } from "./view.js";
 import { withdrawOpen } from "./outside.js";
 import { Keys } from "./keys.js";
 import { navigationOf } from "./navigation.js";
+import { declareName } from "./declare-name.js";
 
 /** The island's own box, as a host hands it to the link: its scroll, which is
  *  where a tenant that scrolls as a page scrolls (the box is its viewport). */
@@ -125,7 +126,7 @@ export class Island extends View {
    *  `message` is the stream family's event). Dropped with a console note
    *  when no tenant is linked — a verb has no meaning without a receiver. */
   post(topic: string, payload?: unknown): void {
-    if (this.tenantSink === null) { console.warn(`[Declare] ${this.constructor.name}.post("${topic}"): no tenant linked — message dropped`); return; }
+    if (this.tenantSink === null) { console.warn(`[Declare] ${declareName(this)}.post("${topic}"): no tenant linked — message dropped`); return; }
     this.tenantSink.message(topic, payload);
   }
 

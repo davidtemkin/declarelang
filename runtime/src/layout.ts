@@ -97,6 +97,7 @@ import { blockOf, cellIdsOf, isSet, markPercent, own, ownerOf, release, setBound
 import { LAYOUT_NOWRITE } from "./kernel-loader.js";
 import { DeclareError, discardedValueMessage, layoutConflictMessage, noBaselineMessage, stackBaselineMessage } from "./errors.js";
 import { isWindowedBlock, View, viewLayoutReady, type LayoutStrategy } from "./view.js";
+import { declareName } from "./declare-name.js";
 
 /** The geometry a layout places one child in: any subset of position, size,
  *  and visibility. `w`/`h` name the sizes so a box is a plain record, distinct
@@ -209,7 +210,7 @@ export abstract class Layout extends Node implements LayoutStrategy {
   attachTo(view: View): () => void {
     if (this.view !== null) {
       throw new DeclareError(
-        `this ${this.constructor.name} already arranges a ${this.view.constructor.name} — one strategy per view`
+        `this ${declareName(this)} already arranges a ${declareName(this.view)} — one strategy per view`
       );
     }
     this.view = view;
@@ -217,7 +218,7 @@ export abstract class Layout extends Node implements LayoutStrategy {
     this.undo = this.$install(view);
     let lastShape: string | null = null;
     const watcher = new Constraint(
-      `${this.constructor.name} shape`,
+      `${declareName(this)} shape`,
       () => this.$shapeSignature(),
       (sig) => {
         if (lastShape === null) {
@@ -306,7 +307,7 @@ export abstract class Layout extends Node implements LayoutStrategy {
    *  child's height alone, and its neighbour's box may well carry one). */
   place(): Box[] {
     throw new DeclareError(
-      `${this.constructor.name} declares no place() — a layout strategy IS its place(): ` +
+      `${declareName(this)} declares no place() — a layout strategy IS its place(): ` +
       `declare it and return one box per child of laid(), aligned by index`
     );
   }
@@ -365,7 +366,7 @@ export abstract class Layout extends Node implements LayoutStrategy {
     if (this.$firstReport(child, slot)) {
       console.error(
         "[Declare] " +
-          layoutConflictMessage(child.constructor.name, slot, arranger, null, ownerOf(child, slot)?.sourcePos)
+          layoutConflictMessage(declareName(child), slot, arranger, null, ownerOf(child, slot)?.sourcePos)
       );
     }
   }
@@ -401,14 +402,14 @@ export abstract class Layout extends Node implements LayoutStrategy {
     if (!useSiteSet(child, slot)) return; // nothing written here — the ordinary case
     // Deduped by CLASS and slot, not by child: one authored line builds 30
     // replicated rows, and it is one line that wants fixing, not thirty.
-    const key = `${child.constructor.name}.${slot}`;
+    const key = `${declareName(child)}.${slot}`;
     if (this.discarded.has(key)) return;
     this.discarded.add(key);
     const v = (child as unknown as Record<string, unknown>)[slot];
     const shown = typeof v === "number" || typeof v === "boolean" ? String(v) : null;
     console.error(
       "[Declare] " +
-        discardedValueMessage(child.constructor.name, slot, shown, arranger, setPosOf(child, slot))
+        discardedValueMessage(declareName(child), slot, shown, arranger, setPosOf(child, slot))
     );
   }
 
@@ -453,7 +454,7 @@ export abstract class Layout extends Node implements LayoutStrategy {
       if (c.$surface == null) return;
       if (seen.has("baseline")) return;
       seen.add("baseline");
-      console.error("[Declare] " + noBaselineMessage(child.constructor.name, this.constructor.name));
+      console.error("[Declare] " + noBaselineMessage(declareName(child), declareName(this)));
     });
   }
 
@@ -513,7 +514,7 @@ export abstract class Layout extends Node implements LayoutStrategy {
   refuseStackBaseline(): void {
     if (this.stackReported) return;
     this.stackReported = true;
-    console.error("[Declare] " + stackBaselineMessage(this.constructor.name));
+    console.error("[Declare] " + stackBaselineMessage(declareName(this)));
   }
 
   protected $claim(child: View, slot: string, k: Constraint): void {
@@ -555,7 +556,7 @@ export abstract class Layout extends Node implements LayoutStrategy {
   protected $label(): string {
     const ax = (this as unknown as { axis?: unknown }).axis;
     const tag = typeof ax === "string" ? `[${ax}]` : "";
-    return `${this.view === null ? "?" : this.view.constructor.name}'s ${this.constructor.name}${tag}`;
+    return `${this.view === null ? "?" : declareName(this.view)}'s ${declareName(this)}${tag}`;
   }
 
   /** Stand up standing constraints over `view`'s children from `place()` —
@@ -613,7 +614,7 @@ export abstract class Layout extends Node implements LayoutStrategy {
       if (blockOf(c) < 0) return why("child without a block");
     }
     const label = this.$label();
-    const arranger = `${view.constructor.name}'s ${this.constructor.name}`;
+    const arranger = `${declareName(view)}'s ${declareName(this)}`;
     const claims: View[] = [];
     const discards: View[] = [];
     for (const c of kids) {
@@ -658,7 +659,7 @@ export abstract class Layout extends Node implements LayoutStrategy {
     const native = this.$installNative();
     if (native !== null) return native;
     const label = this.$label();
-    const arranger = `${this.view?.constructor.name ?? "?"}'s ${this.constructor.name}`;
+    const arranger = `${(this.view !== null ? declareName(this.view) : "?")}'s ${declareName(this)}`;
     // Ownership is re-derived from scratch here: a rearm is the one moment the
     // answer may change (a tier flip, a created child, a swapped binding), so
     // a child dropped by the LAST install gets a fresh hearing at this one.
@@ -759,7 +760,7 @@ export abstract class Layout extends Node implements LayoutStrategy {
       }
       for (const c of sizeClaims) {
         const k = new Constraint(
-          `${label} → ${c.child.constructor.name}.${c.slot}`,
+          `${label} → ${declareName(c.child)}.${c.slot}`,
           () => this.place()[c.i]?.[c.key],
           (v) => {
             if (this.view !== null && isWindowedBlock(this.view)) return;

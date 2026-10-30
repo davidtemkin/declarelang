@@ -317,6 +317,8 @@ export declare function tableCells(b: Extract<Block, {
     t: "table";
 }>, cells: Inline[][], weight: FontWeight, color: number, ctx: Ctx): RichBlock[];
 export declare abstract class RichText extends View {
+    /** The font families its last build measured with — what its render keys on. */
+    $families: string[] | null;
     protected $eagerSurface(): boolean;
     protected $measuresDetached(): boolean;
     textColor: Color;

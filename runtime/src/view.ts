@@ -81,14 +81,15 @@ export function inlineViewHost(v: View): InlineViewHost | null {
 }
 import { record, type DrawContext, type DisplayList } from "./draw.js";
 import { sharedClock } from "./animate.js";
-import { Cell, Constraint, afterSettle, isSettling, kernel, kernelLoaded, noteOrigin } from "./reactive.js";
+import { modifiersNow } from "./modifiers.js";
+import { Cell, Constraint, afterSettle, isSettling, kernel, kernelLoaded, noteEffect, noteOrigin, profileHook } from "./reactive.js";
 import { setChangeDispatcher, trackNode } from "./change-event.js";
 import { boxThrough, fromParts, isIdentity as isIdentityAffine, leavesPlane, type Affine } from "./affine.js";
 import { footprint3D, spec3DOf } from "./projective.js";
 import { inPointer } from "./pointer-dispatch.js";
 import { noteContentRead } from "./size-probe.js";
-import { initInteraction, noteUserScroll, readHovered, readPressed, hitAt, boxContains, rootFrameOrigin, rootFrameBox, rootTransform, rootToLocal, transformBetween, type InteractionView } from "./interaction.js";
-import { bindDerived, blockOf, defineAttributes, disposeBindings, freeCells, isSet, localProvision, own, ownerOf, percentOwned, release, setBound, slotCellOf, slotIndex } from "./attributes.js";
+import { initInteraction, markGeometry, noteUserScroll, readHovered, readPressed, hitAt, boxContains, rootFrameOrigin, rootFrameBox, rootTransform, rootToLocal, transformBetween, type InteractionView } from "./interaction.js";
+import { afterPush, bindDerived, blockOf, defineAttributes, disposeBindings, freeCells, isSet, localProvision, own, ownerOf, percentOwned, release, setBound, slotCellOf, slotIndex } from "./attributes.js";
 import { type AttrType } from "./value.js";
 import { hostValuesFor, type BoundaryValues } from "./boundary.js";
 import { armVisibility, reattachVisibility, retireVisibility } from "./visibility.js";
@@ -100,6 +101,7 @@ import type { Attr, LinkTarget } from "./parser.js";
 import { rowPlace, type Cursor } from "./data.js";
 import { noteOverlay } from "./outside.js";
 import { DeferredSurface, isDeferred } from "./deferred-surface.js";
+import { declareName } from "./declare-name.js";
 
 /** What a layout strategy is to the View — the whole protocol: begin
  *  arranging this view (get back the undo), and re-arrange when the CHILDREN
@@ -266,7 +268,7 @@ function pointerPayload(view: View, type: string, x: number, y: number, extra: R
       [lx, ly] = LAST_LOCAL.get(view) ?? [0, 0];
     } else LAST_LOCAL.set(view, [lx, ly]);
   }
-  return { deltaX: 0, deltaY: 0, ...extra, x: lx, y: ly, rootX, rootY };
+  return { deltaX: 0, deltaY: 0, ...modifiersNow(), ...extra, x: lx, y: ly, rootX, rootY };
 }
 
 /** Fire the membership-anchored `init` down an EXISTING subtree — the
@@ -308,6 +310,9 @@ const EXTENT = new WeakMap<View, Partial<Record<"width" | "height", Constraint>>
 const POINTER_HANDLERS: readonly string[] = POINTER_TYPES.map(handlerName);
 
 const AXIS_OF = { width: "x", height: "y" } as const;
+
+/** What a quiet drawing's rule answers: nothing to record, nothing to push. */
+const QUIET_DRAWING = Symbol("quiet drawing");
 
 
 // ── Deferred surfaces: the one way a waiting view comes in ────────────────
@@ -378,7 +383,7 @@ function pathOfView(v: View): string {
   const parts: string[] = [];
   for (let u: Node | null = v; u !== null; u = u.parent) {
     const q = u.parent;
-    parts.push(q === null ? u.constructor.name : `${u.constructor.name}[${q.children.indexOf(u)}]`);
+    parts.push(q === null ? declareName(u) : `${declareName(u)}[${q.children.indexOf(u)}]`);
   }
   return parts.reverse().join("/");
 }
@@ -630,8 +635,10 @@ export class View extends Node {
     if (isMaskGradient(m)) { s.setMask?.({ kind: "gradient", gradient: m }); return; }
     const stencil = m as unknown as View;
     (stencil.$maskUsers ??= new Set()).add(this);
-    // a stencil is read by the renderer even while hidden: it takes its surface now
+    // a stencil is read by the renderer even while hidden: it takes its surface
+    // now, and its drawing, quiet while it was only hidden, records
     stencil.$ensureReal("stencil");
+    stencil.$invalidateDraw();
     s.setMask?.({ kind: "view", stencil: stencil as unknown as import("./backend.js").MaskStencil });
   }
   /** Which axes of interior overflow this view scrolls — `"none"` (the View
@@ -771,6 +778,14 @@ export class View extends Node {
    *  the Surface API. After this, the attribute setters push changes to the
    *  live surface one Surface call at a time. */
   $attach(backend: RenderBackend, parentSurface: Surface | null, before: Surface | null = null): void {
+    const p = profileHook;
+    if (p === null) return this.$attachSelf(backend, parentSurface, before);
+    p.begin();
+    const t0 = performance.now();
+    try { this.$attachSelf(backend, parentSurface, before); }
+    finally { p.spent("attach", declareName(this), performance.now() - t0); }
+  }
+  private $attachSelf(backend: RenderBackend, parentSurface: Surface | null, before: Surface | null): void {
     this.$backend = backend;
     // Auto-extent installs at attach, like every intrinsic sizing (Text's
     // measure derives — installed before super.attach — and an Image's
@@ -947,12 +962,18 @@ export class View extends Node {
     p.$childListChanged();
   }
 
+  /** A view joined or left: the hit walk's reach changes with it (interaction.ts). */
+  protected override $childListChanged(): void {
+    super.$childListChanged();
+    markGeometry();
+  }
+
   /** This view as a developer's report names it: its path from the App and
    *  its class (`app.chart.plot (YearChart)`). */
   $drawingName(): string {
     const parts: string[] = [];
     for (let n: Node = this; n.parent !== null; n = n.parent) parts.unshift(authoredName(n) ?? String(n.parent.children.indexOf(n)));
-    return `${["app", ...parts].join(".")} (${this.constructor.name})`;
+    return `${["app", ...parts].join(".")} (${declareName(this)})`;
   }
 
   $setVirtualExtent(h: number | null): void {
@@ -1014,7 +1035,7 @@ export class View extends Node {
     if (words.length > 1000) return null;   // the scratch's reach; a JS derive walks any count
     const rule = K.extentAdd(size === "width" ? 0 : 1, target, words);
     if (rule < 0) return null;
-    const k = new Constraint(`${this.constructor.name}.${size} (runtime derive)`, () => undefined, () => {}, 0, true);
+    const k = new Constraint(`${declareName(this)}.${size} (runtime derive)`, () => undefined, () => {}, 0, true);
     k.isAutoExtent = true;
     k.adoptRule(rule);
     k.onDecline = () => {
@@ -1937,16 +1958,21 @@ export class View extends Node {
   /** Stand up the draw method as a tracked, re-recording computation. */
   private $bindDraw(): void {
     this.$drawing = new Constraint(
-      `${this.constructor.name}.draw`,
+      `${declareName(this)}.draw`,
       // The box arrives as THUNKS so `d.w`/`d.h` register a dependency only when
       // the body actually reads one (draw.ts) — a drawing that ignores its size
       // must not re-record on every resize.
-      () => record((d) => this.draw!(d), () => this.width, () => this.height),
+      // A drawing no one can see goes QUIET: hidden (it or an ancestor), it does
+      // not re-record when what it reads changes — it reads only whether it is
+      // shown, and records once when it is. A mask's stencil is the exception:
+      // the renderer reads its drawing while it is hidden.
+      () => this.$drawingQuiet() ? QUIET_DRAWING : record((d) => this.draw!(d), () => this.width, () => this.height),
       // Constraint is deliberately untyped across compute→apply (reactive.ts);
       // this apply's input is exactly its compute's output.
-      (list) => this.$surface?.setDrawing(list as DisplayList, this),
+      (list) => { if (list !== QUIET_DRAWING) { this.$surface?.setDrawing(list as DisplayList, this); noteEffect(); } },
       1
     );
+    this.$drawing.owner = this;
     this.$drawing.run();
     // A drawing has a RESOLUTION, and the resolution it should have is the
     // composed scale it is seen at — which is the apparentScale fact, delivered
@@ -1954,6 +1980,15 @@ export class View extends Node {
     // own scale, so arm here: a drawn view keeps its feed, and the surface
     // learns its density through setRasterScale (backend.ts).
     this.$armVisibility();
+  }
+
+  /** Hidden — this view or one above it — and no mask's stencil: no one sees
+   *  this drawing, so it is not re-recorded (a tracked read of each `visible`
+   *  on the way up, so showing it records it). */
+  $drawingQuiet(): boolean {
+    if (this.$maskUsers !== null && this.$maskUsers.size > 0) return false;
+    for (let n: unknown = this; n instanceof View; n = n.parent) if (!n.visible) return true;
+    return false;
   }
 
   /** Re-record right now — the explicit half of draw-on-invalidation (the
@@ -2019,7 +2054,7 @@ function syncPaddedRange(v: View): void {
   const want = v.scrolls !== "none" && !insetIsZero(v.padding);
   const k = PADDED_RANGE.get(v);
   if (want && k === undefined) {
-    const c = new Constraint(`${v.constructor.name}.paddedRange`,
+    const c = new Constraint(`${declareName(v)}.paddedRange`,
       () => [v.contentWidth, v.contentHeight] as const,
       (wh) => { const [w, h] = wh as readonly [number, number]; v.$surface?.setContentExtent?.(w, h); }, 1);
     PADDED_RANGE.set(v, c);
@@ -2350,7 +2385,7 @@ export function nodeLabel(n: Node): string {
   const parts: string[] = [];
   let cur: Node | null = n;
   for (let i = 0; cur !== null && cur.parent !== null && i < 12; i++, cur = cur.parent) {
-    parts.unshift(authoredName(cur) ?? (i === 0 ? cur.constructor.name : "…"));
+    parts.unshift(authoredName(cur) ?? (i === 0 ? declareName(cur) : "…"));
   }
   return "app" + (parts.length > 0 ? "." + parts.join(".") : "");
 }
@@ -2375,10 +2410,13 @@ export function fireEvent(view: Node, event: string, ...args: unknown[]): void {
     // surfaced nothing across four console reads). The handler's name and the
     // node's address are the two facts the console was missing.
     noteOrigin(`${handlerName(event)} on ${nodeLabel(view)}`, view);
+    const p = profileHook, t0 = p !== null ? (p.begin(), performance.now()) : 0;
     try {
       (h as (...a: unknown[]) => void).call(view, ...args);
     } catch (e) {
       console.error(`[Declare] ${handlerName(event)} on ${nodeLabel(view)} threw: ${(e as Error)?.message ?? e}`, e);
+    } finally {
+      if (p !== null) p.spent("handler", `${handlerName(event)} on ${nodeLabel(view)}`, performance.now() - t0);
     }
   }
 }
@@ -3092,6 +3130,12 @@ export class App extends View {
 // The interaction module's injected instance test (cycle-free): interaction.ts
 // types views structurally; this is the one brand check.
 initInteraction((n): n is InteractionView => n instanceof View);
+
+// What moves, sizes, shows, transforms, scrolls or clips a view: each change
+// tells the hit walk its reach is stale (interaction.ts markGeometry)
+afterPush(View, ["x", "y", "width", "height", "visible", "padding", "$insetX", "$insetY",
+  "scale", "scaleX", "scaleY", "rotation", "skewX", "skewY", "pivotX", "pivotY", "rotateX", "rotateY", "translateZ",
+  "scrollX", "scrollY", "scrolls", "clip", "ignoreClip", "ignoreScroll", "paintsIn"], () => markGeometry());
 
 defineAttributes(App, {
   // An App SCROLLS BY DEFAULT, and its scroller is the page (ruled

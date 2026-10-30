@@ -12,6 +12,7 @@ import { withdrawPaintGuests } from "./view.js";
 import { withdrawOpen } from "./outside.js";
 import { Keys } from "./keys.js";
 import { navigationOf } from "./navigation.js";
+import { declareName } from "./declare-name.js";
 /** The value an island provides under `name` — the `provided("name")` read AT
  *  the island: its own provision or declared slot first, then its ancestors.
  *  Undefined when nothing provides it. Tracked (the readers of a provision
@@ -84,7 +85,7 @@ export class Island extends View {
      *  when no tenant is linked — a verb has no meaning without a receiver. */
     post(topic, payload) {
         if (this.tenantSink === null) {
-            console.warn(`[Declare] ${this.constructor.name}.post("${topic}"): no tenant linked — message dropped`);
+            console.warn(`[Declare] ${declareName(this)}.post("${topic}"): no tenant linked — message dropped`);
             return;
         }
         this.tenantSink.message(topic, payload);

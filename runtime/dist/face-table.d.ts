@@ -2,11 +2,8 @@
  *  every name in it counts, since a face landing for ANY of them can change
  *  which one wins). A no-op when nothing is tracking, which is most paints. */
 export declare function trackFamilies(family: string): void;
-/** A face for `family` registered: re-measure everything that measured in it.
- *  Safe to call for a family nothing tracked — no Cell exists, so nothing
- *  happens. Nothing needs flushing alongside this: the measurer memoizes
- *  nothing (`textWidth`, `fontMetrics`, `capHeight` and `xHeight` all measure
- *  live), so re-running the constraint is the whole of the invalidation. */
+export declare function collectFamilies(fn: () => void): string[];
+export declare function familiesGeneration(families: readonly string[]): number;
 export declare function familyChanged(family: string): void;
 /** A number that changes whenever the face table changes — track it in a render
  *  key when the measuring happens somewhere reads are not tracked. */

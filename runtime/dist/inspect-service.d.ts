@@ -1,6 +1,7 @@
 import type { Program } from "./parser.js";
 import { App } from "./view.js";
 import { type ValueSlice } from "./inspect.js";
+import { profiling } from "./profile.js";
 import { clearTrace, stopTrace, tracing, type TraceSettle } from "./wake-trace.js";
 /** The subject's root-space origin in the Inspector's coordinate space (the
  *  viewport — its overlay is position:fixed). Zero for a top-level app. For an
@@ -127,6 +128,14 @@ export declare const Inspect: {
         active: typeof tracing;
         read: () => TraceSettle[];
         text: (settles?: TraceSettle[]) => string;
+    };
+    /** The profiler (profile.ts), recording the SUBJECT's turns only — the
+     *  Inspector's own are left out, as the trace leaves out its settles. `stop`
+     *  measures the drawings on the GPU and answers the report as text. */
+    profile: {
+        start: (why?: boolean) => void;
+        stop: () => string;
+        active: typeof profiling;
     };
     /** Is this view under a datapath? The Object pane badges it, and the
      *  evaluate strip's `:` support depends on it. */

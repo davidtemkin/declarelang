@@ -818,7 +818,89 @@ bootHost(cfg);
           waitedOnPage: events.filter((e) => e.name === "WidgetInputHandlerManager::DidHandleInputEventSentToMain").length,
         };
       };
+      // ── frames: the time to generate each one, and where it went ────────────
+      // Read from Chrome's own trace while a profile runs: each frame's pipeline
+      // (PipelineReporter, begin to presentation) and its stages, the main
+      // thread's style, layout and paint inside it, and Declare's settles, which
+      // the profiler marks in the page's timeline. Not frame RATE — that is the
+      // display's — but how long a frame took to make: the margin a live
+      // interaction has. (Headless Chrome draws with a software GPU; the main
+      // thread's share carries over to a real browser, the GPU's less so.)
+      // …and PAINTING: which layers the browser re-rasterized, and which views
+      // changed in the page meanwhile, mapped back to the program (the bridge's
+      // profile.viewOf) with what each declares that costs to paint — a view that
+      // moves every frame repaints the layer it sits in (Pagemap's drag ghost)
+      let frameSession = null, frameEvents = [], frameDone = null, layerSeen = new Map();
+      const startFrames = async () => {
+        frameSession = await page.target().createCDPSession();
+        frameEvents = []; layerSeen = new Map();
+        frameSession.on("Tracing.dataCollected", (d) => frameEvents.push(...d.value));
+        frameSession.on("LayerTree.layerTreeDidChange", (e) => {
+          for (const l of e.layers ?? []) { const was = layerSeen.get(l.layerId); layerSeen.set(l.layerId, { node: l.backendNodeId ?? null, w: l.width, h: l.height, first: was?.first ?? l.paintCount, last: l.paintCount }); }
+        });
+        frameDone = new Promise((r) => frameSession.once("Tracing.tracingComplete", r));
+        await frameSession.send("DOM.enable").catch(() => {});
+        await frameSession.send("DOM.getDocument", { depth: -1 }).catch(() => {});
+        await frameSession.send("LayerTree.enable").catch(() => {});
+        await frameSession.send("Tracing.start", { traceConfig: { includedCategories: ["cc", "benchmark", "viz", "toplevel", "blink.user_timing", "devtools.timeline", "disabled-by-default-devtools.timeline.frame", "disabled-by-default-devtools.timeline", "disabled-by-default-devtools.timeline.invalidationTracking", "gpu"] }, transferMode: "ReportEvents" });
+      };
+      const stopFrames = async () => {
+        if (frameSession === null) return null;
+        await frameSession.send("Tracing.end"); await frameDone;
+        const s = frameSession;
+        const frames = analyzeFrames(frameEvents);
+        // the layers as they stand now: a reload since the start (profileFromBoot)
+        // made new ones, which the earlier snapshot does not know
+        await s.send("LayerTree.disable").catch(() => {});
+        await s.send("DOM.getDocument", { depth: -1 }).catch(() => {});
+        await s.send("LayerTree.enable").catch(() => {});
+        await new Promise((r) => setTimeout(r, 150));
+        if (frames !== null) frames.painting = await analyzePainting(frameEvents.filter((e) => e.pid === frames.pid), layerSeen, async (backendNodeId) => {
+          try {
+            const { object } = await s.send("DOM.resolveNode", { backendNodeId });
+            const r = await s.send("Runtime.callFunctionOn", { objectId: object.objectId, functionDeclaration: "function () { return window.__declare && window.__declare.profile && window.__declare.profile.viewOf ? window.__declare.profile.viewOf(this) : null; }", returnByValue: true });
+            return r.result?.value ?? null;
+          } catch { return null; }
+        }, gpuRasterMs(frameEvents));
+        await s.detach().catch(() => {});
+        frameSession = null;
+        return frames;
+      };
+      // the trace's frames, then the drawings measured alone on the GPU, then the report
+      const finishProfile = async (drawings) => {
+        const frames = await stopFrames();
+        const r = await page.evaluate((d) => { const p = window.__declare.profile; if (d) p.measureDrawings(); const report = p.report(); return { report, text: p.text(report) }; }, drawings);
+        return { ...r, frames, text: r.text + (frames !== null ? "\n\n" + framesText(frames) : "") };
+      };
       const drive = {
+        /** Run `fn` and answer what the program did meanwhile, in its own terms
+         *  (runtime/src/profile.ts): the turns, the rules each ran — how often, how
+         *  often to any effect, how long — what was built, and what keeps it from
+         *  settling. `{ report, text }`. */
+        async profile(fn, { why = true, drawings = true } = {}) {
+          step("profile");
+          await startFrames();
+          await page.evaluate((w) => window.__declare.profile.start({ mark: true, why: w, frames: false }), why);
+          try { await fn(); }
+          finally { await page.evaluate(() => window.__declare.profile.stop()); }
+          return finishProfile(drawings);
+        },
+        /** Profile the program from its first settle: the page reloads with the
+         *  profiler armed before the runtime loads, so the boot — construction,
+         *  first layout, first data — is recorded; `itemize` keeps every rule in
+         *  JavaScript, so the kernel's native arithmetic is named too (slower);
+         *  `why` records which writes opened each turn. */
+        async profileFromBoot({ itemize = false, why = true } = {}) {
+          step(`profile from boot${itemize ? " (itemized)" : ""}`);
+          await page.evaluateOnNewDocument((it, w) => { globalThis.__declareProfileAtBoot = true; globalThis.__declareProfileMark = true; globalThis.__declareProfileFrames = false; if (it) globalThis.__declareProfileItemize = true; if (w) globalThis.__declareProfileWhy = true; }, itemize, why);
+          await startFrames();
+          await arrive(() => page.reload({ waitUntil: "load", timeout: 30000 }));
+        },
+        /** The profile recorded so far (after profileFromBoot), and stop. */
+        async profileReport({ drawings = true } = {}) {
+          await page.evaluate(() => window.__declare.profile.stop());
+          return finishProfile(drawings);
+        },
         /** Run `fn` (gestures) and answer what the platform did with them, from
          *  Chrome's trace: `{ platformScrollUpdates, waitedOnPage }`. */
         async traceInput(fn) {
@@ -1130,6 +1212,36 @@ const expect = {
             fail(`expected ${count === undefined ? "a" : count} ${method.toUpperCase()} ${path}${body !== undefined ? ` with ${JSON.stringify(body)}` : ""} — sent: ${said}`);
           step(`request ${method.toUpperCase()} ${path} ✓`);
         },
+        /** A profile (drive.profile's answer) kept within a budget. Counts are the
+         *  same on every machine, so they make the steadiest budgets: `runsPerTurn`
+         *  (the most rule runs in one turn), `built` and `builtPerTurn` (views
+         *  built), `reranForNothing` (how many rules may re-run for nothing: ran often
+         *  and almost never changed anything; 0 for none). Times
+         *  hold on the machine they were set on: `turnMs` (the costliest turn),
+         *  `frameMs` (the 95th percentile between new pictures reaching the
+         *  screen, from Chrome's trace; the frames as the page saw them where
+         *  there is no trace). `settled: true` asks that nothing still moves or
+         *  waits. Fails naming each budget passed and what spent it. */
+        budget(profile, limits) {
+          const r = profile?.report ?? profile;
+          if (r == null || !Array.isArray(r.costliest)) fail("expect.budget takes what drive.profile() answered");
+          const over = [];
+          const top = r.costliest[0];
+          const turnName = (t) => t === undefined ? "" : ` — turn ${t.n}, ${t.origin[0] ?? "no user code"}`;
+          if (limits.turnMs !== undefined && top !== undefined && top.ms + top.lead > limits.turnMs) over.push(`the costliest turn took ${(top.ms + top.lead).toFixed(1)} ms, over ${limits.turnMs}${turnName(top)}`);
+          if (limits.runsPerTurn !== undefined && r.peak.runs > limits.runsPerTurn) over.push(`turn ${r.peak.runsTurn} (${r.peak.origin.runs}) ran ${r.peak.runs} rules, over ${limits.runsPerTurn}`);
+          const built = r.built.reduce((n, b) => n + b.n, 0);
+          if (limits.built !== undefined && built > limits.built) over.push(`${built} views built, over ${limits.built} (${r.built.slice(0, 3).map((b) => `${b.cls} ×${b.n}`).join(", ")})`);
+          if (limits.builtPerTurn !== undefined && r.peak.built > limits.builtPerTurn) over.push(`turn ${r.peak.builtTurn} (${r.peak.origin.built}) built ${r.peak.built} views, over ${limits.builtPerTurn}`);
+          if (limits.reranForNothing !== undefined && r.reranForNothing.length > limits.reranForNothing) over.push(`${r.reranForNothing.length} rule${r.reranForNothing.length === 1 ? "" : "s"} re-ran for nothing, over ${limits.reranForNothing}: ${r.reranForNothing.slice(0, 3).map((f) => `${f.label}${f.source ? ` (${f.source})` : ""} ${f.runs} runs, ${f.unchanged} changing nothing`).join("; ")}`);
+          const shown = profile?.frames ?? null;
+          if (limits.frameMs !== undefined && shown != null && shown.presented > 0) {
+            if (shown.everyP95 > limits.frameMs) over.push(`a new picture reached the screen every ${shown.everyP95.toFixed(1)} ms at the 95th percentile, over ${limits.frameMs}`);
+          } else if (limits.frameMs !== undefined && r.frames != null && r.frames.withWork > 0 && r.frames.p95 > limits.frameMs) over.push(`frames came every ${r.frames.p95.toFixed(1)} ms at the 95th percentile, over ${limits.frameMs} (Declare ${r.frames.slowest[0]?.declare.toFixed(1) ?? "?"} ms of the slowest)`);
+          if (limits.settled === true && (r.unsettled.motion.length > 0 || r.unsettled.waiting.length > 0)) over.push(`not settled: ${[...r.unsettled.motion, ...r.unsettled.waiting].slice(0, 4).join("; ")}`);
+          if (over.length > 0) fail(`over budget: ${over.join(" · ")}`);
+          step(`budget ${Object.keys(limits).join(", ")} ✓`);
+        },
         async exists(path) { await node(path); },
         // SHOWN, not just its own slot: a view inside a hidden panel has
         // `visible` true and is not on screen, so the answer is the view's and
@@ -1339,6 +1451,19 @@ function bootFailure(said, pageErrors) {
   return [...new Set(lines)];
 }
 
+/** The first line of a stack outside this harness and its libraries — the script
+ *  line that asked (`checks/flow.mjs:42`) — or null when the harness asked itself. */
+function scriptLine(stack) {
+  for (const l of String(stack ?? "").split("\n").slice(1)) {
+    const m = /(?:file:\/\/)?([^\s()]+\.m?js):(\d+):\d+/.exec(l);
+    if (m === null) continue;
+    const file = m[1];
+    if (/verify-behave\.mjs$|node_modules|node:/.test(file) || file.startsWith("node:")) continue;
+    return `${file.split("/").slice(-2).join("/")}:${m[2]}`;
+  }
+  return null;
+}
+
 function watchPage(page, budgetMs) {
   let pausing = false;
   const session = page.target().createCDPSession().then(async (s) => {
@@ -1348,6 +1473,34 @@ function watchPage(page, budgetMs) {
     return s;
   }).catch(() => null);
   const secs = Math.round(budgetMs / 1000);
+
+  // EVERY EVALUATE, NAMED. A page can go on answering while an evaluate waits on
+  // something that never comes — a promise nothing resolves (a database open
+  // blocked by an older version, a request with no answer, an event that never
+  // fires). The silence watch below cannot see that: the page answers. So each
+  // evaluate is recorded with what it evaluates and the script line that asked,
+  // and one still waiting past twice the budget ends the run naming both, where
+  // the protocol's own timeout, minutes later, named only the last step logged.
+  const pending = new Set();
+  const stuckMs = budgetMs * 2;
+  for (const m of ["evaluate", "evaluateHandle"]) {
+    const orig = page[m].bind(page);
+    page[m] = (fn, ...args) => {
+      const rec = { code: (typeof fn === "string" ? fn : String(fn)).replace(/\s+/g, " ").slice(0, 120), at: scriptLine(new Error().stack), since: Date.now() };
+      pending.add(rec);
+      const p = orig(fn, ...args);
+      p.then(() => pending.delete(rec), () => pending.delete(rec));
+      return p;
+    };
+  }
+  /** Resolves with the evaluate that has waited too long; never, while none has. */
+  const stuck = async (stop) => {
+    while (!stop.done && !page.isClosed()) {
+      for (const r of pending) if (Date.now() - r.since > stuckMs) return r;
+      await new Promise((res) => setTimeout(res, 250));
+    }
+    return new Promise(() => {});
+  };
 
   /** Resolves once the page has gone the budget without answering; never, while
    *  it answers or after `stop.done`. */
@@ -1372,8 +1525,17 @@ function watchPage(page, budgetMs) {
       const r = await Promise.race([
         Promise.resolve().then(work).then((v) => ({ v }), (e) => ({ e })),
         silence(stop).then(() => SILENT),
+        stuck(stop).then((rec) => ({ stuck: rec })),
       ]);
       stop.done = true;
+      if (r !== SILENT && "stuck" in r) {
+        if (typeof what === "function") what = what();
+        const rec = r.stuck;
+        const lines = [`${rec.at ?? what}: an evaluate in the page has not finished in ${Math.round(stuckMs / 1000)} s, though the page answers — it is waiting on something that never comes (a promise nothing resolves: a request with no answer, a database open that is blocked, an event that never fires)`,
+          `  evaluating: ${rec.code}`, ...(rec.at !== null ? [`  the step before it: ${typeof what === "string" ? what.replace(/^during /, "") : "?"}`] : [])];
+        await within(page.close().catch(() => {}), 2000);
+        throw Object.assign(new VerifyAssertion(lines.join("\n")), { lines });
+      }
       if (r !== SILENT) { if ("e" in r) throw r.e; return r.v; }
       if (typeof what === "function") what = what();   // the step it had reached
       const boot = what === "boot";
@@ -1739,4 +1901,196 @@ export async function runStates({ compiled, appDir, statesPath, baselinesDir, bl
     }
     return { ok: failures.length === 0, failures, results, checks };
   });
+}
+
+
+// ── frames, from a Chrome trace (drive.profile) ──────────────────────────────
+// A frame, as Chrome's compositor reports it (PipelineReporter), is a sequence
+// of stages sharing the frame's id — an id later frames reuse, so stages are
+// matched to the frame open when they arrive. TIME TO DISPLAY runs from the
+// frame's start to its PRESENTATION: the page's part (the main thread, commit,
+// activation, submission) and then the display's — the display compositor
+// taking the frame, the GPU drawing it (canvases are drawn here: a drawing's
+// script only records, 2026-10-29), and the swap to the screen. Ending at
+// submission hid the GPU's part entirely: a shadowed canvas frame submitted in
+// 14 ms and reached the screen 195 ms later. What is not work in it is the wait
+// for the display compositor's next draw, at most an interval when nothing is
+// behind; when the GPU is behind, that wait grows, and it is named.
+const STAGES = ["BeginImplFrameToSendBeginMainFrame", "SendBeginMainFrameToCommit", "Commit", "EndCommitToActivation", "Activation", "EndActivateToSubmitCompositorFrame",
+  "SubmitToReceiveCompositorFrame", "ReceiveCompositorFrameToStartDraw", "StartDrawToSwapStart", "BufferAvailableToBufferReady", "BufferReadyToLatch", "SubmitCompositorFrameToPresentationCompositorFrame"];
+export function analyzeFrames(events) {
+  const sorted = [...events].sort((a, b) => a.ts - b.ts);
+  const marks = sorted.filter((e) => e.name === "declare settle");
+  const reporters = sorted.filter((e) => e.name === "PipelineReporter" && e.ph === "b");
+  // the page's own compositor: where Declare marked its settles, else where the
+  // main thread did frame work
+  const score = {};
+  for (const e of marks) score[e.pid] = (score[e.pid] ?? 0) + 1000;
+  for (const e of sorted) if (e.name === "SendBeginMainFrameToCommit" && e.ph === "b") score[e.pid] = (score[e.pid] ?? 0) + 1;
+  const pid = Number(Object.entries(score).sort((a, b) => b[1] - a[1])[0]?.[0] ?? reporters[0]?.pid);
+  const open = new Map(), frames = [];
+  for (const e of sorted) {
+    if (e.pid !== pid) continue;
+    const id = e.id2?.local ?? e.id2?.global ?? e.id;
+    if (e.name === "PipelineReporter") {
+      if (e.ph === "b") open.set(id, { start: e.ts, end: null, state: e.args?.frame_reporter?.state ?? "", st: {}, at: {}, breakdown: null });
+      else if (e.ph === "e" && open.has(id)) { const f = open.get(id); open.delete(id); f.end = e.ts; frames.push(f); }
+      continue;
+    }
+    if (!STAGES.includes(e.name) || !open.has(id)) continue;
+    const f = open.get(id);
+    if (e.ph === "b") { f.at[e.name] = e.ts; if (e.name === "SendBeginMainFrameToCommit") f.breakdown = e.args?.send_begin_mainframe_to_commit_breakdown ?? null; }
+    else if (e.ph === "e" && f.at[e.name] !== undefined) {
+      f.st[e.name] = (f.st[e.name] ?? 0) + (e.ts - f.at[e.name]);
+      if (e.name === "EndActivateToSubmitCompositorFrame") f.submit = e.ts;
+      if (e.name === "SubmitCompositorFrameToPresentationCompositorFrame") f.presentedAt = e.ts;
+      if (e.name === "SendBeginMainFrameToCommit") f.mainSpan = [f.at[e.name], e.ts];
+    }
+  }
+  // the GPU process's main thread and the display compositor's thread, as busy
+  // spans (their top-level tasks): what a frame's wait after submission was spent on
+  const names = {};
+  for (const e of sorted) if (e.name === "thread_name") names[`${e.pid}:${e.tid}`] = e.args?.name ?? "";
+  const busy = { gpu: [], viz: [] };
+  for (const e of sorted) {
+    if (e.ph !== "X" || !e.dur || e.name !== "ThreadControllerImpl::RunTask") continue;
+    const n = names[`${e.pid}:${e.tid}`] ?? "";
+    if (n === "CrGpuMain") busy.gpu.push([e.ts, e.ts + e.dur]);
+    else if (n === "VizCompositorThread") busy.viz.push([e.ts, e.ts + e.dur]);
+  }
+  const merged = (list) => { const out = []; for (const [a, b] of list.sort((x, y) => x[0] - y[0])) { const l = out[out.length - 1]; if (l && a <= l[1]) l[1] = Math.max(l[1], b); else out.push([a, b]); } return out; };
+  busy.gpu = merged(busy.gpu); busy.viz = merged(busy.viz);
+  const overlap = (list, a, b) => list.reduce((n, [s, t]) => n + Math.max(0, Math.min(b, t) - Math.max(a, s)), 0);
+  // Declare's settles, as spans
+  const spans = [], m0 = new Map();
+  for (const e of marks) { if (e.pid !== pid) continue; const id = e.id2?.local ?? e.id ?? "x"; if (e.ph === "b") m0.set(id, e.ts); else if (e.ph === "e" && m0.has(id)) { spans.push([m0.get(id), e.ts]); m0.delete(id); } }
+  const within = (a, b) => spans.reduce((n, [s, t]) => n + Math.max(0, Math.min(b, t) - Math.max(a, s)), 0);
+  // a breakdown field Chrome could not measure arrives as an unsigned −1: not a time
+  const us = (v) => (typeof v === "number" && v >= 0 && v < 1e10 ? v : 0) / 1000;
+  const out = frames.filter((f) => f.end !== null).map((f) => {
+    const presented = /PRESENTED/.test(f.state) && f.presentedAt !== undefined;
+    const end = presented ? f.presentedAt : (f.submit ?? f.end);
+    const b = f.breakdown ?? {};
+    return {
+      at: f.start, presentedAt: presented ? f.presentedAt : null, total: us(end - f.start), toSubmit: us((f.submit ?? f.end) - f.start), presented, state: f.state,
+      waitMain: us(f.st.BeginImplFrameToSendBeginMainFrame), main: us(f.st.SendBeginMainFrameToCommit),
+      declare: us(within(f.start, f.submit ?? f.end)),
+      declareInMain: us(f.mainSpan ? within(f.mainSpan[0], f.mainSpan[1]) : 0),
+      lateStart: us(b.begin_main_sent_to_started_us),
+      animate: us(b.animate_us), style: us(b.style_update_us), layout: us(b.layout_update_us),
+      paint: us((b.prepaint_us ?? 0) + (b.paint_us ?? 0) + (b.compositing_inputs_us ?? 0) + (b.update_layers_us ?? 0)),
+      input: us(b.handle_input_events_us),
+      commitRaster: us((f.st.Commit ?? 0) + (f.st.EndCommitToActivation ?? 0) + (f.st.Activation ?? 0)),
+      submit: us(f.st.EndActivateToSubmitCompositorFrame),
+      // the display's part: the display compositor taking it and waiting to draw, the GPU drawing it, the swap
+      toDraw: us((f.st.SubmitToReceiveCompositorFrame ?? 0) + (f.st.ReceiveCompositorFrameToStartDraw ?? 0)),
+      gpu: us(f.st.StartDrawToSwapStart),
+      swap: us((f.st.BufferAvailableToBufferReady ?? 0) + (f.st.BufferReadyToLatch ?? 0)),
+      // after submission, how much of the wait the GPU process and the display compositor were working
+      gpuBusy: presented && f.submit !== undefined ? us(overlap(busy.gpu, f.submit, f.presentedAt)) : 0,
+      vizBusy: presented && f.submit !== undefined ? us(overlap(busy.viz, f.submit, f.presentedAt)) : 0,
+    };
+  });
+  const made = out.filter((f) => f.main > 0 || f.waitMain > 0.5);   // frames the page took part in
+  const pct = (a, p) => { if (a.length === 0) return 0; const s = [...a].sort((x, y) => x - y); return s[Math.min(s.length - 1, Math.floor(p * s.length))]; };
+  // the display's interval: the begin-frame ticks
+  const ticks = sorted.filter((e) => e.pid === pid && e.name === "BeginImplFrameToSendBeginMainFrame" && e.ph === "b").map((e) => e.ts);
+  const tickGaps = []; for (let i = 1; i < ticks.length; i++) tickGaps.push((ticks[i] - ticks[i - 1]) / 1000);
+  const display = pct(tickGaps.filter((g) => g > 2), 0.1) || 16.7;
+  // A frame that waited for the display compositor longer than two intervals while
+  // neither it nor the GPU process was busy waited on nothing of the page's (the
+  // browser drew it when it chose to): left out of the time to display, and counted
+  const presentedAll = made.filter((f) => f.presented);
+  for (const f of presentedAll) f.idleWait = f.toDraw - f.gpuBusy - f.vizBusy > 2 * display;
+  const shown = presentedAll.filter((f) => !f.idleWait);
+  const t = shown.map((f) => f.total);
+  // how often a new picture of the page reached the screen, while it was making them
+  const times = presentedAll.map((f) => f.presentedAt).sort((a, b) => a - b);
+  const gaps = []; for (let i = 1; i < times.length; i++) { const g = (times[i] - times[i - 1]) / 1000; if (g < 1000) gaps.push(g); }
+  return { pid, frames: out.length, withPage: made.length, presented: presentedAll.length, idle: presentedAll.length - shown.length, dropped: out.filter((f) => /DROPPED/.test(f.state)).length,
+    display,
+    median: pct(t, 0.5), p95: pct(t, 0.95), worst: t.length ? Math.max(...t) : 0,
+    submitMedian: pct(made.map((f) => f.toSubmit), 0.5),
+    everyMedian: pct(gaps, 0.5), everyP95: pct(gaps, 0.95),
+    declareMs: made.reduce((n, f) => n + f.declare, 0),
+    slowest: [...shown].sort((a, b) => b.total - a.total).slice(0, 5) };
+}
+/** Which layers the browser re-rasterized (its raster tasks, by layer), and which
+ *  views changed in the page meanwhile (its style invalidations, by element), each
+ *  named through `nameOf(backendNodeId)` → { view, paints } (null: the page itself). */
+/** The GPU process's time rastering the page's tiles, in all: a raster call
+ *  made for a renderer (`RendererRasterWorker`), and the end of it, which
+ *  flushes it to the GPU. Not by layer: nothing in the trace ties a raster call
+ *  to the tile it draws (no shared id, and the counts do not pair — 194 calls
+ *  for 184 tiles, measured 2026-10-29). */
+export function gpuRasterMs(events) {
+  const workers = events.filter((e) => e.ph === "X" && e.name === "RendererRasterWorker");
+  let ms = 0, n = 0;
+  for (const e of events) if (e.ph === "X" && (e.name === "RasterDecoderImpl::DoRasterCHROMIUM" || e.name === "RasterDecoderImpl::DoEndRasterCHROMIUM")
+    && workers.some((w) => w.pid === e.pid && w.tid === e.tid && e.ts >= w.ts && e.ts <= w.ts + w.dur)) { ms += (e.dur ?? 0) / 1000; if (e.name === "RasterDecoderImpl::DoRasterCHROMIUM") n++; }
+  return { ms, calls: n };
+}
+export async function analyzePainting(events, layers, nameOf, gpu = null) {
+  const tiles = new Map();
+  for (const e of events) if (e.name === "RasterTask" && e.args?.tileData?.layerId !== undefined) {
+    const id = String(e.args.tileData.layerId), t = tiles.get(id) ?? { tiles: 0, ms: 0 };
+    t.tiles++; t.ms += (e.dur ?? 0) / 1000; tiles.set(id, t);
+  }
+  const changed = new Map();
+  for (const e of events) if (/InvalidationTracking$/.test(e.name) && typeof e.args?.data?.nodeId === "number") changed.set(e.args.data.nodeId, (changed.get(e.args.data.nodeId) ?? 0) + 1);
+  const layersOut = [];
+  // the page's layers only (a layer it never reported is the browser's own)
+  for (const [id, t] of [...tiles].filter(([id]) => layers.has(id)).sort((a, b) => b[1].tiles - a[1].tiles).slice(0, 4)) {
+    const l = layers.get(id);
+    const who = l?.node != null ? await nameOf(l.node) : null;
+    layersOut.push({ layer: id, tiles: t.tiles, ms: t.ms, repaints: l ? Math.max(0, l.last - l.first) : null, view: who?.view ?? null, paints: who?.paints ?? [], size: l ? `${Math.round(l.w)}×${Math.round(l.h)}` : null });
+  }
+  const byView = new Map();
+  for (const [node, n] of [...changed].sort((a, b) => b[1] - a[1]).slice(0, 40)) {
+    const who = await nameOf(node);
+    if (who === null) continue;
+    const v = byView.get(who.view) ?? { view: who.view, paints: who.paints, changes: 0 };
+    v.changes += n; byView.set(who.view, v);
+  }
+  return { layers: layersOut, changed: [...byView.values()].sort((a, b) => b.changes - a.changes).slice(0, 5), gpu };
+}
+export function paintingText(p) {
+  if (p == null || p.layers.length === 0) return null;
+  const out = ["painting (Chrome's raster): the layers re-rasterized most, and the views that changed meanwhile"];
+  for (const l of p.layers) {
+    const who = l.view === null ? "the page's own layer" : `the layer of ${l.view}`;
+    out.push(`  ${who}${l.size ? ` (${l.size})` : ""}: ${l.tiles} tile${l.tiles === 1 ? "" : "s"} rasterized, ${ms1(l.ms)} ms recording them${l.repaints !== null ? `, repainted ${l.repaints === 1 ? "once" : `${l.repaints} times`}` : ""}${l.paints.length ? ` — it has ${l.paints.join(", ")}` : ""}`);
+  }
+  if (p.gpu !== null && p.gpu.calls > 0) out.push(`  the GPU process rastered the page's tiles for ${ms1(p.gpu.ms)} ms in all (${p.gpu.calls} raster calls; Chrome does not say which layer each was for)`);
+  if (p.changed.length > 0) out.push(`  changed while they repainted: ${p.changed.map((v) => `${v.view} ×${v.changes}${v.paints.length ? ` (${v.paints.join(", ")})` : ""}`).join(" · ")}`);
+  out.push("  (a view whose look changes every frame repaints the layer it sits in, and everything painted there with it; a shadow or a blur makes each repaint dearer. A view that only moves, with nothing painted over it, is given a layer of its own while it moves)");
+  return out.join("\n");
+}
+const ms1 = (n) => n.toFixed(1);
+export function framesText(f) {
+  if (f.withPage === 0) return `frames: ${f.frames} drawn, none with work from the page while profiling`;
+  const out = [`frames (Chrome's trace): ${f.withPage} with work from the page, ${f.presented} of them reached the screen${f.dropped > 0 ? `, ${f.dropped} dropped` : ""} · the display refreshes every ${ms1(f.display)} ms`,
+    `  time to display, from a frame's start to its presentation: median ${ms1(f.median)} ms · p95 ${ms1(f.p95)} · worst ${ms1(f.worst)} (the page's part, to submission: median ${ms1(f.submitMedian)})${f.idle > 0 ? ` — ${f.idle} frame${f.idle === 1 ? "" : "s"} that waited on nothing of the page's left out` : ""}`,
+    `  a new picture reached the screen every: median ${ms1(f.everyMedian)} ms · p95 ${ms1(f.everyP95)}`];
+  for (const x of f.slowest) {
+    // Chrome's breakdown names its own phases; Declare's settle runs in the frame's
+    // script time, which it leaves unnamed — so Declare is taken out of "other"
+    const declareBefore = Math.max(0, x.declare - x.declareInMain);
+    // Declare's settle often runs inside the animation callbacks (a frame's spring
+    // steps): counted once, as Declare, and the callbacks show only the rest
+    const animOther = Math.max(0, x.animate - x.declareInMain);
+    const other = Math.max(0, x.main - Math.max(x.declareInMain, x.animate) - x.style - x.layout - x.paint - x.input);
+    const parts = [
+      x.waitMain > 0.1 ? `main thread busy before the frame ${ms1(x.waitMain)}${declareBefore > 0.1 ? ` (Declare ${ms1(declareBefore)})` : ""}` : null,
+      `main thread ${ms1(x.main)}: ${[`Declare ${ms1(x.declareInMain)}`, animOther > 0.1 ? `other animation callbacks ${ms1(animOther)}` : null, `style ${ms1(x.style)}`, `layout ${ms1(x.layout)}`, `paint ${ms1(x.paint)}`, x.input > 0.1 ? `input ${ms1(x.input)}` : null, other > 0.1 ? `other script and tasks ${ms1(other)}` : null].filter(Boolean).join(" · ")}`,
+      `commit and raster ${ms1(x.commitRaster)}`, `submit ${ms1(x.submit)}`,
+      `waiting for the display compositor ${ms1(x.toDraw)}`, `the GPU drawing it ${ms1(x.gpu)}`, x.swap > 0.1 ? `swap ${ms1(x.swap)}` : null,
+      `after submission the GPU process was busy ${ms1(x.gpuBusy)} and the display compositor ${ms1(x.vizBusy)}`,
+    ].filter(Boolean);
+    out.push(`  ${ms1(x.total)} ms — ${parts.join(" | ")}`);
+  }
+  const painted = paintingText(f.painting);
+  if (painted !== null) out.push(painted);
+  out.push("  (frames overlap: while one is drawn on the GPU the next is being made, so a GPU that is behind shows as long draws and long waits for the display compositor, with the GPU process busy through them; a long wait with both idle is a frame that waited for nothing of the page's — the browser drawing when it chose to)");
+  return out.join("\n");
 }

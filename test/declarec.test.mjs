@@ -16,6 +16,7 @@ import { gzipSync } from "node:zlib";
 import { tempDir } from "./harness.mjs";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
+const CLI = resolve(HERE, "../tools/declarec.mjs");
 let pass = 0, fail = 0;
 function test(name, fn) {
   try { const r = fn(); if (r instanceof Promise) return r.then(() => { pass++; console.log("  ok —", name); }, (e) => { fail++; console.log("  FAIL —", name, "\n     ", e.message); }); pass++; console.log("  ok —", name); }
@@ -225,6 +226,48 @@ App [ width = 100, height = 100, m: DataSource [ url = "../../docs/model.json" ]
   // a file that is not there fails the build, naming the path
   const bad = await buildProduction(`ship [ files = ["nope.json"] ]\nApp [ ]`, { name: "a", originDir: dir }).catch((e) => e);
   assert.ok(bad instanceof Error && /the file 'nope.json' is not there/.test(bad.message), "a missing file fails the build with the reason");
+});
+
+// What a build copies beside the program: everything in its folder but what stays
+// behind (tests/, scratch/, sources, an output folder inside it), each file once;
+// and the output folder it empties first is only ever one it made.
+await test("a build copies the program's folder but tests/ and scratch/, ships each file once, and empties only a folder it made", async () => {
+  const { mkdirSync, existsSync, readdirSync } = await import("node:fs");
+  const root = tempDir("declarec-copy-");
+  const dir = resolve(root, "app");
+  for (const d of ["data", "tests", "scratch"]) mkdirSync(resolve(dir, d), { recursive: true });
+  writeFileSync(resolve(dir, "data", "rows.json"), `{"rows":[]}`);
+  writeFileSync(resolve(dir, "tests", "flow.mjs"), "export default () => {}");
+  writeFileSync(resolve(dir, "scratch", "notes.md"), "a note");
+  writeFileSync(resolve(dir, "app.declare"), `ship [ files = ["data/rows.json"] ]
+App [ width = 100, height = 100, d: DataSource [ url = "data/rows.json" ] ]`);
+  const build = (out) => spawnSync(process.execPath, [CLI, resolve(dir, "app.declare"), "-o", out, "--quiet"], { encoding: "utf8" });
+  // an output folder inside the program's own is not copied into itself
+  const inside = resolve(dir, "out");
+  const r = build(inside);
+  assert.equal(r.status, 0, r.stderr);
+  const names = readdirSync(inside);
+  assert.ok(names.includes("data") && existsSync(resolve(inside, "data", "rows.json")), "the data the program reads is copied at its path");
+  assert.ok(!names.includes("tests") && !names.includes("scratch"), `tests/ and scratch/ stay behind: ${names}`);
+  assert.ok(!names.includes("out"), "the output folder is not copied into itself");
+  assert.ok(!names.includes("files"), "a ship file inside the folder is shipped once, at its own path, not again under files/");
+  // a second build empties it first: a stray file there is gone
+  writeFileSync(resolve(inside, "stray.txt"), "left over");
+  assert.equal(build(inside).status, 0);
+  assert.ok(!existsSync(resolve(inside, "stray.txt")), "an earlier build's folder is emptied first");
+  // …but a folder it did not make is refused, and left as it was
+  const other = resolve(root, "keep");
+  mkdirSync(other);
+  writeFileSync(resolve(other, "mine.txt"), "mine");
+  const refused = build(other);
+  assert.equal(refused.status, 1);
+  assert.match(refused.stderr, /^declarec: .*is not empty and holds no earlier build/, "said plainly: " + refused.stderr);
+  assert.ok(existsSync(resolve(other, "mine.txt")), "a folder the build did not make is left as it was");
+  // and so is the program's own folder
+  const own = build(dir);
+  assert.equal(own.status, 1);
+  assert.match(own.stderr, /holds the program itself/);
+  assert.ok(existsSync(resolve(dir, "app.declare")), "the program is untouched");
 });
 
 // Compiler: a program that compiles at run time says so, and the package
@@ -583,8 +626,18 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // to say so (problem, judged, required, refused), joins its form and its Field,
   // and submits on Return; a constraint that reads through an attribute stays on
   // the tracking path — measured 154.2 KB.
+  // 155 → 157 KB (2026-10-28, where focus goes and riff fixes): a view can hold
+  // focus without being a Tab stop, lost focus goes where a container says, a
+  // disabled control keeps it; a resting spring springs back from a direct write;
+  // a drag's finger and its edge scrolling are told from the user's scroll; a
+  // drawing no one can see goes quiet — measured 156.2 KB.
+  // 157 → 158 KB (2026-10-29, the profiler's batch): what a point hits is pruned by
+  // each view's reach, cached (+0.4); a view moving with nothing painted over it is
+  // given a layer while it moves; the profiler's hooks on the runtime's busiest
+  // paths; a message names a class by the program's name, never its minified one —
+  // measured 157.0 KB (160,803 B).
   const wire = out.files.reduce((n, f) => n + gzipSync(Buffer.from(f.contents)).length, 0);
-  assert.ok(wire > 20 * 1024 && wire < 155 * 1024,
+  assert.ok(wire > 20 * 1024 && wire < 158 * 1024,
     `unexpected FIRST-LOAD size ${(wire / 1024).toFixed(1)} KB — ` +
     out.files.map((f) => `${f.name} ${(gzipSync(Buffer.from(f.contents)).length / 1024).toFixed(1)}`).join(", "));
 
@@ -706,7 +759,6 @@ await test("--crawler=true embeds the extracted document in the host; the entry 
 // Exercised through the CLI, because the CLI contract — exit code and the two
 // output forms — is what those consumers depend on.
 
-const CLI = resolve(HERE, "../tools/declarec.mjs");
 const runCheck = (args) => spawnSync(process.execPath, [CLI, "check", ...args], { encoding: "utf8" });
 
 await test("check: a clean program exits 0", () => {

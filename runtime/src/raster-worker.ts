@@ -22,17 +22,17 @@
 //   → { t: "fonts", faces: [{ family, src, weight, style }] }
 //   → { t: "unfonts", family }                          (a family withdrawn)
 //   → { t: "image", h, bitmap }                          (a drawImage source, once per handle)
-//   → { t: "raster", id, list, sx, sy, bx, by, w, h, blankCheck }
-//   ← { t: "raster", id, bitmap, rasterMs, blank }      (bitmap transferred)
+//   → { t: "raster", id, list, sx, sy, bx, by, w, h }
+//   ← { t: "raster", id, bitmap, rasterMs }      (bitmap transferred)
 //   ← { t: "error", id, message }
 
-import { replay, rasterLooksBlank, type DisplayList } from "./draw.js";
+import { replay, type DisplayList } from "./draw.js";
 import { registerDrawImage } from "./draw-image.js";
 
 interface FaceMsg { family: string; src: string; weight: string; style: string }
 interface RasterMsg {
   t: "raster"; id: number; list: DisplayList; sx: number; sy: number; bx: number; by: number;
-  w: number; h: number; blankCheck: boolean;
+  w: number; h: number;
 }
 type InMsg = { t: "fonts"; faces: FaceMsg[] } | { t: "unfonts"; family: string } | { t: "image"; h: number; bitmap: ImageBitmap } | RasterMsg;
 
@@ -86,9 +86,8 @@ async function raster(m: RasterMsg): Promise<void> {
     c2.setTransform(m.sx, 0, 0, m.sy, -m.bx * m.sx, -m.by * m.sy);
     replay(c2 as unknown as CanvasRenderingContext2D, m.list);   // the WHOLE recording — a memo must not depend on the viewport
     const rasterMs = performance.now() - t0;
-    const blank = m.blankCheck && rasterLooksBlank(cv, m.list, m.sx, m.sy, m.bx, m.by);
     const bitmap = cv.transferToImageBitmap();
-    scope.postMessage({ t: "raster", id: m.id, bitmap, rasterMs, blank }, [bitmap]);
+    scope.postMessage({ t: "raster", id: m.id, bitmap, rasterMs }, [bitmap]);
   } catch (err) {
     scope.postMessage({ t: "error", id: m.id, message: String(err) });
   }

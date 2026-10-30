@@ -52,6 +52,7 @@ function runDirection(t: { text?: unknown; direction?: string; parent?: unknown 
 }
 import { Constraint } from "./reactive.js";
 import { faceGenerationNow } from "./face-table.js";
+import { declareName } from "./declare-name.js";
 
 /** The run as drawn: `text`, with an absent value (a `{ }` that reads a field
  *  before its data arrives) as the empty run — what a `:path` binding already
@@ -258,7 +259,7 @@ export class Text extends View {
     let lastSurface: Surface | null = null;
     let lastGen = -1;
     const style = new Constraint(
-      `${this.constructor.name}.textStyle`,
+      `${declareName(this)}.textStyle`,
       () => {
         // THE FACE TABLE, read here too (face-table.ts). A Text with both
         // dimensions set has no auto-size constraint, so this push is the only
@@ -322,6 +323,8 @@ export class Text extends View {
       },
       0
     );
+    style.pushes = true;
+    style.owner = this;
     style.run();
     onDiscard(this, () => style.dispose());
     s.setText(runOf(this));

@@ -15,6 +15,7 @@ import { isSet, ownerOf, percentOwned, setBound } from "./attributes.js";
 import { semanticTree, formatSemantics } from "./semantics.js";
 import { DataSource } from "./data.js";
 import { settle } from "./reactive.js";
+import { declareName } from "./declare-name.js";
 
 export interface BootCheckOptions {
   /** The window is a touch device: targets too small for a finger are said. */
@@ -77,7 +78,7 @@ const isA = (v: object, name: string): boolean => {
 function outOfReach(app: Node): string[] {
   const clips = (v: View): boolean => v.clip !== null && v.clip !== false && v.clip !== "";
   const out: string[] = [];
-  const say = (v: View, why: string): void => { out.push(`a control may be out of reach — ${pathOf(app, v)} (${v.constructor.name}) ${why}`); };
+  const say = (v: View, why: string): void => { out.push(`a control may be out of reach — ${pathOf(app, v)} (${declareName(v)}) ${why}`); };
   const round = (b: { x: number; y: number; width: number; height: number }): string =>
     `x ${Math.round(b.x)}–${Math.round(b.x + b.width)}, y ${Math.round(b.y)}–${Math.round(b.y + b.height)}`;
   const box = (v: View, stop: View | null = null) => rootFrameBox(v as unknown as InteractionView, undefined, stop as unknown as InteractionView | null);
@@ -261,7 +262,7 @@ function unbuiltClasses(app: Node, classes: readonly string[]): string[] {
   const walk = (n: Node): void => {
     for (let c = (n as { constructor: Function }).constructor; c && c !== Object; c = Object.getPrototypeOf(c)) built.add(c.name);
     const l = (n as { layout?: unknown }).layout;
-    if (l !== null && typeof l === "object") built.add(l.constructor.name);
+    if (l !== null && typeof l === "object") built.add(declareName(l));
     for (const c of n.children) walk(c);
   };
   walk(app);
@@ -275,7 +276,7 @@ function answer(app: Node, { reads = [], outline = null, semantics = null }: Non
     const k = r.lastIndexOf(".");
     const n = k > 0 ? find(app, r.slice(0, k)) : null;
     const v = n === null ? `(no view at ${r.slice(0, k)})` : (n as unknown as Record<string, unknown>)[r.slice(k + 1)];
-    out.push(`${r} = ${typeof v === "object" && v !== null && "children" in v ? `(a ${(v as object).constructor.name})` : JSON.stringify(v ?? null)}`);
+    out.push(`${r} = ${typeof v === "object" && v !== null && "children" in v ? `(a ${declareName(v as object)})` : JSON.stringify(v ?? null)}`);
   }
   if (outline !== null && outline !== undefined) {
     const root = outline === true ? app : find(app, outline);
@@ -286,7 +287,7 @@ function answer(app: Node, { reads = [], outline = null, semantics = null }: Non
         if (!(v instanceof View) || !v.visible || lines.length > 400) return;
         const name = pathOf(app, v).split(".").pop();
         const text = (v as unknown as { text?: unknown }).text;
-        lines.push(`${"  ".repeat(d)}${name} ${v.constructor.name}  ${Math.round(v.x)},${Math.round(v.y)}  ${Math.round(v.width)}×${Math.round(v.height)}${v.scrolls !== "none" ? "  scrolls " + v.scrolls : ""}${typeof text === "string" && text !== "" ? `  "${text.slice(0, 40)}${text.length > 40 ? "…" : ""}"` : ""}`);
+        lines.push(`${"  ".repeat(d)}${name} ${declareName(v)}  ${Math.round(v.x)},${Math.round(v.y)}  ${Math.round(v.width)}×${Math.round(v.height)}${v.scrolls !== "none" ? "  scrolls " + v.scrolls : ""}${typeof text === "string" && text !== "" ? `  "${text.slice(0, 40)}${text.length > 40 ? "…" : ""}"` : ""}`);
         for (const c of v.children) w(c, d + 1);
       };
       w(root, 0);
@@ -322,11 +323,11 @@ function feedSchemaSamples(app: Node, samples: { source: string; value: unknown 
         ? [sampleOf((shape as { fields: ShapeField[] }).fields, 1, 0), sampleOf((shape as { fields: ShapeField[] }).fields, 1, 1)]
         : undefined;
     if (value === undefined) continue;
-    samples.push({ source: d.name ?? ds.constructor.name, value });
+    samples.push({ source: d.name ?? declareName(ds), value });
     setBound(ds, "value", value);
     setBound(ds, "loading", false);
     if (typeof d.onLoad === "function") {
-      try { d.onLoad.call(ds); } catch (e) { console.error(`[Declare] onLoad on ${ds.constructor.name} threw: ${(e as Error)?.message ?? e}`); }
+      try { d.onLoad.call(ds); } catch (e) { console.error(`[Declare] onLoad on ${declareName(ds)} threw: ${(e as Error)?.message ?? e}`); }
     }
     fed++;
   }
