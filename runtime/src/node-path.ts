@@ -4,6 +4,7 @@
 // Inspector's bridge, whose `find` also matches a step by what a view says.
 
 import { Node, authoredName } from "./node.js";
+import { setAddressOf } from "./reactive.js";
 
 /** The dotted address of a live node under `root` — the inverse of find(). */
 export function pathOf(root: Node, n: Node): string {
@@ -37,3 +38,11 @@ export function findPath(root: Node, path: string, said?: (from: Node, words: st
   }
   return cur;
 }
+
+// a rule's owner by its address, for the messages that say where a rule is
+setAddressOf((o) => {
+  if (!(o instanceof Node)) return null;
+  let root: Node = o;
+  while (root.parent !== null) root = root.parent;
+  return pathOf(root, o);
+});

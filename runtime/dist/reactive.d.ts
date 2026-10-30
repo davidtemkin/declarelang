@@ -131,6 +131,7 @@ export declare class Cell {
 /** Which flush pass a constraint runs in: values first, then draw
  *  re-records — so a draw body always records against settled attributes. */
 export type Phase = 0 | 1;
+export declare function setAddressOf(f: (o: object) => string | null): void;
 /** A standing computation: `compute` runs with read-tracking on, `apply`
  *  lands the result with tracking off (its writes *invalidate* dependents;
  *  they must never register as dependencies). On the tracking path the

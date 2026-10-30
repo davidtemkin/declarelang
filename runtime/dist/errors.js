@@ -101,6 +101,9 @@ export function emptyContainerMessage(parentClass, size, childClass) {
     const most = size === "height" ? "as tall as the tallest" : "as wide as the widest";
     return diag `${parentClass}.${size} is 0 — it takes its ${size} from its children, and every one of them (${childClass}) takes its ${size} from it, so nothing decides it. To make them ${most}, use align = stretch on ${parentClass}'s layout; or give ${parentClass} a ${size}.`;
 }
+export function placedFromParentMessage(parentClass, size, childClass, pos) {
+    return diag `${parentClass}.${size} is only its padding — it takes its ${size} from its children, and ${childClass} places itself in it (${pos} = center or end), which counts it out, so it hangs outside ${parentClass}. Give ${parentClass} a ${size}, or let its layout place ${childClass} (a Spacer on each side centers it in a row).`;
+}
 /** The checker's form: what the layout places is known from the source, so the
  *  message can also say HOW the author gets what they meant. `kind` is why the
  *  layout places this attribute — along its flow, across it by `align` (a

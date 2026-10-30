@@ -635,6 +635,7 @@ export class Layout extends Node {
         if (id < 0)
             return why("kernel refused: " + id);
         const k = new Constraint(label, () => undefined, () => { }, 0, false);
+        k.owner = this.view;
         k.adoptRule(id);
         k.arrangedBy = arranger;
         // a child went out of the plane mid-run: re-install at the settle's close,
@@ -801,6 +802,7 @@ export class Layout extends Node {
                     }
                 });
                 pass.arrangedBy = arranger;
+                pass.owner = this.view; // the arranged view, not its first child: where a message says it is
                 for (const c of passClaims) {
                     this.$claim(c.child, c.slot, pass);
                     installed.push({ child: c.child, slot: c.slot, k: pass });

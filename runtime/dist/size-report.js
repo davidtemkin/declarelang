@@ -6,7 +6,7 @@
 import { View } from "./view.js";
 import { afterSettle } from "./reactive.js";
 import { cellIdsOf, isSet, ownerOf, percentOwned } from "./attributes.js";
-import { emptyContainerMessage, negativeSizeMessage } from "./errors.js";
+import { emptyContainerMessage, negativeSizeMessage, placedFromParentMessage } from "./errors.js";
 import { declareName } from "./declare-name.js";
 /** A CHILD SIZED FROM A PARENT THAT HAS NO SIZE TO GIVE is reported
  *  (docs/system-design/layout-ownership.md §4). A child whose size is derived
@@ -94,13 +94,22 @@ export function judgeEmptyContainers(root) {
             const o = ownerOf(v, axis);
             if (!(o === null ? !isSet(v, axis) : o.isAutoExtent || o.readsAny(new Set(kids.flatMap(cellIdsOf)))))
                 continue;
-            if (!kids.every((c) => percentOwned(c, axis)))
-                continue; // and every child takes its size from the view
+            // every child takes its size from the view — or its place (`x = center`),
+            // which counts it out as surely: the view is its padding, and they hang outside
+            // (a padded one: an unpadded view of no size is a point, and a label
+            // centred on a point is meant)
+            const pos = axis === "width" ? "x" : "y";
+            const padded = (v[axis === "width" ? "$insetX" : "$insetY"] ?? 0) > 0;
+            if (!kids.every((c) => percentOwned(c, axis) || (padded && percentOwned(c, pos))))
+                continue;
             const key = `${declareName(v)}.${axis}`;
             if (said.has(key))
                 continue;
             said.add(key);
-            console.error("[Declare] " + emptyContainerMessage(declareName(v), axis, declareName(kids[0])));
+            const placed = kids.find((c) => !percentOwned(c, axis));
+            console.error("[Declare] " + (placed === undefined
+                ? emptyContainerMessage(declareName(v), axis, declareName(kids[0]))
+                : placedFromParentMessage(declareName(v), axis, declareName(placed), pos)));
         }
         for (const c of kids)
             walk(c);

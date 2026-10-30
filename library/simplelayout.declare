@@ -57,19 +57,21 @@ split evenly — falling back to the **line**, the tallest (widest) laid child's
 that derives its own cross size from these very children (reading an extent this
 arrangement feeds would be a cycle, and on such a view the line *is* that extent). A
 child wider than the band keeps the line, so it never hangs out both sides.
-`stretch` makes every child its content sizes as large as the line across the
-flow — the row as tall as its tallest child, a menu's items as wide as its widest —
-within each child's range; a child that states its own size keeps it (an avatar of
-32 beside bubbles that stretch). The line is counted from each child's content, so
-it shrinks again when the tallest one does.
+`stretch` makes every child its content sizes fill the band across the flow, within
+each child's range: on a view with a cross size of its own, that size — a row of panes
+as tall as the row, a scrolling pane held to the page whatever it holds; on a view sized
+by these children, the line — the row as tall as its tallest child, a menu's items as
+wide as its widest. A child that states its own size keeps it (an avatar of 32 beside
+bubbles that stretch). The line is counted from each child's content, so it shrinks
+again when the tallest one does.
 `baseline` — a row only — sits every child on one
 baseline: a `Text` reports its own, and a composite **declares** which part carries it
 (`baseline: number = { cap.y + cap.baseline }`); a laid child that declares none is
 refused by name, at the child, and the checker says so before anything runs. A
 flexing child is aligned like any other (a `Spacer` declares a baseline of 0, so a
 baseline row takes it as it is). A row of figures and words that must wrap when the view
-is narrow — "4 sessions · 3h 40m" on a phone — is a `WrappingLayout [ align = baseline ]`,
-which keeps each line on its own baseline. A bare literal.
+is narrow is a `WrappingLayout [ align = baseline ]`, which keeps each line on its own
+baseline. A bare literal.
 
 ## place()
 The whole strategy: one box per laid child, positioned along the axis in child order.
@@ -224,8 +226,10 @@ class SimpleLayout extends Layout [
             }
             // `start` places at the band's origin and `baseline` on the shared
             // line — neither reads the band, so only center/end ask for it
-            // a view with a cross size of its own: center, end and stretch work in it
-            if (al == "center" || al == "end" || al == "stretch") line = Math.max(line, this.viewExtent(crossSize))
+            // a view with a cross size of its own: center and end work in it, and
+            // stretch fills it — a scroller held to the page, not grown to its content
+            if (al == "center" || al == "end") line = Math.max(line, this.viewExtent(crossSize))
+            else if (al == "stretch") { const band = this.viewExtent(crossSize); if (band > 0) line = band }
         }
 
         let pos = 0

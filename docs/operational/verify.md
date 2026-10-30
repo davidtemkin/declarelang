@@ -146,10 +146,16 @@ is an assert script, below — and it stays behind as a test.
 ## Writing an assert script
 
 `--assert` takes a module whose default export receives `{ drive, expect, page }` (throw to
-fail the rung). `drive` and `expect` are the vocabulary: everything a check of a flow needs
-is in them, and there is no reason to build a browser harness of your own. `page` is the
-browser page the app is loaded in, for the rare question they do not ask — a computed style,
-what holds the browser's focus; `declare-look --js` is the same door for a one-off question.
+fail the rung). Everything a check of a flow needs is in them, and there is no reason to
+build a browser harness of your own. `drive` and `expect` work by view path (below). `page`
+is the page the app is loaded in, with Playwright's locators on it —
+`page.getByRole("button", { name: "Pay" }).click()`, `getByLabel("Email").fill(…)`,
+`getByText`, `getByPlaceholder`, with `first()`, `nth(i)`, `count()`, `isVisible()`,
+`isChecked()`, `inputValue()`, `waitFor()` — finding what a person finds, strict when two
+match, and acting through the driver: a real press (a finger on a touch device), then the
+program settles, as after a `drive` verb. The rest of `page` is Puppeteer's, for the rare
+question neither asks — a computed style, what holds the browser's focus; `declare-look
+--js` is the same door for a one-off question.
 Its scrollbars are real ones, the classic bar Windows and Linux draw, so a script can grab a
 thumb with the page's mouse and drag it as a person would.
 
@@ -234,7 +240,7 @@ user's scroll coming to rest, keep real time; only the program's time is the dri
 | `drive.waitReal(ms)` | `ms` of **real** time, then the program's clock catches up — for what runs on the world's clock: a service's timed messages, a socket's schedule |
 | `drive.settleMotion(maxMs?)` | motion run to rest, frame by frame; loops that never end (`repeat = { Infinity }`, a `Time`) do not hold it |
 | `drive.settleData()` | the network gone quiet |
-| `expect.attr(path, attr, expected)`, `expect.approx(path, attr, expected, tol?)`, `expect.text(path, contains)` (the view's text, or a row's or card's: all its visible descendants' together), `expect.visible(path)` (shown: its own `visible` and every view's above it, with a size — failing, it names what hides it), `expect.hidden(path)` (a path that names nothing fails), `expect.exists(path)`, `expect.count(path, kind, n)`, `expect.equal(a, b)` | assertions: each fails the rung with what it found |
+| `expect.attr(path, attr, expected)`, `expect.approx(path, attr, expected, tol?)`, `expect.text(path, contains)` (the view's text, or a row's or card's: all its visible descendants' together, rich text included), `expect.visible(path)` (shown: its own `visible` and every view's above it, with a size — failing, it names what hides it), `expect.hidden(path)` (a path that names nothing fails), `expect.exists(path)`, `expect.count(path, kind, n)`, `expect.equal(a, b)` | assertions: each fails the rung with what it found |
 | `expect.explain(path, attr)` | why an attribute holds its value — an assertion about structure, not a number |
 | `expect.traceStart(n?)`, `expect.trace()`, `expect.traceText()` | the runtime's own record of what it did |
 

@@ -195,11 +195,12 @@ The default space between children, overridable per plan entry.
 ## align
 Where children sit **across the flow** — `y` in a row, `x` in a stack: `start` (the
 default), `center`, `end`, `baseline`, or `stretch`, which makes every child its content
-sizes as large as the line, as `SimpleLayout`'s does — a row of panels as tall as the
-tallest, and in a stack every band as wide as the widest (a band a share sizes keeps it). A bare literal here; a plan entry overrides
-it with a string (`align: "center"`). `center` and `end` work in the **band**: the
-view's own cross content extent, or the tallest (widest) laid child on a view that sizes
-itself from these very children — the same band as `SimpleLayout`'s `align`.
+sizes fill the band, as `SimpleLayout`'s does — a row of panels as tall as the row, or as
+the tallest on a row sized by them; in a stack every band as wide (a band a share sizes
+keeps it). A bare literal here; a plan entry overrides it with a string (`align:
+"center"`). `center`, `end` and `stretch` work in the **band**: the view's own cross
+content extent, or the tallest (widest) laid child on a view that sizes itself from these
+very children — the same band as `SimpleLayout`'s `align`.
 `baseline` sits every child of a row on one text line, each child declaring its own
 (a `Text` does; a composite says which part carries it), and is refused on a stack
 tier, which has no line. **There is no `none`**: this layout places the cross axis in
@@ -429,7 +430,8 @@ class ResponsiveLayout extends Layout [
             const b = (c as any).baseline
             if (onBaseline && typeof b == "number") lineBase = Math.max(lineBase, b)
         }
-        if (al == "center" || al == "end" || al == "stretch") line = Math.max(line, this.viewExtent(crossSize))
+        if (al == "center" || al == "end") line = Math.max(line, this.viewExtent(crossSize))
+        else if (al == "stretch") { const band = this.viewExtent(crossSize); if (band > 0) line = band }
         const across = (c) => {
             let o = 0
             if (al == "center") o = (line - crossExt(c)) / 2

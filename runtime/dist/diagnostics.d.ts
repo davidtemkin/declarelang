@@ -93,6 +93,7 @@ export declare const Diag: {
     writeToComputedDataset: (name: string, verb: string, pos: Pos) => DeclareError;
     tangledConstraint: (attr: string, depth: number, parts: number, pos: Pos) => DeclareError;
     rangeWithoutEffect: (owner: string, range: string, size: string, pos: Pos) => DeclareError;
+    keyDownWithoutSuper: (owner: string, pos: Pos) => DeclareError;
     accessibilityDrawnFocusable: (owner: string, pos: Pos) => DeclareError;
     afterInValue: (pos: Pos) => DeclareError;
     scriptWrite: (name: string, pos: Pos) => DeclareError;

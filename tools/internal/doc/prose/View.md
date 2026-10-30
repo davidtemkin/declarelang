@@ -1317,7 +1317,10 @@ leaves when its record does.
 The members keyboard traversal descends into from this view. **Override it to gate
 traversal** — a closed `Accordion` pane returns none, which is what stops Tab from
 reaching content the user cannot see, since a closed pane is clip-occluded rather than
-hidden. Compose with `tabDefault()` rather than rebuilding the list.
+hidden. Compose with `tabDefault()` rather than rebuilding the list. The list may also
+name views further down, in the order Tab should take them — a toolbar's search field,
+then the list below it, then the toolbar's other buttons — and Tab enters each as it would
+on its own.
 
 ```declare-fragment
 tabOrder() { return open ? this.tabDefault() : [] }

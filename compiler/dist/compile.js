@@ -692,6 +692,15 @@ function idiomDiagnostics(program, schemas) {
                     warnings.push(Diag.buttonPressOverride(decl !== undefined ? decl.name : el.tag, m.pos));
             }
         }
+        // 4031 — an onKeyDown on a Control that never hands on to the control's own:
+        // Space and Enter stop pressing it, and the arrows stop moving in its group,
+        // in silence (the handler replaces, it does not add).
+        if (receiving !== undefined && descendsFrom(receiving, "Control")) {
+            for (const m of el.methods) {
+                if (m.name === "onKeyDown" && !/\bsuper\s*\.\s*onKeyDown\s*\(/.test(m.body))
+                    warnings.push(Diag.keyDownWithoutSuper(decl !== undefined ? decl.name : el.tag, m.pos));
+            }
+        }
         // 4012 — an Animator (or AnimatorGroup) nothing can start. A class body is
         // a definition and is skipped: the use site is where `started` is set.
         if (decl === undefined) {

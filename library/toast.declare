@@ -2,8 +2,9 @@
 # Toast
 
 A short message that appears at the bottom of its context and goes away by itself — "Saved",
-"Copied", "Message deleted · Undo". It takes no focus and blocks nothing: presses beside it
-go where they were aimed, and it stays above an open dialog, still clickable. An optional
+"Copied", "Message deleted · Undo". It takes no focus and blocks nothing: presses beside it,
+and on its message, go where they were aimed, and it stays above an open dialog or sheet,
+its action still clickable. An optional
 action record (`{ id, label }`) adds one button; its id arrives at `picked`.
 
 ```declare

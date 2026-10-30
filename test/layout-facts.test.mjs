@@ -112,6 +112,29 @@ await test("align = stretch: a row is as tall as its tallest child, and a child 
   assert.equal(g["app.row.capped"][3], 50, "a stretch stays within the child's range");
 });
 
+await test("align = stretch on a view with a height of its own fills it: a scrolling pane is held to the row, whatever it holds", () => {
+  const g = layOut("stretch-band", `App [ width = 600, height = 400, layout: SimpleLayout [ axis = y ],
+    top: View [ width = 100%, height = 40 ],
+    row: View [ width = 100%, flexes = true, layout: SimpleLayout [ axis = x, align = stretch ],
+        side: View [ width = 120 ],
+        main: View [ flexes = true, scrolls = y, View [ width = 100, height = 1000 ] ] ] ]`);
+  assert.equal(g["app.row"][3], 360, "the row is what is left");
+  assert.equal(g["app.row.main"][3], 360, "the scroller is the row's height, not its content's 1000");
+  assert.equal(g["app.row.side"][3], 360, "and so is the panel beside it");
+});
+
+await test("one align = stretch holds when a constraint turns the row into a column: the flexing pane fills across either way", () => {
+  const src = (w) => `App [ width = ${w}, height = 500, narrow: boolean = { app.width < 500 },
+    row: View [ width = 100%, height = 100%, layout: SimpleLayout [ axis = { app.narrow ? "y" : "x" }, align = stretch ],
+        side: View [ width = 120, height = 80 ],
+        main: View [ flexes = true, scrolls = y, View [ width = 100, height = 1000 ] ] ] ]`;
+  const wide = layOut("stretch-flip-wide", src(800));
+  assert.deepEqual([wide["app.row.main"][2], wide["app.row.main"][3]], [680, 500], "a row: the room left, and the row's height");
+  const narrow = layOut("stretch-flip-narrow", src(400));
+  assert.deepEqual([narrow["app.row.main"][2], narrow["app.row.main"][3]], [400, 420], "a column: the column's width, and the room left");
+  assert.equal(narrow["app.row.side"][2], 120, "a child that states its width keeps it");
+});
+
 await test("a layout of your own reads the same facts: stretch any child its content sizes, and the view is as large as what it placed", () => {
   const g = layOut("own", `App [ width = 600, height = 300,
     row: View [ layout: EqualRow [ ],

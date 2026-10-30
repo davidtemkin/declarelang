@@ -386,6 +386,10 @@ export const Diag = {
   // it bounds nothing, and the cap the author meant is ordinary arithmetic.
   rangeWithoutEffect: (owner: string, range: string, size: string, pos: Pos): DeclareError =>
     err(code4(4030), `${owner}.${range} has no effect here — a range bounds the ${size} ${owner === "App" ? "the host gives an app" : "a layout gives a view (a share, a shrink, a stretch)"}, and ${owner} states its own ${size}. To cap a stated ${size}, write it: ${size} = { Math.${range.startsWith("max") ? "min" : "max"}(900, parent.${size}) }`, pos),
+  // A WARNING: an onKeyDown on a Control that never hands on to the control's
+  // own. A handler replaces the base's, so the keys it does not take stop working.
+  keyDownWithoutSuper: (owner: string, pos: Pos): DeclareError =>
+    err(code4(4031), `onKeyDown on ${owner} replaces Control's own — Space and Enter no longer press it, and the arrows no longer move in its group. Hand on the keys you do not take: else super.onKeyDown(e)`, pos),
   accessibilityDrawnFocusable: (owner: string, pos: Pos): DeclareError =>
     err(code4(4018), `${owner} draws itself and takes the focus, but has no accessibilityRole — what it draws is pixels, not anything a screen reader can read. Give it the role it plays and the facts that role reads, or make it a Control`, pos),
   afterInValue: (pos: Pos): DeclareError =>
@@ -537,6 +541,7 @@ export const DIAGNOSTIC_CATALOG: ReadonlyArray<{ code: string; phase: DiagPhase;
   { code: code4(4028), phase: "name", summary: "a State's own member read bare in an override value, which runs on the view" },
   { code: code4(4029), phase: "name", summary: "a method in a State that the State does not have — a State cannot change the view's methods" },
   { code: code4(4030), phase: "name", summary: "a size range beside a size the view states itself, where it bounds nothing (warning)" },
+  { code: code4(4031), phase: "name", summary: "an onKeyDown on a Control that never calls super.onKeyDown — Space, Enter and the arrows stop (warning)" },
   { code: code4(4027), phase: "name", summary: "a control hidden from a screen reader that the keyboard still reaches (warning)" },
   { code: code4(4025), phase: "name", summary: "a constraint whose decisions are nested three deep, or one condition with four or more parts (warning)" },
   { code: code4(4014), phase: "name", summary: "afterDelay() in a { } value — a value computes and never waits" },

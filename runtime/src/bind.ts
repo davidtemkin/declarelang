@@ -12,7 +12,7 @@
 import { deferral } from "./boot-deferrals.js";
 import { DeclareError, type Pos } from "./errors.js";
 import { Constraint, kernel, touchCell, readsCellDuring } from "./reactive.js";
-import { defaultOf, hasSlot, markPercent, setPercentMark, own, release, setBound, provideWrite, computingProvision, slotCellOf, writeOwned, isSetOrOwned, ownerOf, kernelLanding } from "./attributes.js";
+import { defaultOf, hasSlot, markPercent, setPercentMark, own, release, setBound, provideWrite, computingProvision, slotCellOf, writeOwned, isSetOrOwned, ownerOf, kernelLanding, defaultIsLive } from "./attributes.js";
 import { KERNEL_FLAG } from "./kernel-loader.js";
 import { watchingContentRead } from "./size-probe.js";
 import { compileExpr, bodyLabel, type ExprFn } from "./expr.js";
@@ -397,7 +397,8 @@ export function bindConstraint(
   // is a slot the program rebinds) cannot be prewired: the edge would be bound
   // on whatever the slot held at link time, and stay there when it changed.
   // Such a constraint runs on the tracking path, which subscribes afresh each run.
-  const rebindable = deps !== undefined && deps.some((p) => readsThroughSlot(view, classroot, p));
+  // …and so is one that reads a slot whose default is evaluated at each read
+  const rebindable = deps !== undefined && deps.some((p) => readsThroughSlot(view, classroot, p) || readsLiveDefault(view, classroot, p));
   // ITEMIZED PROFILING (profile.ts): every rule runs in JavaScript, so each run is
   // counted and named — slower, and for profiling only; read once, before boot
   const expr = plan !== null && !byBranch && !rebindable && !ITEMIZE ? plan.expr : null;
@@ -482,6 +483,24 @@ function readsThroughSlot(view: Node, classroot: View | null, path: string): boo
     node = (node as Record<string, unknown>)[seg];
   }
   return false;
+}
+
+/** Does a read-path end on a slot whose `{ }` default is evaluated at each read
+ *  (a schema-typed or readonly declaration: no standing rule)? Its reader takes
+ *  on the default's own reads, which a fixed edge set would freeze as the link
+ *  found them — a read behind a branch or a closure not taken then never wired
+ *  (`saved: Card? = { cards.find((c) => c.id == pick) ?? null }` read while
+ *  `cards` was empty never reads `pick`). */
+function readsLiveDefault(view: Node, classroot: View | null, path: string): boolean {
+  if (path.startsWith(":")) return false;
+  const segs = path.split(".");
+  if (segs.length < 2) return false;
+  let node: unknown = segs[0] === "this" ? view : segs[0] === "parent" ? view.parent : segs[0] === "classroot" ? classroot : undefined;
+  for (let i = 1; i < segs.length - 1; i++) {
+    if (typeof node !== "object" || node === null) return false;
+    node = (node as Record<string, unknown>)[segs[i]];
+  }
+  return typeof node === "object" && node !== null && defaultIsLive(node, segs[segs.length - 1]);
 }
 
 /** Bind `name = :path` (a value slot reading data, language §9): a standing

@@ -71,6 +71,9 @@ export declare function initInteraction(test: (n: unknown) => n is InteractionVi
 /** The view a view PAINTS in (planes.md §3.1): its `paintsIn` when that is not
  *  its parent, else its parent. Paint, hit and root geometry follow it. */
 export declare function paintParentOf(v: InteractionView): InteractionView | null;
+/** Does `a` paint above `b` — later along the paint tree, where their paths from
+ *  the root part? null when they share no root (one in a hosted program). */
+export declare function paintsAbove(a: InteractionView, b: InteractionView): boolean | null;
 /** Some view's box, place, transform, scroll, clip or children changed. */
 export declare function markGeometry(): void;
 /** The view a real press at this point would reach — `hitAt` passing over views

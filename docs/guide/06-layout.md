@@ -126,24 +126,28 @@ App [ width = 320, height = 200, fill = white, textColor = black,
     layout: SimpleLayout [ axis = y ],
     header: View [ width = 100%, height = 36, fill = steelblue ],
     body: View [ width = 100%, flexes = true,
-        layout: SimpleLayout [ axis = x ],
-        list: View [ height = 100%, flexes = true, fill = whitesmoke,
+        layout: SimpleLayout [ axis = x, align = stretch ],
+        list: View [ flexes = true, scrolls = y, fill = whitesmoke,
             Text [ x = 12, y = 12, text = "the list takes what is left" ]
             ],
-        rail: View [ width = 90, height = 100%, fill = gainsboro ]
+        rail: View [ width = 90, fill = gainsboro ]
         ],
     footer: View [ width = 100%, height = 28, fill = lightsteelblue ]
     ]
 ```
 
 Resize the window and only `body` and `list` change size; nothing computes a height by
-subtracting the others. An empty flexing view is a [`Spacer`](declare-docs:Spacer): one
+subtracting the others. The list scrolls what it holds and stays the size it is given. An empty flexing view is a [`Spacer`](declare-docs:Spacer): one
 between two groups in a row pushes them apart, and one on each side centers the run.
 
-Across the flow, the same holds. Only the layout sees all its children, so "as tall as the
-tallest" is asked of it: `align = stretch` makes every child whose size comes from its
-content as large as the largest — a row as tall as its tallest child, a menu's items as
-wide as its widest. A child that states its own size keeps it.
+Across the flow, the same holds. Only the layout sees all its children, so filling the
+row is asked of it: `align = stretch` makes every child whose size comes from its content
+fill the view across — the panes of a row as tall as the row, as in the frame above. On a
+view sized by these very children there is nothing to fill but the largest of them, so
+it means "as tall as the tallest": a menu's items as wide as its widest. A child that
+states its own size keeps it. Because stretch is a fact about the arrangement rather than
+about either axis, it still holds when a constraint turns the row into a column on a
+narrow screen.
 
 A size a class sets is a default, like anything else a class sets, and a default gives way
 to the layout. A class that fills its column with `width = 100%` still flexes when a use

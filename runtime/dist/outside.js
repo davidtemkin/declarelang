@@ -27,7 +27,7 @@
 // overlay (`focusScope = modal`, a sheet): it is its context's, so a press in
 // another window goes on and the sheet stays.
 import { View, fireEvent } from "./view.js";
-import { leafAt, paintParentOf, rootToLocal } from "./interaction.js";
+import { leafAt, paintParentOf, paintsAbove, rootToLocal } from "./interaction.js";
 /** The open overlays, oldest first. */
 const OPEN = [];
 const policyOf = (v) => v.outsidePress !== "none" || v.scrollBelow !== "none";
@@ -49,7 +49,11 @@ export function noteOverlay(v) {
     else if (!open && i >= 0)
         OPEN.splice(i, 1);
 }
-/** The open overlays, top first, that are really shown. */
+/** The open overlays, top first, that are really shown. Top is PAINT order,
+ *  not the order they opened in: a toast said in the press that opens a sheet
+ *  opens first and still paints above it (its stratum is higher), and a press
+ *  on the toast must be the toast's, not a press outside the sheet. Overlays
+ *  with no common root (one in a hosted program) keep the order they opened in. */
 function openTopFirst() {
     // one torn down while open (its program unmounted) is no longer open
     for (let i = OPEN.length - 1; i >= 0; i--)
@@ -59,6 +63,18 @@ function openTopFirst() {
     for (let i = OPEN.length - 1; i >= 0; i--)
         if (shown(OPEN[i]))
             out.push(OPEN[i]);
+    if (out.length > 1) {
+        // stable insertion by paint order: an overlay moves up past those it paints above
+        for (let i = 1; i < out.length; i++) {
+            const v = out[i];
+            let j = i;
+            while (j > 0 && paintsAbove(v, out[j - 1]) === true) {
+                out[j] = out[j - 1];
+                j--;
+            }
+            out[j] = v;
+        }
+    }
     return out;
 }
 /** The context an overlay belongs to: the nearest region above the view it

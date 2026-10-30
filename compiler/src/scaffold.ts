@@ -1249,6 +1249,9 @@ export function shapeFieldTsType(f: SchemaDecl["fields"][number]): string {
   return f.array ? (f.tokens !== undefined && f.tokens.length > 1 ? `(${base})[]` : `${base}[]`) : base;
 }
 
+// An optional field may be absent or null — JSON's two spellings of "none", one
+// field in the schema (`km?: number` is `km: number | null`), so a record the
+// program builds with `km: cond ? 3 : null` fits it, as the service's own do.
 export function shapeObjectText(fields: readonly SchemaDecl["fields"][number][]): string {
-  return `{ ${fields.map((f) => `${f.name}${f.optional ? "?" : ""}: ${shapeFieldTsType(f)}`).join("; ")} }`;
+  return `{ ${fields.map((f) => `${f.name}${f.optional ? "?" : ""}: ${shapeFieldTsType(f)}${f.optional ? " | null" : ""}`).join("; ")} }`;
 }

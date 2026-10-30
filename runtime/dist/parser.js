@@ -1137,6 +1137,10 @@ class Parser {
                 this.next();
                 field.array = true;
             }
+            if (field.array && this.peek().kind === "lbracket" && this.peekAt(1).kind === "rbracket") {
+                const t = field.ref ?? field.type ?? "[ … ]";
+                throw new DeclareError(`'${name.text}: ${t}[][]' — a schema field is one array deep: a list of lists is a list of records ('${name.text}[]: Row', with 'schema Row [ items[]: ${t} ]'), or 'any' when the program only passes it along`, this.peek().pos);
+            }
             if (this.peek().kind === "query") {
                 this.next();
                 field.optional = true;

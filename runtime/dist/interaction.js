@@ -152,6 +152,26 @@ export function paintParentOf(v) {
         return p;
     return isView(v.parent) ? v.parent : null;
 }
+/** Does `a` paint above `b` — later along the paint tree, where their paths from
+ *  the root part? null when they share no root (one in a hosted program). */
+export function paintsAbove(a, b) {
+    const path = (v) => {
+        const out = [];
+        for (let n = v; n !== null; n = paintParentOf(n))
+            out.unshift(n);
+        return out;
+    };
+    const pa = path(a), pb = path(b);
+    if (pa[0] !== pb[0])
+        return null;
+    let i = 0;
+    while (i < pa.length && i < pb.length && pa[i] === pb[i])
+        i++;
+    if (i === pa.length || i === pb.length)
+        return pa.length > pb.length; // one holds the other: the inner paints on top
+    const kids = paintChildren(pa[i - 1]);
+    return kids.indexOf(pa[i]) > kids.indexOf(pb[i]);
+}
 /** A view's children as painted: its own, less those that paint elsewhere,
  *  then the views painting in it though declared elsewhere, in entry order. */
 function paintChildren(v) {

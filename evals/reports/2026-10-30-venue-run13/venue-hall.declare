@@ -1,0 +1,350 @@
+/*
+# The Venue: the hall
+
+The Grand Hall as a room: a stage everything faces, four sections climbing away
+from it, rows that curve around it, seats along the rows. It is a scene, so
+hand-placed `x` and `y` are right here: every seat's place is a function of its
+row's radius, its index and the row's length (`planHall` in venue-data.declare),
+scaled by `app.unit`, the pixels in one seat's pitch.
+
+The map replicates the seat map's own nesting — sections, rows, seats — so a
+seat's view is bound to its record, and a sale written into that record
+(`SeatMap.take`) changes exactly one seat.
+
+A seat has three states, told apart by shape as well as colour: free is a
+solid disc in its section's tone, theirs is a ring in the accent holding a
+check, gone is a small cross.
+*/
+
+// ── A seat ──────────────────────────────────────────────────────────────────
+//
+// A seat is a control: a press or Space chooses it and unchooses it. Its box
+// is the whole pitch, so a finger aimed at a seat lands on it; the drawing is
+// smaller. Its name is where it is; its hint is what it costs and whether it
+// is free.
+
+class SeatSpot extends Control [
+    seatId: string = { :id ?? "" },
+    num: number = { :number ?? 0 },
+    gone: boolean = { :status == "sold" },
+    mine: boolean = { app.chosen.includes(classroot.seatId) },
+
+    // what the row and section say about where it is
+
+    row: RowLine = { parent as RowLine },
+    radius: number = { classroot.row.radius },
+    count: number = { classroot.row.count },
+    section: SectionBand = { classroot.row.band },
+
+    width = { app.unit * 1.08 },
+    height = { app.unit * 1.12 },
+    x = { (app.plan.ox + seatUX(classroot.radius, rowIndex, classroot.count)) * app.unit - this.width / 2 },
+    y = { (app.plan.oy + seatUY(classroot.radius, rowIndex, classroot.count)) * app.unit - this.height / 2 },
+
+    disabled = { classroot.gone },
+    accessibilityRole = toggle,
+    accessibilityLabel = { seatName(classroot.section.name, classroot.row.name, classroot.num) },
+    accessibilityPressed = { classroot.mine },
+    accessibilityHint = { money(classroot.section.price) + (classroot.gone ? ", taken" : classroot.mine ? ", chosen" : ", available") },
+    press() { app.toggleSeat(classroot.seatId) },
+    focusShape() -> object {
+        const r = app.unit * 0.5
+        return ({ x: this.width / 2 - r, y: this.height / 2 - r, w: r * 2, h: r * 2, rad: r })
+        },
+
+    // The hall is one Tab stop (`focusScope`). Inside it, Left and Right walk
+    // the free seats along the rows; Up and Down go to the nearest free seat
+    // in the row in front or behind. Space and Enter are the control's own.
+
+    onKeyDown(e: KeyEvent) {
+        if (e.key == "ArrowLeft") app.hall.map.stepSeat(this, -1)
+        else if (e.key == "ArrowRight") app.hall.map.stepSeat(this, 1)
+        else if (e.key == "ArrowUp") app.hall.map.stepRow(this, -1)
+        else if (e.key == "ArrowDown") app.hall.map.stepRow(this, 1)
+        else super.onKeyDown(e)
+        },
+
+    // Choosing registers: the ring lands a little large and settles.
+
+    pop: number = 0,
+    Spring [ attribute = pop, to = { classroot.mine ? 1 : 0 }, stiffness = 520, damping = 16 ],
+
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const cx = this.width / 2
+        const cy = this.height / 2
+        const r = app.unit * 0.4
+        if (gone) {
+            const k = r * 0.42
+            d.strokeStyle = t.seatGone
+            d.lineWidth = Math.max(1.2, app.unit * 0.08)
+            d.lineCap = "round"
+            d.beginPath()
+            d.moveTo(cx - k, cy - k); d.lineTo(cx + k, cy + k)
+            d.moveTo(cx + k, cy - k); d.lineTo(cx - k, cy + k)
+            d.stroke()
+            return
+            }
+        if (pop > 0.02) {
+            // theirs: a ring in the accent, a disc inside it, a white check
+            const s = r * (0.85 + 0.25 * pop)
+            d.globalAlpha = Math.min(1, pop)
+            d.fillStyle = t.accent
+            d.beginPath(); d.arc(cx, cy, s, 0, Math.PI * 2); d.fill()
+            d.strokeStyle = t.background
+            d.lineWidth = Math.max(1.4, app.unit * 0.09)
+            d.lineCap = "round"; d.lineJoin = "round"
+            d.beginPath()
+            d.moveTo(cx - s * 0.45, cy + s * 0.02)
+            d.lineTo(cx - s * 0.12, cy + s * 0.36)
+            d.lineTo(cx + s * 0.48, cy - s * 0.34)
+            d.stroke()
+            d.strokeStyle = t.accent
+            d.lineWidth = Math.max(1, app.unit * 0.06)
+            d.beginPath(); d.arc(cx, cy, s + Math.max(2, app.unit * 0.12), 0, Math.PI * 2); d.stroke()
+            d.globalAlpha = 1
+            if (pop > 0.98) return
+            }
+        // free: a disc in the section's tone, faded as theirs arrives
+        d.globalAlpha = 1 - Math.min(1, Math.max(0, pop))
+        d.fillStyle = section.tone
+        d.beginPath(); d.arc(cx, cy, r * (hovered ? 1.12 : 1), 0, Math.PI * 2); d.fill()
+        d.globalAlpha = 1
+        }
+    ]
+
+
+// ── A row ───────────────────────────────────────────────────────────────────
+//
+// A row is a layer the size of the hall holding its seats, with its letter at
+// each end. It reads its radius from the plan by its place in its section.
+
+class RowLine [ width = 100%, height = 100%,
+    band: SectionBand = { parent as SectionBand },
+    name: string = { :name ?? "" },
+    count: number = { (:seats ?? []).length },
+    radius: number = { app.plan.radii[classroot.band.index]?.[rowIndex] ?? 0 },
+    letterSize: number = { Math.max(9, Math.min(13, app.unit * 0.52)) },
+
+    // the letters, just past each end of the row
+
+    Text [ accessibilityHidden = true, fontSize = { classroot.letterSize }, fontWeight = semibold,
+        textColor = { provided("theme").textFaint }, text = { classroot.name },
+        x = { (app.plan.ox + seatUX(classroot.radius, -1.05, classroot.count)) * app.unit - this.width / 2 },
+        y = { (app.plan.oy + seatUY(classroot.radius, -1.05, classroot.count)) * app.unit - this.height / 2 } ],
+    Text [ accessibilityHidden = true, fontSize = { classroot.letterSize }, fontWeight = semibold,
+        textColor = { provided("theme").textFaint }, text = { classroot.name },
+        x = { (app.plan.ox + seatUX(classroot.radius, classroot.count + 0.05, classroot.count)) * app.unit - this.width / 2 },
+        y = { (app.plan.oy + seatUY(classroot.radius, classroot.count + 0.05, classroot.count)) * app.unit - this.height / 2 } ],
+
+    SeatSpot [ datapath = :seats[] ]
+    ]
+
+
+// ── A section ───────────────────────────────────────────────────────────────
+//
+// A section is a band of the room: a soft floor under its rows, and — for the
+// three tiers above the stalls — a rail along its front edge, where the tier
+// rises. Its tone, deepest at the front, is the colour of its free seats, so
+// the room shows at a glance where the dearer seats are.
+
+class SectionBand [ width = 100%, height = 100%,
+    index: number = { rowIndex },
+    name: string = { :name ?? "" },
+    price: number = { :priceCents ?? 0 },
+    tone: Color = { provided("theme").tones[classroot.index] ?? provided("theme").tones[0] },
+    radii: number[] = { app.plan.radii[classroot.index] ?? [] },
+    inner: number = { (classroot.radii[0] ?? 0) - 0.62 },
+    outer: number = { (classroot.radii[classroot.radii.length - 1] ?? 0) + 0.62 },
+
+    // each row's half-angle, just past its end seats
+
+    halves: number[] = { (app.seats.counts[classroot.index] ?? []).map((n, i) =>
+        Math.abs(seatAngle(-0.7, n, classroot.radii[i] ?? 1))) },
+
+    // the floor follows the rows: along the front row, down the ends of each
+    // row in turn, back along the last
+
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const u = app.unit
+        const cx = app.plan.ox * u
+        const cy = app.plan.oy * u
+        const n = radii.length
+        if (n == 0) return
+        const at = (r: number, a: number) => d.lineTo(cx + r * Math.cos(a) * u, cy + r * Math.sin(a) * u)
+        const h0 = halves[0]
+        const hn = halves[n - 1]
+        d.fillStyle = t.tints[index] ?? t.tints[0]
+        d.beginPath()
+        d.arc(cx, cy, inner * u, Math.PI / 2 - h0, Math.PI / 2 + h0)
+        for (let k = 0; k < n; k++) {
+            at(radii[k] - (k == 0 ? 0.62 : 0.56), Math.PI / 2 + halves[k])
+            at(radii[k] + (k == n - 1 ? 0.62 : 0.56), Math.PI / 2 + halves[k])
+            }
+        d.arc(cx, cy, outer * u, Math.PI / 2 + hn, Math.PI / 2 - hn, true)
+        for (let k = n - 1; k >= 0; k--) {
+            at(radii[k] + (k == n - 1 ? 0.62 : 0.56), Math.PI / 2 - halves[k])
+            at(radii[k] - (k == 0 ? 0.62 : 0.56), Math.PI / 2 - halves[k])
+            }
+        d.closePath()
+        d.fill()
+        // a tier rises from its front edge: its rail
+        if (index > 0) {
+            d.strokeStyle = tone
+            d.globalAlpha = 0.55
+            d.lineWidth = Math.max(2, u * 0.16)
+            d.lineCap = "round"
+            d.beginPath()
+            d.arc(cx, cy, inner * u, Math.PI / 2 - h0, Math.PI / 2 + h0)
+            d.stroke()
+            d.globalAlpha = 1
+            }
+        },
+
+    // its name and price, in the aisle in front of it
+
+    label: View [ accessibilityHidden = true,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
+        x = { app.plan.ox * app.unit - this.width / 2 },
+        y = { (app.plan.oy + classroot.inner - (classroot.index == 0 ? 1.0 : 0.68)) * app.unit - this.height / 2 },
+        Text [ fontSize = { app.phone ? 13 : 11 }, fontWeight = bold, letterSpacing = 1.4, textTransform = uppercase,
+            textColor = { classroot.tone }, text = { classroot.name } ],
+        Text [ fontSize = { app.phone ? 13 : 11 }, fontWeight = medium, numeralWidth = tabular,
+            textColor = { provided("theme").textMuted }, text = { money(classroot.price) } ]
+        ],
+
+    RowLine [ datapath = :rows[] ]
+    ]
+
+
+// ── The room ────────────────────────────────────────────────────────────────
+//
+// The stage, and the sections over it. One Tab stop: the arrows move among
+// the seats, and Tab lands on a seat already chosen, else the best free one.
+
+class HallMap [
+    width = { app.plan.w * app.unit },
+    height = { app.plan.h * app.unit },
+    focusScope = stop,
+    accessibilityRole = group,
+    accessibilityLabel = "Seats in the Grand Hall",
+
+    seatViews() -> SeatSpot[] {
+        const out: SeatSpot[] = []
+        for (const s of this.childViews) for (const r of (s as View).childViews) for (const v of (r as View).childViews) {
+            if (v instanceof SeatSpot) out.push(v as SeatSpot)
+            }
+        return out
+        },
+    focusEntry() -> object {
+        const all = this.seatViews()
+        return all.find((v) => v.mine) ?? all.find((v) => !v.gone) ?? null
+        },
+
+    // the next free seat along the rows, front to back
+
+    stepSeat(from: SeatSpot, dir: number) {
+        const all = this.seatViews().filter((v) => !v.gone || v === from)
+        const next = all[all.indexOf(from) + dir]
+        if (next != null) Focus.focus(next)
+        },
+
+    // the nearest seat, by where it sits, in the row before or after
+
+    stepRow(from: SeatSpot, dir: number) {
+        const all = this.seatViews().filter((v) => !v.gone)
+        const here = from.row
+        const rows: RowLine[] = []
+        for (const v of all) if (!rows.includes(v.row)) rows.push(v.row)
+        rows.sort((a, b) => a.radius - b.radius)
+        let at = rows.indexOf(here)
+        if (at < 0) {
+            at = rows.findIndex((r) => r.radius > here.radius) - (dir > 0 ? 1 : 0)
+            }
+        const next = rows[at + dir]
+        if (next == null) return
+        const cx = from.x + from.width / 2
+        let best: SeatSpot | null = null
+        for (const v of all) {
+            if (v.row !== next) continue
+            if (best == null || Math.abs(v.x + v.width / 2 - cx) < Math.abs(best.x + best.width / 2 - cx)) best = v
+            }
+        if (best != null) Focus.focus(best)
+        },
+    focusSeat(id: string) {
+        const v = this.seatViews().find((s) => s.seatId == id)
+        if (v != null) Focus.focus(v)
+        },
+
+    // the stage, drawn: a dark platform whose front curves toward the house
+
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const u = app.unit
+        const cx = app.plan.ox * u
+        const cy = app.plan.oy * u
+        const back = 3.4 * u
+        const front = 10.6
+        const a = 0.62
+        d.fillStyle = t.stage
+        d.beginPath()
+        d.moveTo(cx - 7.6 * u, cy + back)
+        d.lineTo(cx + 7.6 * u, cy + back)
+        d.lineTo(cx + front * Math.sin(a) * u, cy + front * Math.cos(a) * u)
+        d.arc(cx, cy, front * u, Math.PI / 2 - a, Math.PI / 2 + a)
+        d.closePath()
+        d.fill()
+        },
+    stageLabel: Text [ accessibilityHidden = true, fontSize = { app.phone ? 13 : 11 }, fontWeight = bold, letterSpacing = 4,
+        textColor = { provided("theme").stageText }, text = "STAGE",
+        x = { app.plan.ox * app.unit - this.width / 2 },
+        y = { (app.plan.oy + 7.4) * app.unit - this.height / 2 } ],
+
+    SectionBand [ datapath = :sections[] ]
+    ]
+
+
+// ── The house in miniature ──────────────────────────────────────────────────
+//
+// On a phone the seats are drawn at a size a thumb can hit, so the room is
+// larger than the screen. This is the whole of it at a glance, every seat a
+// dot in its state, with the part on screen outlined. A press moves the view
+// there. It draws from the data, not from the seat views, so it is one view.
+
+class MiniHall extends Control [
+    scaleBy: number = { this.height / app.plan.h },
+    width = { app.plan.w * classroot.scaleBy },
+    accessibilityLabel = "Map of the hall",
+    accessibilityHint = "Moves the seat view to that part of the hall",
+    onClick(e: PointerEvent) { app.hall.lookAt(e.x / classroot.scaleBy, e.y / classroot.scaleBy) },
+    press() { },
+
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const k = scaleBy
+        const secs = app.seats.sections()
+        secs.forEach((sec, s) => {
+            sec.rows.forEach((row, r) => {
+                const rad = app.plan.radii[s]?.[r] ?? 0
+                row.seats.forEach((seat, i) => {
+                    const x = (app.plan.ox + seatUX(rad, i, row.seats.length)) * k
+                    const y = (app.plan.oy + seatUY(rad, i, row.seats.length)) * k
+                    const mine = app.chosen.includes(seat.id)
+                    d.fillStyle = mine ? t.accent : seat.status == "sold" ? t.seatGone : t.tones[s]
+                    d.beginPath()
+                    d.arc(x, y, k * (mine ? 0.62 : seat.status == "sold" ? 0.28 : 0.4), 0, Math.PI * 2)
+                    d.fill()
+                    })
+                })
+            })
+        // the stage
+        d.fillStyle = t.stage
+        d.fillRect((app.plan.ox - 6) * k, (app.plan.oy + 3.4) * k, 12 * k, 5 * k)
+        // what the seat view shows now
+        const v = app.hall.view
+        d.strokeStyle = t.text
+        d.lineWidth = 1.5
+        d.strokeRect(v[0] * k, v[1] * k, v[2] * k, v[3] * k)
+        }
+    ]

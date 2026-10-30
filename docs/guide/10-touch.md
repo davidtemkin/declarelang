@@ -164,7 +164,12 @@ line: View [ claim = x,            // sideways is the line's; up and down still 
     onPointerDown(e: PointerEvent) { grabStart = app.start },
     onPointerMove(e: PointerEvent) { app.start = grabStart - e.deltaX * app.span / this.width },
     onPinchStart(e: PinchEvent) { grabStart = app.start; grabSpan = app.span },
-    onPinch(e: PinchEvent) { app.zoomAbout(e.x, this.width, grabStart, grabSpan, grabSpan / e.scale) }
+    onPinch(e: PinchEvent) { app.zoomAbout(e.x, this.width, grabStart, grabSpan, grabSpan / e.scale) },
+    // a trackpad pinch zooms; a sideways scroll pans
+    onWheel(e: WheelEvent) {
+        if (e.pinch) app.zoomAbout(e.x, this.width, app.start, app.span, app.span * Math.exp(e.deltaY * 0.01))
+        else app.start = app.start + e.deltaX * app.span / this.width
+        }
     ]
 ```
 

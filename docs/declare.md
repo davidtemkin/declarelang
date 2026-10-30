@@ -314,7 +314,7 @@ reactive attribute, it can be swapped, derived, or animated. **A layout places i
 places a child does not declare**: a row places `x`, `align` adds `y`, a `ResponsiveLayout` places
 both; a child that declares one anyway is refused at its line, in any spelling. A child asks the
 layout for a size by stating a fact — `flexes`, `shrinks`, a `minWidth`/`maxWidth` range — and
-`align = stretch` sizes what its content would.
+`align = stretch` makes what its content would size fill the view across.
 
 ```declare-fragment
 layout: SimpleLayout   [ axis = y, spacing = 10 ],
@@ -412,8 +412,8 @@ A `{ }` can appear on either member kind from §3 — **setting** an existing at
 **declaring** a new one — and one difference decides everything: who owns the value. A **set** attribute is owned by its
 constraint, which the runtime keeps current and guards — a direct write is refused, with a
 message naming the fix. A **computed
-default** (`segIndex: number = { … }`, a *declaration* whose default is an expression) is only a
-formula: reading it inlines the expression, and an assignment simply replaces it —
+default** (`segIndex: number = { … }`, a *declaration* whose default is an expression) is a
+formula the value follows until an assignment replaces it —
 the right tool for a value you may take over later, which is why `TextInput` offers
 `initial = { … }`, the field-owned twin of a constrained `text = { … }`, which the program
 keeps, and the user's typing only proposes to through `onInput`.
@@ -421,7 +421,7 @@ keeps, and the user's typing only proposes to through `onInput`.
 | you wrote | owned by its constraint? | reading it | assigning to it | reach for it when |
 |---|---|---|---|---|
 | `width = { … }` — **set** an existing attribute | yes | subscribes to it | **refused** at runtime | the value is simply derived and should stay that way |
-| `segIndex: number = { … }` — **declare** with a default | no | inlines the expression, so its deps become yours | lands, and the formula is gone | you may want to take the value over later |
+| `segIndex: number = { … }` — **declare** with a default | no | subscribes to it | lands, and the formula is gone | you may want to take the value over later |
 
 Either kind is worked out once and kept, and worked out again only when what it reads
 changes: reading one, however often, costs nothing. So a value that depends on several

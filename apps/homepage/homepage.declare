@@ -38,12 +38,12 @@ figures re-runs when they land.
 */
 
 script {
-    function hpLines(total?: number, code?: number, comment?: number): string {
+    function hpLines(total?: number | null, code?: number | null, comment?: number | null): string {
         if (total == null) return ""
         return total + " lines — " + code + " code, " + comment + " comment"
         }
 
-    function hpWire(wire?: number): string {
+    function hpWire(wire?: number | null): string {
         return wire == null ? "" : " · " + Math.round(wire / 1024) + " KB over the wire"
         }
     }

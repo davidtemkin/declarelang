@@ -2,11 +2,11 @@ App [ width = 320, height = 200, fill = white, textColor = black,
     layout: SimpleLayout [ axis = y ],
     header: View [ width = 100%, height = 36, fill = steelblue ],
     body: View [ width = 100%, flexes = true,
-        layout: SimpleLayout [ axis = x ],
-        list: View [ height = 100%, flexes = true, fill = whitesmoke,
+        layout: SimpleLayout [ axis = x, align = stretch ],
+        list: View [ flexes = true, scrolls = y, fill = whitesmoke,
             Text [ x = 12, y = 12, text = "the list takes what is left" ]
             ],
-        rail: View [ width = 90, height = 100%, fill = gainsboro ]
+        rail: View [ width = 90, fill = gainsboro ]
         ],
     footer: View [ width = 100%, height = 28, fill = lightsteelblue ]
     ]

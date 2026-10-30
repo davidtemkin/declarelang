@@ -289,7 +289,8 @@ function inlineText(xs: readonly Inline[]): string {
       case "strong": case "em": case "strike": case "link": return inlineText(x.inline);
       case "image": return x.alt;
       case "br": return " ";
-      default: return "";
+      // any other run that holds inline content (a styled span) is its words
+      default: return "inline" in x ? inlineText((x as { inline: readonly Inline[] }).inline) : "";
     }
   }).join("");
 }

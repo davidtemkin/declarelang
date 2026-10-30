@@ -20,7 +20,8 @@ export interface Box {
     /** A size to FILL, applied only where the child's own size on that axis is
      *  decided by its content (`sizedByContent`): never a claim, never a
      *  conflict, so a child that states its size keeps it. How `align = stretch`
-     *  makes children as tall as the tallest. `w`/`h` beside it win. */
+     *  fills the view across (or matches the tallest, on a view its children
+     *  size). `w`/`h` beside it win. */
     stretch?: {
         w?: number;
         h?: number;

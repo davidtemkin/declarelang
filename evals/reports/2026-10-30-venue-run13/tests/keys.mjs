@@ -1,0 +1,26 @@
+import { chromium } from "playwright"
+const b = await chromium.launch(); const page = await (await b.newContext({ viewport: { width: 1280, height: 800 } })).newPage()
+page.on("pageerror", (e) => console.log("PAGE ERROR", e.message))
+const K = (k) => page.keyboard.press(k)
+const where = () => page.evaluate(() => { const e = document.activeElement; return (e?.getAttribute("aria-label") ?? e?.getAttribute("name") ?? e?.textContent?.slice(0, 40) ?? e?.tagName) + " [" + (e?.getAttribute("role") ?? e?.tagName) + "]" })
+await page.goto("http://127.0.0.1:8200/my-apps/venue/venue.declare")
+await page.waitForTimeout(1500)
+for (let i = 0; i < 4; i++) { await K("Tab"); console.log("tab", await where()) }
+await K("Enter"); await page.waitForTimeout(1500)
+console.log("after enter:", await where())
+await K("Tab"); console.log("tab", await where())
+await K("ArrowRight"); console.log("right", await where())
+await K("ArrowRight"); console.log("right", await where())
+await K("ArrowDown"); console.log("down", await where())
+await K("ArrowDown"); console.log("down", await where())
+await K("ArrowUp"); console.log("up", await where())
+await K("Space"); await page.waitForTimeout(200)
+await K("ArrowRight"); await K("ArrowRight"); console.log("right2", await where())
+await K("Space"); await page.waitForTimeout(300)
+console.log("summary:", await page.getByText(/^\d seats? · /).allInnerTexts())
+for (let i = 0; i < 12; i++) { await K("Tab"); const w = await where(); console.log("tab", w); if (w.startsWith("Continue")) break }
+await K("Enter"); await page.waitForTimeout(800)
+console.log("checkout focus:", await where())
+for (let i = 0; i < 4; i++) { await K("Tab"); console.log("tab", await where()) }
+await page.screenshot({ path: "/tmp/keys.png" })
+await b.close()

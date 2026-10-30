@@ -190,7 +190,13 @@ export function tsBodySyntax(src, expression) {
     const what = expression ? "is not a valid expression" : "is not a valid method body";
     const diags = sf.parseDiagnostics;
     if (diags !== undefined && diags.length > 0) {
-        return `${what} — ${ts.flattenDiagnosticMessageText(diags[0].messageText, " ")}`;
+        const said = ts.flattenDiagnosticMessageText(diags[0].messageText, " ");
+        // `->` is a METHOD's return type; inside a body an arrow function is
+        // TypeScript, whose return type is `: T` before its `=>`
+        if (/'=>' expected/.test(said) && /\)\s*->\s*[\w\[\]<>|?. ]+=>/.test(src)) {
+            return `${what} — ${said} An arrow function in a body is TypeScript: its return type is written '(c: number): number => …', and '->' is for a method's own: name(a: T) -> R { … }`;
+        }
+        return `${what} — ${said}`;
     }
     // A digit-first `#hex` (#334455) is an "Invalid character" parse error above; a
     // letter-first one (#f00, #ff0000) lexes as a valid PrivateIdentifier and would

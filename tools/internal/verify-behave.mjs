@@ -7,6 +7,7 @@
 // suite's technique — the browser's own PNG decode, no Node-side dependency).
 // Loaded lazily by tools/verify.mjs; also the eval harness's execution seam.
 
+import { withLocators } from "./verify-locators.mjs";
 import http from "node:http";
 import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, statSync, mkdirSync } from "node:fs";
@@ -373,6 +374,19 @@ bootHost(cfg);
             }
             throw Object.assign(new VerifyAssertion(lines.join("\n")), { lines });
           });
+          // a served program that failed to compile comes up as the host's error
+          // page (library/platform-apps/error) in its place: that is the answer,
+          // said as such, never driven and checked as if it were the program
+          if (url !== null) {
+            const failed = await page.evaluate(() => {
+              const a = window.__declare?.find?.("app");
+              return a != null && typeof a.errors === "string" && typeof a.subject === "string" && a.body?.col?.retry != null ? a.errors : null;
+            }).catch(() => null);
+            if (failed !== null) {
+              const lines = ["the served program did not compile — the dev server shows its error page instead:", ...failed.split("\n").filter((l) => l.trim() !== "").map((l) => "  " + l)];
+              throw Object.assign(new VerifyAssertion(lines.join("\n")), { lines });
+            }
+          }
           // the program's own fonts: a Font starts its faces' loads as the app comes
           // up, and the browser's document.fonts.ready can resolve before they begin
           await page.waitForFunction(() => {
@@ -1301,7 +1315,12 @@ const expect = {
               for (const c of v.children ?? []) walk(c);
             };
             walk(window.__declare.find(p));
-            return words.join(" ");
+            // rich text (HTMLText, RichText) holds its words in runs, not `text`:
+            // what the semantic tree gives a screen reader says them
+            const said = [];
+            const sem = (n) => { if (n == null) return; if (n.name) said.push(n.name); if (n.value?.text) said.push(n.value.text); (n.children ?? []).forEach(sem); };
+            try { sem(window.__declare.semantics(p, true)); } catch { /* no semantic tree for this node */ }
+            return [...words, ...said].join(" ");
           }, path);
           if (!said.includes(contains)) {
             const waiting = await page.evaluate(() => globalThis.__declareTimers?.pending?.() ?? 0);
@@ -1340,7 +1359,14 @@ const expect = {
        *  stops answering, the run fails at once, naming the step it was on and
        *  the program's lines it was running. */
       const watched = (work) => watch.during(() => log.length > 0 ? `during ${log[log.length - 1]}` : "the script", work);
-      return { page, drive, expect, node, log, pageErrors, thrown, quiet, watched, checks, checkHere, asserted: () => asserted, warned };
+      // the script's page: Playwright's locators on it (getByRole, getByLabel, …),
+      // pressing through the driver's own input and settling as its verbs do
+      const scriptPage = withLocators(page, {
+        act: async (x, y) => { step(`press at (${Math.round(x)}, ${Math.round(y)})`); await press(x, y); },
+        settle: async () => { await landed(); await frames(page); },
+        advance: (ms) => page.evaluate((ms) => globalThis.__declareTimers?.advance?.(ms), ms).catch(() => {}),
+      });
+      return { page, scriptPage, drive, expect, node, log, pageErrors, thrown, quiet, watched, checks, checkHere, asserted: () => asserted, warned };
     };
 
     return await fn({ openApp });
@@ -1644,7 +1670,7 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
       return { ok: false, failures: e.lines, log: [] };
     }
     try {
-      await app.watched(() => mod.default({ drive: app.drive, expect: app.expect, page: app.page }));
+      await app.watched(() => mod.default({ drive: app.drive, expect: app.expect, page: app.scriptPage }));
     } catch (e) {
       if (e?.lines !== undefined) { failures.push(...e.lines); return { ok: false, failures, log: app.log, writes: writesOf(app), talked: originsOf(app, false), wrote: originsOf(app, true), warned: app.warned }; }
       const where = app.log.length > 0 ? ` (after: ${app.log.slice(-3).join(" → ")})` : "";
@@ -1827,7 +1853,7 @@ export async function runStates({ compiled, appDir, statesPath, baselinesDir, bl
       try {
         // the route and the capture alike, with the page watched
         await app.watched(async () => {
-          if (typeof st.route === "function") await st.route({ drive: app.drive, expect: app.expect, page: app.page });
+          if (typeof st.route === "function") await st.route({ drive: app.drive, expect: app.expect, page: app.scriptPage });
           // LET LATE DATA LAND. The page is `networkidle0` when the program boots,
           // but an `auto` DataSource fetches AFTER that — so a document app can be
           // captured before its own document arrives. The viewer was exactly this:

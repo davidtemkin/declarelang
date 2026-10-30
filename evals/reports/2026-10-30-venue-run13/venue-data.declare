@@ -1,0 +1,295 @@
+/*
+# The Venue: data
+
+What the service holds, as the program relies on it: the schemas, the plain
+functions every constraint calls (money, dates, cards, postal codes, the shape
+of the hall), and the seat map — the one record set the program writes to,
+kept true by the service's stream of seats being sold.
+
+`venue.declare` includes this file.
+*/
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+//
+// Functions of their arguments, outside the reactive system: a constraint that
+// calls one re-runs when the values it passes change.
+
+script {
+    const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    const MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "July", "August",
+        "September", "October", "November", "December"]
+
+    // ── money: integer cents, written $1,240.00
+
+    function money(cents: number): string {
+        const whole = Math.floor(Math.abs(cents) / 100)
+        const part = Math.abs(cents) % 100
+        return (cents < 0 ? "-$" : "$") + whole.toLocaleString("en-US") + "." + (part < 10 ? "0" : "") + part
+    }
+
+    // ── the hall's local time, as printed: "2026-11-13T19:30"
+
+    function stamp(iso: string): number[] {
+        const [d, t] = iso.split("T")
+        const p = d.split("-").map(Number)
+        const q = (t ?? "0:0").split(":").map(Number)
+        return [p[0], p[1], p[2], q[0], q[1]]
+    }
+    function dayLabel(iso: string): string {                    // Fri 13 Nov
+        if (iso == "") return ""
+        const s = stamp(iso)
+        return DAYS[new Date(s[0], s[1] - 1, s[2]).getDay()] + " " + s[2] + " " + MONTHS[s[1] - 1]
+    }
+    function weekday(iso: string): string {
+        if (iso == "") return ""
+        const s = stamp(iso)
+        return DAYS[new Date(s[0], s[1] - 1, s[2]).getDay()]
+    }
+    function dayOfMonth(iso: string): string { return iso == "" ? "" : "" + stamp(iso)[2] }
+    function monthShort(iso: string): string { return iso == "" ? "" : MONTHS[stamp(iso)[1] - 1] }
+    function monthLong(iso: string): string { return iso == "" ? "" : MONTHS_LONG[stamp(iso)[1] - 1] + " " + stamp(iso)[0] }
+    function timeLabel(iso: string): string {                   // 7:30pm
+        if (iso == "") return ""
+        const s = stamp(iso)
+        const h = s[3] % 12 == 0 ? 12 : s[3] % 12
+        return h + ":" + (s[4] < 10 ? "0" : "") + s[4] + (s[3] < 12 ? "am" : "pm")
+    }
+    function isMatinee(iso: string): boolean { return iso != "" && stamp(iso)[3] < 17 }
+
+    // ── seats
+
+    function seatName(section: string, row: string, n: number): string {
+        return section + ", row " + row + ", seat " + n
+    }
+    function plural(n: number, one: string, many: string): string { return n + " " + (n == 1 ? one : many) }
+
+    // ── cards. The kind is known from the first digits; the number is grouped
+    //    as it is printed on that kind of card.
+
+    function digitsOf(v: string): string { return v.replace(/\D/g, "") }
+    function brandOf(d: string): string {
+        if (/^3[47]/.test(d)) return "amex"
+        if (/^4/.test(d)) return "visa"
+        if (/^(5[1-5]|2(2[2-9][1-9]|2[3-9]\d|[3-6]\d\d|7[01]\d|720))/.test(d)) return "mastercard"
+        if (/^(6011|65|64[4-9])/.test(d)) return "discover"
+        return ""
+    }
+    function brandName(b: string): string {
+        return ({ visa: "Visa", mastercard: "Mastercard", amex: "American Express", discover: "Discover" } as any)[b] ?? ""
+    }
+    function cardLength(b: string): number { return b == "amex" ? 15 : 16 }
+    function cvcLength(b: string): number { return b == "amex" ? 4 : 3 }
+    function groupCard(d: string): string {
+        const b = brandOf(d)
+        const cut = d.slice(0, b == "" ? 19 : cardLength(b))
+        const sizes = b == "amex" ? [4, 6, 5] : [4, 4, 4, 4, 3]
+        const out: string[] = []
+        let at = 0
+        for (const n of sizes) {
+            if (at >= cut.length) break
+            out.push(cut.slice(at, at + n))
+            at = at + n
+        }
+        return out.join(" ")
+    }
+    // where the caret belongs after regrouping: just past the same count of digits
+    function caretAfter(grouped: string, digitsBefore: number): number {
+        if (digitsBefore <= 0) return 0
+        let seen = 0
+        for (let i = 0; i < grouped.length; i++) {
+            if (/\d/.test(grouped[i])) seen = seen + 1
+            if (seen == digitsBefore) return i + 1
+        }
+        return grouped.length
+    }
+    function luhn(d: string): boolean {
+        let sum = 0
+        for (let i = 0; i < d.length; i++) {
+            let n = Number(d[d.length - 1 - i])
+            if (i % 2 == 1) { n = n * 2; if (n > 9) n = n - 9 }
+            sum = sum + n
+        }
+        return d.length > 0 && sum % 10 == 0
+    }
+    function cardProblem(v: string): string {
+        const d = digitsOf(v)
+        const b = brandOf(d)
+        if (b == "") return "That isn't a card number we recognise. Check the first digits."
+        if (d.length < cardLength(b)) return "That card number is too short — a " + brandName(b) + " number has " + cardLength(b) + " digits."
+        if (!luhn(d)) return "That card number isn't valid. Check the digits against your card."
+        return ""
+    }
+
+    // expiry, typed as MM / YY
+    function groupExpiry(v: string, deleting: boolean): string {
+        let d = digitsOf(v).slice(0, 4)
+        if (d.length == 1 && Number(d) > 1) d = "0" + d          // "4" is April
+        if (d.length < 2) return d
+        if (d.length == 2) return deleting ? d : d + " / "
+        return d.slice(0, 2) + " / " + d.slice(2)
+    }
+    function expiryParts(v: string): number[] {
+        const d = digitsOf(v)
+        return [Number(d.slice(0, 2)), 2000 + Number(d.slice(2, 4))]
+    }
+    function expiryProblem(v: string, year: number, month: number): string {
+        const d = digitsOf(v)
+        if (d.length < 4) return "Enter the expiry as month and year, like 04 / 28."
+        const p = expiryParts(v)
+        if (p[0] < 1 || p[0] > 12) return "That month isn't one — use 01 to 12."
+        if (p[1] < year || (p[1] == year && p[0] < month)) return "That card has expired."
+        return ""
+    }
+    function isExpired(expMonth: number, expYear: number, year: number, month: number): boolean {
+        return expYear < year || (expYear == year && expMonth < month)
+    }
+    function cvcProblem(v: string, brand: string): string {
+        const n = cvcLength(brand)
+        return new RegExp("^\\d{" + n + "}$").test(v.trim()) ? "" : "Enter the " + n + "-digit security code" +
+            (brand == "amex" ? " from the front of the card." : " from the back of the card.")
+    }
+
+    // ── postal codes, by country
+
+    const POSTAL: any = {
+        US: { re: /^\d{5}(-\d{4})?$/, say: "Enter a ZIP code like 94110 or 94110-1234." },
+        CA: { re: /^[ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z] ?\d[ABCEGHJ-NPRSTV-Z]\d$/i, say: "Enter a postal code like K1A 0B1." },
+        GB: { re: /^[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}$/i, say: "Enter a postcode like SW1A 1AA." }
+    }
+    function postalProblem(v: string, country: string): string {
+        const p = POSTAL[country]
+        return p == null || p.re.test(v.trim()) ? "" : p.say
+    }
+    function postalLabel(country: string): string { return country == "US" ? "ZIP code" : country == "GB" ? "Postcode" : "Postal code" }
+    // a code that fits exactly one country's format: what autofill's country must be
+    function countryOfPostal(v: string): string {
+        const fits = ["US", "CA", "GB"].filter((c) => POSTAL[c].re.test(v.trim()))
+        return fits.length == 1 ? fits[0] : ""
+    }
+
+    // ── the shape of the hall
+    //
+    // The rows are arcs about a point at the stage, front to back. One unit is
+    // one seat's pitch along its row. `planHall` takes each section's row
+    // lengths and gives every row its radius, and the hall's extent, so a seat
+    // is placed from four numbers: its row's radius, its index, the row's
+    // length, and the plan's origin.
+
+    const PITCH = 1.08          // seat to seat, along a row
+    const ROW = 1.12            // row to row
+    const GAP = 2.3             // between sections: room for the tier's front and its label
+    const FIRST = 13.2          // the front row's radius
+    const STAGE_TOP = 3.4       // the back of the stage, from the arcs' centre
+
+    function seatAngle(i: number, n: number, r: number): number { return (i - (n - 1) / 2) * PITCH / r }
+    function seatUX(r: number, i: number, n: number): number { return r * Math.sin(seatAngle(i, n, r)) }
+    function seatUY(r: number, i: number, n: number): number { return r * Math.cos(seatAngle(i, n, r)) }
+
+    type HallPlan = { radii: number[][], ox: number, oy: number, w: number, h: number }
+
+    function planHall(counts: number[][]): HallPlan {
+        const radii: number[][] = []
+        let r = FIRST
+        let half = 9
+        counts.forEach((rows, s) => {
+            if (s > 0) r = r + GAP - ROW
+            const mine: number[] = []
+            rows.forEach((n) => {
+                mine.push(r)
+                half = Math.max(half, Math.abs(seatUX(r, 0, n)))
+                r = r + ROW
+            })
+            radii.push(mine)
+        })
+        const back = r - ROW + 1.2
+        return { radii: radii, ox: half + 1.4, oy: -STAGE_TOP + 0.6, w: 2 * half + 2.8, h: back - STAGE_TOP + 0.6 }
+    }
+    }
+
+
+// ── The shape of the data ───────────────────────────────────────────────────
+
+schema Performance [ id: string, startsAt: string, doorsAt: string, priceFromCents: number,
+    seatsLeft: number, seats: number ]
+schema Production [ title: string, hall: string, runningTime: string, performances[]: Performance ]
+
+schema Seat [ id: string, number: number, status: "available" | "sold" ]
+schema SeatRow [ name: string, seats[]: Seat ]
+schema Section [ key: string, name: string, priceCents: number, feeCents: number, rows[]: SeatRow ]
+schema SeatMapData [ performanceId: string, sections[]: Section ]
+
+// one seat, as the program speaks of it: where it is and what it costs
+
+schema SeatInfo [ id: string, section: string, sectionIndex: number, row: string, number: number,
+    priceCents: number, feeCents: number, sold: boolean ]
+
+schema Billing [ line1: string, line2?: string, city: string, postalCode: string, country: string ]
+schema SavedCard [ id: string, brand: string, last4: string, expMonth: number, expYear: number ]
+schema Account [ name: string, email: string, billing: Billing, cards[]: SavedCard ]
+
+schema Ticket [ seatId: string, section: string, row: string, number: number, barcode: string ]
+schema Order [ code: string, email: string, totalCents: number, brand: string, last4: string,
+    performanceId: string, tickets[]: Ticket ]
+
+
+// ── The seat map ────────────────────────────────────────────────────────────
+//
+// One performance's house, as the service has it, kept current by the stream
+// of other people's purchases (`take`). It loads once per performance and the
+// app keeps it true, so its own records are edited directly.
+
+class SeatMap extends DataSource [ schema = SeatMapData, credentials = include,
+    sections() -> Section[] { return this.value?.sections ?? [] },
+
+    // the row lengths, section by section: all the plan needs
+
+    counts: number[][] = { this.sections().map((s) => s.rows.map((r) => r.seats.length)) },
+    plan: HallPlan = { planHall(this.counts) },
+
+    // a seat by id ("ORCH-C-14"), with what the program says of it
+
+    find(id: string) -> SeatInfo? {
+        const secs = this.sections()
+        for (let s = 0; s < secs.length; s++) {
+            const sec = secs[s]
+            if (!id.startsWith(sec.key + "-")) continue
+            for (const row of sec.rows) for (const seat of row.seats) {
+                if (seat.id == id) return ({ id: id, section: sec.name, sectionIndex: s, row: row.name, number: seat.number,
+                    priceCents: sec.priceCents, feeCents: sec.feeCents, sold: seat.status == "sold" })
+                }
+            }
+        return null
+        },
+    path(id: string) -> array {
+        const secs = this.sections()
+        for (let s = 0; s < secs.length; s++) {
+            const rows = secs[s].rows
+            for (let r = 0; r < rows.length; r++) {
+                const i = rows[r].seats.findIndex((x) => x.id == id)
+                if (i >= 0) return ["sections", s, "rows", r, "seats", i, "status"]
+                }
+            }
+        return []
+        },
+
+    // how full the house is, counted from the data
+
+    total: number = { this.counts.reduce((a, rows) => a + rows.reduce((b, n) => b + n, 0), 0) },
+    free: number = { this.sections().reduce((a, s) => a + s.rows.reduce((b, r) => b + r.seats.filter((x) => x.status == "available").length, 0), 0) },
+
+    // Someone else bought it. A sale that arrives before the map has loaded
+    // waits, and is applied when it lands.
+
+    early: string[] = [],
+    take(id: string) {
+        const p = this.path(id)
+        if (p.length == 0) { if (!this.loaded) this.early = [...this.early, id]; return }
+        this.set(p, "sold")
+        },
+    onLoad() {
+        const waiting = this.early
+        this.early = []
+        waiting.forEach((id) => this.take(id))
+        }
+    ]

@@ -952,7 +952,10 @@ function arrowDefault(f: View, ev: unknown): void {
   const i = entryIndex(seq, f);
   if (i < 0 || seq.length < 2 && d !== 0) return;
   const n = e.key === "Home" ? 0 : e.key === "End" ? seq.length - 1 : (i + d + seq.length) % seq.length;
-  if (n !== i) Focus.land(seq[n].view);   // as Tab lands: keyboard focus, revealed
+  if (n === i) return;
+  Focus.land(seq[n].view);   // as Tab lands: keyboard focus, revealed
+  // the stop hears where an arrow took the focus (a RadioGroup checks it)
+  (s as unknown as { _arrowed?: (to: View) => void })._arrowed?.(seq[n].view);
 }
 
 /** The keys a focused bare scroller (bareScroller) takes: a line with the arrows,

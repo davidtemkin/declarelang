@@ -115,9 +115,10 @@ let CHECKING: Program | null = null;
  *  name missed on a class is most often a child's: `this.mail` written for
  *  `this.mailBox.mail` (Venue run 6). Two levels down, nearest first. */
 function childPath(cls: string, name: string): string | null {
-  const c = CHECKING?.classes.find((k) => k.name === cls);
-  if (c === undefined) return null;
-  let level: { el: (typeof c)["body"]; path: string }[] = c.body.children.filter((e) => e.name !== null).map((e) => ({ el: e, path: e.name as string }));
+  // the App is no class: its tree is the program's root
+  const body = CHECKING?.classes.find((k) => k.name === cls)?.body ?? (cls === "this App" || cls === "App" ? CHECKING?.root : undefined);
+  if (body === undefined) return null;
+  let level: { el: typeof body; path: string }[] = body.children.filter((e) => e.name !== null).map((e) => ({ el: e, path: e.name as string }));
   for (let depth = 0; depth < 2 && level.length > 0; depth++) {
     for (const { el, path } of level) {
       if (el.children.some((k) => k.name === name) || el.decls.some((d) => d.name === name)) return `${path}.${name}`;
@@ -490,12 +491,14 @@ function explainTs(d: TsDiag, u: Unit, synthTags: ReadonlyMap<string, string>): 
       m = msg.match(/Property '(.+?)' does not exist on type '(.+?)'\. Did you mean '(.+?)'\?/s);
       if (m !== null && m[2] === "Theme") return themeTokenMiss(m[1], m[3]);
       if (m !== null && memberHint(m[1]) !== "") return `'${m[1]}' is not a member of ${quoteType(m[2])} — ${memberHint(m[1])}`;
-      // tsc's nearest name may be runtime machinery a program cannot write ($root,
-      // $provided): say what is true without offering it
-      if (m !== null && m[3].startsWith("$")) return `'${m[1]}' is not a member of ${quoteType(m[2])} — declare it (${m[1]}: <type> = …) or fix the name`;
       if (m !== null) {
+        // a member one level down first: a view path after a rename (`app.listPage`
+        // for `app.pages.listPage`) is the commonest miss of all
         const held = childPath(m[2], m[1]);
         if (held !== null) return `'${m[1]}' is not a member of ${quoteType(m[2])} — a child's is: '${held}' (reached through the child that holds it)`;
+        // tsc's nearest name may be runtime machinery a program cannot write ($root,
+        // $provided): say what is true without offering it
+        if (m[3].startsWith("$")) return `'${m[1]}' is not a member of ${quoteType(m[2])} — declare it (${m[1]}: <type> = …) or fix the name`;
         return `'${m[1]}' is not a member of ${quoteType(m[2])} — did you mean '${m[3]}'?`;
       }
       return msg;

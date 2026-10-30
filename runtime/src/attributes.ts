@@ -894,7 +894,8 @@ function escape(carrier: Carrier, name: string, slot: number, kind: "n" | "b"): 
     const cells = (carrier.$cells ??= Object.create(null) as Record<string, Cell>);
     const cell = new Cell(); cell.id = base + slot; cell.owned = true; cells[name] = cell;
     const n = table[base + slot];
-    (carrier.$attrs ??= Object.create(tableFor(DEFAULTS, carrier.constructor)!) as Record<string, unknown>)[name] = kind === "b" ? n !== 0 : n;
+    (carrier.$attrs ??= Object.create(tableFor(DEFAULTS, carrier.constructor)!) as Record<string, unknown>)[name] =
+      nulls[base + slot] === 1 ? null : kind === "b" ? n !== 0 : n;
   }
 }
 
@@ -1139,6 +1140,16 @@ export function declaredRules(self: object): ReadonlyArray<[string, DeclRecord]>
   let l = DEF_RULE_LISTS.get(self.constructor);
   if (l === undefined) { l = Object.entries(declarationsOf(self)).filter(([, r]) => r.rule === true && r.source !== null); DEF_RULE_LISTS.set(self.constructor, l); }
   return l;
+}
+
+/** Is `self.name` a declared slot, nothing set or owned, whose `{ }` default
+ *  is evaluated at each read (no standing rule: schema-typed or readonly)? */
+export function defaultIsLive(self: object, name: string): boolean {
+  for (let c: unknown = self.constructor; c != null; c = Object.getPrototypeOf(c)) {
+    const r = DECLARED.get(c as object)?.[name];
+    if (r !== undefined) return r.source !== null && r.rule !== true && !provided(self as Carrier, name);
+  }
+  return false;
 }
 
 /** Every author-declared slot visible on this instance — the class's own and

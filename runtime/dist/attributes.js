@@ -837,7 +837,8 @@ function escape(carrier, name, slot, kind) {
         cell.owned = true;
         cells[name] = cell;
         const n = table[base + slot];
-        (carrier.$attrs ??= Object.create(tableFor(DEFAULTS, carrier.constructor)))[name] = kind === "b" ? n !== 0 : n;
+        (carrier.$attrs ??= Object.create(tableFor(DEFAULTS, carrier.constructor)))[name] =
+            nulls[base + slot] === 1 ? null : kind === "b" ? n !== 0 : n;
     }
 }
 /** The JS-store write: equality-gate (=== or the slot's equal), store, push, wake.
@@ -1066,6 +1067,16 @@ export function declaredRules(self) {
         DEF_RULE_LISTS.set(self.constructor, l);
     }
     return l;
+}
+/** Is `self.name` a declared slot, nothing set or owned, whose `{ }` default
+ *  is evaluated at each read (no standing rule: schema-typed or readonly)? */
+export function defaultIsLive(self, name) {
+    for (let c = self.constructor; c != null; c = Object.getPrototypeOf(c)) {
+        const r = DECLARED.get(c)?.[name];
+        if (r !== undefined)
+            return r.source !== null && r.rule !== true && !provided(self, name);
+    }
+    return false;
 }
 /** Every author-declared slot visible on this instance — the class's own and
  *  its user superclasses', merged up the prototype chain (runtime base

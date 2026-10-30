@@ -28,7 +28,7 @@
 // another window goes on and the sheet stays.
 
 import { View, fireEvent } from "./view.js";
-import { leafAt, paintParentOf, rootToLocal, type InteractionView } from "./interaction.js";
+import { leafAt, paintParentOf, paintsAbove, rootToLocal, type InteractionView } from "./interaction.js";
 
 /** The open overlays, oldest first. */
 const OPEN: View[] = [];
@@ -52,12 +52,25 @@ export function noteOverlay(v: View): void {
   else if (!open && i >= 0) OPEN.splice(i, 1);
 }
 
-/** The open overlays, top first, that are really shown. */
+/** The open overlays, top first, that are really shown. Top is PAINT order,
+ *  not the order they opened in: a toast said in the press that opens a sheet
+ *  opens first and still paints above it (its stratum is higher), and a press
+ *  on the toast must be the toast's, not a press outside the sheet. Overlays
+ *  with no common root (one in a hosted program) keep the order they opened in. */
 function openTopFirst(): View[] {
   // one torn down while open (its program unmounted) is no longer open
   for (let i = OPEN.length - 1; i >= 0; i--) if ((OPEN[i] as unknown as { $tornDown?: boolean }).$tornDown === true) OPEN.splice(i, 1);
   const out: View[] = [];
   for (let i = OPEN.length - 1; i >= 0; i--) if (shown(OPEN[i])) out.push(OPEN[i]);
+  if (out.length > 1) {
+    // stable insertion by paint order: an overlay moves up past those it paints above
+    for (let i = 1; i < out.length; i++) {
+      const v = out[i];
+      let j = i;
+      while (j > 0 && paintsAbove(v as unknown as InteractionView, out[j - 1] as unknown as InteractionView) === true) { out[j] = out[j - 1]; j--; }
+      out[j] = v;
+    }
+  }
   return out;
 }
 

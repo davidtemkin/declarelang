@@ -1,0 +1,249 @@
+/*
+# The Venue: the parts
+
+The look and the small pieces the screens are made of: the theme, the
+performance row, the legend, the line for a chosen seat, the account control.
+`venue.declare` includes this file.
+
+The palette is ivory paper and warm ink. The sections take a velvet ramp,
+deepest at the front, so the room says where the dearer seats are. One accent,
+a deep green, means one thing: *yours* — your seats, your total, your payment.
+*/
+
+// ── Colors ──────────────────────────────────────────────────────────────────
+//
+// Laid over the library's preset, so its controls read the same palette.
+
+theme Venue [
+    background = #F7F3EC, surface = #FFFDF8, card = #FFFDF8,
+    line = #E5DDD0, lineStrong = #CFC5B5, quiet = #EFE9DF,
+    text = #1E1915, textMuted = #685E55, textFaint = #998F84,
+    accent = #0F6B57, accentTextColor = #FFFFFF, accentHovered = #0C5E4C, accentPressed = #0A5142, accentTint = #E3F0EB,
+    linkColor = #0F6B57,
+    control = #EFE9DF, controlHovered = #E7E0D4, controlPressed = #DDD5C7, controlSelected = #E3F0EB,
+    error = #B3261E, errorTint = #FBEDEA,
+    scrimFill = #1E1915, scrimOpacity = 0.36,
+    tooltipFill = #1E1915, tooltipTextColor = #F7F3EC,
+    controlCornerRadius = 10, buttonCornerRadius = 10,
+
+    // the hall
+
+    stage = #2A221D, stageText = #CDBFAE,
+    seatGone = #CEC4B6,
+
+    //        Orchestra Grand Tier Dress Circle Balcony
+
+    tones = [#5E1F33, #823A50, #A65E73, #C38B9B],
+    tints = [#F1E6E3, #F3EAE7, #F5EEEB, #F7F1EE],
+
+    // the ticket
+
+    ticketInk = #2A221D, ticketPaper = #FFFDF8
+    ]
+
+
+// ── Type ────────────────────────────────────────────────────────────────────
+//
+// Two families: a book serif for what is named (the opera, the date, the seat
+// on a ticket), and the system face for everything else. Amounts are tabular
+// so they line up.
+
+class Title extends Text [ fontFamily = { app.serif }, fontWeight = semibold, letterSpacing = -0.3 ]
+
+class Eyebrow extends Text [ fontSize = 11, fontWeight = bold, letterSpacing = 1.4, textTransform = uppercase,
+    textColor = { provided("theme").textMuted }
+    ]
+
+
+class Amount extends Text [ numeralWidth = tabular, textAlign = end ]
+
+// ── A performance ───────────────────────────────────────────────────────────
+//
+// One line of the season: the date as a calendar would set it, the time, how
+// full the house is, and the lowest price. A nearly-full house says so in
+// words as well as in its bar.
+
+class PerformanceRow extends Control [ width = 100%, height = { app.phone ? 84 : 80 },
+    padding = { app.phone ? [0, 16, 0, 16] : [0, 20, 0, 20] },
+    perfId: string = { :id ?? "" },
+    starts: string = { :startsAt ?? "" },
+    left: number = { :seatsLeft ?? 0 },
+    seats: number = { :seats ?? 1 },
+    full: number = { 1 - classroot.left / Math.max(1, classroot.seats) },
+    nearly: boolean = { classroot.left > 0 && classroot.left / Math.max(1, classroot.seats) <= 0.15 },
+    soldOut: boolean = { classroot.left == 0 },
+    leftLabel: string = { classroot.soldOut ? "Sold out" : classroot.nearly ? "Nearly sold out · " + classroot.left + " left" : classroot.left + " seats left" },
+
+    disabled = { classroot.soldOut },
+    accessibilityLabel = { dayLabel(classroot.starts) + ", " + timeLabel(classroot.starts) + ", from " + money(:priceFromCents ?? 0) + ", " + classroot.leftLabel },
+    press() { app.openPerformance(classroot.perfId) },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").quiet : null },
+    stroke = { [null, null, stroke(1, provided("theme").line), null] },
+    layout: SimpleLayout [ axis = x, spacing = { app.phone ? 14 : 22 }, align = center ],
+
+    // the date, set like a calendar leaf
+
+    date: View [ width = 52, accessibilityHidden = true,
+        layout: SimpleLayout [ axis = y, align = center ],
+        Eyebrow [ fontSize = 11, text = { weekday(classroot.starts) } ],
+        Title [ fontSize = 28, fontWeight = medium, text = { dayOfMonth(classroot.starts) } ],
+        Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = { monthShort(classroot.starts) } ]
+        ],
+    what: View [ flexes = true, accessibilityHidden = true,
+        layout: SimpleLayout [ axis = y, spacing = 7 ],
+        Text [ fontSize = 17, fontWeight = semibold,
+            text = { timeLabel(classroot.starts) + (isMatinee(classroot.starts) ? "  ·  Matinee" : "") } ],
+
+        // how full: the bar fills as the house does
+
+        avail: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+            bar: View [ width = { app.phone ? 64 : 120 }, height = 6, cornerRadius = 3, fill = { provided("theme").quiet }, clip = true,
+                View [ height = 6, cornerRadius = 3, width = { parent.width * classroot.full },
+                    fill = { classroot.nearly || classroot.soldOut ? provided("theme").tones[0] : provided("theme").tones[3] } ]
+                ],
+            Text [ fontSize = 13, wrap = false,
+                fontWeight = { classroot.nearly ? "semibold" : "regular" },
+                textColor = { classroot.nearly ? provided("theme").tones[0] : provided("theme").textMuted },
+                text = { classroot.leftLabel } ]
+            ]
+        ],
+    price: View [ accessibilityHidden = true,
+        layout: SimpleLayout [ axis = y, align = end ],
+        Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = "from" ],
+        Amount [ fontSize = 17, fontWeight = semibold, text = { money(:priceFromCents ?? 0) } ]
+        ],
+    Chevron [ accessibilityHidden = true, width = 8, height = 14 ]
+    ]
+
+
+// a small drawn chevron, pointing on
+
+class Chevron [ ink: Color = { provided("theme").textFaint },
+    flip: boolean = false,
+    draw(d: DrawContext) {
+        d.strokeStyle = ink
+        d.lineWidth = 1.8
+        d.lineCap = "round"; d.lineJoin = "round"
+        d.beginPath()
+        if (flip) { d.moveTo(this.width - 1, 1); d.lineTo(1, this.height / 2); d.lineTo(this.width - 1, this.height - 1) }
+        else { d.moveTo(1, 1); d.lineTo(this.width - 1, this.height / 2); d.lineTo(1, this.height - 1) }
+        d.stroke()
+        }
+    ]
+
+
+// ── The legend ──────────────────────────────────────────────────────────────
+//
+// The three states as the hall draws them, so the words are a confirmation,
+// not the only way to tell.
+
+class SeatKey [ height = 22,
+    kind: "free" | "mine" | "gone" = "free",
+    word: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 7, align = center ],
+    mark: View [ width = 16, height = 16,
+        draw(d: DrawContext) {
+            const t = provided("theme")
+            const c = 8
+            if (classroot.kind == "gone") {
+                d.strokeStyle = t.seatGone; d.lineWidth = 1.6; d.lineCap = "round"
+                d.beginPath(); d.moveTo(c - 3, c - 3); d.lineTo(c + 3, c + 3); d.moveTo(c + 3, c - 3); d.lineTo(c - 3, c + 3); d.stroke()
+            } else if (classroot.kind == "mine") {
+                d.fillStyle = t.accent
+                d.beginPath(); d.arc(c, c, 6, 0, Math.PI * 2); d.fill()
+                d.strokeStyle = t.background; d.lineWidth = 1.6; d.lineCap = "round"; d.lineJoin = "round"
+                d.beginPath(); d.moveTo(c - 3, c); d.lineTo(c - 0.8, c + 2.3); d.lineTo(c + 3.2, c - 2.2); d.stroke()
+            } else {
+                d.fillStyle = t.tones[1]
+                d.beginPath(); d.arc(c, c, 5.5, 0, Math.PI * 2); d.fill()
+            }
+            }
+        ],
+    Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = { classroot.word } ]
+    ]
+
+
+class Legend [
+    layout: SimpleLayout [ axis = x, spacing = 16, align = center ],
+    accessibilityHidden = true,
+    SeatKey [ kind = "free", word = "Free" ],
+    SeatKey [ kind = "mine", word = "Yours" ],
+    SeatKey [ kind = "gone", word = "Taken" ]
+    ]
+
+
+// A section's price, its tone, and how many of its seats are free.
+
+class PriceLine [ width = 100%, height = 28,
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    View [ width = 10, height = 10, cornerRadius = 5, fill = { provided("theme").tones[classroot.rowIndex] } ],
+    Text [ flexes = true, fontSize = 14, text = { :name ?? "" } ],
+    Text [ fontSize = 13, textColor = { provided("theme").textMuted },
+        text = { app.freeIn(classroot.rowIndex) + " free" } ],
+    Amount [ width = 64, fontSize = 14, fontWeight = semibold, text = { money(:priceCents ?? 0) } ]
+    ]
+
+
+// ── A chosen seat ───────────────────────────────────────────────────────────
+//
+// In the hall's side panel: the seat, its price, and a way to let it go.
+
+class ChosenLine [ width = 100%, height = 40,
+    seatId: string = { :@ ?? "" },
+    info: SeatInfo? = { app.seats.find(classroot.seatId) },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    View [ width = 10, height = 10, cornerRadius = 5, fill = { provided("theme").accent } ],
+    words: View [ flexes = true,
+        layout: SimpleLayout [ axis = y ],
+        Text [ fontSize = 14, fontWeight = medium, text = { classroot.info?.section ?? "" } ],
+        Text [ fontSize = 13, textColor = { provided("theme").textMuted },
+            text = { "Row " + (classroot.info?.row ?? "") + ", seat " + (classroot.info?.number ?? "") } ]
+        ],
+    Amount [ fontSize = 14, text = { money(classroot.info?.priceCents ?? 0) } ],
+    Control [ width = 32, height = 32, cornerRadius = 16,
+        accessibilityLabel = { "Remove " + seatName(classroot.info?.section ?? "", classroot.info?.row ?? "", classroot.info?.number ?? 0) },
+        fill = { hovered || pressed ? provided("theme").quiet : null },
+        press() { app.toggleSeat(classroot.seatId) },
+        View [ x = center, y = center, width = 10, height = 10,
+            draw(d: DrawContext) {
+                d.strokeStyle = provided("theme").textMuted; d.lineWidth = 1.6; d.lineCap = "round"
+                d.beginPath(); d.moveTo(0, 0); d.lineTo(10, 10); d.moveTo(10, 0); d.lineTo(0, 10); d.stroke()
+                }
+            ]
+        ]
+    ]
+
+
+// ── The running summary ─────────────────────────────────────────────────────
+//
+// "3 seats · $240.00", with a little lift each time it changes: the seat and
+// the total register together.
+
+class Summary extends Text [ numeralWidth = tabular, fontWeight = semibold,
+    text = { app.summaryText },
+    accessibilityLive = polite,
+    bump: number = 0,
+    Spring [ attribute = bump, to = 0, stiffness = 380, damping = 18 ],
+    trackChanges = ["text"],
+    onChange() { bump = 1 },
+    scale = { 1 + 0.06 * this.bump },
+    pivotX = 0, pivotY = { this.height / 2 }
+    ]
+
+
+// ── The account ─────────────────────────────────────────────────────────────
+//
+// Signed out: a quiet "Sign in". Signed in: who, and "Sign out".
+
+class AccountControl [
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    Text [ visible = { app.account != null && !app.phone }, fontSize = 14, textColor = { provided("theme").textMuted },
+        text = { app.account?.name ?? "" } ],
+    Button [ visible = { app.account == null }, label = "Sign in",
+        onClick() { app.signingIn = true }
+        ],
+    Button [ visible = { app.account != null }, label = "Sign out",
+        onClick() { app.signOut() }
+        ]
+    ]

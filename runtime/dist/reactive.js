@@ -209,7 +209,10 @@ const HOST = {
             return;
         if (code === KERNEL_ERR.CYCLE) {
             const label = RULES[rule]?.label ?? `rule ${rule}`;
-            pendingError = new DeclareError(`constraint cycle: ${label} re-evaluated ${CYCLE_LIMIT} times in one update — it (transitively) depends on its own output`);
+            // where it is, by path: a label names a class, and a program has many Views
+            const owner = RULES[rule]?.owner;
+            const at = owner != null ? addressOf?.(owner) ?? null : null;
+            pendingError = new DeclareError(`constraint cycle: ${label}${at !== null ? ` (at ${at})` : ""} re-evaluated ${CYCLE_LIMIT} times in one update — it (transitively) depends on its own output`);
         }
         else if (code === KERNEL_ERR.AFTER) {
             pendingError = new DeclareError(stepsRan
@@ -726,6 +729,10 @@ const CYCLE_LIMIT = 100;
 /** The outer-loop guard — AFTER_LIMIT passes means a step (transitively)
  *  re-registers itself every pass, the afterSettle spelling of a cycle. */
 const AFTER_LIMIT = 100;
+/** A node's dotted address (`app.pages.hall`), for messages that name where a
+ *  rule is; set by node-path.ts, which this module cannot import. */
+let addressOf = null;
+export function setAddressOf(f) { addressOf = f; }
 /** A standing computation: `compute` runs with read-tracking on, `apply`
  *  lands the result with tracking off (its writes *invalidate* dependents;
  *  they must never register as dependencies). On the tracking path the

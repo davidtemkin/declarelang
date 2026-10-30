@@ -264,6 +264,9 @@ export interface DeclRecord {
 /** Record a class's author declarations (instantiate.ts makeClass). */
 export declare function recordDeclarations(ctor: object, table: Record<string, DeclRecord>): void;
 export declare function declaredRules(self: object): ReadonlyArray<[string, DeclRecord]>;
+/** Is `self.name` a declared slot, nothing set or owned, whose `{ }` default
+ *  is evaluated at each read (no standing rule: schema-typed or readonly)? */
+export declare function defaultIsLive(self: object, name: string): boolean;
 /** Every author-declared slot visible on this instance — the class's own and
  *  its user superclasses', merged up the prototype chain (runtime base
  *  classes never register, so View's built-ins stay out of the answer). */

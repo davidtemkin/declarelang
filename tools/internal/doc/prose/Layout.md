@@ -91,11 +91,12 @@ child's range by the runtime, so a strategy of your own honours ranges without c
 
 **`stretch` fills only what the content decides.** `stretch: { h: 80 }` in a box makes
 that child 80 tall **only if its content would otherwise decide its height**; a child that
-states a height keeps it, and nothing is refused. It is how a row of your own makes its
-children as tall as the tallest. Measure the tallest by each child's content
-(`contentHeight`), never its height, or the line holds itself up once the tallest
-shrinks. A view sized from its children is as large as what its layout placed, stretched
-children included.
+states a height keeps it, and nothing is refused. It is how a row of your own fills
+itself: stretch to `viewExtent("height")` when that is not 0 (the row's own height, a
+scrolling pane held to the page), else to the tallest child. Measure the tallest by each
+child's content (`contentHeight`), never its height, or the line holds itself up once the
+tallest shrinks. A view sized from its children is as large as what its layout placed,
+stretched children included.
 
 The base takes your boxes from there and installs them as claims, so `place()` never
 mentions ownership — and never mentions padding either, since the coordinates it returns
@@ -166,10 +167,12 @@ so an *alignment band* wants `viewExtent` (which is the content box too). A `pla
 The **band an alignment places children in**: the arranged view's own content extent on
 `size` (`"width"` or `"height"`) — or **0 when that extent is measured from the very children this
 strategy lays**, where reading it would close the one-pass discipline's forbidden cycle.
-Fold it in with `Math.max(line, this.viewExtent(size))`: on a view that sizes itself from
-its children the answer is 0 and the line stands (and the two agree anyway — an aligned
-run's extent *is* its widest child); on a view that was told its size the band is the box
-the author drew, which is what `align = center` has always meant. The read is tracked, so a
+Fold it in with `Math.max(line, this.viewExtent(size))` to centre or end-align: on a view
+that sizes itself from its children the answer is 0 and the line stands (and the two agree
+anyway — an aligned run's extent *is* its widest child); on a view that was told its size
+the band is the box the author drew, which is what `align = center` has always meant. To
+stretch, the band when it is not 0 replaces the line, so a child larger than the view is
+held to it. The read is tracked, so a
 parent that resizes re-places its aligned children.
 
 ## attachTo()

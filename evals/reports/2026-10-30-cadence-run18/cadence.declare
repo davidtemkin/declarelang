@@ -1,0 +1,286 @@
+/*
+# Cadence
+
+A training log for someone who runs, rides, swims and lifts: opened in the
+morning to see where they are, and again after a session to put it in.
+
+How it is put together:
+
+- **The records** are `app.sessions`, the whole history held in memory
+  (`Sessions`, in cadence-model.declare). Every write goes to the service,
+  and the service's reply is put in place there — so this week, the streak,
+  the week's shape and the year all follow the same record at once, with
+  nothing to refresh.
+- **Where the person is** is a handful of attributes on the App: the
+  stretch of the year on screen (`start`, `span`), the session laid open,
+  whether the form is up.
+- **The screen derives from both.** On a desk it is two columns, today
+  beside the year; on a phone, one column with the button to log a session
+  under the thumb. One tree, arranged for the room it is in.
+- **Numbers travel.** Every total is a `Figure` whose shown value springs
+  to its true one; the year's window glides on two springs that the hand
+  writes through directly, so it never trails a finger.
+
+The look and the parts are in cadence-parts.declare; the data and its rules
+in cadence-model.declare. The service is the one in task/api/API.md.
+*/
+
+include [ "cadence-model.declare" ]
+
+include [ "cadence-parts.declare" ]
+
+App [ appName = "Cadence", minWidth = 320,
+    scrolls = y,
+    theme = { { ...SanFrancisco, ...Cadence } },
+    fill = { provided("theme").paper },
+    textColor = { provided("theme").ink },
+    fontFamily = { ["-apple-system", "BlinkMacSystemFont", "Helvetica Neue", "Helvetica", "Arial", "sans-serif"] },
+
+    // ── sizes, from the room
+
+    wide: boolean = { app.width >= 900 },
+    tap: number = { app.touchFirst ? 48 : 40 },
+    gutter: number = { app.wide ? 48 : 20 },
+    heroSize: number = { app.wide ? 104 : 84 },
+    barRoom: number = { app.wide ? 110 : 88 },
+    yearH: number = { app.wide ? Math.max(240, app.height - 400) : 220 },
+
+    // ── the records
+
+    sessions: Sessions [ ],
+
+    // Today is the service's, not the machine's: the week and the streak mean
+    // the same thing every time. When it arrives, the year opens on the
+    // last four months without flying there.
+
+    day: DataSource [ url = { API + "/today" }, autoFetch = true, schema = [ today: string ],
+        onLoad() { app.pan.arrive(); app.zoom.arrive() }
+        ],
+    today: number = { dayNum(app.day.value?.today ?? "") },
+    ready: boolean = { app.sessions.loaded && app.day.loaded },
+
+    // The session in progress, re-read every five seconds while the app is
+    // open; between readings its clock runs on from the last one.
+
+    live: DataSource [ url = { API + "/live" }, autoFetch = true, schema = [ session?: Live ],
+        onLoad() { app.liveAt = app.clock.now }
+        ],
+    liveFeed: Time [ tick = 5000, running = { app.live.loaded },
+        onTick() { app.live.fetch() }
+        ],
+    clock: Time [ tick = second, running = { app.isLive } ],
+    liveAt: number = 0,
+    liveSession: Live? = { app.live.value?.session ?? null },
+    isLive: boolean = { app.liveSession != null },
+    liveSecs: number = { (app.liveSession?.startedSecondsAgo ?? 0) + Math.max(0, (app.clock.now - app.liveAt) / 1000) },
+
+    // Effort is the one thing in colour: hard is the accent, steady is ink,
+    // easy is faint.
+
+    effortTone(e: number) -> Color {
+        return e >= 7 ? provided("theme").hot : e >= 5 ? provided("theme").ink : provided("theme").inkFaint
+        },
+
+    // ── today
+
+    week: Dataset [ schema = WeekShape, contents = { app.sessions.week(app.today) } ],
+    weekDays: Day[] = { app.week.value?.days ?? [] },
+    weekCount: number = { app.weekDays.reduce((t, d) => t + d.count, 0) },
+    weekMinutes: number = { app.weekDays.reduce((t, d) => t + d.minutes, 0) },
+    weekPeak: number = { Math.max(60, ...app.weekDays.map((d) => d.minutes)) },
+    streak: number = { app.sessions.streak(app.today) },
+
+    // ── the year: the window on it, and what is inside the window
+
+    load: Load[] = { app.sessions.weekly() },
+    peakWeek: number = { Math.max(60, ...app.load.map((l) => l.minutes)) },
+    peakSession: number = { Math.max(30, ...app.sessions.all().map((s) => s.minutes)) },
+    firstDay: number = { app.sessions.firstDay() - 7 },
+    lastDay: number = { app.today + 4 },
+
+    start: number = 0,
+    span: number = 120,
+    startTo: number = { app.lastDay - 120 },
+    spanTo: number = 120,
+    pan: Spring [ attribute = start, to = { app.startTo }, stiffness = 200, damping = 28 ],
+    zoom: Spring [ attribute = span, to = { app.spanTo }, stiffness = 200, damping = 28 ],
+
+    // Under the hand the value and its target move together, so the springs
+    // rest and the surface is exactly where the finger is. A preset writes
+    // only the targets, and the springs carry the window there.
+
+    fit(s: number, w: number) -> number[] {
+        const span = clamp(w, 7, app.lastDay - app.firstDay)
+        return [clamp(s, app.firstDay, app.lastDay - span), span]
+        },
+    handTo(s: number, w: number) {
+        const f = app.fit(s, w)
+        start = f[0]; startTo = f[0]; span = f[1]; spanTo = f[1]
+        },
+    glideTo(s: number, w: number) { const f = app.fit(s, w); startTo = f[0]; spanTo = f[1] },
+
+    // The day at fraction `f` across stays at `f` while the span becomes `w`.
+
+    zoomAbout(f: number, from: number, fromSpan: number, w: number) {
+        const span = clamp(w, 7, app.lastDay - app.firstDay)
+        app.handTo(from + fromSpan * f - span * f, span)
+        },
+    showDays(n: number) {
+        if (n == 0) { app.glideTo(app.firstDay, app.lastDay - app.firstDay); return }
+        app.glideTo(app.startTo + app.spanTo / 2 - n / 2, n)
+        },
+
+    viewA: number = { Math.round(app.start) },
+    viewB: number = { Math.round(app.start + app.span) - 1 },
+    inView: Session[] = { app.sessions.between(app.viewA, app.viewB) },
+    viewMinutes: number = { app.inView.reduce((t, s) => t + s.minutes, 0) },
+    viewKm: number = { app.inView.reduce((t, s) => t + (s.distanceKm ?? 0), 0) },
+    hardest: Session? = { app.inView.reduce((b: Session | null, s: Session) =>
+        b == null || s.effort > b.effort || (s.effort == b.effort && s.minutes > b.minutes) ? s : b, null) },
+    sessionNear(n: number, reach: number) -> string {
+        let best = ""
+        let gap = reach
+        app.sessions.all().forEach((s) => {
+            const g = Math.abs(dayNum(s.date) + 0.5 - n)
+            if (g <= gap) { gap = g; best = s.id }
+            })
+        return best
+        },
+
+    // ── where the person is
+
+    selectedId: string = "",
+    detailOpen: boolean = false,
+    selected: Session? = { app.sessions.byId(app.selectedId) },
+    entryOpen: boolean = false,
+    editingId: string = "",
+    editing: Session? = { app.sessions.byId(app.editingId) },
+    removingId: string = "",
+
+    // Opening a session also brings the year round to it, so where it sits
+    // in the season is in view behind it.
+
+    open(id: string) {
+        const s = sessions.byId(id)
+        if (s == null) return
+        selectedId = id
+        detailOpen = true
+        const n = dayNum(s.date)
+        if (n < startTo || n > startTo + spanTo) app.glideTo(n - spanTo / 2, spanTo)
+        },
+    newSession() { editingId = ""; detailOpen = false; entryOpen = true },
+    edit(id: string) { editingId = id; detailOpen = false; entryOpen = true },
+
+    // The form closes onto the screen it came from, where the week, the
+    // streak and the year have already moved to take the session in: that
+    // movement is the confirmation.
+
+    saved(s: Session, edited: boolean) {
+        if (edited) sessions.replace(s)
+        else sessions.take(s)
+        entryOpen = false
+        selectedId = s.id
+        },
+    confirmDelete(id: string) {
+        const s = sessions.byId(id)
+        if (s == null) return
+        app.dlg.open("Delete this " + s.sport + "?", fmtDur(s.minutes) + " on " + longDay(dayNum(s.date)) + ". This can't be undone.",
+            [({ id: "cancel", label: "Keep it", cancel: true }), ({ id: "delete", label: "Delete", default: true })], "danger",
+            (choice: string) => { if (choice == "delete") { app.removingId = id; app.remove.fetch() } })
+        },
+    remove: DataSource [ url = { API + "/sessions/" + app.removingId }, method = "DELETE",
+        onLoad() {
+            app.sessions.drop(app.removingId)
+            app.detailOpen = false
+            app.selectedId = ""
+            app.toast.say("Deleted", null)
+            }
+        ],
+
+    // The ten steps of effort the form offers, as data its cells replicate over.
+
+    levels: Dataset { { "levels": [1, 2, 3, 4, 5, 6, 7, 8, 9, 10] } },
+
+    shortcuts: Shortcuts [ title = "Cadence",
+        items = { [ ({ id: "new", key: "n", label: "Log a session" }) ] },
+        picked(id: string) { if (id == "new") app.newSession() }
+        ],
+
+    // ── the screen
+
+    page: View [ exists = { app.ready }, width = 100%,
+        padding = { app.wide ? [32, app.gutter, 48, app.gutter] : [16 + app.safeTop, app.gutter, 140, app.gutter] },
+        layout: SimpleLayout [ axis = y, spacing = { app.wide ? 32 : 26 } ],
+
+        masthead: View [ width = 100%, height = 40,
+            layout: SimpleLayout [ axis = x, spacing = 16, align = center ],
+            Label [ textColor = { provided("theme").ink }, letterSpacing = 3, text = "Cadence" ],
+            Label [ flexes = true, text = { longDay(app.today) } ],
+            log: Pill [ visible = { app.wide }, on = true, label = "+ Log session",
+                accessibilityLabel = "Log a session (N)",
+                press() { app.newSession() }
+                ]
+            ],
+
+        // Two columns at a desk, one on a phone: today first, then the year.
+
+        body: View [ width = 100%,
+            layout: ResponsiveLayout [ gap = 56, plan = { [
+                ({ from: 1180, flow: "row", share: ({ now: 34, year: 66 }) }),
+                ({ from: 780, flow: "row", share: ({ now: 40, year: 60 }) }),
+                ({ from: 0, flow: "stack", gap: 40, share: ({ now: 100, year: 100 }) }) ] } ],
+
+            now: View [
+                layout: SimpleLayout [ axis = y, spacing = 26 ],
+                LiveNow [ exists = { app.isLive } ],
+                thisWeek: View [ width = 100%,
+                    layout: SimpleLayout [ axis = y, spacing = 0 ],
+                    Label [ text = "This week" ],
+                    line: WeekLine [ width = 100%, figSize = { Math.min(app.heroSize, Math.round(this.width * 0.2)) }, count = { app.weekCount }, minutes = { app.weekMinutes } ]
+                    ],
+                streak: View [ width = 100%,
+                    layout: SimpleLayout [ axis = y, spacing = 0 ],
+                    Label [ text = "Streak" ],
+                    days: Figure [ width = 100%, figSize = { Math.round(Math.min(app.heroSize, this.width * 0.2) * 0.75) }, kind = "days", value = { app.streak } ]
+                    ],
+                shape: View [ width = 100%, datapath = { app.week.value },
+                    layout: SimpleLayout [ axis = x, spacing = 4 ],
+                    DayBar [ datapath = :days[] ]
+                    ],
+                last: LastSession [ ]
+                ],
+            year: YearPanel [ ]
+            ]
+        ],
+
+    // A phone's way in to logging: one wide button at the foot of the
+    // screen, under the thumb. Its dock lets presses through around it.
+
+    dock: View [ visible = { !app.wide && app.ready }, ignoreScroll = true, ignoreLayout = true,
+        y = end, width = { app.width }, pointerEvents = "none",
+        padding = { [0, 20, 18 + app.safeBottom, 20] },
+        logButton: Control [ width = 100%, height = 60, cornerRadius = 30, accessibilityLabel = "Log a session",
+            fill = { provided("theme").ink },
+            shadow = { shadow(0, 8, 22, 0x15130F40) },
+            scale = { pressed ? 0.97 : 1 }, pivotX = { this.width / 2 }, pivotY = 30,
+            press() { app.newSession() },
+            TextLabel [ x = center, y = center, fontSize = 18, fontWeight = black, textColor = { provided("theme").paper },
+                text = "+  Log session" ]
+            ]
+        ],
+
+    // ── layers
+
+    detailSheet: Sheet [ edge = "end", accessibilityLabel = "Session",
+        shown = { app.detailOpen && app.selected != null },
+        input(open: boolean) { app.detailOpen = open },
+        SessionDetail [ exists = { app.detailSheet.present } ]
+        ],
+    entrySheet: Sheet [ edge = "end", accessibilityLabel = "Log a session",
+        shown = { app.entryOpen },
+        input(open: boolean) { app.entryOpen = open },
+        EntryForm [ exists = { app.entrySheet.present }, editing = { app.editing } ]
+        ],
+    dlg: Dialog [ ],
+    toast: Toast [ duration = 4000 ]
+    ]

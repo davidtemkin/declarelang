@@ -83,6 +83,7 @@ export declare function negativeSizeMessage(childClass: string, size: "width" | 
 /** A view that takes its size from its children, every one of which takes its
  *  size from the view: each waits for the other, and nothing decides it. */
 export declare function emptyContainerMessage(parentClass: string, size: "width" | "height", childClass: string): string;
+export declare function placedFromParentMessage(parentClass: string, size: "width" | "height", childClass: string, pos: "x" | "y"): string;
 /** The checker's form: what the layout places is known from the source, so the
  *  message can also say HOW the author gets what they meant. `kind` is why the
  *  layout places this attribute — along its flow, across it by `align` (a

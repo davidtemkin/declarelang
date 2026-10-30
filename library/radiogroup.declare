@@ -4,7 +4,10 @@
 One-of-N. Radios are written as the group's **direct children** — the group's
 layout arranges them, and each radio reaches its group as `parent`. A radio replicated
 from data (`Radio [ datapath = :plans[], choice = { :id }, label = { :name } ]`) is one
-too: each copy is a direct child of the group.
+too: each copy is a direct child of the group. A radio of your own, drawn as you like, is
+any direct child with a `choice`: a `Control` with `accessibilityRole = radio`, `on = {
+(parent as RadioGroup).value == choice }`, and `press() { (parent as RadioGroup).pick(choice) }`.
+The group does the rest — one Tab stop, and the arrows move and check.
 
     RadioGroup [ value = "m", input(v: string) { app.size = v },
         Radio [ choice = "s", label = "Small" ],
@@ -42,6 +45,10 @@ group does.
 ## focusEntry()
 The radio Tab lands on: the checked one, else the first that is enabled.
 
+## _arrowed()
+**Internal.** The group checks the radio an arrow lands on — so any direct child with a
+`choice` is a radio, a library `Radio` or one of your own.
+
 ## _radios()
 **Internal.** The group's radios, for the Tab entry; a handler-only walk.
 
@@ -69,6 +76,7 @@ class RadioGroup extends ValueControl [
     // (planes.md §13.6)
 
     focusScope = stop,
+    _arrowed(to: View) { if ((to as any).choice !== undefined) pick((to as any).choice) },
     focusEntry() -> View? {
         const rs = this._radios()
         return (rs.find((r) => (r as Radio).choice == this.value) ?? rs.find((r) => !(r as Radio).disabled) ?? null) as View | null
@@ -120,10 +128,6 @@ stored** — which is why turning one on cannot leave another stale.
 ## press()
 Delivers this radio's `choice` to the group. Called by a click and by Space/Enter.
 
-## onKeyDown
-The arrows move to the next or previous radio in the group (the stop's) and check the one
-they land on; Space and Enter press, as on any control.
-
 ## onBlur
 Judges the group when the focus leaves a radio, as a field is judged on leaving. An override
 calls `super.onBlur()`.
@@ -162,20 +166,12 @@ class Radio extends Control [ height = { Math.max(this.dot.width + 4, app.touchF
 
     press()   { (parent as RadioGroup).pick(choice) },
 
-    // the arrows move to the next radio and check it; Space and Enter as any control
-
     // leaving the group's radios is leaving the group
 
     onBlur() {
         super.onBlur()
         const g = parent as any
         if (g != null) g.judged = true
-        },
-
-    onKeyDown(e: KeyEvent) {
-        super.onKeyDown(e)
-        const to = Focus.getFocus() as any
-        if (to != null && to != this && to.parent == this.parent && to.choice !== undefined) (parent as RadioGroup).pick(to.choice)
         },
 
     on: boolean = { (parent as RadioGroup).value == choice },

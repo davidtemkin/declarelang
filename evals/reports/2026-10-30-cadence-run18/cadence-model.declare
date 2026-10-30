@@ -1,0 +1,226 @@
+/*
+# Cadence: the model
+
+What Cadence knows, kept apart from what it shows: the shape of a session,
+date arithmetic, and `Sessions`, the history held in memory with every query
+the screen asks of it and every write the service confirms. `cadence.declare`
+includes this file.
+*/
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+//
+// Plain functions of their arguments. A day is a whole number — days since
+// 1970-01-01 — so a range of days is arithmetic, and "YYYY-MM-DD" is only how
+// the service writes one. Dates are the person's own: no time zones.
+
+script {
+    const API = "http://127.0.0.1:8320/api"
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    const MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "July", "August",
+        "September", "October", "November", "December"]
+    const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+    const WEEKDAYS_LONG = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    const SPORTS = ["run", "ride", "swim", "lift"]
+
+    function pad(n: number): string { return n < 10 ? "0" + n : "" + n }
+    function dayNum(iso: string): number {
+        if (iso == "") return 0
+        const p = iso.split("-").map(Number)
+        return Math.round(Date.UTC(p[0], p[1] - 1, p[2]) / 86400000)
+    }
+    function dateOf(n: number): Date { return new Date(Math.floor(n) * 86400000) }
+    function isoOf(n: number): string {
+        const d = dateOf(n)
+        return d.getUTCFullYear() + "-" + pad(d.getUTCMonth() + 1) + "-" + pad(d.getUTCDate())
+    }
+    function weekdayOf(n: number): number { return (dateOf(n).getUTCDay() + 6) % 7 }     // 0 is Monday
+    function shortDay(n: number): string {
+        const d = dateOf(n)
+        return WEEKDAYS[weekdayOf(n)] + " " + d.getUTCDate() + " " + MONTHS[d.getUTCMonth()]
+    }
+    function longDay(n: number): string {
+        const d = dateOf(n)
+        return WEEKDAYS_LONG[weekdayOf(n)] + " " + d.getUTCDate() + " " + MONTHS_LONG[d.getUTCMonth()] + " " + d.getUTCFullYear()
+    }
+    function dayName(n: number, today: number): string {
+        if (n == today) return "Today"
+        if (n == today - 1) return "Yesterday"
+        if (today - n < 7 && n < today) return WEEKDAYS_LONG[weekdayOf(n)]
+        return shortDay(n)
+    }
+    function monthDay(n: number): string { const d = dateOf(n); return d.getUTCDate() + " " + MONTHS[d.getUTCMonth()] }
+    function monthLabel(n: number): string { return MONTHS[dateOf(n).getUTCMonth()] }
+    function yearOf(n: number): number { return dateOf(n).getUTCFullYear() }
+    function rangeLabel(a: number, b: number): string {
+        const sameYear = yearOf(a) == yearOf(b)
+        if (b - a > 75) {
+            const da = dateOf(a), db = dateOf(b)
+            return MONTHS[da.getUTCMonth()] + (sameYear ? "" : " " + yearOf(a)) + " – " + MONTHS[db.getUTCMonth()] + " " + yearOf(b)
+        }
+        return monthDay(a) + (sameYear ? "" : " " + yearOf(a)) + " – " + monthDay(b) + " " + yearOf(b)
+    }
+
+    // Durations read "3h 40m" and "45m"; distances "12.4 km"; heart rate "148 bpm".
+
+    function fmtDur(m: number): string {
+        const t = Math.round(m)
+        return t >= 60 ? Math.floor(t / 60) + "h " + (t % 60) + "m" : t + "m"
+    }
+    function fmtKm(k: number): string { return k.toFixed(1) + " km" }
+    function fmtClock(secs: number): string {
+        const s = Math.max(0, Math.floor(secs))
+        const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60)
+        return (h > 0 ? h + ":" + pad(m) : "" + m) + ":" + pad(s % 60)
+    }
+    function plural(n: number, one: string, many: string): string { return n == 1 ? one : many }
+    function sportName(s: string): string { return s == "" ? "" : s.slice(0, 1).toUpperCase() + s.slice(1) }
+    function feltWord(e: number): string { return e <= 3 ? "Easy" : e <= 6 ? "Steady" : e <= 8 ? "Hard" : "All out" }
+
+    // A figure set large inside a line of words: `HeroText` styles the
+    // `fig` spans, and the words between them stay small; a duration's
+    // `unit` letters are set larger than words, so "4h 11m" reads as hours
+    // and minutes and not as "4.11". The visible text
+    // is exactly the copy: "4 sessions · 3h 40m", "12 days".
+
+    function fig(n: string): string { return "<span class='fig'>" + n + "</span>" }
+    function plain(html: string): string { return html.replace(/<[^>]+>/g, "") }
+    function unit(u: string): string { return "<span class='unit'>" + u + "</span>" }
+    function durHtml(m: number): string {
+        const t = Math.round(m)
+        return t >= 60 ? fig("" + Math.floor(t / 60)) + unit("h ") + fig("" + (t % 60)) + unit("m") : fig("" + t) + unit("m")
+    }
+
+    function median(xs: number[]): number {
+        if (xs.length == 0) return 0
+        const s = [...xs].sort((a, b) => a - b)
+        return s[Math.floor(s.length / 2)]
+    }
+    function clamp(v: number, lo: number, hi: number): number { return Math.max(lo, Math.min(hi, v)) }
+    }
+
+
+// ── The shape of the data ───────────────────────────────────────────────────
+
+schema Session [ id: string, date: string, sport: string, minutes: number, distanceKm?: number,
+    effort: number, heartAvg?: number, note?: string ]
+schema History [ sessions[]: Session ]
+
+// The session in progress, as `/api/live` reports it.
+
+schema Live [ id: string, date: string, sport: string, startedSecondsAgo: number, minutes: number,
+    distanceKm?: number, heartNow: number, effort: number ]
+
+// A day of the week's shape, and a week of the year's background.
+
+schema Day [ id: string, n: number, letter: string, minutes: number, effort: number, count: number,
+    today: boolean, first: string ]
+schema WeekShape [ days[]: Day ]
+schema Load [ n: number, minutes: number ]
+
+// What is sent to record or correct a session.
+
+schema Draft [ sport: string, date: string, minutes: number, distanceKm?: number, effort: number, note?: string ]
+
+
+// ── The records ─────────────────────────────────────────────────────────────
+//
+// The whole history, newest first, held in memory as the service intends.
+// Everything the screen derives — the week, the streak, the year — is a
+// query here, so a write lands once and every reader follows. The service
+// makes the writes; its reply is put in place with `take`, `replace` and
+// `drop`, so nothing is fetched twice and nothing goes stale.
+
+class Sessions extends DataSource [ url = { API + "/sessions" }, autoFetch = true, schema = History,
+
+    all() -> Session[] { return this.value?.sessions ?? [] },
+    at(id: string) -> number { return this.all().findIndex((s) => s.id == id) },
+    byId(id: string) -> Session? { return this.all().find((s) => s.id == id) ?? null },
+    latest() -> Session? { return this.all()[0] ?? null },
+    on(n: number) -> Session[] { const iso = isoOf(n); return this.all().filter((s) => s.date == iso) },
+    between(a: number, b: number) -> Session[] {
+        const lo = isoOf(a), hi = isoOf(b)
+        return this.all().filter((s) => s.date >= lo && s.date <= hi)
+        },
+    ofSport(sport: string) -> Session[] { return this.all().filter((s) => s.sport == sport) },
+    firstDay() -> number { const a = this.all(); return a.length == 0 ? 0 : dayNum(a[a.length - 1].date) },
+
+    // The seven days ending today, oldest first.
+
+    week(today: number) -> WeekShape {
+        const days: Day[] = []
+        for (let i = 6; i >= 0; i--) {
+            const n = today - i
+            const ss = this.on(n)
+            days.push(({ id: isoOf(n), n: n, letter: WEEKDAYS[weekdayOf(n)].slice(0, 1),
+                minutes: ss.reduce((t, s) => t + s.minutes, 0),
+                effort: ss.reduce((m, s) => Math.max(m, s.effort), 0),
+                count: ss.length, today: i == 0, first: ss[0]?.id ?? "" }))
+            }
+        return ({ days: days })
+        },
+
+    // Consecutive days with a session, counting back from today — or from
+    // yesterday, when today has nothing yet: the day isn't over.
+
+    streak(today: number) -> number {
+        const days = new Set(this.all().map((s) => s.date))
+        let n = days.has(isoOf(today)) ? today : today - 1
+        let k = 0
+        while (days.has(isoOf(n))) { k = k + 1; n = n - 1 }
+        return k
+        },
+
+    // Training load by week (Monday first), for the year's background.
+
+    weekly() -> Load[] {
+        const m = new Map<number, number>()
+        this.all().forEach((s) => {
+            const n = dayNum(s.date)
+            const w = n - weekdayOf(n)
+            m.set(w, (m.get(w) ?? 0) + s.minutes)
+            })
+        return [...m.entries()].map((e) => ({ n: e[0], minutes: e[1] }))
+        },
+
+    // What a person usually does, for a new session's defaults: the sport
+    // they most often do on this weekday, and that sport's typical session.
+
+    usualSport(weekday: number) -> string {
+        const count = new Map<string, number>()
+        this.all().forEach((s) => {
+            if (weekdayOf(dayNum(s.date)) == weekday) count.set(s.sport, (count.get(s.sport) ?? 0) + 1)
+            })
+        let best = this.latest()?.sport ?? "run"
+        count.forEach((c, sp) => { if (c > (count.get(best) ?? 0)) best = sp })
+        return best
+        },
+    typicalMinutes(sport: string) -> number {
+        return Math.max(5, Math.round(median(this.ofSport(sport).map((s) => s.minutes)) / 5) * 5)
+        },
+    typicalKm(sport: string) -> number {
+        const step = sport == "swim" ? 0.1 : 0.5
+        const km = median(this.ofSport(sport).filter((s) => s.distanceKm != null).map((s) => s.distanceKm ?? 0))
+        return Math.max(step, Math.round(km / step) * step)
+        },
+    typicalEffort(sport: string) -> number { return clamp(Math.round(median(this.ofSport(sport).map((s) => s.effort))), 1, 10) || 5 },
+
+    // Where a value sits: the share of sessions it beats, as a percentage.
+
+    beats(values: number[], v: number) -> number {
+        if (values.length <= 1) return 0
+        return Math.round(100 * values.filter((x) => x < v).length / (values.length - 1))
+        },
+
+    // The writes, as the service confirmed them. Newest first is kept by
+    // putting each record before the first one older than it.
+
+    take(s: Session) {
+        const i = this.all().findIndex((x) => x.date < s.date || (x.date == s.date && x.id < s.id))
+        this.insert(["sessions"], i < 0 ? this.all().length : i, s)
+        },
+    replace(s: Session) {
+        const rest = this.all().filter((x) => x.id != s.id)
+        this.set(["sessions"], [...rest, s].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id)))
+        },
+    drop(id: string) { const i = this.at(id); if (i >= 0) this.removeAt(["sessions"], i) }
+    ]

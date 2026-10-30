@@ -74,8 +74,9 @@ for, which is a narrower job than React context usually ends up doing.
 | `display: flex` | `layout: SimpleLayout [ axis = x, spacing = 12 ]` |
 | `flex-wrap` | [`WrappingLayout`](declare-docs:WrappingLayout) |
 | `flex: 1`, `flex-grow` | [`flexes = true`](declare-docs:View.flexes) on the child, or a weight: `flexes = 2` |
+| `flex: 1; min-height: 0; overflow: auto` — a pane that fills what is left and scrolls | `flexes = true, scrolls = y` on the pane, and `align = stretch` on its parent's layout |
 | `flex-shrink` with an ellipsis | [`shrinks = true`](declare-docs:View.shrinks) with `maxLines = 1` — the child keeps its own width until the row runs short |
-| `align-items: stretch` | `align = stretch` on the layout — every child its content sizes is as tall as the row's tallest |
+| `align-items: stretch` | `align = stretch` on the layout — every child its content sizes fills the row across (the tallest child, on a row its children size) |
 | `min-width`, `max-width` on a flex item | [`minWidth`](declare-docs:View.minWidth), `maxWidth` — they bound what a layout gives the child |
 | `padding` | [`padding`](declare-docs:View.padding) on the view — it gives the view a **content box**, and every child's `x = 0` is that box's origin, arranged or absolutely placed alike |
 | `box-sizing` | there is no second model: `width` is always the outer box, and `padding` and `stroke` are always inside it — `border-box`, with nothing to set |

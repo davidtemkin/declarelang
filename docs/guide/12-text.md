@@ -21,7 +21,9 @@ line, which is a chat bubble: as wide as "ok", or as its longest line up to that
 ends the last line with an ellipsis, and the read-only [`truncated`](declare-docs:Text.truncated) says whether anything
 was cut — what a "Show more" link reads. [`lineHeight`](declare-docs:Text.lineHeight) sets leading as a multiple of the
 font size. `selectable = true` lets the reader select it; set on a container, it applies
-to everything below.
+to everything below. Words a line must not part — a figure and its unit, "12 kg" — are
+joined by a no-break space (`"12\u00A0kg"`), in a `Text` and in rich text alike; the line
+breaks at the space before them instead.
 
 **Numbers, money and dates** are formatted by the host's `Intl`, which a `{ }` and a
 script function call like any other global: `new Intl.NumberFormat("en-US", { style:

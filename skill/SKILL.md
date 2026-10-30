@@ -285,9 +285,10 @@ packages. The runtime and compiler come built; there is no build step.
   flow.mjs` (`docs/operational/verify.md`): `drive` presses, types and waits as a person
   does, `expect` checks what is shown and what the program sent (`expect.request`). End
   each flow by expecting what it should have done — R5 says when a script asserted nothing.
-  A view is named by its path or by what it says — `app.form."Pay $40.00"`. Don't build a
-  browser harness of your own; `page` in an assert script, and `declare-look --js`, answer
-  what the vocabulary doesn't. Keep the scripts, and run them again after a change.
+  A view is named by its path or by what it says — `app.form."Pay $40.00"` — and the
+  script's `page` has Playwright's locators too (`page.getByRole("button", { name: "Pay" })`,
+  `getByLabel`), pressing through the same driver. Don't build a browser harness of your
+  own. Keep the scripts, and run them again after a change.
 - `npm start` serves a program at its file's path (`my-apps/app.declare` at
   `http://127.0.0.1:8200/my-apps/app.declare`) for a person to use. When you tell the
   person where to see the program, start it first: an address with nothing behind it is

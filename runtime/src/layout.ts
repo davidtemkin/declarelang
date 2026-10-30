@@ -118,7 +118,8 @@ export interface Box {
   /** A size to FILL, applied only where the child's own size on that axis is
    *  decided by its content (`sizedByContent`): never a claim, never a
    *  conflict, so a child that states its size keeps it. How `align = stretch`
-   *  makes children as tall as the tallest. `w`/`h` beside it win. */
+   *  fills the view across (or matches the tallest, on a view its children
+   *  size). `w`/`h` beside it win. */
   stretch?: { w?: number; h?: number };
 }
 
@@ -656,6 +657,7 @@ export abstract class Layout extends Node implements LayoutStrategy {
     const id = K.layoutAdd(me.axis === "x" ? 0 : 1, words);
     if (id < 0) return why("kernel refused: " + id);
     const k = new Constraint(label, () => undefined, () => {}, 0, false);
+    k.owner = this.view;
     k.adoptRule(id);
     k.arrangedBy = arranger;
     // a child went out of the plane mid-run: re-install at the settle's close,
@@ -808,6 +810,7 @@ export abstract class Layout extends Node implements LayoutStrategy {
           }
         );
         pass.arrangedBy = arranger;
+        pass.owner = this.view;   // the arranged view, not its first child: where a message says it is
         for (const c of passClaims) {
           this.$claim(c.child, c.slot, pass);
           installed.push({ child: c.child, slot: c.slot, k: pass });

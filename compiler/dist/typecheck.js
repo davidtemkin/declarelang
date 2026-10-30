@@ -79,10 +79,11 @@ let CHECKING = null;
  *  name missed on a class is most often a child's: `this.mail` written for
  *  `this.mailBox.mail` (Venue run 6). Two levels down, nearest first. */
 function childPath(cls, name) {
-    const c = CHECKING?.classes.find((k) => k.name === cls);
-    if (c === undefined)
+    // the App is no class: its tree is the program's root
+    const body = CHECKING?.classes.find((k) => k.name === cls)?.body ?? (cls === "this App" || cls === "App" ? CHECKING?.root : undefined);
+    if (body === undefined)
         return null;
-    let level = c.body.children.filter((e) => e.name !== null).map((e) => ({ el: e, path: e.name }));
+    let level = body.children.filter((e) => e.name !== null).map((e) => ({ el: e, path: e.name }));
     for (let depth = 0; depth < 2 && level.length > 0; depth++) {
         for (const { el, path } of level) {
             if (el.children.some((k) => k.name === name) || el.decls.some((d) => d.name === name))
@@ -474,14 +475,16 @@ function explainTs(d, u, synthTags) {
                 return themeTokenMiss(m[1], m[3]);
             if (m !== null && memberHint(m[1]) !== "")
                 return `'${m[1]}' is not a member of ${quoteType(m[2])} — ${memberHint(m[1])}`;
-            // tsc's nearest name may be runtime machinery a program cannot write ($root,
-            // $provided): say what is true without offering it
-            if (m !== null && m[3].startsWith("$"))
-                return `'${m[1]}' is not a member of ${quoteType(m[2])} — declare it (${m[1]}: <type> = …) or fix the name`;
             if (m !== null) {
+                // a member one level down first: a view path after a rename (`app.listPage`
+                // for `app.pages.listPage`) is the commonest miss of all
                 const held = childPath(m[2], m[1]);
                 if (held !== null)
                     return `'${m[1]}' is not a member of ${quoteType(m[2])} — a child's is: '${held}' (reached through the child that holds it)`;
+                // tsc's nearest name may be runtime machinery a program cannot write ($root,
+                // $provided): say what is true without offering it
+                if (m[3].startsWith("$"))
+                    return `'${m[1]}' is not a member of ${quoteType(m[2])} — declare it (${m[1]}: <type> = …) or fix the name`;
                 return `'${m[1]}' is not a member of ${quoteType(m[2])} — did you mean '${m[3]}'?`;
             }
             return msg;
