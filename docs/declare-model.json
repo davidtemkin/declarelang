@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "806fa139b42c",
+  "buildId": "f6313e15dcd7",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -60312,7 +60312,7 @@
    "internal": false,
    "source": {
     "file": "library/table.declare",
-    "line": 494
+    "line": 495
    },
    "parent": "TableRow",
    "seeAlso": [],
@@ -60340,7 +60340,7 @@
    "internal": false,
    "source": {
     "file": "library/table.declare",
-    "line": 499
+    "line": 500
    },
    "parent": "TableRow",
    "seeAlso": [],
@@ -60368,7 +60368,7 @@
    "internal": false,
    "source": {
     "file": "library/table.declare",
-    "line": 500
+    "line": 501
    },
    "parent": "TableRow",
    "seeAlso": [],
@@ -91645,7 +91645,7 @@
      "internal": false,
      "source": {
       "file": "library/table.declare",
-      "line": 494
+      "line": 495
      },
      "parent": "TableRow",
      "seeAlso": [],
@@ -91673,7 +91673,7 @@
      "internal": false,
      "source": {
       "file": "library/table.declare",
-      "line": 499
+      "line": 500
      },
      "parent": "TableRow",
      "seeAlso": [],
@@ -91701,7 +91701,7 @@
      "internal": false,
      "source": {
       "file": "library/table.declare",
-      "line": 500
+      "line": 501
      },
      "parent": "TableRow",
      "seeAlso": [],
