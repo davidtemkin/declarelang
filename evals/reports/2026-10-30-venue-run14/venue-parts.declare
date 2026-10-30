@@ -1,0 +1,603 @@
+/*
+# The Venue: the parts
+
+The look and the pieces of the hall, kept apart from how the app moves between
+its screens: the palette, the helpers that write money and dates and read a
+card, the shape of the service's data, the seat map as a dataset with its own
+rules, the hall drawn as a room, and a ticket. `venue.declare` includes this
+file and holds the App.
+*/
+
+// ── Colors ──────────────────────────────────────────────────────────────────
+//
+// Warm paper and ink. One accent, ultramarine, and it means "yours": a seat you
+// chose, the total you are about to pay, the button that commits. Errors are a
+// red of their own and appear only beside the field they belong to.
+//
+// The four tiers of the house are one ramp of the ink, darkest at the front:
+// the darker the seat, the dearer. `tiers` is indexed by section, front to back.
+
+theme Venue [
+    background = #F5F1EA, surface = #FBF9F5, card = #FFFFFF,
+    line = #E3DCD1, lineStrong = #CFC6B8, quiet = #EDE7DD,
+    text = #1B1714, textMuted = #6A6058, textFaint = #8C8178,
+    accent = #2F36C4, accentHovered = #262CA8, accentPressed = #1F248C, accentTextColor = #FFFFFF,
+    accentTint = #E7E8FA, linkColor = #2F36C4,
+    control = #ECE6DC, controlHovered = #E4DCCF, controlPressed = #D9CFC0, controlSelected = #E4DCCF,
+    error = #B3261E, errorTint = #FBEAE7,
+    stage = #2A221D, gone = #D8CFC3,
+    tiers = [#3A2F28, #67584D, #93826F, #BBAC9B],
+    tierFloor = [#EDE6DA, #E8E0D3, #E3DACB, #DED4C4],
+    tooltipFill = #1F1A17, tooltipTextColor = #F5F1EA
+    ]
+
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+//
+// Functions of their arguments: money, dates as a ticket prints them, the
+// geometry of the room, and what a card number says about itself.
+
+script {
+    const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+    // $1,240.00 — cents in, dollars out, always to the cent.
+    function money(cents: number): string {
+        return "$" + (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    }
+    function seatCount(n: number): string { return n + (n == 1 ? " seat" : " seats") }
+
+    // The service writes the hall's local time as "2026-11-13T19:30".
+    function stampParts(s: string): number[] {
+        const m = /^(\d+)-(\d+)-(\d+)T(\d+):(\d+)/.exec(s)
+        return m == null ? [2000, 1, 1, 0, 0] : m.slice(1).map(Number)
+    }
+    // Fri 13 Nov
+    function dayLabel(s: string): string {
+        const p = stampParts(s)
+        return DAYS[new Date(p[0], p[1] - 1, p[2]).getDay()] + " " + p[2] + " " + MONTHS[p[1] - 1]
+    }
+    // 7:30pm
+    function timeLabel(s: string): string {
+        const p = stampParts(s)
+        const h = p[3] % 12 == 0 ? 12 : p[3] % 12
+        return h + ":" + (p[4] < 10 ? "0" : "") + p[4] + (p[3] < 12 ? "am" : "pm")
+    }
+    function isMatinee(s: string): boolean { return stampParts(s)[3] < 17 }
+
+    // ── The room. Rows are arcs around a point behind the stage; seat 1 is on
+    //    the stage's left, which is the right of a plan drawn with the stage at
+    //    the top. Units are the hall's own; the view scales them.
+
+    const PITCH = 26
+    const ROW_GAP = 30
+    const SECTION_GAP = 52
+    const FIRST_ROW = 330
+    const WORLD_W = 900
+    const CX = 450
+    const CY = -150
+
+    function seatAngle(r: number, count: number, k: number): number { return ((count - 1) / 2 - k) * PITCH / r }
+    function seatX(r: number, count: number, k: number): number { return CX + r * Math.sin(seatAngle(r, count, k)) }
+    function seatY(r: number, count: number, k: number): number { return CY + r * Math.cos(seatAngle(r, count, k)) }
+    function sectionStarts(rows: number[]): number[] {
+        let r = FIRST_ROW
+        return rows.map((n) => { const s = r; r = r + n * ROW_GAP + SECTION_GAP; return s })
+    }
+
+    // ── Cards. The kind from the first digits; the grouping as it is printed.
+
+    function digitsOf(s: string): string { return s.replace(/\D/g, "") }
+    function brandOf(num: string): string {
+        const d = digitsOf(num)
+        if (/^3[47]/.test(d)) return "amex"
+        if (/^4/.test(d)) return "visa"
+        if (/^(5[1-5]|2[2-7])/.test(d)) return "mastercard"
+        if (/^(6011|65|64[4-9])/.test(d)) return "discover"
+        return ""
+    }
+    function brandName(b: string): string {
+        return b == "visa" ? "Visa" : b == "mastercard" ? "Mastercard" : b == "amex" ? "American Express" : b == "discover" ? "Discover" : ""
+    }
+    function cardLengths(b: string): number[] {
+        return b == "amex" ? [15] : b == "visa" ? [13, 16, 19] : b == "discover" ? [16, 19] : [16]
+    }
+    function codeLength(b: string): number { return b == "amex" ? 4 : 3 }
+    function groupCard(num: string): string {
+        const d = digitsOf(num)
+        const b = brandOf(d)
+        const max = Math.max(...cardLengths(b))
+        const ds = d.slice(0, max)
+        const cuts = b == "amex" ? [4, 10] : [4, 8, 12, 16]
+        let out = ""
+        for (let i = 0; i < ds.length; i++) {
+            if (cuts.includes(i)) out = out + " "
+            out = out + ds[i]
+        }
+        return out
+    }
+    // Where the caret goes after regrouping: just after the n-th digit.
+    function caretAfterDigits(grouped: string, n: number): number {
+        if (n == 0) return 0
+        let seen = 0
+        for (let i = 0; i < grouped.length; i++) {
+            if (/\d/.test(grouped[i])) seen = seen + 1
+            if (seen == n) return i + 1
+        }
+        return grouped.length
+    }
+    function luhn(d: string): boolean {
+        let sum = 0
+        for (let i = 0; i < d.length; i++) {
+            let n = Number(d[d.length - 1 - i])
+            if (i % 2 == 1) { n = n * 2; if (n > 9) n = n - 9 }
+            sum = sum + n
+        }
+        return d.length > 0 && sum % 10 == 0
+    }
+
+    // An expiry as typed: "04/28", "0428", "4/2028". The slash appears once a
+    // third digit does, so deleting past it never fights the person.
+    function groupExpiry(v: string): string {
+        let d = digitsOf(v)
+        if (d.length == 1 && Number(d) > 1) d = "0" + d
+        d = d.slice(0, 6)
+        return d.length <= 2 ? d : d.slice(0, 2) + "/" + d.slice(2)
+    }
+    function expiryParts(v: string): number[] {
+        const d = digitsOf(v)
+        if (d.length != 4 && d.length != 6) return []
+        const m = Number(d.slice(0, 2))
+        const y = d.length == 4 ? 2000 + Number(d.slice(2)) : Number(d.slice(2))
+        return [m, y]
+    }
+
+    const POSTAL: Record<string, RegExp> = {
+        US: /^\d{5}(-\d{4})?$/,
+        CA: /^[ABCEGHJ-NPRSTVXY]\d[ABCEGHJ-NPRSTV-Z] ?\d[ABCEGHJ-NPRSTV-Z]\d$/i,
+        GB: /^([A-Z]{1,2}\d[A-Z\d]?|GIR) ?\d[A-Z]{2}$/i
+    }
+    function postalOk(country: string, code: string): boolean {
+        const re = POSTAL[country]
+        return re == null || re.test(code.trim())
+    }
+    function postalExample(country: string): string {
+        return country == "US" ? "a ZIP code like 94110" : country == "CA" ? "a postal code like K1A 0B1" : "a postcode like SW1A 2AA"
+    }
+    function countryName(c: string): string {
+        return c == "US" ? "United States" : c == "CA" ? "Canada" : c == "GB" ? "United Kingdom" : ""
+    }
+
+    // A ticket's door code, drawn as a square of modules from its own string,
+    // with the three corner marks a scanner looks for.
+    function codeBits(s: string, n: number): boolean[] {
+        let h = 2166136261
+        for (let i = 0; i < s.length; i++) { h = h ^ s.charCodeAt(i); h = Math.imul(h, 16777619) }
+        const out: boolean[] = []
+        for (let i = 0; i < n * n; i++) {
+            h = Math.imul(h ^ (h >>> 15), 2246822507)
+            h = Math.imul(h ^ (h >>> 13), 3266489909)
+            h = h ^ (h >>> 16)
+            out.push((h & 1) == 1)
+        }
+        return out
+    }
+    }
+
+
+// ── The shape of the data ───────────────────────────────────────────────────
+
+schema Performance [ id: string, startsAt: string, doorsAt: string, priceFromCents: number, seatsLeft: number, seats: number ]
+schema Production [ title: string, hall: string, runningTime: string, performances[]: Performance ]
+
+schema SeatRec [ id: string, number: number, status: string ]
+schema RowRec [ name: string, seats[]: SeatRec ]
+schema SectionRec [ key: string, name: string, priceCents: number, feeCents: number, rows[]: RowRec ]
+schema SeatMapRec [ performanceId: string, sections[]: SectionRec ]
+
+// A chosen seat, as checkout and the summary need it.
+
+schema Picked [ id: string, label: string, section: string, row: string, number: number, tier: number,
+    priceCents: number, feeCents: number ]
+
+// Where a section sits in the room: its radii and how far round it reaches.
+
+schema Tier [ name: string, priceCents: number, r0: number, r1: number, half: number ]
+
+schema Billing [ line1: string, line2?: string, city: string, postalCode: string, country: string ]
+schema SavedCard [ id: string, brand: string, last4: string, expMonth: number, expYear: number ]
+schema Account [ name: string, email: string, billing: Billing, cards[]: SavedCard ]
+
+schema Ticket [ seatId: string, section: string, row: string, number: number, barcode: string ]
+schema Order [ code: string, email: string, totalCents: number, brand: string, last4: string,
+    performanceId: string, tickets[]: Ticket ]
+
+
+// ── The seat map ────────────────────────────────────────────────────────────
+//
+// One performance's house, from the service, and what is true of it whoever
+// is looking: where each section sits, which seats are free, what a seat id
+// names. Other people's purchases arrive on the App's event stream and are
+// written here with `markSold`; nothing else writes it.
+
+class SeatMap extends DataSource [ credentials = include, autoFetch = true, schema = SeatMapRec,
+
+    sections() -> SectionRec[] { return this.value?.sections ?? [] },
+    starts: number[] = { sectionStarts(classroot.sections().map((s) => s.rows.length)) },
+
+    // the room's depth, from the stage to the back of the last row
+
+    worldH: number = { classroot.depth() },
+    depth() -> number {
+        const ss = this.sections()
+        if (ss.length == 0) return 1100
+        const last = ss.length - 1
+        return -150 + this.starts[last] + (ss[last].rows.length - 1) * 30 + 40
+        },
+
+    tiers: Tier[] = { classroot.measure() },
+    measure() -> Tier[] {
+        return this.sections().map((s, i) => {
+            const r0 = this.starts[i]
+            const r1 = r0 + (s.rows.length - 1) * 30
+            let half = 0
+            s.rows.forEach((row, j) => { half = Math.max(half, (row.seats.length * 26 / 2) / (r0 + j * 30)) })
+            return ({ name: s.name, priceCents: s.priceCents, r0: r0, r1: r1, half: half + 0.035 })
+            })
+        },
+
+    total: number = { classroot.sections().reduce((n, s) => n + s.rows.reduce((m, r) => m + r.seats.length, 0), 0) },
+    free: number = { classroot.sections().reduce((n, s) => n + s.rows.reduce((m, r) => m + r.seats.filter((x) => x.status == "available").length, 0), 0) },
+
+    // A seat id is SECTION-ROW-NUMBER; its place in the data is three indexes.
+
+    find(id: string) -> number[] {
+        const ss = this.sections()
+        for (let i = 0; i < ss.length; i++) {
+            const rows = ss[i].rows
+            for (let j = 0; j < rows.length; j++) {
+                const k = rows[j].seats.findIndex((x) => x.id == id)
+                if (k >= 0) return [i, j, k]
+                }
+            }
+        return []
+        },
+    isFree(id: string) -> boolean {
+        const p = this.find(id)
+        return p.length == 3 && this.sections()[p[0]].rows[p[1]].seats[p[2]].status == "available"
+        },
+    markSold(id: string) {
+        const p = this.find(id)
+        if (p.length == 3) this.set(["sections", p[0], "rows", p[1], "seats", p[2], "status"], "sold")
+        },
+    info(id: string) -> Picked? {
+        const p = this.find(id)
+        if (p.length != 3) return null
+        const s = this.sections()[p[0]]
+        const row = s.rows[p[1]]
+        const n = row.seats[p[2]].number
+        return ({ id: id, label: s.name + ", row " + row.name + ", seat " + n, section: s.name, row: row.name, number: n,
+            tier: p[0], priceCents: s.priceCents, feeCents: s.feeCents })
+        },
+
+    // For the keyboard: the seat a step away, as the hall is drawn. Left and
+    // right walk the row as it appears (seat 1 is at the right); up and down
+    // go to the free seat nearest in the row in front or behind.
+
+    neighbour(id: string, dx: number, dy: number) -> string {
+        const p = this.find(id)
+        if (p.length != 3) return ""
+        const rows: RowRec[] = []
+        const radii: number[] = []
+        this.sections().forEach((s, i) => s.rows.forEach((r, j) => { rows.push(r); radii.push(this.starts[i] + j * 30) }))
+        let at = 0
+        for (let i = 0; i < p[0]; i++) at = at + this.sections()[i].rows.length
+        at = at + p[1]
+        if (dx != 0) {
+            const seats = rows[at].seats
+            for (let k = p[2] - dx; k >= 0 && k < seats.length; k = k - dx) if (seats[k].status == "available") return seats[k].id
+            return ""
+            }
+        const here = rows[at]
+        const hx = seatX(radii[at], here.seats.length, p[2])
+        for (let r = at + dy; r >= 0 && r < rows.length; r = r + dy) {
+            let best = ""
+            let gap = Infinity
+            rows[r].seats.forEach((x, k) => {
+                const d = Math.abs(seatX(radii[r], rows[r].seats.length, k) - hx)
+                if (x.status == "available" && d < gap) { gap = d; best = x.id }
+                })
+            if (best != "") return best
+            }
+        return ""
+        }
+    ]
+
+
+// ── Marks ───────────────────────────────────────────────────────────────────
+//
+// The few drawn marks the app needs, on the library's 16-unit grid.
+
+class Glyph extends Icon [
+    shape: string = "",
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.fillStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        if (shape == "check") {
+            d.moveTo(3.2, 8.4); d.lineTo(6.6, 11.6); d.lineTo(12.8, 4.6); d.stroke()
+        } else if (shape == "back") {
+            d.moveTo(10, 3); d.lineTo(5, 8); d.lineTo(10, 13); d.stroke()
+        } else if (shape == "close") {
+            d.moveTo(4, 4); d.lineTo(12, 12); d.moveTo(12, 4); d.lineTo(4, 12); d.stroke()
+        } else if (shape == "lock") {
+            d.roundRect(3, 7, 10, 7.5, 1.5); d.moveTo(5.5, 7); d.lineTo(5.5, 5); d.arc(8, 5, 2.5, Math.PI, 0); d.lineTo(10.5, 7); d.stroke()
+        } else if (shape == "alert") {
+            d.arc(8, 8, 6.2, 0, 6.3); d.moveTo(8, 4.8); d.lineTo(8, 8.8); d.stroke()
+            d.beginPath(); d.arc(8, 11.2, 0.9, 0, 6.3); d.fill()
+        } else if (shape == "zoom") {
+            d.arc(7, 7, 4.6, 0, 6.3); d.moveTo(10.4, 10.4); d.lineTo(14, 14); d.moveTo(5, 7); d.lineTo(9, 7); d.stroke()
+        } else if (shape == "zoomIn") {
+            d.arc(7, 7, 4.6, 0, 6.3); d.moveTo(10.4, 10.4); d.lineTo(14, 14); d.moveTo(5, 7); d.lineTo(9, 7); d.moveTo(7, 5); d.lineTo(7, 9); d.stroke()
+        }
+        }
+    ]
+
+
+// A card's kind, as a small capitalised word at the end of its number field.
+
+class BrandMark [
+    brand: string = "",
+    draw(d: DrawContext) {
+        if (brand == "") return
+        d.font = "700 12px -apple-system, system-ui, sans-serif"
+        d.letterSpacing = "0.8px"
+        d.textAlign = "right"
+        d.textBaseline = "middle"
+        d.fillStyle = provided("theme").textMuted
+        d.fillText(brandName(brand).toUpperCase(), width, height / 2)
+        }
+    ]
+
+
+// ── The hall ────────────────────────────────────────────────────────────────
+//
+// The room drawn under the seats: the stage everything faces, and each
+// section's floor as a band of its own, a rail along its front edge.
+
+class HallFloor [
+    draw(d: DrawContext) {
+        const th = provided("theme")
+        const tiers = app.seats.tiers
+        tiers.forEach((t, i) => {
+            const a0 = Math.PI / 2 - t.half
+            const a1 = Math.PI / 2 + t.half
+            d.beginPath()
+            d.arc(450, -150, t.r1 + 22, a0, a1)
+            d.arc(450, -150, t.r0 - 22, a1, a0, true)
+            d.closePath()
+            d.fillStyle = th.tierFloor[i % 4]
+            d.fill()
+            // the rail at the front of each raised tier
+            if (i > 0) {
+                d.beginPath()
+                d.arc(450, -150, t.r0 - 22, a0, a1)
+                d.strokeStyle = th.lineStrong
+                d.lineWidth = 3
+                d.stroke()
+                }
+            })
+        // the stage
+        d.beginPath()
+        d.arc(450, -150, 255, Math.PI / 2 - 0.5, Math.PI / 2 + 0.5)
+        d.arc(450, -150, 175, Math.PI / 2 + 0.5, Math.PI / 2 - 0.5, true)
+        d.closePath()
+        d.fillStyle = th.stage
+        d.fill()
+        }
+    ]
+
+
+// One section: its name and price over its front rail, and its rows. Its
+// geometry comes from the seat map; it places its rows' seats in the hall's
+// own units, and the hall scales the whole.
+
+class HallSection [
+    tier: number = { rowIndex },
+    start: number = { app.seats.starts[classroot.tier] ?? 0 },
+    sectionName: string = { :name ?? "" },
+    price: number = { :priceCents ?? 0 },
+    caption: Text [ y = { -150 + classroot.start - 48 }, x = { 450 - this.width / 2 },
+        fontSize = { app.labelSize }, fontWeight = semibold, letterSpacing = 0.4,
+        textColor = { provided("theme").textMuted }, wrap = false, accessibilityHidden = true,
+        text = { classroot.sectionName + "  ·  " + money(classroot.price) } ],
+    HallRow [ datapath = :rows[], tier = { classroot.tier }, sectionName = { classroot.sectionName },
+        price = { classroot.price }, radius = { classroot.start + rowIndex * 30 } ]
+    ]
+
+
+class HallRow [
+    tier: number = 0,
+    sectionName: string = "",
+    price: number = 0,
+    radius: number = 300,
+    rowName: string = { :name ?? "" },
+    count: number = { (:seats ?? []).length },
+    Seat [ datapath = :seats[], tier = { classroot.tier }, sectionName = { classroot.sectionName },
+        rowName = { classroot.rowName }, price = { classroot.price },
+        x = { seatX(classroot.radius, classroot.count, rowIndex) - 13 },
+        y = { seatY(classroot.radius, classroot.count, rowIndex) - 13 } ]
+    ]
+
+
+// A seat. Three states, told apart by shape as much as by colour: a free seat
+// is a full disc in its tier's ink, a seat that is yours is larger, in the
+// accent, with a tick, and a seat that is gone shrinks to a small pale dot.
+// Choosing one pops it on a spring that overshoots a little; a seat bought by
+// someone else while you watch visibly shrinks away.
+
+class Seat extends Control [ width = 26, height = 26,
+    tier: number = 0,
+    sectionName: string = "",
+    rowName: string = "",
+    price: number = 0,
+    seatId: string = { :id ?? "" },
+    num: number = { :number ?? 0 },
+    sold: boolean = { :status == "sold" },
+    mine: boolean = { app.chosen.includes(classroot.seatId) },
+
+    disabled = { classroot.sold },
+    accessibilityRole = toggle,
+    accessibilityLabel = { classroot.sectionName + ", row " + classroot.rowName + ", seat " + classroot.num },
+    accessibilityPressed = { classroot.mine },
+    accessibilityHint = { classroot.sold ? "Sold" : money(classroot.price) + (classroot.mine ? ", in your selection" : ", available") },
+
+    // Seen whole on a phone the seats are too small for a thumb: a press
+    // there zooms in around it, and the next one chooses.
+
+    press() { if (app.close && app.overview) app.zoomInAt(x + 13, y + 13); else app.toggleSeat(seatId) },
+    onKeyDown(e: KeyEvent) {
+        const dx = e.key == "ArrowLeft" ? -1 : e.key == "ArrowRight" ? 1 : 0
+        const dy = e.key == "ArrowUp" ? -1 : e.key == "ArrowDown" ? 1 : 0
+        if (dx == 0 && dy == 0) { super.onKeyDown(e); return }
+        app.focusSeat(app.seats.neighbour(seatId, dx, dy))
+        },
+
+    pop: number = 0,
+    Spring [ attribute = pop, to = { classroot.mine ? 1 : 0 }, stiffness = 520, damping = 13 ],
+    gone: number = { classroot.sold ? 1 : 0 },
+    Spring [ attribute = gone, to = { classroot.sold ? 1 : 0 }, stiffness = 140, damping = 18 ],
+    size: number = { (17 + 6 * classroot.pop) * (1 - 0.62 * classroot.gone) },
+
+    dot: View [ x = center, y = center, width = { classroot.size }, height = { classroot.size },
+        cornerRadius = { classroot.size / 2 },
+        fill = { classroot.mine ? provided("theme").accent : classroot.sold ? provided("theme").gone : provided("theme").tiers[classroot.tier % 4] },
+        stroke = { classroot.hovered && !classroot.mine ? stroke(2, provided("theme").accent) : null } ],
+    tick: Glyph [ visible = { classroot.mine }, x = center, y = center, iconSize = 14, weight = 2.4, shape = "check",
+        ink = white, opacity = { Math.min(1, classroot.pop) } ]
+    ]
+
+
+// The whole house in a thumbnail, for a phone: every seat as a dot, the part
+// of the room on screen as a frame. A glance at it says how full the house is;
+// it takes no presses, so every seat under it is still reached.
+
+class MiniHall [
+    s: number = { this.width / 900 },
+    frame: number[] = [0, 0, 0, 0],
+    draw(d: DrawContext) {
+        const th = provided("theme")
+        const ss = app.seats.sections()
+        d.fillStyle = th.surface
+        d.fillRect(0, 0, width, height)
+        d.scale(s, s)
+        ss.forEach((sec, i) => sec.rows.forEach((row, j) => {
+            const r = app.seats.starts[i] + j * 30
+            row.seats.forEach((x, k) => {
+                const mine = app.chosen.includes(x.id)
+                d.fillStyle = mine ? th.accent : x.status == "sold" ? th.gone : th.tiers[i % 4]
+                d.beginPath()
+                d.arc(seatX(r, row.seats.length, k), seatY(r, row.seats.length, k), mine ? 13 : x.status == "sold" ? 5 : 9, 0, 6.3)
+                d.fill()
+                })
+            }))
+        d.fillStyle = th.stage
+        d.beginPath()
+        d.arc(450, -150, 255, Math.PI / 2 - 0.5, Math.PI / 2 + 0.5)
+        d.arc(450, -150, 175, Math.PI / 2 + 0.5, Math.PI / 2 - 0.5, true)
+        d.fill()
+        d.strokeStyle = th.text
+        d.lineWidth = 2.5 / s
+        d.strokeRect(frame[0], frame[1], frame[2], frame[3])
+        }
+    ]
+
+
+// ── A ticket ────────────────────────────────────────────────────────────────
+//
+// The thing held up at the door: the opera, the night, when the doors open,
+// and the seat, large enough to read at arm's length, over its door code.
+
+class DoorCode [
+    code: string = "",
+    draw(d: DrawContext) {
+        const n = 25
+        const m = width / n
+        const bits = codeBits(code, n)
+        d.fillStyle = provided("theme").text
+        const finder = (cx: number, cy: number) => {
+            d.fillRect(cx * m, cy * m, 7 * m, 7 * m)
+            d.clearRect((cx + 1) * m, (cy + 1) * m, 5 * m, 5 * m)
+            d.fillStyle = provided("theme").card
+            d.fillRect((cx + 1) * m, (cy + 1) * m, 5 * m, 5 * m)
+            d.fillStyle = provided("theme").text
+            d.fillRect((cx + 2) * m, (cy + 2) * m, 3 * m, 3 * m)
+            }
+        for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) {
+            const inFinder = (r < 8 && c < 8) || (r < 8 && c >= n - 8) || (r >= n - 8 && c < 8)
+            if (!inFinder && bits[r * n + c]) d.fillRect(c * m, r * m, m + 0.3, m + 0.3)
+            }
+        finder(0, 0)
+        finder(n - 7, 0)
+        finder(0, n - 7)
+        }
+    ]
+
+
+class TicketCard [ cornerRadius = 20, fill = { provided("theme").card },
+    shadow = { shadow(0, 10, 30, 0x2A221D22) },
+    padding = [26, 24, 22, 24],
+    index: number = 0,
+    of: number = 1,
+    section: string = { :section ?? "" },
+    row: string = { :row ?? "" },
+    num: number = { :number ?? 0 },
+    barcode: string = { :barcode ?? "" },
+    layout: SimpleLayout [ axis = y, spacing = 0 ],
+    accessibilityRole = group,
+    accessibilityLabel = { "Ticket " + (classroot.index + 1) + " of " + classroot.of },
+
+    Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 1.6, textColor = { provided("theme").textMuted },
+        text = { (app.hallName + " · Ticket " + (classroot.index + 1) + " of " + classroot.of).toUpperCase() } ],
+    Text [ padding = [8, 0, 0, 0], width = 100%, wrap = true, fontFamily = { app.displayFace }, fontSize = 26,
+        fontWeight = semibold, letterSpacing = -0.3, text = { app.title } ],
+    Text [ padding = [14, 0, 0, 0], fontFamily = { app.displayFace }, fontSize = 30, fontWeight = semibold,
+        numeralWidth = tabular, text = { dayLabel(app.ticketPerf?.startsAt ?? "") + " · " + timeLabel(app.ticketPerf?.startsAt ?? "") } ],
+    Text [ padding = [4, 0, 0, 0], fontSize = 16, textColor = { provided("theme").textMuted },
+        text = { "Doors open " + timeLabel(app.ticketPerf?.doorsAt ?? "") + " — arrive by then" } ],
+
+    // the tear line
+
+    View [ width = 100%, height = 34,
+        View [ y = center, width = 100%, height = 1, stroke = { stroke(1, provided("theme").lineStrong) }, opacity = 0.9 ]
+        ],
+
+    seat: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 22 ],
+        TicketFact [ caption = "Section", value = { classroot.section }, flexes = true ],
+        TicketFact [ caption = "Row", value = { classroot.row } ],
+        TicketFact [ caption = "Seat", value = { "" + classroot.num } ]
+        ],
+
+    View [ width = 100%, padding = [22, 0, 0, 0],
+        layout: SimpleLayout [ axis = y, spacing = 10, align = center ],
+        DoorCode [ width = 168, height = 168, code = { classroot.barcode }, accessibilityHidden = true ],
+        Text [ fontSize = 15, fontWeight = medium, letterSpacing = 2, numeralWidth = tabular,
+            accessibilityLabel = { "Door code " + classroot.barcode }, text = { classroot.barcode } ]
+        ]
+    ]
+
+
+class TicketFact [
+    caption: string = "",
+    value: string = "",
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 1.4, textColor = { provided("theme").textMuted },
+        text = { classroot.caption.toUpperCase() } ],
+    Text [ fontSize = { classroot.caption == "Section" ? 24 : 34 }, fontWeight = bold, numeralWidth = tabular, wrap = false,
+        text = { classroot.value } ]
+    ]

@@ -32,7 +32,7 @@ import { renderClamped } from "./text-clamp.js";
 import { profileHook } from "./reactive.js";
 import { replay, rasterEntryCap, rasterPad, RASTER_MAX_DIM, RASTER_MAX_AREA } from "./draw.js";
 import { onDprChange } from "./dpr.js";
-import { routeInput, holdCaptureActive, fingerHeldByDrag } from "./input.js";
+import { routeInput, holdCaptureActive, fingerHeldByDrag, passesWheel } from "./input.js";
 import { dragScrolling } from "./drag-autoscroll.js";
 import { lockFocusZoom } from "./viewport-lock.js";
 import { observeVisibility, refreshObserved } from "./dom-visibility.js";
@@ -2248,6 +2248,11 @@ export class DomSurface {
                 }
                 const s = SINKS.get(el);
                 if (s === undefined)
+                    return;
+                // `claim = x` (or `y`) claims that axis of the wheel, as it does of a
+                // drag: a scroll along the other goes on to the page — a chart that pans
+                // sideways leaves a vertical wheel scrolling past it. A pinch is the view's.
+                if (!e.ctrlKey && passesWheel(WANTS.get(el)?.claimAxis, e.deltaX, e.deltaY))
                     return;
                 const p = localPoint(el, e.clientX, e.clientY);
                 // The app root's point beside it, as the router gives every other

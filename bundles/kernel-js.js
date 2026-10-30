@@ -242,6 +242,8 @@ function instantiateKernelJS(host, caps = {}) {
   const link = /* @__PURE__ */ __name((rule, cell) => {
     if ((rState[rule] & ST_DEAD) !== 0)
       return;
+    if (ownerGet(cell) === FREE_CELL)
+      return;
     const e = allocEdge();
     eRule[e] = rule;
     eCell[e] = cell;

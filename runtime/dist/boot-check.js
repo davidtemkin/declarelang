@@ -20,7 +20,8 @@ export function bootCheck(app, opts = {}) {
         const fed = feedSchemaSamples(app, record.samples);
         if (fed > 0) {
             settle();
-            record.notes.push(`${fed} data source(s) fed a sample of their schema, so their rows were built (--samples prints them)`);
+            const which = record.samples.map((x) => x.source).filter((v, i, a) => a.indexOf(v) === i);
+            record.notes.push(`${fed} data source(s) fed a sample of their schema at boot, so their rows were built — ${which.join(", ")} — not the service's data (--samples prints them)`);
         }
     }
     const walk = (n) => { record.nodes++; for (const c of n.children)
@@ -324,7 +325,7 @@ function feedSchemaSamples(app, samples) {
                 : undefined;
         if (value === undefined)
             continue;
-        samples.push({ source: d.name ?? declareName(ds), value });
+        samples.push({ source: pathOf(app, ds), value });
         setBound(ds, "value", value);
         setBound(ds, "loading", false);
         if (typeof d.onLoad === "function") {

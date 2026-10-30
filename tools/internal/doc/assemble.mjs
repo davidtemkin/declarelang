@@ -52,7 +52,7 @@ const CHECK = process.argv.includes("--check");
 /** One attribute type as a published tag. Shared by both schema tiers so the
  *  kernel and the library can never encode the same type two ways. */
 const attrTypeTag = (t) =>
-  t.kind === "enum" ? (t.name.startsWith('"') ? `union(${t.name})` : `enum(${t.tokens.join("|")}${t.boolean ? "|true|false" : ""})`)
+  t.kind === "enum" ? (t.name.startsWith('"') ? `union(${t.name})` : `enum(${t.tokens.join("|")}${t.boolean ? "|true|false" : ""}${t.numeric ? "|number" : ""})`)
   : t.kind === "class" ? `class(${t.of})`
   : t.kind === "record" ? `record(${t.name})`
   : t.kind;

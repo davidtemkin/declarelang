@@ -56,7 +56,10 @@ export function withLocators(page, { act, settle, advance }) {
       if (want.re) return new RegExp(want.re, want.flags).test(s);
       return q.exact ? s === want.s : s.toLowerCase().includes(want.s.toLowerCase());
     };
-    const all = [...document.querySelectorAll("*")];
+    // what assistive technology cannot reach is not found, as Playwright's role
+    // queries leave it out: the page behind an open sheet (inert), and what is
+    // hidden from a screen reader
+    const all = [...document.querySelectorAll("*")].filter((el) => el.closest('[inert], [aria-hidden="true"]') === null);
     let hits;
     if (q.by === "role") hits = all.filter((el) => IMPLICIT(el) === q.role && fits(nameOf(el), q.name));
     else if (q.by === "label") hits = all.filter((el) => { const r = IMPLICIT(el); return r !== null && labelOf(el) !== "" && fits(labelOf(el), q.name); });

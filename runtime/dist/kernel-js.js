@@ -205,6 +205,8 @@ export function instantiateKernelJS(host, caps = {}) {
     const link = (rule, cell) => {
         if ((rState[rule] & ST_DEAD) !== 0)
             return; // a dead rule takes no edges (kernel.c link)
+        if (ownerGet(cell) === FREE_CELL)
+            return; // nor a freed cell subscribers (kernel.c link)
         const e = allocEdge();
         eRule[e] = rule;
         eCell[e] = cell;

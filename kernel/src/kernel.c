@@ -76,6 +76,7 @@ typedef struct {
   uint32_t dyn_head;          /* this rule's dynamic dep nodes (NONE = none) */
   uint32_t serial;            /* the run during which cell_mark == serial means "already tracked" */
   int32_t  owns;              /* the cell this rule OWNS (kernel_own; -1 none): the pull's key, cleared at dispose */
+  uint32_t pulled;            /* the pull (pull_gen) that last visited it: one visit per pull */
 } Rule;
 
 /* A dynamic edge: on the cell's subscriber list and on the rule's dep list. */
@@ -110,6 +111,7 @@ struct dk_kernel {
   uint32_t *cell_dyn_tail;    /* … and its tail: subscribers wake in LINK order (the JS core's Set order) */
   uint32_t *cell_mark;        /* dedupe for kernel_track: the serial of the run that last tracked it */
   uint32_t serial;
+  uint32_t pull_gen;          /* the current pull: a rule it has visited is not visited again */
   Elem     *elems;
   Rule     *rules;
   uint32_t *sub_off;          /* CSR: static subscribers per cell (image rules) */
@@ -274,7 +276,7 @@ dk_kernel *kernel_load(const void *image, uint32_t bytes, const dk_caps *caps,
     r->target = (int32_t)rd32(p); r->kind = p[4]; r->flags = p[5]; r->state = ST_UNLANDED;
     r->phase = (r->flags & DK_PHASE1) ? 1 : 0;
     r->edge0 = rd32(p + 8); r->nedge = rd32(p + 12); r->code0 = rd32(p + 16); r->ncode = rd32(p + 20); r->body = rd32(p + 24);
-    r->stamp = 0; r->runs = 0; r->dyn_head = NONE; r->serial = 0; r->owns = -1;
+    r->stamp = 0; r->runs = 0; r->dyn_head = NONE; r->serial = 0; r->owns = -1; r->pulled = 0;
     r->elem = elem_of(k, r->target);
     if (r->target >= (int32_t)k->ncells || r->edge0 + r->nedge > im.nedges || r->code0 + r->ncode > im.ncode) return 0;
     for (uint32_t e = 0; e < r->nedge; e++) { uint32_t c = k->edges[r->edge0 + e]; if (c >= k->ncells) return 0; k->sub_off[c + 1]++; }
@@ -374,6 +376,11 @@ static int link(dk_kernel *k, uint32_t rule, uint32_t cell) {
   uint32_t n;
   /* a dead rule takes no edges: a freed one's dyn_head is the free list's link */
   if (k->rules[rule].state & ST_DEAD) return DK_OK;
+  /* nor does a freed cell take subscribers: a read the track ring recorded before
+     the cell was freed, linked after, left a node naming a cell on the free list;
+     handed out again, the cell's list was reset under it, and the orphaned node
+     corrupted the lists it was still on (a pull that never ended: Venue run 14) */
+  if (k->cell_owner[cell] < -1) return DK_OK;
   if (k->node_free != NONE) { n = k->node_free; k->node_free = k->nodes[n].next_rule; }
   else { if (k->node_hw >= k->node_cap) return DK_ERR_FULL; n = k->node_hw++; }
   Node *nd = &k->nodes[n];
@@ -788,16 +795,30 @@ static int run(dk_kernel *k, uint32_t rule) {
  * first computed value a spring primes from, or an init handler reads, is the
  * value the world settles to. Settle-time runs keep the queue's order. */
 static int run_queued(dk_kernel *k, uint32_t rule);
+/* ONE VISIT PER PULL: a rule the pull has reached is not entered again. Without
+ * the mark, queued rules that read one another (a view's extent and the children
+ * it measures, each queued) were walked again down every path to them, to the
+ * depth limit — a count that grows with the paths, not the rules: a row of
+ * twenty-four replicated seats hung the page (Venue run 14). */
+static int pull(dk_kernel *k, uint32_t rule, int depth);
+static int pull_owner(dk_kernel *k, uint32_t rule, int32_t o, int depth) {
+  if (o < 0 || (uint32_t)o == rule || !(k->rules[o].state & ST_QUEUED) || (k->rules[o].state & (ST_DEAD | ST_SUSPENDED))) return DK_OK;
+  if (k->rules[o].pulled == k->pull_gen) return DK_OK;
+  k->rules[o].pulled = k->pull_gen;
+  int e = pull(k, (uint32_t)o, depth + 1);
+  if (e != DK_OK) return e;
+  return run_queued(k, (uint32_t)o);
+}
 static int pull(dk_kernel *k, uint32_t rule, int depth) {
   if (depth > 64) return DK_OK;
   /* no table pointer is held across the recursion: a run it makes may grow the tables */
   for (uint32_t i = 0; i < k->rules[rule].nedge; i++) {
-    int32_t o = k->cell_owner[k->edges[k->rules[rule].edge0 + i]];
-    if (o >= 0 && (uint32_t)o != rule && (k->rules[o].state & ST_QUEUED) && !(k->rules[o].state & (ST_DEAD | ST_SUSPENDED))) { int e = pull(k, (uint32_t)o, depth + 1); if (e != DK_OK) return e; e = run_queued(k, (uint32_t)o); if (e != DK_OK) return e; }
+    int e = pull_owner(k, rule, k->cell_owner[k->edges[k->rules[rule].edge0 + i]], depth);
+    if (e != DK_OK) return e;
   }
   for (uint32_t n = k->rules[rule].dyn_head; n != NONE; n = k->nodes[n].next_rule) {
-    int32_t o = k->cell_owner[k->nodes[n].cell];
-    if (o >= 0 && (uint32_t)o != rule && (k->rules[o].state & ST_QUEUED) && !(k->rules[o].state & (ST_DEAD | ST_SUSPENDED))) { int e = pull(k, (uint32_t)o, depth + 1); if (e != DK_OK) return e; e = run_queued(k, (uint32_t)o); if (e != DK_OK) return e; }
+    int e = pull_owner(k, rule, k->cell_owner[k->nodes[n].cell], depth);
+    if (e != DK_OK) return e;
   }
   return DK_OK;
 }
@@ -805,6 +826,8 @@ int kernel_run(dk_kernel *k, uint32_t rule) {
   if (rule >= k->nrules) return DK_ERR_BAD;
   if (k->rules[rule].state & ST_DEAD) return DK_OK;   /* disposed: nothing to run (a freed rule's lists are the free list's) */
   drain(k);
+  if (++k->pull_gen == 0) ++k->pull_gen;   /* 0 = never visited */
+  k->rules[rule].pulled = k->pull_gen;
   int e = pull(k, rule, 0);
   if (e != DK_OK) return e;
   return run(k, rule);
@@ -921,7 +944,7 @@ int32_t kernel_add_rule(dk_kernel *k, int32_t target, uint8_t kind, uint8_t flag
   r->target = target; r->elem = elem_of(k, target); r->kind = kind; r->flags = flags; r->state = 0;
   r->phase = (flags & DK_PHASE1) ? 1 : 0;
   r->edge0 = 0; r->nedge = 0; r->code0 = code0; r->ncode = kind == DK_EXPR ? ncode : 0; r->body = body;
-  r->stamp = 0; r->runs = 0; r->dyn_head = NONE; r->serial = 0; r->owns = -1;
+  r->stamp = 0; r->runs = 0; r->dyn_head = NONE; r->serial = 0; r->owns = -1; r->pulled = 0;
   for (uint32_t i = 0; i < nedges; i++) {
     if (edges[i] >= k->ncells) { r->state |= ST_DEAD; return DK_ERR_BAD; }
     int e = link(k, id, edges[i]);

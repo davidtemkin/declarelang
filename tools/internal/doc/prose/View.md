@@ -878,7 +878,10 @@ arrives on the same stream with `e.pinch` true (a ctrl+wheel zoom reports identi
 The event carries the point in this view's coordinates plus `deltaX`/`deltaY`. Declaring
 it **claims the wheel** over this view and its subtree — the browser stops scrolling or
 zooming the page with it — except over a nested `scrolls` pane, which keeps its own
-wheel. ⌘ +/− dispatches no event and stays out of reach.
+wheel. A view whose `claim` is `x` or `y` claims that axis only, as it does a drag: a
+scroll mostly along the other goes on to the page (a chart that pans sideways leaves a
+vertical wheel scrolling past it), and a pinch is the view's. ⌘ +/− dispatches no event
+and stays out of reach.
 
 ## onPinchStart
 Two fingers landed over this view's subtree — the **recognized** two-finger gesture,

@@ -8,7 +8,7 @@
 // scene: the browser's own hit-testing is its walk.
 
 import type { InputSink, InputWants } from "./backend.js";
-import type { HitTarget } from "./input.js";
+import { passesWheel, type HitTarget } from "./input.js";
 import { walkHit, hitPoint, type HitAdapter, type HitAccept, type HitNote } from "./hit-walk.js";
 
 /** What a backend's surface exposes to the walks. */
@@ -150,6 +150,8 @@ export function wheelWalk(s: SceneSurface, px: number, py: number, deltaX: numbe
   const t = walkHit(s, lx, ly, SURFACES, WHEEL);
   if (t === null) return null;
   if (t.wants?.wantsWheel === true && t.sink !== null) {
+    // the axis its `claim` leaves goes on, to the scroller beneath (dom-backend)
+    if (!pinch && passesWheel(t.wants.claimAxis, deltaX, deltaY)) return null;
     t.sink("wheel", hitPoint.x, hitPoint.y, { deltaX, deltaY, pinch, rootX: root.x, rootY: root.y });
     return "claimed";
   }

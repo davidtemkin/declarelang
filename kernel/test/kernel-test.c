@@ -251,9 +251,45 @@ static void test_lifecycle(void) {
   printf("  lifecycle ok\n");
 }
 
+/* 9. a cell freed while a body's read of it waits in the track ring takes no
+   subscriber: handed out again, it starts with an empty list, and no live node
+   names it (an orphaned node corrupted the lists — Venue run 14's hang) */
+static int32_t loose_cell = -1, reused_cell = -1;
+/* reads go through the track ring, as a WASM or native host's do: drained when
+   the body returns, after the cell it read was freed */
+static void ring_read(dk_kernel *k, uint32_t cell) { uint32_t cap; uint32_t *ring = kernel_track_ring(k, &cap); uint32_t *n = kernel_track_count(k); ring[(*n)++] = cell; }
+static double read_then_free(dk_kernel *k, uint32_t r) {
+  (void)r;
+  ring_read(k, 0);
+  if (loose_cell >= 0) { ring_read(k, (uint32_t)loose_cell); kernel_free_cell(k, (uint32_t)loose_cell); }
+  return kernel_table(k)[0];
+}
+static double read_reused(dk_kernel *k, uint32_t r) { (void)r; ring_read(k, (uint32_t)reused_cell); return kernel_table(k)[reused_cell]; }
+static void test_freed_cell(void) {
+  uint32_t nslots[1] = { 3 }; uint8_t kinds[3] = { 0, 0, 0 }; double init[3] = { 1, 0, 0 };
+  R rules[1] = { { 1, DK_DYNAMIC, 0, 0, 0, 0, 0, 0 } };
+  Buf b = image(1, nslots, kinds, init, rules, 1, 0, 0);
+  dk_kernel *k = load(&b, (dk_caps){ 0, 8, 4, 16 });
+  body_fn[0] = read_then_free;
+  loose_cell = kernel_add_cell(k, 0, 0);
+  CHECK(loose_cell >= 0);
+  kernel_run(k, 0);                                   /* reads the loose cell, frees it; the read links after */
+  loose_cell = -1;
+  reused_cell = kernel_add_cell(k, 0, 0);             /* the freed id, handed out again */
+  int32_t r2 = kernel_add_rule(k, 2, DK_DYNAMIC, 0, 0, 0, 0, 0, 1);
+  CHECK(r2 >= 0);
+  body_fn[r2] = read_reused;
+  kernel_run(k, (uint32_t)r2);                        /* a new reader of the reused cell */
+  kernel_write(k, 0, 2); kernel_settle(k);            /* the first rule runs again, dropping its old reads */
+  CHECK(kernel_table(k)[1] == 2);
+  kernel_write(k, (uint32_t)reused_cell, 7); kernel_settle(k);
+  CHECK(kernel_table(k)[2] == 7);                     /* the new reader still hears its cell */
+  printf("  freed cell ok\n");
+}
+
 int main(void) {
   printf("kernel-test\n");
-  test_chain(); test_diamond(); test_phases(); test_cycle(); test_ownership(); test_dynamic(); test_close(); test_lifecycle();
+  test_chain(); test_diamond(); test_phases(); test_cycle(); test_ownership(); test_dynamic(); test_close(); test_lifecycle(); test_freed_cell();
   printf("%d checks, %d failed\n", checks, fails);
   return fails ? 1 : 0;
 }

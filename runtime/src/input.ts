@@ -812,3 +812,12 @@ export function routeInput(
     window.addEventListener("scroll", scrollListener, true);
   }
 }
+
+/** Does a wheel scroll pass a view whose `claim` covers only one axis — a
+ *  scroll mostly along the other, which goes on to the page as a finger's does
+ *  (a chart that pans sideways leaves a vertical wheel scrolling past it)? */
+export function passesWheel(axis: "both" | "x" | "y" | undefined, deltaX: number, deltaY: number): boolean {
+  if (axis === "x") return Math.abs(deltaY) > Math.abs(deltaX);
+  if (axis === "y") return Math.abs(deltaX) > Math.abs(deltaY);
+  return false;
+}

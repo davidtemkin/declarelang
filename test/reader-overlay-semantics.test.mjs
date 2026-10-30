@@ -171,4 +171,36 @@ for (const touch of [false, true]) {
   });
 }
 
+await test("a surface that claims x takes the sideways wheel and leaves a vertical one to scroll the page", () => {
+  const out = verify("wheel-axis", `App [ width = 400, height = 300, panned: number = 0,
+    col: View [ width = 100%, layout: SimpleLayout [ axis = y ],
+        chart: View [ width = 100%, height = 150, claim = x, fill = gainsboro,
+            onWheel(e: WheelEvent) { app.panned = app.panned + e.deltaX } ],
+        View [ width = 100%, height = 900 ] ] ]`, `export default async ({ drive, expect, page }) => {
+  await drive.wheel("app.col.chart", 400);
+  const y = await page.evaluate(() => window.__declare.find("app").scrollY);
+  if (!(y > 0)) throw new Error("a vertical wheel over the chart did not scroll the page: scrollY " + y);
+  await expect.attr("app", "panned", 0);
+  await page.evaluate(() => window.__declare.find("app").scrollTo(0));
+  await drive.settleMotion();
+  await drive.wheel("app.col.chart", 0, 120);
+  const p = await page.evaluate(() => window.__declare.find("app").panned);
+  if (!(p > 0)) throw new Error("a sideways wheel did not reach the chart: panned " + p);
+};`);
+  assert.match(out, /R5 ✓/, out);
+});
+
+await test("a locator does not find what an open sheet puts out of reach", () => {
+  const out = verify("locator-inert", `App [ width = 400, height = 300, open: boolean = false, signedIn: boolean = false,
+    Button [ x = 20, y = 20, label = "Sign in", onClick() { app.open = true } ],
+    s: Sheet [ edge = "end", accessibilityLabel = "Sign in", shown = { app.open }, input(o: boolean) { app.open = o },
+        Button [ label = "Sign in", onClick() { app.signedIn = true } ] ] ]`, `export default async ({ page, drive, expect }) => {
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await drive.settleMotion();
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect.attr("app", "signedIn", true);
+};`);
+  assert.match(out, /R5 ✓/, out);
+});
+
 summarize("reader-overlay-semantics");

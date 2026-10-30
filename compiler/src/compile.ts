@@ -1209,7 +1209,15 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
   const idiom = idiomDiagnostics(program, r.schemas);
   r.warnings.push(...idiom.warnings);
   const accessible = opts.accessibility ?? program.flags?.accessibility ?? true;
-  const a11y = accessibilityDiagnostics(program, r.schemas, { inLibrary: inLibrary(preludeLen, libSources, libIds, libFrom), warnings: accessible });
+  const libraryAt = inLibrary(preludeLen, libSources, libIds, libFrom);
+  // A program's script name meeting a member inside a LIBRARY class is no
+  // concern of the program's: the library never calls the program's script,
+  // and its code is not the author's to rename (Cadence run 19, `duration`)
+  for (let i = r.warnings.length - 1; i >= 0; i--) {
+    const w = r.warnings[i];
+    if (w.code === "DECLARE4002" && /the script \{ \} binding/.test(w.message) && w.pos != null && libraryAt(w.pos.offset)) r.warnings.splice(i, 1);
+  }
+  const a11y = accessibilityDiagnostics(program, r.schemas, { inLibrary: libraryAt, warnings: accessible });
   r.errors.push(...a11y.errors);
   r.warnings.push(...a11y.warnings);
   const byPos = (a: DeclareError, b: DeclareError) => (a.pos?.offset ?? 0) - (b.pos?.offset ?? 0);

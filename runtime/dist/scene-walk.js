@@ -6,6 +6,7 @@
 // takes the press, which shows its cursor, which hears the wheel. Each surface
 // supplies its geometry and its exact clip. The DOM backend has no retained
 // scene: the browser's own hit-testing is its walk.
+import { passesWheel } from "./input.js";
 import { walkHit, hitPoint } from "./hit-walk.js";
 const scroller = (s) => s.scrolls || s.scrollsX;
 /** The surfaces as the hit walk reads them. A surface's children are in its
@@ -107,6 +108,9 @@ export function wheelWalk(s, px, py, deltaX, deltaY, pinch, root) {
     if (t === null)
         return null;
     if (t.wants?.wantsWheel === true && t.sink !== null) {
+        // the axis its `claim` leaves goes on, to the scroller beneath (dom-backend)
+        if (!pinch && passesWheel(t.wants.claimAxis, deltaX, deltaY))
+            return null;
         t.sink("wheel", hitPoint.x, hitPoint.y, { deltaX, deltaY, pinch, rootX: root.x, rootY: root.y });
         return "claimed";
     }

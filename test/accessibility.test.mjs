@@ -139,6 +139,15 @@ await test("a control whose label is left empty has no name, wherever its class 
   assert.match(b.warnings.find((w) => w.code === "DECLARE4017" && w.pos.line === 9).message, /TextInput is a textField with no name/);
 });
 
+await test("a radio outside a RadioGroup is warned of (DECLARE4032); one inside, and a library control's own, are not", async () => {
+  const b = await compile(`class Tile extends Control [ width = 40, height = 40, accessibilityRole = radio, accessibilityLabel = "x", accessibilityChecked = false ]
+App [ width = 300, height = 200, picked: string = "a",
+    row: View [ Tile [ ] ],
+    g: RadioGroup [ value = { app.picked }, input(v: string) { app.picked = v }, Radio [ choice = "a", label = "A" ], Tile [ ] ],
+    Segmented [ choices = { [ ({ id: "a", label: "A" }), ({ id: "b", label: "B" }) ] } ] ]`);
+  assert.deepEqual(warnedLines(b, "DECLARE4032"), [3]);
+});
+
 await test("a label a method writes, or a state sets, may say something, and is not warned of", async () => {
   const b = await compile(`class Named extends Control [ label: string = "", Text [ text = { label } ], onInit() { label = "Ready" } ]
 App [ width = 200, height = 200, Named [ ], Dialog [ ], Checkbox [ State [ applied = { app.width > 1 }, label = "On" ] ] ]`);

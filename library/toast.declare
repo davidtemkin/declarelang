@@ -42,8 +42,9 @@ person reaching for "Undo" is never cut off.
 **Internal.** A toast let go after its time ran out goes a moment later.
 
 ## say()
-Shows `message`, with an optional action record; a toast already showing takes the new
-message and starts its time again.
+Shows a message, and the action record or `null` for none — both are passed:
+`toast.say("Saved", null)`, `toast.say("Message deleted", ({ id: "undo", label: "Undo" }))`.
+A toast already showing takes the new message and starts its time again.
 
 ## picked()
 Receives the action's id when its button is pressed. Override it at the use site. The button

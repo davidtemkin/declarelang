@@ -332,6 +332,15 @@ export function accessibilityDiagnostics(program, schemas, opts) {
                 else if (brought !== null)
                     warnings.push(Diag.accessibilityControlInControl(`${brought.tag} in ${owner}`, brought.role, outer.owner, outer.role, el.pos));
             }
+            // a radio is one of a group: outside a RadioGroup a screen reader hears no
+            // "one of N", and the arrows do not move between its choices
+            if (decl === undefined && roleOf(levels) === "radio") {
+                const p = above[above.length - 1];
+                const pd = p !== undefined ? classByBody.get(p) : undefined;
+                const ptag = p === undefined ? "" : pd !== undefined ? pd.name : p.tag;
+                if (!isA(ptag, "RadioGroup"))
+                    warnings.push(Diag.accessibilityRadioAlone(owner, el.pos));
+            }
             // content clipped out of sight by a size of 0 is still read — said where
             // the clip or the size is written (a use site inherits the class's), and
             // only of content that does not hide itself as well

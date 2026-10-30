@@ -202,6 +202,7 @@ export function instantiateKernelJS(host: KernelHost, caps: KernelCaps = {}): Ke
   /** kernel.c link: append to the cell's subscribers, PREPEND to the rule's reads */
   const link = (rule: number, cell: number): void => {
     if ((rState[rule] & ST_DEAD) !== 0) return;   // a dead rule takes no edges (kernel.c link)
+    if (ownerGet(cell) === FREE_CELL) return;   // nor a freed cell subscribers (kernel.c link)
     const e = allocEdge();
     eRule[e] = rule; eCell[e] = cell; eNext[e] = 0;
     const tail = cellTail[cell];

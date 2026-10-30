@@ -1,0 +1,398 @@
+/*
+# Cadence: the parts
+
+The look of Cadence, kept apart from how it works: the palette, the date and
+number helpers, the type, and the pieces the screens are made of — the
+captions, the hero lines, the week's bars, the drawn year, the session's
+place among the others, and the controls of the entry form.
+`cadence.declare` includes this file; read that one first.
+*/
+
+// ── Colors ──────────────────────────────────────────────────────────────────
+//
+// Paper and ink, and one accent, `hard`, which means one thing: a session at
+// effort 7 or above. Laid over a library preset so the Sheet, the Toast and
+// the focus ring read the same paper; the library's own `accent` is ink, so
+// nothing but effort ever takes the colour.
+
+theme InkLight [
+    background = #F3EFE7, surface = #F3EFE7, card = #FBF9F4,
+    text = #161513, textMuted = #6F6A61, textFaint = #ABA498,
+    line = #DDD6CA, lineStrong = #C9C1B3, hover = #EAE5DB, selection = #E3DDD1,
+    accent = #161513, linkColor = #161513,
+    control = #E8E3D9, controlHovered = #DFD9CD, controlSelected = #161513,
+    easy = #C4BDB0, steady = #7D776D, hard = #F2481B, hardTint = #FBE3D9,
+    onInk = #F3EFE7
+    ]
+
+
+theme InkDark [
+    background = #121110, surface = #121110, card = #1B1A18,
+    text = #F1EDE4, textMuted = #A39D92, textFaint = #6C675F,
+    line = #2D2B27, lineStrong = #3D3A35, hover = #22201D, selection = #2A2825,
+    accent = #F1EDE4, linkColor = #F1EDE4,
+    control = #24221F, controlHovered = #2D2B27, controlSelected = #F1EDE4,
+    easy = #4A4640, steady = #9A948A, hard = #FF5B2E, hardTint = #3A1D13,
+    onInk = #121110
+    ]
+
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+//
+// Plain functions of their arguments: dates as day numbers (days since
+// 1970-01-01, so a week is arithmetic), and the app's ways of writing a
+// duration, a distance and a day. The service's dates are the person's own,
+// so everything here is UTC arithmetic on "YYYY-MM-DD" with no zone.
+
+script {
+    const DAY = 86400000
+    const WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August",
+        "September", "October", "November", "December"]
+    const SPORTS: Record<string, string> = { run: "Run", ride: "Ride", lift: "Lift", swim: "Swim" }
+
+    function pad(n: number): string { return n < 10 ? "0" + n : "" + n }
+    function dayOf(iso: string): number {
+        const p = iso.split("-").map(Number)
+        return Math.round(Date.UTC(p[0], p[1] - 1, p[2]) / DAY)
+    }
+    function isoOf(n: number): string {
+        const d = new Date(n * DAY)
+        return d.getUTCFullYear() + "-" + pad(d.getUTCMonth() + 1) + "-" + pad(d.getUTCDate())
+    }
+    function weekdayOf(n: number): number { return new Date(n * DAY).getUTCDay() }
+    function monthOf(n: number): number { return new Date(n * DAY).getUTCMonth() }
+    function yearOf(n: number): number { return new Date(n * DAY).getUTCFullYear() }
+    function dateOf(n: number): number { return new Date(n * DAY).getUTCDate() }
+
+    // "3h 40m", "45m", "2h"
+    function durText(min: number): string {
+        const m = Math.max(0, Math.round(min))
+        const h = Math.floor(m / 60), r = m % 60
+        return h == 0 ? r + "m" : r == 0 ? h + "h" : h + "h " + r + "m"
+    }
+    function kmText(v: number): string { return v.toFixed(1) + " km" }
+    function bpmText(v: number): string { return Math.round(v) + " bpm" }
+    function sportName(s: string): string { return SPORTS[s] ?? s }
+
+    function shortDay(n: number): string { return dateOf(n) + " " + MONTHS[monthOf(n)].slice(0, 3) }
+    function longDay(n: number): string {
+        return WEEKDAYS[weekdayOf(n)] + " " + dateOf(n) + " " + MONTHS[monthOf(n)] + " " + yearOf(n)
+    }
+    // "Today", "Yesterday", "Monday", then "Thu 16 Oct", with the year once it isn't this one
+    function dayName(n: number, today: number): string {
+        const ago = today - n
+        if (ago == 0) return "Today"
+        if (ago == 1) return "Yesterday"
+        if (ago > 1 && ago < 7) return WEEKDAYS[weekdayOf(n)]
+        const s = WEEKDAYS[weekdayOf(n)].slice(0, 3) + " " + shortDay(n)
+        return yearOf(n) == yearOf(today) ? s : s + " " + yearOf(n)
+    }
+    function rangeName(a: number, b: number): string {
+        if (b - a > 75) {
+            const m = (n: number) => MONTHS[monthOf(n)].slice(0, 3)
+            return m(a) + " " + yearOf(a) + " – " + m(b) + " " + yearOf(b)
+        }
+        const tail = yearOf(a) == yearOf(b) ? "" : " " + yearOf(a)
+        return shortDay(a) + tail + " – " + shortDay(b) + " " + yearOf(b)
+    }
+    // the running clock: "6:52", "1:02:03"
+    function elapsed(secs: number): string {
+        const s = Math.max(0, Math.floor(secs))
+        const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), r = s % 60
+        return h > 0 ? h + ":" + pad(m) + ":" + pad(r) : m + ":" + pad(r)
+    }
+    function median(xs: number[]): number {
+        if (xs.length == 0) return 0
+        const s = [...xs].sort((a, b) => a - b)
+        return s[Math.floor(s.length / 2)]
+    }
+
+    // The hero lines are rich text, so the copy stays one exact string
+    // ("4 sessions · 3h 40m") while its figures are set large.
+    function fig(n: number): string { return "<span class='Fig'>" + n + "</span>" }
+    function countHtml(n: number, one: string, many: string): string { return fig(n) + " " + (n == 1 ? one : many) }
+    function durationHtml(min: number): string {
+        const m = Math.max(0, Math.round(min))
+        const h = Math.floor(m / 60), r = m % 60
+        return h == 0 ? fig(r) + "m" : r == 0 ? fig(h) + "h" : fig(h) + "h " + fig(r) + "m"
+    }
+    }
+
+
+// ── Type ────────────────────────────────────────────────────────────────────
+//
+// Two families: the system sans, heavy and tight, for every figure and word;
+// a monospace, small and tracked, for the captions that say what a figure is.
+
+class Caption extends Text [ fontFamily = { app.mono }, fontSize = 11, letterSpacing = 1.4,
+    textTransform = uppercase, wrap = false, textColor = { provided("theme").textMuted }
+    ]
+
+
+// A line whose figures are the hero: `<span class='Fig'>` is set at `figSize`,
+// the words around it at `fontSize`. Both scale with the room.
+
+class Hero extends HTMLText [ width = 100%, fontSize = { app.wordSize }, fontWeight = medium, lineHeight = 1.02,
+    figSize: number = { app.hero },
+    textStyles = { { Fig: { fontSize: classroot.figSize, fontWeight: "extrabold", letterSpacing: -0.03 * classroot.figSize } } }
+    ]
+
+
+// A figure with its caption above it: distance, effort, heart rate.
+
+class Fact [
+    label: string = "",
+    value: string = "",
+    tone: Color = { provided("theme").text },
+    layout: SimpleLayout [ axis = y, spacing = 4 ],
+    Caption [ text = { classroot.label } ],
+    Text [ fontSize = { app.wide ? 36 : 30 }, fontWeight = bold, letterSpacing = -0.8, wrap = false,
+        textColor = { classroot.tone }, text = { classroot.value } ]
+    ]
+
+
+// ── Today: the week's shape ─────────────────────────────────────────────────
+//
+// One day of the last seven: a bar as tall as the day's minutes, in its
+// effort's ink, over the day's letter. The height rides a Spring, so a session
+// added to the day grows the bar rather than cutting to it. A day with a
+// session opens it.
+
+class DayBar extends Control [ flexes = true, height = 132,
+    minutes: number = { :minutes ?? 0 },
+    effort: number = { :effort ?? 0 },
+    sessionId: string = { :top ?? "" },
+    isToday: boolean = { :isToday ?? false },
+    disabled = { classroot.sessionId == "" },
+    accessibilityLabel = { (:name ?? "") + ", " + (classroot.minutes > 0 ? durText(classroot.minutes) : "rest") },
+    press() { app.openSession(classroot.sessionId) },
+
+    tall: number = { 100 * Math.min(1, classroot.minutes / app.weekPeak) },
+    grown: number = 0,
+    Spring [ attribute = grown, to = { classroot.tall }, stiffness = 210, damping = 24 ],
+
+    track: View [ width = 100%, height = 104,
+        bar: View [ y = { 104 - classroot.grown }, width = 100%, height = { Math.max(classroot.minutes > 0 ? 3 : 0, classroot.grown) },
+            cornerRadius = 3, fill = { app.effortInk(classroot.effort) } ],
+        rest: View [ y = 102, width = 100%, height = 2, visible = { classroot.minutes == 0 },
+            fill = { provided("theme").line } ]
+        ],
+    Caption [ y = 114, x = center, text = { :letter ?? "" },
+        fontWeight = { classroot.isToday ? "bold" : "regular" },
+        textColor = { classroot.isToday ? provided("theme").text : provided("theme").textMuted } ]
+    ]
+
+
+// ── The year ────────────────────────────────────────────────────────────────
+//
+// Fourteen months drawn as one surface: a bar per session, as tall as it was
+// long, in its effort's ink (hard ones shout), and over them a line of the
+// rolling seven-day volume, so a season reads as a swell. What it shows is
+// two numbers on the App, `start` and `span` (in days); the hand writes them.
+//
+// The point under the hand stays under the hand: a drag moves the window by
+// exactly the finger's travel from where it was at the press; a pinch (or a
+// trackpad pinch, which arrives on the wheel) zooms about the fingers.
+// `claim = x` takes sideways drags only, so on a phone a finger moving down
+// still scrolls the page. A tap picks the session under it.
+
+class YearChart [ width = 100%, clip = true, claim = x,
+    accessibilityLabel = { "Training from " + rangeName(app.viewFrom, app.viewTo) },
+    axisH: number = 26,
+    grabStart: number = 0,
+    grabSpan: number = 0,
+
+    onPointerDown(e: PointerEvent) { grabStart = app.start },
+    onPointerMove(e: PointerEvent) { app.handTo(grabStart - e.deltaX * app.span / this.width, app.span) },
+    onPinchStart(e: PinchEvent) { grabStart = app.start; grabSpan = app.span },
+    onPinch(e: PinchEvent) { app.zoomAbout(e.x / this.width, grabStart, grabSpan, grabSpan / e.scale) },
+
+    // A pinch (or ctrl-wheel) zooms and a sideways swipe (or shift-wheel)
+    // pans; a plain vertical wheel was meant for the page, so it goes there.
+
+    onWheel(e: WheelEvent) {
+        if (e.pinch || e.ctrl) app.zoomAbout(e.x / this.width, app.start, app.span, app.span * Math.exp(e.deltaY * 0.01))
+        else if (e.shift) app.handTo(app.start + (e.deltaX + e.deltaY) * app.span / this.width, app.span)
+        else if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) app.handTo(app.start + e.deltaX * app.span / this.width, app.span)
+        else app.scrollBy(0, e.deltaY)
+        },
+    onClick(e: PointerEvent) { app.openSession(app.log.nearest(app.start + e.x / this.width * app.span, 14 * app.span / this.width)) },
+
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const w = d.w, h = d.h
+        const base = h - axisH, top = 14
+        const ppd = w / app.span
+        const xOf = (n: number) => (n - app.start) * ppd
+        const tall = (min: number) => min / 200 * (base - top)
+        const from = Math.floor(app.start) - 1, to = Math.ceil(app.start + app.span) + 1
+        const label = { fontFamily: app.mono, fontSize: 11, letterSpacing: 1.2, textColor: t.textMuted }
+
+        // month boundaries, and the axis under them
+        d.fillStyle = t.line
+        d.fillRect(0, base, w, 1)
+        for (let n = from; n <= to; n++) {
+            if (dateOf(n) != 1) continue
+            d.fillRect(Math.round(xOf(n)), top - 6, 1, base - top + 12)
+        }
+
+        // a bar per session, stacked when a day holds two
+        const bw = Math.max(1.2, ppd * 0.68)
+        for (const m of app.log.marks) {
+            if (m.n < from || m.n > to) continue
+            const x = xOf(m.n) + (ppd - bw) / 2
+            const y = base - tall(m.below)
+            const bh = Math.max(1, tall(m.s.minutes))
+            d.fillStyle = app.effortInk(m.s.effort)
+            d.fillRect(x, y - bh, bw, bh - (m.below > 0 ? 1 : 0))
+            if (m.s.id == app.detailId && app.detailOpen) {
+                d.fillStyle = t.text
+                d.fillRect(x - 1, base + 3, bw + 2, 3)
+            }
+        }
+
+        // the rolling seven-day volume, on its own scale
+        const load = app.log.load
+        if (load.length > 1) {
+            const first = app.log.first
+            const peak = Math.max(1, ...load)
+            d.strokeStyle = t.text
+            d.lineWidth = 1.5
+            d.lineJoin = "round"
+            d.beginPath()
+            let started = false
+            for (let n = Math.max(from, first); n <= Math.min(to, first + load.length - 1); n++) {
+                const x = xOf(n) + ppd / 2
+                const y = base - 4 - load[n - first] / peak * (base - top - 8)
+                if (started) d.lineTo(x, y)
+                else { d.moveTo(x, y); started = true }
+            }
+            d.stroke()
+        }
+
+        // today's edge
+        d.fillStyle = t.text
+        d.fillRect(Math.round(xOf(app.today + 1)), top - 6, 1.5, base - top + 6)
+
+        // the axis: months when far out, days when close
+        const months = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"]
+        if (ppd < 7) {
+            const every = ppd * 30 < 34 ? 3 : 1
+            for (let n = from - 31; n <= to; n++) {
+                if (dateOf(n) != 1 || monthOf(n) % every != 0) continue
+                const name = monthOf(n) == 0 ? "" + yearOf(n) : months[monthOf(n)]
+                d.fillText(name, xOf(n) + 4, base + 17, label)
+            }
+        } else {
+            const step = ppd >= 30 ? 1 : ppd >= 16 ? 2 : 7
+            for (let n = from; n <= to; n++) {
+                const first = dateOf(n) == 1
+                if (!first && (step == 7 ? weekdayOf(n) != 1 : (n % step) != 0)) continue
+                if (!first && (dateOf(n) - 1) * ppd < 40) continue      // room for the month's name
+                d.fillText(first ? months[monthOf(n)] : "" + dateOf(n), xOf(n) + 2, base + 17, label)
+            }
+        }
+        }
+    ]
+
+
+// A small press-target in the year's toolbar: "2 wk", "3 mo", "All", "Today".
+
+class ZoomChip extends Control [ height = { app.tap }, padding = [0, 12, 0, 12], cornerRadius = { this.height / 2 },
+    label: string = "",
+    on: boolean = false,
+    accessibilityPressed = { on },
+    fill = { hovered ? provided("theme").hover : null },
+    State [ applied = { classroot.on }, fill = { provided("theme").text } ],
+    TextLabel [ fontFamily = { app.mono }, fontSize = 12, letterSpacing = 1, textTransform = uppercase,
+        textColor = { classroot.on ? provided("theme").onInk : provided("theme").text }, text = { classroot.label } ]
+    ]
+
+
+// ── A session among the others ──────────────────────────────────────────────
+//
+// Every session as a dot — across by how long it was, up by how hard — the
+// same sport a shade darker, and this one large, in its effort's ink. A hard
+// session sits high and lit; an easy one low with the crowd.
+
+class Spread [ width = 100%, height = 150,
+    s: Session? = null,
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const me = s
+        const w = d.w, h = d.h, pad = 8
+        const xOf = (min: number) => pad + Math.min(1, min / 200) * (w - 2 * pad)
+        const yOf = (e: number) => h - pad - (e - 1) / 9 * (h - 2 * pad)
+        d.fillStyle = t.line
+        d.fillRect(0, yOf(7) + 4, w, 1)
+        for (const o of app.log.all()) {
+            if (me != null && o.id == me.id) continue
+            d.fillStyle = me != null && o.sport == me.sport ? t.steady : t.easy
+            d.beginPath()
+            d.arc(xOf(o.minutes), yOf(o.effort) + (o.minutes % 7 - 3), 2.2, 0, 6.3)
+            d.fill()
+        }
+        if (me != null) {
+            d.fillStyle = app.effortInk(me.effort)
+            d.strokeStyle = t.background
+            d.lineWidth = 3
+            d.beginPath()
+            d.arc(xOf(me.minutes), yOf(me.effort), 8, 0, 6.3)
+            d.stroke()
+            d.fill()
+        }
+        }
+    ]
+
+
+// ── The entry form's controls ───────────────────────────────────────────────
+//
+// Everything in the form is a press: a tile for each sport and each effort, a
+// big − and + either side of a figure, ‹ and › either side of the day. Each use
+// site says what pressing does.
+
+class Tile extends Control [ height = { app.touchFirst ? 56 : 44 }, cornerRadius = 10,
+    label: string = "",
+    on: boolean = false,
+    accessibilityPressed = { on },
+    tone: Color = { provided("theme").text },
+    fill = { hovered ? provided("theme").controlHovered : provided("theme").control },
+    State [ applied = { classroot.on }, fill = { classroot.tone } ],
+    TextLabel [ x = center, fontSize = 17, fontWeight = { classroot.on ? "bold" : "medium" },
+        textColor = { classroot.on ? provided("theme").onInk : provided("theme").text }, text = { classroot.label } ]
+    ]
+
+
+class Nudge extends Control [ width = { app.touchFirst ? 64 : 52 }, height = { this.width }, cornerRadius = { this.width / 2 },
+    label: string = "",
+    fill = { pressed ? provided("theme").controlHovered : provided("theme").control },
+    opacity = { disabled ? 0.35 : 1 },
+    TextLabel [ x = center, fontSize = 28, fontWeight = medium, text = { classroot.label } ]
+    ]
+
+
+// A figure the form is setting, with its − and + either side and what it is
+// beneath. The number travels when it changes.
+
+class Dial [ width = 100%,
+    caption: string = "",
+    show: string = "",
+    canLess: boolean = true,
+    canMore: boolean = true,
+    less() { },
+    more() { },
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Caption [ text = { classroot.caption } ],
+    row: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+        Nudge [ label = "−", accessibilityLabel = { "Less " + classroot.caption }, disabled = { !classroot.canLess },
+            press() { classroot.less() }
+            ],
+        Text [ flexes = true, textAlign = center, wrap = false, fontSize = { app.wide ? 64 : 60 }, fontWeight = extrabold,
+            letterSpacing = -2.4, text = { classroot.show } ],
+        Nudge [ label = "+", accessibilityLabel = { "More " + classroot.caption }, disabled = { !classroot.canMore },
+            press() { classroot.more() }
+            ]
+        ]
+    ]

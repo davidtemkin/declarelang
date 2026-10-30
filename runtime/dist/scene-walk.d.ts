@@ -1,5 +1,5 @@
 import type { InputSink, InputWants } from "./backend.js";
-import type { HitTarget } from "./input.js";
+import { type HitTarget } from "./input.js";
 /** What a backend's surface exposes to the walks. */
 export interface SceneSurface {
     readonly x: number;
