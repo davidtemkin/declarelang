@@ -90,7 +90,7 @@ export declare function placedFromParentMessage(parentClass: string, size: "widt
  *  ResponsiveLayout's cross axis also takes a tier `offset`), because its
  *  configuration is computed and may place either axis, a plan's `share`, a
  *  plan's drop (`share: 0`), or an arrangement that places everything. */
-export declare function placedAttributeMessage(childClass: string, slot: string, arranger: string, kind: "flow" | "cross" | "cross-offset" | "computed" | "share" | "drop" | "all" | "flex" | "shrink", where?: Where | null): string;
+export declare function placedAttributeMessage(childClass: string, slot: string, arranger: string, kind: "flow" | "cross" | "cross-offset" | "computed" | "share" | "drop" | "all" | "flex" | "shrink" | "flex-either" | "shrink-either", where?: Where | null): string;
 /** The diagnostic tag — an identity join, and the third constructor the
  *  production error-prose strip (tools/internal/error-codes.mjs) recognizes.
  *  A sentence that reaches its reader through a helper — a builder's return,

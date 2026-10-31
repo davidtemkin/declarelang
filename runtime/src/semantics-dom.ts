@@ -98,11 +98,17 @@ function ariaOf(v: View): Attrs | null {
   // browser and a screen reader see it as one
   if (role === "none" && v.scrolls !== "none") return bareScroller(v) ? { tabindex: "0" } : null;
   if (role === "none") return null;
+  // A COMBOBOX is said the ARIA 1.2 way: the field a person types in is the
+  // combobox, named and expanded; the view around it says nothing, so one
+  // element answers to the name (a locator, a grader's or a screen reader's)
+  if (role === "combobox" && v.children.some((c) => c instanceof View && roleOf(c) === "textField")) return null;
   const a: Attrs = {};
   // a field is its own native editable: only a name it does not show, and a
   // search field's role, are said on it (the surface writes them on the input)
   if (role === "textField" || role === "searchBox") {
     if (role === "searchBox") a.role = "searchbox";
+    const box = v.parent;
+    if (box instanceof View && roleOf(box) === "combobox") { a.role = "combobox"; a["aria-expanded"] = String(box.accessibilityExpanded === true); }
     if (v.accessibilityLabel !== "") a["aria-label"] = v.accessibilityLabel;
     describe(v, a);
     activeItem(v, a);   // a combobox's field names the suggestion the keys are on

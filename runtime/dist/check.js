@@ -1305,6 +1305,18 @@ function checkPlacedAttributes(schemas, layoutEl, owner) {
             if (here !== undefined)
                 errors.push(new DeclareError(placedAttributeMessage(c.tag, size, arranger, sized, null), here.pos));
         }
+        // …and under a COMPUTED axis the run may take either one, so a child that
+        // flexes or shrinks declares neither: refused here, at its line, rather
+        // than at runtime in whichever arrangement the program reaches
+        const either = known.placed.get("x") === "computed" && known.placed.get("y") === "computed";
+        const sizedEither = !either ? null : flexesStatically(c) ? "flex-either" : saysStatically(c, "shrinks") ? "shrink-either" : null;
+        if (sizedEither !== null) {
+            for (const size of ["width", "height"]) {
+                const here = c.attrs.find((a) => a.name === size);
+                if (here !== undefined)
+                    errors.push(new DeclareError(placedAttributeMessage(c.tag, size, arranger, sizedEither, null), here.pos));
+            }
+        }
     }
     return errors;
 }

@@ -203,4 +203,37 @@ await test("a locator does not find what an open sheet puts out of reach", () =>
   assert.match(out, /R5 ✓/, out);
 });
 
+await test("a script's page and expect take Playwright as written: scoping, locator(css), filter, typing key by key, expect(locator), and a clear refusal of the rest", () => {
+  const out = verify("locators-pw", `App [ width = 500, height = 400, said: string = "", signedIn: boolean = false, open: boolean = true,
+    col: View [ x = 20, y = 20, layout: SimpleLayout [ axis = y, spacing = 10 ],
+        Button [ label = "Sign in", onClick() { app.open = true } ],
+        Field [ label = "Note", TextInput [ width = 200, text = { app.said }, onInput(v: string) { app.said = v } ] ],
+        box: View [ accessibilityRole = group, accessibilityLabel = "Account", layout: SimpleLayout [ axis = y ],
+            Text [ text = "Your account" ],
+            Button [ label = "Sign in", onClick() { app.signedIn = true } ] ] ] ]`,
+    `export default async ({ page, expect }) => {
+  // two "Sign in" buttons: scoping finds the one in the group
+  await page.getByRole("group", { name: "Account" }).getByRole("button", { name: "Sign in" }).click();
+  await expect.attr("app", "signedIn", true);
+  await expect(page.getByRole("button", { name: "Sign in" })).toHaveCount(2);
+  // locator(css) is this page's, with filter
+  const groups = page.locator("[role=group]").filter({ hasText: "Your account" });
+  await expect(groups).toHaveCount(1);
+  // key by key, then the retrying assertions
+  await page.getByLabel("Note").pressSequentially("hi");
+  await expect(page.getByLabel("Note")).toHaveValue("hi");
+  await expect(page.getByText("Your account")).toBeVisible();
+  await expect(page.getByText("Nowhere")).not.toBeVisible();
+  expect(1 + 1).toBe(2);
+  // what is not here says so, and what to write instead
+  let said = null;
+  try { await page.waitForURL("/x"); } catch (e) { said = e.message; }
+  if (!/is Playwright's and not on this page — read where the program is/.test(said ?? "")) throw new Error("waitForURL: " + said);
+  said = null;
+  try { await page.getByText("Your account").dragTo(page.getByText("Note")); } catch (e) { said = e.message; }
+  if (!/not on this page's locators: drive.drag/.test(said ?? "")) throw new Error("dragTo: " + said);
+};`);
+  assert.match(out, /R5 ✓ behavior \(\d+ steps, real input, \d+ assertions\)/, out);
+});
+
 summarize("reader-overlay-semantics");

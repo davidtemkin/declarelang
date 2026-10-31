@@ -147,7 +147,9 @@ bootHost(cfg);
   // a Chrome kept running between calls (chrome.mjs): each run works in a
   // browser context of its own, so nothing carries from one run to the next
   const { context: browser, release } = await sharedChrome({
-    args: ["--no-sandbox", ...(scrollbars ? ["--disable-features=OverlayScrollbar,OverlayScrollbars"] : [])],
+    // Chrome's own role and accessible name, read by the script's locators
+    // (verify-locators.mjs) as a screen reader is given them
+    args: ["--no-sandbox", "--enable-blink-features=ComputedAccessibilityInfo", ...(scrollbars ? ["--disable-features=OverlayScrollbar,OverlayScrollbars"] : [])],
     ...(scrollbars ? { ignoreDefaultArgs: ["--hide-scrollbars"] } : {}) });
   try {
     /** A fresh page with the app booted and the language-altitude API bound. */
@@ -1373,12 +1375,18 @@ const expect = {
       const watched = (work) => watch.during(() => log.length > 0 ? `during ${log[log.length - 1]}` : "the script", work);
       // the script's page: Playwright's locators on it (getByRole, getByLabel, …),
       // pressing through the driver's own input and settling as its verbs do
-      const scriptPage = withLocators(page, {
+      const located = withLocators(page, {
         act: async (x, y) => { step(`press at (${Math.round(x)}, ${Math.round(y)})`); await press(x, y); },
         settle: async () => { await landed(); await frames(page); },
         advance: (ms) => page.evaluate((ms) => globalThis.__declareTimers?.advance?.(ms), ms).catch(() => {}),
+        fail,
+        judged: () => { asserted++; },
       });
-      return { page, scriptPage, drive, expect, node, log, pageErrors, thrown, quiet, watched, checks, checkHere, asserted: () => asserted, warned, waited };
+      const scriptPage = located.page;
+      // `expect` is both: Playwright's expect(locator / page / value), and the
+      // driver's own asks by program path (expect.text, expect.attr, expect.request, …)
+      const scriptExpect = Object.assign((target) => located.expect(target), expect);
+      return { page, scriptPage, drive, expect: scriptExpect, node, log, pageErrors, thrown, quiet, watched, checks, checkHere, asserted: () => asserted, warned, waited };
     };
 
     return await fn({ openApp });

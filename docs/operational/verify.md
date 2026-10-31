@@ -148,14 +148,32 @@ is an assert script, below — and it stays behind as a test.
 `--assert` takes a module whose default export receives `{ drive, expect, page }` (throw to
 fail the rung). Everything a check of a flow needs is in them, and there is no reason to
 build a browser harness of your own. `drive` and `expect` work by view path (below). `page`
-is the page the app is loaded in, with Playwright's locators on it —
-`page.getByRole("button", { name: "Pay" }).click()`, `getByLabel("Email").fill(…)`,
-`getByText`, `getByPlaceholder`, with `first()`, `nth(i)`, `count()`, `isVisible()`,
-`isChecked()`, `inputValue()`, `waitFor()` — finding what a person finds, strict when two
-match, and acting through the driver: a real press (a finger on a touch device), then the
-program settles, as after a `drive` verb. The rest of `page` is Puppeteer's, for the rare
-question neither asks — a computed style, what holds the browser's focus; `declare-look
---js` is the same door for a one-off question.
+is the page the app is loaded in, with Playwright's locators on it, and `expect` also takes
+a locator as Playwright's does:
+
+- **finding:** `getByRole(role, { name, exact, checked, pressed, expanded, selected, level })`,
+  `getByLabel`, `getByText`, `getByPlaceholder`, `getByAltText`, `getByTitle`, `getByTestId`,
+  `locator(css)` — on the page or on a locator, to look inside it
+  (`page.getByRole("dialog").getByRole("button", { name: "Sign in" })`); `filter({ hasText,
+  has })`, `first()`, `last()`, `nth(i)`, `count()`, `all()`. Roles and names are Chrome's
+  own, as a screen reader is given them; strict when two match.
+- **acting:** `click`, `dblclick`, `tap`, `hover`, `fill`, `clear`, `pressSequentially`
+  (`type`), `press`, `check`, `uncheck`, `setChecked`, `focus`, `blur`, `selectOption` (a
+  `<select>`), `scrollIntoViewIfNeeded` — through the driver: a real press (a finger on a
+  touch device), then the program settles, as after a `drive` verb. `page.click(css)` and the
+  other selector forms are the same.
+- **reading:** `isVisible`, `isHidden`, `isEnabled`, `isDisabled`, `isChecked`, `isEditable`,
+  `innerText`, `textContent`, `inputValue`, `getAttribute`, `allInnerTexts`,
+  `allTextContents`, `boundingBox`, `evaluate`, `evaluateAll`, `waitFor`, `screenshot`.
+- **asserting:** `expect(locator)` `.toBeVisible`, `toBeHidden`, `toBeEnabled`,
+  `toBeDisabled`, `toBeChecked`, `toBeFocused`, `toBeEditable`, `toHaveText`,
+  `toContainText`, `toHaveValue`, `toHaveAttribute`, `toHaveCount`, `toHaveAccessibleName`,
+  each with `.not`, retrying up to 5 s on the page's clock; `expect(page)` `.toHaveURL`,
+  `toHaveTitle`; `expect(value)` the plain matchers (`toBe`, `toEqual`, `toContain`, …).
+
+A Playwright call that is not here fails naming what to write instead. The rest of `page` is
+Puppeteer's, for the rare question none of these asks — a computed style, what holds the
+browser's focus; `declare-look --js` is the same door for a one-off question.
 Its scrollbars are real ones, the classic bar Windows and Linux draw, so a script can grab a
 thumb with the page's mouse and drag it as a person would.
 

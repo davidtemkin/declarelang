@@ -129,6 +129,9 @@ export function placedAttributeMessage(childClass, slot, arranger, kind, where) 
             return diag `${head} — it flexes, so the run gives it its ${slot}: the room left, shared among the children that flex. Remove the ${slot} to let it flex, or remove 'flexes' to keep its own ${slot}.`;
         case "shrink":
             return diag `${head} — it shrinks, so the run gives it its ${slot}: its content's, less what it gives up when the room is short. Remove the ${slot} (bound it with '${slot === "width" ? "maxWidth" : "maxHeight"}' instead), or remove 'shrinks' to keep your own ${slot}.`;
+        case "flex-either":
+        case "shrink-either":
+            return diag `${head} — it ${kind === "flex-either" ? "flexes" : "shrinks"}, and the layout's axis is computed, so its ${slot} is the run's in one arrangement. Remove the ${slot}, and bound it with '${slot === "width" ? "minWidth" : "minHeight"}' or '${slot === "width" ? "maxWidth" : "maxHeight"}' if it needs a limit; or give the size only in the arrangement where the run goes the other way, with a State.`;
         case "drop":
             return diag `${head} — a plan drops it (share: 0). Remove it and let the plan show and hide the child, or take the child out of that share.`;
         default:

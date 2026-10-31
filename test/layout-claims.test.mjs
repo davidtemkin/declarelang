@@ -462,4 +462,21 @@ App [ width = 400, height = 600,
   assert.ok(!errs.some((e) => /^Slot\.width/.test(e)), "the class's own width is a default the run replaces");
 });
 
+// Under a COMPUTED axis the run may go either way, so a child that flexes or
+// shrinks may state neither size: refused at its line, not at runtime in
+// whichever arrangement the program reaches. A child that does not flex keeps
+// its sizes, and a size given in a State is left to the runtime.
+await test("under a computed axis a flexing or shrinking child is refused either size at compile time; a plain child keeps both", async () => {
+  const errs = (await compileOnly(`App [ width = 400, height = 600, narrow: boolean = false,
+    run: View [ width = 400, height = 300, layout: SimpleLayout [ axis = { app.narrow ? "y" : "x" } ],
+        a: View [ flexes = true, height = 20 ],
+        b: Text [ shrinks = true, width = 80, text = "title" ],
+        c: View [ width = 100, height = 20 ],
+        d: View [ flexes = true, wideOnly: State [ applied = { !app.narrow }, height = 40 ] ] ] ]`)).errors.map((e) => e.message);
+  const either = errs.filter((e) => /the layout's axis is computed/.test(e));
+  assert.equal(either.length, 2, errs.join("\n"));
+  assert.match(either[0], /^View\.height.*it flexes/);
+  assert.match(either[1], /^Text\.width.*it shrinks/);
+});
+
 summarize("layout-claims");

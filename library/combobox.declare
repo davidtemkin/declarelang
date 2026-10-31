@@ -126,7 +126,8 @@ Whether the list is open — what a screen reader hears as the combobox expanded
 
 ## accessibilityLabel
 The caption of a `Field` around it, else the `placeholder`, unless the use site names the combobox — its name to a screen reader, carried by
-the field inside, which is what holds the focus.
+the field inside, which is what holds the focus. In a page the field is the combobox (ARIA 1.2): one element
+answers to the name, with the list's state on it, and the view around it says nothing.
 
 ## fieldValue
 Follows `value`, the chosen member: what `required` and `validate` judge (see `ValueControl`).

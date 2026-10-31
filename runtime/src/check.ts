@@ -1391,7 +1391,7 @@ function leavesLayout(c: Element): boolean {
 
 /** Why a layout places an attribute — the message says how to get what the
  *  author meant (errors.ts placedAttributeMessage). */
-type PlacedKind = "flow" | "cross" | "cross-offset" | "computed" | "share" | "drop" | "all" | "flex";
+type PlacedKind = "flow" | "cross" | "cross-offset" | "computed" | "share" | "drop" | "all" | "flex" | "flex-either" | "shrink-either";
 
 /** THE RULE, AT COMPILE TIME (docs/system-design/layout-ownership.md §1–§3): a
  *  layout places its children, and what it places a child does not declare.
@@ -1444,6 +1444,17 @@ function checkPlacedAttributes(
       const size = flow === "x" ? "width" : "height";
       const here = c.attrs.find((a) => a.name === size);
       if (here !== undefined) errors.push(new DeclareError(placedAttributeMessage(c.tag, size, arranger, sized, null), here.pos));
+    }
+    // …and under a COMPUTED axis the run may take either one, so a child that
+    // flexes or shrinks declares neither: refused here, at its line, rather
+    // than at runtime in whichever arrangement the program reaches
+    const either = known.placed.get("x") === "computed" && known.placed.get("y") === "computed";
+    const sizedEither = !either ? null : flexesStatically(c) ? "flex-either" : saysStatically(c, "shrinks") ? "shrink-either" : null;
+    if (sizedEither !== null) {
+      for (const size of ["width", "height"] as const) {
+        const here = c.attrs.find((a) => a.name === size);
+        if (here !== undefined) errors.push(new DeclareError(placedAttributeMessage(c.tag, size, arranger, sizedEither, null), here.pos));
+      }
     }
   }
   return errors;
