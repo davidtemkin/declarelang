@@ -218,17 +218,17 @@ export function flowRichCanvas(blocks: RichBlock[], width: number, onLink?: (hre
         const base: Extract<RichRun, { text: string }> = { text: "", size: lead?.size ?? b.fontSize, weight: lead?.weight ?? "normal", italic: false, family: lead?.family ?? FALLBACK_FAMILY, strike: false, color: lead?.color ?? 0, tracking: lead?.tracking ?? 0 };
         if (r.img.href !== undefined) base.href = r.img.href;
         const imf = fontString({ fontFamily: base.family, fontSize: base.size, fontWeight: base.weight });
-        for (const part of (r.img.alt || r.img.src).split(/(\s+)/)) {
+        for (const part of (r.img.alt || r.img.src).split(/([ \t\n\r\f]+)/)) {
           if (part === "") continue;
-          if (/^\s+$/.test(part)) { flush(); const last = toks[toks.length - 1]; if (last && ("word" in last || "img" in last || "slot" in last)) toks.push({ sp: true }); }
+          if (/^[ \t\n\r\f]+$/.test(part)) { flush(); const last = toks[toks.length - 1]; if (last && ("word" in last || "img" in last || "slot" in last)) toks.push({ sp: true }); }
           else word.push({ text: part, run: { ...base, text: part }, w: textWidth(part, imf, base.tracking) });
         }
         continue;
       }
       const f = fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic, smallCaps: r.smallCaps });
-      for (const part of r.text.split(/(\s+)/)) {
+      for (const part of r.text.split(/([ \t\n\r\f]+)/)) {
         if (part === "") continue;
-        if (/^\s+$/.test(part)) { flush(); const last = toks[toks.length - 1]; if (last && ("word" in last || "img" in last || "slot" in last)) toks.push({ sp: true, run: r }); }
+        if (/^[ \t\n\r\f]+$/.test(part)) { flush(); const last = toks[toks.length - 1]; if (last && ("word" in last || "img" in last || "slot" in last)) toks.push({ sp: true, run: r }); }
         else {
           // a place the browser may break INSIDE the word (after a hyphen,
           // between CJK characters, at a Thai word boundary) ends one word

@@ -51,7 +51,7 @@ export type BodySyntaxValidator = (src: string, expression: boolean) => string |
 export declare function setBodySyntaxValidator(v: BodySyntaxValidator): void;
 /** Check `src` as an expression body — the injected TS validator when the
  *  compiler is present, else the JS gate. Returns the error fragment or null. */
-export declare function validateExpr(src: string): string | null;
+export declare function validateExpr(src: string, slot?: string): string | null;
 export declare function validateBody(params: readonly string[], src: string): string | null;
 /** A compiled method body: `this` = the owning node, `parent` its view-tree
  *  parent, `classroot` its enclosing class instance, then the declared

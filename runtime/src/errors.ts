@@ -122,7 +122,10 @@ function arranges(slot: string): string {
  *  whole child out of the arrangement. Every layout↔author message ends here. */
 function layoutEscape(slot: string): string {
   const verb = slot === "width" || slot === "height" ? "size" : slot === "visible" ? "show" : "place";
-  return diag`remove it and let the layout ${verb} the child, or set 'ignoreLayout = true' on the child to ${verb} it yourself`;
+  // a size is the layout's along its flow (flexes, shrinks) or across it
+  // (align = stretch) — the way to ask for each, said where it is refused
+  const how = verb === "size" ? " (to fill: 'flexes' along its flow, 'align = stretch' on the layout across it)" : "";
+  return diag`remove it and let the layout ${verb} the child${how}, or set 'ignoreLayout = true' on the child to ${verb} it yourself`;
 }
 
 /** A LITERAL on an attribute a layout places — the same sentence as every other

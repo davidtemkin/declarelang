@@ -203,21 +203,30 @@ function layoutChecks(app, { touch = false, realText = false, skip = [] }, flagg
         // pointer and a screen reader's activation land, a press reaches some
         // other view (an overlay laid over a map of seats to zoom it) — the
         // control can be seen and named but not pressed there
-        if ((isA(v, "Control") || isA(v, "TextInput")) && v.visible && v.width > 0 && v.height > 0
-            && v.focusable !== false) {
-            const b = rootFrameBox(v);
-            const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
-            // a control scrolled partly out of a scroller it sits in is brought clear
-            // by scrolling, which a person does: only one whose centre the scrollers
-            // around it show is asked who takes the press there
-            let inView = true;
+        // (a control that lets presses through — pointerEvents = none, a seat a
+        // tap must first bring close — is no one's target there, so neither
+        // question is asked of it)
+        const passes = v.pointerEvents === "none";
+        const shown = isA(v, "Control") || isA(v, "TextInput") ? rootFrameBox(v) : null;
+        // a control scrolled partly out of a scroller it sits in is brought clear
+        // by scrolling, which a person does, and one a clipping view cuts off is
+        // not on screen at all: only one whose centre the views around it show is
+        // asked about
+        let inView = true;
+        if (shown !== null) {
+            const cx = shown.x + shown.width / 2, cy = shown.y + shown.height / 2;
             for (let a = v.parent instanceof View ? v.parent : null; a !== null && inView; a = a.parent instanceof View ? a.parent : null) {
-                if (a.scrolls === "none")
+                if (a.scrolls === "none" && (a.clip === null || a.clip === false || a.clip === ""))
                     continue;
                 const sb = rootFrameBox(a);
                 if (cx < sb.x || cy < sb.y || cx > sb.x + sb.width || cy > sb.y + sb.height)
                     inView = false;
             }
+        }
+        if (shown !== null && !passes && v.visible && v.width > 0 && v.height > 0
+            && v.focusable !== false) {
+            const b = shown;
+            const cx = b.x + b.width / 2, cy = b.y + b.height / 2;
             if (inView && cx >= 0 && cy >= 0 && cx <= hostW && cy <= hostH) {
                 const at = pressAt(app, cx, cy);
                 let mine = at === null;
@@ -240,8 +249,10 @@ function layoutChecks(app, { touch = false, realText = false, skip = [] }, flagg
             }
         }
         // A TARGET TOO SMALL FOR A FINGER, on a touch screen
-        if (touch && isA(v, "Control") && v.width > 0 && v.height > 0 && (v.width < 44 || v.height < 44) && fresh("small", pathOf(app, v)))
-            touchSmall.push(`${pathOf(app, v)} ${Math.round(v.width)}×${Math.round(v.height)}`);
+        // — at the size it is on screen, through any scale it sits under
+        if (touch && isA(v, "Control") && shown !== null && !passes && inView && v.width > 0 && v.height > 0
+            && (shown.width < 44 || shown.height < 44) && fresh("small", pathOf(app, v)))
+            touchSmall.push(`${pathOf(app, v)} ${Math.round(shown.width)}×${Math.round(shown.height)}`);
         const across = scrollsAcross || v.scrolls === "x" || v.scrolls === "both";
         for (const c of v.children)
             if (c instanceof View)

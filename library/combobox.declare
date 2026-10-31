@@ -21,7 +21,9 @@ rendered row is ever scanned.
   into the field and closes; editing again re-filters from the new text.
 - **Keyboard**: arrows rove the list (the Menu rover), Enter picks the roved
   row — or, when none is roved, the first match of what was typed (the
-  type-then-Enter path); over the whole list it keeps the choice already made;
+  type-then-Enter path); over the whole list it keeps the choice already made.
+  With the list down, Enter opens it when nothing is chosen, and otherwise does
+  what Return does in any field of its form (submit, or on to the next);
   Escape closes the list (then a second Escape leaves the control — the
   focus-scope ascent). The list is never a tab stop of its own.
 - The list is a collection like any other — bind 100k options and
@@ -279,7 +281,14 @@ class Combobox extends ValueControl [
             if (!classroot.listShown()) (classroot.list as any).openFor(classroot)
             },
         onEnter() {
-            if (!classroot.listShown()) { classroot.open(); return }
+            // with the list down and a choice made, Return is the form's, as in
+            // any field: submit, or on to the next under enterMoves
+            if (!classroot.listShown()) {
+                const f = classroot.form as any
+                if (f != null && classroot.value != null) f._enter(classroot)
+                else classroot.open()
+                return
+                }
             // the roved row picks through the Menu's own Enter; unroved, Enter
             // takes the first match of what was typed — the type-then-Enter
             // path — and over the whole list keeps the choice already made

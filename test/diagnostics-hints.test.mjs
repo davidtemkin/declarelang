@@ -106,7 +106,7 @@ await test("a percentage names the arithmetic that replaces it", async () => {
   await says(`App [ View [ width = { 50% } ] ]`, "{ parent.width * 0.5 }");
   // trimmed — 33.3 arrives as 0.33299999999999996 unless it is rounded, and a
   // fix that reads worse than the error is not a fix
-  await says(`App [ View [ height = { 33.3% } ] ]`, "{ parent.width * 0.333 }");
+  await says(`App [ View [ height = { 33.3% } ] ]`, "{ parent.height * 0.333 }");
 });
 
 await test("a real modulo is not mistaken for a percentage", async () => {

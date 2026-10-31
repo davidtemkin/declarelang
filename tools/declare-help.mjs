@@ -423,6 +423,15 @@ function answerDotted(cls, member) {
     json = { kind: "near-miss", scope: cls, name: member, suggestion: near, target: target?.id ?? null };
     return true;
   }
+  // past a spelling slip, members that share the word's stem ('children' →
+  // childViews): a name asked for from another platform is often half right
+  const stem = member.toLowerCase().slice(0, 5);
+  const related = stem.length < 4 ? [] : memberNames(cls).filter((n) => n.toLowerCase().startsWith(stem) || n.toLowerCase().includes(member.toLowerCase())).slice(0, 5);
+  if (related.length > 0) {
+    say(`${cls} has no member '${member}' — related: ${related.join(", ")} (declare-help ${cls}.<name>)`);
+    json = { kind: "member-miss", scope: cls, name: member, related };
+    return true;
+  }
   say(`${cls} has no member '${member}' and nothing near it — the member table: declare-help ${cls}`);
   json = { kind: "member-miss", scope: cls, name: member };
   return true;

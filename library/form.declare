@@ -130,7 +130,8 @@ a service's own shape, its codes to the program's sentences, or another language
 undo a reservation the refusal names, empty a field the service will not take again. The
 order is fixed: the refusal is laid on the members first (each named field's `refused`, the
 rest in `error`), then `refusedWith` runs, then `showProblems()` — so what it changes is
-what the person is then shown.
+what the person is then shown. An override may name the body's shape with a schema of its
+own — `refusedWith(body: Refusal)` — and read its fields with no cast.
 
 ## failedMessage
 What `error` says when the request failed with nothing readable — no reply at all, or a

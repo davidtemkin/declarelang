@@ -12,6 +12,10 @@ function test(name, fn) {
 const types = (arr) => arr.map((n) => n.t);
 const flat = (inl) => inl.map((n) => n.value ?? (n.inline ? flat(n.inline) : "")).join("");
 
+test("a no-break space is text, not white space: &nbsp; and U+00A0 survive the collapse", () => {
+  assert.equal(flat(parseHtml("<p>3h&nbsp;40m  and\n 2h\u00A015m</p>")[0].inline), "3h\u00A040m and 2h\u00A015m");
+});
+
 // ── blocks ───────────────────────────────────────────────────────────────────
 
 test("paragraph + inline styles", () => {

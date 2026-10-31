@@ -1735,7 +1735,7 @@ export function checkAttr(schema: ClassSchema, attr: Attr): CheckedAttr {
       return { ok: false, error: new DeclareError(`${schema.name}.${attr.name} <-> …: the two-way arrow edits an editor's value — '${attr.name}' is not an attribute of ${schema.name}`, attr.pos) };
     }
     if (attr.value.kind === "code") {
-      const e = validateExpr(attr.value.src);
+      const e = validateExpr(attr.value.src, attr.name);
       if (e !== null) return { ok: false, error: new DeclareError(`${schema.name}.${attr.name} = { … } ${e}`, attr.value.pos) };
       return { ok: true, provision: { name: attr.name, binding: { src: attr.value.src, pos: attr.value.pos } } };
     }
@@ -1833,7 +1833,7 @@ export function checkAttr(schema: ClassSchema, attr: Attr): CheckedAttr {
     };
   }
   if (attr.value.kind === "code") {
-    const e = validateExpr(attr.value.src);
+    const e = validateExpr(attr.value.src, attr.name);
     if (e !== null) {
       return {
         ok: false,

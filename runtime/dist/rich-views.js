@@ -246,10 +246,10 @@ export function flowRichCanvas(blocks, width, onLink, imageFor, opts) {
                 if (r.img.href !== undefined)
                     base.href = r.img.href;
                 const imf = fontString({ fontFamily: base.family, fontSize: base.size, fontWeight: base.weight });
-                for (const part of (r.img.alt || r.img.src).split(/(\s+)/)) {
+                for (const part of (r.img.alt || r.img.src).split(/([ \t\n\r\f]+)/)) {
                     if (part === "")
                         continue;
-                    if (/^\s+$/.test(part)) {
+                    if (/^[ \t\n\r\f]+$/.test(part)) {
                         flush();
                         const last = toks[toks.length - 1];
                         if (last && ("word" in last || "img" in last || "slot" in last))
@@ -261,10 +261,10 @@ export function flowRichCanvas(blocks, width, onLink, imageFor, opts) {
                 continue;
             }
             const f = fontString({ fontFamily: r.family, fontSize: r.size, fontWeight: r.weight, italic: r.italic, smallCaps: r.smallCaps });
-            for (const part of r.text.split(/(\s+)/)) {
+            for (const part of r.text.split(/([ \t\n\r\f]+)/)) {
                 if (part === "")
                     continue;
-                if (/^\s+$/.test(part)) {
+                if (/^[ \t\n\r\f]+$/.test(part)) {
                     flush();
                     const last = toks[toks.length - 1];
                     if (last && ("word" in last || "img" in last || "slot" in last))

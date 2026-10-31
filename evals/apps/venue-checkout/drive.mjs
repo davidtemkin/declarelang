@@ -112,11 +112,20 @@ async function openPerformance(page) {
   const perf = await button(page, /\b13\b.*Nov|Nov.*\b13\b/i, { timeout: 15000 });
   await press(page, perf);
 }
+// A seat too small for a thumb may take a first tap to bring it close (the
+// brief's own hard case) — so a seat that says whether it is chosen, and is
+// not yet, is found again where it now is and tapped again, as a person would.
+const chosen = (n) => n.pressed === true || n.checked === true || n.selected === true;
+const tellsChosen = (n) => n.pressed !== undefined || n.checked !== undefined || n.selected !== undefined;
 async function chooseSeats(page, seats) {
   for (const s of seats) {
-    const el = await find(page, (n) => typeof n.name === "string" && (n.name === s.name || n.name.startsWith(s.name + ",") || n.name.startsWith(s.name + " ")), { what: `seat ${s.name}`, timeout: 12000 });
-    await press(page, el);
-    await sleep(150);
+    const seat = (n) => typeof n.name === "string" && (n.name === s.name || n.name.startsWith(s.name + ",") || n.name.startsWith(s.name + " "));
+    for (let tap = 0; tap < 3; tap++) {
+      const el = await find(page, seat, { what: `seat ${s.name}`, timeout: 12000 });
+      if (tap > 0 && (!tellsChosen(el.node) || chosen(el.node))) break;
+      await press(page, el);
+      await sleep(600);   // a zoom travels
+    }
   }
 }
 async function toCheckout(page) {

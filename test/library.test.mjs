@@ -103,6 +103,22 @@ await test("Combobox: Enter over the whole list keeps the choice already made", 
   assert.equal(c.list.shown, false, "and closes the list");
 });
 
+await test("Combobox: last in a form, Enter with the list down and a choice made submits — under enterMoves too", async () => {
+  for (const moves of [false, true]) {
+    const app = await boot(`App [ width = 400, height = 300,
+    sent: number = 0,
+    f: Form [ enterMoves = ${moves}, send() { app.sent = app.sent + 1 },
+        c: Combobox [ name = "who", items = { [({ id: "a", label: "Alpha" })] } ] ] ]`);
+    const c = app.f.c;
+    c.entry.onEnter(); settle();
+    assert.equal(c.list.shown, true, "nothing chosen: Enter opens the list");
+    assert.equal(app.sent, 0);
+    c.pickIndex(0); settle();
+    c.entry.onEnter(); settle();
+    assert.equal(app.sent, 1, `chosen, list down: the form's Return (enterMoves = ${moves})`);
+  }
+});
+
 await test("Combobox: a use-site input() owns the value (press-never-writes)", async () => {
   const app = await boot(`App [ width = 400, height = 300,
     chosen: object = null,

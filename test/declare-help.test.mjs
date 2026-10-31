@@ -86,6 +86,12 @@ await test("Text.lineheight produces the did-you-mean, naming the real entry", (
   assert.ok(r.out.includes("Text.lineHeight"), "should hand back the scoped id to ask next");
 });
 
+await test("a member asked by another platform's name past a spelling slip names the members sharing its stem", () => {
+  const r = help("View.children");
+  assert.equal(r.code, 0);
+  assert.ok(r.out.includes("related: childViews"), r.out);
+});
+
 await test("a diagnostic code answers; an out-of-register code says so", () => {
   const known = help("DECLARE7001");
   assert.equal(known.code, 0);

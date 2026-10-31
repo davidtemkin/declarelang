@@ -99,6 +99,18 @@ App [ width = 400, height = 300,
   assert.deepEqual(b.unbuilt, ["Later"], "a class the boot never built is named");
 });
 
+await test("a finger's target is judged at its size on screen, and not at all when it lets presses through or is clipped away", () => {
+  const r = verify("targets.declare", `App [ width = 400, height = 400,
+    passes: Button [ label = "P", width = 30, height = 30, pointerEvents = "none" ],
+    big: View [ y = 50, scale = 2, width = 100, height = 40, grown: Button [ label = "G", width = 30, height = 30 ] ],
+    shrunk: View [ y = 150, scale = 0.5, width = 200, height = 100, tiny: Button [ label = "T", width = 60, height = 60 ] ],
+    clipper: View [ y = 250, width = 50, height = 50, clip = true, hid: Button [ label = "H", x = 100, width = 30, height = 30 ] ] ]`,
+    "--size", "390x844", "--touch");
+  const small = r.boot.layout.find((l) => /a finger's target/.test(l)) ?? "";
+  assert.match(small, /app\.shrunk\.tiny 30×30/, "60 × 60 scaled by a half is 30 × 30 on screen: " + small);
+  assert.doesNotMatch(small, /app\.passes|app\.big\.grown|app\.clipper\.hid/, small);
+});
+
 await test("with no --size the boot fills a laptop window only; --phone a phone, --phone --desk both", () => {
   const src = `App [ small: Button [ label = "Go", width = 30, height = 30 ] ]`;
   const desk = verify("two.declare", src);

@@ -323,7 +323,7 @@ function looksLikeStatements(src: string, raw: string): boolean {
 /** Turn the two most common bare-slot mistakes inside { } into a targeted
  *  fragment. Runs ONLY on an already-failing body — it can never relabel a body
  *  that compiles — and keeps the raw fragment's "expression"/"method body" head. */
-function refineBodyError(src: string, raw: string, expression: boolean): string {
+function refineBodyError(src: string, raw: string, expression: boolean, slot = ""): string {
   const dash = raw.indexOf(" — ");
   const head = dash >= 0 ? raw.slice(0, dash) : raw;
   // `#` + a digit-first hex is TS's "Invalid character"; `#` + a letter-first hex
@@ -339,10 +339,12 @@ function refineBodyError(src: string, raw: string, expression: boolean): string 
   const pct = src.match(/(?:^|[^\w.])(\d+(?:\.\d+)?)\s*%(?!\s*[\w(])/);
   if (pct && /expression expected|unexpected|invalid/i.test(raw)) {
     // trimmed, or 33.3 arrives as 0.33299999999999996 and the fix reads worse
-    // than the error. The example says `width` without claiming the slot IS
-    // width — refineBodyError sees the body, never the attribute it belongs to.
+    // than the error.
     const frac = Number((Number(pct[1]) / 100).toFixed(6));
-    return diag`${head} — there are no percentages: read the parent and scale, so ${pct[1]}% is { parent.width * ${frac} }`;
+    // the attribute's own axis, when the caller names it: a height reads the
+    // parent's height
+    const dim = /height|^y$/i.test(slot) ? "height" : "width";
+    return diag`${head} — there are no percentages: read the parent and scale, so ${pct[1]}% is { parent.${dim} * ${frac} }`;
   }
   // A BARE OBJECT LITERAL (issue #24): `cfg: object = { a: 1, b: 2 }` hands this
   // body ` a: 1, b: 2 `, and TS guesses an arrow-function head ("'=>' expected")
@@ -365,7 +367,7 @@ function refineBodyError(src: string, raw: string, expression: boolean): string 
 
 /** Check `src` as an expression body — the injected TS validator when the
  *  compiler is present, else the JS gate. Returns the error fragment or null. */
-export function validateExpr(src: string): string | null {
+export function validateExpr(src: string, slot = ""): string | null {
   let e: string | null;
   if (syntaxValidator !== null) {
     const r = rewriteDatapaths(src);
@@ -375,7 +377,7 @@ export function validateExpr(src: string): string | null {
     const c = compileExpr(src);
     e = "error" in c ? c.error : null;
   }
-  return e === null ? null : refineBodyError(src, e, true);
+  return e === null ? null : refineBodyError(src, e, true, slot);
 }
 
 /** Check `src` as a statement body — same seam, statement-shaped. */

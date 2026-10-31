@@ -53,7 +53,9 @@ function buildTree(src: string, policy: Unsupported, opts?: ReadOptions): El {
   const pushText = (raw: string) => {
     if (raw === "") return;
     // Non-pre HTML collapses runs of whitespace; pre preserves them verbatim.
-    const text = inPre() ? decodeEntities(raw) : decodeEntities(raw).replace(/\s+/g, " ");
+    // HTML's own white space only: a no-break space (`&nbsp;`, U+00A0) is
+    // text, not a break — JavaScript's \s would fold it into a plain space
+    const text = inPre() ? decodeEntities(raw) : decodeEntities(raw).replace(/[ \t\n\r\f]+/g, " ");
     if (text !== "") target().kids.push({ text });
   };
 
