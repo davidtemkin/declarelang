@@ -340,7 +340,16 @@ bootHost(cfg);
       const settled = (r) => { if (inflight.delete(r)) lastChange = Date.now(); };
       page.on("requestfinished", settled);
       page.on("requestfailed", settled);
-      page.on("response", (res) => { if (/^text\/event-stream/i.test(res.headers()["content-type"] ?? "")) settled(res.request()); });
+      // …and a request that has answered is done half a second later at most,
+      // whatever the browser reports after: Venue run 18's declined POST
+      // /api/orders had its response but never a finish (neither Puppeteer's
+      // event nor Chrome's own loadingFinished), and every settle after it
+      // waited out its 10 s. Half a second is ample for a body behind its headers.
+      page.on("response", (res) => {
+        const r = res.request();
+        if (/^text\/event-stream/i.test(res.headers()["content-type"] ?? "")) settled(r);
+        else setTimeout(() => settled(r), 500);
+      });
       // a settle that waited its whole time out, and what it waited on — said
       // beside the verdict, once each, rather than passed over in silence
       const waited = [];

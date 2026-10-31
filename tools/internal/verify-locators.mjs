@@ -85,13 +85,11 @@ function resolveInPage(steps) {
     }
     return null;
   };
-  // Chrome's own role and name (verify launches it with ComputedAccessibilityInfo),
-  // the ones a screen reader is given; the rules above where it is not there
-  const roleOf = (el) => {
-    const r = el.computedRole;
-    if (typeof r !== "string") return IMPLICIT(el);
-    return r === "image" ? "img" : r === "" ? null : r;
-  };
+  // Roles from the element itself — its role attribute (which the runtime writes
+  // on what it draws) or its tag. Chrome's computed role and name cost ~3 ms an
+  // element to read, so they are asked only of the few candidates a name query
+  // leaves (below): a page of 650 seats cannot pay that on every query.
+  const roleOf = IMPLICIT;
   const text = (el) => norm(el.innerText ?? el.textContent);
   const labelOf = (el) => {
     const a = el.getAttribute("aria-label");
@@ -104,6 +102,15 @@ function resolveInPage(steps) {
   };
   const nameOf = (el) => typeof el.computedName === "string" ? el.computedName
     : labelOf(el) || (IMPLICIT(el) === "textbox" ? el.getAttribute("placeholder") || "" : text(el));
+  // every source an accessible name is made from, cheaply: a name that fits none of
+  // them, nor all of them together, cannot be the element's name
+  const mayBeNamed = (el, want, exact) => {
+    if (want == null) return true;
+    const by = el.getAttribute("aria-labelledby");
+    const sources = [el.getAttribute("aria-label"), by ? by.split(/\s+/).map((id) => text(document.getElementById(id) ?? document.createElement("i"))).join(" ") : null,
+      labelOf(el), text(el), el.getAttribute("title"), el.getAttribute("placeholder"), el.getAttribute("alt"), el.value].filter((x) => typeof x === "string" && x !== "");
+    return sources.some((x) => fits(x, want, false)) || fits(sources.join(" "), want, false) || (exact && sources.length === 0);
+  };
   // what assistive technology cannot reach is not found by a role, a label or a
   // text — the page behind an open sheet (inert), what is hidden from a screen
   // reader, what is not displayed
@@ -133,9 +140,10 @@ function resolveInPage(steps) {
     let cur = roots;
     for (const s of chain) {
       if (s.by === "role") {
-        cur = below(cur, (el) => (s.opts.includeHidden || !hidden(el)) && roleOf(el) === s.role && fits(nameOf(el), s.name, s.exact)
+        cur = below(cur, (el) => roleOf(el) === s.role && (s.opts.includeHidden || !hidden(el))
           && ["checked", "pressed", "expanded", "selected", "disabled"].every((k) => s.opts[k] === undefined || roleState[k](el) === s.opts[k])
-          && (s.opts.level === undefined || roleState.level(el) === s.opts.level));
+          && (s.opts.level === undefined || roleState.level(el) === s.opts.level)
+          && mayBeNamed(el, s.name, s.exact) && fits(s.name == null ? "" : nameOf(el), s.name, s.exact));
       } else if (s.by === "label") {
         cur = below(cur, (el) => !hidden(el) && (IMPLICIT(el) !== null || el.isContentEditable) && labelOf(el) !== "" && fits(labelOf(el), s.name, s.exact));
       } else if (s.by === "placeholder") {

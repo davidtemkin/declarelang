@@ -26,12 +26,13 @@ mkdir -p "$TREE"
 G=(git --git-dir="$LOGS/files.git" --work-tree="$TREE")
 git init -q --bare "$LOGS/files.git"
 EXCLUDE=(--exclude=.git/ --exclude=node_modules/ --exclude=dist/ --exclude=build/ --exclude=.vite/
-  --exclude=.next/ --exclude=coverage/ --exclude='*.log' --include=/declarelang/ --include='/declarelang/my-apps/***'
-  --exclude='/declarelang/*')
+  --exclude=.next/ --exclude=coverage/ --exclude='*.log'
+  --exclude=.build/ --exclude=.swiftpm/ --exclude=DerivedData/ --exclude='*.app/' --exclude='*.xcarchive/'
+  --include=/declarelang/ --include='/declarelang/my-apps/***' --exclude='/declarelang/*')
 "${G[@]}" config user.name record; "${G[@]}" config user.email record@localhost
 PID=$(grep -o 'AGENT_PID=[0-9]*' "$LOGS/started.txt" | cut -d= -f2)
 snap() {
-  rsync -a --delete "${EXCLUDE[@]}" "$RUN/work/" "$TREE/" 2>/dev/null
+  rsync -a --delete --delete-excluded "${EXCLUDE[@]}" "$RUN/work/" "$TREE/" 2>/dev/null
   "${G[@]}" add -A . 2>/dev/null
   "${G[@]}" diff --cached --quiet 2>/dev/null || "${G[@]}" commit -q -m "$(date -u +%Y-%m-%dT%H:%M:%SZ)" 2>/dev/null
 }

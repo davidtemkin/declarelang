@@ -1,0 +1,309 @@
+/*
+# The Venue: the parts
+
+The look and the plain helpers of the box office, kept apart from how it works:
+the palette, the formatting and card arithmetic (plain functions), the shapes of
+the service's data, and the small pieces the screens are made of. `venue.declare`
+includes this file; read that one first.
+*/
+
+// ── Colors ──────────────────────────────────────────────────────────────────
+//
+// Laid over the library's `SanFrancisco` preset, so library controls read the
+// same palette. One accent, oxblood, and it means one thing: what is the
+// person's — their seats, their total, the button that pays for them.
+
+theme Venue [
+    background = #F6F2EA, surface = #FBF8F2, card = #FFFDF8,
+    line = #E3DACB, lineStrong = #CDBFA9, quiet = #EFE8DC, hover = #EDE5D7,
+    text = #1E1915, textMuted = #6B6158, textFaint = #8F857A,
+    accent = #8E1B2F, accentHovered = #7A1627, accentPressed = #66111F, accentTextColor = #FFFFFF,
+    control = #EFE8DC, controlHovered = #E6DDCD, controlPressed = #DDD2BF, controlSelected = #E6DDCD,
+    error = #B42318, errorTint = #FBEDEA,
+    seatFree = #4A4038, seatGone = #CFC5B6, band = #EEE6D8, bandEdge = #E2D7C4, stage = #2A231E,
+    ticket = #FFFDF8, ticketInk = #1E1915, stub = #F1EADD,
+    buttonCornerRadius = 10, controlCornerRadius = 8, comboboxHeight = 48
+    ]
+
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+//
+// Functions of their arguments: money, dates as a ticket prints them, and the
+// arithmetic of a payment card. A constraint that calls one re-runs when the
+// values it passes change.
+
+script {
+    const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const LONG_DAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    const LONG_MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August",
+        "September", "October", "November", "December"]
+    const USD = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" })
+
+    // $240.00
+    function money(cents: number): string { return USD.format(cents / 100) }
+
+    // "2026-11-13T19:30" → its parts, read as the hall's own clock
+    function stamp(iso: string): number[] {
+        const [d, t] = iso.split("T")
+        const [y, m, day] = d.split("-").map(Number)
+        const [h, min] = (t ?? "0:0").split(":").map(Number)
+        return [y, m, day, h, min]
+    }
+    function weekday(iso: string): number { const s = stamp(iso); return new Date(Date.UTC(s[0], s[1] - 1, s[2])).getUTCDay() }
+
+    // Fri 13 Nov
+    function dayLabel(iso: string): string { const s = stamp(iso); return DAYS[weekday(iso)] + " " + s[2] + " " + MONTHS[s[1] - 1] }
+    // Friday 13 November
+    function longDay(iso: string): string { const s = stamp(iso); return LONG_DAYS[weekday(iso)] + " " + s[2] + " " + LONG_MONTHS[s[1] - 1] }
+    // 7:30pm
+    function timeLabel(iso: string): string {
+        const s = stamp(iso)
+        const h = s[3] % 12 == 0 ? 12 : s[3] % 12
+        return h + ":" + (s[4] < 10 ? "0" : "") + s[4] + (s[3] < 12 ? "am" : "pm")
+    }
+    function isMatinee(iso: string): boolean { return stamp(iso)[3] < 17 }
+
+    function digitsOf(s: string): string { return s.replace(/\D/g, "") }
+
+    // A card's kind, from its first digits.
+    function brandOf(digits: string): string {
+        if (/^3[47]/.test(digits)) return "amex"
+        if (/^4/.test(digits)) return "visa"
+        if (/^(5[1-5]|222[1-9]|22[3-9]\d|2[3-6]\d\d|27[01]\d|2720)/.test(digits)) return "mastercard"
+        if (/^(6011|65|64[4-9])/.test(digits)) return "discover"
+        return ""
+    }
+    function brandName(brand: string): string {
+        return brand == "visa" ? "Visa" : brand == "mastercard" ? "Mastercard" : brand == "amex" ? "American Express"
+            : brand == "discover" ? "Discover" : ""
+    }
+    function cardLengths(brand: string): number[] {
+        if (brand == "amex") return [15]
+        if (brand == "visa") return [13, 16, 19]
+        if (brand == "mastercard") return [16]
+        if (brand == "discover") return [16, 17, 18, 19]
+        return [12, 13, 14, 15, 16, 17, 18, 19]
+    }
+    function maxDigits(brand: string): number { const l = cardLengths(brand); return l[l.length - 1] }
+    function cvcLength(brand: string): number { return brand == "amex" ? 4 : 3 }
+
+    // Grouped as it is printed: 4-6-5 on an American Express, fours on the rest.
+    function groupCard(digits: string): string {
+        const gaps = brandOf(digits) == "amex" ? [4, 10] : [4, 8, 12, 16]
+        let out = ""
+        for (let i = 0; i < digits.length; i++) {
+            if (gaps.includes(i)) out = out + " "
+            out = out + digits[i]
+        }
+        return out
+    }
+    // Where the caret belongs in grouped text, after `n` digits.
+    function caretAfter(grouped: string, n: number): number {
+        if (n <= 0) return 0
+        let seen = 0
+        for (let i = 0; i < grouped.length; i++) {
+            if (/\d/.test(grouped[i])) seen = seen + 1
+            if (seen == n) return i + 1
+        }
+        return grouped.length
+    }
+    function luhn(digits: string): boolean {
+        let sum = 0
+        for (let i = 0; i < digits.length; i++) {
+            let d = Number(digits[digits.length - 1 - i])
+            if (i % 2 == 1) { d = d * 2; if (d > 9) d = d - 9 }
+            sum = sum + d
+        }
+        return sum % 10 == 0
+    }
+    function cardProblem(text: string): string {
+        const d = digitsOf(text)
+        if (d.length < 12 || !cardLengths(brandOf(d)).includes(d.length) || !luhn(d))
+            return "That isn't a valid card number. Check the digits on your card."
+        return ""
+    }
+
+    // "0428", "04 / 28" → "04 / 28" as it is typed.
+    function formatExpiry(text: string, deleting: boolean): string {
+        let d = digitsOf(text).slice(0, 4)
+        if (d.length == 1 && Number(d) > 1) d = "0" + d
+        if (d.length < 2) return d
+        if (d.length == 2) return deleting ? d : d + " / "
+        return d.slice(0, 2) + " / " + d.slice(2)
+    }
+    function expiryParts(text: string): number[] {
+        const d = digitsOf(text)
+        if (d.length != 4) return [0, 0]
+        return [Number(d.slice(0, 2)), 2000 + Number(d.slice(2))]
+    }
+    function expiryProblem(text: string, year: number, month: number): string {
+        const d = digitsOf(text)
+        if (d.length != 4) return "Enter the expiry as MM / YY."
+        const p = expiryParts(text)
+        if (p[0] < 1 || p[0] > 12) return "The month must be between 01 and 12."
+        if (p[1] < year || (p[1] == year && p[0] < month)) return "This card has expired."
+        return ""
+    }
+    function isExpired(expMonth: number, expYear: number, year: number, month: number): boolean {
+        return expYear < year || (expYear == year && expMonth < month)
+    }
+    function twoDigits(n: number): string { return (n < 10 ? "0" : "") + n }
+
+    function postalProblem(country: string, text: string): string {
+        const v = text.trim()
+        if (country == "US" && !/^\d{5}(-\d{4})?$/.test(v)) return "Enter a ZIP code like 94103 or 94103-1234."
+        if (country == "CA" && !/^[A-Za-z]\d[A-Za-z] ?\d[A-Za-z]\d$/.test(v)) return "Enter a postal code like K1A 0B1."
+        if (country == "GB" && !/^[A-Za-z]{1,2}\d[A-Za-z\d]? ?\d[A-Za-z]{2}$/.test(v)) return "Enter a postcode like SW1A 2AA."
+        return ""
+    }
+    function postalLabel(country: string): string { return country == "US" ? "ZIP code" : country == "GB" ? "Postcode" : "Postal code" }
+    function emailProblem(text: string): string {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text.trim()) ? "" : "Enter an email address like name@example.com."
+    }
+    function plural(n: number, one: string, many: string): string { return n + " " + (n == 1 ? one : many) }
+    }
+
+
+// ── The shape of the data ───────────────────────────────────────────────────
+
+schema Performance [ id: string, startsAt: string, doorsAt: string, priceFromCents: number, seatsLeft: number, seats: number ]
+schema Production [ title: string, hall: string, runningTime: string, performances[]: Performance ]
+
+schema SeatRec [ id: string, number: number, status: "available" | "sold" ]
+schema Row [ name: string, seats[]: SeatRec ]
+schema Section [ key: string, name: string, priceCents: number, feeCents: number, rows[]: Row ]
+schema SeatMap [ performanceId: string, sections[]: Section ]
+
+// One seat as the program speaks of it: its place in words and its price.
+
+schema SeatInfo [ id: string, section: string, sectionName: string, row: string, number: number,
+    priceCents: number, feeCents: number, label: string ]
+
+// The hall drawn: each seat at its place on the curve, wrapping the seat
+// record itself (`s`), so a seat changing hands shows at once.
+
+schema Spot [ id: string, x: number, y: number, row: number, label: string, hint: string, s: SeatRec ]
+schema Band [ key: string, name: string, price: string, r0: number, r1: number, edge[]: number, labelY: number ]
+schema Plan [ w: number, h: number, cx: number, cy: number, stage0: number, stage1: number, pitch: number,
+    spots[]: Spot, bands[]: Band ]
+
+schema SavedCard [ id: string, brand: string, last4: string, expMonth: number, expYear: number ]
+schema Billing [ line1: string, line2?: string, city: string, postalCode: string, country: string ]
+schema Account [ name: string, email: string, billing?: Billing, cards[]?: SavedCard ]
+
+schema Ticket [ seatId: string, section: string, row: string, number: number, barcode: string ]
+schema Order [ code: string, email: string, totalCents: number, brand: string, last4: string,
+    performanceId: string, tickets[]: Ticket ]
+schema Refusal [ error: string, message: string, field?: string, conflicts[]?: string ]
+schema Country [ id: string, label: string ]
+
+
+// ── Type ────────────────────────────────────────────────────────────────────
+//
+// Two families: a book serif for what is said about the evening (titles, the
+// ticket), the system face for everything that is used. Size, weight and
+// spacing do the rest.
+
+class Eyebrow extends Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 1.4,
+    textColor = { provided("theme").textMuted }
+    ]
+
+
+class Display extends Text [ fontFamily = { app.serif }, fontWeight = semibold, letterSpacing = -0.4 ]
+
+// A heading in the serif: a screen reader can move from one to the next.
+
+class Heading extends Text [ accessibilityRole = heading, fontFamily = { app.serif }, fontWeight = semibold, letterSpacing = -0.4 ]
+
+// An amount, its digits the same width so a column of them lines up.
+
+class Amount extends Text [ numeralWidth = tabular, textAlign = right ]
+
+// The button that commits: filled in the accent. Its words are its name.
+
+class PrimaryButton extends Button [ primary = true, height = 50, padH = 22 ]
+
+// ── The legend ──────────────────────────────────────────────────────────────
+//
+// The three states of a seat, drawn as the hall draws them: free is a full
+// dark disc, yours is a larger accent disc with a check, gone is a small pale
+// dot. Shape and size tell them apart without the colour.
+
+class SeatMark [ width = 18, height = 18,
+    kind: string = "free",
+    dot: View [ x = center, y = center,
+        width = { classroot.kind == "mine" ? 18 : classroot.kind == "gone" ? 6 : 13 }, height = { this.width },
+        cornerRadius = { this.width / 2 },
+        fill = { classroot.kind == "mine" ? provided("theme").accent : classroot.kind == "gone" ? provided("theme").seatGone : provided("theme").seatFree },
+        draw(d: DrawContext) { if (classroot.kind == "mine") drawCheck(d, this.width, 0xFFFFFF) }
+        ]
+    ]
+
+
+script {
+    function drawCheck(d: any, size: number, ink: number) {
+        d.strokeStyle = ink
+        d.lineWidth = Math.max(1.6, size * 0.12)
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        d.moveTo(size * 0.28, size * 0.52)
+        d.lineTo(size * 0.44, size * 0.68)
+        d.lineTo(size * 0.73, size * 0.36)
+        d.stroke()
+    }
+    }
+
+class Legend [
+    layout: SimpleLayout [ axis = x, spacing = 16, align = center ],
+    accessibilityHidden = true,
+    View [ layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        SeatMark [ kind = "free" ],
+        Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = "Free" ]
+        ],
+    View [ layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        SeatMark [ kind = "mine" ],
+        Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = "Yours" ]
+        ],
+    View [ layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        SeatMark [ kind = "gone" ],
+        Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = "Taken" ]
+        ]
+    ]
+
+
+// How full a performance is: a hairline track that fills as seats go.
+
+class FullnessBar [ height = 4, cornerRadius = 2,
+    sold: number = 0,                 // 0 to 1
+    fill = { provided("theme").line },
+    View [ height = 4, cornerRadius = 2, width = { parent.width * classroot.sold },
+        fill = { classroot.sold > 0.85 ? provided("theme").text : provided("theme").textMuted } ]
+    ]
+
+
+// A small round button with a drawn sign, for the hall's zoom.
+
+class RoundButton extends Control [ width = 44, height = 44, cornerRadius = 22,
+    sign: string = "+",
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").hover : provided("theme").card },
+    stroke = { stroke(1, provided("theme").line) },
+    shadow = { shadow(0, 2, 8, 0x1E19151F) },
+    draw(d: DrawContext) {
+        d.strokeStyle = provided("theme").text
+        d.lineWidth = 1.8
+        d.lineCap = "round"
+        d.beginPath()
+        if (sign == "fit") {
+            d.moveTo(15, 19); d.lineTo(15, 15); d.lineTo(19, 15)
+            d.moveTo(25, 15); d.lineTo(29, 15); d.lineTo(29, 19)
+            d.moveTo(29, 25); d.lineTo(29, 29); d.lineTo(25, 29)
+            d.moveTo(19, 29); d.lineTo(15, 29); d.lineTo(15, 25)
+        } else {
+            d.moveTo(15, 22); d.lineTo(29, 22)
+            if (sign == "+") { d.moveTo(22, 15); d.lineTo(22, 29) }
+        }
+        d.stroke()
+        }
+    ]

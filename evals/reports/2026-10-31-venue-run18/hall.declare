@@ -1,0 +1,357 @@
+/*
+# The Venue: the hall
+
+The seat map and how a person moves through it.
+
+- **`SeatPlan`** is the seat map of one performance, as the service sends it,
+  and everything true of its seats whoever is looking: what a seat is called and
+  costs, which are free, and where each sits on the drawn plan (`geometry`, a
+  derived dataset). The event stream writes a seat sold into it, and everything
+  drawn from it follows.
+- **`Seat`** is one seat: a toggle a person presses, named the way an usher
+  would say it.
+- **`HallView`** is the room: the stage, the four sections as bands at their
+  heights, every seat on its curved row. It zooms and pans about the fingers on
+  a phone, where at full-hall size a seat is too small for a thumb: there a
+  tap first brings that part of the hall close, and the next tap picks a seat.
+*/
+
+// ── The seat map ────────────────────────────────────────────────────────────
+
+class SeatPlan extends DataSource [ schema = SeatMap, autoFetch = true,
+
+    sections() -> Section[] { return this.value?.sections ?? [] },
+
+    // A seat id names its place: ORCH-C-14 is Orchestra, row C, seat 14.
+
+    where(id: string) -> number[] {
+        const p = id.split("-")
+        const secs = this.sections()
+        const si = secs.findIndex((s) => s.key == p[0])
+        if (si < 0) return []
+        const ri = secs[si].rows.findIndex((r) => r.name == p[1])
+        if (ri < 0) return []
+        const k = secs[si].rows[ri].seats.findIndex((s) => s.id == id)
+        return k < 0 ? [] : [si, ri, k]
+        },
+    info(id: string) -> SeatInfo? {
+        const w = this.where(id)
+        if (w.length != 3) return null
+        const sec = this.sections()[w[0]]
+        const row = sec.rows[w[1]]
+        const seat = row.seats[w[2]]
+        return ({ id: id, section: sec.key, sectionName: sec.name, row: row.name, number: seat.number,
+            priceCents: sec.priceCents, feeCents: sec.feeCents,
+            label: sec.name + ", row " + row.name + ", seat " + seat.number })
+        },
+    isFree(id: string) -> boolean {
+        const w = this.where(id)
+        return w.length == 3 && this.sections()[w[0]].rows[w[1]].seats[w[2]].status == "available"
+        },
+    markSold(id: string) {
+        const w = this.where(id)
+        if (w.length == 3) this.set(["sections", w[0], "rows", w[1], "seats", w[2], "status"], "sold")
+        },
+
+    seatCount: number = { classroot.sections().reduce((n, s) => n + s.rows.reduce((m, r) => m + r.seats.length, 0), 0) },
+    freeCount: number = {
+        classroot.sections().reduce((n, s) => n + s.rows.reduce((m, r) => m + r.seats.filter((x) => x.status == "available").length, 0), 0)
+        },
+
+    // ── The plan, drawn. Rows are arcs about a point behind the stage, so
+    //    every seat faces it; each section is a band at its own depth, with a
+    //    gap above it for its name. The API lists seats left to right as seen
+    //    FROM THE STAGE, so with the stage at the top seat 1 is on the right.
+
+    geometry: Dataset [ schema = Plan, contents = { classroot.arrange() } ],
+
+    arrange() -> Plan {
+        const pitch = 22              // seat to seat along a row
+        const rowStep = 21            // row to row
+        const gap = 30                // between sections, room for a name
+        const firstR = 270            // row A of the orchestra, from the centre
+        const stage1 = firstR - 52
+        const stage0 = stage1 - 44
+        const spots = []
+        const bands = []
+        let r = firstR
+        let rowNo = 0
+        let widest = 0
+        this.sections().forEach((sec, si) => {
+            if (si > 0) r = r + gap
+            const r0 = r
+            const edge = []                 // each row's radius and half-width, front to back
+            sec.rows.forEach((row) => {
+                const n = row.seats.length
+                row.seats.forEach((seat, i) => {
+                    const a = ((n - 1) / 2 - i) * pitch / r
+                    spots.push(({ id: seat.id, x: r * Math.sin(a), y: r * Math.cos(a), row: rowNo,
+                        label: sec.name + ", row " + row.name + ", seat " + seat.number,
+                        hint: money(sec.priceCents), s: seat }))
+                    })
+                edge.push(r, ((n - 1) / 2 * pitch + 15) / r)
+                widest = Math.max(widest, r * Math.sin(((n - 1) / 2) * pitch / r) + 16)
+                r = r + rowStep
+                rowNo = rowNo + 1
+                })
+            const r1 = r - rowStep
+            bands.push(({ key: sec.key, name: sec.name.toUpperCase(), price: money(sec.priceCents),
+                r0: r0 - 14, r1: r1 + 14, edge: edge, labelY: r0 - 14 - (si == 0 ? 20 : gap / 2 + 2) }))
+            })
+        const margin = 18
+        const cx = widest + margin
+        const cy = margin - stage0 * Math.cos(0.5)
+        const w = 2 * cx
+        const h = cy + r - rowStep + 12 + margin
+        return ({ w: w, h: h, cx: cx, cy: cy, stage0: stage0, stage1: stage1, pitch: pitch,
+            spots: spots.map((s) => ({ ...s, x: s.x + cx, y: s.y + cy })),
+            bands: bands.map((b) => ({ ...b, labelY: b.labelY + cy })) })
+        }
+    ]
+
+
+// ── A seat ──────────────────────────────────────────────────────────────────
+//
+// A toggle button to a screen reader, named "Orchestra, row C, seat 14", with
+// its price and state as the hint. Free is a dark disc; yours is a larger disc
+// in the accent with a check; taken shrinks to a pale dot. A seat that goes
+// while the person watches shrinks on a spring, so they see it go.
+
+class Seat extends Control [ width = 22, height = 22,
+    spotId: string = { :id ?? "" },
+    name: string = { :label ?? "" },
+    status: string = { :s.status ?? "sold" },
+    gone: boolean = { classroot.status != "available" },
+    mine: boolean = { app.chosen.includes(classroot.spotId) },
+    x = { (:x ?? 0) - 11 },
+    y = { (:y ?? 0) - 11 },
+    disabled = { classroot.gone },
+    accessibilityRole = toggle,
+    accessibilityLabel = { classroot.name },
+    accessibilityPressed = { classroot.mine },
+    accessibilityHint = { (:hint ?? "") + (classroot.gone ? ", taken" : classroot.mine ? ", in your selection" : ", free") },
+    press() {
+        app.toggleSeat(classroot.spotId)
+        pop = 1
+        },
+
+    // the arrows walk the hall as it is drawn: along the row, and to the row in front or behind
+
+    onKeyDown(e: KeyEvent) {
+        const dir = e.key == "ArrowLeft" ? "left" : e.key == "ArrowRight" ? "right" : e.key == "ArrowUp" ? "up" : e.key == "ArrowDown" ? "down" : ""
+        if (dir == "") { super.onKeyDown(e); return }
+        app.hall?.step(classroot.spotId, dir)
+        },
+    onFocus() { if (Focus.byKeyboard()) this.scrollIntoView() },     // the arrows keep the seat in sight
+
+    size: number = { classroot.targetSize },
+    targetSize: number = { classroot.mine ? 18 : classroot.gone ? 6 : 13 },
+    Spring [ attribute = size, to = { classroot.targetSize }, stiffness = 260, damping = 18 ],
+    pop: number = 0,
+    Spring [ attribute = pop, to = 0, stiffness = 320, damping = 11 ],
+
+    dot: View [ x = center, y = center, width = { classroot.size }, height = { this.width },
+        cornerRadius = { this.width / 2 },
+        scale = { 1 + 0.45 * classroot.pop }, pivotX = { this.width / 2 }, pivotY = { this.height / 2 },
+        fill = { classroot.mine ? provided("theme").accent : classroot.gone ? provided("theme").seatGone : provided("theme").seatFree },
+        stroke = { classroot.hovered && !classroot.mine ? stroke(2, provided("theme").accent) : null },
+        draw(d: DrawContext) { if (classroot.mine) drawCheck(d, this.width, 0xFFFFFF) }
+        ]
+    ]
+
+
+// ── The room ────────────────────────────────────────────────────────────────
+//
+// The plan, at `z`: the whole hall fitted to the window on a desk; on a touch
+// screen, close enough that seats sit 44 points apart, so a thumb takes the
+// one it means. When the plan is bigger than the window it scrolls natively,
+// both ways, and a miniature of the whole house in the corner shows how full
+// it is and where the window is; pressing the miniature goes there.
+
+class HallView [
+    accessibilityRole = group, accessibilityLabel = "Seating plan, stage at the top",
+    plan: Plan? = { app.plan.geometry.value },
+    W: number = { classroot.plan?.w ?? 600 },
+    H: number = { classroot.plan?.h ?? 600 },
+    pitch: number = { classroot.plan?.pitch ?? 22 },
+    fit: number = { Math.max(0.2, Math.min(classroot.width / classroot.W, classroot.height / classroot.H)) },
+    thumb: number = { 44 / classroot.pitch },                       // seats 44 points apart
+    minZ: number = { app.touchFirst ? Math.max(classroot.fit, classroot.thumb) : classroot.fit },
+    maxZ: number = { Math.max(classroot.thumb * 1.6, classroot.fit) },
+    level: number = { classroot.minZ },                             // the zoom buttons take it over
+    z: number = { Math.min(classroot.maxZ, Math.max(classroot.minZ, classroot.level)) },
+    big: boolean = { classroot.W * classroot.z > classroot.width + 1 || classroot.H * classroot.z > classroot.height + 1 },
+
+    // where the plan sits on the scrolled canvas: centred while it is smaller than the window
+
+    offX: number = { Math.max(0, (classroot.width - classroot.W * classroot.z) / 2) },
+    offY: number = { Math.max(0, (classroot.height - classroot.H * classroot.z) / 2) },
+
+    // A zoom keeps the middle of the window where it was; a new plan opens at the stage.
+
+    trackChanges = ["z", "W"],
+    onChange(e: ChangeEvent) {
+        const dz = e.changed.find((c) => c.name == "z")
+        const s = this.scroller
+        if (e.changed.some((c) => c.name == "W") || dz == null) {
+            afterSettle(() => s.scrollTo({ x: (classroot.W * classroot.z - classroot.width) / 2,
+                y: ((classroot.plan?.cy ?? 0) + (classroot.plan?.stage1 ?? 0)) * classroot.z + classroot.offY - 64 }))
+            return
+            }
+        const was = dz.previousValue as number
+        const wasOffX = Math.max(0, (this.width - this.W * was) / 2), wasOffY = Math.max(0, (this.height - this.H * was) / 2)
+        const sx = (s.scrollX + this.width / 2 - wasOffX) / was, sy = (s.scrollY + this.height / 2 - wasOffY) / was
+        afterSettle(() => s.scrollTo({ x: sx * classroot.z + classroot.offX - classroot.width / 2, y: sy * classroot.z + classroot.offY - classroot.height / 2 }))
+        },
+    zoomBy(f: number) { level = Math.min(maxZ, Math.max(minZ, z * f)) },
+    showAll() { level = minZ },
+
+    // Go to the plan point (sx, sy) — the miniature's press.
+
+    goTo(sx: number, sy: number) {
+        this.scroller.scrollTo({ x: sx * z + offX - this.width / 2, y: sy * z + offY - this.height / 2 })
+        },
+
+    // The arrows: the nearest free seat that way, along the row or in the next row.
+
+    step(from: string, dir: string) {
+        const spots = this.plan?.spots ?? []
+        const here = spots.find((s) => s.id == from)
+        if (here == null) return
+        const open = spots.filter((s) => s.s.status == "available" || app.chosen.includes(s.id))
+        let pick: Spot | null = null
+        if (dir == "left" || dir == "right") {
+            const sign = dir == "left" ? -1 : 1
+            const same = open.filter((s) => s.row == here.row && (s.x - here.x) * sign > 0.5)
+            same.sort((a, b) => Math.abs(a.x - here.x) - Math.abs(b.x - here.x))
+            pick = same[0] ?? null
+        } else {
+            const rows = Array.from(new Set(open.map((s) => s.row))).sort((a, b) => a - b)
+            const next = dir == "up" ? rows.filter((r) => r < here.row).pop() : rows.find((r) => r > here.row)
+            if (next != null) {
+                const there = open.filter((s) => s.row == next)
+                there.sort((a, b) => Math.abs(a.x - here.x) - Math.abs(b.x - here.x))
+                pick = there[0] ?? null
+            }
+        }
+        if (pick == null) return
+        const id = pick.id
+        const target = this.scroller.canvas.scene.seats.children.find((c) => (c as Seat).spotId == id)
+        if (target != null) Focus.focus(target)
+        },
+
+    scroller: View [ width = 100%, height = 100%, scrolls = both, hideScrollbars = { app.touchFirst },
+        canvas: View [ width = { Math.max(classroot.W * classroot.z, classroot.width) },
+            height = { Math.max(classroot.H * classroot.z, classroot.height) },
+
+            scene: View [ x = { classroot.offX }, y = { classroot.offY }, width = { classroot.W }, height = { classroot.H },
+                scale = { classroot.z }, pivotX = 0, pivotY = 0,
+
+                // the stage, and each section as a band that follows its rows' ends,
+                // so the room narrows toward the stage
+
+                draw(d: DrawContext) {
+                    const p = classroot.plan
+                    if (p == null) return
+                    const t = provided("theme")
+                    const at = (r: number, a: number) => [p.cx + r * Math.sin(a), p.cy + r * Math.cos(a)]
+                    for (const b of p.bands) {
+                        const e = b.edge
+                        const last = e.length - 2
+                        d.beginPath()
+                        d.arc(p.cx, p.cy, b.r0, Math.PI / 2 - e[1], Math.PI / 2 + e[1], false)
+                        for (let k = 0; k <= last; k = k + 2) { const q = at(e[k], -e[k + 1]); d.lineTo(q[0], q[1]) }
+                        d.arc(p.cx, p.cy, b.r1, Math.PI / 2 + e[last + 1], Math.PI / 2 - e[last + 1], true)
+                        for (let k = last; k >= 0; k = k - 2) { const q = at(e[k], e[k + 1]); d.lineTo(q[0], q[1]) }
+                        d.closePath()
+                        d.fillStyle = t.band
+                        d.fill()
+                    }
+                    d.beginPath()
+                    d.arc(p.cx, p.cy, p.stage1, Math.PI / 2 - 0.5, Math.PI / 2 + 0.5, false)
+                    d.arc(p.cx, p.cy, p.stage0, Math.PI / 2 + 0.5, Math.PI / 2 - 0.5, true)
+                    d.closePath()
+                    d.fillStyle = t.stage
+                    d.fill()
+                    },
+                stageLabel: Text [ accessibilityHidden = true, x = { (classroot.plan?.cx ?? 0) - this.width / 2 },
+                    y = { (classroot.plan?.cy ?? 0) + ((classroot.plan?.stage0 ?? 0) + (classroot.plan?.stage1 ?? 0)) / 2 - this.height / 2 },
+                    fontSize = { 11 / Math.max(0.6, Math.min(1.5, classroot.z)) }, fontWeight = semibold, letterSpacing = 3,
+                    textColor = { provided("theme").background }, text = "STAGE" ],
+
+                // each section's name and price, in the aisle in front of it, the same size at any zoom
+
+                names: View [ width = 100%, height = 100%, datapath = { classroot.plan },
+                    Text [ datapath = :bands[], accessibilityHidden = true,
+                        x = { (classroot.plan?.cx ?? 0) - this.width / 2 }, y = { (:labelY ?? 0) - this.height / 2 },
+                        fontSize = { 11 / Math.max(0.6, Math.min(1.5, classroot.z)) }, fontWeight = semibold, letterSpacing = 1.2,
+                        textColor = { provided("theme").textMuted }, wrap = false,
+                        text = { (:name ?? "") + "  ·  " + (:price ?? "") } ]
+                    ],
+
+                // Tab lands on the hall once; the arrows walk it
+
+                seats: View [ width = 100%, height = 100%, datapath = { classroot.plan },
+                    focusScope = stop,
+                    accessibilityRole = group, accessibilityLabel = "Seats",
+                    focusEntry() -> View? {
+                        const mine = app.chosen[0] ?? ""
+                        return this.children.find((c) => (c as Seat).spotId == mine) ?? null
+                        },
+                    Seat [ datapath = :spots[] ]
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+
+// ── Beside the room ─────────────────────────────────────────────────────────
+//
+// The whole house in miniature, with the window drawn on it, while the plan is
+// bigger than the window: how full the house is at a glance, and where you are
+// in it. Pressing or dragging on it takes the window there. It sits beside the
+// plan, never over it, so no seat is ever under it.
+
+class HallMap [ width = 96, height = { Math.round(this.width * (classroot.hall?.H ?? 1) / (classroot.hall?.W ?? 1)) },
+    hall: HallView? = null,
+    cornerRadius = 8, fill = { provided("theme").card }, stroke = { stroke(1, provided("theme").line) },
+    accessibilityHidden = true,
+    m: number = { (this.width - 8) / (classroot.hall?.W ?? 1) },
+    draw(d: DrawContext) {
+        const h = classroot.hall
+        const p = h?.plan
+        if (h == null || p == null) return
+        const t = provided("theme")
+        const m = this.m
+        for (const s of p.spots) {
+            const mine = app.chosen.includes(s.id)
+            const open = s.s.status == "available"
+            d.fillStyle = mine ? t.accent : open ? t.seatFree : t.seatGone
+            const r = mine ? 1.8 : open ? 1.1 : 0.6
+            d.fillRect(4 + s.x * m - r, 4 + s.y * m - r, r * 2, r * 2)
+        }
+        const sc = h.scroller
+        d.strokeStyle = t.accent
+        d.lineWidth = 1.5
+        d.strokeRect(4 + (sc.scrollX - h.offX) / h.z * m, 4 + (sc.scrollY - h.offY) / h.z * m, h.width / h.z * m, h.height / h.z * m)
+        },
+    onPointerDown(e: PointerEvent) { classroot.hall?.goTo((e.x - 4) / this.m, (e.y - 4) / this.m) },
+    onPointerMove(e: PointerEvent) { classroot.hall?.goTo((e.x - 4) / this.m, (e.y - 4) / this.m) }
+    ]
+
+
+class ZoomButtons [
+    hall: HallView? = null,
+    atMin: boolean = { (classroot.hall?.z ?? 1) <= (classroot.hall?.minZ ?? 1) + 0.001 },
+    atMax: boolean = { (classroot.hall?.z ?? 1) >= (classroot.hall?.maxZ ?? 1) - 0.001 },
+    layout: SimpleLayout [ axis = { app.phone ? "y" : "x" }, spacing = 8 ],
+    RoundButton [ sign = "-", accessibilityLabel = "Zoom out", disabled = { classroot.atMin },
+        opacity = { classroot.atMin ? 0.4 : 1 },
+        press() { classroot.hall?.zoomBy(1 / 1.5) }
+        ],
+    RoundButton [ sign = "+", accessibilityLabel = "Zoom in", disabled = { classroot.atMax },
+        opacity = { classroot.atMax ? 0.4 : 1 },
+        press() { classroot.hall?.zoomBy(1.5) }
+        ]
+    ]
