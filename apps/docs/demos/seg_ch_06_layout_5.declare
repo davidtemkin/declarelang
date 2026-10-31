@@ -1,0 +1,23 @@
+App [ width = 480, height = 220, fill = white, textColor = black, padding = 16,
+    months: Dataset { { "rows": [ { "m": "Jan", "v": 12 }, { "m": "Feb", "v": 19 },
+        { "m": "Mar", "v": 7 }, { "m": "Apr", "v": 15 }, { "m": "May", "v": 22 } ] } },
+
+    // the App's layout places both children, and sizes them where they ask
+
+    layout: SimpleLayout [ axis = { app.width >= 400 ? "x" : "y" }, spacing = 12, align = stretch ],
+    plot: View [ flexes = true, fill = whitesmoke, cornerRadius = 8,  // both sizes: the layout's
+        datapath = { app.months.value },
+
+        // a free-form surface: each bar decides its own place and size, from the plot's
+
+        View [ datapath = :rows[], fill = steelblue, cornerRadius = 3,
+            width = { parent.width / 5 - 12 },
+            height = { :v / 25 * (parent.height - 16) },
+            x = { rowIndex * parent.width / 5 + 6 },
+            y = end ]
+        ],
+    key: View [ datapath = { app.months.value },  // its size: its content (and, across, the stretch)
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        Text [ datapath = :rows[], text = { :m + "  " + :v } ]
+        ]
+    ]
