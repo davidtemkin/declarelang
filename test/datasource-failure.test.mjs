@@ -210,4 +210,20 @@ await test("`loaded` is about the VALUE: it holds through a refetch and a failed
   } finally { provideTransport(prev); }
 });
 
+await test("a 204 is a success with no value — not a JSON parse failure", async () => {
+  const a = await app(`url = "/api/session", method = "DELETE", arrived: number = 0, onLoad() { this.arrived += 1 }`);
+  const prev = provideTransport(() => Promise.resolve({
+    ok: true, status: 204,
+    text: () => Promise.resolve(""),
+    json: () => Promise.reject(new SyntaxError("Unexpected end of JSON input")),
+  }));
+  try {
+    await a.ds.fetch();
+    assert.equal(a.ds.failed, false, a.ds.error);
+    assert.equal(a.ds.loading, false);
+    assert.equal(a.ds.arrived, 1, "onLoad fires: the request succeeded");
+    assert.equal(a.ds.value, null, "and there is no value, so `loaded` stays false");
+  } finally { provideTransport(prev); }
+});
+
 summarize("datasource-failure");

@@ -17,10 +17,12 @@ write, then check the program and look at it running (§ Checking and looking).
 
 1. **`docs/declare.md`** — the whole language: its forms, its rules, how a program fits
    together.
-2. **Three guide chapters**: `docs/guide/01-what-declare-is.md`, how a Declare program
+2. **Four guide chapters**: `docs/guide/01-what-declare-is.md`, how a Declare program
    works and the shape of a whole app; `docs/guide/04-structure.md`, where the records,
-   the user's place, the views and any script each belong; and
-   `docs/guide/05-run-and-check.md`, the working loop (run, read an error, check, debug).
+   the user's place, the views and any script each belong; `docs/guide/05-run-and-check.md`,
+   the working loop (run, read an error, check, debug); and `docs/guide/06-layout.md`, who
+   decides each size and place, and how a child asks its layout. Every program has layout,
+   and it is not CSS, even where it looks like it.
 3. **The to-do app, whole** — `apps/todo/todo.declare` and the parts it includes,
    `apps/todo/todo-parts.declare`, read together: <!--stat:todo.codeWithParts-->848<!--/stat--> lines of code, with
    comments written for a first reader. It is a familiar program written in the grain
@@ -31,6 +33,9 @@ write, then check the program and look at it running (§ Checking and looking).
    and for what comes with the language rather than being built: layout that follows
    content, swipes, a drawer, a sheet and a popover, search, menus, shortcuts and undo,
    two themes.
+
+Read each of these files whole, one at a time. These are long files, so if your read tool
+stops short or truncates its output, read the rest in parts until you reach the end.
 
 Then stop reading. Everything else is read when you reach the part that needs it.
 

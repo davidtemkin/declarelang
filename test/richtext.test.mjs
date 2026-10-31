@@ -333,6 +333,28 @@ Body with \`inline code\` here.
       });
     }
   }
+
+  // A size that settles after the first build — here, a `{ }` on a flag set a
+  // moment after boot, as a size on the window's width settles — must re-flow.
+  // The render key once left fontSize out, so the text kept its first size
+  // (a 72px heading laid out at 42px, 2026-10-31).
+  const sizeDoc = `App [ width = 600, height = 300, big: boolean = false,
+    onInit() { afterDelay(30, () => { app.big = true }) },
+    t: HTMLText [ width = 500, fontSize = { app.big ? 72 : 20 }, html = "Hello" ] ]`;
+  for (const render of ["dom", "canvas"]) {
+    const b = await buildProduction(sizeDoc, render === "canvas" ? { render: "canvas" } : {});
+    assert.ok(b.ok, "size build failed: " + (b.errors || []).map((e) => e.message).join("; "));
+    let height;
+    const { page } = await mount(b);
+    try {
+      await page.waitForFunction(() => window.__app.big === true);
+      await new Promise((r) => setTimeout(r, 100));
+      height = await page.evaluate(() => window.__app.t.height);
+    } finally { await page.close(); }
+    await test(`a rich text re-flows when its fontSize changes after the first build (${render})`, () => {
+      assert.ok(height >= 70, `height ${height} — still laid out at the first size`);
+    });
+  }
 }
 
 if (chrome !== null) await (await chrome).close();

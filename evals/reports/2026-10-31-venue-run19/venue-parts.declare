@@ -1,0 +1,248 @@
+/*
+# The Venue: the parts
+
+What the rest of the program leans on: the shape of the service's data, the
+plain functions that format money and dates and check a card, the theme, and
+the hall's geometry. `venue.declare` includes this file.
+*/
+
+// ── The shape of the data ───────────────────────────────────────────────────
+//
+// Each schema is what the service at port 8350 sends (task/api/API.md). The
+// compiler checks every read against them and the runtime checks what
+// arrives.
+
+schema Performance [ id: string, startsAt: string, doorsAt: string, priceFromCents: number,
+    seatsLeft: number, seats: number ]
+schema Production [ title: string, hall: string, runningTime: string, performances[]: Performance ]
+
+schema Seat [ id: string, number: number, status: string ]
+schema SeatRow [ name: string, seats[]: Seat ]
+schema Section [ key: string, name: string, priceCents: number, feeCents: number, rows[]: SeatRow ]
+schema SeatMap [ performanceId: string, sections[]: Section ]
+
+schema Billing [ line1: string, line2?: string, city: string, postalCode: string, country: string ]
+schema SavedCard [ id: string, brand: string, last4: string, expMonth: number, expYear: number ]
+schema Account [ name: string, email: string, billing: Billing, cards[]: SavedCard ]
+
+schema Ticket [ seatId: string, section: string, row: string, number: number, barcode: string ]
+schema Order [ code: string, email: string, totalCents: number, brand: string, last4: string,
+    performanceId: string, tickets[]: Ticket ]
+
+schema Country [ id: string, label: string ]
+
+// What the service says when it refuses: always a code and a sentence; a
+// field when one field is wrong; the seats when seats were taken.
+
+schema Refusal [ error: string, message: string, field?: string, conflicts[]?: string ]
+
+// A chosen seat, with what checkout shows of it.
+
+schema Chosen [ id: string, label: string, section: string, row: string, number: number,
+    priceCents: number, feeCents: number ]
+
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+//
+// Plain functions of their arguments: formatting, card arithmetic, the hall's
+// geometry. A constraint that calls one depends only on what it passes.
+
+script {
+    const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+    function pad2(n: number): string { return n < 10 ? "0" + n : "" + n }
+
+    // $1,240.00 — always two places.
+    function money(cents: number): string {
+        return "$" + (cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+    }
+
+    // The service writes the hall's local time, "2026-11-13T19:30"; read it as written.
+    function stamp(s: string): number[] {
+        const halves = s.split("T")
+        const d = halves[0].split("-").map(Number)
+        const t = (halves[1] ?? "0:0").split(":").map(Number)
+        return [d[0], d[1], d[2], t[0], t[1]]
+    }
+    function weekday(s: string): string { const p = stamp(s); return DAYS[new Date(p[0], p[1] - 1, p[2]).getDay()] }
+    function dayLabel(s: string): string { const p = stamp(s); return weekday(s) + " " + p[2] + " " + MONTHS[p[1] - 1] }
+    function dayNumber(s: string): string { return "" + stamp(s)[2] }
+    function monthLabel(s: string): string { return MONTHS[stamp(s)[1] - 1] }
+    function timeLabel(s: string): string {
+        const p = stamp(s)
+        const h = p[3] % 12 == 0 ? 12 : p[3] % 12
+        return h + ":" + pad2(p[4]) + (p[3] < 12 ? "am" : "pm")
+    }
+    function isMatinee(s: string): boolean { return stamp(s)[3] < 17 }
+
+    function plural(n: number, one: string, many: string): string { return n + " " + (n == 1 ? one : many) }
+
+    // ── cards
+
+    function digitsOnly(s: string): string { return s.replace(/\D/g, "") }
+
+    function brandOf(d: string): string {
+        if (/^3[47]/.test(d)) return "amex"
+        if (/^4/.test(d)) return "visa"
+        if (/^(5[1-5]|2[2-7])/.test(d)) return "mastercard"
+        if (/^(6011|65|64[4-9])/.test(d)) return "discover"
+        return ""
+    }
+    function brandName(b: string): string {
+        if (b == "visa") return "Visa"
+        if (b == "mastercard") return "Mastercard"
+        if (b == "amex") return "American Express"
+        if (b == "discover") return "Discover"
+        return ""
+    }
+    function cardLength(b: string): number { return b == "amex" ? 15 : 16 }
+    function codeLength(b: string): number { return b == "amex" ? 4 : 3 }
+
+    // Grouped the way it is printed: 4-6-5 on an Amex, fours on the rest.
+    function groupCard(d: string): string {
+        const sizes = brandOf(d) == "amex" ? [4, 6, 5] : [4, 4, 4, 4]
+        const out: string[] = []
+        let at = 0
+        for (const n of sizes) {
+            if (at >= d.length) break
+            out.push(d.slice(at, at + n))
+            at = at + n
+        }
+        return out.join(" ")
+    }
+    // Where the caret goes in grouped text, after `digits` digits.
+    function caretAfter(grouped: string, digits: number): number {
+        if (digits <= 0) return 0
+        let seen = 0
+        for (let i = 0; i < grouped.length; i++) {
+            if (/\d/.test(grouped[i])) seen = seen + 1
+            if (seen == digits) return i + 1
+        }
+        return grouped.length
+    }
+    function luhn(d: string): boolean {
+        let sum = 0
+        for (let i = 0; i < d.length; i++) {
+            let n = Number(d[d.length - 1 - i])
+            if (i % 2 == 1) { n = n * 2; if (n > 9) n = n - 9 }
+            sum = sum + n
+        }
+        return sum % 10 == 0
+    }
+    function cardProblem(raw: string): string {
+        const d = digitsOnly(raw)
+        if (/[^\d ]/.test(raw)) return "A card number has only digits."
+        const b = brandOf(d)
+        if (b == "") return "Enter a Visa, Mastercard, American Express or Discover card number."
+        if (d.length < cardLength(b)) return "This card number is too short — a " + brandName(b) + " number has " + cardLength(b) + " digits."
+        if (!luhn(d)) return "This isn't a valid card number. Check it against your card."
+        return ""
+    }
+
+    // "04 / 28" as it is typed: the month first, then the slash supplies itself.
+    function groupExpiry(raw: string, growing: boolean): string {
+        let d = digitsOnly(raw).slice(0, 4)
+        if (d.length == 1 && Number(d) > 1) d = "0" + d
+        if (d.length > 2) return d.slice(0, 2) + " / " + d.slice(2)
+        if (d.length == 2 && growing) return d + " / "
+        return d
+    }
+    function expiryParts(raw: string): number[] {
+        const m = /^\s*(\d{1,2})\s*\/\s*(\d{2})\s*$/.exec(raw)
+        return m == null ? [] : [Number(m[1]), 2000 + Number(m[2])]
+    }
+    function hasExpired(month: number, year: number): boolean {
+        const now = new Date()
+        return year < now.getFullYear() || (year == now.getFullYear() && month < now.getMonth() + 1)
+    }
+    function expiryProblem(raw: string): string {
+        const p = expiryParts(raw)
+        if (p.length == 0) return "Enter the expiry as it is on the card: month / year, like 04 / 28."
+        if (p[0] < 1 || p[0] > 12) return "There is no month " + pad2(p[0]) + ". Enter a month from 01 to 12."
+        if (hasExpired(p[0], p[1])) return "This card expired in " + MONTHS[p[0] - 1] + " " + p[1] + "."
+        return ""
+    }
+    function codeProblem(raw: string, brand: string): string {
+        const n = codeLength(brand)
+        if (!new RegExp("^\\d{" + n + "}$").test(raw.trim()))
+            return "Enter the " + n + "-digit code from the " + (brand == "amex" ? "front" : "back") + " of the card."
+        return ""
+    }
+    function postalProblem(raw: string, country: string): string {
+        const v = raw.trim().toUpperCase()
+        if (country == "US" && !/^\d{5}(-\d{4})?$/.test(v)) return "Enter a 5-digit ZIP code, like 94103."
+        if (country == "CA" && !/^[A-Z]\d[A-Z] ?\d[A-Z]\d$/.test(v)) return "Enter a postal code like K1A 0B1."
+        if (country == "GB" && !/^[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}$/.test(v)) return "Enter a postcode like SW1A 2AA."
+        return ""
+    }
+    function postalLabel(country: string): string {
+        return country == "US" ? "ZIP code" : country == "GB" ? "Postcode" : "Postal code"
+    }
+    function emailProblem(raw: string): string {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(raw.trim()) ? "" : "Enter an email address like name@example.com."
+    }
+
+    // ── the hall
+    //
+    // The room is drawn in its own units: a seat every PITCH along a row, a
+    // row every ROW_GAP back from the stage, the rows bowed so that every
+    // seat faces the stage. Three blocks to a row, with an aisle between.
+
+    const HALL_W = 1000
+    const PITCH = 26
+    const SEAT = 21
+    const ROW_GAP = 27
+    const AISLE = 20
+    const STAGE_H = 92
+    const TIER_GAP = 64
+    const BOW = 34
+
+    function blockLeft(n: number): number { return Math.round(n * 0.25) }
+    function seatLeft(i: number, n: number): number {
+        const rowW = n * PITCH + 2 * AISLE
+        let x = (HALL_W - rowW) / 2 + i * PITCH
+        if (i >= blockLeft(n)) x = x + AISLE
+        if (i >= n - blockLeft(n)) x = x + AISLE
+        return x
+    }
+    // How far a point at x rises toward the stage: the rows bow.
+    function bowAt(x: number): number { const u = (x - HALL_W / 2) / (HALL_W / 2); return -BOW * u * u }
+    function bowAngle(x: number): number {
+        const u = (x - HALL_W / 2) / (HALL_W / 2)
+        return Math.atan(-2 * BOW * u / (HALL_W / 2)) * 180 / Math.PI
+    }
+    function seatX(i: number, n: number): number { return seatLeft(i, n) + (PITCH - SEAT) / 2 }
+    function seatY(i: number, n: number): number { return bowAt(seatLeft(i, n) + PITCH / 2) + (ROW_GAP - SEAT) / 2 }
+    function seatTurn(i: number, n: number): number { return bowAngle(seatLeft(i, n) + PITCH / 2) }
+
+    // Where each tier starts, from how many rows the tiers before it have.
+    function tierTop(rowCounts: number[], k: number): number {
+        let y = STAGE_H + 70
+        for (let j = 0; j < k; j++) y = y + rowCounts[j] * ROW_GAP + TIER_GAP
+        return y
+    }
+    function hallHeight(rowCounts: number[]): number { return tierTop(rowCounts, rowCounts.length) - TIER_GAP + 40 }
+    }
+
+
+// ── The look ────────────────────────────────────────────────────────────────
+//
+// A house with the lights down: warm black, ivory type, and one colour that
+// means "yours" — the seats you hold, the button that pays for them. Free
+// seats are ivory, brighter the nearer and dearer; a seat that is gone is a
+// dim dot where a seat was.
+
+theme Venue [
+    background = #131116, surface = #1B181F, raised = #221E27, card = #F3ECDF,
+    line = #2F2A35, lineStrong = #463F4D, quiet = #1F1B23,
+    text = #F4EEE4, textMuted = #ABA2AC, textFaint = #7D7581, ink = #1C1714, inkMuted = #6D625A,
+    accent = #F0562E, accentTextColor = #FFFFFF, accentHovered = #F36A46, accentPressed = #D84820,
+    linkColor = #F4EEE4,
+    control = #26222B, controlHovered = #2E2934, controlPressed = #37313E, controlSelected = #3A2620,
+    controlCornerRadius = 10, focusRingColor = #F4EEE4, comboboxHeight = 48,
+    error = #FF8A73,
+    seatTiers = [#F1E3C6, #D2C09C, #AE9C7B, #8C7D64],
+    seatGone = #3A333F,
+    stageInk = #2A2430
+    ]

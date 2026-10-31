@@ -1,0 +1,297 @@
+/*
+# The Venue: the hall
+
+The Grand Hall as a room: the stage at the head, four tiers behind it, rows
+that bow to face the stage, three blocks to a row with an aisle between. The
+geometry is in `venue-parts.declare` (`seatLeft`, `bowAt`, `tierTop`); this
+file is the views that stand on it.
+
+The map is drawn at one size, in the hall's own units, and shown through a
+window (`HallMap`) that scales and pans it. At a desk the whole house fits and
+every seat is in reach of the pointer. On a phone the whole house would make
+a seat a few points wide, so the window stays close — every seat's target is
+the size of a fingertip — and the person moves it with a drag; above it, the
+whole house is drawn small (`HallOverview`), showing how full it is, where
+the good seats are, and where the window is looking. A press on a seat always
+means the same thing: this seat.
+*/
+
+// ── A seat ──────────────────────────────────────────────────────────────────
+//
+// A seat is a toggle: pressed is yours. Its accessible name is where it is —
+// "Orchestra, row C, seat 14" — and its hint what it costs, or that it is
+// sold. The press target is the seat's whole cell, aisle to aisle and row to
+// row, so a finger near a seat is on it.
+//
+// The three states are three shapes, not only three colours: a free seat is a
+// full seat, yours is a seat with a check through it, and one that is gone
+// shrinks to a dot.
+
+class SeatButton extends Control [ width = 26, height = 27, pivotX = 13, pivotY = 13.5,
+    seatId: string = { :id ?? "" },
+    num: number = { :number ?? 0 },
+    sold: boolean = { :status == "sold" },
+    mine: boolean = { app.chosen.includes(classroot.seatId) },
+
+    // what the row tells it
+
+    count: number = 0,
+    top: number = 0,
+    sectionName: string = "",
+    rowName: string = "",
+    priceCents: number = 0,
+    tier: number = 0,
+
+    x = { seatLeft(rowIndex, classroot.count) },
+    y = { bowAt(seatLeft(rowIndex, classroot.count) + 13) },
+    rotation = { seatTurn(rowIndex, classroot.count) },
+
+    disabled = { classroot.sold },
+    accessibilityRole = toggle,
+    accessibilityLabel = { classroot.sectionName + ", row " + classroot.rowName + ", seat " + classroot.num },
+    accessibilityPressed = { classroot.mine },
+    accessibilityHint = { classroot.sold ? "Sold" : money(classroot.priceCents) + (classroot.mine ? ", yours" : ", free") },
+
+    // Choosing registers: the seat jumps a little past its new size and
+    // settles. A seat that goes folds down to its dot.
+
+    lift: number = 0,
+    Spring [ attribute = lift, to = { classroot.mine ? 1 : 0 }, stiffness = 560, damping = 15 ],
+    gone: number = 0,
+    Spring [ attribute = gone, to = { classroot.sold ? 1 : 0 }, stiffness = 180, damping = 22 ],
+
+    press() { app.toggleSeat(seatId) },
+
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const live = 1 - gone
+        const w = 5 + 14 * live + 3 * lift
+        const h = 5 + 13 * live + 3 * lift
+        const cx = 13
+        const cy = 14
+        d.beginPath()
+        if (live < 0.05) {
+            d.fillStyle = t.seatGone
+            d.arc(cx, cy, 2.5, 0, Math.PI * 2)
+            d.fill()
+            return
+        }
+        d.fillStyle = mine ? t.accent : live < 0.5 ? t.seatGone : t.seatTiers[tier]
+        d.roundRect(cx - w / 2, cy - h / 2, w, h, [w * 0.34, w * 0.34, w * 0.18, w * 0.18])
+        d.fill()
+        if (hovered && !mine) {
+            d.strokeStyle = t.text
+            d.lineWidth = 1.5
+            d.stroke()
+        }
+        if (mine) {
+            // the check: drawn, not coloured, so it reads in any light
+            d.beginPath()
+            d.strokeStyle = 0xFFFFFF
+            d.lineWidth = 2.4
+            d.lineCap = "round"
+            d.lineJoin = "round"
+            d.moveTo(cx - w * 0.26, cy + h * 0.02)
+            d.lineTo(cx - w * 0.06, cy + h * 0.22)
+            d.lineTo(cx + w * 0.28, cy - h * 0.2)
+            d.stroke()
+        } else {
+            // a seat's back: a darker band along its stage-facing edge
+            d.beginPath()
+            d.fillStyle = t.background
+            d.globalAlpha = 0.28
+            d.roundRect(cx - w / 2 + 2, cy + h / 2 - 5, w - 4, 2.5, 1.2)
+            d.fill()
+            d.globalAlpha = 1
+        }
+        }
+    ]
+
+
+// ── A row ───────────────────────────────────────────────────────────────────
+//
+// Its seats, with the row's letter at both ends where an usher would paint it.
+
+class HallRow [ width = 1000, height = 27,
+    rowName: string = { :name ?? "" },
+    count: number = { (:seats ?? []).length },
+    top: number = 0,
+    sectionName: string = "",
+    priceCents: number = 0,
+    tier: number = 0,
+
+    Text [ accessibilityHidden = true, fontSize = 10, fontWeight = semibold, textColor = { provided("theme").textFaint },
+        x = { seatLeft(0, classroot.count) - 20 }, y = { bowAt(seatLeft(0, classroot.count)) + 7 },
+        text = { classroot.rowName } ],
+    SeatButton [ datapath = :seats[], count = { classroot.count }, top = { classroot.top },
+        sectionName = { classroot.sectionName }, rowName = { classroot.rowName },
+        priceCents = { classroot.priceCents }, tier = { classroot.tier },
+
+        // a seat reached by the keyboard is brought into the window; one
+        // pressed by a finger is already where the finger is
+
+        onFocus() { afterSettle(() => { if (app.hallMap.zoomed && this.focusVisible) this.scrollIntoView() }) }
+        ],
+    Text [ accessibilityHidden = true, fontSize = 10, fontWeight = semibold, textColor = { provided("theme").textFaint },
+        x = { seatLeft(classroot.count - 1, classroot.count) + 32 },
+        y = { bowAt(seatLeft(classroot.count - 1, classroot.count) + 26) + 7 },
+        text = { classroot.rowName } ]
+    ]
+
+
+// ── A tier ──────────────────────────────────────────────────────────────────
+//
+// One of the four sections: its rail (the curved front of a balcony), its
+// name and price, and its rows. To the keyboard a tier is one stop: Tab moves
+// tier to tier, and the arrows move from seat to seat inside it.
+
+class HallTier [ width = 1000,
+    tierName: string = { :name ?? "" },
+    priceCents: number = { :priceCents ?? 0 },
+    top: number = 0,
+    tier: number = 0,
+    focusScope = stop,
+    accessibilityRole = group,
+    accessibilityLabel = { classroot.tierName + ", " + money(classroot.priceCents) + " a seat" },
+
+    // The rail: a bowed line in front of the tier's first row.
+
+    rail: View [ accessibilityHidden = true, y = -22, width = 1000, height = 30,
+        draw(d: DrawContext) {
+            d.beginPath()
+            d.strokeStyle = provided("theme").lineStrong
+            d.lineWidth = 1.5
+            for (let x = 60; x <= 940; x = x + 10) {
+                if (x == 60) d.moveTo(x, 12 + bowAt(x)); else d.lineTo(x, 12 + bowAt(x))
+            }
+            d.stroke()
+            }
+        ],
+    caption: View [ accessibilityHidden = true, x = 20, y = -54,
+        layout: SimpleLayout [ axis = x, spacing = 10, align = baseline ],
+        Text [ fontSize = 13, fontWeight = semibold, letterSpacing = 1.6, textColor = { provided("theme").textMuted },
+            text = { classroot.tierName.toUpperCase() } ],
+        Text [ fontSize = 13, numeralWidth = tabular, textColor = { provided("theme").textFaint },
+            text = { money(classroot.priceCents) } ]
+        ],
+    HallRow [ datapath = :rows[], y = { rowIndex * 27 }, top = { classroot.top + rowIndex * 27 },
+        sectionName = { classroot.tierName }, priceCents = { classroot.priceCents }, tier = { classroot.tier } ]
+    ]
+
+
+// ── The stage ───────────────────────────────────────────────────────────────
+
+class Stage [ x = 200, y = 0, width = 600, height = 92, accessibilityHidden = true,
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        d.beginPath()
+        d.moveTo(0, 0)
+        d.lineTo(600, 0)
+        d.lineTo(600, 46)
+        d.quadraticCurveTo(300, 104, 0, 46)
+        d.closePath()
+        d.fillStyle = t.stageInk
+        d.fill()
+        d.beginPath()
+        d.strokeStyle = t.seatTiers[0]
+        d.globalAlpha = 0.5
+        d.lineWidth = 2
+        d.moveTo(0, 46)
+        d.quadraticCurveTo(300, 104, 600, 46)
+        d.stroke()
+        d.globalAlpha = 1
+        },
+    Text [ x = center, y = 30, fontSize = 12, fontWeight = semibold, letterSpacing = 6,
+        textColor = { provided("theme").textMuted }, text = "STAGE" ]
+    ]
+
+
+// ── The window onto the hall ────────────────────────────────────────────────
+//
+// At a desk the drawing is scaled to fit (`fit`) and centred. On a phone it is
+// drawn close (`near`: a seat's cell is a fingertip, 44 points or more) and
+// the window scrolls both ways, with the platform's own touch physics; it
+// starts on the middle of the stalls.
+
+class HallMap [ clip = true,
+    rowCounts: number[] = [],
+    hallH: number = { hallHeight(classroot.rowCounts) },
+    fit: number = { Math.min(classroot.width / 1000, classroot.height / classroot.hallH) },
+    near: number = 1.72,
+    zoomed: boolean = false,
+    zoom: number = { classroot.zoomed ? classroot.near : classroot.fit },
+    State [ applied = { classroot.zoomed }, scrolls = both, hideScrollbars = true ],
+
+    // Look at a point of the hall: put it in the middle of the window.
+
+    lookAt(hx: number, hy: number) {
+        if (zoomed) this.scrollTo({ x: hx * zoom - width / 2, y: hy * zoom - height / 2 })
+        },
+
+    // A new performance opens on the middle of the stalls.
+
+    trackChanges = ["hallH", "zoomed"],
+    onChange() { lookAt(500, tierTop(rowCounts, 0) + (rowCounts[0] ?? 10) * 27 / 2) },
+
+    hall: View [ width = 1000, height = { classroot.hallH },
+        x = { classroot.zoomed ? 0 : (classroot.width - 1000 * classroot.zoom) / 2 },
+        y = { classroot.zoomed ? 0 : (classroot.height - classroot.hallH * classroot.zoom) / 2 },
+        scale = { classroot.zoom }, pivotX = 0, pivotY = 0,
+        Stage [ ],
+        tiers: View [ width = 1000, datapath = { app.seats.value },
+            HallTier [ datapath = :sections[], tier = { rowIndex }, top = { tierTop(classroot.rowCounts, rowIndex) },
+                y = { tierTop(classroot.rowCounts, rowIndex) } ]
+            ]
+        ]
+    ]
+
+
+// ── The whole house, small ──────────────────────────────────────────────────
+//
+// On a phone, above the close window: every seat as a speck in its state, and
+// a frame round what the window shows. A finger on it moves the window there.
+// It is a picture and a steering surface, not a second set of seats, so a
+// screen reader passes over it; the seats themselves are in the window.
+
+class HallOverview [
+    map: HallMap? = null,
+    rowCounts: number[] = [],
+    sections: Section[] = [],
+    chosen: string[] = [],
+    s: number = { classroot.height / hallHeight(classroot.rowCounts) },
+    width = { 1000 * classroot.s },
+    accessibilityHidden = true,
+
+    steer(x: number, y: number) { map?.lookAt(x / s, y / s) },
+
+    // the window's frame, in hall units
+
+    frameX: number = { (classroot.map?.scrollX ?? 0) / (classroot.map?.zoom ?? 1) },
+    frameY: number = { (classroot.map?.scrollY ?? 0) / (classroot.map?.zoom ?? 1) },
+    frameW: number = { (classroot.map?.width ?? 0) / (classroot.map?.zoom ?? 1) },
+    frameH: number = { (classroot.map?.height ?? 0) / (classroot.map?.zoom ?? 1) },
+    onPointerDown(e: PointerEvent) { steer(e.x, e.y) },
+    onPointerMove(e: PointerEvent) { steer(e.x, e.y) },
+
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        d.scale(s, s)
+        d.fillStyle = t.stageInk
+        d.fillRect(200, 0, 600, 60)
+        sections.forEach((sec, k) => {
+            const top = tierTop(rowCounts, k)
+            sec.rows.forEach((r, ri) => {
+                r.seats.forEach((x, i) => {
+                    const left = seatLeft(i, r.seats.length)
+                    d.fillStyle = chosen.includes(x.id) ? t.accent : x.status == "sold" ? t.seatGone : t.seatTiers[k]
+                    d.fillRect(left + 2, top + ri * 27 + bowAt(left + 13) + 3, 22, 21)
+                    })
+                })
+            })
+        if (map != null && map.zoomed) {
+            d.strokeStyle = t.text
+            d.lineWidth = 1.5 / s
+            d.strokeRect(frameX, frameY, frameW, frameH)
+            }
+        }
+    ]

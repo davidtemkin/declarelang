@@ -255,6 +255,52 @@ cleanest answer is a floor: [`App [ minWidth = 360 ]`](declare-docs:App) holds t
 at that width and lets a narrower window pan, instead of reflowing a layout below the
 width where it works.
 
+## One screen, three deciders
+
+Most screens mix the kinds of surface this chapter has covered: an arrangement of parts
+that answers to the room, and a free-form surface inside it. Here is a chart beside its
+key, a row when there is room and a column when there isn't:
+
+```declare
+App [ width = 480, height = 220, fill = white, textColor = black, padding = 16,
+    months: Dataset { { "rows": [ { "m": "Jan", "v": 12 }, { "m": "Feb", "v": 19 },
+        { "m": "Mar", "v": 7 }, { "m": "Apr", "v": 15 }, { "m": "May", "v": 22 } ] } },
+    // the App's layout places both children, and sizes them where they ask
+    layout: SimpleLayout [ axis = { app.width >= 400 ? "x" : "y" }, spacing = 12, align = stretch ],
+    plot: View [ flexes = true, fill = whitesmoke, cornerRadius = 8,  // both sizes: the layout's
+        datapath = { app.months.value },
+        // a free-form surface: each bar decides its own place and size, from the plot's
+        View [ datapath = :rows[], fill = steelblue, cornerRadius = 3,
+            width = { parent.width / 5 - 12 },
+            height = { :v / 25 * (parent.height - 16) },
+            x = { rowIndex * parent.width / 5 + 6 },
+            y = end ]
+        ],
+    key: View [ datapath = { app.months.value },  // its size: its content (and, across, the stretch)
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        Text [ datapath = :rows[], text = { :m + "  " + :v } ]
+        ]
+    ]
+```
+
+Read it by asking who decides each value:
+
+- **The App's layout** places `plot` and `key`. It gives `plot` the length left along the
+  flow, because the plot `flexes`, and it fills both across, because of `align = stretch`.
+  Neither child states a width or a height, and nothing subtracts the key's width from the
+  window's.
+- **The key's content** sizes the key along the flow: its lines of text, however long they
+  are.
+- **Each bar** decides all four of its own values. The plot is a surface with no layout, so
+  the bars are placed by hand, from the room the plot was given (`parent.width`,
+  `parent.height`) and their own record. The bars never read the window or the key.
+
+Set the App's `width` to 320 and the row turns into a column. Every rule above still
+holds: the plot flexes down the page instead of across it, the stretch now gives the key
+the full width, and the bars follow the plot's new size. One decision changed, the axis,
+and no other value had to change with it. When a value seems to need working out from a
+sibling or from the window, it usually belongs to the layout, or to a layout of your own.
+
 ## Scale and rotation
 
 [`scale`](declare-docs:View.scale), [`rotation`](declare-docs:View.rotation) (degrees,

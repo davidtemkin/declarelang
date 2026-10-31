@@ -660,14 +660,15 @@ await test("buildProduction emits a self-contained bundle in the expected size r
 //   2026-10-31: limit 123 → 124 KB. The runtime 125,952 B: +447 B for the two layout
 //   bugs the layout probe found (a stated size displacing a stretch claim; a size a
 //   State releases relaid under a computed axis), +60 B for the ARIA 1.2 combobox
-//   (one element answers to its name). declare.md 9,998 words.
+//   (one element answers to its name). declare.md 9,998 words; 10,100 from
+//   2026-10-31 for a theme role's relatives (accent with its states).
 await test("the runtime and the one-file language stay within their budgets", async () => {
   const out = await buildProduction("App [ ]", { name: "empty", originDir: resolve(HERE, "..") });
   assert.ok(out.ok, "build should succeed: " + (out.errors?.map((e) => e.message).join("; ") ?? ""));
   const wire = out.files.reduce((n, f) => n + gzipSync(Buffer.from(f.contents)).length, 0);
   assert.ok(wire < 124 * 1024, `the runtime is ${(wire / 1024).toFixed(1)} KB on the wire — past its 124 KB budget`);
   const words = readFileSync(resolve(HERE, "../docs/declare.md"), "utf8").split(/\s+/).filter(Boolean).length;
-  assert.ok(words < 10000, `docs/declare.md is ${words} words — past its 10,000-word budget`);
+  assert.ok(words < 10100, `docs/declare.md is ${words} words — past its 10,100-word budget`);
 });
 
 // THE STUB-DRIFT TRAP, made structural. The production build replaces

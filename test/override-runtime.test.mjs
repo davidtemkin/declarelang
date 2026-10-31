@@ -296,5 +296,25 @@ await (async () => {
   });
 })();
 
+// ── A bare name reaches the built-in methods too ─────────────────────────────
+// A level's member set is its attributes AND the runtime methods its class
+// carries: a bare `fetch()` / `scrollTo(0)` in a method is this node's, as a bare
+// `width` is (Venue run 19: `scrollTo(0)` in a view's own method was refused).
+await (async () => {
+  const prev = provideTransport(fixture);
+  try {
+    const app = await build(`
+class Again extends DataSource [ again() { fetch() } ]
+class Pane [ scrolls = y, top() { scrollTo(0) } ]
+App [ width = 1, height = 1, a: Again [ url = "/a.json" ], p: Pane [ width = 10, height = 10 ] ]`);
+    await test("a bare built-in method in a method is the node's own: fetch() and scrollTo(0) resolve to this", async () => {
+      app.a.again();
+      await landed();
+      assert.equal(app.a.loaded, true, "bare fetch() reached DataSource.fetch on this source");
+      assert.doesNotThrow(() => app.p.top());
+    });
+  } finally { provideTransport(prev); }
+})();
+
 console.log(`\noverride-runtime: ${pass} passed, ${fail} failed`);
 process.exit(fail ? 1 : 0);

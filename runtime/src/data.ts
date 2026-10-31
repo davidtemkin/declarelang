@@ -974,7 +974,10 @@ export class DataSource extends Dataset {
         if (seq === this.seq) setBound(this, "errorBody", body);
         throw new Error(`HTTP ${res.status} for ${url}`);
       }
-      const value: unknown = this.format === "text" ? await res.text()
+      // 204/205 succeed with no body by definition; parsing one as JSON threw,
+      // and a successful DELETE landed in `.failed`.
+      const value: unknown = res.status === 204 || res.status === 205 ? null
+        : this.format === "text" ? await res.text()
         : this.format === "bytes" ? new Uint8Array(await res.arrayBuffer())
         : await res.json();
       if (seq !== this.seq) return; // superseded

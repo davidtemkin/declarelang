@@ -72,7 +72,7 @@ export const RUNTIME_FIELDS: Readonly<Record<string, readonly string[]>> = {
   Video: ["natural"],
   DOMIsland: ["exposedValues", "handle", "tenantSink"],
   TextInput: ["pendingSel"],
-  Layout: ["authorSized", "bases", "discarded", "rearming", "reported", "stackReported", "undo", "view"],
+  Layout: ["authorSized", "bases", "discarded", "extentRead", "rearming", "reported", "stackReported", "stretching", "undo", "view"],
   TweenLayout: ["from", "placed", "to", "tween"],
   Dataset: ["cursors"],
   DataSource: ["autoUrl", "inFlight", "seq"],

@@ -548,4 +548,25 @@ await test("a subclass cannot re-declare an inherited child — said at compile,
     App [ B [ ] ]`, "inherits from");
 });
 
+await test("ChangeEvent.changed called as a function names it a list and shows the question", async () => {
+  await says(`App [ width = 200, height = 100, seat: string = "", n: number = 0, trackChanges = ["seat"],
+    onChange(e: ChangeEvent) { if (e.changed("seat")) n = n + 1 } ]`, "'changed' is the list of what changed");
+});
+
+// A Codex Venue run reached past its Form into the page for the password field
+// (2026-10-31). The page is what the runtime drew; a browser script's own work —
+// the clipboard, storage, a new window — is not a lookup and stays silent.
+await test("a browser script that looks up elements in the page is warned; one that does its own work is not", async () => {
+  const lookup = await idiom(`script [ host = browser ] {
+      function tidy(): void { const p = document.querySelector<HTMLInputElement>("input"); if (p) p.setAttribute("form", "x") }
+    }
+    App [ width = 200, height = 100, onInit() { tidy() } ]`);
+  assert.equal(codes(lookup, "DECLARE4033").length, 1);
+  const own = await idiom(`script [ host = browser ] {
+      function copy(t: string): void { void navigator.clipboard.writeText(t); localStorage.setItem("k", t); window.open("https://example.com") }
+    }
+    App [ width = 200, height = 100, onInit() { copy("x") } ]`);
+  assert.equal(codes(own, "DECLARE4033").length, 0);
+});
+
 summarize("diagnostics-hints");

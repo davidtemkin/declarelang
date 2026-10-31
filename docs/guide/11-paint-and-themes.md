@@ -164,7 +164,8 @@ empty record:
 
 ```declare-fragment
 theme = { app.systemDark ? SanFranciscoDark : SanFrancisco },       // a preset, light or dark
-theme = { { ...provided("theme"), accent: 0xCC3333 } }        // one token changed, lower down
+theme = { { ...provided("theme"), accent: 0xCC3333,           // one role changed, lower down —
+            accentHovered: 0xB82E2E, accentPressed: 0x9E2828 } }  //   with the states named from it
 ```
 
 Four presets ship, each as a light record and a `…Dark` companion: **SanFrancisco**
@@ -187,7 +188,11 @@ follow it. A palette role is a short noun — `background`, `surface`, `line`, `
 the attribute it feeds: `tooltipFill`, `menuHighlightTextColor`, `buttonCornerRadius`,
 `dialogTitleFontSize` — and a line's colour is `…StrokeColor`, since `stroke` takes a width
 and a colour. A token that chooses a look says so (`sliderHandleStyle`,
-`dialogButtonLayout`). No abbreviations. A token may also hold a list —
+`dialogButtonLayout`). No abbreviations. Because names are built this way, a token's
+relatives share its name, and **a role changes with its relatives**: a new `accent` wants
+a new `accentHovered`, `accentPressed` and, if the contrast changes, `accentTextColor` —
+change only the first and a primary button goes back to the preset's colour under the
+pointer. The *Theme tokens* reference lists each role's relatives. A token may also hold a list —
 `inks = [#A8445E, #3F6E8C, #6B7F2E]`, read as `provided("theme").inks[i]` — and a `script`
 function that takes the theme types it `Theme`.
 

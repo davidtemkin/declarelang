@@ -109,7 +109,11 @@ A Declare run's report has, in order:
    distribution teaches (the SKILL drift check, the briefs, declare.md): what it gets right;
    its missteps, each with how it should have been written; and the workarounds the
    platform forced, each with how the platform or its docs should handle it. Cite file and
-   line.
+   line. Open it with the counts from `idiom.py`, beside the earlier runs and the to-do app
+   (`idiom.py "Venue 19"=<dir> "This run"=<dir> "To-do"=apps/todo`): density, colour
+   literals outside a theme, theme reads, `State`s, visible switches, width branches,
+   `flexes`, browser scripts and page lookups. They are counts, not verdicts. Their use is
+   drift across runs and models, and they say where the read should look first.
 4. **Names.** Where the agent's vocabulary met Declare's, from `names.py` and the idiom
    read together:
    - **misses** — every name a check refused (an attribute, a member, a class, a type, a

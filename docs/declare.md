@@ -479,7 +479,9 @@ Which globals a piece of code may name depends on where it is written:
 - **In a `script { }` block:** all of the above, `fetch`, the timers and `performance` included.
 - **In a `script [ host = browser ] { }` block:** `window`, `document` and the rest of the
   browser as well. An unmarked script runs on every host, so the compiler refuses those names
-  there.
+  there. The views a program draws belong to the runtime: they differ between renderers and
+  don't exist on the Mac, so a script never looks them up or changes them. Whatever you'd reach
+  into the DOM for is already a Declare attribute or class, so ask `declare-help` first.
 
 Only declared reactive attributes participate at all, so locals and plain objects in
 `script { }` cost nothing.
@@ -781,7 +783,8 @@ theme = { app.systemDark ? SanFranciscoDark : SanFrancisco },      // on the App
 fill  = { provided("theme").surface },                       // READ it anywhere below
 
 panel: View [                                                // on a DESCENDANT, provide a modified one
-    theme = { { ...provided("theme"), accent: 0xCC3333 } }   //   every provided("theme") below reads this
+    theme = { { ...provided("theme"), accent: 0xCC3333,      //   every provided("theme") below reads this;
+                accentHovered: 0xB82E2E, accentPressed: 0x9E2828 } }   //   a role changes with the states named from it
     ]
 ```
 
@@ -795,7 +798,8 @@ value.
 
 Start from a library preset — each a light record with a `…Dark` companion, in scope by name —
 and spread to change a token; the standard library reads specific token names, so build from a
-preset rather than an empty record. You can declare your own with `theme Brand [ … ]`, a
+preset rather than an empty record. A token's relatives share its name (`accent`,
+`accentHovered`, `accentPressed`, `accentTextColor`): change a role, change them with it. You can declare your own with `theme Brand [ … ]`, a
 top-level named record like a `style` bundle. The `{ { … } }` is not special syntax: the outer
 braces open the constraint, the inner ones are a TypeScript object literal. A token read from
 `provided("theme")` must be one some theme declares — a preset, the library defaults, your own

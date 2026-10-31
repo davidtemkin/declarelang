@@ -1240,7 +1240,9 @@ export class RichText extends View {
         // Keyed on the faces of the families it measured with (collected as it
         // rebuilt): a face that lands for another family leaves it alone. Before its
         // first build it knows none, so it keys on every face until then.
-        const c = new Constraint(`${declareName(this)}.render`, () => `${this.$sourceKey()} ${this.lineHeight} ${this.maxLines} ${this.bodyColor} ${this.$paletteKey()} ${this.fontScale} ${this.codeBackground} ${this.codeRule} ${this.$families === null ? `*${faceGeneration()}` : familiesGeneration(this.$families)} ${heldFamily(this, "fontFamily", this.fontFamily)} ${heldFamily(this, "codeFamily", this.codeFamily)}`, () => { this.$families = collectFamilies(() => this.$rebuild()); }, 0);
+        // Every slot $rebuild reads is in the key: a size or weight that settles after
+        // the first build (a `{ }` on the window's width) otherwise kept the first one.
+        const c = new Constraint(`${declareName(this)}.render`, () => `${this.$sourceKey()} ${this.lineHeight} ${this.maxLines} ${this.bodyColor} ${this.$paletteKey()} ${this.fontScale} ${this.codeBackground} ${this.codeRule} ${this.fontSize} ${this.fontWeight} ${this.letterSpacing} ${this.headingWeight} ${this.headingColor} ${this.linkColor} ${this.linkUnderline} ${this.codeColor} ${this.codeSize} ${JSON.stringify(this.richTextLayout ?? null)} ${this.$families === null ? `*${faceGeneration()}` : familiesGeneration(this.$families)} ${heldFamily(this, "fontFamily", this.fontFamily)} ${heldFamily(this, "codeFamily", this.codeFamily)}`, () => { this.$families = collectFamilies(() => this.$rebuild()); }, 0);
         c.run();
         onDiscard(this, () => c.dispose());
         // WIDTH — nothing structural depends on it, so re-width in place. Separate

@@ -439,6 +439,36 @@ function richTextTagShadowWarnings(program: Program): DeclareError[] {
   return shadowed.map((c) => Diag.shadowsRichTextTag(c.name, c.pos));
 }
 
+/** 4033 — a browser script that looks up elements in the page. Decided by
+ *  the AST: a lookup method called on `document` (or `document.body`), or
+ *  `document.forms`. A script handed an element of its own (a DOMIsland's)
+ *  searches inside that, which this does not judge. One warning per block. */
+const PAGE_LOOKUPS = new Set(["querySelector", "querySelectorAll", "getElementById", "getElementsByClassName",
+  "getElementsByTagName", "getElementsByName", "elementFromPoint", "elementsFromPoint", "forms"]);
+function pageLookupWarnings(program: Program): DeclareError[] {
+  const out: DeclareError[] = [];
+  for (const sc of program.scripts) {
+    if (sc.compiled === true || sc.hosts === undefined || !sc.src.includes("document")) continue;
+    const sf = ts.createSourceFile("script.ts", sc.src, ts.ScriptTarget.ESNext, true);
+    let found: string | null = null;
+    const onDocument = (e: ts.Expression): boolean => {
+      const x = ts.isPropertyAccessExpression(e) && e.name.text === "body" ? e.expression : e;
+      return ts.isIdentifier(x) && x.text === "document";
+    };
+    const visit = (n: ts.Node): void => {
+      if (found !== null) return;
+      if (ts.isPropertyAccessExpression(n) && PAGE_LOOKUPS.has(n.name.text) && onDocument(n.expression)) {
+        found = n.getText(sf);
+        return;
+      }
+      ts.forEachChild(n, visit);
+    };
+    visit(sf);
+    if (found !== null) out.push(Diag.scriptSearchesPage(found, sc.pos));
+  }
+  return out;
+}
+
 // ── The idiom passes (DECLARE4011 hint, 4012 / 4013 warnings) ────────────────
 // Three precise misses: a program that says by hand what the language has a
 // word for, an animation nothing can ever run, and a control wired to the one
@@ -1205,6 +1235,7 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
   r.resolveElement(program.root, [], program.root);
   r.warnings.push(...smallFieldWarnings(program, preludeLen));
   r.warnings.push(...richTextTagShadowWarnings(program));
+  r.warnings.push(...pageLookupWarnings(program));
   r.warnings.push(...coldLoadWarnings);
   const idiom = idiomDiagnostics(program, r.schemas);
   r.warnings.push(...idiom.warnings);
@@ -2481,6 +2512,11 @@ class Resolver {
     for (let sc: ClassSchema | null = this.schemas[el.tag]; sc !== null; sc = sc.base) {
       for (const name of Object.keys(sc.attrs)) all.add(name);
     }
+    // …and the built-in METHODS the runtime class carries (`scrollTo`, `raise`,
+    // `fetch`): a level's whole member set, so a bare `scrollTo(0)` in a view's
+    // own method is the view's, as a bare `width` is — Venue run 19 was refused it
+    const base = this.schemas[el.tag];
+    if (base !== undefined) for (const name of runtimeMethodsOf(base)) all.add(name);
     const extras = this.classExtras.get(el.tag);
     for (const name of extras?.members ?? []) all.add(name);
     const declared = new Set(extras?.declared);

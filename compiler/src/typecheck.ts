@@ -485,6 +485,11 @@ function explainTs(d: TsDiag, u: Unit, synthTags: ReadonlyMap<string, string>): 
         return `${home} computes ${article(m[1])}, but '${u.slot}' is typed ${m[2]}${named !== "" ? named : canon}`;
       }
       return msg;
+    // A list called as a function — `e.changed("seat")`, which reads as "did seat
+    // change?": `changed` is the list of what changed (Venue runs 15, 17, 18, 19)
+    case 2349:
+      if (/ValueChange\[\]/.test(msg)) return `${msg} — 'changed' is the list of what changed, not a question: e.changed.some((c) => c.name == "seat") asks whether seat did`;
+      return msg;
     // A missing member — with tsc's suggestion when it has one (grounded in
     // the real instance type since the scaffold models it).
     case 2551:

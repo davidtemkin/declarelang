@@ -1,0 +1,519 @@
+/*
+# The Venue
+
+*The Marriage of Figaro*, twenty performances in the Grand Hall: pick one,
+choose seats in the room, pay, and leave with tickets to show at the door.
+
+How it is put together:
+
+- **Everything lives behind the service** on port 8350. Each thing it holds
+  is a `DataSource` on the App: the production, the seat map of the chosen
+  performance, the signed-in account, a sign-in, an order. Each sends the
+  session cookie (`credentials = include`). A stream (`live`) hears other
+  people buying seats and writes each sale into the seat map.
+- **Where the person is** is a few attributes on the App. The performance is
+  the URL's `location` ("#p05"), so it can be shared and reloaded; checkout is
+  a `waypoint`, so Back returns to the hall; the seats chosen are `chosen`.
+  What the screen shows (`screen`) is derived from those and from the order.
+- **What has been typed at checkout** lives in `pay`, a `Payment` node, not in
+  the fields, so nothing typed is lost when the person signs in, or is sent
+  back to the hall, or the checkout is rebuilt. Its fields that the account
+  can fill are computed defaults: they follow the account until typed in.
+- **The parts** are in their own files: `venue-parts.declare` (data shapes,
+  helpers, the theme), `venue-hall.declare` (the room), `venue-checkout.declare`
+  (paying, signing in) and `venue-tickets.declare` (the tickets).
+*/
+
+include [ "venue-parts.declare" ]
+
+include [ "venue-hall.declare" ]
+
+include [ "venue-checkout.declare" ]
+
+include [ "venue-tickets.declare" ]
+
+// ── The performances ────────────────────────────────────────────────────────
+//
+// One performance: its date as a calendar would print it, its time, the
+// lowest price, and how full it is as a bar that fills. Nearly sold out says
+// so in words as well as in the bar.
+
+class PerformanceCard extends Control [ width = 100%, height = { app.narrow ? 84 : 112 },
+    perfId: string = { :id ?? "" },
+    startsAt: string = { :startsAt ?? "" },
+    left: number = { :seatsLeft ?? 0 },
+    total: number = { :seats ?? 1 },
+    full: number = { 1 - classroot.left / Math.max(1, classroot.total) },
+    scarce: boolean = { classroot.left <= classroot.total * 0.15 },
+    soldOut: boolean = { classroot.left == 0 },
+    disabled = { classroot.soldOut },
+    accessibilityLabel = { dayLabel(classroot.startsAt) + ", " + timeLabel(classroot.startsAt) },
+    accessibilityHint = { "From " + money(:priceFromCents ?? 0) + ". " + (classroot.soldOut ? "Sold out." : plural(classroot.left, "seat", "seats") + " left.") },
+    press() { app.openPerformance(classroot.perfId) },
+
+    cornerRadius = 14,
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").raised : provided("theme").surface },
+    padding = { app.narrow ? [0, 16, 0, 16] : [0, 20, 0, 20] },
+    layout: SimpleLayout [ axis = x, spacing = { app.narrow ? 16 : 20 }, align = center ],
+
+    date: View [ width = { app.narrow ? 44 : 52 },
+        layout: SimpleLayout [ axis = y, align = center ],
+        Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.2, textColor = { provided("theme").textMuted },
+            text = { weekday(classroot.startsAt).toUpperCase() } ],
+        Text [ fontFamily = { app.titleFace }, fontSize = { app.narrow ? 28 : 34 }, fontWeight = semibold,
+            numeralWidth = tabular, text = { dayNumber(classroot.startsAt) } ],
+        Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = { monthLabel(classroot.startsAt) } ]
+        ],
+    body: View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        line: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 10, align = baseline ],
+            Text [ fontSize = { app.narrow ? 17 : 19 }, fontWeight = semibold,
+                text = { timeLabel(classroot.startsAt) } ],
+            Text [ fontSize = 14, textColor = { provided("theme").textMuted },
+                text = { isMatinee(classroot.startsAt) ? "Matinee" : "Evening" } ],
+            Spacer [ ],
+            Text [ fontSize = 14, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+                text = { "from " + money(:priceFromCents ?? 0) } ]
+            ],
+
+        // How full the house is: the bar fills as the seats go.
+
+        meter: View [ width = 100%, height = 4, cornerRadius = 2, fill = { provided("theme").line },
+            View [ height = 4, cornerRadius = 2, width = { parent.width * classroot.full },
+                fill = { classroot.scarce ? provided("theme").text : provided("theme").textFaint } ]
+            ],
+        Text [ fontSize = 13, numeralWidth = tabular,
+            fontWeight = { classroot.scarce ? "semibold" : "regular" },
+            textColor = { classroot.scarce ? provided("theme").text : provided("theme").textMuted },
+            text = { classroot.soldOut ? "Sold out" : classroot.scarce ? "Nearly sold out · " + classroot.left + " left" : classroot.left + " of " + classroot.total + " seats left" } ]
+        ]
+    ]
+
+
+// ── The chosen seats, as a line ─────────────────────────────────────────────
+//
+// "3 seats · $240.00": the count and the seats' own prices. A choice made or
+// undone nudges it, so the total registers with the seat.
+
+class Summary [
+    bump: number = 0,
+    Spring [ attribute = bump, to = { app.chosen.length }, stiffness = 300, damping = 14 ],
+    accessibilityLive = polite,
+    Text [ fontSize = { app.narrow ? 19 : 22 }, fontWeight = semibold, numeralWidth = tabular,
+        scale = { 1 + 0.08 * Math.min(1, Math.abs(classroot.bump - app.chosen.length)) },
+        text = { app.summaryLine } ]
+    ]
+
+
+// A chosen seat in the list beside the hall, with a way to let it go.
+
+class ChosenLine [ width = 100%, height = 44,
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    View [ width = 10, height = 10, cornerRadius = 3, fill = { provided("theme").accent } ],
+    Text [ flexes = true, fontSize = 14, wrap = false, text = { :label ?? "" } ],
+    Text [ fontSize = 14, numeralWidth = tabular, textColor = { provided("theme").textMuted }, text = { money(:priceCents ?? 0) } ],
+    Control [ width = 36, height = 36, cornerRadius = 18,
+        accessibilityLabel = { "Remove " + (:label ?? "") },
+        fill = { hovered || pressed ? provided("theme").controlHovered : null },
+        press() { app.toggleSeat(:id ?? "") },
+        View [ x = center, y = center, width = 14, height = 14,
+            draw(d: DrawContext) {
+                d.strokeStyle = provided("theme").textMuted
+                d.lineWidth = 1.6
+                d.lineCap = "round"
+                d.beginPath()
+                d.moveTo(2, 2); d.lineTo(12, 12); d.moveTo(12, 2); d.lineTo(2, 12)
+                d.stroke()
+                }
+            ]
+        ]
+    ]
+
+
+// What the three states look like, for anyone who wants it said.
+
+class Legend [
+    layout: WrappingLayout [ spacing = 18, rowSpacing = 8 ],
+    accessibilityHidden = true,
+    Swatch [ kind = "free", word = "Free" ],
+    Swatch [ kind = "mine", word = "Yours" ],
+    Swatch [ kind = "gone", word = "Taken" ]
+    ]
+
+
+class Swatch [ height = 22,
+    kind: string = "free",
+    word: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 7, align = center ],
+    View [ width = 18, height = 18,
+        draw(d: DrawContext) {
+            const t = provided("theme")
+            d.beginPath()
+            if (classroot.kind == "gone") { d.fillStyle = t.seatGone; d.arc(9, 9, 2.5, 0, Math.PI * 2); d.fill(); return }
+            d.fillStyle = classroot.kind == "mine" ? t.accent : t.seatTiers[0]
+            d.roundRect(1, 1, 16, 15, [5, 5, 3, 3])
+            d.fill()
+            if (classroot.kind == "mine") {
+                d.beginPath(); d.strokeStyle = 0xFFFFFF; d.lineWidth = 2; d.lineCap = "round"; d.lineJoin = "round"
+                d.moveTo(5, 8.5); d.lineTo(8, 11.5); d.lineTo(13, 5.5); d.stroke()
+            }
+            }
+        ],
+    Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = { classroot.word } ]
+    ]
+
+
+// A sentence the room has to say: a seat that went while you looked.
+
+class Notice [ width = 100%, cornerRadius = 12, padding = [6, 6, 6, 14],
+    fill = { provided("theme").controlSelected },
+    accessibilityRole = status,
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    Text [ flexes = true, wrap = true, fontSize = 14, text = { app.notice } ],
+    Control [ height = 44, padding = [0, 14, 0, 14], cornerRadius = 8, accessibilityLabel = "Dismiss",
+        fill = { hovered ? provided("theme").controlHovered : null },
+        press() { app.notice = "" },
+        TextLabel [ fontSize = 13, fontWeight = semibold, text = "OK" ]
+        ]
+    ]
+
+
+// A press that reads as a line of text: back, sign in, sign out.
+
+class TextButton extends Control [ height = 44, padding = [0, 6, 0, 6], cornerRadius = 8,
+    label: string = "",
+    tone: Color = { provided("theme").text },
+    fill = { hovered || pressed ? provided("theme").controlHovered : null },
+    TextLabel [ fontSize = 15, fontWeight = medium, textColor = { classroot.tone }, text = { classroot.label } ]
+    ]
+
+
+// ── The app ─────────────────────────────────────────────────────────────────
+
+App [ appName = "The Venue", minWidth = 320,
+    scrolls = y,
+    theme = { { ...SanFranciscoDark, ...Venue } },
+    fill = { provided("theme").background },
+    textColor = { provided("theme").text },
+
+    // Type: a serif with some theatre in it for what is printed (titles, the
+    // tickets), the system face for everything that is used.
+
+    fraunces: Font [ FontFace [ weight = semibold,
+            src = "https://fonts.gstatic.com/s/fraunces/v38/6NUh8FyLNQOQZAnv9bYEvDiIdE9Ea92uemAk_WBq8U_9v0c2Wa0K7iN7hzFUPJH58nhr1K03gg7S2nfgRYIcaRyTCf7Tp05GNyXk.woff2" ]
+        ],
+    titleFace: array = { [app.fraunces, "Iowan Old Style", "Georgia", "serif"] },
+    uiFace: array = { ["-apple-system", "system-ui", "Segoe UI", "Helvetica Neue", "sans-serif"] },
+    fontFamily = { app.uiFace },
+
+    narrow: boolean = { app.width < 760 },
+    gutter: number = { app.narrow ? 16 : 32 },
+
+    // ── the service
+
+    api: string = "http://127.0.0.1:8350",
+
+    production: DataSource [ url = { app.api + "/api/production" }, credentials = include, autoFetch = true,
+        schema = Production ],
+    performances: Performance[] = { app.production.value?.performances ?? [] },
+    title: string = { app.production.value?.title ?? "The Marriage of Figaro" },
+    hallName: string = { app.production.value?.hall ?? "Grand Hall" },
+
+    me: DataSource [ url = { app.api + "/api/me" }, credentials = include, autoFetch = true, schema = Account ],
+    account: Account? = { app.me.loaded && !app.me.failed ? app.me.value : null },
+    signingIn: boolean = false,
+
+    // A sign-out answers with no body at all, so it is read as text.
+
+    signOut: DataSource [ url = { app.api + "/api/session" }, method = "DELETE", credentials = include, format = "text",
+        onLoad() { app.me.clear() }
+        ],
+
+    // ── where the person is
+
+    location = "",
+    perfId: string = { /^p\d+$/.test(app.location) ? app.location : "" },
+    perf: Performance? = { app.performances.find((p) => p.id == app.perfId) ?? null },
+    chosen: string[] = [],
+    notice: string = "",
+
+    paying: boolean = { app.waypoint == "checkout" && app.chosen.length > 0 },
+    inHouse: string = { app.paying ? "checkout" : "hall" },
+    screen: string = { app.order.loaded ? "tickets" : app.perfId == "" ? "list" : app.inHouse },
+
+    openPerformance(id: string) { location = id; waypoint = "" },
+    allPerformances() { location = ""; waypoint = "" },
+    toCheckout() { if (chosen.length > 0) waypoint = "checkout" },
+    toHall() { waypoint = "" },
+    startAgain() {
+        order.clear()
+        chosen = []
+        location = ""
+        waypoint = ""
+        },
+
+    // A new performance starts with nothing chosen; the list is fetched again
+    // whenever it is shown, so how full each is stays true.
+
+    trackChanges = ["perfId", "screen"],
+    onChange(e: ChangeEvent) {
+        const names = e.changed.map((c) => c.name)
+        if (names.includes("perfId")) { chosen = []; notice = ""; taken = [] }
+        if (names.includes("screen")) {
+            if (screen == "list") production.fetch()
+            app.scrollTo(0)
+            }
+        },
+
+    // ── the seats of the chosen performance
+
+    seats: DataSource [ url = { app.perfId == "" ? "" : app.api + "/api/performances/" + app.perfId + "/seats" },
+        credentials = include, autoFetch = true, schema = SeatMap,
+        onLoad() { app.taken.forEach((id) => app.markSold(id)) }
+        ],
+    seatsReady: boolean = { app.seats.loaded && app.seats.value?.performanceId == app.perfId },
+    sections: Section[] = { app.seatsReady ? app.seats.value?.sections ?? [] : [] },
+    rowCounts: number[] = { app.sections.map((s) => s.rows.length) },
+    freeCount: number = { app.sections.reduce((n, s) => n + s.rows.reduce((m, r) => m + r.seats.filter((x) => x.status != "sold").length, 0), 0) },
+    seatCount: number = { app.sections.reduce((n, s) => n + s.rows.reduce((m, r) => m + r.seats.length, 0), 0) },
+
+    // Other people buying. Each sale is written into the seat map, so the room
+    // never shows a seat as free that is gone; one this person had chosen
+    // leaves their choice, and they are told which.
+
+    taken: string[] = [],
+    live: EventStream [ url = { app.perfId == "" ? "" : app.api + "/api/events?performance=" + app.perfId },
+        active = { app.perfId != "" && app.screen != "tickets" },
+        listenTo = ["seatchanged"],
+        onMessage(e: StreamMessage) {
+            const change = JSON.parse(e.data)
+            if (change.status == "sold") app.seatsGone([change.seatId], "")
+            }
+        ],
+
+    seatsGone(ids: string[], said: string) {
+        taken = [...taken, ...ids]
+        ids.forEach((id) => markSold(id))
+        const lost = ids.filter((id) => chosen.includes(id))
+        if (lost.length == 0) return
+        const names = lost.map((id) => labelOf(id))
+        chosen = chosen.filter((id) => !lost.includes(id))
+        notice = said != "" ? said
+            : names.join(" and ") + (lost.length == 1 ? " was" : " were") + " just taken by someone else. Choose another."
+        Accessibility.announce(notice, "assertive")
+        },
+
+    markSold(id: string) {
+        const map = seats.value
+        if (map == null) return
+        map.sections.forEach((s, si) => s.rows.forEach((r, ri) => {
+            const k = r.seats.findIndex((x) => x.id == id)
+            if (k >= 0 && r.seats[k].status != "sold") seats.set(["sections", si, "rows", ri, "seats", k, "status"], "sold")
+            }))
+        },
+
+    toggleSeat(id: string) {
+        notice = ""
+        chosen = chosen.includes(id) ? chosen.filter((s) => s != id) : [...chosen, id]
+        },
+
+    // ── what is chosen, written out
+
+    find(id: string) -> Chosen? {
+        for (const s of sections) for (const r of s.rows) for (const x of r.seats) {
+            if (x.id == id) return ({ id: id, label: s.name + ", row " + r.name + ", seat " + x.number,
+                section: s.name, row: r.name, number: x.number, priceCents: s.priceCents, feeCents: s.feeCents })
+        }
+        return null
+        },
+    labelOf(id: string) -> string { return app.find(id)?.label ?? id },
+    picked: Chosen[] = { app.chosen.map((id) => app.find(id)).filter((c) => c != null) as Chosen[] },
+    pickedSet: Dataset [ contents = { { rows: app.picked } } ],
+    subtotal: number = { app.picked.reduce((n, c) => n + c.priceCents, 0) },
+    fees: number = { app.picked.reduce((n, c) => n + c.feeCents, 0) },
+    total: number = { app.subtotal + app.fees },
+    summaryLine: string = { plural(app.chosen.length, "seat", "seats") + " · " + money(app.subtotal) },
+    payLabel: string = { "Pay " + money(app.total) },
+
+    countries: Country[] = { [({ id: "US", label: "United States" }), ({ id: "CA", label: "Canada" }),
+        ({ id: "GB", label: "United Kingdom" })] },
+
+    // ── the tickets, once paid for
+
+    ticketCount: number = { app.order.value?.tickets.length ?? 0 },
+    ticketPerf: Performance? = { app.performances.find((p) => p.id == (app.order.value?.performanceId ?? "")) ?? null },
+
+    // ── views used from far away
+
+    hallMap: HallMap = { app.hallScreen.map },
+
+    // ── the screen
+
+    layout: SimpleLayout [ axis = y ],
+
+    // The masthead: the production, and who is here.
+
+    header: View [ width = 100%, height = 60, padding = { [0, app.gutter - 6, 0, app.gutter] },
+        accessibilityRole = banner,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        brand: View [ flexes = true,
+            layout: SimpleLayout [ axis = x, spacing = 10, align = baseline ],
+            Text [ fontFamily = { app.titleFace }, fontSize = 19, fontWeight = semibold, wrap = false,
+                text = { app.narrow || app.screen == "list" ? app.hallName : app.title } ],
+            Text [ visible = { !app.narrow && app.screen != "list" }, fontSize = 14, textColor = { provided("theme").textMuted }, wrap = false,
+                text = { app.hallName } ]
+            ],
+        who: Text [ visible = { app.account != null && !app.narrow }, fontSize = 14, wrap = false,
+            textColor = { provided("theme").textMuted }, text = { app.account?.name ?? "" } ],
+        TextButton [ visible = { app.account == null }, label = "Sign in",
+            press() { app.signingIn = true }
+            ],
+        TextButton [ visible = { app.account != null }, label = "Sign out",
+            tone = { provided("theme").textMuted },
+            press() { app.signOut.fetch() }
+            ]
+        ],
+
+    // ── 1. The performances
+
+    listScreen: View [ visible = { app.screen == "list" }, width = 100%,
+        padding = { [app.narrow ? 8 : 28, app.gutter, 64, app.gutter] },
+        accessibilityRole = main,
+        col: View [ x = center, width = { Math.min(1080, parent.contentBox("width")) },
+            layout: SimpleLayout [ axis = y, spacing = { app.narrow ? 20 : 32 } ],
+            hero: View [ width = 100%,
+                layout: SimpleLayout [ axis = y, spacing = 8 ],
+                Text [ fontSize = 13, fontWeight = semibold, letterSpacing = 2, textColor = { provided("theme").accent },
+                    text = "OPERA IN FOUR ACTS · MOZART" ],
+                Text [ width = 100%, wrap = true, fontFamily = { app.titleFace }, fontSize = { app.narrow ? 38 : 64 },
+                    fontWeight = semibold, letterSpacing = { app.narrow ? -0.5 : -1.5 },
+                    accessibilityRole = heading, accessibilityLevel = 1, text = { app.title } ],
+                Text [ fontSize = 16, textColor = { provided("theme").textMuted },
+                    text = { app.hallName + " · " + (app.production.value?.runningTime ?? "") + " · " + app.performances.length + " performances" } ]
+                ],
+            Text [ visible = { app.production.failed && !app.production.loaded }, wrap = true, width = 100%,
+                text = "The box office isn't answering. Check your connection and reload the page." ],
+            grid: View [ width = 100%, datapath = { app.production.value }, accessibilityRole = list, accessibilityLabel = "Performances",
+                layout: WrappingLayout [ columns = { app.width >= 1100 ? 3 : app.width >= 700 ? 2 : 1 },
+                    spacing = 12, rowSpacing = 12 ],
+                PerformanceCard [ datapath = :performances[], flexes = true ]
+                ]
+            ]
+        ],
+
+    // ── 2. The hall
+
+    hallScreen: View [ visible = { app.screen == "hall" }, width = 100%, height = { app.height - 60 },
+        accessibilityRole = main,
+        layout: SimpleLayout [ axis = { app.narrow ? "y" : "x" }, align = stretch ],
+
+        bar: View [ visible = { app.narrow }, height = 48, padding = [0, 10, 0, 6],
+            layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+            TextButton [ label = "‹ Dates", accessibilityLabel = "All performances",
+                press() { app.allPerformances() }
+                ],
+            Spacer [ ],
+            Text [ fontSize = 15, fontWeight = semibold, wrap = false,
+                text = { app.perf == null ? "" : dayLabel(app.perf.startsAt) + " · " + timeLabel(app.perf.startsAt) } ]
+            ],
+
+        // the room
+        // on a phone: the whole house, small, to read at a glance and steer by
+
+        glance: View [ visible = { app.narrow }, padding = [4, 16, 10, 16],
+            layout: SimpleLayout [ axis = x, spacing = 16 ],
+            HallOverview [ height = 150, map = { app.hallMap }, rowCounts = { app.rowCounts },
+                sections = { app.sections }, chosen = { app.chosen } ],
+            View [ flexes = true,
+                layout: SimpleLayout [ axis = y, spacing = 10 ],
+                Text [ fontSize = 14, numeralWidth = tabular, wrap = true, width = 100%,
+                    text = { app.seatsReady ? app.freeCount + " of " + app.seatCount + " seats free" : "Opening the house…" } ],
+                Legend [ width = 100% ],
+                Text [ fontSize = 13, wrap = true, width = 100%, textColor = { provided("theme").textMuted },
+                    text = "Drag the seats, or the plan, to look around." ]
+                ]
+            ],
+
+        // the room
+
+        map: HallMap [ flexes = true, rowCounts = { app.rowCounts }, zoomed = { app.narrow } ],
+
+        // beside it at a desk: the performance, what is chosen, and on
+
+        side: View [ visible = { !app.narrow }, width = 360, padding = [8, 28, 28, 8],
+            accessibilityRole = complementary, accessibilityLabel = "Your seats",
+            layout: SimpleLayout [ axis = y, spacing = 18 ],
+            TextButton [ label = "‹ All performances",
+                press() { app.allPerformances() }
+                ],
+            View [ width = 100%,
+                layout: SimpleLayout [ axis = y, spacing = 4 ],
+                Text [ fontFamily = { app.titleFace }, fontSize = 30, fontWeight = semibold, accessibilityRole = heading, accessibilityLevel = 1,
+                    text = { app.perf == null ? "" : dayLabel(app.perf.startsAt) } ],
+                Text [ fontSize = 15, textColor = { provided("theme").textMuted },
+                    text = { app.perf == null ? "" : timeLabel(app.perf.startsAt) + " · doors " + timeLabel(app.perf.doorsAt) } ],
+                Text [ fontSize = 14, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+                    text = { app.seatsReady ? app.freeCount + " of " + app.seatCount + " seats free" : "Opening the house…" } ]
+                ],
+            Legend [ width = 100% ],
+            Notice [ visible = { app.notice != "" } ],
+            chosenList: View [ width = 100%, flexes = true, scrolls = y,
+                datapath = { app.pickedSet.value },
+                layout: SimpleLayout [ axis = y ],
+                Text [ visible = { app.chosen.length == 0 }, width = 100%, wrap = true, fontSize = 14,
+                    textColor = { provided("theme").textMuted },
+                    text = "Choose seats in the hall. Brighter seats are nearer the stage and cost more." ],
+                ChosenLine [ datapath = :rows[] ]
+                ],
+            foot: View [ width = 100%, visible = { app.chosen.length > 0 },
+                layout: SimpleLayout [ axis = y, spacing = 14 ],
+                Summary [ ],
+                Button [ width = 100%, height = 48, primary = true, label = "Continue to checkout",
+                    onClick() { app.toCheckout() }
+                    ]
+                ]
+            ],
+
+        // under it on a phone: what is chosen, always in reach
+
+        tray: View [ visible = { app.narrow }, width = 100%, padding = { [12, 16, 12 + app.safeBottom, 16] },
+            fill = { provided("theme").surface },
+            stroke = { [stroke(1, provided("theme").line), null, null, null] },
+            layout: SimpleLayout [ axis = y, spacing = 10 ],
+            Notice [ visible = { app.notice != "" } ],
+            Text [ visible = { app.chosen.length == 0 }, width = 100%, wrap = true, fontSize = 14,
+                textColor = { provided("theme").textMuted },
+                text = "Tap a seat to choose it. Brighter seats are nearer the stage." ],
+            row: View [ visible = { app.chosen.length > 0 }, width = 100%,
+                layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+                Summary [ flexes = true ],
+                Button [ height = 48, primary = true, label = "Continue",
+                    onClick() { app.toCheckout() }
+                    ]
+                ]
+            ]
+        ],
+
+    // ── 3. Checkout
+
+    checkout: CheckoutScreen [ exists = { app.screen == "checkout" }, width = 100% ],
+    payBar: PayBar [ exists = { app.screen == "checkout" && app.narrow }, form = { app.checkout?.pane.main.form ?? null } ],
+
+    // ── 5. The tickets
+
+    tickets: TicketsScreen [ exists = { app.screen == "tickets" }, width = 100% ],
+
+    // ── what is being typed at checkout, and the order it becomes
+
+    pay: Payment [ account = { app.account } ],
+    order: DataSource [ url = { app.api + "/api/orders" }, method = "POST", credentials = include, schema = Order,
+        body = { app.pay.orderFor(app.perfId, app.chosen) } ],
+
+    // ── signing in, from anywhere
+
+    signInSheet: Sheet [ shown = { app.signingIn }, accessibilityLabel = "Sign in",
+        input(open: boolean) { app.signingIn = open },
+        SignInForm [ exists = { app.signInSheet.present } ]
+        ]
+    ]
