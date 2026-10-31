@@ -1,0 +1,34 @@
+// Fills the window: header, then a body (list + side panel), then footer.
+// Wide: the side panel sits to the right of the list, 240 wide.
+// Narrow (app.width < 600): the side panel sits under the list, 120 tall, full width.
+App [ fill = whitesmoke, textColor = darkslategray,
+
+    narrow: boolean = { width < 600 },
+
+    layout: SimpleLayout [ axis = y, align = stretch ],
+
+    header: View [ height = 48, fill = darkslategray,
+        Text [ x = 16, y = center, textColor = whitesmoke, fontWeight = bold, text = "Header" ]
+        ],
+
+    body: View [ flexes = true,
+        layout: SimpleLayout [ axis = { app.narrow ? "y" : "x" }, align = stretch ],
+
+        // takes whatever is left along the run in both arrangements — no width, no height
+        list: View [ flexes = true, fill = white, clip = true,
+            Text [ x = 16, y = 16, text = "List" ]
+            ],
+
+        // its run-axis size holds only in one arrangement, so each is a State;
+        // the cross axis comes from align = stretch
+        side: View [ fill = gainsboro, clip = true,
+            beside: State [ applied = { !app.narrow }, width = 240 ],
+            below:  State [ applied = { app.narrow }, height = 120 ],
+            Text [ x = 16, y = 16, text = "Side panel" ]
+            ]
+        ],
+
+    footer: View [ height = 32, fill = lightslategray,
+        Text [ x = 16, y = center, textColor = whitesmoke, text = "Footer" ]
+        ]
+    ]

@@ -1,0 +1,17 @@
+App [ fill = whitesmoke, textColor = black,
+
+    menu: View [ x = 20, y = 20, fill = white, stroke = gainsboro, padding = 4,
+        layout: SimpleLayout [ axis = y, spacing = 2, align = stretch ],
+
+        View [ padding = [4, 10, 4, 10], fill = { hovered ? 0xDCDCDC : 0xFFFFFF },
+            Text [ text = "Open" ] ],
+        View [ padding = [4, 10, 4, 10], fill = { hovered ? 0xDCDCDC : 0xFFFFFF },
+            Text [ text = "Save as…" ] ],
+        View [ padding = [4, 10, 4, 10], fill = { hovered ? 0xDCDCDC : 0xFFFFFF },
+            Text [ text = "Cut" ] ],
+        View [ padding = [4, 10, 4, 10], fill = { hovered ? 0xDCDCDC : 0xFFFFFF },
+            Text [ text = "Duplicate" ] ],
+        View [ padding = [4, 10, 4, 10], fill = { hovered ? 0xDCDCDC : 0xFFFFFF },
+            Text [ text = "Export to PDF" ] ]
+        ]
+    ]

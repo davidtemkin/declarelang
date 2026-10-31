@@ -1,0 +1,22 @@
+class MenuItem [ padding = [6, 12, 6, 12],
+    label: string = "",
+    fill = { hovered ? 0x3A3A4A : 0x2A2A36 },
+    onClick() { app.chosen = label },
+    Text [ text = { label } ]
+    ]
+
+
+App [ fill = #1a1a20, textColor = gainsboro,
+    chosen: string = "",
+
+    menu: View [ x = 20, y = 20, cornerRadius = 6, clip = true,
+        layout: SimpleLayout [ axis = y, align = stretch ],
+        MenuItem [ label = "New" ],
+        MenuItem [ label = "Open…" ],
+        MenuItem [ label = "Save As…" ],
+        MenuItem [ label = "Close" ],
+        MenuItem [ label = "Export to PDF…" ]
+        ],
+
+    Text [ x = 20, y = end, text = { app.chosen == "" ? "" : `Chose ${app.chosen}` } ]
+    ]

@@ -1,0 +1,191 @@
+<title>Layout Comprehension Probe</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,500;6..72,600&family=Public+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; the old text in slate grey, the new text in slate blue, wherever the two are compared */
+:root {
+  --bg: #F6F7F9;
+  --panel: #FFFFFF;
+  --ink: #1B2230;
+  --muted: #5B6577;
+  --rule: #DDE2EA;
+  --old: #6B7280;
+  --old-soft: #ECEEF1;
+  --new: #2F5D9E;
+  --new-soft: #DCE6F4;
+  --pass: #2D7A4B;
+  --pass-soft: #DDF0E3;
+  --fail: #B23A30;
+  --fail-soft: #F8DEDA;
+  --code-bg: #F0F2F6;
+  --display: "Newsreader", Georgia, serif;
+  --body: "Public Sans", system-ui, -apple-system, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #12161D; --panel: #1A2029; --ink: #E6EAF1; --muted: #9AA4B5; --rule: #2C3440;
+  --old: #A3ABB8; --old-soft: #262C36; --new: #7FA6E0; --new-soft: #23324A;
+  --pass: #6CC58F; --pass-soft: #1D3527; --fail: #EE8A80; --fail-soft: #3F2220; --code-bg: #151A22; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #12161D; --panel: #1A2029; --ink: #E6EAF1; --muted: #9AA4B5; --rule: #2C3440;
+  --old: #A3ABB8; --old-soft: #262C36; --new: #7FA6E0; --new-soft: #23324A;
+  --pass: #6CC58F; --pass-soft: #1D3527; --fail: #EE8A80; --fail-soft: #3F2220; --code-bg: #151A22; color-scheme: dark }
+
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.6; margin: 0; }
+.wrap { max-width: 920px; margin: 0 auto; padding-block: 40px 72px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; gap: 44px; }
+h1, h2 { font-family: var(--display); font-weight: 600; text-wrap: balance; margin: 0; letter-spacing: -0.01em; }
+h1 { font-size: 2.3rem; line-height: 1.1; }
+h2 { font-size: 1.45rem; }
+h3 { font-size: 0.95rem; margin: 0; font-weight: 600; }
+p { margin: 0; max-width: 68ch; }
+.lede { color: var(--muted); font-size: 1.02rem; }
+.eyebrow { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+section { display: flex; flex-direction: column; gap: 14px; }
+code { font-family: var(--mono); font-size: 0.85em; background: var(--code-bg); border: 1px solid var(--rule); border-radius: 4px; padding: 0 4px; }
+pre { margin: 0; font-family: var(--mono); font-size: 0.8rem; line-height: 1.5; background: var(--code-bg); border: 1px solid var(--rule); border-radius: 6px; padding: 12px 14px; overflow-x: auto; }
+.o { color: var(--old); font-weight: 600; } .n { color: var(--new); font-weight: 600; }
+
+.findings { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 12px; }
+.finding { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.finding h3 { font-size: 1rem; }
+.finding p { font-size: 0.9rem; color: var(--muted); }
+
+ol.steps { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; counter-reset: s; max-width: 72ch; }
+ol.steps li { counter-increment: s; display: grid; grid-template-columns: 28px 1fr; gap: 10px; }
+ol.steps li::before { content: counter(s); font-family: var(--mono); font-size: 0.8rem; color: var(--panel); background: var(--ink); width: 22px; height: 22px; border-radius: 11px; display: grid; place-items: center; margin-top: 2px; }
+
+.tablewrap { overflow-x: auto; background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; }
+table { border-collapse: collapse; width: 100%; font-size: 0.88rem; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--rule); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+th { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 600; }
+td.v { font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 0.82rem; white-space: nowrap; }
+.chip { display: inline-block; font-family: var(--mono); font-size: 0.72rem; padding: 1px 7px; border-radius: 10px; white-space: nowrap; }
+.chip.p { background: var(--pass-soft); color: var(--pass); }
+.chip.f { background: var(--fail-soft); color: var(--fail); }
+
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 12px; }
+.card { background: var(--panel); border: 1px solid var(--rule); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.card.oo { border-top: 3px solid var(--old); } .card.nn { border-top: 3px solid var(--new); }
+.card blockquote { margin: 0; font-size: 0.88rem; color: var(--ink); }
+.card blockquote p + p { margin-top: 8px; }
+.note { font-size: 0.85rem; color: var(--muted); }
+ul.plain { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px; max-width: 72ch; }
+.bug { background: var(--panel); border: 1px solid var(--rule); border-left: 3px solid var(--fail); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.fixed { color: var(--pass); font-weight: 600; }
+</style>
+
+<div class="wrap">
+
+<header style="display:flex;flex-direction:column;gap:12px">
+  <div class="eyebrow">Declare · layout · 2026-10-31</div>
+  <h1>Layout comprehension probe</h1>
+  <p class="lede">The question: does the rewritten layout section of <code>declare.md</code> teach agents the layout model better than the old one? The way to find out: eight fresh agents, half on each text, each asked to predict and then write layouts with no way to run them. The answer was mostly no. The probe's real yield was two runtime bugs, both hit by correct code. Both are fixed, along with a bug in the forms library that Venue 17 ran into.</p>
+</header>
+
+<section>
+  <h2>In brief</h2>
+  <div class="findings">
+    <div class="finding"><h3>Both texts teach the rules</h3><p>On five of the six prediction questions, all eight agents answered correctly under either text. The new text did steer every agent to a <code>State</code> for a size that holds only sometimes; under the old one, two of four used a conditional constraint instead.</p></div>
+    <div class="finding"><h3>The failures were the runtime's</h3><p>Two frames refused at boot looked like old-text misunderstandings. They were valid code hitting a layout bug. A second bug hit every new-text frame. With both fixed, every program in both arms has correct layout.</p></div>
+    <div class="finding"><h3>Venue's first-boot layout failures came from elsewhere</h3><p>On focused tasks the agents got stretch and filling right. Venue 17's content-sized fields and <code>NaN</code>-as-unset likely come from a large build, where the rule gets lost among everything else, or from bugs like these two.</p></div>
+  </div>
+</section>
+
+<section>
+  <h2>How the probe worked</h2>
+  <ol class="steps">
+    <li><span><strong>Two copies of the docs, nothing else different.</strong> The control arm had <code>declare.md</code> as committed (c5a44f81). The other had the rewritten §4, the corrected §6 and the amended difference #5. Each agent's folder held only <code>README.md</code> and <code>docs/declare.md</code>.</span></li>
+    <li><span><strong>Eight fresh agents, four per arm</strong> (Opus 5.5, headless). Each was told to read those two files in full and nothing else. It had file tools only: no shell, no compiler, no browser. What it wrote is its first attempt.</span></li>
+    <li><span><strong>Part A, six predictions:</strong> how wide a child is in a column; how to make children as wide as the widest; <code>flexes</code> plus a width; a size that holds only sometimes; what to write on a child whose layout's axis is computed; and <code>100%</code> in a parent sized by its children.</span></li>
+    <li><span><strong>Part B, three programs, all generic:</strong> a window frame whose side panel moves under the list below 600 wide; a form whose fields fill a 360 column, with two sharing a row; a menu whose items are as wide as the widest label.</span></li>
+    <li><span><strong>Scoring.</strong> Each program went through <code>declare-verify</code> at phone and desk sizes. Its laid-out geometry was then read back and checked against the task: the panel 240 wide and full height on desk, 120 tall and full width on phone; fields 360; menu items equal. The answers were read against what the runtime actually does, and each claim in the new text was checked with a small program of its own.</span></li>
+  </ol>
+</section>
+
+<section>
+  <h2>Results</h2>
+  <div class="tablewrap"><table>
+    <thead><tr><th></th><th class="o">Old text</th><th class="n">New text</th></tr></thead>
+    <tbody>
+      <tr><td>Q1–Q3, Q5, Q6: no stretch by default, stretch for "as wide as the widest", <code>flexes</code> conflicting with a width, a computed axis, <code>100%</code> in a parent sized by its children</td><td class="v">all correct</td><td class="v">all correct</td></tr>
+      <tr><td>Q4: 300 when wide, else as wide as the content</td><td>2 of 4 used a <code>State</code>; 2 wrote <code>{ wide ? 300 : contentWidth }</code></td><td>4 of 4 used a <code>State</code></td></tr>
+      <tr><td>Frame, as first scored</td><td><span class="chip p">2 correct</span> <span class="chip f">2 refused at boot</span></td><td><span class="chip f">4 with the side panel 34 tall, not full height</span></td></tr>
+      <tr><td>Frame, after the two runtime fixes</td><td><span class="chip p">4 of 4</span></td><td><span class="chip p">4 of 4</span></td></tr>
+      <tr><td>Form</td><td><span class="chip p">4 of 4</span></td><td><span class="chip p">4 of 4</span></td></tr>
+      <tr><td>Menu</td><td><span class="chip p">4 of 4</span></td><td><span class="chip p">3 of 4</span> one wrote a border colour wrongly, not a layout error</td></tr>
+    </tbody>
+  </table></div>
+  <p class="note">The first scoring of the new-text frames showed what looked like a pass. All four booted, but reading the geometry back showed the side panel only as tall as its text. Checking the result itself, not just whether it compiles, is what exposed the second bug.</p>
+</section>
+
+<section>
+  <h2>Two runtime bugs the probe found</h2>
+
+  <div class="bug">
+    <h3>1. A size stated by a constraint was refused under <code>align = stretch</code></h3>
+    <p>A child of a stretching layout that states its own size should keep it. The guide says so, and a constant did: <code>width = 300</code> stayed 300. But any constrained width, even <code>{ app.wide ? 300 : 200 }</code>, was refused at boot as a conflict with the layout. A constant exists before the layout installs, so stretch leaves that child alone. A constraint binds after, finds the layout's stretch claim already on the slot, and was treated as two deciders.</p>
+<pre>col: View [ width = 400, layout: SimpleLayout [ axis = y, align = stretch ],
+    constant: View [ width = 300 ],                       // kept: 300
+    computed: View [ width = { app.wide ? 300 : 200 } ],  // was refused at boot; now 200
+    content:  View [ ] ]                                  // stretched: 400</pre>
+    <p>This is what refused the two old-text frames. Their code, <code>width = { narrow ? parent.width : 240 }</code>, was correct.</p>
+    <p><span class="fixed">Fixed:</span> a stretch claim is marked as filling only a size left to the content, and a size the author states now takes the slot from it, whether as a constraint or a handler's write (<code>attributes.ts</code>, plus one flag in <code>reactive.ts</code> and <code>layout.ts</code>). Regression test in <code>layout-facts</code>.</p>
+  </div>
+
+  <div class="bug">
+    <h3>2. A size a <code>State</code> released was not stretched under a computed axis</h3>
+    <p>This is exactly the pattern the new text teaches: a <code>State</code> for the size that holds only sometimes, inside a layout whose axis flips with the window. At boot the window width isn't known yet, so <code>narrow</code> is briefly true and the narrow-screen <code>State</code> sets the panel's height. The layout installs against that, deciding the height isn't its to fill. When the width arrives the <code>State</code> lets go, but nothing tells the layout, so the panel falls back to its text's height: 34 instead of 720.</p>
+<pre>body: View [ flexes = true,
+    layout: SimpleLayout [ axis = { app.narrow ? "y" : "x" }, align = stretch ],
+    list: View [ flexes = true ],
+    side: View [ beside: State [ applied = { !app.narrow }, width = 240 ],
+                 under:  State [ applied = { app.narrow },  height = 120 ] ] ]
+// desk: side was 240×34; now 240×720</pre>
+    <p><span class="fixed">Fixed:</span> when a <code>State</code> releases a size and nothing claims it once the settle is over, the parent's layout installs again (<code>state.ts</code>). A first version reinstalled every time and broke the fixed-axis case, where the layout already holds a claim. The fixed-axis case is now in the check and in the tests. Regression test in <code>layout-facts</code>; it fails on the old runtime.</p>
+  </div>
+</section>
+
+<section>
+  <h2>The forms bug from Venue 17</h2>
+  <p>On a wrong security code the service refuses, and Venue 17 emptied the code so it would be asked for again. <code>Form.refusedWith</code>'s own docs give that as the example. But <code>Form</code> laid the refusal on the field first and ran <code>refusedWith</code> after. A refusal counts only while the field holds the refused value, so emptying the field erased the service's message.</p>
+  <p><span class="fixed">Fixed in <code>form.declare</code> only:</span> <code>refusedWith</code> runs first. Once what it changed has settled into the fields, the refusal is laid on them, and a field that receives one is judged, so its message shows. The controls and the runtime are unchanged, and every step is still the developer's to override. Venue 17's app, unchanged, now passes 11 of 11 hidden flows (it was 10); Venue 16's still passes 11 of 11.</p>
+</section>
+
+<section>
+  <h2>The text that changed</h2>
+  <div class="two">
+    <div class="card oo"><h3 class="o">Before: §4 "Layout is an attribute"</h3>
+      <blockquote><p>There is no <code>&lt;Stack&gt;</code>, no <code>&lt;Row&gt;</code>, no flexbox, and no grid. A view positions its children absolutely by <code>x</code>/<code>y</code> until you set a <code>layout:</code> member — and because that member is an ordinary reactive attribute, it can be swapped, derived, or animated. <strong>A layout places its children, and what it places a child does not declare</strong>: a row places <code>x</code>, <code>align</code> adds <code>y</code>, a <code>ResponsiveLayout</code> places both; a child that declares one anyway is refused at its line, in any spelling. A child asks the layout for a size by stating a fact — <code>flexes</code>, <code>shrinks</code>, a <code>minWidth</code>/<code>maxWidth</code> range — and <code>align = stretch</code> makes what its content would size fill the view across.</p></blockquote>
+    </div>
+    <div class="card nn"><h3 class="n">After</h3>
+      <blockquote><p><strong>Each of a view's <code>x</code>, <code>y</code>, <code>width</code> and <code>height</code> has one decider: its content, the view itself, or its parent's layout.</strong> A layout is an object, not a mode: a library class (<code>SimpleLayout</code>, <code>WrappingLayout</code>, <code>ResponsiveLayout</code>) or a class of your own with one method, set as the view's <code>layout:</code> member and swapped like any member. A child never states what its parent's layout decides. It tells the layout facts about itself — <code>flexes</code>, <code>shrinks</code>, a <code>minWidth</code>/<code>maxWidth</code> range — and the layout, seeing every child, places them all and sizes the ones that ask.</p>
+      <p><strong>A size left unset is the content's, inside a layout too.</strong> Unlike flexbox, nothing stretches unless the layout says <code>align = stretch</code>. A size travels one way: a view sized by its children can't also size them, which would be circular, so children fill such a view by <code>align = stretch</code>, as wide as the widest. A constraint always decides, so a size that holds only sometimes is a <code>State</code>.</p></blockquote>
+    </div>
+  </div>
+  <p class="note">Also changed: §6 said a view has no <code>minHeight</code> or <code>maxHeight</code>, which stopped being true when the ranges arrived; difference #5 now names a <code>State</code> for a configuration that changes.</p>
+  <p>One wording issue: two new-text agents concluded from "a constraint always decides" that you can't write "otherwise the content's width" as a constraint. Outside a layout, <code>{ wide ? 300 : contentWidth }</code> works, and after fix 1 it also works inside one. The sentence is fine as advice, but it could be softened so it doesn't read as a prohibition.</p>
+</section>
+
+<section>
+  <h2>What this suggests</h2>
+  <ul class="plain">
+    <li><strong>The model is teachable from <code>declare.md</code> as it stood.</strong> On focused questions both texts produced correct predictions. The rewrite is clearer and steers toward <code>State</code>, but it doesn't explain Venue's first-boot failures.</li>
+    <li><strong>Runtime inconsistencies look like misunderstanding.</strong> Both bugs refused or mis-sized correct code, and in a full build an agent reads that as its own mistake and works around it. Some of what earlier runs called layout difficulty may have been this.</li>
+    <li><strong>Comprehension probes are cheap and sharp.</strong> Eight short runs found two core bugs that a dozen full app builds had not isolated. Generic tasks keep them from teaching to any one eval.</li>
+    <li><strong>What's left from Venue 17</strong> (fields sized to their content, <code>NaN</code> as unset) appears only in a full build. A recorded Venue 18 on the fixed runtime would show whether it persists.</li>
+  </ul>
+</section>
+
+<section>
+  <h2>Checks run</h2>
+  <ul class="plain note">
+    <li>Each claim in the new text was checked with a small program. No stretch by default: two children of a 300 column were 36 and 91 wide. Stretch in a parent sized by its children gave as wide as the widest, 113. A <code>State</code>-given size held while it applied. <code>maxWidth</code> capped a flexing child. A computed axis refused, at boot, a child that both flexes and states a height.</li>
+    <li>Suites on the final build: <code>unit</code> 515, <code>layout-facts</code> 20 (two new), <code>forms</code> 12 (one new), <code>library</code> 30, <code>materialization</code> 46, <code>kernel-layout</code> 3, <code>overlays</code> 30, <code>gesture</code> 71, <code>look-touch</code> 6, <code>verify-boot</code> 9, <code>verify-apps</code> 74 (19 apps, 49 library files), <code>perceptual</code> 129, <code>slim-corpus</code> 484, <code>silent-failures</code> 38, <code>accessibility</code> 38, <code>docs</code> 219. All pass. The full <code>npm test</code> was not run.</li>
+    <li>Not yet committed: the <code>Form</code> reordering, the two runtime fixes and their tests, and the <code>declare.md</code> edits.</li>
+  </ul>
+</section>
+
+</div>

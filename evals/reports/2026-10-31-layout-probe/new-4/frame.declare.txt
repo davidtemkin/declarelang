@@ -1,0 +1,25 @@
+App [ fill = whitesmoke, textColor = black,
+    layout: SimpleLayout [ axis = y, align = stretch ],
+
+    header: View [ height = 48, fill = darkslategray,
+        Text [ x = 16, y = center, textColor = whitesmoke, text = "Header" ]
+        ],
+
+    body: View [ flexes = true,
+        layout: SimpleLayout [ axis = { app.width < 600 ? "y" : "x" }, align = stretch ],
+
+        list: View [ flexes = true, fill = white,
+            Text [ x = 16, y = 16, text = "List" ]
+            ],
+
+        side: View [ fill = gainsboro,
+            beside: State [ applied = { app.width >= 600 }, width = 240 ],
+            under: State [ applied = { app.width < 600 }, height = 120 ],
+            Text [ x = 16, y = 16, text = "Side panel" ]
+            ]
+        ],
+
+    footer: View [ height = 32, fill = darkslategray,
+        Text [ x = 16, y = center, textColor = whitesmoke, text = "Footer" ]
+        ]
+    ]

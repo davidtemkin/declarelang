@@ -1,0 +1,19 @@
+App [ fill = #15161c, textColor = whitesmoke,
+
+    items: Dataset {
+        { "items": [ { "label": "Open" },
+                     { "label": "Save as…" },
+                     { "label": "Print" },
+                     { "label": "Export to PDF" },
+                     { "label": "Quit" } ] }
+        },
+
+    menu: View [ x = 40, y = 40, fill = #22242e, cornerRadius = 6, datapath = { items.value },
+        layout: SimpleLayout [ axis = y, align = stretch ],
+
+        View [ datapath = :items[], padding = [6, 14, 6, 14],
+            fill = { hovered ? 0x4169E1 : 0x22242E },
+            Text [ text = :label ]
+            ]
+        ]
+    ]

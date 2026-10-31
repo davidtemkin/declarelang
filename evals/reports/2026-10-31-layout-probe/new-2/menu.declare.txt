@@ -1,0 +1,20 @@
+App [ fill = black, textColor = whitesmoke,
+
+    entries: Dataset {
+        { "items": [ { "label": "New" },
+                     { "label": "Open…" },
+                     { "label": "Save" },
+                     { "label": "Save As…" },
+                     { "label": "Close Window" } ] }
+        },
+
+    menu: View [ x = 20, y = 20, fill = midnightblue, cornerRadius = 6,
+        datapath = { entries.value },
+        layout: SimpleLayout [ axis = y, align = stretch ],
+
+        View [ datapath = :items[], padding = [6, 12, 6, 12],
+            fill = { hovered ? 0x4169E1 : 0x191970 },
+            Text [ text = :label ]
+            ]
+        ]
+    ]

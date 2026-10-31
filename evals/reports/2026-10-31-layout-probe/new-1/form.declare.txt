@@ -1,0 +1,25 @@
+// A 400-wide app with a 360-wide column: three labelled fields at the column's full width,
+// then a row of two fields that split the width equally.
+App [ width = 400, height = 340, fill = whitesmoke, textColor = darkslategray,
+
+    column: View [ x = 20, y = 20, width = 360,
+        // The column has a fixed width, so stretch makes every child that wide.
+        layout: SimpleLayout [ axis = y, spacing = 8, align = stretch ],
+
+        Text [ text = "Name" ],
+        name: TextInput [],
+
+        Text [ text = "Email" ],
+        email: TextInput [],
+
+        Text [ text = "Address" ],
+        address: TextInput [],
+
+        // The row is stretched to the column's width; both fields flex and split it equally.
+        row: View [
+            layout: SimpleLayout [ axis = x, spacing = 10 ],
+            city: TextInput [ flexes = true ],
+            postcode: TextInput [ flexes = true ]
+            ]
+        ]
+    ]

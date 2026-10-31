@@ -1,0 +1,26 @@
+App [ fill = #1e1e24, textColor = gainsboro,
+    narrow: boolean = { app.width < 600 },
+    layout: SimpleLayout [ axis = y, align = stretch ],
+
+    header: View [ height = 48, fill = #2b2b36,
+        Text [ x = 16, y = center, fontWeight = bold, text = "Frame" ]
+        ],
+
+    body: View [ flexes = true,
+        layout: SimpleLayout [ axis = { app.narrow ? "y" : "x" }, align = stretch ],
+
+        list: View [ flexes = true, fill = #24242c, clip = true,
+            Text [ x = 16, y = 16, text = "List" ]
+            ],
+
+        side: View [ fill = #30303c,
+            beside: State [ applied = { !app.narrow }, width = 240 ],
+            under: State [ applied = { app.narrow }, height = 120 ],
+            Text [ x = 16, y = 16, text = "Side panel" ]
+            ]
+        ],
+
+    footer: View [ height = 32, fill = #2b2b36,
+        Text [ x = 16, y = center, fontSize = 12, text = "Ready" ]
+        ]
+    ]

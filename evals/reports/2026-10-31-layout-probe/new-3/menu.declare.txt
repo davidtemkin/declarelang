@@ -1,0 +1,22 @@
+// A menu sized by its content: every item is as wide as the widest label,
+// and nothing in the menu states a width.
+App [ width = 320, height = 260, fill = darkslategray,
+
+    entries: Dataset {
+        { "items": [ { "label": "Open" },
+                     { "label": "Save as…" },
+                     { "label": "Cut" },
+                     { "label": "Export to PDF" },
+                     { "label": "Quit" } ] }
+        },
+
+    menu: View [ x = 20, y = 20, padding = 4, cornerRadius = 6, fill = white,
+        textColor = black, datapath = { entries.value },
+        layout: SimpleLayout [ axis = y, align = stretch ],
+
+        View [ datapath = :items[], padding = [4, 12, 4, 12], cornerRadius = 4,
+            fill = { hovered ? 0xDDE6F5 : 0xFFFFFF },
+            Text [ text = :label ]
+            ]
+        ]
+    ]

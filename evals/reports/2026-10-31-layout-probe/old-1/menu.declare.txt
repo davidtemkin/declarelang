@@ -1,0 +1,18 @@
+class MenuItem [ padding = [4, 12, 4, 12],
+    label: string = "",
+    fill = { hovered ? 0x4169E1 : 0x191970 },
+    Text [ text = { classroot.label } ]
+    ]
+
+
+App [ fill = black, textColor = whitesmoke,
+
+    menu: View [ x = 20, y = 20, fill = midnightblue, cornerRadius = 6,
+        layout: SimpleLayout [ axis = y, align = stretch ],
+        MenuItem [ label = "New" ],
+        MenuItem [ label = "Open…" ],
+        MenuItem [ label = "Save" ],
+        MenuItem [ label = "Export as PDF" ],
+        MenuItem [ label = "Quit" ]
+        ]
+    ]

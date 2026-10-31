@@ -1,0 +1,24 @@
+// A 360-wide column: a label above each of three fields, all as wide as the column,
+// then a row of two fields sharing its width equally.
+App [ width = 400, height = 420, fill = whitesmoke, textColor = darkslategray,
+
+    col: View [ x = 20, y = 20, width = 360,
+        layout: SimpleLayout [ axis = y, spacing = 8, align = stretch ],
+
+        Text [ text = "Name" ],
+        TextInput [],
+
+        Text [ text = "Email" ],
+        TextInput [],
+
+        Text [ text = "Address" ],
+        TextInput [],
+
+        // stretched to the column's width; the two fields split it equally
+        row: View [
+            layout: SimpleLayout [ axis = x, spacing = 8 ],
+            TextInput [ flexes = true ],
+            TextInput [ flexes = true ]
+            ]
+        ]
+    ]

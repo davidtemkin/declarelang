@@ -1,0 +1,22 @@
+// A menu that takes its size from its content: every item is as wide as the widest label,
+// and no width is written anywhere in the menu.
+App [ width = 320, height = 260, fill = black, textColor = whitesmoke,
+
+    entries: Dataset {
+        { "rows": [ { "label": "Open" },
+                    { "label": "Save as…" },
+                    { "label": "Print" },
+                    { "label": "Export to PDF" },
+                    { "label": "Quit" } ] }
+        },
+
+    // No size: the widest item sets the width, and stretch makes every item that wide.
+    menu: View [ x = 20, y = 20, fill = midnightblue, datapath = { entries.value },
+        layout: SimpleLayout [ axis = y, align = stretch ],
+
+        View [ datapath = :rows[], padding = [4, 10, 4, 10],
+            fill = { hovered ? 0x4169E1 : 0x191970 },
+            Text [ text = :label ]
+            ]
+        ]
+    ]
