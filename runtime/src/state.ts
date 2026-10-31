@@ -17,7 +17,7 @@
 
 import { Node } from "./node.js";
 import { View } from "./view.js";
-import { Constraint } from "./reactive.js";
+import { Constraint, afterSettle } from "./reactive.js";
 import { defineAttributes, disown, disposeBindings, own, ownerOf, setBound, slotCellOf } from "./attributes.js";
 import { DeclareError } from "./errors.js";
 import type { Element } from "./parser.js";
@@ -74,6 +74,21 @@ function driveTop(view: View, slot: string, s: SlotStack): void {
   s.topK.run();
 }
 
+/** A size a state takes back is the content's again — the size `align =
+ *  stretch` fills. A layout that already claims it fills it as it is freed; one
+ *  that decided at its install that the size was not its to fill (a computed
+ *  axis flipped while the state still held it) installs again, once the settle
+ *  that freed the size is over and nothing has taken it. */
+function relayout(view: View, slot: string): void {
+  if (slot !== "width" && slot !== "height") return;
+  const lay = (view.parent as { layout?: { rearm?: () => void } | null } | null)?.layout;
+  if (lay == null || typeof lay.rearm !== "function") return;
+  afterSettle(() => {
+    const o = ownerOf(view, slot);
+    if (o === null || o.isAutoExtent) lay.rearm!();
+  });
+}
+
 function pushOverride(view: View, slot: string, priority: number, make: (t: View) => Constraint): void {
   const map = stacksFor(view);
   let s = map.get(slot);
@@ -114,6 +129,7 @@ function popOverride(view: View, slot: string, priority: number): void {
   const wasTop = i === s.entries.length - 1;
   s.entries.splice(i, 1);
   if (!wasTop) return; // a dormant lower override left — the live top is unchanged
+  relayout(view, slot);
   s.topK?.dispose();
   s.topK = null;
   if (s.entries.length > 0) {

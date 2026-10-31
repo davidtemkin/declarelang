@@ -456,7 +456,7 @@ export function defineAttributes(ctor, specs) {
                     DIVERGED.add(self);
                 const owner = self.$owners?.[name];
                 if (owner !== undefined) {
-                    if (!owner.yielding) {
+                    if (!owner.yielding && !owner.fillsContent) {
                         throw new DeclareError(owner.arrangedBy !== null
                             ? layoutConflictMessage(declareName(this), name, owner.arrangedBy, null, null, true)
                             : `${declareName(this)}.${name} is bound by a constraint (${owner.label}) — a direct write would be silently overwritten; change what the constraint reads instead`);
@@ -1220,6 +1220,12 @@ export function own(self, name, c) {
         // stands, exactly as it would have been displaced had it come first.
         c.dispose();
         return;
+    }
+    else if (prior !== undefined && prior.fillsContent && !c.yielding) {
+        // A stretch fills only a size left to the content: a child that states its
+        // size keeps it, whether it stated it before the layout installed or after
+        prior.dispose();
+        delete owners[name];
     }
     else if (prior !== undefined) {
         throw new DeclareError(prior.arrangedBy !== null

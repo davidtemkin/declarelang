@@ -16,7 +16,7 @@
 // the override precedence stack (below) and the child subtree (buildChildren).
 import { Node } from "./node.js";
 import { View } from "./view.js";
-import { Constraint } from "./reactive.js";
+import { Constraint, afterSettle } from "./reactive.js";
 import { defineAttributes, disown, disposeBindings, own, ownerOf, setBound, slotCellOf } from "./attributes.js";
 import { DeclareError } from "./errors.js";
 import { declareName } from "./declare-name.js";
@@ -35,6 +35,23 @@ function driveTop(view, slot, s) {
     disown(view, slot);
     own(view, slot, s.topK);
     s.topK.run();
+}
+/** A size a state takes back is the content's again — the size `align =
+ *  stretch` fills. A layout that already claims it fills it as it is freed; one
+ *  that decided at its install that the size was not its to fill (a computed
+ *  axis flipped while the state still held it) installs again, once the settle
+ *  that freed the size is over and nothing has taken it. */
+function relayout(view, slot) {
+    if (slot !== "width" && slot !== "height")
+        return;
+    const lay = view.parent?.layout;
+    if (lay == null || typeof lay.rearm !== "function")
+        return;
+    afterSettle(() => {
+        const o = ownerOf(view, slot);
+        if (o === null || o.isAutoExtent)
+            lay.rearm();
+    });
 }
 function pushOverride(view, slot, priority, make) {
     const map = stacksFor(view);
@@ -79,6 +96,7 @@ function popOverride(view, slot, priority) {
     s.entries.splice(i, 1);
     if (!wasTop)
         return; // a dormant lower override left — the live top is unchanged
+    relayout(view, slot);
     s.topK?.dispose();
     s.topK = null;
     if (s.entries.length > 0) {

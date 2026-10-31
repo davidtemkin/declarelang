@@ -113,7 +113,8 @@ read any other value).
 
 ## refuse()
 `refuse(problems)` lays problems on the form from anywhere: each `{ name, message }` lands
-on the counted member of that `name` as its `refused`, and the rest become `error`. A
+on the counted member of that `name` as its `refused`, and judges it so the message shows;
+the rest become `error`. A
 refusal reaches it from `source` by itself; a service that answers success with errors in
 the body (GraphQL does) calls it from the source's `onLoad`.
 
@@ -128,9 +129,9 @@ a service's own shape, its codes to the program's sentences, or another language
 ## refusedWith()
 `refusedWith(body)` is the program's own reaction when the service refuses, given the body:
 undo a reservation the refusal names, empty a field the service will not take again. The
-order is fixed: the refusal is laid on the members first (each named field's `refused`, the
-rest in `error`), then `refusedWith` runs, then `showProblems()` — so what it changes is
-what the person is then shown. An override may name the body's shape with a schema of its
+order is fixed: `refusedWith` runs first, then the refusal is laid on the members as they
+now are (each named field's `refused`, the rest in `error`), then `showProblems()` — so a
+field emptied here still says why. An override may name the body's shape with a schema of its
 own — `refusedWith(body: Refusal)` — and read its fields with no cast.
 
 ## failedMessage
@@ -176,6 +177,9 @@ a success resets them; for a form with no `source`, `pending` turning false afte
 
 ## _landed()
 **Internal.** Decides whether a send of the program's own went well.
+
+## _refused()
+**Internal.** A send was refused: the program's reaction, then the refusal laid, then shown.
 
 ## _succeeded()
 **Internal.** A send went well: the fields are judged afresh.
@@ -310,7 +314,7 @@ class Form [
         const rest: string[] = []
         for (const p of list) {
             const c = p.name == "" ? null : _members.find((m) => m.name == p.name && this._counts(m))
-            if (c != null && p.message != "") c.refuse(p.message)
+            if (c != null && p.message != "") { c.refuse(p.message); c.judged = true }
             else if (p.message != "") rest.push(p.message)
             }
         error = rest.join(" ")
@@ -356,12 +360,12 @@ class Form [
             }
         if (_watch.out || !_sending) return
         _sending = false
-        if ((source as any).failed) {
-            const body = (source as any).errorBody ?? null
-            refuse(refusal(body))
-            refusedWith(body)
-            afterSettle(() => this.showProblems())
-            }
+        if ((source as any).failed) _refused((source as any).errorBody ?? null)
         else _succeeded()
+        },
+    _refused(body: any) {
+        refusedWith(body)
+        // laid once what refusedWith changed has settled into the fields
+        afterSettle(() => { this.refuse(this.refusal(body)); afterSettle(() => this.showProblems()) })
         }
     ]

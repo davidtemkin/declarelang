@@ -64,7 +64,7 @@ applied to structure, space, data, style, and time.
    `createView`; the tree is simply not where either happens.) (§7)
 5. **There is no CSS, and no DOM to program.** No selectors, cascade, specificity, media queries, z-index,
    flexbox, or grid. Style is attributes, stacking is declaration order, and responsiveness is
-   constraints on `app.width`. (§6, §9)
+   constraints on `app.width`, with a configuration that changes as a `State`. (§4, §6, §9)
 6. **Events do not bubble.** A handler fires on the node that declares it, and a child reports
    to its owner by calling a method. (§8)
 7. **Nothing waits.** A program never polls: readiness is a value to constrain on, completion
@@ -308,13 +308,18 @@ instance, and keep `parent` for when you mean *whatever encloses me*.
 
 ### Layout is an attribute
 
-There is no `<Stack>`, no `<Row>`, no flexbox, and no grid. A view positions its children
-absolutely by `x`/`y` until you set a `layout:` member — and because that member is an ordinary
-reactive attribute, it can be swapped, derived, or animated. **A layout places its children, and what it
-places a child does not declare**: a row places `x`, `align` adds `y`, a `ResponsiveLayout` places
-both; a child that declares one anyway is refused at its line, in any spelling. A child asks the
-layout for a size by stating a fact — `flexes`, `shrinks`, a `minWidth`/`maxWidth` range — and
-`align = stretch` makes what its content would size fill the view across.
+**Each of a view's `x`, `y`, `width` and `height` has one decider: its content, the view itself,
+or its parent's layout.** A layout is an object, not a mode: a library class (`SimpleLayout`,
+`WrappingLayout`, `ResponsiveLayout`) or a class of your own with one method, set as the view's
+`layout:` member and swapped like any member. A child never states what its parent's layout
+decides. It tells the layout facts about itself — `flexes`, `shrinks`, a `minWidth`/`maxWidth`
+range — and the layout, seeing every child, places them all and sizes the ones that ask.
+
+**A size left unset is the content's, inside a layout too.** Unlike flexbox, nothing stretches
+unless the layout says `align = stretch`. A size travels one way: a view sized by its children
+can't also size them, which would be circular, so children fill such a view by `align = stretch`,
+as wide as the widest. A constraint always decides, so a size that holds only sometimes is a
+`State`.
 
 ```declare-fragment
 layout: SimpleLayout   [ axis = y, spacing = 10 ],
@@ -492,8 +497,9 @@ A view's size on each axis is one of three things: **unset** takes it from its c
 whatever it computes. A child sized *from* its parent does not count toward the parent's content
 size on that axis, however it is written.
 
-A view has no `minHeight`, `maxHeight`, or `overflow` attributes. Two read-only intrinsics,
-`contentWidth` and `contentHeight`, expose what the content wants, so any clamp is arithmetic.
+A view has no `overflow` attribute. `minWidth`, `maxWidth` and the heights bound what a layout
+gives a child; outside a layout, two read-only intrinsics, `contentWidth` and `contentHeight`,
+expose what the content wants, so any clamp is arithmetic.
 
 ```declare-fragment
 height = { Math.min(contentHeight, 480) },    // grow to a cap, then stop

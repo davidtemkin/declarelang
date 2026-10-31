@@ -1,0 +1,15 @@
+A request that's separate from the build — please don't change anything. Now that you've built {App} in {Platform}, write a candid account of how the build went. Please cover:
+
+(a) Choices — the libraries and structure you chose, and why; what you looked up during the build, and why.
+
+(b) The first time it ran — what was wrong when you first saw it running, and how you found each problem.
+
+(c) Every error and surprise — each build or type error, each runtime error, and each result that wasn't what you wrote it to do. For each: what you wrote, what happened, what you changed, and whether the cause was your code, the brief, a library, or the tooling. Say "unsure" where you are.
+
+(d) Verifying it — how you checked your work, what each check caught, and what you left unchecked.
+
+(e) What was hard — the parts of the brief that took the most effort, and why. For each, say whether it was one obstacle or a pattern, roughly what it cost you, and what you would need to have written it right the first time.
+
+(f) Confidence — how sure you are that the app does what the brief asks, part by part, and where you would expect a tester to find problems.
+
+Be specific — name files, libraries, errors and moments from this build — and say plainly where your judgement is uncertain.

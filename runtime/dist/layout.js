@@ -833,8 +833,10 @@ export class Layout extends Node {
                 // a share of the room is cut from the parent's extent, so it stays out
                 // of the parent's content size; a stretch comes from the children's own
                 // sizes, so it counts: the row is as tall as its tallest child
-                if (c.stretch)
+                if (c.stretch) {
                     this.stretching.add(k);
+                    k.fillsContent = true;
+                }
                 else
                     markPercent(k);
                 k.arrangedBy = arranger;

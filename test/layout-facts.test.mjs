@@ -238,6 +238,27 @@ await test("the library's rows give way: a Disclosure's long label stops before 
   assert.equal(g["app.gg.rail"][0], 96);
 });
 
+await test("under align = stretch a child that states its size keeps it, a constant or a constraint alike", () => {
+  const g = layOut("stretch-stated", `App [ width = 600, height = 300, wide: boolean = false,
+    col: View [ width = 400, layout: SimpleLayout [ axis = y, align = stretch ],
+        constant: View [ width = 300, height = 10 ],
+        computed: View [ width = { app.wide ? 300 : 200 }, height = 10 ],
+        content: View [ height = 10 ] ] ]`);
+  assert.deepEqual([g["app.col.constant"][2], g["app.col.computed"][2], g["app.col.content"][2]], [300, 200, 400]);
+});
+
+await test("a size a state gives back is stretched again, under a computed axis too (the state held it when the axis flipped)", () => {
+  const g = layOut("state-axis", `App [ narrow: boolean = { width < 600 },
+    layout: SimpleLayout [ axis = y, align = stretch ],
+    body: View [ flexes = true,
+        layout: SimpleLayout [ axis = { app.narrow ? "y" : "x" }, align = stretch ],
+        list: View [ flexes = true ],
+        side: View [ beside: State [ applied = { !app.narrow }, width = 240 ], under: State [ applied = { app.narrow }, height = 120 ],
+            Text [ text = "side" ] ] ] ]`);
+  assert.equal(g["app.body.side"][2], 240, "wide: the state's width");
+  assert.equal(g["app.body.side"][3], g["app.body"][3], "and the row's height, stretched — not the text's");
+});
+
 await test("a range beside a size the view states itself is said to do nothing — unless its class reads the range (Window's resize)", async () => {
   const b = await compileProgram(`App [ width = 600, height = 400,
     a: View [ width = 200, maxWidth = 100, height = 20 ],

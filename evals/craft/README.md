@@ -70,11 +70,30 @@ source. When the agent exits, the job stops and the run's report begins.
 
 A stream quiet for ten minutes is a stall worth a look.
 
+## The recording
+
+`launch.sh` also starts `record.sh`, which mirrors the work tree every 2 s while the build
+runs and commits it to `logs/files.git` when anything changed — the Declare download left
+out, the agent's own files in it kept — outside the agent's sight. The commit dates set
+beside the stream's timestamps give the app as it stood at any moment: at the first
+successful compile, at its first boot, before and after each fix.
+
 ## Scoring
 
 The app is scored from the main tree — `verify` against the file in the run directory,
 never an edit inside it — and the report, the app, its assert script and screenshots are
-filed under `evals/reports/<date>-<app>-run<N>/`.
+filed under `evals/reports/<date>-<app>-run<N>/`. An app with a hidden drive is scored twice:
+as delivered, and as it stood at its first boot (the recording's snapshot at that minute),
+which says how correct the first attempt was before the agent's own checking.
+
+**Every refusal and every wrong-looking result is audited.** For each compile or boot
+refusal, each layout finding, and each size or behaviour the agent changed after seeing it:
+was the agent's code wrong, or the platform? Write the case down as the smallest program
+that shows it and ask the runtime. A refusal of correct code, or a correct program laid out
+wrong, is a platform bug, and it is filed as one — never counted as the agent's learning
+cost. An agent in a build takes a refusal that names a fix as its own mistake and complies;
+only the audit finds the bug underneath (the stretch and `State` bugs of 2026-10-31 were
+refusals and wrong sizes that every earlier run had read that way).
 
 ## The report
 
@@ -107,9 +126,11 @@ A Declare run's report has, in order:
      the distribution that found nothing.
    Each miss without a useful answer, and each silent miss, is a candidate for the
    instinct tables or a concept synonym.
-5. **The agent's account, verbatim.** Asked after the build by resuming the finished session
-   with read-only tools, with the standard questions (the prompt is kept beside the logs as
-   `impressions.txt`), and with auto-memory off as the build had it
+5. **The agent's account, verbatim, in the report itself** — pasted whole, not filed beside
+   it or summarised in its place (a summary in section 2 may point into it). Asked after the build by resuming the finished session
+   with read-only tools, with the standard questions — `account-declare.txt` for a Declare
+   run, `account-stack.txt` for a comparison run, `{App}` and `{Platform}` filled in, kept
+   beside the logs as `impressions.txt` — and with auto-memory off as the build had it
    (`CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 claude -p --resume <session> --tools Read,Glob,Grep … < impressions.txt`
    — the questions on standard input: `--tools` takes a list, and a prompt written after it is
    read as one more tool, so the resume runs with no prompt and fails).
@@ -130,3 +151,15 @@ stays up for scoring; stop it by its pid once the report is filed.
 A run with a second phase (a follow-up prompt resuming the same session) gets sections 1, 2,
 4 and 5 again for that phase, appended to the first part's report. The idiom review (3) is
 written once, upon completion of all phases, over the program as it finally stands.
+
+## Comprehension probes
+
+A run builds a whole app, and its failures mix what the agent misunderstood with what the
+platform got wrong. A **probe** separates them: fresh agents given one document, focused
+questions to predict, and small generic programs to write with no way to run them, scored
+against an answer key — the geometry each program must have, not only whether it compiles.
+Two arms compare two texts of the same document. `evals/probes/layout/` is the first
+(`run.sh`, `task.md`, `KEY.md`); its first run (2026-10-31) found two layout bugs no app run
+had isolated. A probe's tasks stay generic — never an eval brief's specifics — and a probe
+is run whenever the text it tests, or the part of the runtime it exercises, changes.
+

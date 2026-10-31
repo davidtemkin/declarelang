@@ -780,6 +780,11 @@ export class Constraint {
      *  layout.ts. Message-only: the one-owner guard and the setter read it so a
      *  conflict names the LAYOUT and the resolution, not a bare constraint. */
     arrangedBy = null;
+    /** A layout's `align = stretch` claim: it fills a size the child left to its
+     *  content, so a size the author states — a constraint bound after the
+     *  layout installed, or a handler's write — takes the slot from it, as a
+     *  size stated before the install is never claimed (attributes.ts). */
+    fillsContent = false;
     constructor(
     /** For error messages: "View.width", "Text.draw", … */
     label, compute, apply, phase = 0, 

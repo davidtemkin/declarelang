@@ -842,7 +842,7 @@ export abstract class Layout extends Node implements LayoutStrategy {
         // a share of the room is cut from the parent's extent, so it stays out
         // of the parent's content size; a stretch comes from the children's own
         // sizes, so it counts: the row is as tall as its tallest child
-        if (c.stretch) this.stretching.add(k);
+        if (c.stretch) { this.stretching.add(k); k.fillsContent = true; }
         else markPercent(k);
         k.arrangedBy = arranger;
         this.$claim(c.child, c.slot, k);

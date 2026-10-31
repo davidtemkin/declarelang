@@ -74,6 +74,18 @@ await test("a TextInput: validate is reactive over what it reads", async () => {
   assert.equal(app.zip.error, "", "the rule judged again when the country changed");
 });
 
+await test("a refusal on a field refusedWith empties is still said: the program's reaction runs first, then the refusal is laid", async () => {
+  const app = await boot(`App [ width = 400, height = 300,
+    code: string = "123",
+    f: Form [
+        refusedWith(body: any) { app.code = ""; this.c.judged = false },
+        c: TextInput [ name = "cvc", text = { app.code }, onInput(v: string) { app.code = v } ] ] ]`);
+  app.f.c.judged = true; settle();
+  app.f._refused({ field: "cvc", message: "The security code doesn't match this card." }); settle();
+  assert.equal(app.f.c.text, "", "emptied by the program's reaction");
+  assert.equal(app.f.c.error, "The security code doesn't match this card.", "and still says why");
+});
+
 await test("a TextInput: a refusal counts while the text is the one refused", async () => {
   const app = await boot(`App [ width = 300, height = 100,
     t: TextInput [ width = 200, text = "taken@x.io", judged = true ] ]`);

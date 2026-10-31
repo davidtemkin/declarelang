@@ -1,0 +1,19 @@
+A request that's separate from the build — please don't change anything. Now that you've built {App}, write a candid account of what it was like to build it in Declare, for the people who make Declare. Please cover:
+
+(a) Getting up to speed — what you read, in order; what you skipped or stopped reading, and why; what taught you the most; what was missing or misleading.
+
+(b) Expressing what you wanted — where the language fit your intent, and where you had to work around it.
+
+(c) The first time it ran — what was wrong when you first saw it running, and how you found each problem.
+
+(d) Every refusal and surprise — each compile or boot error, each layout finding, and each result that wasn't what you wrote it to do. For each: what you wrote, what the platform said or did, what you changed, and your judgement now. Was your code wrong, were the docs unclear, or does the platform look wrong? Say "unsure" where you are.
+
+(e) Verifying it — how you checked your work, what each check caught, and how well the tools served you.
+
+(f) Confidence — how sure you are that the app does what the brief asks, part by part, and where you would expect a tester to find problems.
+
+Then: surprises; what was good and what was bad; how it differs from the frameworks and languages you know, and what it reminded you of; where you'd most want to see improvement; and what you would use it for, if you had the option.
+
+When you call something the hardest, the main problem or the sharpest edge, say whether it was one obstacle or a pattern, roughly what it cost you, and what you would need to have written it right the first time.
+
+Be specific — name documents, features, diagnostics and moments from this build — and say plainly where your judgement is uncertain.
