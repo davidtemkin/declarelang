@@ -99,6 +99,14 @@ App [ width = 400, height = 300,
   assert.deepEqual(b.unbuilt, ["Later"], "a class the boot never built is named");
 });
 
+await test("the boot feeds a sample to a source that reads, never to one that writes", () => {
+  const r = verify("feeds.declare", `schema Thing [ id: string, name: string ]
+App [ width = 300, height = 200,
+    things: DataSource [ url = "http://127.0.0.1:9/things", schema = Thing[], autoFetch = false ],
+    save: DataSource [ url = "http://127.0.0.1:9/things", method = "POST", schema = Thing, autoFetch = false ] ]`);
+  assert.deepEqual(r.boot.samples.map((s) => s.source), ["app.things"], JSON.stringify(r.boot.samples));
+});
+
 await test("a finger's target is judged at its size on screen, and not at all when it lets presses through or is clipped away", () => {
   const r = verify("targets.declare", `App [ width = 400, height = 400,
     passes: Button [ label = "P", width = 30, height = 30, pointerEvents = "none" ],

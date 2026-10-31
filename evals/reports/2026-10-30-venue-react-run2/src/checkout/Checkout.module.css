@@ -1,0 +1,340 @@
+.page {
+  width: min(100% - 2 * var(--gutter), 1080px);
+  margin-inline: auto;
+  padding-bottom: 64px;
+}
+
+.head { padding: 20px 0 8px; }
+
+.title {
+  font-family: var(--font-serif);
+  font-size: clamp(2rem, 5vw, 2.75rem);
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+.sub { color: var(--ink-2); margin-top: 4px; }
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 72px;
+  align-items: start;
+  margin-top: 24px;
+}
+
+.fields {
+  display: grid;
+  gap: 28px;
+  max-width: 520px;
+}
+
+.signInPrompt {
+  color: var(--ink-2);
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.group { display: grid; gap: 22px; }
+
+.groupTitle {
+  font-size: 0.8125rem;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.groupTitle:focus { outline: none; }
+
+.required { color: var(--ink-2); font-size: 0.875rem; margin-top: -8px; }
+
+/* Fields: a label, a line to write on, and room for a word of help. */
+.field { display: grid; gap: 6px; align-content: start; }
+
+.label { font-weight: 600; font-size: 0.9375rem; }
+.optional { font-weight: 400; color: var(--ink-2); }
+.hint { font-size: 0.8125rem; color: var(--ink-2); margin-top: -3px; }
+
+.control { position: relative; }
+
+.input {
+  width: 100%;
+  min-height: 50px;
+  padding: 12px 14px;
+  font: inherit;
+  font-size: 1.0625rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+  background: var(--field);
+  border: 1px solid rgb(28 25 21 / 0.22);
+  border-radius: var(--radius);
+  transition: border-color 120ms, box-shadow 120ms;
+}
+
+.input:hover { border-color: rgb(28 25 21 / 0.4); }
+
+.input:focus {
+  outline: none;
+  border-color: var(--ink);
+  box-shadow: 0 0 0 3px rgb(28 25 21 / 0.12);
+}
+
+.select {
+  appearance: none;
+  padding-right: 40px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M4 6l4 4 4-4' fill='none' stroke='%231c1915' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px;
+}
+
+.field[data-invalid] .input {
+  border-color: var(--error);
+  box-shadow: inset 3px 0 0 var(--error);
+}
+
+.field[data-invalid] .input:focus { box-shadow: inset 3px 0 0 var(--error), 0 0 0 3px rgb(166 31 31 / 0.15); }
+
+.error {
+  display: flex;
+  gap: 7px;
+  align-items: flex-start;
+  color: var(--error);
+  font-size: 0.875rem;
+  font-weight: 500;
+  animation: arrive 220ms ease-out;
+}
+
+.error svg, .paymentError svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+@keyframes arrive {
+  from { opacity: 0; translate: 0 -4px; }
+}
+
+.paymentError {
+  display: flex;
+  gap: 10px;
+  padding: 14px 16px;
+  color: var(--error);
+  background: rgb(166 31 31 / 0.06);
+  border-left: 3px solid var(--error);
+  border-radius: 0 var(--radius) var(--radius) 0;
+  font-weight: 550;
+  animation: arrive 220ms ease-out;
+}
+
+.paymentError:focus-visible { outline: 2.5px solid var(--focus); outline-offset: 2px; }
+
+.pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.short { max-width: 200px; }
+
+/* The card's kind, recognised from its first digits. */
+.kind {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  translate: 0 -50%;
+  pointer-events: none;
+}
+
+.badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 44px;
+  height: 28px;
+  padding: 0 6px;
+  border-radius: 5px;
+  font-size: 0.6875rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  font-style: italic;
+  color: #fff;
+  background: var(--ink);
+  animation: arrive 200ms ease-out;
+}
+
+.badge[data-brand="visa"] { background: #1a1f71; }
+.badge[data-brand="mastercard"] { background: #252525; color: #f7a21b; }
+.badge[data-brand="american express"], .badge[data-brand="amex"] { background: #1f72cd; }
+.badge[data-brand="discover"] { background: #3a3a3a; color: #f58220; }
+
+.methods {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+  display: grid;
+  gap: 0;
+  border-top: 1px solid var(--rule);
+}
+
+.method {
+  display: grid;
+  grid-template-columns: 22px 48px 1fr;
+  align-items: center;
+  gap: 14px;
+  min-height: 60px;
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--rule);
+  cursor: pointer;
+}
+
+.method[data-expired] { cursor: not-allowed; color: var(--ink-3); }
+.method[data-expired] .badge { opacity: 0.4; }
+.method[data-expired] .methodExpiry { color: var(--error); font-weight: 600; }
+
+.radio {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--ink);
+  margin: 0;
+}
+
+.methodText { display: grid; line-height: 1.3; }
+.methodName { font-weight: 600; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dots { letter-spacing: 0.1em; color: var(--ink-3); margin-right: 2px; }
+.methodExpiry { font-size: 0.875rem; color: var(--ink-2); font-variant-numeric: tabular-nums; }
+
+.newCardMark {
+  width: 44px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border: 1.5px dashed rgb(28 25 21 / 0.35);
+  border-radius: 5px;
+  color: var(--ink-2);
+  font-weight: 500;
+}
+
+.savedPay { display: grid; gap: 14px; }
+.sendTo { color: var(--ink-2); font-size: 0.9375rem; }
+
+.address {
+  border: 0;
+  padding: 0;
+  min-width: 0;
+  display: grid;
+  gap: 22px;
+  padding-top: 8px;
+}
+
+.address legend { padding: 0; margin-bottom: 22px; }
+
+/* The order: what is being bought, and what it comes to. */
+.summary {
+  position: sticky;
+  top: 20px;
+  display: grid;
+  gap: 24px;
+  padding: 28px;
+  background: var(--card);
+  border-radius: var(--radius-lg);
+}
+
+.seats { display: grid; gap: 14px; }
+.lines { list-style: none; }
+
+.line {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  column-gap: 16px;
+  row-gap: 2px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--rule);
+}
+
+.lineSeat { font-weight: 550; }
+.fee { color: var(--ink-2); font-size: 0.875rem; }
+
+.payBar { display: grid; gap: 14px; }
+
+.total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+
+.payButton { width: 100%; min-height: 54px; font-size: 1.0625rem; }
+
+.payStatus { font-size: 0.875rem; color: var(--ink-2); min-height: 0; }
+.payStatus:empty { display: none; }
+
+.reassure {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+}
+
+.reassure svg {
+  width: 14px;
+  height: 14px;
+  flex: none;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+}
+
+@media (max-width: 859px) {
+  .layout {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 28px;
+    margin-top: 16px;
+  }
+
+  .fields { max-width: none; width: 100%; }
+
+  /* On a phone the seats come first, and the total and Pay ride under the thumb. */
+  .summary { display: contents; }
+
+  .seats {
+    order: -1;
+    padding: 18px 20px;
+    background: var(--card);
+    border-radius: var(--radius-lg);
+  }
+
+  .payBar {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    margin-inline: calc(-1 * var(--gutter));
+    padding: 12px var(--gutter) calc(12px + env(safe-area-inset-bottom));
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    column-gap: 16px;
+    row-gap: 6px;
+    background: var(--paper);
+    box-shadow: 0 -1px 0 var(--rule), 0 -12px 24px rgb(28 25 21 / 0.06);
+  }
+
+  .total { flex-direction: column; gap: 0; font-size: 1.125rem; }
+  .total > span:first-child { font-size: 0.75rem; font-weight: 600; color: var(--ink-2); text-transform: uppercase; letter-spacing: 0.1em; }
+  .payStatus, .reassure { grid-column: 1 / -1; }
+  .reassure { display: none; }
+
+  .page { padding-bottom: 0; }
+}
+
+@media (max-width: 400px) {
+  .pair { gap: 12px; }
+}

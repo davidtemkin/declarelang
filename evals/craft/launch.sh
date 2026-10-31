@@ -117,4 +117,6 @@ CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 nohup claude -p --model "$MODEL" \
 echo "AGENT_PID=$!" >> "$LOGS/started.txt"
 # ends the run cleanly once the result is in: what the agent left running, by pid
 nohup "$HERE/finish.sh" "$RUN" > "$LOGS/finish.log" 2>&1 &
+# the files as they were at each moment, beside the stream (record.sh)
+nohup "$HERE/record.sh" "$RUN" > "$LOGS/record.log" 2>&1 &
 cat "$LOGS/started.txt"

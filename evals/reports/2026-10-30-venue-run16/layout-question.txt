@@ -1,0 +1,15 @@
+Another request separate from the build — please don't change anything; read whatever you like.
+
+In your account you wrote that responsive layout and axis switching is "the steepest part of the language". The people who make Declare want to understand exactly what that was, because a remark like that can mean one particular roadblock or something deeper in the model, and the two call for very different responses.
+
+Please explain it in detail, from your memory of the build and from the files as they stand:
+
+1. What you wanted, in plain terms, for each place it came up (the hall page, the checkout, anything else): the arrangement on a desk, the arrangement on a phone, and what had to fill, scroll or stay fixed.
+2. What you wrote first, and why — what model of Declare's layout you were working from at that moment, and where it came from (which doc, example or habit).
+3. Each attempt in order: what you wrote, what the compiler, the boot check or the screen told you (quote the messages as closely as you can), what you concluded, and what you changed.
+4. What you ended with, and whether you believe it is the intended idiom. Quote the final code.
+5. Your judgement: was this one roadblock, several unrelated ones, or a gap in the model itself? If it is a gap, say what is missing as precisely as you can — a capability, a rule you could not find, a rule that surprised you, or a rule that exists but is hard to apply. If you think the docs did cover it, say where, and why you did not find or did not trust it.
+6. How it compared with what you expected going in, and with how you would have done the same thing in the platforms you know best.
+7. What, specifically, would have let you write it right the first time.
+
+Please be concrete and precise rather than general, and say where you are unsure.

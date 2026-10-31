@@ -1,0 +1,313 @@
+/*
+# The Venue: the hall
+
+The seat map of one performance, and the room it is drawn as.
+
+- **`House`** is the seat map as it comes from the service, with what is true
+  of it whoever is looking: where each seat sits on its row's arc, what a seat
+  costs, and the one write it takes — a seat someone else has bought.
+- **`Seat`** is one seat: a control, named the way a person would say it,
+  drawn as one of three shapes.
+- **`HallView`** is the room: the stage, four sections on their bands of
+  floor, every seat. At a desk it fits the room to the space. On a phone a
+  tap carries you in close, where every seat is a thumb wide; a drag looks
+  around, a pinch zooms, and *Whole hall* steps back out.
+*/
+
+// ── The seat map ────────────────────────────────────────────────────────────
+
+class House extends DataSource [ schema = SeatMap, credentials = include, autoFetch = true,
+
+    // The drawing's units: seats 16 apart along a row, rows 18 apart, a
+    // wider aisle between sections. Rows are arcs about a point behind the
+    // stage, so every row faces it.
+
+    pitch: number = 16,
+    rowGap: number = 18,
+    secGap: number = 30,
+    curve: number = 460,
+    front: number = 96,
+
+    plan: Dataset [ schema = Plan, contents = { classroot.layout() } ],
+
+    sections() -> SectionRec[] { return this.value?.sections ?? [] },
+    section(key: string) -> SectionRec? { return this.sections().find((s) => s.key == key) ?? null },
+
+    layout() -> Plan {
+        const seats: PlanSeat[] = []
+        const bands: Band[] = []
+        let r = curve + front
+        let line = 0
+        let maxX = 0
+        this.sections().forEach((s) => {
+            const r0 = r
+            let half = 0
+            s.rows.forEach((row) => {
+                const n = row.seats.length
+                row.seats.forEach((seat, i) => {
+                    const a = (i - (n - 1) / 2) * pitch / r
+                    half = Math.max(half, Math.abs(a))
+                    maxX = Math.max(maxX, Math.abs(r * Math.sin(a)))
+                    seats.push(({ id: seat.id, seat: seat, x: r * Math.sin(a), y: r * Math.cos(a) - curve,
+                        label: s.name + ", row " + row.name + ", seat " + seat.number, line: line }))
+                    })
+                r = r + rowGap
+                line = line + 1
+                })
+            bands.push(({ key: s.key, name: s.name, priceCents: s.priceCents, r0: r0, r1: r - rowGap, half: half }))
+            r = r + secGap
+            })
+        const cx = maxX + 28
+        seats.forEach((p) => { p.x = p.x + cx })
+        return ({ seats: seats, bands: bands, width: cx * 2, height: r - secGap - rowGap - curve + 26, cx: cx, cy: -curve })
+        },
+
+    allSeats() -> SeatRec[] { return this.sections().flatMap((s) => s.rows.flatMap((r) => r.seats)) },
+    freeCount: number = { classroot.allSeats().filter((s) => s.status == "available").length },
+    totalCount: number = { classroot.allSeats().length },
+    isFree(id: string) -> boolean { return this.allSeats().some((s) => s.id == id && s.status == "available") },
+
+    // What a chosen seat is, for the summary and the checkout.
+
+    describe(id: string) -> Chosen {
+        const s = this.section(seatSection(id))
+        return ({ id: id, section: s?.name ?? "", row: seatRow(id), number: seatNumber(id),
+            priceCents: s?.priceCents ?? 0, feeCents: s?.feeCents ?? 0 })
+        },
+
+    // Someone else bought it.
+
+    markSold(id: string) {
+        this.sections().forEach((s, si) => {
+            s.rows.forEach((row, ri) => {
+                const k = row.seats.findIndex((x) => x.id == id)
+                if (k >= 0) this.set(["sections", si, "rows", ri, "seats", k, "status"], "sold")
+                })
+            })
+        }
+    ]
+
+
+// ── A seat ──────────────────────────────────────────────────────────────────
+//
+// A seat is a control in a toggle's role: its name is where it is, its hint
+// what it costs, pressed when it is yours, disabled when it is gone. The hall
+// is one Tab stop; Left and Right walk the row, Up and Down cross to the row
+// in front or behind, to the seat nearest.
+
+class Seat extends Control [ width = 16, height = 16,
+    seatId: string = { :id ?? "" },
+    gone: boolean = { :seat.status != "available" },
+    mine: boolean = { app.chosen.includes(classroot.seatId) },
+    price: number = { app.house.section(seatSection(classroot.seatId))?.priceCents ?? 0 },
+    x = { :x - 8 },
+    y = { :y - 8 },
+    disabled = { classroot.gone },
+    pointerEvents = { classroot.gone ? "none" : "auto" },     // a tap on a sold seat lands on the room
+    accessibilityRole = toggle,
+    accessibilityLabel = :label,
+    accessibilityPressed = { classroot.mine },
+    accessibilityHint = { classroot.gone ? "Sold" : money(classroot.price) + (classroot.mine ? ", in your selection" : ", available") },
+    tooltipLabel = { app.phone ? "" : (:label ?? "") + " · " + (classroot.gone ? "Sold" : money(classroot.price)) },
+
+    // A finger on a phone, from far away, can't be sure which seat it hit:
+    // the tap carries the room in close about it instead. A mouse, the
+    // keyboard and a screen reader name one seat exactly, so they choose it.
+
+    press() {
+        const far = app.hallView != null && !app.hallView.zoomed
+        if (app.phone && far && app.lastPointerType == "touch") app.hallView?.look(:x ?? 0, :y ?? 0, app.hallView.closeZoom)
+        else app.toggleSeat(classroot.seatId, :x ?? 0, :y ?? 0)
+        },
+    onKeyDown(e: KeyEvent) {
+        if (e.key == "ArrowUp" || e.key == "ArrowDown") app.hallView?.stepRow(this, e.key == "ArrowUp" ? -1 : 1)
+        else super.onKeyDown(e)
+        },
+    mark: SeatMark [ state = { classroot.mine ? "mine" : classroot.gone ? "gone" : "free" } ]
+    ]
+
+
+// ── The room ────────────────────────────────────────────────────────────────
+
+class HallView [ clip = true, cornerRadius = { app.phone ? 0 : 18 },
+    fill = { provided("theme").house },
+
+    planW: number = { app.house.plan.value?.width ?? 600 },
+    planH: number = { app.house.plan.value?.height ?? 600 },
+    inset: number = { app.phone ? 10 : 28 },
+
+    // At rest the room fits the space; zoomed (a phone, after a tap) it is
+    // close enough that a seat is ~42px across.
+
+    fitZoom: number = { Math.min((this.width - inset * 2) / planW, (this.height - inset * 2) / planH) },
+    closeZoom: number = { Math.max(2.8, this.fitZoom * 1.8) },
+    fitX: number = { (this.width - planW * this.fitZoom) / 2 },
+    fitY: number = { (this.height - planH * this.fitZoom) / 2 },
+
+    zoomed: boolean = false,
+    zoom: number = 1,
+    panX: number = 0,
+    panY: number = 0,
+    zoomTo: number = 1,
+    panXTo: number = 0,
+    panYTo: number = 0,
+    Spring [ attribute = zoom, to = { classroot.zoomed ? classroot.zoomTo : classroot.fitZoom }, stiffness = 210, damping = 26 ],
+    Spring [ attribute = panX, to = { classroot.zoomed ? classroot.panXTo : classroot.fitX }, stiffness = 210, damping = 26 ],
+    Spring [ attribute = panY, to = { classroot.zoomed ? classroot.panYTo : classroot.fitY }, stiffness = 210, damping = 26 ],
+
+    // Keep the room on screen: a pan stops where the room's edge meets the
+    // window's (with a little give), and a room smaller than the window
+    // stays centred.
+
+    clampPan(v: number, size: number, room: number) -> number {
+        if (room <= size) return (size - room) / 2
+        return Math.min(inset, Math.max(size - room - inset, v))
+        },
+    look(px: number, py: number, z: number) {
+        zoomed = true
+        zoomTo = z
+        panXTo = clampPan(width / 2 - px * z, width, planW * z)
+        panYTo = clampPan(height / 2 - py * z, height, planH * z)
+        },
+
+    // A tap on the room, from far away: go in close about that point.
+
+    zoomAt(vx: number, vy: number) { look((vx - panX) / zoom, (vy - panY) / zoom, closeZoom) },
+    wholeHall() { zoomed = false },
+
+    // Under the hand the value and its target move together, so nothing lags.
+
+    hand(x: number, y: number, z: number) {
+        zoom = z; zoomTo = z
+        panX = clampPan(x, width, planW * z); panXTo = panX
+        panY = clampPan(y, height, planH * z); panYTo = panY
+        },
+
+    // The keyboard's Up and Down: the nearest open seat in the next row over.
+
+    stepRow(from: Seat, dir: number) {
+        const seats = app.house.plan.value?.seats ?? []
+        const me = seats.find((s) => s.id == from.seatId)
+        if (me == null) return
+        let best: PlanSeat | null = null
+        for (let line = me.line + dir; line >= 0 && best == null; line = line + dir) {
+            const row = seats.filter((s) => s.line == line && s.seat.status == "available")
+            if (seats.every((s) => s.line != line)) break
+            row.forEach((s) => { if (best == null || Math.abs(s.x - me.x) < Math.abs(best.x - me.x)) best = s })
+            }
+        if (best == null) return
+        const id = (best as PlanSeat).id
+        const target = this.room.plan.childViews.find((v) => (v as Seat).seatId == id)
+        if (target != null) Focus.focus(target)
+        },
+
+    // ── the room itself
+
+    room: View [ width = 100%, height = 100%,
+        grabX: number = 0,
+        grabY: number = 0,
+        grabZ: number = 1,
+        onPointerDown(e: PointerEvent) { grabX = classroot.panX; grabY = classroot.panY; grabZ = classroot.zoom },
+        onPointerMove(e: PointerEvent) {
+            if (classroot.zoomed) classroot.hand(grabX + e.deltaX, grabY + e.deltaY, classroot.zoom)
+            },
+        onPinchStart(e: PinchEvent) { grabX = classroot.panX; grabY = classroot.panY; grabZ = classroot.zoom; classroot.zoomed = true },
+        onPinch(e: PinchEvent) {
+            const z = Math.max(classroot.fitZoom, Math.min(4, grabZ * e.scale))
+            const px = (e.x - grabX) / grabZ
+            const py = (e.y - grabY) / grabZ
+            classroot.hand(e.x - px * z, e.y - py * z, z)
+            },
+        onPinchEnd(e: PinchEvent) { if (classroot.zoom <= classroot.fitZoom * 1.05) classroot.wholeHall() },
+
+        // From far away on a phone a tap between the seats goes in close too.
+
+        onClick(e: PointerEvent) { if (app.phone && !classroot.zoomed) classroot.zoomAt(e.x, e.y) },
+
+        plan: View [ datapath = { app.house.plan.value },
+            width = { classroot.planW }, height = { classroot.planH },
+            x = { classroot.panX }, y = { classroot.panY },
+            scale = { classroot.zoom }, pivotX = 0, pivotY = 0,
+            focusScope = stop,
+            accessibilityRole = group,
+            accessibilityLabel = "Seats in the Grand Hall",
+
+            floor: HallFloor [ width = 100%, height = 100% ],
+            Text [ datapath = :bands[], accessibilityHidden = true,
+                x = { (app.house.plan.value?.cx ?? 0) - this.width / 2 },
+                y = { (:r0 ?? 0) - app.house.curve - 31 },
+                fontSize = 9, fontWeight = semibold, letterSpacing = 1.4, numeralWidth = tabular,
+                textColor = { provided("theme").seatLabel },
+                text = { (:name ?? "").toUpperCase() + "  ·  " + money(:priceCents ?? 0) } ],
+            Seat [ datapath = :seats[] ],
+
+            // The moment of choosing: a ring that leaves the seat and fades.
+
+            ripple: View [ accessibilityHidden = true, pointerEvents = "none",
+                visible = { app.pulse < 1 && app.pulseOn },
+                width = { 16 + app.pulse * 26 }, height = { this.width }, cornerRadius = { this.width / 2 },
+                x = { app.pulseX - this.width / 2 }, y = { app.pulseY - this.width / 2 },
+                opacity = { 1 - app.pulse },
+                stroke = { stroke(2, provided("theme").accent) } ]
+            ]
+        ],
+
+    hint: View [ visible = { app.phone && !classroot.zoomed }, x = center, y = { parent.height - 46 },
+        height = 34, cornerRadius = 17, padding = [0, 14, 0, 14], pointerEvents = "none",
+        fill = #00000066, accessibilityHidden = true,
+        TextLabel [ fontSize = 14, fontWeight = medium, textColor = #F3ECE2, text = "Tap where you'd like to sit" ]
+        ],
+
+    back: Control [ visible = { classroot.zoomed }, x = 10, y = 10, height = 44, cornerRadius = 22, padding = [0, 14, 0, 12],
+        fill = #000000A0, accessibilityLabel = "Whole hall",
+        press() { classroot.wholeHall() },
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        View [ width = 14, height = 14, accessibilityHidden = true,
+            draw(d: DrawContext) {
+                d.strokeStyle = "#F3ECE2"; d.lineWidth = 1.6; d.lineCap = "round"
+                d.beginPath(); d.moveTo(1, 5); d.lineTo(1, 1); d.lineTo(5, 1)
+                d.moveTo(9, 1); d.lineTo(13, 1); d.lineTo(13, 5)
+                d.moveTo(13, 9); d.lineTo(13, 13); d.lineTo(9, 13)
+                d.moveTo(5, 13); d.lineTo(1, 13); d.lineTo(1, 9); d.stroke()
+                }
+            ],
+        TextLabel [ fontSize = 14, fontWeight = semibold, textColor = #F3ECE2, text = "Whole hall" ]
+        ]
+    ]
+
+
+// The floor: the stage the rows face, and each section's band, a shade
+// deeper the further it is from the stage.
+
+class HallFloor [ accessibilityHidden = true,
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const p = app.house.plan.value
+        if (p == null) return
+        const curve = app.house.curve
+        const gap = app.house.rowGap
+        const down = Math.PI / 2
+
+        // the stage: a curved apron facing the house
+        d.fillStyle = t.stageFill
+        d.beginPath()
+        d.arc(p.cx, p.cy, curve + 56, down - 0.19, down + 0.19)
+        d.arc(p.cx, p.cy, curve + 10, down + 0.24, down - 0.24, true)
+        d.closePath()
+        d.fill()
+        d.fillStyle = t.stageText
+        d.font = "600 10px -apple-system, system-ui, sans-serif"
+        d.textAlign = "center"
+        d.fillText("S T A G E", p.cx, 40)
+
+        p.bands.forEach((b, i) => {
+            d.fillStyle = t.bands[i % 4]
+            d.beginPath()
+            const h = b.half + 14 / b.r1
+            d.arc(p.cx, p.cy, b.r1 + gap / 2 + 3, down - h, down + h)
+            d.arc(p.cx, p.cy, b.r0 - gap / 2 - 3, down + h, down - h, true)
+            d.closePath()
+            d.fill()
+            })
+        }
+    ]

@@ -327,8 +327,11 @@ function feedSchemaSamples(app: Node, samples: { source: string; value: unknown 
   walk(app);
   let fed = 0;
   for (const ds of sources) {
-    const d = ds as unknown as { value: unknown; format: string; schema: unknown; onLoad?: () => void; name?: string };
+    const d = ds as unknown as { value: unknown; format: string; schema: unknown; method?: string | null; onLoad?: () => void; name?: string };
     if (d.value != null || d.format === "text") continue;
+    // a source that writes (POST, PUT, …) holds only the reply to what the
+    // program sends: nothing arrives at boot, so nothing is fed
+    if (d.method != null && d.method !== "" && d.method !== "GET") continue;
     const shape = d.schema as unknown;
     const value = Array.isArray(shape) ? sampleOf(shape as ShapeField[], 0)
       : shape !== null && typeof shape === "object" && (shape as { arrayRoot?: boolean }).arrayRoot === true && Array.isArray((shape as { fields?: unknown }).fields)

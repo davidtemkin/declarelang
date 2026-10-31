@@ -1,0 +1,138 @@
+/*
+# The Venue: the tickets
+
+What a successful payment comes back as: a confirmation, and one ticket per
+seat, shown one at a time at a size to hold up at the door. `venue.declare`
+includes this file.
+*/
+
+class Tickets [ width = 100%, flexes = true, scrolls = y,
+    padding = { app.wide ? [36, 24, 56, 24] : [18, 16, 40, 16] },
+    heading: Text = { classroot.col.heading },
+    page: number = 0,
+    count: number = { app.order?.tickets.length ?? 0 },
+    passes: Dataset [ schema = [ tickets[]: Ticket ], contents = { { tickets: app.order?.tickets ?? [] } } ],
+    col: View [ x = center, width = { Math.min(420, parent.contentBox("width")) },
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        heading: Text [ focusable = quiet, accessibilityRole = heading, accessibilityLevel = 1,
+            fontFamily = { app.serif }, fontSize = { app.wide ? 36 : 30 }, fontWeight = semibold, letterSpacing = -0.4,
+            text = "You're going." ],
+        Text [ fontSize = 16, fontWeight = semibold, text = { "Sent to " + (app.order?.email ?? "") } ],
+        Text [ width = 100%, wrap = true, fontSize = 14, textColor = { provided("theme").textMuted }, numeralWidth = tabular,
+            text = { "Confirmation " + (app.order?.code ?? "") + " · " + money(app.order?.totalCents ?? 0) + " paid with "
+                + brandName(app.order?.brand ?? "") + " ending " + (app.order?.last4 ?? "") } ],
+
+        deck: Carousel [ width = 100%, height = 492, datapath = { classroot.passes.value },
+            page = { classroot.page },
+            input(p: number) { classroot.page = p },
+            TicketCard [ datapath = :tickets[], index = { rowIndex }, of = { classroot.count } ]
+            ],
+
+        nav: View [ width = 100%, visible = { classroot.count > 1 },
+            layout: SimpleLayout [ axis = x, align = center ],
+            TextButton [ label = "Previous", glyph = "back", disabled = { classroot.page == 0 },
+                opacity = { this.disabled ? 0.35 : 1 }, accessibilityLabel = "Previous ticket",
+                press() { classroot.page = Math.max(0, classroot.page - 1) }
+                ],
+            Text [ flexes = true, textAlign = center, fontSize = 15, fontWeight = semibold, numeralWidth = tabular,
+                accessibilityLive = polite,
+                text = { "Ticket " + (classroot.page + 1) + " of " + classroot.count } ],
+            TextButton [ label = "Next", glyph = "next", disabled = { classroot.page >= classroot.count - 1 },
+                opacity = { this.disabled ? 0.35 : 1 }, accessibilityLabel = "Next ticket",
+                press() { classroot.page = Math.min(classroot.count - 1, classroot.page + 1) }
+                ]
+            ],
+        View [ width = 100%, padding = [18, 0, 0, 0],
+            Button [ x = center, label = "Book more seats",
+                onClick() { app.startAgain() }
+                ]
+            ]
+        ]
+    ]
+
+
+// One ticket. The performance and the seat at a size to read at arm's
+// length, when to arrive, and the code that is scanned at the door.
+
+class TicketCard [ cornerRadius = 18, clip = true,
+    index: number = 0,
+    of: number = 1,
+    perf: Performance? = { (app.production.value?.performances ?? []).find((p) => p.id == app.order?.performanceId) ?? null },
+    accessibilityRole = group,
+    accessibilityLabel = { "Ticket " + (classroot.index + 1) + " of " + classroot.of + ": " + (:section ?? "") + ", row " + (:row ?? "") + ", seat " + (:number ?? 0) },
+    fill = { provided("theme").surface },
+    stroke = { stroke(1, provided("theme").line) },
+    layout: SimpleLayout [ axis = y ],
+
+    head: View [ width = 100%, padding = [22, 24, 20, 24], fill = { provided("theme").house },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 2, textColor = { provided("theme").houseFaint },
+            text = { "ADMIT ONE · " + (classroot.index + 1) + " OF " + classroot.of } ],
+        Text [ width = 100%, wrap = true, fontFamily = { app.serif }, fontSize = 26, fontWeight = semibold,
+            textColor = { provided("theme").stageFill }, text = { app.production.value?.title ?? "" } ],
+        Text [ fontSize = 14, textColor = { provided("theme").houseText }, text = { app.production.value?.hall ?? "" } ]
+        ],
+
+    when: View [ width = 100%, padding = [20, 24, 0, 24],
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ fontFamily = { app.serif }, fontSize = 30, fontWeight = semibold,
+            text = { classroot.perf == null ? "" : dayLabel(classroot.perf.startsAt) + " · " + timeLabel(classroot.perf.startsAt) } ],
+        Text [ width = 100%, wrap = true, fontSize = 15, textColor = { provided("theme").textMuted },
+            text = { classroot.perf == null ? "" : "Doors open " + timeLabel(classroot.perf.doorsAt) + ". Arrive by then to be seated before curtain up." } ]
+        ],
+
+    seat: View [ width = 100%, padding = [20, 24, 20, 24],
+        layout: SimpleLayout [ axis = x, spacing = 22 ],
+        TicketFact [ caption = "SECTION", value = { :section ?? "" }, flexes = true ],
+        TicketFact [ caption = "ROW", value = { :row ?? "" } ],
+        TicketFact [ caption = "SEAT", value = { "" + (:number ?? 0) } ]
+        ],
+
+    // the tear line
+
+    View [ width = 100%, height = 18, accessibilityHidden = true,
+        draw(d: DrawContext) {
+            d.strokeStyle = provided("theme").lineStrong
+            d.lineWidth = 1.5
+            d.setLineDash([5, 5])
+            d.beginPath(); d.moveTo(14, 9); d.lineTo(this.width - 14, 9); d.stroke()
+            }
+        ],
+
+    code: View [ width = 100%, padding = [8, 24, 24, 24],
+        layout: SimpleLayout [ axis = y, spacing = 8, align = center ],
+        Barcode [ width = { parent.contentBox("width") }, height = 92, code = { :barcode ?? "" } ],
+        Text [ fontSize = 16, fontWeight = semibold, letterSpacing = 2, numeralWidth = tabular,
+            accessibilityLabel = { "Ticket code " + (:barcode ?? "") }, text = { :barcode ?? "" } ]
+        ]
+    ]
+
+
+class TicketFact [
+    caption: string = "",
+    value: string = "",
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Caption [ text = { classroot.caption } ],
+    Text [ fontSize = 30, fontWeight = bold, numeralWidth = tabular, wrap = true, width = { classroot.flexes ? parent.width : NaN },
+        text = { classroot.value } ]
+    ]
+
+
+// The bars of a ticket's code, in ink on white so a scanner can read it in any light.
+
+class Barcode [ accessibilityRole = image,
+    code: string = "",
+    accessibilityLabel = { "Barcode for " + classroot.code },
+    fill = #FFFFFF,
+    draw(d: DrawContext) {
+        const b = bars(this.code)
+        const units = b.reduce((n, w) => n + w, 0)
+        const u = this.width / units
+        let x = 0
+        d.fillStyle = 0x111111
+        b.forEach((w, i) => {
+            if (i % 2 == 0) d.fillRect(x, 0, w * u, this.height)
+            x = x + w * u
+            })
+        }
+    ]

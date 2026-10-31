@@ -1,0 +1,58 @@
+.hall {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background:
+    radial-gradient(120% 60% at 50% 0%, rgb(255 226 170 / 0.12), transparent 60%),
+    var(--house);
+  color: #f6ecd9;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.frame {
+  padding: 8px 0 20px;
+}
+
+.hall[data-panning] {
+  border-radius: 0;
+  flex: 1;
+}
+
+.hall[data-panning] .frame {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  padding: 0;
+  scrollbar-width: none;
+}
+
+.hall[data-panning] .frame::-webkit-scrollbar { display: none; }
+
+.minimap {
+  flex: none;
+  display: block;
+  width: 100%;
+  height: clamp(110px, 21vh, 180px);
+  padding: 10px 16px 8px;
+  border-bottom: 1px solid rgb(255 244 222 / 0.1);
+  touch-action: none;
+  cursor: pointer;
+}
+
+.miniStage { fill: #e9cf9b; }
+
+.dot { fill: #f6dfae; }
+.dot[data-tier="1"] { fill: #dcc39a; }
+.dot[data-tier="2"] { fill: #b9a68a; }
+.dot[data-tier="3"] { fill: #958775; }
+.dot[data-state="sold"] { fill: rgb(255 244 222 / 0.2); }
+.dot[data-state="chosen"] { fill: var(--accent); stroke: #fff8ec; stroke-width: 0.16; }
+
+.miniView {
+  fill: rgb(255 255 255 / 0.06);
+  stroke: #fff8ec;
+  stroke-width: 1.5;
+  vector-effect: non-scaling-stroke;
+}

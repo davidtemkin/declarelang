@@ -262,6 +262,11 @@ export function routeInput(
   // the two facts have different lifetimes and different owners.
   const pinchPts = new Map<number, { x: number; y: number; owner: { key: object; sink: InputSink } }>();
   let pinchGesture: { owner: { key: object; sink: InputSink }; a: number; b: number; startDist: number; scale: number } | null = null;
+  // A press a pinch has taken: from the pinch's start until every finger has
+  // lifted, its fingers' moves are the pinch's — no pointerMove — so a drag
+  // handler on the same view never writes what the pinch is writing, and the
+  // finger left after the pinch does not jump the drag from where it began
+  let pinchedPress = false;
   const endPinch = (): void => {
     const g = pinchGesture;
     if (g === null) return;
@@ -520,6 +525,9 @@ export function routeInput(
         touchSink = t;
         t.sink("touchStart", p0.x, p0.y, { touches: touchList(), changed: [{ id: e.pointerId, x: p0.x, y: p0.y }] });
       }
+      // the finger's own press first; a second finger recognized as a pinch
+      // then starts it, so onPinchStart has the last word over what the press began
+      t.sink("pointerDown", p0.x, p0.y, { deltaX: 0, deltaY: 0 });
       // The pinch recognizer (compositing.md §II.2): a touch finger landing
       // under a pinch owner is tracked; the SECOND finger sharing that owner
       // starts the gesture. Cumulative scale anchors on the starting spread.
@@ -539,11 +547,11 @@ export function routeInput(
               // candidate click/hold, and the pointer capture must not drag
               disarmHold();
               wandered = true;
+              pinchedPress = true;
             }
           }
         }
       }
-      t.sink("pointerDown", p0.x, p0.y, { deltaX: 0, deltaY: 0 });
       heldAbove = false;
       const holder = t.hold ?? (t.wantsHold === true ? t : undefined);
       if (holder !== undefined) {
@@ -649,7 +657,7 @@ export function routeInput(
       fingers.set(e.pointerId, { id: e.pointerId, x: p.x, y: p.y });
       held.sink("touchMove", p.x, p.y, { touches: touchList(), changed: [{ id: e.pointerId, x: p.x, y: p.y }] });
     }
-    held.sink("pointerMove", p.x, p.y, moved(p.x, p.y));
+    if (!pinchedPress) held.sink("pointerMove", p.x, p.y, moved(p.x, p.y));
   });
   listen("pointerup", (e) => {
     // a finger's lift: the browser's trailing mouse events for it follow (see trailing)
@@ -668,6 +676,7 @@ export function routeInput(
     // a pinch ends when EITHER of its fingers lifts (the gesture is the pair)
     if (pinchGesture !== null && (e.pointerId === pinchGesture.a || e.pointerId === pinchGesture.b)) endPinch();
     pinchPts.delete(e.pointerId);
+    if (pinchPts.size === 0) pinchedPress = false;
     const t = resolve(e);
     const captor = held;
     held = null;
@@ -737,6 +746,7 @@ export function routeInput(
     // a canceled finger ends its pinch exactly as a lifted one does
     if (pinchGesture !== null && (e.pointerId === pinchGesture.a || e.pointerId === pinchGesture.b)) endPinch();
     pinchPts.delete(e.pointerId);
+    if (pinchPts.size === 0) pinchedPress = false;
     // The browser reclaimed the gesture (a touch turned into a scroll). End the
     // capture WITHOUT a click — the interaction was interrupted, not completed —
     // so a drag handler still gets its release, and can tell that it WAS an

@@ -1,0 +1,167 @@
+.page {
+  width: min(100% - 2 * var(--gutter), 860px);
+  margin-inline: auto;
+  padding-bottom: 72px;
+}
+
+.hero {
+  padding: clamp(28px, 7vw, 72px) 0 clamp(24px, 5vw, 48px);
+}
+
+.kicker {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.title {
+  margin-top: 10px;
+  font-family: var(--font-serif);
+  font-size: clamp(2.6rem, 9vw, 5.25rem);
+  font-weight: 400;
+  font-variation-settings: "opsz" 144, "SOFT" 50;
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+}
+
+.meta {
+  margin-top: 14px;
+  color: var(--ink-2);
+}
+
+.month + .month { margin-top: 40px; }
+
+.monthName {
+  font-family: var(--font-serif);
+  font-size: 1.5rem;
+  font-weight: 500;
+  font-style: italic;
+  padding-bottom: 10px;
+  border-bottom: 1.5px solid var(--ink);
+}
+
+.list {
+  list-style: none;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  grid-template-areas:
+    "date when price"
+    "date fill fill";
+  align-items: center;
+  column-gap: 16px;
+  row-gap: 6px;
+  padding: 14px 4px 14px 0;
+  border-bottom: 1px solid var(--rule);
+  text-decoration: none;
+  color: inherit;
+  min-height: 76px;
+  transition: background-color 120ms;
+}
+
+@media (min-width: 640px) {
+  .row {
+    grid-template-columns: 76px 140px 1fr auto;
+    grid-template-areas: "date when fill price";
+    column-gap: 24px;
+  }
+}
+
+@media (hover: hover) {
+  a.row:hover { background: rgb(28 25 21 / 0.035); }
+  a.row:hover .price { color: var(--accent-ink); }
+}
+
+.row:focus-visible {
+  outline: 2.5px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.row[data-sold-out] { color: var(--ink-3); }
+
+.date {
+  grid-area: date;
+  display: grid;
+  justify-items: center;
+  line-height: 1;
+}
+
+.weekday, .monthShort {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.day {
+  font-family: var(--font-serif);
+  font-size: 2.125rem;
+  font-weight: 400;
+  font-variant-numeric: lining-nums;
+  margin: 3px 0 2px;
+}
+
+.when {
+  grid-area: when;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.time {
+  font-size: 1.125rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.matinee {
+  font-size: 0.8125rem;
+  color: var(--ink-2);
+  font-style: italic;
+  font-family: var(--font-serif);
+}
+
+.fill {
+  grid-area: fill;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 0.875rem;
+  color: var(--ink-2);
+}
+
+/* How full the house is, as a row of seats drawn from the left. */
+.meter {
+  flex: none;
+  width: 96px;
+  height: 6px;
+  border-radius: 3px;
+  background:
+    linear-gradient(90deg, var(--ink) calc(var(--full) * 100%), transparent 0),
+    rgb(28 25 21 / 0.12);
+}
+
+.row[data-nearly-gone] .left {
+  color: var(--ink);
+  font-weight: 650;
+}
+
+.price {
+  grid-area: price;
+  text-align: right;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.from {
+  font-weight: 400;
+  color: var(--ink-2);
+  font-size: 0.875rem;
+}

@@ -1,0 +1,161 @@
+.room {
+  position: relative;
+  margin-inline: auto;
+}
+
+.floor {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.stageLabel {
+  font: 600 0.62px var(--font-sans);
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  fill: #6b5631;
+}
+
+/* Each tier stands a step higher and a shade further from the light. */
+.band { fill: rgb(255 248 235 / 0.07); }
+.band[data-tier="1"] { fill: rgb(255 248 235 / 0.055); }
+.band[data-tier="2"] { fill: rgb(255 248 235 / 0.04); }
+.band[data-tier="3"] { fill: rgb(255 248 235 / 0.03); }
+
+.rail {
+  fill: none;
+  stroke: rgb(255 240 210 / 0.38);
+  stroke-width: 0.12;
+  stroke-linecap: round;
+}
+
+.sectionLabel {
+  font: 600 0.5px var(--font-sans);
+  letter-spacing: 0.16em;
+  fill: rgb(255 244 222 / 0.62);
+  font-variant-numeric: tabular-nums;
+}
+
+.rowLabel {
+  font: 500 0.46px var(--font-sans);
+  fill: rgb(255 244 222 / 0.36);
+}
+
+.seat {
+  position: absolute;
+  left: calc((var(--x) - 0.5) * var(--u));
+  top: calc((var(--y) - 0.5) * var(--u));
+  width: var(--u);
+  height: var(--u);
+  padding: 0;
+  border: 0;
+  background: none;
+  display: grid;
+  place-items: center;
+  rotate: var(--a);
+  cursor: pointer;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.seat[data-state="sold"] { cursor: default; }
+
+/* A seat: a cushion with a back, seen from above, facing the stage. */
+.shape {
+  --seat: #f6dfae;
+  width: 74%;
+  height: 74%;
+  border-radius: 22% 22% 34% 34%;
+  background: var(--seat);
+  box-shadow: inset 0 calc(var(--u) * -0.12) 0 rgb(0 0 0 / 0.16);
+  display: grid;
+  place-items: center;
+  transition: scale 160ms ease-out, background-color 160ms ease-out;
+}
+
+/* Brighter is dearer: the good seats glow nearest the stage. */
+.seat[data-tier="1"] .shape { --seat: #dcc39a; }
+.seat[data-tier="2"] .shape { --seat: #b9a68a; }
+.seat[data-tier="3"] .shape { --seat: #958775; }
+
+@media (hover: hover) {
+  .seat[data-state="free"]:hover .shape { scale: 1.12; background: #fff7e6; }
+}
+
+/* Gone: no cushion, only a faint empty ring — smaller, hollow, dark. */
+.seat[data-state="sold"] .shape {
+  width: 40%;
+  height: 40%;
+  border-radius: 50%;
+  background: transparent;
+  box-shadow: inset 0 0 0 max(1px, calc(var(--u) * 0.05)) rgb(255 244 222 / 0.22);
+}
+
+/* Theirs: the accent, larger, ringed, and ticked. */
+.seat[data-state="chosen"] .shape {
+  width: 88%;
+  height: 88%;
+  border-radius: 26% 26% 38% 38%;
+  background: var(--accent);
+  box-shadow: 0 0 0 max(1.5px, calc(var(--u) * 0.07)) #fff8ec;
+  animation: commit 280ms cubic-bezier(0.3, 1.6, 0.5, 1);
+}
+
+.tick {
+  width: 72%;
+  height: 72%;
+  fill: none;
+  stroke: #fff;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  rotate: calc(var(--a) * -1);
+}
+
+.tick path {
+  stroke-dasharray: 12;
+  stroke-dashoffset: 0;
+  animation: draw 260ms 80ms ease-out backwards;
+}
+
+/* Someone else's purchase: a brief flare where the seat was, then empty. */
+.seat[data-going] .shape {
+  animation: going 1.6s ease-out;
+}
+
+.seat:focus-visible {
+  outline: none;
+}
+
+.seat:focus-visible::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 30%;
+  outline: 2.5px solid #fff;
+  outline-offset: 0;
+  box-shadow: 0 0 0 5px rgb(0 0 0 / 0.6);
+}
+
+@keyframes commit {
+  0% { scale: 0.7; }
+  100% { scale: 1; }
+}
+
+@keyframes draw {
+  from { stroke-dashoffset: 12; }
+}
+
+@keyframes going {
+  0% { box-shadow: 0 0 0 0 rgb(255 244 222 / 0.9), inset 0 0 0 calc(var(--u) * 0.3) rgb(255 244 222 / 0.8); scale: 2; }
+  100% { box-shadow: 0 0 0 calc(var(--u) * 0.6) rgb(255 244 222 / 0), inset 0 0 0 1px rgb(255 244 222 / 0.22); scale: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shape, .tick path, .seat[data-going] .shape, .seat[data-state="chosen"] .shape {
+    animation: none;
+    transition: none;
+  }
+}

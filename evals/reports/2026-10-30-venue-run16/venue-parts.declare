@@ -1,0 +1,218 @@
+/*
+# The Venue: the look
+
+The palette, and the small pieces the screens are made of: a performance in
+the list, a meter of how full the house is, a figure that lines up, the
+seat key. `venue.declare` includes this file.
+
+The palette is a programme's: ivory paper, warm ink, and one colour, garnet,
+which always means *yours, or act now* — your seats, the button that pays,
+a house nearly gone. Everything else is weight, size and space.
+*/
+
+theme Venue [
+    background = #F5F0E7, surface = #FFFCF7, card = #FFFDF9, sunk = #EDE6DA,
+    line = #E2D9CB, lineStrong = #CFC4B3,
+    text = #1F1A16, textMuted = #6A6056, textFaint = #9C9184,
+    accent = #8E1C3A, accentHovered = #7C1832, accentPressed = #6B142B, accentTextColor = #FFFFFF,
+    accentTint = #F4E3E7, linkColor = #8E1C3A,
+    control = #EAE2D5, controlHovered = #E2D8C8, controlPressed = #D8CDBB, controlSelected = #F1DFE4,
+    controlCornerRadius = 10, buttonHeight = 48, comboboxHeight = 44,
+    error = #B4400C, errorTint = #FBEBE2,
+    stage = #2B2420, stageText = #E9DFD0,
+    seatGone = #CDC3B4,
+    tierInk = [#2B231D, #463C33, #62574C, #7D7266],
+    tooltipFill = #2B2420, tooltipTextColor = #F5F0E7,
+    scrimFill = #1F1A16, scrimOpacity = 0.4,
+    sheetCornerRadius = 20, toastCornerRadius = 14, toastFontSize = 14
+    ]
+
+
+// ── Small pieces ────────────────────────────────────────────────────────────
+
+// A figure: an amount or a count, its digits all one width so a column of
+// them lines up and a total does not shift as it changes.
+
+class Figure extends Text [ numeralWidth = tabular, wrap = false ]
+
+// A label in small capitals, spaced: the voice of section names and headings
+// inside a card.
+
+class Eyebrow extends Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.1, wrap = false,
+    textColor = { provided("theme").textMuted }
+    ]
+
+
+// How full a performance is: the sold part in ink, the rest a hairline. Read
+// at a glance down the list, so a nearly sold-out night stands out.
+
+class Meter [ height = 6, cornerRadius = 3,
+    sold: number = 0,          // 0 to 1
+    urgent: boolean = false,
+    fill = { provided("theme").line },
+    View [ height = 100%, cornerRadius = 3, width = { parent.width * classroot.sold },
+        fill = { classroot.urgent ? provided("theme").accent : provided("theme").textMuted } ]
+    ]
+
+
+// One performance in the list. A Control, so a keyboard reaches it and a
+// screen reader hears it as one thing with a name that says it all.
+
+class PerformanceRow extends Control [ width = 100%,
+    perf: Performance? = null,
+    starts: string = { classroot.perf?.startsAt ?? "" },
+    left: number = { classroot.perf?.seatsLeft ?? 0 },
+    seats: number = { classroot.perf?.seats ?? 1 },
+    sold: number = { 1 - classroot.left / Math.max(1, classroot.seats) },
+    scarce: boolean = { classroot.left / Math.max(1, classroot.seats) <= 0.15 },
+    gone: boolean = { classroot.left == 0 },
+    leftWords: string = { classroot.gone ? "Sold out" : classroot.left + " of " + classroot.seats + " seats left" },
+    price: string = { "from " + money(classroot.perf?.priceFromCents ?? 0) },
+    accessibilityLabel = { dayLabel(classroot.starts) + ", " + timeLabel(classroot.starts) + ", " + classroot.price
+        + ", " + classroot.leftWords + (classroot.scarce && !classroot.gone ? ", nearly sold out" : "") },
+    disabled = { classroot.gone },
+    height = { app.phone ? 92 : 76 },
+    padding = { app.phone ? [14, 18, 14, 18] : [0, 20, 0, 24] },
+    cornerRadius = 14,
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").surface : null },
+    stroke = { [null, null, stroke(1, provided("theme").line), null] },
+    State [ applied = { hovered || pressed }, stroke = null ],
+
+    // a desk: one line, in columns
+
+    wideRow: View [ visible = { !app.phone }, width = 100%, height = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 20, align = center ],
+        Text [ width = 150, fontFamily = { app.display }, fontSize = 23, fontWeight = semibold, wrap = false, text = { dayLabel(classroot.starts) } ],
+        Figure [ width = 70, fontSize = 17, textColor = { provided("theme").textMuted }, text = { timeLabel(classroot.starts) } ],
+        View [ flexes = true,
+            layout: SimpleLayout [ axis = y, spacing = 7 ],
+            Meter [ width = 100%, sold = { classroot.sold }, urgent = { classroot.scarce } ],
+            Text [ fontSize = 13, wrap = false,
+                fontWeight = { classroot.scarce ? "semibold" : "regular" },
+                textColor = { classroot.scarce ? provided("theme").accent : provided("theme").textMuted },
+                text = { classroot.scarce && !classroot.gone ? "Nearly sold out · " + classroot.left + " left" : classroot.leftWords } ]
+            ],
+        Figure [ width = 110, textAlign = end, fontSize = 15, textColor = { provided("theme").textMuted }, text = { classroot.price } ],
+        Chevron [ ]
+        ],
+
+    // a phone: the date and the price on one line, how full beneath
+
+    narrowRow: View [ visible = { app.phone }, width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 9 ],
+        View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 10, align = baseline ],
+            Text [ fontFamily = { app.display }, fontSize = 21, fontWeight = semibold, wrap = false, text = { dayLabel(classroot.starts) } ],
+            Figure [ fontSize = 16, textColor = { provided("theme").textMuted }, text = { timeLabel(classroot.starts) } ],
+            Spacer [ ],
+            Figure [ fontSize = 14, textColor = { provided("theme").textMuted }, text = { classroot.price } ]
+            ],
+        View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+            Meter [ flexes = true, sold = { classroot.sold }, urgent = { classroot.scarce } ],
+            Text [ fontSize = 13, wrap = false,
+                fontWeight = { classroot.scarce ? "semibold" : "regular" },
+                textColor = { classroot.scarce ? provided("theme").accent : provided("theme").textMuted },
+                text = { classroot.scarce && !classroot.gone ? "Nearly sold out · " + classroot.left + " left" : classroot.left + " left" } ]
+            ]
+        ]
+    ]
+
+
+// A small drawn chevron, pointing on.
+
+class Chevron [ width = 10, height = 16,
+    tone: Color = { provided("theme").textFaint },
+    accessibilityHidden = true,
+    draw(d: DrawContext) {
+        d.strokeStyle = tone
+        d.lineWidth = 1.8
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        d.moveTo(2, 2); d.lineTo(8, 8); d.lineTo(2, 14)
+        d.stroke()
+        }
+    ]
+
+
+// A quiet text button: a word in the accent, for secondary actions (Sign in,
+// Change seats, Remove). A finger gets 44 points around it.
+
+class TextButton extends Control [ height = { app.touchFirst ? 44 : 34 }, padding = [0, 8, 0, 8], cornerRadius = 8,
+    label: string = "",
+    tone: Color = { provided("theme").accent },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").control : null },
+    TextLabel [ y = center, fontSize = 15, fontWeight = semibold, wrap = false, textColor = { classroot.tone }, text = { classroot.label } ]
+    ]
+
+
+// The seat key: the three states as they are drawn in the hall, so the key
+// is the thing itself.
+
+class KeyDot [ width = 18, height = 18,
+    kind: string = "free",
+    accessibilityHidden = true,
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        d.beginPath()
+        if (kind == "free") {
+            d.arc(9, 9, 6.6, 0, Math.PI * 2)
+            d.fillStyle = t.surface
+            d.fill()
+            d.lineWidth = 1.7
+            d.strokeStyle = t.tierInk[0]
+            d.stroke()
+        } else if (kind == "mine") {
+            d.arc(9, 9, 8, 0, Math.PI * 2)
+            d.fillStyle = t.accent
+            d.fill()
+            d.beginPath()
+            d.moveTo(5.4, 9.2); d.lineTo(7.9, 11.6); d.lineTo(12.6, 6.6)
+            d.lineWidth = 1.9
+            d.lineCap = "round"
+            d.lineJoin = "round"
+            d.strokeStyle = t.accentTextColor
+            d.stroke()
+        } else {
+            d.arc(9, 9, 3, 0, Math.PI * 2)
+            d.fillStyle = t.seatGone
+            d.fill()
+        }
+        }
+    ]
+
+
+class KeyItem [
+    kind: string = "free",
+    label: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    KeyDot [ kind = { classroot.kind } ],
+    Text [ fontSize = 13, wrap = false, textColor = { provided("theme").textMuted }, text = { classroot.label } ]
+    ]
+
+
+class SeatKey [
+    layout: SimpleLayout [ axis = x, spacing = 18, align = center ],
+    KeyItem [ kind = "free", label = "Free" ],
+    KeyItem [ kind = "mine", label = "Yours" ],
+    KeyItem [ kind = "gone", label = "Taken" ]
+    ]
+
+
+// A line of a bill: what, and how much, the amounts in one column.
+
+class BillLine [ width = 100%,
+    label: string = "",
+    detail: string = "",
+    amount: string = "",
+    strong: boolean = false,
+    layout: SimpleLayout [ axis = x, spacing = 12, align = start ],
+    View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ width = 100%, wrap = true, fontSize = { classroot.strong ? 17 : 15 },
+            fontWeight = { classroot.strong ? "semibold" : "regular" }, text = { classroot.label } ],
+        Text [ visible = { classroot.detail != "" }, fontSize = 13, textColor = { provided("theme").textMuted }, text = { classroot.detail } ]
+        ],
+    Figure [ fontSize = { classroot.strong ? 17 : 15 }, fontWeight = { classroot.strong ? "semibold" : "regular" }, text = { classroot.amount } ]
+    ]

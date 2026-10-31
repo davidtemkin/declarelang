@@ -1,0 +1,258 @@
+/*
+# The Venue: the hall
+
+The room, drawn from `app.hall.plan`: the stage everything faces, the four
+tiers set back from it, each row an arc, each seat a control on it.
+
+- **A seat has three states that differ in shape, not only colour.** Free is
+  an open ring, yours a larger filled disc with a check, taken a small dot.
+  Covered legend or not, two colours told apart or not, they read.
+- **On a phone the room is first seen whole**, every seat a speck, so how full
+  it is and where the good seats are read at a glance. A tap zooms there,
+  about the finger, until a seat is a thumb wide; a drag moves along the room,
+  and a tap then takes the seat. "Whole hall" goes back. A desk shows the room
+  at a size a pointer can hit, with nothing to zoom.
+- **The keyboard** reaches each tier as one stop; the arrows move to the free
+  seat beside, in front or behind, and Space takes it.
+*/
+
+// The stage, drawn: a dark band whose front edge is the arc every row follows.
+
+class Stage [ width = 100%, height = 100%,
+    accessibilityHidden = true,
+    draw(d: DrawContext) {
+        const p = app.hall.plan.value
+        if (p == null) return
+        const t = provided("theme")
+        const a = Math.asin(Math.min(1, p.stageHalf / p.stageR))
+        d.beginPath()
+        d.moveTo(p.cx - p.stageHalf, p.stageTop)
+        d.lineTo(p.cx + p.stageHalf, p.stageTop)
+        d.lineTo(p.cx + p.stageHalf, p.cy + p.stageR * Math.cos(a))
+        d.arc(p.cx, p.cy, p.stageR, Math.PI / 2 - a, Math.PI / 2 + a)
+        d.closePath()
+        d.fillStyle = t.stage
+        d.fill()
+        d.fillStyle = t.stageText
+        d.font = "600 13px -apple-system, system-ui, sans-serif"
+        d.textAlign = "center"
+        d.textBaseline = "middle"
+        d.fillText("S T A G E", p.cx, p.stageTop + (p.stageR - (p.stageTop - p.cy)) * 0.5)
+        }
+    ]
+
+
+// One seat. The whole pitch is the target, so neighbouring seats meet with no
+// dead ground between them; what is drawn sits inside it.
+
+class SeatSpot extends Control [ width = 20, height = 20,
+    x = { (:x ?? 0) - 10 }, y = { (:y ?? 0) - 10 },
+    sid: string = { :id ?? "" },
+    sold: boolean = { :sold ?? false },
+    tier: number = 0,
+    mine: boolean = { app.chosen.includes(classroot.sid) },
+    disabled = { classroot.sold },
+
+    accessibilityRole = toggle,
+    accessibilityLabel = { :label ?? "" },
+    accessibilityPressed = { classroot.mine },
+    accessibilityHint = { classroot.sold ? "Taken" : money(:priceCents ?? 0) + (classroot.mine ? ", yours" : ", free") },
+
+    // a phone's overview passes taps through to the room, which zooms
+
+    pointerEvents = { app.hallMap.tapZooms ? "none" : "auto" },
+    focusShape() -> string { return "circle" },
+
+    press() { app.toggleSeat(classroot.sid) },
+    onFocus() {
+        (parent as Tier).lastSeat = classroot.sid
+        app.hallMap.reveal(this.x + 10, this.y + 10)
+        },
+    onKeyDown(e: KeyEvent) {
+        if (e.key == "ArrowLeft" || e.key == "ArrowRight" || e.key == "ArrowUp" || e.key == "ArrowDown") {
+            const n = app.hall.next(classroot.sid, e.key)
+            if (n != null) app.hallMap.focusSeat(n.id)
+            return
+            }
+        super.onKeyDown(e)
+        },
+
+    // the drawn seat: its size travels on a spring, so taking a seat swells
+    // it and a seat bought elsewhere visibly shrinks away
+
+    size: number = { classroot.mine ? 17 : classroot.sold ? 6 : 13.5 },
+    shown: number = { classroot.size },
+    Spring [ attribute = shown, to = { classroot.size }, stiffness = 520, damping = 17 ],
+
+    dot: View [ x = center, y = center, width = { classroot.shown }, height = { classroot.shown },
+        cornerRadius = { classroot.shown / 2 },
+        fill = { classroot.mine ? provided("theme").accent : classroot.sold ? provided("theme").seatGone : provided("theme").surface },
+        stroke = { classroot.mine || classroot.sold ? null : stroke(1.7, provided("theme").tierInk[classroot.tier]) },
+        State [ applied = { classroot.hovered && !classroot.mine && !classroot.sold }, fill = { provided("theme").accentTint },
+            stroke = { stroke(2, provided("theme").accent) } ],
+        draw(d: DrawContext) {
+            if (!classroot.mine) return
+            const s = this.width / 17
+            d.beginPath()
+            d.moveTo(5.2 * s, 8.8 * s); d.lineTo(7.6 * s, 11.2 * s); d.lineTo(12 * s, 6.4 * s)
+            d.lineWidth = 1.9 * s
+            d.lineCap = "round"
+            d.lineJoin = "round"
+            d.strokeStyle = provided("theme").accentTextColor
+            d.stroke()
+            }
+        ]
+    ]
+
+
+// A row's letter, at each end of its arc.
+
+class RowMark [ width = 1, height = 1,
+    Text [ x = { (:lx ?? 0) - this.width / 2 }, y = { (:ly ?? 0) - this.height / 2 }, fontSize = 10, fontWeight = medium,
+        textColor = { provided("theme").textFaint }, text = { :name ?? "" }, accessibilityHidden = true ],
+    Text [ x = { (:rx ?? 0) - this.width / 2 }, y = { (:ry ?? 0) - this.height / 2 }, fontSize = 10, fontWeight = medium,
+        textColor = { provided("theme").textFaint }, text = { :name ?? "" }, accessibilityHidden = true ]
+    ]
+
+
+// A tier: its name and price over a rail that marks its front, its row
+// letters, and its seats. It spans the whole plan, so every seat's place is
+// the plan's own coordinates. One Tab stop, named for the tier.
+
+class Tier [ width = 100%, height = 100%,
+    tier: number = { :tier ?? 0 },
+    focusScope = stop,
+
+    // Tab comes back to the seat last visited, while it is free; else to the
+    // free seat nearest the centre of the tier's front row
+
+    lastSeat: string = "",
+    focusEntry() -> View? {
+        const seats = (app.hall.plan.value?.sections[rowIndex]?.seats ?? []).filter((s) => !s.sold)
+        if (seats.length == 0) return null
+        const cx = app.hall.plan.value?.cx ?? 0
+        const last = seats.find((s) => s.id == lastSeat)
+        const best = last ?? seats.reduce((a, b) => (b.row < a.row || (b.row == a.row && Math.abs(b.x - cx) < Math.abs(a.x - cx))) ? b : a)
+        return app.hallMap.seatView(best.id)
+        },
+    accessibilityRole = group,
+    accessibilityLabel = { (:name ?? "") + ", " + money(:priceCents ?? 0) + " a seat" },
+
+    // the rail: the front of a raised tier, an arc about the stage
+
+    rail: View [ width = 100%, height = 100%, accessibilityHidden = true,
+        draw(d: DrawContext) {
+            const p = app.hall.plan.value
+            if (p == null || classroot.tier == 0) return
+            const r = :railR ?? 0
+            const a = (:railA ?? 0) + 0.04
+            d.beginPath()
+            d.arc(p.cx, p.cy, r, Math.PI / 2 - a, Math.PI / 2 + a)
+            d.lineWidth = 1.2
+            d.strokeStyle = provided("theme").lineStrong
+            d.stroke()
+            }
+        ],
+    label: Text [ x = { (app.hall.plan.value?.cx ?? 0) - this.width / 2 }, y = { (:labelY ?? 0) - this.height / 2 },
+        padding = [1, 8, 1, 8], fill = { provided("theme").background }, cornerRadius = 4,
+        fontSize = 11, fontWeight = semibold, letterSpacing = 1.4, wrap = false, accessibilityHidden = true,
+        textColor = { provided("theme").textMuted },
+        text = { (:name ?? "").toUpperCase() + "   " + money(:priceCents ?? 0) } ],
+    RowMark [ datapath = :rows[] ],
+    SeatSpot [ datapath = :seats[], tier = { classroot.tier } ]
+    ]
+
+
+// The room in its window. `z` is the zoom, and (`cx`, `cy`) the point of the
+// plan at the window's centre; three springs carry them, so a change of view
+// glides and a finger mid-glide simply takes over. A hand writes a value and
+// its target together, so nothing trails the finger.
+
+class HallMap [ clip = true,
+    planW: number = { app.hall.plan.value?.width ?? 1 },
+    planH: number = { app.hall.plan.value?.height ?? 1 },
+    fit: number = { Math.max(0.1, Math.min(classroot.width / classroot.planW, classroot.height / classroot.planH, 1.3)) },
+
+    // a seat on screen at this zoom: below a thumb's width, a tap zooms first
+
+    pitch: number = { classroot.fit * app.hall.unit },
+    zoomable: boolean = { (app.touchFirst || app.phone) && classroot.pitch < 36 },
+    detail: boolean = false,
+    tapZooms: boolean = { classroot.zoomable && !classroot.detail },
+    near: number = { 44 / app.hall.unit },
+
+    zTo: number = { classroot.detail ? Math.max(classroot.fit, classroot.near) : classroot.fit },
+    focusX: number = 0,
+    focusY: number = 0,
+    along(v: number, view: number, extent: number, z: number) -> number {
+        const half = view / 2 / z
+        return extent <= half * 2 ? extent / 2 : Math.max(half, Math.min(extent - half, v))
+        },
+    cxTo: number = { classroot.detail ? classroot.along(classroot.focusX, classroot.width, classroot.planW, classroot.zTo) : classroot.planW / 2 },
+    cyTo: number = { classroot.detail ? classroot.along(classroot.focusY, classroot.height, classroot.planH, classroot.zTo) : classroot.planH / 2 },
+
+    z: number = 1,
+    cx: number = 0,
+    cy: number = 0,
+    zs: Spring [ attribute = z, to = { classroot.zTo }, stiffness = 210, damping = 26 ],
+    xs: Spring [ attribute = cx, to = { classroot.cxTo }, stiffness = 210, damping = 26 ],
+    ys: Spring [ attribute = cy, to = { classroot.cyTo }, stiffness = 210, damping = 26 ],
+
+    // a new room or a new window size is taken at once, not travelled to
+
+    trackChanges = ["fit"],
+    onChange() { zs.arrive(); xs.arrive(); ys.arrive() },
+
+    // the plan point under a point of the window
+
+    planX(x: number) -> number { return cx + (x - width / 2) / z },
+    planY(y: number) -> number { return cy + (y - height / 2) / z },
+
+    zoomAt(x: number, y: number) {
+        focusX = planX(x)
+        focusY = planY(y)
+        detail = true
+        },
+    whole() { detail = false },
+    reveal(x: number, y: number) {
+        if (!detail) return
+        const hw = width / 2 / z, hh = height / 2 / z
+        if (Math.abs(x - cx) > hw - 24 || Math.abs(y - cy) > hh - 24) { focusX = x; focusY = y }
+        },
+
+    // the view of a seat, by its id, for the keyboard to move to
+
+    seatView(id: string) -> View? {
+        for (const tier of this.room.childViews) {
+            for (const v of (tier as View).childViews) if (v instanceof SeatSpot && v.sid == id) return v
+            }
+        return null
+        },
+    focusSeat(id: string) { const v = seatView(id); if (v != null) Focus.focus(v) },
+
+    onClick(e: PointerEvent) { if (tapZooms) zoomAt(e.x, e.y) },
+
+    grabX: number = 0,
+    grabY: number = 0,
+    onPointerDown(e: PointerEvent) { grabX = cx; grabY = cy },
+    onPointerMove(e: PointerEvent) {
+        if (!detail) return
+        const x = along(grabX - e.deltaX / z, width, planW, z)
+        const y = along(grabY - e.deltaY / z, height, planH, z)
+        focusX = x; focusY = y
+        cx = x; cy = y
+        },
+    onPinchEnd(e: PinchEvent) {
+        if (!zoomable) return
+        if (e.scale > 1.15 && !detail) zoomAt(e.x, e.y)
+        else if (e.scale < 0.87 && detail) whole()
+        },
+
+    room: View [ datapath = { app.hall.plan.value }, width = { classroot.planW }, height = { classroot.planH },
+        pivotX = 0, pivotY = 0, scale = { classroot.z },
+        x = { classroot.width / 2 - classroot.cx * classroot.z },
+        y = { classroot.height / 2 - classroot.cy * classroot.z },
+        Stage [ ],
+        Tier [ datapath = :sections[] ]
+        ]
+    ]

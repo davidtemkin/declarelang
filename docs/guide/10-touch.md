@@ -75,8 +75,11 @@ midpoint in `e.center`, while a single finger keeps panning the page. You never 
 the finger arithmetic; rolling your own over a subtree touch claim is not the
 answer. A pinch nearly always drives [`scale`](declare-docs:View.scale) or
 [`rotation`](declare-docs:View.rotation) of a sub-surface — `onPinch(e) { zoom = anchor * e.scale }`, latching
-`anchor` at `onPinchEnd`. On the desktop the same intent arrives on the wheel
-stream as `e.pinch` (trackpad); handle both and every device zooms.
+`anchor` at `onPinchEnd`. A pinch takes the press it starts in: each finger's
+`onPointerDown` comes first, then `onPinchStart`, and no `onPointerMove` follows
+until every finger has lifted — so a view that pans under one finger and zooms
+under two needs nothing more to keep the two apart. On the desktop the same intent
+arrives on the wheel stream as `e.pinch` (trackpad); handle both and every device zooms.
 
 **[`claim`](declare-docs:View.claim) is the knob for "drag horizontally on a page that scrolls vertically."** It
 scopes a claim you already have rather than making one: declare the drag handler, then

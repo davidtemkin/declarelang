@@ -1,0 +1,108 @@
+.account {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 44px;
+}
+
+.who {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  padding-right: 6px;
+  max-width: 40vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.who:focus { outline: none; }
+.who:focus-visible { outline: 2.5px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+
+.dialog {
+  width: min(100% - 32px, 420px);
+  margin: auto;
+  padding: 0;
+  border: 0;
+  border-radius: var(--radius-lg);
+  background: var(--paper);
+  color: var(--ink);
+  box-shadow: 0 30px 80px -20px rgb(28 25 21 / 0.5);
+}
+
+.dialog::backdrop {
+  background: rgb(28 25 21 / 0.45);
+  backdrop-filter: blur(2px);
+}
+
+.dialog[open] { animation: rise 200ms ease-out; }
+
+@keyframes rise {
+  from { opacity: 0; translate: 0 12px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dialog[open] { animation: none; }
+}
+
+/* On a phone the dialog sits at the top, clear of the keyboard. */
+@media (max-width: 619px) {
+  .dialog { margin-top: max(16px, env(safe-area-inset-top)); }
+}
+
+.form {
+  display: grid;
+  gap: 20px;
+  padding: 28px;
+}
+
+.head { display: grid; gap: 6px; }
+
+.title {
+  font-family: var(--font-serif);
+  font-size: 1.875rem;
+  font-weight: 400;
+}
+
+.lede { color: var(--ink-2); }
+
+.password { position: relative; }
+.password input { padding-right: 84px; }
+
+.reveal {
+  position: absolute;
+  right: 6px;
+  top: 50%;
+  translate: 0 -50%;
+  min-height: 38px;
+  padding: 0 12px;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--ink-2);
+  background: none;
+  border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.reveal[aria-pressed="true"] {
+  color: var(--ink);
+  background: rgb(28 25 21 / 0.08);
+}
+
+.reveal:focus-visible { outline: 2.5px solid var(--focus); outline-offset: 0; }
+
+.error {
+  color: var(--error);
+  font-weight: 550;
+  margin-top: -6px;
+}
+
+.error:empty { display: none; }
+
+.actions {
+  display: flex;
+  flex-direction: row-reverse;
+  justify-content: flex-start;
+  gap: 8px;
+}

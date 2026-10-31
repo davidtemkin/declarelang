@@ -1,0 +1,214 @@
+/*
+# The Venue: the hall
+
+The Grand Hall as a room: the stage at the top, four sections curving to face
+it, each row an arc and each seat a control on it. `venue.declare` includes
+this file.
+
+- **The scene** (`HallScene`) is drawn in its own units, from the geometry
+  functions in `venue-parts.declare`, and scaled as a whole by the hall's zoom.
+  A section, a row and a seat are views replicated from the seat map, so a seat
+  that someone else buys changes because its record did.
+- **A seat** (`SeatMark`) is a toggle a screen reader names by where it is
+  ("Orchestra, row C, seat 14"), with its price and state as its description.
+  The arrow keys move between seats; only one seat is a Tab stop.
+- **The overview** (`HallMap`) is the whole house drawn small, with a frame
+  for the part in view: on a phone the hall is shown large enough for a thumb,
+  and the overview is how the person reads the whole room and moves about it.
+*/
+
+
+// ── A seat ──────────────────────────────────────────────────────────────────
+
+class SeatMark extends Control [ width = 14, height = 14, cornerRadius = 7,
+    seatId: string = { :id ?? "" },
+    number: number = { :number ?? 0 },
+    gone: boolean = { :status == "sold" },
+    section: number = 0,
+    sectionName: string = "",
+    rowName: string = "",
+    rowIdx: number = 0,
+    count: number = 0,
+    price: number = 0,
+    mine: boolean = { app.picked.includes(classroot.seatId) },
+    kind: "free" | "mine" | "gone" = { classroot.mine ? "mine" : classroot.gone ? "gone" : "free" },
+
+    x = { seatX(classroot.section, classroot.rowIdx, rowIndex, classroot.count) - 7 },
+    y = { seatY(classroot.section, classroot.rowIdx, rowIndex, classroot.count) - 7 },
+
+    disabled = { classroot.gone },
+    accessibilityRole = toggle,
+    accessibilityLabel = { classroot.sectionName + ", row " + classroot.rowName + ", seat " + classroot.number },
+    accessibilityPressed = { classroot.mine },
+    accessibilityHint = { classroot.gone ? "Sold" : money(classroot.price) + (classroot.mine ? ", in your selection" : ", available") },
+
+    // One seat is the Tab stop; the arrows move it. Every other seat can
+    // still hold the focus (a click, a screen reader), but Tab passes by.
+
+    focusable = { app.rovingSeat == classroot.seatId ? true : "quiet" },
+    onFocus() { app.rovingSeat = classroot.seatId },
+    onKeyDown(e: KeyEvent) {
+        const dir = ({ ArrowLeft: "left", ArrowRight: "right", ArrowUp: "up", ArrowDown: "down" } as any)[e.key]
+        if (dir == null) { super.onKeyDown(e); return }
+        const next = app.house.neighbour(classroot.seatId, dir)
+        if (next != "") app.moveFocusTo(next)
+        },
+    roving: boolean = { app.rovingSeat == classroot.seatId },
+    trackChanges = ["roving", "mine", "gone"],
+    onChange(e: ChangeEvent) {
+        if (this.roving && app.seatKeyed) { app.seatKeyed = false; Focus.focus(this) }
+        const names = e.changed.map((c) => c.name)
+        if (names.includes("mine")) bump = 0
+        if (names.includes("gone") && this.gone) fade = 0
+        },
+
+    press() { app.toggleSeat(classroot.seatId) },
+
+    // Choosing registers in the seat: it swells and settles. A seat someone
+    // else takes leaves a ring that spreads and fades where it stood.
+
+    bump: number = 1,
+    Spring [ attribute = bump, to = 1, stiffness = 260, damping = 16 ],
+    fade: number = 1,
+    Spring [ attribute = fade, to = 1, stiffness = 60, damping = 14 ],
+
+    ripple: View [ x = center, y = center, width = 14, height = 14, cornerRadius = 7,
+        visible = { classroot.fade < 0.98 },
+        stroke = { stroke(1.2, provided("theme").seatMine) },
+        scale = { 1 + 1.6 * classroot.fade }, pivotX = 7, pivotY = 7,
+        opacity = { 1 - classroot.fade } ],
+    glyph: SeatGlyph [ width = 14, height = 14, kind = { classroot.kind },
+        tone = { provided("theme").tiers[classroot.section] },
+        scale = { 1 + 0.45 * Math.sin(Math.PI * Math.min(1, Math.max(0, classroot.bump))) * (classroot.bump < 1 ? 1 : 0) },
+        pivotX = 7, pivotY = 7 ]
+    ]
+
+
+// ── A row, and a section ───────────────────────────────────────────────────
+//
+// They place nothing themselves: every seat knows its own spot from the
+// geometry. They carry what the seats need to know about where they are.
+
+class SeatRowArc [
+    section: number = 0,
+    sectionName: string = "",
+    price: number = 0,
+    rowIdx: number = { rowIndex },
+    rowName: string = { :name ?? "" },
+    count: number = { (:seats ?? []).length },
+
+    letter: Text [ fontSize = 6, fontWeight = semibold, textColor = { provided("theme").houseFaint }, accessibilityHidden = true,
+        x = { seatX(classroot.section, classroot.rowIdx, -1.1, classroot.count) - this.width / 2 },
+        y = { seatY(classroot.section, classroot.rowIdx, -1.1, classroot.count) - this.height / 2 },
+        text = { classroot.rowName } ],
+    SeatMark [ datapath = :seats[],
+        section = { classroot.section }, sectionName = { classroot.sectionName },
+        rowName = { classroot.rowName }, rowIdx = { classroot.rowIdx },
+        count = { classroot.count }, price = { classroot.price } ]
+    ]
+
+
+class SectionArc [
+    section: number = { rowIndex },
+    sectionName: string = { :name ?? "" },
+    price: number = { :priceCents ?? 0 },
+    accessibilityRole = group,
+    accessibilityLabel = { classroot.sectionName + ", " + money(classroot.price) + " a seat" },
+
+    // the section's name and price, in the aisle in front of it
+
+    label: Text [ fontSize = 7.5, fontWeight = semibold, letterSpacing = 1, accessibilityHidden = true,
+        textColor = { provided("theme").houseText },
+        x = { hallW() / 2 - this.width / 2 },
+        y = { seatY(classroot.section, 0, 0, 1) - 20 },
+        text = { classroot.sectionName.toUpperCase() + "  ·  " + money(classroot.price) } ],
+    SeatRowArc [ datapath = :rows[], section = { classroot.section },
+        sectionName = { classroot.sectionName }, price = { classroot.price } ]
+    ]
+
+
+// ── The scene ───────────────────────────────────────────────────────────────
+
+class HallScene [ width = { hallW() }, height = { hallH() },
+    datapath = { app.house.value },
+
+    // The stage: a lit apron everything faces.
+
+    stage: View [ x = { hallW() / 2 - 120 }, y = 6, width = 240, height = 60, accessibilityHidden = true,
+        draw(d: DrawContext) {
+            const t = provided("theme")
+            d.fillStyle = t.stageFill
+            d.beginPath()
+            d.moveTo(0, 0); d.lineTo(240, 0); d.lineTo(240, 26)
+            d.quadraticCurveTo(120, 64, 0, 26)
+            d.closePath()
+            d.fill()
+            },
+        Text [ x = center, y = 12, fontSize = 8, fontWeight = bold, letterSpacing = 3,
+            textColor = { provided("theme").stageInk }, text = "STAGE" ]
+        ],
+    SectionArc [ datapath = :sections[] ]
+    ]
+
+
+// ── The overview ────────────────────────────────────────────────────────────
+//
+// The whole house at a glance, one drawing: every seat a dot in its state, and
+// a frame for the part of the hall in view. Dragging on it moves the hall.
+
+class HallMap [ accessibilityHidden = true,
+    viewX: number = 0,
+    viewY: number = 0,
+    viewW: number = 1,
+    viewH: number = 1,
+    showFrame: boolean = true,
+    k: number = { this.width / hallW() },
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const k = this.k
+        const sections = app.house.value?.sections ?? []
+        const mine = app.picked
+        sections.forEach((s, si) => {
+            s.rows.forEach((r, ri) => {
+                r.seats.forEach((seat, i) => {
+                    const x = seatX(si, ri, i, r.seats.length) * k
+                    const y = seatY(si, ri, i, r.seats.length) * k
+                    const m = mine.includes(seat.id)
+                    d.fillStyle = m ? t.seatMine : seat.status == "sold" ? t.seatGone : t.tiers[si]
+                    d.beginPath()
+                    d.arc(x, y, m ? 2.4 : seat.status == "sold" ? 0.9 : 1.5, 0, Math.PI * 2)
+                    d.fill()
+                    })
+                })
+            })
+        d.fillStyle = t.stageFill
+        d.fillRect((hallW() / 2 - 100) * k, 6 * k, 200 * k, 18 * k)
+        if (this.showFrame) {
+            d.strokeStyle = t.houseText
+            d.lineWidth = 1.5
+            d.strokeRect(this.viewX * k, this.viewY * k, this.viewW * k, this.viewH * k)
+            }
+        },
+    onPointerDown(e: PointerEvent) { app.lookAt(e.x / this.k, e.y / this.k) },
+    onPointerMove(e: PointerEvent) { app.lookAt(e.x / this.k, e.y / this.k) }
+    ]
+
+
+// ── The key ─────────────────────────────────────────────────────────────────
+
+class KeyItem [ height = 22,
+    kind: "free" | "mine" | "gone" = "free",
+    word: string = "",
+    tone: Color = #F2CF7E,
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    SeatGlyph [ width = 16, height = 16, kind = { classroot.kind }, tone = { classroot.tone } ],
+    Text [ fontSize = 13, textColor = { provided("theme").houseText }, text = { classroot.word } ]
+    ]
+
+
+class HallKey [
+    layout: SimpleLayout [ axis = x, spacing = 16, align = center ],
+    KeyItem [ kind = "free", word = "Free", tone = { provided("theme").tiers[0] } ],
+    KeyItem [ kind = "mine", word = "Yours" ],
+    KeyItem [ kind = "gone", word = "Gone" ]
+    ]

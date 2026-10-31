@@ -69,7 +69,7 @@ async function find(page, test, { timeout = 6000, what = "an element" } = {}) {
       let h = await hit.elementHandle();
       if (h) h = (await h.evaluateHandle((e) => (e.nodeType === 1 ? e : e.parentElement))).asElement();
       if (process.env.DEBUG) console.error(`  found ${hit.role} "${hit.name}"`);
-      if (h) return { node: hit, handle: h };
+      if (h) return { node: hit, handle: h, again: () => find(page, test, { timeout, what }) };
     }
     if (Date.now() > until) throw new Error(`not found: ${what}`);
     await sleep(150);
@@ -79,7 +79,11 @@ const nameMatches = (n, re) => typeof n.name === "string" && (typeof re === "str
 const button = (page, re, o = {}) => find(page, (n) => ACTION_ROLES.has(n.role) && nameMatches(n, re) && !n.disabled, { what: `a control named ${re}`, ...o });
 const field = (page, re, o = {}) => find(page, (n) => FIELD_ROLES.has(n.role) && nameMatches(n, re), { what: `a field named ${re}`, ...o });
 const maybe = async (p) => { try { return await p; } catch { return null; } };
+// a control a framework replaced between being found and being pressed (a
+// header re-rendered as the account arrives) is found again, as a person's
+// eye finds the one now on screen
 async function press(page, el) {
+  if (el.again && !(await el.handle.evaluate((e) => e.isConnected).catch(() => false))) el = await el.again();
   await el.handle.evaluate((e) => e.scrollIntoView({ block: "center" }));
   await el.handle.click();
 }

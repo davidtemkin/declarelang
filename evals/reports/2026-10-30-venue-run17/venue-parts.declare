@@ -1,0 +1,293 @@
+/*
+# The Venue: the parts
+
+The look of the venue and the plain functions every screen leans on: the
+theme, the money, date and card arithmetic, the drawn glyphs, and the small
+pieces (a button that is a link-like line, the header). `venue.declare`
+includes this file; read that one first.
+*/
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+//
+// Functions of their arguments: formatting, and the card rules. A constraint
+// that calls one depends only on what it passes.
+
+script {
+    const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+    // "$1,234.00", from integer cents
+    function money(cents: number): string {
+        const whole = Math.floor(Math.abs(cents) / 100)
+        const frac = Math.abs(cents) % 100
+        return (cents < 0 ? "-" : "") + "$" + whole.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",") + "." + (frac < 10 ? "0" : "") + frac
+    }
+
+    // The service's times are the hall's own wall clock ("2026-11-13T19:30"),
+    // so they are read as written, never through a time zone.
+    function stamp(iso: string): number[] {
+        const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})/.exec(iso ?? "")
+        return m == null ? [2000, 1, 1, 0, 0] : m.slice(1).map(Number)
+    }
+    function weekday(iso: string): string { const p = stamp(iso); return DAYS[new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay()] }
+    function dayLabel(iso: string): string { const p = stamp(iso); return weekday(iso) + " " + p[2] + " " + MONTHS[p[1] - 1] }
+    function dayNumber(iso: string): string { return "" + stamp(iso)[2] }
+    function monthLabel(iso: string): string { return MONTHS[stamp(iso)[1] - 1] }
+    function timeLabel(iso: string): string {
+        const p = stamp(iso)
+        const h = p[3] % 12 == 0 ? 12 : p[3] % 12
+        return h + ":" + (p[4] < 10 ? "0" : "") + p[4] + (p[3] < 12 ? "am" : "pm")
+    }
+    function plural(n: number, one: string, many: string): string { return n + " " + (n == 1 ? one : many) }
+
+    // ── cards ──
+    function digitsOf(s: string): string { return (s ?? "").replace(/\D/g, "") }
+    function brandOf(digits: string): string {
+        if (/^3[47]/.test(digits)) return "amex"
+        if (/^4/.test(digits)) return "visa"
+        if (/^(5[1-5]|2[2-7])/.test(digits)) return "mastercard"
+        if (/^(6011|65|64[4-9])/.test(digits)) return "discover"
+        return ""
+    }
+    function brandName(brand: string): string {
+        return ({ visa: "Visa", mastercard: "Mastercard", amex: "American Express", discover: "Discover" } as any)[brand] ?? "Card"
+    }
+    function maxDigits(brand: string): number { return brand == "amex" ? 15 : brand == "mastercard" ? 16 : 19 }
+    function codeLength(brand: string): number { return brand == "amex" ? 4 : 3 }
+    // printed the way the card is: 4-6-5 for American Express, fours for the rest
+    function groupCard(digits: string): string {
+        const brand = brandOf(digits)
+        const d = digits.slice(0, maxDigits(brand))
+        if (brand == "amex") return [d.slice(0, 4), d.slice(4, 10), d.slice(10)].filter((g) => g != "").join(" ")
+        return (d.match(/.{1,4}/g) ?? []).join(" ")
+    }
+    // where the caret belongs in the grouped text, after `n` digits
+    function caretAfter(grouped: string, n: number): number {
+        if (n <= 0) return 0
+        let seen = 0
+        for (let i = 0; i < grouped.length; i++) {
+            if (/\d/.test(grouped[i])) { seen++; if (seen == n) return i + 1 }
+        }
+        return grouped.length
+    }
+    function luhn(digits: string): boolean {
+        let sum = 0
+        for (let i = 0; i < digits.length; i++) {
+            let d = Number(digits[digits.length - 1 - i])
+            if (i % 2 == 1) { d = d * 2; if (d > 9) d = d - 9 }
+            sum = sum + d
+        }
+        return sum % 10 == 0
+    }
+    function cardProblem(s: string): string {
+        const d = digitsOf(s)
+        const brand = brandOf(d)
+        const lengthOk = brand == "amex" ? d.length == 15
+            : brand == "mastercard" ? d.length == 16
+            : brand == "visa" ? [13, 16, 19].includes(d.length)
+            : d.length >= 12 && d.length <= 19
+        if (!lengthOk && d.length < (brand == "amex" ? 15 : 16)) return "That card number is too short."
+        if (!lengthOk || !luhn(d)) return "That isn't a valid card number. Check the digits on your card."
+        return ""
+    }
+    // "MM / YY" as it is typed: the slash arrives with the third digit
+    function groupExpiry(s: string): string {
+        let d = digitsOf(s).slice(0, 4)
+        if (d.length == 1 && Number(d) > 1) d = "0" + d
+        return d.length > 2 ? d.slice(0, 2) + " / " + d.slice(2) : d
+    }
+    function expiryParts(s: string): number[] {
+        const d = digitsOf(s)
+        if (d.length != 4) return []
+        return [Number(d.slice(0, 2)), 2000 + Number(d.slice(2))]
+    }
+    function expiryProblem(s: string, year: number, month: number): string {
+        const p = expiryParts(s)
+        if (p.length == 0) return "Enter the expiry as MM / YY."
+        if (p[0] < 1 || p[0] > 12) return "There's no month " + digitsOf(s).slice(0, 2) + ". Enter a month from 01 to 12."
+        if (p[1] < year || (p[1] == year && p[0] < month)) return "This card has expired. Check the date, or use another card."
+        return ""
+    }
+    function codeProblem(s: string, brand: string): string {
+        const n = codeLength(brand)
+        return new RegExp("^\\d{" + n + "}$").test(s.trim()) ? "" : "Enter the " + n + "-digit security code" + (brand == "amex" ? " from the front of the card." : " from the back of the card.")
+    }
+    function postalProblem(s: string, country: string): string {
+        const v = s.trim()
+        if (country == "US") return /^\d{5}(-\d{4})?$/.test(v) ? "" : "Enter a ZIP code like 94103 or 94103-1234."
+        if (country == "CA") return /^[A-Za-z]\d[A-Za-z] ?\d[A-Za-z]\d$/.test(v) ? "" : "Enter a postal code like K1A 0B1."
+        if (country == "GB") return /^[A-Za-z]{1,2}\d[A-Za-z\d]? ?\d[A-Za-z]{2}$/.test(v) ? "" : "Enter a postcode like SW1A 2AA."
+        return ""
+    }
+    function emailProblem(s: string): string {
+        return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s.trim()) ? "" : "Enter an email address like name@example.com."
+    }
+
+    // ── the hall's geometry ──
+    //
+    // Every row is an arc about one point above the stage, so the rows curve
+    // to face it. Seats sit a fixed pitch apart along their arc, so a longer
+    // row is a wider arc. Units are the scene's own; the hall scales them.
+    const HALL_W = 540
+    const HALL_H = 600
+    const FOCUS_Y = -96
+    const PITCH = 14
+    const ROW_GAP = 17
+    const SECTION_R = [200, 448, 548, 652]
+    function hallW(): number { return HALL_W }
+    function hallH(): number { return HALL_H }
+    function rowRadius(section: number, row: number): number { return SECTION_R[section] + row * ROW_GAP }
+    function seatAngle(section: number, row: number, index: number, count: number): number {
+        return (index - (count - 1) / 2) * PITCH / rowRadius(section, row)
+    }
+    function seatX(section: number, row: number, index: number, count: number): number {
+        return HALL_W / 2 + rowRadius(section, row) * Math.sin(seatAngle(section, row, index, count))
+    }
+    function seatY(section: number, row: number, index: number, count: number): number {
+        return FOCUS_Y + rowRadius(section, row) * Math.cos(seatAngle(section, row, index, count))
+    }
+
+    // A barcode's bars, from its text: a start guard, eleven modules a
+    // character, a stop guard. Drawn, not scanned here; it reads as one.
+    function bars(code: string): number[] {
+        const out = [2, 1, 1, 2, 3, 2]
+        for (let i = 0; i < code.length; i++) {
+            let c = code.charCodeAt(i) * 7 + i * 13
+            for (let k = 0; k < 6; k++) { out.push(1 + (c % 3)); c = Math.floor(c / 3) + 5 }
+        }
+        out.push(2, 3, 3, 1, 1, 1, 2)
+        return out
+    }
+    }
+
+
+// ── Colors ──────────────────────────────────────────────────────────────────
+//
+// Ivory paper and ink, a darkened house for the hall, and one accent:
+// vermilion means "yours" — your seats, your total, the button that pays.
+// Laid over the library's SanFrancisco so the controls read the same tokens.
+
+theme Venue [
+    background = #F6F2EA, surface = #FFFDF8, card = #FFFDF8,
+    line = #E3DCCF, lineStrong = #CFC6B6, quiet = #EFE9DE,
+    text = #1F1A17, textMuted = #6A6058, textFaint = #9A9086,
+    accent = #C8412B, accentTextColor = #FFFFFF, accentHovered = #B63A26, accentPressed = #A23321, linkColor = #A23321,
+    control = #EDE6DA, controlHovered = #E5DDCF, controlPressed = #DAD1C2, controlSelected = #F5DDD6,
+    error = #B42318, scrimFill = #1A1210,
+
+    // the keyboard's place: a blue that reads on the paper and in the dark house alike,
+    // and is never mistaken for "yours" or for an error
+
+    focusRingColor = #2F6FDB,
+
+    // the house: the room is dark so its seats can be read at a glance
+
+    house = #1E1719, houseLine = #3A2E31, stageFill = #E9DFC9, stageInk = #4A3B2C,
+    seatGone = #4D4245, seatMine = #F05A3C, seatMineInk = #FFFFFF, houseText = #CDBFA9, houseFaint = #8C7E70,
+
+    // free seats, by section, front to back: the dearer the seat, the brighter its gold
+
+    tiers = [#F2CF7E, #D9B66E, #BC9C62, #9E8559],
+
+    good = #2F7A4F, scarce = #B5541F,
+
+    // inside a form the accent is the ink: a focused field is dark, never
+    // red, so red is only ever an error there (see `inked`)
+
+    ink = #2B2521, inkHovered = #3A332E, inkPressed = #14100E
+    ]
+
+
+// ── Glyphs ──────────────────────────────────────────────────────────────────
+
+class Glyph extends Icon [
+    shape: string = "",
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.fillStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        if (shape == "back") {
+            d.moveTo(10, 3); d.lineTo(5, 8); d.lineTo(10, 13); d.stroke()
+        } else if (shape == "next") {
+            d.moveTo(6, 3); d.lineTo(11, 8); d.lineTo(6, 13); d.stroke()
+        } else if (shape == "check") {
+            d.moveTo(3, 8.5); d.lineTo(6.5, 12); d.lineTo(13, 4.5); d.stroke()
+        } else if (shape == "plus") {
+            d.moveTo(8, 3); d.lineTo(8, 13); d.moveTo(3, 8); d.lineTo(13, 8); d.stroke()
+        } else if (shape == "minus") {
+            d.moveTo(3, 8); d.lineTo(13, 8); d.stroke()
+        } else if (shape == "close") {
+            d.moveTo(4, 4); d.lineTo(12, 12); d.moveTo(12, 4); d.lineTo(4, 12); d.stroke()
+        } else if (shape == "lock") {
+            d.roundRect(3, 7, 10, 7.5, 1.5); d.moveTo(5.5, 7); d.lineTo(5.5, 5); d.arc(8, 5, 2.5, Math.PI, 0); d.lineTo(10.5, 7); d.stroke()
+        } else if (shape == "person") {
+            d.arc(8, 5.5, 2.8, 0, 6.3); d.moveTo(2.8, 14.5); d.bezierCurveTo(3.5, 10, 12.5, 10, 13.2, 14.5); d.stroke()
+        } else if (shape == "card") {
+            d.roundRect(1.5, 3.5, 13, 9, 1.5); d.moveTo(1.5, 6.5); d.lineTo(14.5, 6.5); d.stroke()
+        }
+        }
+    ]
+
+
+// The three states of a seat, drawn the same way in the hall, in the legend
+// and on the overview: an open ring is free, a filled disc with a check is
+// yours, a small dot is gone. Shape carries the state, so it reads with the
+// colours covered and to someone who cannot tell them apart.
+
+class SeatGlyph [
+    kind: "free" | "mine" | "gone" = "free",
+    tone: Color = #F2CF7E,
+    draw(d: DrawContext) {
+        const w = this.width
+        const r = w / 2
+        const t = provided("theme")
+        d.beginPath()
+        if (kind == "gone") {
+            d.fillStyle = t.seatGone
+            d.arc(r, r, w * 0.17, 0, Math.PI * 2)
+            d.fill()
+        } else if (kind == "mine") {
+            d.fillStyle = t.seatMine
+            d.arc(r, r, w * 0.46, 0, Math.PI * 2)
+            d.fill()
+            d.beginPath()
+            d.strokeStyle = t.seatMineInk
+            d.lineWidth = Math.max(1.2, w * 0.11)
+            d.lineCap = "round"
+            d.lineJoin = "round"
+            d.moveTo(w * 0.29, w * 0.52); d.lineTo(w * 0.44, w * 0.66); d.lineTo(w * 0.71, w * 0.36)
+            d.stroke()
+        } else {
+            d.strokeStyle = tone
+            d.lineWidth = Math.max(1, w * 0.13)
+            d.arc(r, r, w * 0.36, 0, Math.PI * 2)
+            d.stroke()
+        }
+        }
+    ]
+
+
+// ── Small parts ─────────────────────────────────────────────────────────────
+
+// A quiet text button: words in the ink, a wash under the pointer.
+
+class TextButton extends Control [ height = { app.tap }, cornerRadius = 8, padding = [0, 10, 0, 10],
+    label: string = "",
+    glyph: string = "",
+    tone: Color = { provided("theme").text },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").control : null },
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    Glyph [ visible = { classroot.glyph != "" }, iconSize = 15, weight = 1.8, shape = { classroot.glyph }, ink = { classroot.tone } ],
+    TextLabel [ fontSize = 15, fontWeight = medium, textColor = { classroot.tone }, text = { classroot.label } ]
+    ]
+
+
+// A small label in capitals over a value: the ticket's and the summary's voice.
+
+class Caption extends Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 1.2,
+    textColor = { provided("theme").textMuted }
+    ]

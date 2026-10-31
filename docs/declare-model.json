@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "f0b489484c2d",
+  "buildId": "6f65f6c1ed1f",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -4385,7 +4385,7 @@
    },
    "E5CAF1A": {
     "message": "[Declare] onLoad on … threw: …",
-    "at": "boot-check.ts:342"
+    "at": "boot-check.ts:345"
    },
    "EE5117B": {
     "message": "[Declare] deferred boot work failed:",

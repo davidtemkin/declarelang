@@ -24,7 +24,13 @@ writeFileSync(FILE, `App [ width = 390, height = 844,
         onPinch(e: PinchEvent) { app.zoom = app.base * e.scale },
         onWheel(e: WheelEvent) { if (e.pinch) { app.wheelPinches = app.wheelPinches + 1; app.zoom = app.zoom * Math.exp(-e.deltaY / 100) } } ],
     pane: View [ x = 20, y = 240, width = 350, height = 300, scrolls = y,
-        View [ width = 350, height = 2000, fill = #EEF1F4, onClick() { } ] ] ]`);
+        View [ width = 350, height = 2000, fill = #EEF1F4, onClick() { } ] ],
+    // a surface that pans under one finger and zooms under two (10-touch.md)
+    lens: View [ x = 20, y = 560, width = 350, height = 200, fill = #E4EDE6, trail: string = "",
+        onPointerDown(e: PointerEvent) { this.trail = this.trail + "d" },
+        onPointerMove(e: PointerEvent) { if (!this.trail.endsWith("m")) this.trail = this.trail + "m" },
+        onPinchStart(e: PinchEvent) { this.trail = this.trail + "P" },
+        onPinchEnd(e: PinchEvent) { this.trail = this.trail + "E" } ] ]`);
 
 function look(...args) {
   const r = spawnSync("node", [join(ROOT, "tools/look.mjs"), FILE, ...args], { cwd: ROOT, encoding: "utf8" });
@@ -55,6 +61,11 @@ await test("--pinch: two fingers under --touch (onPinch), a trackpad pinch witho
   assert.equal(d["app.starts"][0], 0, "a trackpad starts no finger pinch");
   assert.ok(d["app.wheelPinches"][0] > 0, "a trackpad pinch arrives as onWheel with e.pinch");
   assert.ok(Math.abs(d["app.zoom"][0] - 2) < 0.05, `the wheel deltas add up to 2 (zoom ${d["app.zoom"][0]})`);
+});
+
+await test("a pinch takes its press: each finger's onPointerDown comes before onPinchStart, and no onPointerMove follows until every finger lifts", () => {
+  const t = look("--touch", "--size", "390x844", "--pinch", "app.lens", "2", "--read", "app.lens.trail");
+  assert.equal(t["app.lens.trail"][0], "ddPE", `the press's trail: ${t["app.lens.trail"][0]}`);
 });
 
 // A finger is not a point: a browser moves a tap onto a control within reach

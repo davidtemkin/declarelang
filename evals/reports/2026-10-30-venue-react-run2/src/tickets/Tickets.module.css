@@ -1,0 +1,229 @@
+.page {
+  width: min(100% - 2 * var(--gutter), 760px);
+  margin-inline: auto;
+  padding-bottom: 64px;
+}
+
+.head { padding: 28px 0 28px; text-align: center; }
+
+.kicker {
+  font-size: 0.8125rem;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+
+.title {
+  margin-top: 8px;
+  font-family: var(--font-serif);
+  font-size: clamp(2rem, 6vw, 3rem);
+  font-weight: 400;
+  letter-spacing: -0.015em;
+  line-height: 1.05;
+}
+
+.facts {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px 32px;
+  margin-top: 20px;
+}
+
+.facts dt {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+
+.facts dd { font-variant-numeric: tabular-nums; font-weight: 550; }
+.code { letter-spacing: 0.06em; }
+
+.sent { margin-top: 14px; color: var(--ink-2); }
+
+.wallet { display: grid; gap: 18px; }
+
+.track {
+  list-style: none;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 100%;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+
+.track::-webkit-scrollbar { display: none; }
+
+.slot {
+  scroll-snap-align: center;
+  display: grid;
+  justify-items: center;
+  padding: 4px 0 12px;
+}
+
+/* A ticket: ink and paper, legible at arm's length, with a tear-off stub. */
+.ticket {
+  width: min(100%, 360px);
+  color: #f8efdd;
+  background: var(--house);
+  border-radius: 18px;
+  overflow: hidden;
+  box-shadow: 0 18px 40px -18px rgb(28 25 21 / 0.45);
+}
+
+.ticketHead {
+  padding: 24px 24px 18px;
+  background:
+    radial-gradient(140% 120% at 50% -20%, rgb(255 222 160 / 0.22), transparent 60%);
+}
+
+.ticketHall {
+  font-size: 0.75rem;
+  font-weight: 650;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: rgb(248 239 221 / 0.6);
+}
+
+.ticketTitle {
+  margin-top: 6px;
+  font-family: var(--font-serif);
+  font-size: 1.625rem;
+  font-weight: 400;
+  line-height: 1.1;
+}
+
+.ticketWhen {
+  margin-top: 12px;
+  font-size: 1.375rem;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+}
+
+.sep { color: rgb(248 239 221 / 0.45); }
+
+.seat {
+  display: grid;
+  grid-template-columns: 1.6fr 1fr 1fr;
+  gap: 12px;
+  padding: 18px 24px;
+  border-top: 1px solid rgb(248 239 221 / 0.14);
+}
+
+.seat dt {
+  font-size: 0.6875rem;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgb(248 239 221 / 0.55);
+}
+
+.seat dd {
+  margin-top: 2px;
+  font-size: 2.5rem;
+  font-weight: 700;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.seat dd.sectionName {
+  font-size: 1.25rem;
+  line-height: 1.15;
+  font-weight: 650;
+  letter-spacing: 0;
+  padding-top: 4px;
+}
+
+.doors {
+  padding: 0 24px 22px;
+  font-size: 0.9375rem;
+  color: rgb(248 239 221 / 0.75);
+}
+
+.doors strong { color: #f8efdd; font-weight: 700; }
+
+.stub {
+  position: relative;
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  padding: 26px 24px 22px;
+  background: #fbf6ec;
+  color: var(--ink);
+  border-top: 2px dashed rgb(28 25 21 / 0.18);
+}
+
+/* The notches where the stub tears away. */
+.stub::before, .stub::after {
+  content: "";
+  position: absolute;
+  top: -11px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--paper);
+}
+
+.stub::before { left: -10px; }
+.stub::after { right: -10px; }
+
+.qr { width: 176px; height: 176px; }
+
+.barcode {
+  font-size: 1rem;
+  font-weight: 650;
+  letter-spacing: 0.12em;
+  font-variant-numeric: tabular-nums;
+}
+
+.count { font-size: 0.8125rem; color: var(--ink-2); }
+
+.controls {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+}
+
+.step {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 44px;
+  padding: 0 14px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--ink);
+  background: none;
+  border: 0;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.step[aria-disabled="true"] { color: var(--ink-3); cursor: default; }
+.step:focus-visible { outline: 2.5px solid var(--focus); outline-offset: 2px; }
+
+.step svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.position {
+  min-width: 56px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-2);
+}
+
+.again { display: flex; justify-content: center; margin-top: 32px; }

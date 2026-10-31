@@ -1,0 +1,483 @@
+/*
+# Murmur
+
+A conversation app: the conversations you are part of, each read back as far
+as it goes, written into with text and photographs, reacted to, and listened
+to. On a phone the list and a conversation are two screens, one sliding over
+the other; on a desk they sit side by side.
+
+How to read it:
+
+- **The records live in one place**, `app.chats`, an instance of the dataset
+  class `Chats`. It loads the whole history from the service, holds the live
+  socket, and makes every write: a message arriving, one sent, a reaction,
+  someone composing, someone reading. Nothing else holds a copy.
+- **Where the user is** is a handful of attributes on the App: which
+  conversation is open (in the URL), which photograph is being looked at,
+  which voice message is loaded in the one player.
+- **Everything on screen derives from those two.** The conversation list is a
+  derived dataset (`chats.inbox`), ordered by the latest activity. Each
+  conversation is a pane replicated over the threads, kept built while hidden
+  so it comes back where it was left, scrolled by the platform with
+  `scrollAnchor = end`: at the bottom it follows what arrives, scrolled back it
+  holds the reader's place.
+
+The look — themes, icons, the rows of a conversation, the voice scrubber,
+the composer — is in `murmur-parts.declare`.
+*/
+
+include [ "murmur-parts.declare" ]
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+//
+// Dates and durations: plain functions of their arguments. `now` is passed in
+// wherever "today" matters, so the labels follow the clock.
+
+script {
+    const DAY = 86400000
+
+    function startOfDay(ms: number): number { const d = new Date(ms); d.setHours(0, 0, 0, 0); return d.getTime() }
+    function daysAgo(iso: string, now: number): number {
+        return Math.round((startOfDay(now) - startOfDay(Date.parse(iso))) / DAY)
+    }
+    function sameDay(a: string, b: string): boolean { return startOfDay(Date.parse(a)) == startOfDay(Date.parse(b)) }
+    function minutesApart(a: string, b: string): number { return Math.abs(Date.parse(b) - Date.parse(a)) / 60000 }
+
+    function clockTime(iso: string): string {
+        return new Date(iso).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })
+    }
+
+    // A day as a heading in the history: "Today", "Yesterday", "Tuesday",
+    // then the date, with the year once it is not this one.
+    function dayLabel(iso: string, now: number): string {
+        const n = daysAgo(iso, now)
+        const d = new Date(iso)
+        if (n == 0) return "Today"
+        if (n == 1) return "Yesterday"
+        if (n > 1 && n < 7) return d.toLocaleDateString("en-US", { weekday: "long" })
+        if (d.getFullYear() == new Date(now).getFullYear()) return d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" })
+        return d.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+    }
+
+    // The same, shorter, for the list: a time today, then a weekday, then a date.
+    function listStamp(iso: string, now: number): string {
+        const n = daysAgo(iso, now)
+        const d = new Date(iso)
+        if (n == 0) return clockTime(iso)
+        if (n == 1) return "Yesterday"
+        if (n > 1 && n < 7) return d.toLocaleDateString("en-US", { weekday: "short" })
+        if (d.getFullYear() == new Date(now).getFullYear()) return d.toLocaleDateString("en-US", { month: "short", day: "numeric" })
+        return d.toLocaleDateString("en-US", { month: "numeric", day: "numeric", year: "2-digit" })
+    }
+
+    function clipLength(seconds: number): string {
+        const s = Math.max(0, Math.round(seconds))
+        return Math.floor(s / 60) + ":" + (s % 60 < 10 ? "0" : "") + (s % 60)
+    }
+
+    function initials(name: string): string {
+        const parts = name.trim().split(/[\s-]+/).filter((p) => p.length > 0)
+        return parts.length == 0 ? "?" : (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase()
+    }
+
+    function firstName(name: string): string { return name.split(" ")[0] }
+    }
+
+
+// ── The shape of the data ───────────────────────────────────────────────────
+//
+// The service's history, as served. Three fields a message may carry are the
+// app's own: `pending` while a sent message waits for the service's answer,
+// `ref` to match that answer, and `serverId`, the id the service gave it. A
+// sent message keeps the id it was born with, so its row is never rebuilt.
+// A thread carries two of the app's own: who is composing in it, and how far
+// each person has read.
+
+schema Reaction [ person: string, emoji: string ]
+schema Message [ id: string, from: string, at: string, kind: "text" | "photo" | "voice",
+    text?: string, src?: string, alt?: string, durationMs?: number, peaks[]?: number,
+    reactions[]?: Reaction,
+    pending?: boolean, ref?: string, serverId?: string ]
+schema Read [ person: string, through: string ]
+schema Thread [ id: string, title?: string, participants[]: string, lastSeen: string, messages[]: Message,
+    composing[]?: string, reads[]?: Read ]
+schema Person [ id: string, name: string, avatar?: string ]
+schema Sendable [ src: string, alt: string ]
+schema History [ me: string, people[]: Person, sendable[]: Sendable, threads[]: Thread ]
+
+// One frame of the live feed. `message` is a whole message on a `message` or
+// `sent` frame and a message id on a `reaction` frame, so it is left open.
+
+schema Frame [ t: string, thread?: string, message?: any, person?: string, emoji?: string,
+    state?: string, through?: string, ref?: string ]
+
+// A line of the conversation list: made by `Chats.summarize`, read-only.
+
+schema Summary [ id: string, title: string, face: string, group: boolean, preview: string,
+    at: string, unread: number, typing: string ]
+
+
+// ── The records ─────────────────────────────────────────────────────────────
+//
+// The history arrives once; the socket keeps it current. Every write to it is
+// a method here, and the socket's frames are dispatched to them.
+
+class Chats extends DataSource [ autoFetch = true, schema = History,
+    service: string = "",
+    url = { classroot.service == "" ? "" : classroot.service + "/threads.json" },
+
+    me: string = { this.value?.me ?? "" },
+    people: Person[] = { this.value?.people ?? [] },
+    sendable: Sendable[] = { this.value?.sendable ?? [] },
+    threads: Thread[] = { this.value?.threads ?? [] },
+
+    // ── lookups
+
+    at(id: string) -> number { return this.threads.findIndex((t) => t.id == id) },
+    thread(id: string) -> Thread? { return this.threads.find((t) => t.id == id) ?? null },
+    person(id: string) -> Person? { return this.people.find((p) => p.id == id) ?? null },
+    nameOf(id: string) -> string { return id == this.me ? "You" : this.person(id)?.name ?? "Someone" },
+    inkIndex(id: string) -> number { return Math.max(0, this.people.findIndex((p) => p.id == id)) },
+    others(t: Thread) -> string[] { return t.participants.filter((p) => p != this.me) },
+    isGroup(t: Thread) -> boolean { return t.participants.length > 2 },
+    titleOf(t: Thread) -> string {
+        if (t.title != null && t.title != "") return t.title
+        return this.others(t).map((p) => this.isGroup(t) ? firstName(this.nameOf(p)) : this.nameOf(p)).join(", ")
+        },
+
+    // A message by id, searched from the newest end, where nearly every
+    // lookup lands. A sent message answers to its own id and the service's.
+
+    indexIn(t: Thread, id: string) -> number {
+        for (let i = t.messages.length - 1; i >= 0; i--) {
+            const m = t.messages[i]
+            if (m.id == id || m.serverId == id) return i
+            }
+        return -1
+        },
+
+    // Unread: what others said after the last message this person looked at.
+
+    unread(t: Thread) -> number {
+        let n = 0
+        for (let i = t.messages.length - 1; i >= 0; i--) {
+            const m = t.messages[i]
+            if (m.id == t.lastSeen || m.serverId == t.lastSeen) break
+            if (m.from != this.me) n = n + 1
+            }
+        return n
+        },
+
+    // What a message says in one line, in the list and the picker's echo.
+
+    gist(m: Message) -> string {
+        if (m.kind == "photo") return "Photo" + (m.alt != null && m.alt != "" ? " · " + m.alt : "")
+        if (m.kind == "voice") return "Voice message · " + clipLength((m.durationMs ?? 0) / 1000)
+        return m.text ?? ""
+        },
+
+    typingLine(t: Thread) -> string {
+        const who = (t.composing ?? []).map((p) => firstName(this.nameOf(p)))
+        if (who.length == 0) return ""
+        if (!this.isGroup(t)) return "typing…"
+        return who.length == 1 ? who[0] + " is typing…" : who.join(" and ") + " are typing…"
+        },
+
+    lastFrom(t: Thread, person: string) -> string {
+        for (let i = t.messages.length - 1; i >= 0; i--) { if (t.messages[i].from == person) return t.messages[i].id }
+        return ""
+        },
+
+    // Under the last thing I sent: whether it has gone, and who has read it.
+
+    receipt(t: Thread) -> string {
+        let mine = -1
+        for (let i = t.messages.length - 1; i >= 0; i--) { if (t.messages[i].from == this.me) { mine = i; break } }
+        if (mine < 0) return ""
+        if (t.messages[mine].pending ?? false) return "Sending…"
+        const readers = (t.reads ?? []).filter((r) => this.indexIn(t, r.through) >= mine).map((r) => r.person)
+        if (readers.length == 0) return "Delivered"
+        if (!this.isGroup(t)) return "Read"
+        return readers.length == this.others(t).length ? "Read by everyone" : "Read by " + readers.map((p) => firstName(this.nameOf(p))).join(", ")
+        },
+
+    // ── the list, newest activity first
+    //
+    // A derived dataset: it re-sorts whenever a message lands anywhere.
+
+    inbox: Dataset [ schema = [ rows[]: Summary ], contents = { { rows: classroot.summarize() } } ],
+
+    summarize() -> Summary[] {
+        return this.threads.map((t) => {
+            const last = t.messages[t.messages.length - 1]
+            const group = this.isGroup(t)
+            const lead = last == null ? "" : last.from == this.me ? "You: " : group ? firstName(this.nameOf(last.from)) + ": " : ""
+            return ({ id: t.id, title: this.titleOf(t), face: group ? "" : this.others(t)[0] ?? "", group: group,
+                preview: last == null ? "No messages yet" : lead + this.gist(last),
+                at: last?.at ?? "", unread: this.unread(t), typing: this.typingLine(t) })
+            }).sort((a, b) => b.at.localeCompare(a.at))
+        },
+
+    // ── the writes
+
+    append(threadId: string, m: Message) {
+        const i = this.at(threadId)
+        if (i >= 0 && this.indexIn(this.threads[i], m.id) < 0) this.set("/threads/" + i + "/messages/-", m)
+        },
+
+    markRead(threadId: string) {
+        const i = this.at(threadId)
+        if (i < 0) return
+        const t = this.threads[i]
+        const last = t.messages[t.messages.length - 1]
+        if (last != null && last.id != t.lastSeen) this.set(["threads", i, "lastSeen"], last.id)
+        },
+
+    setComposing(threadId: string, person: string, on: boolean) {
+        const i = this.at(threadId)
+        if (i < 0) return
+        const now = (this.threads[i].composing ?? []).filter((p) => p != person)
+        this.set(["threads", i, "composing"], on ? [...now, person] : now)
+        },
+
+    setRead(threadId: string, person: string, through: string) {
+        const i = this.at(threadId)
+        if (i < 0) return
+        const rest = (this.threads[i].reads ?? []).filter((r) => r.person != person)
+        this.set(["threads", i, "reads"], [...rest, ({ person: person, through: through })])
+        },
+
+    // A mark is attached once per person: the service's broadcast of my own
+    // reaction finds it already there.
+
+    attach(threadId: string, messageId: string, person: string, emoji: string) {
+        const i = this.at(threadId)
+        if (i < 0) return
+        const j = this.indexIn(this.threads[i], messageId)
+        if (j < 0) return
+        const rs = this.threads[i].messages[j].reactions ?? []
+        if (rs.some((r) => r.person == person && r.emoji == emoji)) return
+        this.set(["threads", i, "messages", j, "reactions"], [...rs, ({ person: person, emoji: emoji })])
+        },
+
+    // ── sending: shown at once, confirmed later
+
+    sends: number = 0,
+
+    send(threadId: string, kind: "text" | "photo", body: string) {
+        sends = sends + 1
+        const ref = "r" + sends + "-" + Date.now()
+        const photo = sendable.find((p) => p.src == body)
+        const m: Message = kind == "text"
+            ? ({ id: "local-" + ref, from: me, at: new Date().toISOString(), kind: "text", text: body, pending: true, ref: ref })
+            : ({ id: "local-" + ref, from: me, at: new Date().toISOString(), kind: "photo", src: body, alt: photo?.alt ?? "", pending: true, ref: ref })
+        append(threadId, m)
+        markRead(threadId)
+        feed.send(JSON.stringify(kind == "text"
+            ? ({ t: "send", ref: ref, thread: threadId, kind: "text", text: body })
+            : ({ t: "send", ref: ref, thread: threadId, kind: "photo", src: body })))
+        },
+
+    react(threadId: string, messageId: string, emoji: string) {
+        attach(threadId, messageId, me, emoji)
+        const t = thread(threadId)
+        const m = t == null ? null : t.messages[indexIn(t, messageId)]
+        // A message the service has not answered for yet has no id it knows:
+        // its reactions go along when the answer comes (`confirm`).
+        if (m != null && !(m.pending ?? false)) feed.send(JSON.stringify(({ t: "react", thread: threadId, message: m.serverId ?? m.id, emoji: emoji })))
+        },
+
+    confirm(ref: string, sent: Message) {
+        threads.forEach((t, i) => {
+            let j = t.messages.length - 1
+            while (j >= 0 && t.messages[j].ref != ref) j = j - 1
+            if (j < 0) return
+            this.set(["threads", i, "messages", j, "serverId"], sent.id)
+            this.set(["threads", i, "messages", j, "pending"], false)
+            ;(t.messages[j].reactions ?? []).filter((r) => r.person == this.me).forEach((r) =>
+                this.feed.send(JSON.stringify(({ t: "react", thread: t.id, message: sent.id, emoji: r.emoji }))))
+            })
+        },
+
+    // ── the live feed: connected once the history is here, so the service's
+    //    schedule starts against a screen that can show it
+
+    feed: Socket [ active = { classroot.loaded },
+        url = { classroot.service.replace(/^http/, "ws") + "/live" },
+        retry = 2,
+        onMessage(e: StreamMessage) { classroot.receive(JSON.parse(e.data) as Frame) }
+        ],
+
+    receive(f: Frame) {
+        const th = f.thread ?? ""
+        if (f.t == "message") {
+            append(th, f.message as Message)
+            setComposing(th, (f.message as Message).from, false)
+        } else if (f.t == "sent") {
+            confirm(f.ref ?? "", f.message as Message)
+        } else if (f.t == "reaction") {
+            attach(th, f.message as string, f.person ?? "", f.emoji ?? "")
+        } else if (f.t == "composing") {
+            setComposing(th, f.person ?? "", f.state == "start")
+        } else if (f.t == "seen") {
+            setRead(th, f.person ?? "", f.through ?? "")
+        }
+        }
+    ]
+
+
+// ── The app ─────────────────────────────────────────────────────────────────
+
+App [ appName = "Murmur", minWidth = 320,
+    scrolls = none,
+    fill = { provided("theme").background },
+    textColor = { provided("theme").text },
+
+    // ── type: the system face for reading, a serif for the names of things
+
+    fraunces: Font [ FontFace [ weight = semibold,
+            src = "https://fonts.gstatic.com/s/fraunces/v38/6NUh8FyLNQOQZAnv9bYEvDiIdE9Ea92uemAk_WBq8U_9v0c2Wa0K7iN7hzFUPJH58nhr1K03gg7S2nfgRYIcaRyTCf7Tp05GNyXk.woff2" ]
+        ],
+    titleFace: array = { [app.fraunces, "Iowan Old Style", "Georgia", "serif"] },
+    uiFace: array = { ["-apple-system", "system-ui", "Segoe UI", "Helvetica Neue", "sans-serif"] },
+    fontFamily = { app.uiFace },
+
+    theme = { app.systemDark ? ({ ...SanFranciscoDark, ...MurmurDark }) : ({ ...SanFrancisco, ...MurmurLight }) },
+
+    // ── sizes
+
+    wide: boolean = { app.width >= 760 },
+    listW: number = { app.width >= 1200 ? 380 : 330 },
+    tap: number = { app.touchFirst ? 44 : 34 },
+    bodySize: number = { app.wide ? 15 : 16 },
+
+    // ── the clock: "today" in every date label follows it
+
+    clock: Time [ tick = minute ],
+    now: number = { app.clock.now },
+
+    // ── the records
+
+    chats: Chats [ service = "http://localhost:8330" ],
+    media(path: string) -> string { return path == "" ? "" : app.chats.service + "/" + path },
+
+    // ── where the user is
+    //
+    // `location` is the open conversation's id. A row in the list is a link to
+    // it; Back closes it again on a phone. `shown` lags it by one closing, so
+    // a conversation stays on screen while it slides away.
+
+    location = "",
+    openId: string = { app.chats.thread(app.location) == null ? "" : app.location },
+    shown: string = "",
+    trackChanges = ["openId"],
+    onChange() { if (app.openId != "") app.shown = app.openId },
+
+    // a phone's second screen slides over the first: 0 is the list, 1 a conversation
+
+    slide: number = 0,
+    Spring [ attribute = slide, to = { app.openId != "" ? 1 : 0 }, stiffness = 260, damping = 30 ],
+
+    close() { app.location = "" },
+
+    // the photograph being looked at, full size
+
+    viewing: Message? = null,
+    look(m: Message) { app.viewing = m },
+
+    // ── the one voice player
+    //
+    // One clip plays at a time, so there is one `Audio`, and each voice
+    // message reads whether it is the one loaded. `head` is a smooth playhead:
+    // the clip reports its position four times a second, so a frame clock
+    // advances it and takes the clip's word when the two drift apart.
+
+    voiceId: string = "",
+    voiceSrc: string = "",
+    voiceOn: boolean = false,
+    head: number = 0,
+
+    // A point chosen in a clip not yet loaded waits for it to load (a new
+    // clip says so by its duration arriving).
+
+    pendingSeek: number = -1,
+
+    player: Audio [ source = { app.media(app.voiceSrc) }, playing = { app.voiceOn },
+        onEnded() { app.voiceOn = false; app.head = 0 },
+        trackChanges = ["loaded", "duration"],
+        onChange() {
+            if (this.loaded && app.pendingSeek >= 0) { this.position = app.pendingSeek; app.pendingSeek = -1 }
+            }
+        ],
+    playhead: Time [ tick = frame, running = { app.voiceOn },
+        onTick(dt: number) {
+            const next = app.head + (app.player.buffering ? 0 : dt / 1000)
+            app.head = Math.abs(next - app.player.position) > 0.3 ? app.player.position : next
+            }
+        ],
+
+    load(id: string, src: string) {
+        if (voiceId == id) return
+        voiceId = id
+        voiceSrc = src
+        head = 0
+        },
+    toggleVoice(id: string, src: string) {
+        if (voiceId != id) { load(id, src); voiceOn = true } else voiceOn = !voiceOn
+        },
+    seekVoice(id: string, src: string, seconds: number) {
+        if (voiceId != id) { load(id, src); pendingSeek = seconds } else player.position = seconds
+        head = seconds
+        },
+
+    // ── reacting: one picker, opened at whichever message asked
+
+    reactThread: string = "",
+    reactId: string = "",
+    reactTo(threadId: string, messageId: string, at: View) {
+        app.reactThread = threadId
+        app.reactId = messageId
+        app.picker.showFor(at)
+        },
+
+    // ── the screen: the list, and the conversations over or beside it
+
+    layout: Stage [ wide = { app.wide }, side = { app.listW }, slide = { app.slide } ],
+
+    inbox: Inbox [ ],
+
+    stage: View [ clip = true,
+        fill = { provided("theme").background },
+        shadow = { app.wide ? null : shadow(0, 0, 24, 0x00000022) },
+
+        // nothing open, on a desk
+
+        View [ width = 100%, height = 100%, visible = { app.shown == "" && app.chats.loaded },
+            Text [ x = center, y = center, fontFamily = { app.titleFace }, fontSize = 22, fontWeight = semibold,
+                textColor = { provided("theme").textFaint }, text = "Pick a conversation" ]
+            ],
+
+        // Every conversation, built once and kept: a hidden one keeps its
+        // scroll position, its draft and its built rows, so returning to it
+        // returns to where it was.
+
+        threads: View [ width = 100%, height = 100%, datapath = { app.chats.value },
+            Conversation [ datapath = :threads[], width = 100%, height = 100%,
+                visible = { app.shown == :id } ]
+            ]
+        ],
+
+    // ── layers
+
+    photos: Popover [ placement = "above",
+        accessibilityLabel = "Send a photo",
+        PhotoGrid [ ]
+        ],
+
+    picker: Popover [ placement = "above",
+        accessibilityLabel = "React",
+        ReactionBar [ ]
+        ],
+
+    lightbox: Lightbox [ ]
+    ]

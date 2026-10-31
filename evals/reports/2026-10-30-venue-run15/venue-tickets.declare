@@ -1,0 +1,158 @@
+/*
+# The Venue: the tickets
+
+What someone holds up at the door, one at a time: the performance and when
+to arrive at the top, the seat large enough to read at arm's length, and the
+code to scan at the foot. A carousel puts one ticket in view; a swipe, the
+arrows or the buttons move between them.
+*/
+
+// The code, as bars a scanner reads: drawn from the ticket's own code.
+
+class Barcode [ height = 76,
+    code: string = "",
+    accessibilityHidden = true,
+    draw(d: DrawContext) {
+        const bars = barPattern(code)
+        const units = bars.reduce((n, b) => n + (b == 0 ? 1 : b), 0)
+        const u = width / units
+        let x = 0
+        d.fillStyle = "#1E1A17"
+        bars.forEach((b, i) => {
+            const w = (b == 0 ? 1 : b) * u
+            if (b != 0 && i % 2 == 0) d.fillRect(x, 0, Math.max(1, w - 0.4), height)
+            x = x + w
+            })
+        }
+    ]
+
+
+// One label over one value, as the seat block prints them.
+
+class Stub [ flexes = true,
+    caption: string = "",
+    value: string = "",
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 1.2, textColor = { provided("theme").textMuted }, text = { classroot.caption } ],
+    Text [ fontSize = 34, fontWeight = bold, numeralWidth = tabular, wrap = false, text = { classroot.value } ]
+    ]
+
+
+class TicketCard [ padding = [10, 16, 30, 16],
+    tix: Ticket? = null,
+    index: number = 0,
+    count: number = 1,
+    accessibilityRole = group,
+    accessibilityLabel = { "Ticket " + (classroot.index + 1) + " of " + classroot.count + ": "
+        + (classroot.tix?.section ?? "") + ", row " + (classroot.tix?.row ?? "") + ", seat " + (classroot.tix?.number ?? 0) },
+
+    face: View [ width = 100%, cornerRadius = 22, clip = true,
+        fill = { provided("theme").surface },
+        shadow = { shadow(0, 8, 20, 0x2A1E1628) },
+        layout: SimpleLayout [ axis = y ],
+
+        // the performance, and when to come
+
+        top: View [ width = 100%, padding = [22, 24, 20, 24], fill = { provided("theme").house },
+            layout: SimpleLayout [ axis = y, spacing = 4 ],
+            Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 1.6, textColor = { provided("theme").stageText },
+                text = { (app.production.value?.hall ?? "").toUpperCase() + " · ADMIT ONE" } ],
+            Text [ width = 100%, wrap = true, fontFamily = { app.display }, fontSize = 24, fontWeight = semibold, textColor = #F6F0E6,
+                text = { app.production.value?.title ?? "" } ],
+            View [ width = 100%, padding = [10, 0, 0, 0],
+                layout: SimpleLayout [ axis = x, spacing = 12, align = baseline ],
+                Text [ fontFamily = { app.display }, fontSize = 30, fontWeight = semibold, textColor = #F6F0E6,
+                    text = { app.ticketPerf == null ? "" : dayLabel(app.ticketPerf.startsAt) } ],
+                Text [ fontSize = 22, fontWeight = semibold, numeralWidth = tabular, textColor = #F6F0E6,
+                    text = { app.ticketPerf == null ? "" : timeLabel(app.ticketPerf.startsAt) } ]
+                ],
+            Text [ fontSize = 15, textColor = #D8CCC0,
+                text = { app.ticketPerf == null ? "" : "Doors open " + timeLabel(app.ticketPerf.doorsAt) + " — please arrive by then" } ]
+            ],
+
+        // the tear line
+
+        tear: View [ width = 100%, height = 18, accessibilityHidden = true,
+            draw(d: DrawContext) {
+                d.fillStyle = provided("theme").background
+                d.beginPath(); d.arc(0, 9, 9, 0, 6.2832); d.fill()
+                d.beginPath(); d.arc(width, 9, 9, 0, 6.2832); d.fill()
+                d.strokeStyle = provided("theme").lineStrong
+                d.lineWidth = 1.2
+                d.setLineDash([4, 5])
+                d.beginPath(); d.moveTo(16, 9); d.lineTo(width - 16, 9); d.stroke()
+                }
+            ],
+
+        // the seat, large
+
+        seat: View [ width = 100%, padding = [6, 24, 4, 24],
+            layout: SimpleLayout [ axis = y, spacing = 14 ],
+            Text [ fontSize = 13, fontWeight = semibold, letterSpacing = 1.4, textColor = { provided("theme").accent },
+                text = { (classroot.tix?.section ?? "").toUpperCase() } ],
+            View [ width = 100%,
+                layout: SimpleLayout [ axis = x, spacing = 16 ],
+                Stub [ caption = "ROW", value = { classroot.tix?.row ?? "" } ],
+                Stub [ caption = "SEAT", value = { "" + (classroot.tix?.number ?? "") } ]
+                ]
+            ],
+
+        // the code at the door
+
+        scan: View [ width = 100%, padding = [18, 24, 0, 24],
+            layout: SimpleLayout [ axis = y, spacing = 8, align = center ],
+            Barcode [ width = 100%, code = { classroot.tix?.barcode ?? "" } ],
+            Text [ fontSize = 16, fontWeight = semibold, letterSpacing = 2, numeralWidth = tabular,
+                text = { classroot.tix?.barcode ?? "" } ],
+            Text [ padding = [2, 0, 0, 0], fontSize = 13, textColor = { provided("theme").textMuted },
+                text = { "Ticket " + (classroot.index + 1) + " of " + classroot.count } ]
+            ]
+        ]
+    ]
+
+
+class TicketsPage [ width = 100%,
+    receipt: Receipt? = { app.order.value },
+    tickets: Ticket[] = { classroot.receipt?.tickets ?? [] },
+    page: number = 0,
+    padding = { app.phone ? [20, 4, 40, 4] : [44, 24, 64, 24] },
+    layout: SimpleLayout [ axis = y, spacing = 6, align = center ],
+
+    heading: Text [ focusable = quiet, accessibilityRole = heading, accessibilityLevel = 1,
+        fontFamily = { app.display }, fontSize = { app.phone ? 32 : 40 }, fontWeight = semibold,
+        text = { classroot.tickets.length == 1 ? "Your ticket" : "Your tickets" } ],
+    Text [ fontSize = 16, textColor = { provided("theme").textMuted },
+        text = { "Sent to " + (classroot.receipt?.email ?? "") } ],
+    Text [ fontSize = 14, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+        text = { "Confirmation " + (classroot.receipt?.code ?? "") } ],
+    Text [ padding = [0, 0, 12, 0], fontSize = 14, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+        text = { money(classroot.receipt?.totalCents ?? 0) + " paid with " + brandName(classroot.receipt?.brand ?? "") + " ending " + (classroot.receipt?.last4 ?? "") } ],
+
+    deck: Carousel [ width = { Math.min(420, parent.contentBox("width")) }, height = 500,
+        page = { classroot.page },
+        input(p: number) { classroot.page = p },
+        accessibilityLabel = "Tickets",
+        datapath = { classroot.receipt },
+        TicketCard [ datapath = :tickets[], tix = { :@ as Ticket }, index = { rowIndex }, count = { classroot.tickets.length } ]
+        ],
+
+    nav: View [ visible = { classroot.tickets.length > 1 }, padding = [6, 0, 0, 0],
+        layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+        Quiet [ label = "‹ Previous", disabled = { classroot.page == 0 }, opacity = { this.disabled ? 0.35 : 1 },
+            press() { classroot.page = Math.max(0, classroot.page - 1) }
+            ],
+        dots: View [ accessibilityHidden = true,
+            layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+            datapath = { classroot.receipt },
+            View [ datapath = :tickets[], width = 8, height = 8, cornerRadius = 4,
+                fill = { rowIndex == classroot.page ? provided("theme").text : provided("theme").lineStrong } ]
+            ],
+        Quiet [ label = "Next ›", disabled = { classroot.page >= classroot.tickets.length - 1 }, opacity = { this.disabled ? 0.35 : 1 },
+            press() { classroot.page = Math.min(classroot.tickets.length - 1, classroot.page + 1) }
+            ]
+        ],
+
+    again: Quiet [ label = "Book another performance", tone = { provided("theme").accent },
+        press() { app.startOver() }
+        ]
+    ]

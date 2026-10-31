@@ -1,0 +1,227 @@
+/*
+# The Venue: checkout
+
+The payment form and the order beside it. Every value the form edits lives
+on the App, so signing in halfway, going back to the hall, or a refusal from
+the bank leaves what the person typed where it was. The `Form` judges the
+fields, sends `app.order` once, and lays the service's refusals back on the
+field they name; `refusedWith` is what the program itself does about a
+refusal (empty the security code after a decline, give back a lost seat).
+*/
+
+// A heading inside the form: a small line of type, no box.
+
+class FormHeading extends Text [ padding = [10, 0, 0, 0], fontSize = 13, fontWeight = semibold, letterSpacing = 1.1,
+    textColor = { provided("theme").textMuted },
+    accessibilityRole = heading, accessibilityLevel = 2
+    ]
+
+
+// Two fields side by side at a desk, one above the other on a narrow phone.
+
+class Pair [ width = 100%,
+    layout: SimpleLayout [ axis = { app.width < 380 ? "y" : "x" }, spacing = 12 ]
+    ]
+
+
+// A saved card, as a person recognises one: its kind, its last four, its expiry.
+
+class CardChoice extends Radio [ width = 100%,
+    card: SavedCard? = null,
+    expired: boolean = { classroot.card == null ? false : expiredOn(classroot.card.expYear, classroot.card.expMonth, app.clock.year, app.clock.month) },
+    disabled = { classroot.expired },
+    choice = { classroot.card?.id ?? "" },
+    label = { classroot.card == null ? "" : brandName(classroot.card.brand) + " ending " + classroot.card.last4 + " · "
+        + (classroot.expired ? "expired " : "expires ") + twoDigits(classroot.card.expMonth) + "/" + twoDigits(classroot.card.expYear % 100) }
+    ]
+
+
+class CheckoutForm extends Form [ width = 100%, source = { app.order },
+    enterMoves = { app.phone },
+    failedMessage = "We couldn't reach the box office. Check your connection and try again.",
+    layout: SimpleLayout [ axis = y, spacing = 14 ],
+
+    // What the program does about a refusal, after the form has laid it on
+    // its field (or in `error`).
+
+    refusedWith(body: object) {
+        const b = body as { error?: string, conflicts?: string[], message?: string }
+        if (b.error == "card_declined" || b.error == "insufficient_funds") app.clearCode()
+        else if (b.error == "unavailable") app.lose(b.conflicts ?? [], b.message ?? "")
+        else if (b.error == "signed_out") app.me.fetch()
+        },
+
+    // ── signed in, or not
+
+    who: View [ width = 100%, padding = [0, 0, 4, 0],
+        layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+        Text [ flexes = true, wrap = true, fontSize = 15, textColor = { provided("theme").textMuted },
+            text = { app.signedIn ? "Signed in as " + (app.account?.name ?? "") + " (" + (app.account?.email ?? "") + ")" : "Have an account? Sign in to use a saved card." } ],
+        Quiet [ visible = { !app.signedIn }, label = "Sign in", tone = { provided("theme").accent },
+            press() { app.signingIn = true }
+            ]
+        ],
+
+    // ── how to pay
+
+    savedHead: FormHeading [ visible = { app.cards.length > 0 }, text = "PAY WITH" ],
+    method: RadioGroup [ visible = { app.cards.length > 0 }, width = 100%, name = "method",
+        datapath = { app.account },
+        accessibilityLabel = "Pay with",
+        value = { app.method },
+        input(v: string) { app.payWith = v },
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        CardChoice [ datapath = :cards[], card = { :@ as SavedCard } ],
+        Radio [ width = 100%, choice = "new", label = "A new card" ]
+        ],
+
+    saved: View [ visible = { app.method != "new" }, width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 12 ],
+        savedBox: Field [ label = "Security code", stacked = true, width = 200,
+            State [ applied = { app.phone }, width = 100% ],
+            savedCode: Entry [ name = "cvc", purpose = cardCode, required = "Enter the card's security code.",
+                placeholder = { "•••" },
+                text = { app.savedCvc },
+                onInput(v: string) { app.savedCvc = digitsOf(v).slice(0, 3) },
+                validate(v: string) -> string { return digitsOf(v).length == 3 ? "" : "The security code is the 3 digits on the back of the card." }
+                ]
+            ],
+        Text [ fontSize = 14, wrap = true, width = 100%, textColor = { provided("theme").textMuted },
+            text = { "Tickets will be sent to " + (app.account?.email ?? "") + "." } ]
+        ],
+
+    // ── a new card
+
+    fresh: View [ visible = { app.method == "new" }, width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        Text [ fontSize = 13, textColor = { provided("theme").textFaint }, text = "Every field is needed unless it says optional." ],
+
+        FormHeading [ text = "YOUR TICKETS GO TO" ],
+        Field [ label = "Email", stacked = true, width = 100%,
+            Entry [ name = "email", purpose = email, required = "Enter the email address for your tickets.",
+                placeholder = "you@example.com",
+                text = { app.email },
+                onInput(v: string) { app.email = v },
+                validate(v: string) -> string { return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(v.trim()) ? "" : "Enter an email address like name@example.com." }
+                ]
+            ],
+
+        FormHeading [ text = "CARD" ],
+        Field [ label = "Name on card", stacked = true, width = 100%,
+            Entry [ name = "name", purpose = cardName, required = "Enter the name as it appears on the card.",
+                text = { app.cardName },
+                onInput(v: string) { app.cardName = v }
+                ]
+            ],
+        Field [ label = "Card number", stacked = true, width = 100%,
+            numberField: Entry [ name = "number", purpose = cardNumber, required = "Enter the card number.",
+                padding = [0, 120, 0, 14], placeholder = "1234 5678 9012 3456",
+                accessibilityHint = { app.brand == "" ? "" : brandName(app.brand) },
+                text = { app.cardNumber },
+                onInput(v: string) { app.cardNumber = groupCard(v) },
+                validate(v: string) -> string { return cardProblem(v) },
+                brandTag: BrandMark [ ignoreLayout = true, x = { parent.contentBox("width") + 120 - this.width - 12 }, y = center,
+                    visible = { app.brand != "" }, brand = { app.brand } ]
+                ]
+            ],
+        codes: Pair [
+            Field [ label = "Expiry", stacked = true, flexes = true,
+                Entry [ name = "expiry", purpose = cardExpiry, required = "Enter the expiry date.",
+                    placeholder = "MM / YY",
+                    text = { app.expiry },
+                    onInput(v: string) { app.expiry = v.length < app.expiry.length ? v : groupExpiry(v) },
+                    validate(v: string) -> string { return expiryProblem(v, app.clock.year, app.clock.month) }
+                    ]
+                ],
+            codeBox: Field [ label = "Security code", stacked = true, flexes = true,
+                codeField: Entry [ name = "cvc", purpose = cardCode, required = "Enter the card's security code.",
+                    placeholder = { app.codeLen == 4 ? "4 digits" : "3 digits" },
+                    accessibilityHint = { app.codeLen == 4 ? "4 digits, on the front of the card" : "3 digits, on the back of the card" },
+                    text = { app.cvc },
+                    onInput(v: string) { app.cvc = digitsOf(v).slice(0, 4) },
+                    validate(v: string) -> string {
+                        return digitsOf(v).length == app.codeLen ? "" : app.codeLen == 4
+                            ? "This card's security code is the 4 digits on the front."
+                            : "The security code is the 3 digits on the back of the card."
+                        }
+                    ]
+                ]
+            ],
+
+        FormHeading [ text = "BILLING ADDRESS" ],
+        Field [ label = "Street address", stacked = true, width = 100%,
+            Entry [ name = "line1", purpose = addressLine1, required = "Enter the street address.",
+                text = { app.line1 },
+                onInput(v: string) { app.line1 = v }
+                ]
+            ],
+        Field [ label = "Address line 2 (optional)", stacked = true, width = 100%,
+            Entry [ name = "line2", purpose = addressLine2,
+                text = { app.line2 },
+                onInput(v: string) { app.line2 = v }
+                ]
+            ],
+        Field [ label = "City", stacked = true, width = 100%,
+            Entry [ name = "city", purpose = city, required = "Enter the city.",
+                text = { app.city },
+                onInput(v: string) { app.city = v }
+                ]
+            ],
+        Pair [
+            Field [ label = "Country", stacked = true, flexes = true,
+                Entry [ name = "country", purpose = country, required = "Enter the United States, Canada or the United Kingdom.",
+                    placeholder = "US, Canada or UK",
+                    text = { app.countryText },
+                    onInput(v: string) { app.countryText = v },
+                    onBlur() { if (app.country != "") app.countryText = countryName(app.country) },
+                    validate(v: string) -> string { return countryCode(v) != "" ? "" : "We take billing addresses in the United States, Canada and the United Kingdom." }
+                    ]
+                ],
+            Field [ label = { postalLabel(app.country) }, stacked = true, flexes = true,
+                Entry [ name = "postalCode", purpose = postalCode, required = { "Enter the " + postalLabel(app.country).toLowerCase() + "." },
+                    text = { app.postal },
+                    onInput(v: string) { app.postal = v.toUpperCase() },
+                    validate(v: string) -> string { return postalProblem(v, app.country) }
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+
+// One line of the order: a seat, its price, its booking fee.
+
+class OrderLine [ width = 100%, padding = [10, 0, 10, 0],
+    stroke = { [null, null, stroke(1, provided("theme").line), null] },
+    layout: SimpleLayout [ axis = y, spacing = 3 ],
+    top: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
+        Text [ flexes = true, fontSize = 15, fontWeight = medium, wrap = true,
+            text = { (:section ?? "") + " · Row " + (:row ?? "") + ", seat " + (:number ?? 0) } ],
+        Text [ fontSize = 15, numeralWidth = tabular, text = { money(:priceCents ?? 0) } ]
+        ],
+    View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
+        Text [ flexes = true, fontSize = 13, textColor = { provided("theme").textMuted }, text = "Booking fee" ],
+        Text [ fontSize = 13, numeralWidth = tabular, textColor = { provided("theme").textMuted }, text = { money(:feeCents ?? 0) } ]
+        ]
+    ]
+
+
+// The order: what is being bought and what it costs, to the cent.
+
+class OrderSummary [ width = 100%,
+    layout: SimpleLayout [ axis = y ],
+    Text [ fontFamily = { app.display }, fontSize = 22, fontWeight = semibold, text = { app.production.value?.title ?? "" } ],
+    Text [ padding = [2, 0, 8, 0], fontSize = 14, textColor = { provided("theme").textMuted },
+        text = { app.perf == null ? "" : dayLabel(app.perf.startsAt) + " · " + timeLabel(app.perf.startsAt) + " · " + (app.production.value?.hall ?? "") } ],
+    lines: View [ width = 100%, datapath = { app.picked.value },
+        layout: SimpleLayout [ axis = y ],
+        OrderLine [ datapath = :rows[] ]
+        ],
+    total: View [ width = 100%, padding = [14, 0, 0, 0],
+        layout: SimpleLayout [ axis = x, align = baseline ],
+        Text [ flexes = true, fontSize = 17, fontWeight = semibold, text = { "Total · " + plural(app.chosen.length, "seat", "seats") } ],
+        Text [ fontSize = 22, fontWeight = semibold, numeralWidth = tabular, text = { money(app.totalCents) } ]
+        ]
+    ]
