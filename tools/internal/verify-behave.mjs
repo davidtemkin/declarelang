@@ -328,19 +328,31 @@ bootHost(cfg);
       // before the frame after it, so a data source that fetches as the app
       // boots, or fetches again from what came back, has begun by then. No
       // window of silence is waited out.
-      let inflight = 0, lastChange = Date.now();
+      // An event stream sent by fetch (an EventStream with credentials or a
+      // body) is a "fetch" whose response never ends: once its headers say
+      // text/event-stream it is open for good, and no longer waited on.
+      const inflight = new Set();
+      let lastChange = Date.now();
       const LONG_LIVED = new Set(["eventsource", "websocket"]);
-      page.on("request", (r) => { if (!LONG_LIVED.has(r.resourceType())) { inflight++; lastChange = Date.now(); } });
-      const settled = (r) => { if (!LONG_LIVED.has(r.resourceType())) { inflight = Math.max(0, inflight - 1); lastChange = Date.now(); } };
+      page.on("request", (r) => { if (!LONG_LIVED.has(r.resourceType())) { inflight.add(r); lastChange = Date.now(); } });
+      const settled = (r) => { if (inflight.delete(r)) lastChange = Date.now(); };
       page.on("requestfinished", settled);
       page.on("requestfailed", settled);
+      page.on("response", (res) => { if (/^text\/event-stream/i.test(res.headers()["content-type"] ?? "")) settled(res.request()); });
+      // a settle that waited its whole time out, and what it waited on — said
+      // beside the verdict, once each, rather than passed over in silence
+      const waited = [];
       const quiet = async (timeoutMs = 10000) => {
         const until = Date.now() + timeoutMs;
         while (Date.now() < until) {
-          if (inflight > 0) { await new Promise((r) => setTimeout(r, 10)); continue; }
+          if (inflight.size > 0) { await new Promise((r) => setTimeout(r, 10)); continue; }
           const seen = lastChange;
           await frames(page);
-          if (inflight === 0 && lastChange === seen) return;
+          if (inflight.size === 0 && lastChange === seen) return;
+        }
+        for (const r of inflight) {
+          const t = `${r.method()} ${r.url()}`;
+          if (!waited.includes(t) && waited.length < 12) waited.push(t);
         }
       };
       // THE PAGE ARRIVING — at the start, and again after drive.device() loads it
@@ -1366,7 +1378,7 @@ const expect = {
         settle: async () => { await landed(); await frames(page); },
         advance: (ms) => page.evaluate((ms) => globalThis.__declareTimers?.advance?.(ms), ms).catch(() => {}),
       });
-      return { page, scriptPage, drive, expect, node, log, pageErrors, thrown, quiet, watched, checks, checkHere, asserted: () => asserted, warned };
+      return { page, scriptPage, drive, expect, node, log, pageErrors, thrown, quiet, watched, checks, checkHere, asserted: () => asserted, warned, waited };
     };
 
     return await fn({ openApp });
@@ -1672,7 +1684,7 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
     try {
       await app.watched(() => mod.default({ drive: app.drive, expect: app.expect, page: app.scriptPage }));
     } catch (e) {
-      if (e?.lines !== undefined) { failures.push(...e.lines); return { ok: false, failures, log: app.log, writes: writesOf(app), talked: originsOf(app, false), wrote: originsOf(app, true), warned: app.warned }; }
+      if (e?.lines !== undefined) { failures.push(...e.lines); return { ok: false, failures, log: app.log, writes: writesOf(app), talked: originsOf(app, false), wrote: originsOf(app, true), warned: app.warned, waited: app.waited }; }
       const where = app.log.length > 0 ? ` (after: ${app.log.slice(-3).join(" → ")})` : "";
       // For an unexpected error, the first stack frame is the difference
       // between "my assert threw here" and an anonymous page error a reader
@@ -1684,7 +1696,7 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
     if (failures.length === 0) { await app.quiet(2000); await app.checkHere("at the end of the script"); }
     for (const e of app.pageErrors) failures.push(`page error: ${e}`);
     for (const e of new Set(app.thrown)) failures.push(`error: ${e}`);
-    return { ok: failures.length === 0, failures, log: app.log, writes: writesOf(app), talked: originsOf(app, false), wrote: originsOf(app, true), checks: app.checks, asserted: app.asserted(), warned: app.warned };
+    return { ok: failures.length === 0, failures, log: app.log, writes: writesOf(app), talked: originsOf(app, false), wrote: originsOf(app, true), checks: app.checks, asserted: app.asserted(), warned: app.warned, waited: app.waited };
   });
 }
 

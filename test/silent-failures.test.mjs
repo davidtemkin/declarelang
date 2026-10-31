@@ -233,6 +233,22 @@ await test("an assert script that writes to a live service is told what it left 
   } finally { svc.kill(); }
 });
 
+await test("settleData does not wait on an event stream sent by fetch — it is open for good", async () => {
+  const { spawn } = await import("node:child_process");
+  const svc = spawn("node", ["-e", `require("node:http").createServer((q, r) => { r.writeHead(200, { "access-control-allow-origin": q.headers.origin ?? "*", "access-control-allow-credentials": "true", "content-type": "text/event-stream" }); r.write("data: {}\\n\\n"); }).listen(8399, "127.0.0.1", () => console.log("up"))`]);
+  await new Promise((r) => svc.stdout.once("data", r));
+  try {
+    const f = join(DIR, "stream.declare");
+    writeFileSync(f, `App [ width = 200, height = 100,
+    news: EventStream [ url = "http://127.0.0.1:8399/api/events", credentials = include ] ]`);
+    const r = run("verify.mjs", f, "--assert", script("stream.mjs", `  const t = Date.now();
+  await drive.settleData();
+  if (Date.now() - t > 5000) throw new Error("settleData waited " + (Date.now() - t) + " ms");`), "--rung=5", "--no-boot");
+    assert.equal(r.status, 0, r.out);
+    assert.doesNotMatch(r.out, /a settle waited its whole time/, r.out);
+  } finally { svc.kill(); }
+});
+
 await test("a run that fails after talking to a service earlier runs wrote to is told what may be the service's state", async () => {
   const { spawn } = await import("node:child_process");
   const svc = spawn("node", ["-e", `require("node:http").createServer((q, r) => { r.writeHead(q.method === "OPTIONS" ? 204 : 201, { "access-control-allow-origin": "*", "access-control-allow-headers": "content-type", "access-control-allow-methods": "GET, POST, OPTIONS", "content-type": "application/json" }); r.end("{}"); }).listen(8398, () => console.log("up"));`]);

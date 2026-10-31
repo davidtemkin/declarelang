@@ -321,6 +321,7 @@ if (failedRung === null && flags.rung >= 5 && flags.assert !== null) {
     behave.log = r.log;
     behave.asserted = r.asserted ?? 0;
     behave.warned = r.warned ?? [];
+    behave.waited = r.waited ?? [];
     behave.writes = r.writes ?? [];
     // A LIVE SERVICE REMEMBERS. What earlier runs wrote to a service is still
     // there for this one: a script that bought seats meets them sold the next
@@ -464,6 +465,7 @@ if (flags.json) {
   for (const n of boot.notes) console.log(`  note ${n}`);
   if (behave.serviceNote) console.log(`  note ${behave.serviceNote}`);
   for (const w of behave.warned ?? []) console.log(`  note the runtime said: ${w}`);
+  for (const w of behave.waited ?? []) console.log(`  note a settle waited its whole time for ${w}, which never came back — a request open for good (a stream by fetch, a long poll) holds every settle that long`);
   if (behave.writes.length > 0) {
     const shown = [...new Set(behave.writes)];
     console.log(`  note the script sent ${behave.writes.length} write${behave.writes.length === 1 ? "" : "s"} to the live service (${shown.slice(0, 4).join(", ")}${shown.length > 4 ? ", …" : ""}) — what they made stays there; --fixtures <dir> answers requests from files instead, so a run leaves nothing behind (verify.md)`);
