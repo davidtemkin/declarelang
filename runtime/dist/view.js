@@ -1066,6 +1066,12 @@ export class View extends Node {
      *  can ever wake work for a removed view. Children first; teardown ONLY —
      *  unlinking (and notifying the ex-parent) is discard's, the verb above. */
     $teardown() {
+        // Node.$teardown's body, interleaved with the view's own retirement — so
+        // every step of the base is here too: the profiler's count, and the
+        // structure cell, which a view that ever sized itself holds (#34: one
+        // kernel cell kept per torn-down view, until the table filled).
+        if (profileHook !== null)
+            profileHook.discarded(this);
         this.$tornDown = true;
         // The departure hook (D5/D8): presence is ENDING — fire onRetire down
         // the subtree while everything is still alive, unless this discard is a
@@ -1091,6 +1097,7 @@ export class View extends Node {
         }
         disposeBindings(this);
         freeCells(this);
+        this.$structure?.free();
         retireVisibility(this); // the visibility feed dies with the view
         this.$drawing?.dispose();
         this.$drawing = null;

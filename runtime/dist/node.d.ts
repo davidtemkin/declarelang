@@ -1,3 +1,4 @@
+import { Cell } from "./reactive.js";
 import type { Cursor } from "./data.js";
 /** The cursor read, installed by view.ts. A cursor belongs to a VIEW — it comes
  *  from that view's `datapath` and its place in replication — but the things
@@ -101,7 +102,7 @@ export declare class Node {
      *  replication-populated container's content extent re-derive when rows
      *  ARRIVE — per-child attr reads track the children that exist, and this
      *  cell tracks that the SET of children changed. */
-    private $structure;
+    protected $structure: Cell | null;
     /** Register the caller's interest in "my child list changed" (no-op when
      *  nothing is tracking). Every reactive read works this way — a cell the
      *  reader subscribes to — and the child list's cell is created on first

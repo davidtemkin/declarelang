@@ -1,0 +1,21 @@
+import { chromium } from '/tmp/pw/node_modules/playwright/index.mjs';
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+const errors = [];
+page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errors.push(m.type() + ': ' + m.text()); });
+page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
+await page.goto('http://localhost:5199/');
+await page.waitForTimeout(1200);
+await page.screenshot({ path: '/tmp/pwscripts/list.png' });
+await page.getByRole('button', { name: 'Open Field notes from the coast' }).click();
+await page.waitForTimeout(1200);
+await page.screenshot({ path: '/tmp/pwscripts/editor.png' });
+const slide = page.getByLabel('Slide', { exact: true });
+console.log('slide box', await slide.boundingBox());
+// select an element
+const b = await slide.boundingBox();
+await page.mouse.click(b.x + b.width * 0.3, b.y + b.height * 0.3);
+await page.waitForTimeout(300);
+await page.screenshot({ path: '/tmp/pwscripts/selected.png' });
+console.log(errors.join('\n'));
+await browser.close();

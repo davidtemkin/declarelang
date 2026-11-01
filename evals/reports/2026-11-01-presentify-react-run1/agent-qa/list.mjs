@@ -1,0 +1,28 @@
+import { chromium } from '/tmp/pw/node_modules/playwright/index.mjs';
+const browser = await chromium.launch();
+const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+const errors = [];
+page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
+await page.goto('http://localhost:5199/');
+await page.waitForTimeout(1000);
+await page.getByRole('button', { name: 'More for Untitled presentation' }).first().click();
+await page.getByRole('menuitem', { name: 'Rename…' }).click();
+await page.keyboard.type('Scratch deck');
+await page.keyboard.press('Enter');
+await page.waitForTimeout(800);
+console.log('titles', await page.locator('.deck-title').allInnerTexts());
+await page.getByRole('button', { name: 'More for Scratch deck' }).click();
+await page.getByRole('menuitem', { name: 'Delete…' }).click();
+await page.waitForTimeout(200);
+await page.screenshot({ path: '/tmp/pwscripts/z-delete.png' });
+await page.getByRole('button', { name: 'Delete presentation' }).click();
+await page.waitForTimeout(800);
+console.log('titles', await page.locator('.deck-title').allInnerTexts());
+// mixed inspector
+await page.getByRole('button', { name: 'Open Field notes from the coast' }).click();
+await page.waitForTimeout(1000);
+await page.keyboard.press('Meta+a');
+await page.waitForTimeout(200);
+await page.screenshot({ path: '/tmp/pwscripts/z-mixed.png' });
+console.log(errors.join('\n'));
+await browser.close();

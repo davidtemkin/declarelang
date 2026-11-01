@@ -753,6 +753,14 @@ ${new Error().stack ?? ""}`);
       phase.length = 0;
     }
   }, "abandon");
+  const rearm = /* @__PURE__ */ __name(() => {
+    if (q[0].length === 0 && q[1].length === 0 && ringCount[0] === 0)
+      return;
+    if (pendingFlag[0] === 0) {
+      pendingFlag[0] = 1;
+      host.schedule();
+    }
+  }, "rearm");
   const settle = /* @__PURE__ */ __name(() => {
     if (flushing)
       return 0;
@@ -811,7 +819,10 @@ ${new Error().stack ?? ""}`);
     }
     flushing = false;
     aborted = false;
-    abandon();
+    if (err === ERR_ABORT)
+      rearm();
+    else
+      abandon();
     host.endChain();
     if (err !== OK) {
       host.error(err, bad);

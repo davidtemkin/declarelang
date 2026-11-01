@@ -190,12 +190,12 @@ async function draw(page, s, kind, x1, y1, x2, y2, o = {}) {
 // ── the steps a person takes ────────────────────────────────────────────────
 // The fill is set by hex, in a field of its own or in whatever the Fill control opens.
 async function setFill(page, hex) {
-  const direct = await maybe(field(page, /^fill( colou?r)?$/i, { timeout: 800 }));
+  const direct = await maybe(field(page, /^fill( colou?r)?\b/i, { timeout: 800 }));
   if (!direct) {
-    await press(page, await control(page, /^fill( colou?r)?$/i));
+    await press(page, await control(page, /^fill( colou?r)?\b/i));
     await sleep(300);
   }
-  await typeInto(page, direct ? /^fill( colou?r)?$/i : /hex|^colou?r$|^#/i, hex);
+  await typeInto(page, direct ? /^fill( colou?r)?\b/i : /hex|^colou?r$|^#/i, hex);
   await page.keyboard.press("Escape");
   await sleep(200);
 }

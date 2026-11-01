@@ -1,0 +1,189 @@
+/*
+ * Presentify's design tokens and base styles.
+ *
+ * The chrome is a quiet graphite so the slide is always the brightest thing on screen.
+ * One accent, Presentify violet, marks what's active: the selection, the current slide,
+ * the chosen tool, the primary action.
+ */
+:root {
+  --bg: #121316;
+  --canvas: #17181c;
+  --panel: #1c1d21;
+  --panel-raised: #24252a;
+  --field: #26272d;
+  --field-hover: #2d2e35;
+  --line: #2c2e34;
+  --line-strong: #3a3c44;
+  --text: #eceef1;
+  --text-2: #a6a9b1;
+  --text-3: #70737c;
+  --accent: #7c5cff;
+  --accent-hover: #8f74ff;
+  --accent-press: #6a4af0;
+  --accent-soft: rgb(124 92 255 / 0.18);
+  --accent-ink: #b9a8ff;
+  --guide: #ff4f8b;
+  --danger: #f2555a;
+  --danger-soft: rgb(242 85 90 / 0.14);
+  --warning: #f5b34a;
+  --warning-soft: rgb(245 179 74 / 0.12);
+  --success: #5bc28e;
+
+  --radius-s: 6px;
+  --radius: 8px;
+  --radius-l: 12px;
+  --shadow-pop: 0 12px 32px rgb(0 0 0 / 0.45), 0 0 0 1px rgb(255 255 255 / 0.06);
+  --shadow-slide: 0 1px 2px rgb(0 0 0 / 0.4), 0 8px 28px rgb(0 0 0 / 0.35);
+
+  --font-ui: 'Inter Variable', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  --font-display: 'Fraunces Variable', Georgia, serif;
+
+  --topbar-h: 52px;
+  --slide-list-w: 212px;
+  --inspector-w: 272px;
+  --icon-knockout: var(--panel);
+
+  color-scheme: dark;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--text);
+  background: var(--bg);
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: default;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+a {
+  color: inherit;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  user-select: none;
+}
+
+.wordmark-text {
+  font-family: var(--font-display);
+  font-size: 21px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-variation-settings: 'SOFT' 100, 'WONK' 1;
+}
+
+.skeleton-bar {
+  display: block;
+  height: 10px;
+  border-radius: 5px;
+  background: linear-gradient(90deg, var(--field) 0%, var(--field-hover) 50%, var(--field) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
+.page-message {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  text-align: center;
+  min-height: 60vh;
+  padding: 40px;
+}
+
+.page-message h1,
+.page-message h2 {
+  font-family: var(--font-display);
+  font-size: 24px;
+  font-weight: 560;
+  margin-top: 8px;
+}
+
+.page-message p {
+  color: var(--text-2);
+  max-width: 420px;
+}
+
+.page-message-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.inline-error {
+  color: var(--danger);
+  margin: 8px 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

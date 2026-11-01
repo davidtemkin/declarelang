@@ -730,6 +730,16 @@ export function instantiateKernelJS(host, caps = {}) {
             phase.length = 0;
         }
     };
+    /** After an abort: what is still queued (or still in the write ring) stays,
+     *  and a settle is scheduled to run it (kernel.c rearm). */
+    const rearm = () => {
+        if (q[0].length === 0 && q[1].length === 0 && ringCount[0] === 0)
+            return;
+        if (pendingFlag[0] === 0) {
+            pendingFlag[0] = 1;
+            host.schedule();
+        }
+    };
     const settle = () => {
         if (flushing)
             return 0;
@@ -788,7 +798,14 @@ export function instantiateKernelJS(host, caps = {}) {
         }
         flushing = false;
         aborted = false;
-        abandon();
+        // A CYCLE or a STORM drops what is still queued: running it again would only
+        // repeat the loop. An ABORT (a step or a change handler threw) keeps it, and
+        // the next settle runs it — those rules' inputs moved and nothing else will
+        // wake them (kernel.c kernel_settle, the same rule).
+        if (err === ERR_ABORT)
+            rearm();
+        else
+            abandon();
         host.endChain();
         if (err !== OK) {
             host.error(err, bad);

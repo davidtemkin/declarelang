@@ -191,7 +191,7 @@ export class Node {
    *  replication-populated container's content extent re-derive when rows
    *  ARRIVE — per-child attr reads track the children that exist, and this
    *  cell tracks that the SET of children changed. */
-  private $structure: Cell | null = null;
+  protected $structure: Cell | null = null;
 
   /** Register the caller's interest in "my child list changed" (no-op when
    *  nothing is tracking). Every reactive read works this way — a cell the
