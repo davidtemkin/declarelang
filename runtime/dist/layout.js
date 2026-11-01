@@ -346,7 +346,7 @@ export class Layout extends Node {
     $reportConflict(child, slot, arranger) {
         if (this.$firstReport(child, slot)) {
             console.error("[Declare] " +
-                layoutConflictMessage(declareName(child), slot, arranger, null, ownerOf(child, slot)?.sourcePos));
+                layoutConflictMessage(declareName(child), slot, arranger, null, ownerOf(child, slot)?.sourcePos, false, child));
         }
     }
     /** A LITERAL on an attribute this strategy places — `Spacer [ height = 40 ]`

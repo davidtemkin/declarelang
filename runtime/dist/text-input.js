@@ -22,6 +22,7 @@ import { heldFamily } from "./font-value.js";
 import { isTwoWay, edited, commitDraft, revertDraft, judgeDraft, runValidate, floorError } from "./editor.js";
 import { insetSides, stroke } from "./value.js";
 import { hintsOf } from "./purpose.js";
+import { physicalAlign, runDirection } from "./text.js";
 export class TextInput extends View {
     /** The value `refused` was said of (captured when it is written). */
     $refusedValue = undefined;
@@ -205,6 +206,8 @@ export class TextInput extends View {
             color: this.textColor,
             shadow: null,
             ...(this.numeralWidth !== "normal" ? { numeralWidth: this.numeralWidth } : {}),
+            align: physicalAlign(this.textAlign, runDirection(this)),
+            italic: this.italic,
         };
     }
     /** Push the whole editable spec across the seam — value, style, callbacks.
@@ -416,6 +419,8 @@ defineAttributes(TextInput, {
         } },
     initial: { def: "" },
     numeralWidth: { def: "normal" },
+    textAlign: { def: "start" },
+    italic: { def: false },
     selectionStart: { def: 0 },
     selectionEnd: { def: 0 },
     disabled: { def: false, push: (t) => t.$syncEditable() },

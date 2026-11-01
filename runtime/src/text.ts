@@ -34,7 +34,7 @@ import { bindDerived, defineAttributes, faceSlots, isSet, ownerOf, providedDefau
 
 /** A Text's alignment on the page: `start` and `end` by the run's direction,
  *  `left`, `center` and `right` as written. */
-function physicalAlign(a: string, dir: "ltr" | "rtl"): "left" | "center" | "right" {
+export function physicalAlign(a: string, dir: "ltr" | "rtl"): "left" | "center" | "right" {
   if (a === "start") return dir === "rtl" ? "right" : "left";
   if (a === "end") return dir === "rtl" ? "left" : "right";
   return a === "center" || a === "right" ? a : "left";
@@ -42,7 +42,7 @@ function physicalAlign(a: string, dir: "ltr" | "rtl"): "left" | "center" | "righ
 
 /** The base direction a Text's run is laid out in: its own `direction`, else
  *  the nearest ancestor's; "auto" reads the first strong letter of the text. */
-function runDirection(t: { text?: unknown; direction?: string; parent?: unknown }): "ltr" | "rtl" {
+export function runDirection(t: { text?: unknown; direction?: string; parent?: unknown }): "ltr" | "rtl" {
   let d = "inherit";
   for (let v: { direction?: string; parent?: unknown } | null = t; v != null && d === "inherit"; v = (v.parent as typeof v) ?? null) d = v.direction ?? "inherit";
   if (d === "rtl") return "rtl";

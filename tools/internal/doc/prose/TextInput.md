@@ -292,6 +292,15 @@ The digits' advance, as on `Text`: `tabular` gives every digit the same width, s
 number, an amount or a code lines up and does not shift as it is typed; `proportional` lets
 each take its natural width; `normal` is the face's own default.
 
+## textAlign
+Where the text sits across the field, as on `Text`: `start` (the default), `center` or `end`,
+which follow the field's [`direction`](declare-docs:View.direction), or `left` and `right`,
+the page's own sides. The text keeps its place as it is typed: a centred title stays centred
+while it is edited.
+
+## italic
+The text slants, as on `Text`, while it is typed and while it is shown.
+
 ## letterSpacing
 Tracking for the text being edited, defaulting to the provided value.
 A field and the label beside it stay in step because both read the same provision.

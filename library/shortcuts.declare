@@ -19,8 +19,10 @@ App [ width = 520, height = 240,
     ]
 ```
 
-A key with a command modifier (⌘, ⌃, ⌥) or a function key works anywhere; a plain key
-(`"?"`) does not fire while a text field has focus — typing is the field's. While an open
+A key with a command modifier (⌘, ⌃, ⌥) or a function key works anywhere, except a text
+field's own editing chords (⌘A, ⌘C, ⌘X, ⌘V, ⌘Z and the caret moves), which stay the field's
+while it has focus; a plain key (`"?"`) does not fire while a text field has focus — typing
+is the field's. While an open
 menu, dialog or sheet holds the keyboard its keys are its own: a set declared inside it is in
 force — a form in a sheet keeps its own keys — and every set outside it stands down. A shortcut's chord is
 not also the browser's (⌘S does not save the page) — except those the browser keeps for

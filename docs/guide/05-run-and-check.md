@@ -68,6 +68,23 @@ npx declare-help textColor        # every class that carries it
 Every error in a compile is reported at once, in source order, so you can fix several
 in one pass.
 
+A program that compiles can still draw **warnings and hints**, and they come in four
+kinds, reported in this order:
+
+- **bugs**: it will misbehave as written. A key handler that swallows Space and Enter,
+  an animation nothing starts. Fix these.
+- **accessibility**: it works, but not for someone using a screen reader or a keyboard.
+- **devices**: it works, but not on some device: a text field small enough that a phone
+  zooms the page when it is focused.
+- **lint**: advice on reading the program, such as choices nested three deep.
+
+Each kind is printed once per code, with how many places share it (`--all` lists every
+one). When a kind doesn't apply to a program, the program says so in its
+[`defaultFlags`](declare-docs:language:defaultFlags) rather than reading past it:
+`devices = desk` for a program that is only for a desk, `lint = false` for one that has
+decided against the advice, `accessibility = false` for one that is all drawing. What a
+flag quiets is still counted on every run. Errors and bugs are never quieted.
+
 ## Checking a program: `declare-verify`
 
 `npx declare-verify app.declare` is the edit-run-read loop as a single command. It

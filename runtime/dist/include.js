@@ -18,7 +18,16 @@
 // (the merged program stays instantiable). Within-file duplicates stay the
 // checker's job, so the main program seeds the origin table with no self-check.
 import { parseLibrary, mergeShip, ONE_FLAGS } from "./parser.js";
-import { DeclareError } from "./errors.js";
+import { DeclareError, DeclareErrors } from "./errors.js";
+/** A refusal from parsing an included file on its own, with that file named:
+ *  its position is the file's own line, so without the name it reads as the
+ *  main file's. */
+function inFile(e, file) {
+    const one = (x) => x.pos === undefined || x.pos.file !== undefined ? x
+        : new DeclareError(x.template, { ...x.pos, file }, { ...(x.code !== undefined ? { code: x.code } : {}), ...(x.hint !== undefined ? { hint: x.hint } : {}),
+            ...(x.related !== undefined ? { related: x.related.map((r) => ({ ...r, file })) } : {}) });
+    return e instanceof DeclareErrors ? e.errors.map(one) : [one(e)];
+}
 import { Diag } from "./diagnostics.js";
 /** Cut a source's `include [ … ]` directives out of its text, leaving the rest
  *  byte-for-byte (offsets after each cut shift left by its length). Splicing
@@ -206,7 +215,7 @@ export async function resolveIncludes(program, host, originDir) {
             }
             catch (e) {
                 if (e instanceof DeclareError) {
-                    errors.push(e);
+                    errors.push(...inFile(e, inc.path));
                     continue;
                 }
                 throw e;
@@ -440,7 +449,7 @@ prefix = "My") {
         }
         catch (e) {
             if (e instanceof DeclareError) {
-                errors.push(e);
+                errors.push(...inFile(e, path));
                 return;
             }
             throw e;

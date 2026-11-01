@@ -49,6 +49,21 @@ export function at(where: Where | null | undefined): string {
 export interface DiagMeta {
   code?: string;
   hint?: string;
+  /** Other places the message names — "first at …" — as data, so whatever
+   *  maps a position back to its file maps these too. The message refers to
+   *  them as `{at0}`, `{at1}`, …, rendered here. */
+  related?: readonly Pos[];
+}
+
+/** `{atN}` in a message, as "at line L, col C" — or "at file:L:C" when the
+ *  related place is in another file than the error's own. */
+function renderRelated(message: string, related: readonly Pos[] | undefined, own: Pos | undefined): string {
+  if (related === undefined || related.length === 0) return message;
+  return message.replace(/\{at(\d+)\}/g, (m, i: string) => {
+    const r = related[Number(i)];
+    if (r === undefined) return m;
+    return r.file !== undefined && r.file !== own?.file ? `at ${r.file}:${r.line}:${r.col}` : `at line ${r.line}, col ${r.col}`;
+  });
 }
 
 /** An error in Declare source. `pos`, when present, is folded into the message
@@ -59,13 +74,20 @@ export interface DiagMeta {
 export class DeclareError extends Error {
   readonly pos?: Pos;
   readonly rawMessage: string;
+  /** The message as written, `{atN}` and all: rebuilt with moved positions
+   *  (a position mapped back to its file), it renders again. */
+  readonly template: string;
+  readonly related?: readonly Pos[];
   readonly code?: string;
   readonly hint?: string;
   constructor(message: string, pos?: Pos, meta?: DiagMeta) {
-    super(pos ? `${message} ${describePos(pos)}` : message);
+    const said = renderRelated(message, meta?.related, pos);
+    super(pos ? `${said} ${describePos(pos)}` : said);
     this.name = "DeclareError";
-    this.rawMessage = message;
+    this.rawMessage = said;
+    this.template = message;
     if (pos) this.pos = pos;
+    if (meta?.related !== undefined) this.related = meta.related;
     if (meta?.code !== undefined) this.code = meta.code;
     if (meta?.hint !== undefined) this.hint = meta.hint;
   }
@@ -106,11 +128,29 @@ export function layoutConflictMessage(
   arranger: string,
   by: string | null,
   where?: Where | null,
-  write = false
+  write = false,
+  child?: unknown
 ): string {
   const who = by !== null ? ` (set by ${by})` : "";
   const clause = write ? `cannot set its ${slot} while the layout arranges it` : `does not declare its ${slot}`;
-  return diag`${childClass}.${slot}${who}${at(where)} — ${arranger} ${arranges(slot)} its children, so this child ${clause}; ${layoutEscape(slot)}.`;
+  return diag`${childClass}.${slot}${who}${at(where)}${authorSite(child, where)} — ${arranger} ${arranges(slot)} its children, so this child ${clause}; ${layoutEscape(slot)}.`;
+}
+
+/** When a refusal's line is inside a library class, the place in the author's
+ *  own code that built it: " — in the Slider at line 3, col 20". A library's
+ *  line says where the conflict landed; this says what the author wrote to
+ *  cause it. Nothing when the line is the author's own, or unknown. */
+export function authorSite(view: unknown, where: Where | null | undefined): string {
+  const inLibrary = (w: { file?: string } | null | undefined): boolean => w?.file !== undefined && /(^|\/)library\//.test(w.file);
+  if (where == null || !inLibrary(where)) return "";
+  // up through the instances whose bodies wrote each view (`classroot`, set as
+  // it is built — a binding can refuse before the view is attached to a parent)
+  type Built = { $createdAt?: Where & { tag: string }; classroot?: unknown; parent?: unknown };
+  for (let v = view as Built | null | undefined, n = 0; v != null && n < 64; v = (v.classroot ?? v.parent) as Built | null | undefined, n++) {
+    const c = v.$createdAt;
+    if (c !== undefined && !inLibrary(c)) return ` — in the ${c.tag} at ${c.file !== undefined ? `${c.file}:${c.line}:${c.col}` : `line ${c.line}, col ${c.col}`}`;
+  }
+  return "";
 }
 
 /** What a layout DOES to the attribute — "sizes" or "places", decided once. */

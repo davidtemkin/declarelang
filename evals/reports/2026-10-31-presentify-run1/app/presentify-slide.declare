@@ -1,0 +1,119 @@
+/*
+# Presentify: a slide, drawn
+
+One class draws a slide wherever one appears: large on the stage, small in
+the slide list and on a presentation's card, and full screen when
+presenting. The same records, the same views, at a different `scale` — which
+is why the presentation looks exactly as it does in the editor.
+
+A slide is 1280 × 720 points. Its things are replicated from its
+`elements`, back to front, one class per kind (`classFor`). A group is a
+full-slide layer holding its children, since they keep slide coordinates.
+
+These views only paint. They declare no pointer handlers, so a press on
+one goes to the stage that holds the slide, which decides what was hit
+(presentify-stage.declare).
+*/
+
+// The class of view for each kind of thing on a slide.
+
+class ItemView [ ]
+
+class SlideView [ width = 1280, height = 720, clip = true,
+    // The stage sets this: only the slide being edited measures its text
+    // boxes back into the document (TextItem).
+
+    editor: boolean = false,
+    fill = { app.hue(:background ?? "#FFFFFF") },
+    ItemView [ datapath = :elements[], classFor = { ({ rect: RectItem, ellipse: EllipseItem, line: LineItem, text: TextItem, group: GroupItem })[:kind] } ]
+    ]
+
+
+class RectItem extends ItemView [ x = { :x ?? 0 }, y = { :y ?? 0 }, width = { :width ?? 0 }, height = { :height ?? 0 },
+    fill = { app.hue(:fill) },
+    stroke = { app.edgeOf(:stroke) },
+
+    // A length, not a proportion: it stays the same however the box is
+    // sized, and can round no further than fully round ends.
+
+    cornerRadius = { Math.max(0, Math.min(:cornerRadius ?? 0, this.width / 2, this.height / 2)) }
+    ]
+
+
+class EllipseItem extends ItemView [ x = { :x ?? 0 }, y = { :y ?? 0 }, width = { :width ?? 0 }, height = { :height ?? 0 },
+    paint: Color = { app.hue(:fill) },
+    edge: Color = { app.hue(:stroke?.color) },
+    edgeWidth: number = { :stroke?.width ?? 0 },
+    draw(d: DrawContext) {
+        const sw = edge == null ? 0 : edgeWidth
+        const rx = Math.max(0, d.w / 2 - sw / 2), ry = Math.max(0, d.h / 2 - sw / 2)
+        d.beginPath()
+        d.ellipse(d.w / 2, d.h / 2, rx, ry, 0, 0, Math.PI * 2)
+        if (paint != null) { d.fillStyle = paint; d.fill() }
+        if (edge != null && sw > 0) { d.strokeStyle = edge; d.lineWidth = sw; d.stroke() }
+        }
+    ]
+
+
+// A line's view is its bounding box, grown by the stroke so the round ends
+// aren't clipped; the line is drawn inside it.
+
+class LineItem extends ItemView [
+    pad: number = { (:stroke?.width ?? 2) + 2 },
+    x1: number = { :x1 ?? 0 },
+    y1: number = { :y1 ?? 0 },
+    x2: number = { :x2 ?? 0 },
+    y2: number = { :y2 ?? 0 },
+    x = { Math.min(classroot.x1, classroot.x2) - classroot.pad },
+    y = { Math.min(classroot.y1, classroot.y2) - classroot.pad },
+    width = { Math.abs(classroot.x2 - classroot.x1) + 2 * classroot.pad },
+    height = { Math.abs(classroot.y2 - classroot.y1) + 2 * classroot.pad },
+    ink: Color = { app.hue(:stroke?.color ?? "#1F2328") },
+    weight: number = { :stroke?.width ?? 2 },
+    draw(d: DrawContext) {
+        const ox = Math.min(x1, x2) - pad, oy = Math.min(y1, y2) - pad
+        d.strokeStyle = ink
+        d.lineWidth = weight
+        d.lineCap = "round"
+        d.beginPath()
+        d.moveTo(x1 - ox, y1 - oy)
+        d.lineTo(x2 - ox, y2 - oy)
+        d.stroke()
+        }
+    ]
+
+
+// A text box: one block, one style, wrapping within its width. Its height is
+// the text's, as laid out; the stage's copy reports it back while it is
+// being typed in or resized, so the document's `height` is the height as
+// last laid out (the service's definition).
+
+class TextItem extends ItemView [ x = { :x ?? 0 }, y = { :y ?? 0 }, width = { :width ?? 0 },
+    itemId: string = { :id ?? "" },
+    face: Face = { :text ?? app.plainFace },
+    editing: boolean = { provided("editor", false) && app.editingId == classroot.itemId },
+    measures: boolean = { provided("editor", false) && (classroot.editing
+        || (app.doc.opened != null && app.doc.sel.includes(classroot.itemId))) },
+    trackChanges = ["height"],
+    onChange() { if (measures) app.doc.measured(itemId, height, editing) },
+    run: Text [ width = 100%, wrap = true, selectable = false,
+        // Hidden while typed in, but still laid out: its height is the box's.
+
+        opacity = { classroot.editing ? 0 : 1 },
+        minHeight = { classroot.face.size * 1.2 },
+        text = { classroot.face.content },
+        fontFamily = { app.faceList(classroot.face.font) },
+        fontSize = { classroot.face.size },
+        fontWeight = { classroot.face.weight },
+        italic = { classroot.face.italic },
+        textColor = { app.hue(classroot.face.color) },
+        textAlign = { classroot.face.align } ]
+    ]
+
+
+// A group is a layer the size of the slide: its children keep their own
+// slide coordinates.
+
+class GroupItem extends ItemView [ x = 0, y = 0, width = 1280, height = 720,
+    ItemView [ datapath = :children[], classFor = { ({ rect: RectItem, ellipse: EllipseItem, line: LineItem, text: TextItem, group: GroupItem })[:kind] } ]
+    ]

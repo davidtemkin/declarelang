@@ -1110,6 +1110,12 @@ function queueDeclaredRules(node: Node, ctx: Ctx): void {
  *  schema, gather the member sources, install the methods. What differs per
  *  family — a data node's JSON body, a group's members, a state's overrides —
  *  is that path's own business after this. */
+/** Where a node was written, so a refusal that lands inside a library class can
+ *  name the place in the author's code that built it (errors.ts authorSite). */
+function noteCreatedAt(node: object, el: Element): void {
+  if (el.pos?.line !== undefined) (node as { $createdAt?: unknown }).$createdAt = { tag: el.tag, line: el.pos.line, col: el.pos.col, file: el.pos.file };
+}
+
 function beginNode(el: Element, family: Family, outer: View | null, ctx: Ctx): {
   node: Node; eff: () => ClassSchema; sources: MemberSource[];
 } {
@@ -1120,6 +1126,7 @@ function beginNode(el: Element, family: Family, outer: View | null, ctx: Ctx): {
   if (baseCtor === null) throw new DeclareError(`unknown class '${el.tag}'`, el.pos);
   const node = new (ctorWithDecls(el, baseCtor, (n) => ctx.shapes.has(n)))() as unknown as Node;
   node.classroot = outer;
+  noteCreatedAt(node, el);
   const eff = effOf(el, ctx);
   const sources = memberSources(el, node, outer, ctx.classes.get(el.tag));
   installMethods(node, sources, el.tag, eff, ctx);
@@ -1197,6 +1204,7 @@ function constructNode(el: Element, outer: View | null, ctx: Ctx, parentEl: Elem
   const user = ctx.classes.get(el.tag);
   const view = new (ctorWithDecls(el, baseCtor, (n) => ctx.shapes.has(n)))();
   view.classroot = outer;
+  noteCreatedAt(view, el);
   // The `classroot` for members written at THIS element's site: the enclosing
   // scope — or, at the tree root, the root itself (its members are written
   // in its own body: the anonymous App class's).
@@ -1232,12 +1240,13 @@ function constructNode(el: Element, outer: View | null, ctx: Ctx, parentEl: Elem
   // enclosing scope.
   let layoutEl: Element | null = null;
   let layoutCroot: View = croot;
+  let layoutFrom: Element | null = null;
   for (const s of sources) {
     for (const a of s.el.attrs) {
-      if (a.route === "class") layoutEl = null;
+      if (a.route === "class") { layoutEl = null; layoutFrom = null; }
     }
     for (const c of s.el.children) {
-      if (c.classSlot !== undefined) { layoutEl = c; layoutCroot = s.croot ?? croot; }
+      if (c.classSlot !== undefined) { layoutEl = c; layoutCroot = s.croot ?? croot; layoutFrom = s.el; }
     }
   }
   // Methods first (installMethods: the super rule, the runtime-member guard),
@@ -1365,7 +1374,8 @@ function constructNode(el: Element, outer: View | null, ctx: Ctx, parentEl: Elem
   // still land after this (a probe reads their literals now, and the pass
   // re-places on its tracked reads); only the ARRANGED view's geometry has to
   // precede the claim.
-  if (layoutEl !== null) ctx.pending.push({ view, layoutEl, of: layoutEl.classSlot!, classroot: layoutCroot });
+  const layoutEntry = layoutEl !== null ? { view, layoutEl, of: layoutEl.classSlot!, classroot: layoutCroot } : null;
+  if (layoutEntry !== null) ctx.pending.push(layoutEntry);
   // Children: the class bodies' (they belong to every instance, scoped to
   // it), then the use site's — concatenated, never merged: tree order is
   // paint order, deliberately semantic. `slot` threads the block-position
@@ -1392,6 +1402,20 @@ function constructNode(el: Element, outer: View | null, ctx: Ctx, parentEl: Elem
     const views = members.length > 0 ? { ...from, children: from.children.filter(isView) } : from;
     appendChildren(views, place.target, fromCroot, ctx, el, place.slot);
     hoistPlacedNames(views, view, place.target);
+    // A layout written beside children that are placed elsewhere arranges
+    // THOSE children: it goes with them, to the view that holds them, queued
+    // after that view's own so it replaces it. (Written in the body that names
+    // the placement, it is that class's own and arranges its frame — never
+    // reached here: a class's own children are never placed.)
+    if (layoutEntry !== null && from === layoutFrom) {
+      const target = place.target;
+      ctx.pending.splice(ctx.pending.indexOf(layoutEntry), 1);
+      // the target's own arrangement never installs: replaced, not swapped
+      // after the fact, so nothing it placed is left behind
+      const own = ctx.pending.findIndex((q) => "layoutEl" in q && q.view === target);
+      if (own >= 0) ctx.pending.splice(own, 1, { ...layoutEntry, view: target });
+      else ctx.pending.push({ ...layoutEntry, view: target });
+    }
   };
   if (user !== undefined) {
     if (ctx.expanding.has(el.tag)) {

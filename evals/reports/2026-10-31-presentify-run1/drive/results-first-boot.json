@@ -1,0 +1,254 @@
+[
+  {
+    "name": "list_and_open",
+    "pass": false,
+    "error": "not found: Slide 1 in the list",
+    "ms": 14580,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z"
+    ]
+  },
+  {
+    "name": "new_presentation",
+    "pass": true,
+    "error": null,
+    "ms": 1423,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "draw_each_kind",
+    "pass": false,
+    "error": "never stored: a rectangle, an ellipse, a line and a text box",
+    "ms": 12559,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "shift_draws_square_and_circle",
+    "pass": false,
+    "error": "never stored: the two shapes",
+    "ms": 11634,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "rounded_corners_hold",
+    "pass": false,
+    "error": "not found: a field named /corner|radius|round/i",
+    "ms": 7921,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "keep_proportions",
+    "pass": false,
+    "error": "not found: the keep-proportions setting",
+    "ms": 7912,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "box_select_and_delete",
+    "pass": false,
+    "error": "never stored: three rectangles",
+    "ms": 12143,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "move_and_nudge",
+    "pass": false,
+    "error": "never stored: the rectangle dragged",
+    "ms": 11540,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "inspector_mixed_and_applied",
+    "pass": false,
+    "error": "not found: a control named /^fill( colou?r)?$/i",
+    "ms": 9627,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "group_and_ungroup",
+    "pass": false,
+    "error": "never stored: two shapes",
+    "ms": 11625,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "align_and_distribute",
+    "pass": false,
+    "error": "never stored: three rectangles",
+    "ms": 12169,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "bring_to_front",
+    "pass": false,
+    "error": "never stored: two shapes",
+    "ms": 11619,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "undo_is_one_step",
+    "pass": false,
+    "error": "never stored: a rectangle",
+    "ms": 11074,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "slides_add_duplicate_delete",
+    "pass": false,
+    "error": "never stored: an ellipse on slide 1",
+    "ms": 11079,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "slides_reorder_by_drag",
+    "pass": false,
+    "error": "not found: Slide 3 in the list",
+    "ms": 13403,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z"
+    ]
+  },
+  {
+    "name": "saving_and_retry",
+    "pass": false,
+    "error": "never shown: Not saved: can't reach the service",
+    "ms": 14086,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "conflict_is_offered",
+    "pass": false,
+    "error": "not found: Slide 2 in the list",
+    "ms": 13411,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z"
+    ]
+  },
+  {
+    "name": "present_and_return",
+    "pass": false,
+    "error": "not found: Slide 1 in the list",
+    "ms": 13410,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z"
+    ]
+  },
+  {
+    "name": "rename_and_delete_presentation",
+    "pass": true,
+    "error": null,
+    "ms": 7095,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "GET /api/decks/d3",
+      "PATCH /api/decks/d3",
+      "GET /api/decks",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A04.000Z",
+      "DELETE /api/decks/d3",
+      "GET /api/decks"
+    ]
+  }
+]

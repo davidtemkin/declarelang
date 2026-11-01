@@ -64,6 +64,35 @@ const PHASE_BY_DIGIT = {
 export function phaseOfCode(code) {
     return PHASE_BY_DIGIT[code[CODE_PREFIX.length]] ?? "structure";
 }
+export const CATEGORY_ORDER = ["error", "bugs", "accessibility", "devices", "lint"];
+const WARNING_CATEGORY = {
+    DECLARE1002: "lint", DECLARE4002: "lint", DECLARE4011: "lint", DECLARE4025: "lint",
+    DECLARE3005: "devices",
+    DECLARE4016: "accessibility", DECLARE4017: "accessibility", DECLARE4018: "accessibility", DECLARE4020: "accessibility",
+    DECLARE4021: "accessibility", DECLARE4022: "accessibility", DECLARE4026: "accessibility", DECLARE4027: "accessibility",
+    DECLARE4032: "accessibility",
+};
+/** The device a "devices" finding concerns. */
+const DEVICE_OF = { DECLARE3005: "phone" };
+/** A finding's category. A warning or hint not named above is a bug: the
+ *  compiler warns because the program, as written, will misbehave — so a new
+ *  code is never quietened until it is placed. */
+export function categoryOf(code, severity) {
+    return severity === "error" ? "error" : WARNING_CATEGORY[code] ?? "bugs";
+}
+/** Whether the program's flags quiet a finding: lint when `lint` is false, a
+ *  device's findings when `devices` names only the other one. Errors and bugs
+ *  never; accessibility findings go with the accessibility layer itself. */
+export function quietedBy(d, flags) {
+    if (d.category === "lint" && !flags.lint)
+        return "lint = false";
+    if (d.category === "devices") {
+        const dev = DEVICE_OF[d.code];
+        if (dev !== undefined && flags.devices !== "all" && flags.devices !== dev)
+            return `devices = ${flags.devices}`;
+    }
+    return null;
+}
 // ── The template catalog ─────────────────────────────────────────────────────
 // Each factory returns a coded DeclareError (message identical to the hand-written
 // wording it replaces). Recurring families get a parameterized template; the
@@ -355,6 +384,7 @@ export function toDiagnostic(e, severity, fallbackPhase) {
         code,
         severity,
         phase: phaseOfCode(code),
+        category: categoryOf(code, severity),
         message: e.rawMessage,
         pos: e.pos,
         hint: e.hint,

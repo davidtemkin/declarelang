@@ -411,7 +411,7 @@ export function checkThemeRecord(where: string, rec: Element): DeclareError[] {
   for (const a of rec.attrs) {
     const first = seen.get(a.name);
     if (first !== undefined) {
-      errors.push(new DeclareError(`${where}.${a.name} is set twice (first set at line ${first.line}, col ${first.col})`, a.pos));
+      errors.push(new DeclareError(`${where}.${a.name} is set twice (first set {at0})`, a.pos, { related: [first] }));
       continue;
     }
     seen.set(a.name, a.pos);
@@ -1656,14 +1656,15 @@ function checkNamespace(el: Element, schema: ClassSchema, errors: DeclareError[]
   for (const m of members) {
     const first = seen.get(m.name);
     if (first === undefined) { seen.set(m.name, m); continue; }
-    const at = `(first at line ${first.pos.line}, col ${first.pos.col})`;
+    const at = "(first {at0})";
     errors.push(new DeclareError(
       m.kind === "set" && first.kind === "set"
-        ? `${schema.name}.${m.name} is set twice (first set at line ${first.pos.line}, col ${first.pos.col})`
+        ? `${schema.name}.${m.name} is set twice (first set {at0})`
         : m.kind === "method" && first.kind === "method"
           ? `${schema.name}.${m.name} is declared twice ${at}`
           : `${schema.name}.${m.name}: '${m.name}' is already ${kindName[first.kind]} ${at} — members share one namespace`,
-      m.pos
+      m.pos,
+      { related: [first.pos] }
     ));
   }
 }

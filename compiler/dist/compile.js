@@ -238,7 +238,7 @@ import { runtimeMethodsOf } from "../../runtime/dist/runtime-methods.js";
 import { accessibilityDiagnostics } from "./a11y-check.js";
 import { resolveIncludes, resolveAutoIncludes, spliceScriptFiles, NO_INCLUDES } from "../../runtime/dist/include.js";
 import { typecheckBodies, bodyRewrites } from "./typecheck.js";
-import { Diag, toDiagnostic, formatDiagnostic, renderReport } from "../../runtime/dist/diagnostics.js";
+import { Diag, toDiagnostic, formatDiagnostic, renderReport, quietedBy } from "../../runtime/dist/diagnostics.js";
 /** The names resolution leaves alone in CALLEE position: the four value
  *  constructors expr.ts scopes into every body — `stroke(…)` builds a Stroke
  *  while bare `stroke` is still the slot — plus one more: the spine's
@@ -863,7 +863,38 @@ function programPrefix(opts) {
  *  merged text, not its own file. This is the v1 reading §1 already defers
  *  (multi-file `Pos`); it keeps the emit path drift-free — one source feeds
  *  check, the Resolver, and the output, so their offsets cannot disagree. */
+/** Compile, then quiet what the run's and the program's flags say to: ONE place,
+ *  after every phase and on every path out, so no phase decides it alone. What
+ *  was quieted is counted in the report, never dropped silently. */
 export async function compile(source, opts = {}) {
+    const seen = {};
+    const out = await compileUnquieted(source, opts, seen);
+    const flags = {
+        lint: opts.lint ?? seen.flags?.lint ?? true,
+        devices: opts.devices ?? seen.flags?.devices ?? "all",
+    };
+    const quiet = new Map();
+    const kept = out.diagnostics.filter((d) => {
+        const by = quietedBy(d, flags);
+        if (by !== null)
+            quiet.set(by, (quiet.get(by) ?? 0) + 1);
+        return by === null;
+    });
+    if (quiet.size === 0)
+        return out;
+    const gone = new Set(out.diagnostics.filter((d) => !kept.includes(d)).map((d) => `${d.code} ${d.pos?.file ?? ""}:${d.pos?.line}:${d.pos?.col}`));
+    const keep = (e) => !gone.has(`${e.code} ${e.pos?.file ?? ""}:${e.pos?.line}:${e.pos?.col}`);
+    const said = [...quiet].map(([by, n]) => `${n} quieted by ${by}`).join(", ");
+    return {
+        ...out,
+        warnings: out.warnings.filter(keep),
+        ...(out.hints !== undefined ? { hints: out.hints.filter(keep) } : {}),
+        diagnostics: kept,
+        quieted: [...quiet].map(([by, count]) => ({ by, count })),
+        report: [renderReport(kept), said].filter((x) => x !== "").join("\n"),
+    };
+}
+async function compileUnquieted(source, opts, seen) {
     let main;
     try {
         main = parseProgram(source);
@@ -1053,6 +1084,7 @@ export async function compile(source, opts = {}) {
     let program;
     try {
         program = parseProgram(merged);
+        seen.flags = program.flags;
     }
     catch (e) {
         if (e instanceof DeclareError) {
@@ -1693,7 +1725,9 @@ function makeRebaser(mainSource, mainSplices, segments, display) {
     const map = makePosMapper(mainSource, mainSplices, segments, display);
     if (map === null)
         return (e) => e;
-    return (e) => e.pos === undefined ? e : new DeclareError(e.rawMessage, map(e.pos), { code: e.code, hint: e.hint });
+    // the error's own place, and any it names ("first at …"), mapped alike
+    return (e) => e.pos === undefined ? e
+        : new DeclareError(e.template, map(e.pos), { code: e.code, hint: e.hint, ...(e.related !== undefined ? { related: e.related.map((r) => map(r)) } : {}) });
 }
 /** A merged-text position → where the author wrote it (null: the merged text
  *  IS the author's file, nothing to map). The one mapping behind diagnostics

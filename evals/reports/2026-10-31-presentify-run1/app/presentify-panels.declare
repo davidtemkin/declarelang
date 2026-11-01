@@ -1,0 +1,398 @@
+/*
+# Presentify: the panels
+
+The three panels around the stage, and the card that pictures a
+presentation in the list:
+
+- **SlideRail** — the slides in order, each a live picture, reordered by
+  dragging. One slide is current; the keyboard moves through them.
+- **Inspector** — the selection's fill, outline, text style, size and
+  arrangement, or the slide's background when nothing is selected. Its
+  shape holds still as the selection changes: rows that don't apply are
+  dimmed, not removed, and a value the selected things don't share says
+  "Mixed".
+- **DeckCard** — a presentation: its first slide, its title, when it was
+  last changed, and its menu.
+*/
+
+// ── The slide list ──────────────────────────────────────────────────────────
+
+class SlideThumb extends Control [ width = 100%, height = { app.thumbH },
+    pageId: string = { :id ?? "" },
+    n: number = { rowIndex + 1 },
+    here: boolean = { app.doc.current == classroot.pageId },
+    lifted: boolean = { app.rail.dragId == classroot.pageId },
+    clash: boolean = { app.doc.conflicts[classroot.pageId] != null },
+    accessibilityLabel = { "Slide " + classroot.n },
+    accessibilityRole = option,
+    accessibilitySelected = { classroot.here },
+    tooltipLabel = { "Slide " + classroot.n },
+    press() { app.goTo(classroot.pageId) },
+    onFocus() { super.onFocus(); app.railFocused = true },
+    onBlur() { super.onBlur(); app.railFocused = false },
+    onKeyDown(e: KeyEvent) {
+        if (e.key == "ArrowDown" || e.key == "ArrowUp") app.step(e.key == "ArrowDown" ? 1 : -1, true)
+        else if (e.key == "Backspace" || e.key == "Delete") app.deleteSlide(classroot.pageId)
+        else super.onKeyDown(e)
+        },
+
+    // Dragging reorders. The list holds still under the pointer: the slide
+    // being moved dims, a ghost of it follows the pointer, and a bar shows
+    // where it will land. The order changes once, on release.
+
+    onPointerDown(e: PointerEvent) { super.onPointerDown(); app.rail.press(classroot.pageId, rowIndex) },
+    onPointerMove(e: PointerEvent) { app.rail.dragTo(e.deltaY) },
+    onPointerUp(e: PointerUpEvent) { app.rail.drop(e.canceled) },
+    onContextMenu(e: PointerEvent) { app.goTo(classroot.pageId); app.slideMenu.open(this, e) },
+
+    opacity = { classroot.lifted ? 0.35 : 1 },
+    layout: SimpleLayout [ axis = x, spacing = 6 ],
+    num: Text [ width = 24, padding = [3, 0, 0, 0], textAlign = right, fontSize = 11, fontWeight = semibold,
+        numeralWidth = tabular,
+        textColor = { classroot.here ? provided("theme").text : provided("theme").textFaint },
+        text = { "" + classroot.n } ],
+    frame: View [ width = { app.thumbW }, height = { app.thumbH }, cornerRadius = 5,
+        View [ width = 100%, height = 100%, cornerRadius = 5, clip = true,
+            SlideView [ scale = { app.thumbW / 1280 } ]
+            ],
+        ring: View [ x = -3, y = -3, width = { parent.width + 6 }, height = { parent.height + 6 }, cornerRadius = 8,
+            pointerEvents = "none",
+            stroke = { classroot.here ? stroke(2, provided("theme").accent)
+                : classroot.hovered ? stroke(1, provided("theme").lineStrong) : null } ],
+        edge: View [ width = 100%, height = 100%, cornerRadius = 5, pointerEvents = "none",
+            stroke = { stroke(1, 0xFFFFFF14) } ],
+        warn: View [ visible = { classroot.clash }, x = { parent.width - 22 }, y = 4, width = 18, height = 18, cornerRadius = 9,
+            fill = { provided("theme").warn }, tooltipLabel = "Changed in another window",
+            Glyph [ x = center, y = center, iconSize = 11, weight = 1.8, shape = "warn", ink = 0x1A1A1A ]
+            ]
+        ]
+    ]
+
+
+class SlideRail [ fill = { provided("theme").rail },
+    stroke = { [null, stroke(1, provided("theme").line), null, null] },
+    layout: SimpleLayout [ axis = y ],
+
+    // ── reordering by drag
+
+    dragId: string = "",
+    from: number = 0,
+    dy: number = 0,
+    dragging: boolean = false,
+    step: number = { app.thumbH + 8 },
+    target: number = { Math.max(0, Math.min(app.doc.pages().length,
+        Math.round(classroot.from + classroot.dy / classroot.step + (classroot.dy > 0 ? 1 : 0)))) },
+    press(id: string, i: number) { dragId = ""; from = i; dy = 0; dragging = false; pressId = id },
+    pressId: string = "",
+    dragTo(d: number) {
+        if (!dragging && Math.abs(d) < 5) return
+        dragging = true
+        dragId = pressId
+        dy = d
+        },
+    drop(canceled: boolean) {
+        const id = dragId
+        const to = target
+        dragId = ""
+        if (!dragging || canceled || id == "") { dragging = false; return }
+        dragging = false
+        app.moveSlide(id, to > from ? to - 1 : to)
+        },
+
+    // Bring a slide into view in the list (the keyboard went to it).
+
+    reveal(id: string) {
+        const i = app.doc.pageAt(id)
+        if (i < 0) return
+        const top = 12 + i * step
+        const sv = this.list
+        if (top < sv.scrollY) sv.scrollTo(top - 12)
+        else if (top + app.thumbH > sv.scrollY + sv.height) sv.scrollTo(top + app.thumbH - sv.height + 12)
+        },
+
+    list: View [ width = 100%, flexes = true, scrolls = y, padding = [12, 12, 12, 2],
+        accessibilityRole = listbox, accessibilityLabel = "Slides",
+        datapath = { app.doc.value },
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        SlideThumb [ datapath = :pages[] ],
+
+        // where a dragged slide will land
+
+        bar: View [ ignoreLayout = true, visible = { classroot.dragging }, x = 30, width = { app.thumbW }, height = 3,
+            cornerRadius = 1.5, fill = { provided("theme").accent },
+            y = { 12 + classroot.target * classroot.step - 6 } ],
+
+        // the slide being dragged, under the pointer
+
+        ghost: View [ ignoreLayout = true, visible = { classroot.dragging }, x = 36,
+            width = { app.thumbW }, height = { app.thumbH }, cornerRadius = 5, clip = true,
+            y = { 12 + classroot.from * classroot.step + classroot.dy },
+            shadow = { shadow(0, 8, 24, 0x00000099) }, opacity = 0.92, pointerEvents = "none",
+            datapath = { app.doc.page(classroot.dragId) },
+            SlideView [ scale = { app.thumbW / 1280 } ]
+            ]
+        ],
+
+    foot: View [ width = 100%, padding = [10, 12, 12, 12],
+        stroke = { [stroke(1, provided("theme").line), null, null, null] },
+        layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+        PillButton [ label = "New slide", shape = "plus", flexes = true, tooltipLabel = "Add a slide after this one (⌘↩)",
+            press() { app.addSlide() }
+            ],
+        ToolTile [ shape = "duplicate", label = "Duplicate slide",
+            press() { app.duplicateSlide(app.doc.current) }
+            ],
+        ToolTile [ shape = "trash", label = "Delete slide", disabled = { app.doc.pages().length <= 1 },
+            press() { app.deleteSlide(app.doc.current) }
+            ]
+        ]
+    ]
+
+
+// ── The inspector ───────────────────────────────────────────────────────────
+
+class Inspector [ fill = { provided("theme").rail },
+    stroke = { [null, null, null, stroke(1, provided("theme").line)] },
+    scrolls = y, padding = [14, 16, 20, 16],
+    layout: SimpleLayout [ axis = y, spacing = 4 ],
+
+    // What is selected, and what each row would change.
+
+    sel: Item[] = { app.doc.selected },
+    parts: Item[] = { leaves(classroot.sel) },
+    shapes: Item[] = { classroot.parts.filter((it) => it.kind == "rect" || it.kind == "ellipse") },
+    outlined: Item[] = { classroot.parts.filter((it) => it.kind != "text") },
+    rects: Item[] = { classroot.parts.filter((it) => it.kind == "rect") },
+    texts: Item[] = { classroot.parts.filter((it) => it.kind == "text") },
+    sized: Item[] = { classroot.parts.filter((it) => it.kind != "line") },
+    box: Box = { boundsOf(classroot.sel) },
+
+    fillV: string? = { common(classroot.shapes.map((it) => it.fill ?? "")) ?? null },
+    edgeV: string? = { common(classroot.outlined.map((it) => it.stroke?.color ?? "")) ?? null },
+    edgeW: number? = { common(classroot.outlined.map((it) => it.stroke == null ? 0 : it.stroke.width)) ?? null },
+    radiusV: number? = { common(classroot.rects.map((it) => it.cornerRadius ?? 0)) ?? null },
+    keepV: boolean? = { common(classroot.sized.map((it) => it.keepProportions ?? false)) ?? null },
+    fontV: string? = { common(classroot.texts.map((it) => it.text?.font ?? "")) ?? null },
+    sizeV: number? = { common(classroot.texts.map((it) => it.text?.size ?? 0)) ?? null },
+    weightV: number? = { common(classroot.texts.map((it) => it.text?.weight ?? 400)) ?? null },
+    italicV: boolean? = { common(classroot.texts.map((it) => it.text?.italic ?? false)) ?? null },
+    alignV: string? = { common(classroot.texts.map((it) => it.text?.align ?? "left")) ?? null },
+    inkV: string? = { common(classroot.texts.map((it) => it.text?.color ?? "")) ?? null },
+
+    heading: Text [ width = 100%, fontSize = 15, fontWeight = semibold, maxLines = 1, padding = [0, 0, 4, 0],
+        textColor = { provided("theme").text }, text = { app.selectionName } ],
+
+    // ── nothing selected: the slide itself
+
+    slidePane: View [ width = 100%, visible = { classroot.sel.length == 0 },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        SectionHead [ label = "Slide" ],
+        Row [ label = "Background",
+            ColorWell [ label = "Slide background", allowNone = false, value = { app.doc.currentPage?.background ?? "#FFFFFF" },
+                picked(v: string) { app.setBackground(v) }
+                ]
+            ],
+        Text [ width = 100%, padding = [14, 0, 0, 0], fontSize = 12, lineHeight = 1.45, wrap = true,
+            textColor = { provided("theme").textFaint },
+            text = "Choose a tool above and drag on the slide to add a shape or text. Click a thing to select it; drag on empty slide to select several." ]
+        ],
+
+    // ── something selected
+
+    itemPane: View [ width = 100%, visible = { classroot.sel.length > 0 },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+
+        SectionHead [ label = "Fill" ],
+        Row [ label = "Colour", opacity = { classroot.shapes.length == 0 ? 0.4 : 1 },
+            ColorWell [ label = "Fill", disabled = { classroot.shapes.length == 0 },
+                value = { classroot.fillV ?? "" }, mixed = { classroot.fillV == null && classroot.shapes.length > 0 },
+                picked(v: string) { app.setFill(v) }
+                ]
+            ],
+
+        SectionHead [ label = "Outline" ],
+        Row [ label = "Colour", opacity = { classroot.outlined.length == 0 ? 0.4 : 1 },
+            ColorWell [ label = "Outline colour", disabled = { classroot.outlined.length == 0 },
+                allowNone = { classroot.outlined.every((it) => it.kind != "line") },
+                value = { classroot.edgeV ?? "" }, mixed = { classroot.edgeV == null && classroot.outlined.length > 0 },
+                picked(v: string) { app.setOutlineColor(v) }
+                ]
+            ],
+        Row [ label = "Width", opacity = { classroot.outlined.length == 0 ? 0.4 : 1 },
+            NumberField [ label = "Outline width", unit = "pt", max = 200, disabled = { classroot.outlined.length == 0 },
+                value = { classroot.edgeW ?? 0 }, mixed = { classroot.edgeW == null && classroot.outlined.length > 0 },
+                picked(v: number) { app.setOutlineWidth(v) }
+                ],
+            Text [ visible = { classroot.edgeW == 0 }, fontSize = 11, textColor = { provided("theme").textFaint }, text = "None" ]
+            ],
+        Row [ label = "Corners", opacity = { classroot.rects.length == 0 ? 0.4 : 1 },
+            NumberField [ label = "Corner radius", unit = "pt", max = 1000, disabled = { classroot.rects.length == 0 },
+                value = { classroot.radiusV ?? 0 }, mixed = { classroot.radiusV == null && classroot.rects.length > 0 },
+                picked(v: number) { app.setRadius(v) }
+                ],
+            ToolTile [ shape = "rect", label = "Square corners", disabled = { classroot.rects.length == 0 },
+                press() { app.setRadius(0) }
+                ],
+            ToolTile [ shape = "ellipse", label = "Fully round ends", disabled = { classroot.rects.length == 0 },
+                press() { app.setRadius(10000) }
+                ]
+            ],
+
+        SectionHead [ label = "Text" ],
+        textRows: View [ width = 100%, opacity = { classroot.texts.length == 0 ? 0.4 : 1 },
+            layout: SimpleLayout [ axis = y, spacing = 4 ],
+            Row [ label = "Font",
+                Button [ flexes = true, height = 30, disabled = { classroot.texts.length == 0 },
+                    accessibilityLabel = "Font", tooltipLabel = "Font",
+                    label = { classroot.fontV ?? (classroot.texts.length > 0 ? "Mixed" : "—") }, menu = { app.fontMenu } ]
+                ],
+            Row [ label = "Size",
+                NumberField [ label = "Text size", unit = "pt", min = 6, max = 400, disabled = { classroot.texts.length == 0 },
+                    value = { classroot.sizeV ?? 0 }, mixed = { classroot.sizeV == null && classroot.texts.length > 0 },
+                    picked(v: number) { app.setFace("size", v) }
+                    ],
+                Button [ flexes = true, height = 30, disabled = { classroot.texts.length == 0 },
+                    accessibilityLabel = "Weight", tooltipLabel = "Weight",
+                    label = { classroot.texts.length == 0 ? "—" : classroot.weightV == null ? "Mixed" : app.weightName(classroot.weightV) }, menu = { app.weightMenu } ]
+                ],
+            Row [ label = "Style",
+                ToolToggle [ shape = "italic", label = "Italic", disabled = { classroot.texts.length == 0 },
+                    on = { classroot.italicV == true },
+                    press() { app.setFace("italic", classroot.italicV != true) }
+                    ],
+                View [ width = 6, height = 1 ],
+                RadioGroup [ disabled = { classroot.texts.length == 0 }, accessibilityLabel = "Alignment",
+                    value = { classroot.alignV ?? "" },
+                    input(v: string) { app.setFace("align", v) },
+                    layout: SimpleLayout [ axis = x, spacing = 2 ],
+                    ToolChoice [ choice = "left", shape = "textLeft", label = "Align left", width = 32 ],
+                    ToolChoice [ choice = "center", shape = "textCenter", label = "Align centre", width = 32 ],
+                    ToolChoice [ choice = "right", shape = "textRight", label = "Align right", width = 32 ]
+                    ]
+                ],
+            Row [ label = "Colour",
+                ColorWell [ label = "Text colour", allowNone = false, disabled = { classroot.texts.length == 0 },
+                    value = { classroot.inkV ?? "" }, mixed = { classroot.inkV == null && classroot.texts.length > 0 },
+                    picked(v: string) { app.setFace("color", v) }
+                    ]
+                ]
+            ],
+
+        SectionHead [ label = "Position and size" ],
+        Row [ label = "Position",
+            NumberField [ label = "X", unit = "x", min = -5000, max = 5000, value = { Math.round(classroot.box.x) },
+                picked(v: number) { app.setBox("x", v) }
+                ],
+            NumberField [ label = "Y", unit = "y", min = -5000, max = 5000, value = { Math.round(classroot.box.y) },
+                picked(v: number) { app.setBox("y", v) }
+                ]
+            ],
+        Row [ label = "Size",
+            NumberField [ label = "Width", unit = "w", min = 1, max = 10000, value = { Math.round(classroot.box.w) },
+                picked(v: number) { app.setBox("w", v) }
+                ],
+            NumberField [ label = "Height", unit = "h", min = 1, max = 10000, value = { Math.round(classroot.box.h) },
+                picked(v: number) { app.setBox("h", v) }
+                ]
+            ],
+        Row [ label = "",
+            Checkbox [ label = "Keep proportions", disabled = { classroot.sized.length == 0 },
+                checked = { classroot.keepV == true },
+                input(v: boolean) { app.setKeep(v) }
+                ]
+            ],
+
+        SectionHead [ label = "Arrange" ],
+        Row [ label = "Align",
+            ToolTile [ shape = "alignLeft", label = "Align left edges", disabled = { classroot.sel.length < 2 },
+                press() { app.align("left") }
+                ],
+            ToolTile [ shape = "alignCenter", label = "Align centres", disabled = { classroot.sel.length < 2 },
+                press() { app.align("center") }
+                ],
+            ToolTile [ shape = "alignRight", label = "Align right edges", disabled = { classroot.sel.length < 2 },
+                press() { app.align("right") }
+                ]
+            ],
+        Row [ label = "",
+            ToolTile [ shape = "alignTop", label = "Align tops", disabled = { classroot.sel.length < 2 },
+                press() { app.align("top") }
+                ],
+            ToolTile [ shape = "alignMiddle", label = "Align middles", disabled = { classroot.sel.length < 2 },
+                press() { app.align("middle") }
+                ],
+            ToolTile [ shape = "alignBottom", label = "Align bottoms", disabled = { classroot.sel.length < 2 },
+                press() { app.align("bottom") }
+                ]
+            ],
+        Row [ label = "Distribute",
+            ToolTile [ shape = "distX", label = "Distribute across", disabled = { classroot.sel.length < 3 },
+                press() { app.distribute("x") }
+                ],
+            ToolTile [ shape = "distY", label = "Distribute down", disabled = { classroot.sel.length < 3 },
+                press() { app.distribute("y") }
+                ]
+            ],
+        Row [ label = "Order",
+            ToolTile [ shape = "front", label = "Bring to front",
+                press() { app.restack("front") }
+                ],
+            ToolTile [ shape = "forward", label = "Bring forward",
+                press() { app.restack("forward") }
+                ],
+            ToolTile [ shape = "backward", label = "Send backward",
+                press() { app.restack("backward") }
+                ],
+            ToolTile [ shape = "toBack", label = "Send to back",
+                press() { app.restack("back") }
+                ]
+            ],
+        Row [ label = "Group",
+            ToolTile [ shape = "group", label = "Group", disabled = { !app.canGroup },
+                press() { app.group() }
+                ],
+            ToolTile [ shape = "ungroup", label = "Ungroup", disabled = { !app.canUngroup },
+                press() { app.ungroup() }
+                ]
+            ]
+        ]
+    ]
+
+
+// ── A presentation in the list ──────────────────────────────────────────────
+
+class DeckCard [ width = 272,
+    deckId: string = { :id ?? "" },
+    title: string = { :title ?? "" },
+    layout: SimpleLayout [ axis = y, spacing = 0 ],
+
+    // Its first slide, fetched on its own; a new `updatedAt` fetches it again.
+
+    thumb: DataSource [ autoFetch = true, schema = Slide,
+        url = { :thumbnailSlideId == null ? "" : app.api + "/api/slides/" + :thumbnailSlideId + "?at=" + encodeURIComponent(:updatedAt ?? "") } ],
+
+    opener: Control [ width = 100%, accessibilityLabel = { "Open " + classroot.title },
+        press() { app.openDeck(classroot.deckId) },
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        pic: View [ width = 272, height = 153, cornerRadius = 8, clip = true,
+            fill = { provided("theme").raised },
+            shadow = { this.parent.hovered ? shadow(0, 10, 28, 0x00000080) : shadow(0, 2, 8, 0x00000059) },
+            View [ width = 100%, height = 100%, datapath = { classroot.thumb.value },
+                visible = { classroot.thumb.loaded },
+                SlideView [ scale = { 272 / 1280 } ]
+                ],
+            ring: View [ width = 100%, height = 100%, cornerRadius = 8, pointerEvents = "none",
+                stroke = { this.parent.parent.hovered || this.parent.parent.focused ? stroke(2, provided("theme").accent) : stroke(1, 0xFFFFFF14) } ]
+            ],
+        words: View [ width = 100%, padding = [0, 34, 0, 2],
+            layout: SimpleLayout [ axis = y, spacing = 3 ],
+            Text [ width = 100%, fontSize = 14, fontWeight = semibold, maxLines = 2, wrap = true,
+                textColor = { provided("theme").text }, text = { classroot.title } ],
+            Text [ width = 100%, fontSize = 12, maxLines = 1, textColor = { provided("theme").textMuted },
+                text = { edited(:updatedAt ?? "", app.clock.now) + " · " + (:slideCount ?? 0) + ((:slideCount ?? 0) == 1 ? " slide" : " slides") } ]
+            ]
+        ],
+    more: ToolTile [ ignoreLayout = true, x = { 272 - 30 }, y = 160, shape = "more", label = "More actions",
+        press() { app.menuDeck = classroot.deckId; app.cardMenu.openFor(this) }
+        ]
+    ]

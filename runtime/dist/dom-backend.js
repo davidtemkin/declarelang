@@ -104,7 +104,7 @@ function keepingFocus(el, move) {
 function editStyleEq(a, b) {
     return a.fontFamily === b.fontFamily && a.fontSize === b.fontSize &&
         a.fontWeight === b.fontWeight && a.letterSpacing === b.letterSpacing &&
-        a.color === b.color;
+        a.color === b.color && a.align === b.align && a.italic === b.italic;
 }
 function applyEditStyle(el, st) {
     const s = el.style;
@@ -116,6 +116,8 @@ function applyEditStyle(el, st) {
     s.fontWeight = cssWeight(st.fontWeight);
     s.letterSpacing = st.letterSpacing === 0 ? "normal" : st.letterSpacing + "px";
     s.color = colorToCss(st.color);
+    s.textAlign = st.align ?? "left";
+    s.fontStyle = st.italic === true ? "italic" : "normal";
     const m = fontMetrics(fontString(st));
     s.lineHeight = m.ascent + m.descent + "px";
 }

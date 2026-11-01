@@ -957,6 +957,9 @@ const TextInputSchema: ClassSchema = {
     spellcheck: { kind: "boolean" },
     // the digits' advance, as Text's: tabular figures line up a card number or an amount
     numeralWidth: enumType("NumeralWidth", "normal", "tabular", "proportional"),
+    // where the text sits across the field, and whether it slants — as Text's
+    textAlign: enumType("TextAlign", "start", "center", "end", "left", "right"),
+    italic: { kind: "boolean" },
     // what the field holds, told to the platform: autofill, keyboard, capitalization (purpose.ts)
     purpose: enumType("InputPurpose", ...PURPOSE_NAMES),
     concealed: { kind: "boolean" },

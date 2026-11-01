@@ -55,6 +55,9 @@ export interface Diagnostic {
   code: string; // DECLARE####
   severity: Severity;
   phase: DiagPhase;
+  /** What kind of finding it is (categoryOf): an error, or one of the four
+   *  kinds a warning or hint can be — the order a report reads them in. */
+  category: Category;
   message: string; // without the "(line …, col …)" suffix — pos carries it
   pos?: Pos;
   hint?: string;
@@ -98,6 +101,38 @@ const PHASE_BY_DIGIT: Record<string, DiagPhase> = {
 /** The phase a code belongs to (its thousands digit, just past the prefix). */
 export function phaseOfCode(code: string): DiagPhase {
   return PHASE_BY_DIGIT[code[CODE_PREFIX.length]] ?? "structure";
+}
+
+/** The kinds of finding, in the order a report reads them: what blocks, what
+ *  will misbehave as written, who it doesn't work for, which devices it doesn't
+ *  work on, and advice. Each warning or hint code is one; an error is an error. */
+export type Category = "error" | "bugs" | "accessibility" | "devices" | "lint";
+export const CATEGORY_ORDER: readonly Category[] = ["error", "bugs", "accessibility", "devices", "lint"];
+const WARNING_CATEGORY: Readonly<Record<string, Exclude<Category, "error">>> = {
+  DECLARE1002: "lint", DECLARE4002: "lint", DECLARE4011: "lint", DECLARE4025: "lint",
+  DECLARE3005: "devices",
+  DECLARE4016: "accessibility", DECLARE4017: "accessibility", DECLARE4018: "accessibility", DECLARE4020: "accessibility",
+  DECLARE4021: "accessibility", DECLARE4022: "accessibility", DECLARE4026: "accessibility", DECLARE4027: "accessibility",
+  DECLARE4032: "accessibility",
+};
+/** The device a "devices" finding concerns. */
+const DEVICE_OF: Readonly<Record<string, "phone" | "desk">> = { DECLARE3005: "phone" };
+/** A finding's category. A warning or hint not named above is a bug: the
+ *  compiler warns because the program, as written, will misbehave — so a new
+ *  code is never quietened until it is placed. */
+export function categoryOf(code: string, severity: Severity): Category {
+  return severity === "error" ? "error" : WARNING_CATEGORY[code] ?? "bugs";
+}
+/** Whether the program's flags quiet a finding: lint when `lint` is false, a
+ *  device's findings when `devices` names only the other one. Errors and bugs
+ *  never; accessibility findings go with the accessibility layer itself. */
+export function quietedBy(d: { code: string; category: Category }, flags: { lint: boolean; devices: string }): string | null {
+  if (d.category === "lint" && !flags.lint) return "lint = false";
+  if (d.category === "devices") {
+    const dev = DEVICE_OF[d.code];
+    if (dev !== undefined && flags.devices !== "all" && flags.devices !== dev) return `devices = ${flags.devices}`;
+  }
+  return null;
 }
 
 // ── The template catalog ─────────────────────────────────────────────────────
@@ -450,6 +485,7 @@ export function toDiagnostic(e: DeclareError, severity: Severity, fallbackPhase:
     code,
     severity,
     phase: phaseOfCode(code),
+    category: categoryOf(code, severity),
     message: e.rawMessage,
     pos: e.pos,
     hint: e.hint,

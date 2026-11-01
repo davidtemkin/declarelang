@@ -29,6 +29,7 @@ const SUITE = [
   "test/declarec.test.mjs",
   "test/lower-literals.test.mjs",  // a compiled program carries values, not literal text
   "test/diagnostics-hints.test.mjs",
+  "test/locations.test.mjs",
   "test/error-codes.test.mjs",
   "test/release.test.mjs",         // a release is a projection of the tree: the check, the scaffold, the projection
   "test/databinding.test.mjs",

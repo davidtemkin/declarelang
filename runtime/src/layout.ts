@@ -395,7 +395,7 @@ export abstract class Layout extends Node implements LayoutStrategy {
     if (this.$firstReport(child, slot)) {
       console.error(
         "[Declare] " +
-          layoutConflictMessage(declareName(child), slot, arranger, null, ownerOf(child, slot)?.sourcePos)
+          layoutConflictMessage(declareName(child), slot, arranger, null, ownerOf(child, slot)?.sourcePos, false, child)
       );
     }
   }

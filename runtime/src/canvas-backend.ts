@@ -152,6 +152,8 @@ function applyCanvasEditStyle(el: HTMLElement, st: TextStyle): void {
   s.fontWeight = cssWeight(st.fontWeight);
   s.letterSpacing = st.letterSpacing === 0 ? "normal" : st.letterSpacing + "px";
   s.color = colorToCss(st.color);
+  s.textAlign = st.align ?? "left";
+  s.fontStyle = st.italic === true ? "italic" : "normal";
   const m = fontMetrics(fontString(st));
   s.lineHeight = m.ascent + m.descent + "px";
 }

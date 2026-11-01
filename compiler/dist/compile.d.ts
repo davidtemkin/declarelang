@@ -44,6 +44,11 @@ export interface Compiled {
      *  A CLI prints it verbatim; a rich consumer reads `diagnostics` instead —
      *  the same dual-form rule each Diagnostic itself follows. */
     report: string;
+    /** What the flags quieted: by which flag, how many. Absent when nothing was. */
+    quieted?: readonly {
+        by: string;
+        count: number;
+    }[];
     /** The program this compile built — parsed, resolved, checked, its deps and
      *  kernel bytecode on its code values — present when `source` is. In-process
      *  only: non-enumerable, so JSON and structured clone drop it, and a result
@@ -91,6 +96,10 @@ export interface CompileOptions {
      *  are skipped and every `accessibility…` member is compiled away
      *  (docs/system-design/accessibility.md §4.1). */
     accessibility?: boolean;
+    /** The `lint` and `devices` flags for this run (a URL's, `--lint=false`):
+     *  which findings to quiet. Unset, the program's own `defaultFlags` decide. */
+    lint?: boolean;
+    devices?: "all" | "desk" | "phone";
     /** The main file's path, when there is one: its name names the program in messages
      *  (a class that takes a library name is offered `<Program><Class>`). */
     mainId?: string;
@@ -112,4 +121,7 @@ export interface CompileOptions {
  *  merged text, not its own file. This is the v1 reading §1 already defers
  *  (multi-file `Pos`); it keeps the emit path drift-free — one source feeds
  *  check, the Resolver, and the output, so their offsets cannot disagree. */
+/** Compile, then quiet what the run's and the program's flags say to: ONE place,
+ *  after every phase and on every path out, so no phase decides it alone. What
+ *  was quieted is counted in the report, never dropped silently. */
 export declare function compile(source: string, opts?: CompileOptions): Promise<Compiled>;

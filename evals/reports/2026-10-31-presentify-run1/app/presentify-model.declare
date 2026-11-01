@@ -1,0 +1,500 @@
+/*
+# Presentify: the model
+
+What a presentation is, and every write to it. `presentify.declare` includes
+this file.
+
+- **The service's format** is declared once, as schemas (`Item`, `Slide`,
+  `Deck` …), straight from api/API.md. The service is the only place a
+  presentation is kept.
+- **`Presentation`** is the open presentation: a dataset class holding the
+  working copy (one `Page` per slide, in order), what is selected, the undo
+  history, and the saving. Views bind to it; nothing else holds a copy.
+- **Every change is a new pages array** handed to `apply`, which works out
+  what the service must hear: a slide to create, one to delete, one to save,
+  a new order. Saving is a queue of single requests through one
+  `DataSource`, so the service hears them in order and a refusal is handled
+  where it happened.
+- **One step is one thing the person did.** `begin()` notes the document
+  before an action and `commit()` records it as one step when the action
+  ends (a drag's release, the end of a run of typing). Undo and redo restore
+  a whole snapshot: its slides, its title, its selection.
+*/
+
+script [ "shapes.ts" ]
+
+// ── The service's format ───────────────────────────────────────────────────
+//
+// A group's `children` are Items too; a schema can't name itself, so they are
+// declared loosely here and read through `kids()` in shapes.ts.
+
+schema Outline [ color: string, width: number ]
+schema Face [ content: string, font: string, size: number, weight: number, italic: boolean, color: string,
+    align: "left" | "center" | "right" ]
+schema Item [ id: string, kind: "rect" | "ellipse" | "line" | "text" | "group",
+    x?: number, y?: number, width?: number, height?: number,
+    x1?: number, y1?: number, x2?: number, y2?: number,
+    fill?: string, stroke?: Outline, cornerRadius?: number, keepProportions?: boolean,
+    text?: Face, children[]?: any ]
+schema Slide [ id: string, deckId: string, version: number, background: string, elements[]: Item ]
+schema Deck [ id: string, title: string, version: number, updatedAt: string, slideOrder[]: string,
+    thumbnailSlideId: string ]
+schema DeckRow [ id: string, title: string, updatedAt: string, slideCount: number, thumbnailSlideId: string ]
+schema DeckRows [ decks[]: DeckRow ]
+schema SlideRows [ slides[]: Slide ]
+schema Created [ deck: Deck, slides[]: Slide ]
+schema Refusal [ error: string, message: string, field?: string, current?: any ]
+
+// ── The working copy ───────────────────────────────────────────────────────
+//
+// A Page is one slide as this window holds it. `id` is this window's own
+// name for it, stable for the life of the page (the service's id, `sid`,
+// arrives only once a new slide has been created there). `rev` counts the
+// edits made here; `savedRev` is the last one the service has.
+
+schema Page [ id: string, sid: string, version: number, background: string, elements[]: Item,
+    rev: number, savedRev: number ]
+schema Doc [ pages[]: Page ]
+
+// What undo needs: the slides' content, the title, where the person was.
+
+schema Content [ id: string, background: string, elements[]: Item ]
+schema Snapshot [ title: string, pages[]: Content, current: string, sel[]: string ]
+schema Step [ before: Snapshot, after: Snapshot ]
+
+// One request to the service: what it is for, and what was sent.
+
+schema Request [ kind: "create" | "delete" | "deck" | "save", page: string, sid: string, rev: number,
+    title: string, order[]: string ]
+
+
+class Presentation extends Dataset [ schema = Doc,
+    api: string = "",
+
+    // ── the deck
+
+    deckId: string = "",
+    deckVersion: number = 0,
+    title: string = "",
+    savedTitle: string = "",
+    orderDirty: boolean = false,
+    ready: boolean = false,
+
+    // ── where the person is: the slide being edited and the selection on it
+
+    current: string = "",
+    sel: string[] = [],
+
+    pages() -> Page[] { return this.value?.pages ?? [] },
+    pageAt(id: string) -> number { return this.pages().findIndex((p) => p.id == id) },
+    page(id: string) -> Page? { return this.pages().find((p) => p.id == id) ?? null },
+    currentIndex: number = { classroot.pageAt(classroot.current) },
+    currentPage: Page? = { classroot.page(classroot.current) },
+    items: Item[] = { classroot.currentPage?.elements ?? [] },
+    selected: Item[] = { pick(classroot.items, classroot.sel) },
+
+    // ── opening
+
+    opening: string = "",
+    deckSrc: DataSource [ url = { classroot.opening == "" ? "" : classroot.api + "/api/decks/" + classroot.opening },
+        schema = Deck,
+        onLoad() { classroot.arrived() }
+        ],
+    slidesSrc: DataSource [ url = { classroot.opening == "" ? "" : classroot.api + "/api/decks/" + classroot.opening + "/slides" },
+        schema = SlideRows,
+        onLoad() { classroot.arrived() }
+        ],
+    openFailed: boolean = { classroot.deckSrc.failed || classroot.slidesSrc.failed },
+
+    open(id: string) {
+        opening = id
+        ready = false
+        // The addresses follow `opening`; fetch once they have.
+        afterSettle(() => { deckSrc.fetch(); slidesSrc.fetch() })
+        },
+    arrived() {
+        const d = deckSrc.value
+        const s = slidesSrc.value
+        if (d == null || s == null || d.id != opening || deckSrc.loading || slidesSrc.loading) return
+        this.set(["pages"], s.slides.map((sl) => ({ id: sl.id, sid: sl.id, version: sl.version, background: sl.background,
+            elements: sl.elements, rev: 0, savedRev: 0 })))
+        deckId = d.id
+        deckVersion = d.version
+        title = d.title
+        savedTitle = d.title
+        orderDirty = false
+        current = s.slides[0]?.id ?? ""
+        sel = []
+        past = []
+        future = []
+        opened = null
+        graveyard = ({})
+        deletes = []
+        conflicts = ({})
+        offline = false
+        problem = ""
+        ready = true
+        },
+    close() { opening = ""; ready = false; this.flush() },
+
+    // ── changing it
+    //
+    // `apply` takes the pages as they should now be and works out what the
+    // service must hear. A page it hasn't seen is new (or one coming back
+    // from undo); a page missing is deleted; one whose content changed is
+    // saved; a different order is a new slideOrder.
+
+    graveyard: Record<string, Page> = { {} },
+    deletes: string[] = [],
+
+    apply(next: Content[]) {
+        const prev = this.pages()
+        const byId = new Map(prev.map((p) => [p.id, p] as [string, Page]))
+        const keep = new Set(next.map((n) => n.id))
+        let dels = deletes.slice()
+        const grave = ({ ...graveyard })
+        for (const p of prev) {
+            if (keep.has(p.id)) continue
+            grave[p.id] = p
+            if (p.sid != "") dels.push(p.sid)
+        }
+        const out: Page[] = next.map((n) => {
+            const old = byId.get(n.id)
+            if (old != null) {
+                if (old.background == n.background && old.elements == n.elements) return old
+                return ({ ...old, background: n.background, elements: n.elements, rev: old.rev + 1 })
+            }
+            const g = grave[n.id]
+            if (g != null && g.sid != "" && dels.includes(g.sid)) {
+                // Deleted here but not yet at the service: it simply stays.
+                dels = dels.filter((s) => s != g.sid)
+                const same = g.background == n.background && g.elements == n.elements
+                return ({ ...g, background: n.background, elements: n.elements, rev: same ? g.rev : g.rev + 1 })
+            }
+            return ({ id: n.id, sid: "", version: 0, background: n.background, elements: n.elements, rev: 1, savedRev: 0 })
+        })
+        if (out.map((p) => p.id).join() != prev.map((p) => p.id).join()) orderDirty = true
+        this.set(["pages"], out)
+        deletes = dels
+        graveyard = grave
+        if (!keep.has(current)) current = out[Math.min(Math.max(0, currentIndex), out.length - 1)]?.id ?? ""
+        this.schedule()
+        },
+
+    pageContents() -> Content[] { return this.pages().map((p) => ({ id: p.id, background: p.background, elements: p.elements })) },
+
+    // The current slide's things, replaced.
+
+    setItems(els: Item[]) {
+        this.apply(this.pageContents().map((c) => c.id == current ? ({ ...c, elements: els }) : c))
+        },
+    setBackground(id: string, bg: string) {
+        this.apply(this.pageContents().map((c) => c.id == id ? ({ ...c, background: bg }) : c))
+        },
+    setTitle(t: string) {
+        const v = t.trim() == "" ? "Untitled presentation" : t.trim()
+        if (v == title) return
+        this.begin()
+        title = v
+        this.commit()
+        this.schedule()
+        },
+
+    // A text box measured itself (see TextItem): keep its height in step,
+    // as part of whatever step is open. While it is typed in, it only
+    // grows: a box drawn taller than its text keeps its size.
+
+    measured(id: string, h: number, growOnly: boolean) {
+        const it = find(items, id)
+        if (it == null || Math.abs((it.height ?? 0) - h) < 0.5 || (growOnly && h < (it.height ?? 0))) return
+        this.setItems(replaceById(items, [({ ...it, height: Math.round(h * 100) / 100 })]))
+        },
+
+    // ── undo
+    //
+    // A snapshot shares its element arrays with the document: nothing ever
+    // changes an array in place (shapes.ts), so holding one is enough.
+
+    past: Step[] = [],
+    future: Step[] = [],
+    opened: Snapshot? = null,
+    canUndo: boolean = { classroot.past.length > 0 || classroot.opened != null },
+    canRedo: boolean = { classroot.future.length > 0 },
+
+    snapshot() -> Snapshot {
+        return ({ title: title, pages: this.pageContents(), current: current, sel: sel.slice() })
+        },
+    differs(a: Snapshot, b: Snapshot) -> boolean {
+        if (a.title != b.title || a.pages.length != b.pages.length) return true
+        // Arrays are shared until something changes them, so the same array is
+        // the same content; a new one is compared by what it holds.
+        return a.pages.some((p, i) => p.id != b.pages[i].id || p.background != b.pages[i].background
+            || (p.elements != b.pages[i].elements && JSON.stringify(p.elements) != JSON.stringify(b.pages[i].elements)))
+        },
+    begin() { if (opened == null) opened = this.snapshot() },
+    commit() {
+        if (opened == null) return
+        const now = this.snapshot()
+        if (this.differs(opened, now)) {
+            past = [...past, ({ before: opened, after: now })].slice(-300)
+            future = []
+        }
+        opened = null
+        },
+    restore(s: Snapshot) {
+        this.apply(s.pages)
+        title = s.title
+        current = this.pageAt(s.current) >= 0 ? s.current : (this.pages()[0]?.id ?? "")
+        sel = s.sel.filter((id) => find(this.page(current)?.elements ?? [], id) != null)
+        this.schedule()
+        },
+    undo() {
+        this.commit()
+        if (past.length == 0) return
+        const s = past[past.length - 1]
+        past = past.slice(0, -1)
+        future = [...future, s]
+        this.restore(s.before)
+        },
+    redo() {
+        this.commit()
+        if (future.length == 0) return
+        const s = future[future.length - 1]
+        future = future.slice(0, -1)
+        past = [...past, s]
+        this.restore(s.after)
+        },
+
+    // ── saving
+    //
+    // A change waits a moment for the next (a run of typing is saved once),
+    // then the queue sends what is outstanding, one request at a time:
+    // new slides first, then deletions, then the deck's title and order,
+    // then each changed slide. A request that can't reach the service is
+    // kept and tried again; nothing outstanding is dropped.
+
+    busy: boolean = false,
+    offline: boolean = false,
+    problem: string = "",
+    conflicts: Record<string, Slide> = { {} },
+    timer: DelayHandle? = null,
+    req: Request? = null,
+
+    unsaved(p: Page) -> boolean { return (p.sid == "" || p.rev > p.savedRev) && conflicts[p.id] == null },
+    deckDirty: boolean = { classroot.orderDirty || classroot.title != classroot.savedTitle },
+    slidesDirty: boolean = { classroot.deletes.length > 0 || classroot.pages().some((p) => classroot.unsaved(p)) },
+    outstanding: boolean = { classroot.deckDirty || classroot.slidesDirty },
+    status: string = { classroot.offline ? "Not saved: can't reach the service"
+        : classroot.busy || classroot.outstanding ? "Saving…" : "All changes saved" },
+    conflict: Slide? = { classroot.conflicts[classroot.current] ?? null },
+
+    schedule() {
+        if (timer != null) timer.cancel()
+        timer = afterDelay(offline ? 2500 : 700, () => { timer = null; this.send() })
+        },
+    flush() {
+        if (timer != null) timer.cancel()
+        timer = null
+        this.send()
+        },
+
+    // The one request in flight. Its url, method and body are set together,
+    // then fetched; `fetch()` settles first, so it sends exactly these.
+
+    wireUrl: string = "",
+    wireMethod: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" = "GET",
+    wireBody: object = null,
+    wire: DataSource [ url = { classroot.wireUrl }, method = { classroot.wireMethod }, body = { classroot.wireBody },
+        onLoad() { classroot.landed() },
+        trackChanges = ["failed"],
+        onChange() { if (this.failed) classroot.refused() }
+        ],
+
+    send() {
+        if (busy || deckId == "") return
+        const ps = this.pages()
+        const deck = api + "/api/decks/" + deckId
+        const fresh = ps.findIndex((p) => p.sid == "")
+        if (fresh >= 0) {
+            const p = ps[fresh]
+            const after = fresh == 0 ? null : ps[fresh - 1].sid
+            this.go(({ kind: "create", page: p.id, sid: "", rev: p.rev, title: "", order: [] }), "POST", deck + "/slides",
+                ({ after: after, background: p.background, elements: p.elements }))
+            return
+        }
+        if (deletes.length > 0) {
+            this.go(({ kind: "delete", page: "", sid: deletes[0], rev: 0, title: "", order: [] }), "DELETE",
+                api + "/api/slides/" + deletes[0], null)
+            return
+        }
+        if (orderDirty || title != savedTitle) {
+            const order = ps.map((p) => p.sid)
+            this.go(({ kind: "deck", page: "", sid: "", rev: 0, title: title, order: order }), "PATCH", deck,
+                ({ version: deckVersion, title: title, slideOrder: order }))
+            return
+        }
+        const p = ps.find((q) => this.unsaved(q))
+        if (p != null) {
+            this.go(({ kind: "save", page: p.id, sid: p.sid, rev: p.rev, title: "", order: [] }), "PUT",
+                api + "/api/slides/" + p.sid, ({ version: p.version, background: p.background, elements: p.elements }))
+            return
+        }
+        app.savedAll()
+        },
+    go(r: Request, method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", url: string, body: object) {
+        busy = true
+        req = r
+        wireMethod = method
+        wireUrl = url
+        wireBody = body
+        wire.fetch()
+        },
+
+    // Write `fields` onto the page with this id, if it is still here.
+
+    amend(id: string, fields: object) {
+        const i = this.pageAt(id)
+        if (i >= 0) this.set(["pages", i], ({ ...this.pages()[i], ...fields }))
+        },
+
+    landed() {
+        const r = req
+        const v = wire.value as any
+        busy = false
+        offline = false
+        req = null
+        if (r == null || v == null) return
+        if (r.kind == "create") {
+            this.amend(r.page, ({ sid: v.slide.id, version: v.slide.version, savedRev: r.rev }))
+            deckVersion = v.deck.version
+        } else if (r.kind == "delete") {
+            deletes = deletes.filter((s) => s != r.sid)
+            deckVersion = v.deck.version
+        } else if (r.kind == "deck") {
+            deckVersion = v.version
+            savedTitle = r.title
+            if (this.pages().map((p) => p.sid).join() == r.order.join()) orderDirty = false
+        } else {
+            const p = this.page(r.page)
+            if (p != null) this.amend(r.page, ({ version: v.version, savedRev: Math.max(p.savedRev, r.rev) }))
+        }
+        this.send()
+        },
+
+    refused() {
+        const r = req
+        const code = wire.statusCode
+        const body = (wire.errorBody ?? ({})) as Refusal
+        busy = false
+        req = null
+        if (r == null) return
+        if (code == 409 && r.kind == "save" && body.current != null) {
+            // Someone saved this slide elsewhere. Hold ours and ask.
+            conflicts = ({ ...conflicts, [r.page]: body.current as Slide })
+        } else if (code == 409 && r.kind == "deck" && body.current != null) {
+            // The deck moved on elsewhere (a rename, a reorder): ours is the
+            // newer intent, so send it again against the current version,
+            // keeping any slide added there that this window hasn't seen.
+            const cur = body.current as Deck
+            deckVersion = cur.version
+            const ours = this.pages().map((p) => p.sid)
+            const theirs = cur.slideOrder.filter((s) => !ours.includes(s) && !deletes.includes(s))
+            if (theirs.length > 0) adopt.fetch()
+        } else if (code == 404 && r.kind == "save") {
+            // Deleted elsewhere: create it again, so nothing here is lost.
+            this.amend(r.page, ({ sid: "", version: 0 }))
+        } else if (code == 404 && r.kind == "delete") {
+            deletes = deletes.filter((s) => s != r.sid)
+        } else if (code == 409 && r.kind == "delete") {
+            deletes = deletes.filter((s) => s != r.sid)
+        } else if (code == 422) {
+            // The service won't take it as it is; say so, and don't send it again
+            // until it changes.
+            problem = body.message ?? "The service refused a change."
+            if (r.kind == "save" || r.kind == "create") this.amend(r.page, ({ savedRev: r.rev }))
+            if (r.kind == "deck") { orderDirty = false; savedTitle = r.title }
+        } else {
+            offline = true
+            this.schedule()
+            return
+        }
+        this.send()
+        },
+
+    // ── another window's edits
+    //
+    // `peek` asks after the slide being edited when it is opened and every so
+    // often while it stays open; a newer version there is a conflict, told
+    // to the person, never silently taken or written over.
+
+    peekSid: string = "",
+    peek: DataSource [ url = { classroot.peekSid == "" ? "" : classroot.api + "/api/slides/" + classroot.peekSid }, schema = Slide,
+        onLoad() { classroot.peeked() }
+        ],
+    look() {
+        const p = currentPage
+        if (p == null || p.sid == "" || busy || conflicts[p.id] != null) return
+        peekSid = p.sid
+        peek.fetch()
+        },
+    peeked() {
+        const s = peek.value
+        if (s == null || busy) return
+        const p = this.pages().find((q) => q.sid == s.id)
+        if (p == null || s.version <= p.version || conflicts[p.id] != null) return
+        conflicts = ({ ...conflicts, [p.id]: s })
+        },
+
+    // Slides another window added while this one reordered: fetched and
+    // placed where the service has them, so the next slideOrder lists them.
+
+    adopt: DataSource [ url = { classroot.deckId == "" ? "" : classroot.api + "/api/decks/" + classroot.deckId + "/slides" },
+        schema = SlideRows,
+        onLoad() { classroot.adopted() }
+        ],
+    adopted() {
+        const rows = adopt.value?.slides ?? []
+        const ps = this.pages().slice()
+        rows.forEach((s, i) => {
+            if (ps.some((p) => p.sid == s.id) || deletes.includes(s.id)) return
+            const at = Math.min(i, ps.length)
+            ps.splice(at, 0, ({ id: s.id, sid: s.id, version: s.version, background: s.background, elements: s.elements,
+                rev: 0, savedRev: 0 }))
+        })
+        this.set(["pages"], ps)
+        orderDirty = true
+        this.schedule()
+        },
+
+    // Theirs: the slide as it is now there, as one undoable step.
+
+    takeTheirs() {
+        const s = conflict
+        const id = current
+        if (s == null) return
+        this.begin()
+        sel = []
+        this.apply(this.pageContents().map((c) => c.id == id ? ({ id: id, background: s.background, elements: s.elements }) : c))
+        this.commit()
+        const p = this.page(id)
+        if (p != null) this.amend(id, ({ version: s.version, savedRev: p.rev }))
+        const next = ({ ...conflicts })
+        delete next[id]
+        conflicts = next
+        this.schedule()
+        },
+
+    // Mine: write this window's slide over theirs, because the person said so.
+
+    keepMine() {
+        const s = conflict
+        const id = current
+        const p = this.page(id)
+        if (s == null || p == null) return
+        this.amend(id, ({ version: s.version, rev: p.rev + 1 }))
+        const next = ({ ...conflicts })
+        delete next[id]
+        conflicts = next
+        this.flush()
+        }
+    ]

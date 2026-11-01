@@ -226,4 +226,25 @@ await test("a 204 is a success with no value — not a JSON parse failure", asyn
   } finally { provideTransport(prev); }
 });
 
+// "Set, then fetch" inside onChange: onChange runs during a settle, where the
+// settle fetch() begins with can't run, so the request went to the OLD address
+// (Presentify run 1: every presentation opened to a 404). It now starts once
+// the settle has returned.
+await test("set, then fetch() inside onChange requests the address the write made", async () => {
+  const r = await compile(`App [ width = 1, height = 1, location = "a", trackChanges = ["location"],
+    opening: string = "",
+    src: DataSource [ url = { "/api/decks/" + app.opening } ],
+    onChange(e: ChangeEvent) { opening = "d1"; src.fetch() } ]`);
+  assert.deepEqual(r.errors.map((e) => e.message), []);
+  const a = buildProgram(r.program);
+  const asked = [];
+  const prev = provideTransport((url) => { asked.push(String(url)); return reply(200, { ok: true }); });
+  try {
+    a.location = "b";
+    for (let i = 0; i < 5 && asked.length === 0; i++) await new Promise((res) => setTimeout(res, 10));
+    assert.equal(asked.length, 1);
+    assert.match(asked[0], /\/api\/decks\/d1$/, `requested ${asked[0]}`);
+  } finally { provideTransport(prev); }
+});
+
 summarize("datasource-failure");

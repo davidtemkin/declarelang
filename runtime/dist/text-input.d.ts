@@ -14,6 +14,11 @@ export declare class TextInput extends View {
     letterSpacing: number;
     /** The digits' advance: "tabular" lines figures up (a card number, an amount). */
     numeralWidth: NumeralWidth;
+    /** Where the text sits across the field, as a Text's: "start" (the default),
+     *  "center", "end", or "left"/"right" whatever the direction. */
+    textAlign: "start" | "center" | "end" | "left" | "right";
+    /** The text slants, as a Text's. */
+    italic: boolean;
     selectable: boolean;
     text: string;
     placeholder: string;

@@ -22,6 +22,15 @@ export interface CompileFlags {
      *  system's reduced-motion handling. A program whose presentation is all
      *  drawing — an arcade game — leaves it out and pays nothing for it. */
     accessibility: boolean;
+    /** Whether the compiler's LINT is reported: advice on readability and idiom
+     *  (nested choices, centring by hand, a shadowed name). It changes nothing
+     *  that is built; a program that has decided against the advice says so. */
+    lint: boolean;
+    /** Which devices the program is for. "desk" quiets what matters only on a
+     *  phone (a text field under iOS's focus-zoom size); "phone" what matters
+     *  only at a desk. "all" (the default) reports both. It changes nothing that
+     *  is built. */
+    devices: "all" | "desk" | "phone";
 }
 /** One spec per modifier. */
 export type FlagSpec = {

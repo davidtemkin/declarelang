@@ -40,7 +40,7 @@
 import { formBody } from "./files.js";
 import { mapUrl } from "./asset-base.js";
 import { Node, authoredName } from "./node.js";
-import { Cell, isTracking, noteOrigin, retireCell, setRetireValue, settle } from "./reactive.js";
+import { Cell, isSettling, isTracking, noteOrigin, retireCell, setRetireValue, settle } from "./reactive.js";
 import { DeclareError } from "./errors.js";
 import { defineAttributes, setBound } from "./attributes.js";
 import { validateDoc, fieldValueError } from "./data-schema.js";
@@ -841,7 +841,13 @@ export class DataSource extends Dataset {
         if (this.url === this.autoUrl)
             return;
         this.autoUrl = this.url;
-        void this.fetch();
+        this.autoCalling = true;
+        try {
+            void this.fetch();
+        }
+        finally {
+            this.autoCalling = false;
+        }
     }
     /** Discards a superseded request: only the latest fetch/clear may land
      *  (the Image loader's sequence discipline). */
@@ -896,7 +902,20 @@ export class DataSource extends Dataset {
     /** Fetch `url` over HTTP. Explicit by design — the weather app's entry screen
      *  decides when (`doEnterDown() { weatherData.fetch() }`); `autoFetch = true` is the
      *  opt-in for reactive addresses (above). A non-GET `method` sends `body`. */
-    async fetch() {
+    fetch() {
+        // Called while a settle is under way (an onChange, an attribute's push), the
+        // settle below can't run: what the handler just wrote hasn't reached `url`
+        // yet. The request starts once this settle has returned (its own after-steps
+        // still run inside it), so it reads the address the write made. autoFetch's
+        // own call is the exception: it runs off `url`'s push, so the address is
+        // already the settled one (it still calls fetch(), so an override sees it).
+        if (isSettling() && !this.autoCalling)
+            return Promise.resolve().then(() => this.$request());
+        return this.$request();
+    }
+    autoCalling = false;
+    /** The request itself. */
+    async $request() {
         const seq = ++this.seq;
         // Settle FIRST (P1-2, field report 2026-08-05, three independent runs):
         // constraint settle is a microtask, and a handler that writes a slot this

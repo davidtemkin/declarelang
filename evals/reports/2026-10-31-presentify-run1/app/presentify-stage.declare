@@ -1,0 +1,499 @@
+/*
+# Presentify: the stage
+
+The slide being edited, large, and everything the pointer does to it:
+selecting, moving, resizing, rounding corners, drawing new things, editing
+text in place. `presentify.declare` places one Stage beside the slide list.
+
+How it is put together:
+
+- **The slide is a SlideView at a scale** (`s`) that fits the stage and
+  keeps the 1280 × 720 shape. Its views only paint.
+- **The stage decides what a press hit**, in slide points, with the
+  geometry in shapes.ts — so a thin line, a shape inside a group, a point
+  just off an edge are all found the same way, whatever draws them.
+- **The overlay is drawn in screen space** over the slide: selection
+  frames, handles, guides, the marquee. Handles stay the same size however
+  far the slide is scaled, and each handle is a view of its own, so the
+  pointer shows what it does before anything is pressed.
+- **A gesture is one step.** On the first real move the stage calls
+  `doc.begin()`; every move writes the document live (so the slide list's
+  picture follows); release calls `doc.commit()`.
+*/
+
+// A grab point on the selection frame. The visible square is small; the
+// view around it, which takes the press, is larger, so it is easy to hit.
+
+class Handle [ width = 16, height = 16,
+    mode: string = "",
+    round: boolean = false,
+    tip: string = "",
+    tooltipLabel = { classroot.tip },
+    accessibilityLabel = { classroot.tip },
+    cursor = { ({ lt: "nwse-resize", rb: "nwse-resize", rt: "nesw-resize", lb: "nesw-resize",
+        l: "ew-resize", r: "ew-resize", t: "ns-resize", b: "ns-resize" } as Record<string, string>)[classroot.mode] ?? "crosshair" },
+    onPointerDown(e: PointerEvent) { app.stage.grab(classroot.mode, e) },
+    onPointerMove(e: PointerEvent) { app.stage.drag(e) },
+    onPointerUp(e: PointerUpEvent) { app.stage.release(e) },
+    dot: View [ x = center, y = center, width = { classroot.round ? 11 : 10 }, height = { this.width },
+        cornerRadius = { classroot.round ? this.width / 2 : 2.5 },
+        fill = { classroot.round ? provided("theme").accent : 0xFFFFFF },
+        stroke = { stroke(1.5, classroot.round ? 0xFFFFFF : provided("theme").accent) },
+        shadow = { shadow(0, 1, 3, 0x00000066) },
+        scale = { classroot.hovered || classroot.pressed ? 1.25 : 1 },
+        pivotX = { this.width / 2 }, pivotY = { this.height / 2 } ]
+    ]
+
+
+// A thin frame around a box on the slide, legible on any colour: a dark
+// hairline outside a light one outside the accent.
+
+class Frame [ pointerEvents = "none",
+    box: Box = { { x: 0, y: 0, w: 0, h: 0 } },
+    scaleBy: number = 1,
+    tone: Color = gray,
+    weight: number = 1.5,
+    x = { classroot.box.x * classroot.scaleBy - 1 },
+    y = { classroot.box.y * classroot.scaleBy - 1 },
+    width = { Math.max(2, classroot.box.w * classroot.scaleBy + 2) },
+    height = { Math.max(2, classroot.box.h * classroot.scaleBy + 2) },
+    stroke = { stroke(classroot.weight, classroot.tone) },
+    shadow = { shadow(0, 0, 0.5, 0x00000099) }
+    ]
+
+
+class Stage [ clip = true, focusable = quiet, accessibilityLabel = "Slide editor",
+    fill = { provided("theme").canvas },
+
+    // ── the slide's place: as large as fits, never another shape
+
+    pad: number = 44,
+    s: number = { Math.max(0.05, Math.min((this.width - 2 * classroot.pad) / 1280, (this.height - 2 * classroot.pad) / 720)) },
+    ox: number = { Math.round((this.width - 1280 * classroot.s) / 2) },
+    oy: number = { Math.round((this.height - 720 * classroot.s) / 2) },
+
+    // ── what the pointer is doing
+
+    gesture: "" | "move" | "marquee" | "draw" | "resize" | "radius" | "end1" | "end2" = "",
+    mode: string = "",
+    dragged: boolean = false,
+    downX: number = 0,
+    downY: number = 0,
+    base: Item[] = [],
+    grabbed: Item[] = [],
+    keepSel: string[] = [],
+    lines: object = { { xs: [], ys: [] } },
+    guidesX: number[] = [],
+    guidesY: number[] = [],
+    marquee: Box? = null,
+    drawId: string = "",
+    hoverId: string = "",
+    downHit: string = "",
+
+    doc: Presentation = { app.doc },
+
+    // What the overlay replicates: the selected things, and the guides.
+
+    multi: Dataset [ contents = { { rows: classroot.selected.length > 1 ? classroot.selected : [] } } ],
+    vlines: Dataset [ contents = { { rows: classroot.guidesX.map((v, i) => ({ id: "x" + i, v: v })) } } ],
+    hlines: Dataset [ contents = { { rows: classroot.guidesY.map((v, i) => ({ id: "y" + i, v: v })) } } ],
+    items: Item[] = { app.doc.items },
+    selected: Item[] = { app.doc.selected },
+    selBox: Box = { boundsOf(classroot.selected) },
+    oneLine: boolean = { classroot.selected.length == 1 && classroot.selected[0].kind == "line" },
+    oneRect: boolean = { classroot.selected.length == 1 && classroot.selected[0].kind == "rect" },
+    scope: Item? = { app.doc.sel.length > 0 ? parentOf(classroot.items, app.doc.sel[0]) : null },
+    lightSlide: boolean = { isLight(app.doc.currentPage?.background ?? "#FFFFFF") },
+
+    toSlideX(x: number) -> number { return (x - ox) / s },
+    toSlideY(y: number) -> number { return (y - oy) / s },
+
+    // The thing under a point: inside the group being worked in first, then
+    // the top level (where a group counts as one thing).
+
+    hitAt(px: number, py: number) -> Item? {
+        const slop = 6 / s
+        if (scope != null) {
+            const h = topAt(kids(scope), px, py, slop)
+            if (h != null) return h
+        }
+        return topAt(items, px, py, slop)
+        },
+
+    // The items a moving selection may line up with: its neighbours.
+
+    others() -> Item[] {
+        const pool = scope != null ? kids(scope) : items
+        return pool.filter((it) => !app.doc.sel.includes(it.id))
+        },
+
+    // ── pressing on the slide
+
+    onPointerDown(e: PointerEvent) {
+        Focus.focus(this)
+        const px = this.toSlideX(e.x), py = this.toSlideY(e.y)
+        downX = px
+        downY = py
+        dragged = false
+        drawId = ""
+        hoverId = ""
+        downHit = ""
+        if (app.tool != "select") { gesture = "draw"; return }
+        const hit = this.hitAt(px, py)
+        const sel = app.doc.sel
+        if (e.shift || e.meta) {
+            if (hit == null) { gesture = "marquee"; keepSel = sel.slice(); return }
+            app.doc.sel = sel.includes(hit.id) ? sel.filter((id) => id != hit.id) : [...sel, hit.id]
+            if (!app.doc.sel.includes(hit.id)) { gesture = ""; return }
+        } else if (hit == null) {
+            app.doc.sel = []
+            gesture = "marquee"
+            keepSel = []
+            return
+        } else if (!sel.includes(hit.id)) {
+            app.doc.sel = [hit.id]
+        } else {
+            // One of several already selected: a drag moves them all; a
+            // click without one selects just this (on release, below).
+            downHit = hit.id
+        }
+        gesture = "move"
+        base = items
+        grabbed = pick(items, app.doc.sel)
+        lines = snapLines(this.others())
+        },
+
+    // A handle was pressed: resize, round the corners, or move a line's end.
+
+    grab(m: string, e: PointerEvent) {
+        Focus.focus(this)
+        mode = m
+        gesture = m == "radius" ? "radius" : m == "end1" ? "end1" : m == "end2" ? "end2" : "resize"
+        dragged = false
+        base = items
+        grabbed = selected
+        lines = snapLines(this.others())
+        },
+
+    onPointerMove(e: PointerEvent) { this.drag(e) },
+    onPointerUp(e: PointerUpEvent) { this.release(e) },
+
+    drag(e: PointerEvent) {
+        if (gesture == "") {
+            if (e.x != null && app.tool == "select") {
+                const h = this.hitAt(this.toSlideX(e.x), this.toSlideY(e.y))
+                hoverId = h == null ? "" : h.id
+            }
+            return
+        }
+        if (!dragged && Math.abs(e.deltaX) < 3 && Math.abs(e.deltaY) < 3) return
+        const dx = e.deltaX / s, dy = e.deltaY / s
+        if (!dragged) {
+            dragged = true
+            if (gesture != "marquee" && gesture != "draw") app.doc.begin()
+        }
+        const reach = 6 / s
+        const snapOn = !e.meta
+        const ln = lines as any
+        if (gesture == "move") {
+            const b0 = boundsOf(grabbed)
+            const sn = snapOn ? snapBox(({ x: b0.x + dx, y: b0.y + dy, w: b0.w, h: b0.h }), ln.xs, ln.ys, reach, "") : null
+            const fx = dx + (sn?.dx ?? 0), fy = dy + (sn?.dy ?? 0)
+            guidesX = sn?.gx ?? []
+            guidesY = sn?.gy ?? []
+            app.doc.setItems(replaceById(base, grabbed.map((it) => moved(it, fx, fy))))
+        } else if (gesture == "resize") {
+            const b0 = boundsOf(grabbed)
+            const keep = grabbed.some((it) => this.keeps(it))
+            const lock = keep != e.shift
+            let b = resizeBox(b0, mode, dx, dy, lock)
+            if (snapOn && !lock) {
+                const sn = snapBox(b, ln.xs, ln.ys, reach, mode)
+                b = resizeBox(b0, mode, dx + sn.dx, dy + sn.dy, false)
+                guidesX = sn.gx
+                guidesY = sn.gy
+            }
+            app.doc.setItems(replaceById(base, grabbed.map((it) => refit(it, b0, b))))
+        } else if (gesture == "radius") {
+            const it = grabbed[0]
+            const most = Math.min(it.width ?? 0, it.height ?? 0) / 2
+            const r = Math.max(0, Math.min(most, (it.cornerRadius ?? 0) + (dx + dy) / 2))
+            app.doc.setItems(replaceById(base, [({ ...it, cornerRadius: Math.round(r) })]))
+        } else if (gesture == "end1" || gesture == "end2") {
+            const it = grabbed[0]
+            const first = gesture == "end1"
+            const ax = first ? it.x2 ?? 0 : it.x1 ?? 0, ay = first ? it.y2 ?? 0 : it.y1 ?? 0
+            let nx = (first ? it.x1 ?? 0 : it.x2 ?? 0) + dx, ny = (first ? it.y1 ?? 0 : it.y2 ?? 0) + dy
+            if (e.shift) { const p = this.angled(ax, ay, nx, ny); nx = p[0]; ny = p[1] }
+            const r2 = (n: number) => Math.round(n * 100) / 100
+            app.doc.setItems(replaceById(base, [first ? ({ ...it, x1: r2(nx), y1: r2(ny) }) : ({ ...it, x2: r2(nx), y2: r2(ny) })]))
+        } else if (gesture == "marquee") {
+            const px = downX + dx, py = downY + dy
+            const m = ({ x: Math.min(downX, px), y: Math.min(downY, py), w: Math.abs(dx), h: Math.abs(dy) })
+            marquee = m
+            const touched = items.filter((it) => intersects(m, boxOf(it))).map((it) => it.id)
+            app.doc.sel = [...keepSel.filter((id) => !touched.includes(id)), ...touched.filter((id) => !keepSel.includes(id) || true)]
+                .filter((id, i, a) => a.indexOf(id) == i)
+        } else if (gesture == "draw") {
+            this.drawTo(downX + dx, downY + dy, e.shift)
+        }
+        },
+
+    release(e: PointerUpEvent) {
+        const g = gesture
+        gesture = ""
+        guidesX = []
+        guidesY = []
+        marquee = null
+        if (g == "draw") { this.finishDraw(e.canceled); return }
+        if (!dragged) {
+            if (g == "move" && downHit != "" && !e.canceled) app.doc.sel = [downHit]
+            return
+        }
+        if (e.canceled && g != "marquee") app.doc.setItems(base)
+        app.doc.commit()
+        },
+
+    keeps(it: Item) -> boolean {
+        if (it.kind == "group") return kids(it).some((k) => this.keeps(k))
+        return it.keepProportions ?? false
+        },
+
+    // Shift holds a line to the nearest 45°.
+
+    angled(ax: number, ay: number, bx: number, by: number) -> number[] {
+        const len = Math.hypot(bx - ax, by - ay)
+        const step = Math.PI / 4
+        const a = Math.round(Math.atan2(by - ay, bx - ax) / step) * step
+        return [ax + Math.cos(a) * len, ay + Math.sin(a) * len]
+        },
+
+    // ── drawing something new
+
+    drawTo(px: number, py: number, shift: boolean) {
+        const tool = app.tool
+        if (drawId == "") {
+            app.doc.begin()
+            base = items
+            drawId = newId("e")
+            app.doc.sel = [drawId]
+        }
+        const r2 = (n: number) => Math.round(n * 100) / 100
+        let it: Item
+        if (tool == "line") {
+            let bx = px, by = py
+            if (shift) { const p = this.angled(downX, downY, px, py); bx = p[0]; by = p[1] }
+            it = app.newLine(drawId, downX, downY, bx, by)
+            it = ({ ...it, x2: r2(bx), y2: r2(by) })
+        } else {
+            let w = px - downX, h = py - downY
+            if (shift) {
+                const m = Math.max(Math.abs(w), Math.abs(h))
+                w = (w < 0 ? -1 : 1) * m
+                h = (h < 0 ? -1 : 1) * m
+            }
+            const b = ({ x: r2(Math.min(downX, downX + w)), y: r2(Math.min(downY, downY + h)), w: r2(Math.max(1, Math.abs(w))), h: r2(Math.max(1, Math.abs(h))) })
+            it = tool == "text" ? app.newText(drawId, b.x, b.y, Math.max(40, b.w))
+                : app.newShape(drawId, tool == "ellipse" ? "ellipse" : "rect", b.x, b.y, b.w, b.h, shift)
+        }
+        app.doc.setItems([...base, it])
+        },
+
+    // A click with a drawing tool places one at a comfortable size; a text
+    // box made either way starts empty, ready to type in.
+
+    finishDraw(canceled: boolean) {
+        const tool = app.tool
+        app.tool = "select"
+        if (canceled) {
+            if (drawId != "") { app.doc.setItems(base); app.doc.sel = []; app.doc.commit() }
+            return
+        }
+        if (drawId == "") {
+            app.doc.begin()
+            drawId = newId("e")
+            let it: Item
+            if (tool == "text") it = app.newText(drawId, downX, downY - 24, 480)
+            else if (tool == "line") it = app.newLine(drawId, downX - 120, downY, downX + 120, downY)
+            else it = app.newShape(drawId, tool == "ellipse" ? "ellipse" : "rect", downX - 120, downY - 80, 240, 160, false)
+            app.doc.setItems([...items, it])
+            app.doc.sel = [drawId]
+        }
+        if (tool == "text") this.startEdit(drawId)
+        else app.doc.commit()
+        },
+
+    // ── editing text in place
+
+    onDblClick(e: PointerEvent) {
+        if (app.tool != "select") return
+        const px = this.toSlideX(e.x), py = this.toSlideY(e.y)
+        const hit = this.hitAt(px, py)
+        if (hit == null) return
+        if (hit.kind == "group") {
+            // Into the group: select the one thing under the pointer.
+            let inner: Item | null = topAt(kids(hit), px, py, 6 / s)
+            while (inner != null && inner.kind == "group") inner = topAt(kids(inner), px, py, 6 / s)
+            if (inner == null) return
+            app.doc.sel = [inner.id]
+            if (inner.kind == "text") this.startEdit(inner.id)
+            return
+        }
+        if (hit.kind == "text") this.startEdit(hit.id)
+        },
+
+    startEdit(id: string) {
+        app.doc.begin()
+        app.doc.sel = [id]
+        app.editingId = id
+        afterSettle(() => {
+            const f = this.slide.field
+            if (f != null) { Focus.focus(f); f.select("end") }
+            })
+        },
+    typed(v: string) {
+        const it = find(items, app.editingId)
+        if (it == null || it.text == null) return
+        app.doc.setItems(replaceById(items, [({ ...it, text: ({ ...it.text, content: v }) })]))
+        },
+
+    // A click elsewhere or Escape ends editing; a box left empty goes.
+
+    endEdit() {
+        const id = app.editingId
+        if (id == "") return
+        app.editingId = ""
+        const it = find(items, id)
+        if (it != null && (it.text?.content ?? "").trim() == "") {
+            app.doc.setItems(removeIds(items, [id]))
+            app.doc.sel = []
+        }
+        app.doc.commit()
+        },
+    editItem: Item? = { find(classroot.items, app.editingId) },
+    editFace: Face = { classroot.editItem?.text ?? app.plainFace },
+
+    // ── the pointer's look
+
+    cursor = { app.tool != "select" ? "crosshair" : classroot.hoverId != "" ? "move" : "default" },
+
+    onContextMenu(e: PointerEvent) {
+        const hit = this.hitAt(this.toSlideX(e.x), this.toSlideY(e.y))
+        if (hit != null && !app.doc.sel.includes(hit.id)) app.doc.sel = [hit.id]
+        if (hit == null) app.doc.sel = []
+        app.itemMenu.open(this, e)
+        },
+
+    // ── the slide
+
+    slide: SlideView [ x = { classroot.ox }, y = { classroot.oy }, scale = { classroot.s }, editor = true,
+        accessibilityLabel = "Slide", accessibilityRole = image,
+        shadow = { shadow(0, 2, 14, 0x0000004D) },
+        datapath = { app.doc.currentPage },
+
+        // The text box being typed in, in place: the same face, the same
+        // place, at the slide's scale.
+
+        field: TextInput [ exists = { app.editingId != "" },
+            x = { classroot.editItem?.x ?? 0 }, y = { classroot.editItem?.y ?? 0 },
+            width = { classroot.editItem?.width ?? 100 },
+            height = { Math.max(this.contentHeight, classroot.editFace.size * 1.25) },
+            multiline = true, wrap = true, padding = 0, fill = null, stroke = null, spellcheck = true,
+            accessibilityLabel = "Text",
+            fontFamily = { app.faceList(classroot.editFace.font) },
+            fontSize = { classroot.editFace.size },
+            fontWeight = { classroot.editFace.weight },
+            textColor = { app.hue(classroot.editFace.color) },
+            text = { classroot.editFace.content },
+            onInput(v: string) { classroot.typed(v) },
+            onBlur() { classroot.endEdit() },
+            onKeyDown(e: KeyEvent) { if (e.key == "Escape") classroot.endEdit() }
+            ]
+        ],
+
+    // ── the overlay: frames, handles, guides — in screen points
+
+    overlay: View [ x = { classroot.ox }, y = { classroot.oy }, width = { 1280 * classroot.s }, height = { 720 * classroot.s },
+
+        // what the pointer would pick
+
+        hover: Frame [ visible = { classroot.hoverId != "" && !app.doc.sel.includes(classroot.hoverId) && classroot.gesture == "" },
+            box = { boxOf(find(classroot.items, classroot.hoverId) ?? app.blankItem) }, scaleBy = { classroot.s },
+            tone = { provided("theme").accent }, weight = 1 ],
+
+        // each selected thing, when there are several
+
+        each: View [ width = 100%, height = 100%, datapath = { classroot.multi.value },
+            Frame [ datapath = :rows[], box = { boxOf(:@) }, scaleBy = { classroot.s }, tone = { provided("theme").accent }, weight = 1 ]
+            ],
+
+        // guides, while dragging
+
+        gx: View [ width = 100%, height = 100%, datapath = { classroot.vlines.value },
+            View [ datapath = :rows[], x = { :v * classroot.s }, y = { -classroot.oy }, width = 1,
+                height = { classroot.height }, fill = { provided("theme").guide } ]
+            ],
+        gy: View [ width = 100%, height = 100%, datapath = { classroot.hlines.value },
+            View [ datapath = :rows[], y = { :v * classroot.s }, x = { -classroot.ox }, height = 1,
+                width = { classroot.width }, fill = { provided("theme").guide } ]
+            ],
+
+        // the selection, and its handles
+
+        frame: View [ visible = { classroot.selected.length > 0 && !classroot.oneLine && app.editingId == "" || app.editingId != "" },
+            box: Box = { classroot.selBox },
+            x = { this.box.x * classroot.s }, y = { this.box.y * classroot.s },
+            width = { Math.max(1, this.box.w * classroot.s) }, height = { Math.max(1, this.box.h * classroot.s) },
+            small: boolean = { this.width < 40 || this.height < 40 },
+            border: View [ x = -1, y = -1, width = { parent.width + 2 }, height = { parent.height + 2 }, pointerEvents = "none",
+                stroke = { stroke(1.5, provided("theme").accent) }, shadow = { shadow(0, 0, 0.5, 0x000000AA) } ],
+            handles: View [ width = 100%, height = 100%, visible = { app.editingId == "" },
+                Handle [ mode = "lt", x = -8, y = -8, tip = "Resize top left" ],
+                Handle [ mode = "rt", x = { parent.width - 8 }, y = -8, tip = "Resize top right" ],
+                Handle [ mode = "lb", x = -8, y = { parent.height - 8 }, tip = "Resize bottom left" ],
+                Handle [ mode = "rb", x = { parent.width - 8 }, y = { parent.height - 8 }, tip = "Resize bottom right" ],
+                Handle [ mode = "t", visible = { !app.stage.overlay.frame.small }, x = { parent.width / 2 - 8 }, y = -8, tip = "Resize top" ],
+                Handle [ mode = "b", visible = { !app.stage.overlay.frame.small }, x = { parent.width / 2 - 8 }, y = { parent.height - 8 }, tip = "Resize bottom" ],
+                Handle [ mode = "l", visible = { !app.stage.overlay.frame.small }, x = -8, y = { parent.height / 2 - 8 }, tip = "Resize left" ],
+                Handle [ mode = "r", visible = { !app.stage.overlay.frame.small }, x = { parent.width - 8 }, y = { parent.height / 2 - 8 }, tip = "Resize right" ],
+
+                // a rectangle's corner radius, dragged from just inside its corner
+
+                Handle [ mode = "radius", round = true, tip = "Corner radius", cursor = "pointer",
+                    visible = { classroot.oneRect && !app.stage.overlay.frame.small },
+                    inset: number = { Math.min(Math.max((classroot.selected[0]?.cornerRadius ?? 0) * classroot.s, 16),
+                        Math.min(parent.width, parent.height) / 2) },
+                    x = { this.inset - 8 }, y = { this.inset - 8 }
+                    ]
+                ]
+            ],
+
+        // a line's two ends
+
+        ends: View [ width = 100%, height = 100%, visible = { classroot.oneLine && app.editingId == "" },
+            ln: Item = { classroot.selected[0] ?? app.blankItem },
+            Handle [ mode = "end1", round = true, tip = "Line start", cursor = "move",
+                x = { (app.stage.overlay.ends.ln.x1 ?? 0) * classroot.s - 8 }, y = { (app.stage.overlay.ends.ln.y1 ?? 0) * classroot.s - 8 } ],
+            Handle [ mode = "end2", round = true, tip = "Line end", cursor = "move",
+                x = { (app.stage.overlay.ends.ln.x2 ?? 0) * classroot.s - 8 }, y = { (app.stage.overlay.ends.ln.y2 ?? 0) * classroot.s - 8 } ]
+            ],
+
+        // the marquee
+
+        band: View [ pointerEvents = "none", visible = { classroot.marquee != null },
+            x = { (classroot.marquee?.x ?? 0) * classroot.s }, y = { (classroot.marquee?.y ?? 0) * classroot.s },
+            width = { (classroot.marquee?.w ?? 0) * classroot.s }, height = { (classroot.marquee?.h ?? 0) * classroot.s },
+            fill = { provided("theme").marquee }, stroke = { stroke(1, provided("theme").accent) } ],
+
+        // an empty slide says what to do
+
+        hint: View [ x = center, y = center, pointerEvents = "none",
+            visible = { classroot.items.length == 0 && classroot.gesture == "" && app.doc.ready },
+            layout: SimpleLayout [ axis = y, spacing = 6, align = center ],
+            Text [ fontSize = 15, fontWeight = semibold, text = "This slide is empty",
+                textColor = { classroot.lightSlide ? 0x00000066 : 0xFFFFFF80 } ],
+            Text [ fontSize = 13, text = "Pick Rectangle, Ellipse, Line or Text above, then drag on the slide",
+                textColor = { classroot.lightSlide ? 0x00000059 : 0xFFFFFF66 } ]
+            ]
+        ]
+    ]

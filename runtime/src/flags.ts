@@ -36,6 +36,15 @@ export interface CompileFlags {
    *  system's reduced-motion handling. A program whose presentation is all
    *  drawing — an arcade game — leaves it out and pays nothing for it. */
   accessibility: boolean;
+  /** Whether the compiler's LINT is reported: advice on readability and idiom
+   *  (nested choices, centring by hand, a shadowed name). It changes nothing
+   *  that is built; a program that has decided against the advice says so. */
+  lint: boolean;
+  /** Which devices the program is for. "desk" quiets what matters only on a
+   *  phone (a text field under iOS's focus-zoom size); "phone" what matters
+   *  only at a desk. "all" (the default) reports both. It changes nothing that
+   *  is built. */
+  devices: "all" | "desk" | "phone";
 }
 
 /** One spec per modifier. */
@@ -52,6 +61,10 @@ export const FLAG_SPECS: readonly FlagSpec[] = [
     description: "the reactive kernel a build carries: the C kernel as WebAssembly, or the JavaScript one (a smaller download); unset, the program's flags decide" },
   { name: "accessibility", kind: "bool", default: true,
     description: "carry the accessibility layer: what screen readers and the platform's accessibility API are given, the accessibility warnings, and the accessibility settings an app can read; unset, the program's flags decide" },
+  { name: "lint", kind: "bool", default: true,
+    description: "report the compiler's lint: advice on readability and idiom; it changes nothing that is built; unset, the program's flags decide" },
+  { name: "devices", kind: "enum", values: ["all", "desk", "phone"], default: "all",
+    description: "the devices the program is for: desk quiets what matters only on a phone, phone what matters only at a desk; it changes nothing that is built; unset, the program's flags decide" },
 ];
 
 /** Defaults, derived from the registry. */

@@ -1295,7 +1295,9 @@ class Parser {
         this.expect("rbracket", "']'");
         return { kind: "list", items, pos: t.pos };
       }
-      default: throw new DeclareError(`expected a value, got '${t.text || t.kind}'`, t.pos);
+      default: throw new DeclareError(t.text === "("
+        ? "expected a value, got '(' — a value written bare is a literal; an expression goes in braces: { ({}) }, { (a + b) / 2 }"
+        : `expected a value, got '${t.text || t.kind}'`, t.pos);
     }
   }
 

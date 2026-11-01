@@ -57,7 +57,10 @@ export function resolveShapes(program, isBuiltinClass = () => false) {
                     errors.push(new DeclareError(`'${f.name}: ${f.ref}' names no schema — ${table.size > 0 ? `declared schemas: ${[...table.keys()].join(", ")}` : "no schemas are declared"} (a field's type is string | number | boolean | any, a schema name, a literal union, or a nested [ … ])`, f.refPos ?? undefined));
                 }
                 else if (f.fields === undefined) {
-                    f.fields = target.fields;
+                    // linked, not copied, and out of sight of anything that walks or
+                    // serializes the program: a schema that names itself (a group whose
+                    // children are items) would otherwise make the program a cycle
+                    Object.defineProperty(f, "fields", { value: target.fields, enumerable: false, writable: true, configurable: true });
                 }
             }
             else if (f.fields !== undefined) {

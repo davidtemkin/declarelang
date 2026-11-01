@@ -71,6 +71,12 @@ const argVal = (name) => {
 };
 const flags = {
   json: args.includes("--json"),
+  // --all: every warning and hint, not one line per kind
+  all: args.includes("--all"),
+  // --lint=false, --devices=desk|phone|all: the program's defaultFlags for this
+  // run — which findings are quieted (declare.md defaultFlags)
+  lint: argVal("lint"),
+  devices: argVal("devices"),
   rung: Number(argVal("rung") ?? 6),
   assert: argVal("assert"),
   fixtures: argVal("fixtures"),
@@ -179,7 +185,10 @@ if (flags.wrap && !hasApp) {
 // boot-static all pass it). Missing here until apps/weather grew an art
 // include (2026-08-08) and verify alone could not find a file sitting beside
 // the program.
-const out = await compileTracked(source, { originDir: dirname(resolve(file)), mainId: resolve(file) });
+if (flags.lint !== null && flags.lint !== "true" && flags.lint !== "false") { console.error(`declare-verify: --lint is true or false, not '${flags.lint}'`); process.exit(2); }
+if (flags.devices !== null && !["all", "desk", "phone"].includes(flags.devices)) { console.error(`declare-verify: --devices is all, desk or phone, not '${flags.devices}'`); process.exit(2); }
+const out = await compileTracked(source, { originDir: dirname(resolve(file)), mainId: resolve(file),
+  ...(flags.lint !== null ? { lint: flags.lint === "true" } : {}), ...(flags.devices !== null ? { devices: flags.devices } : {}) });
 // --only: keep the diagnostics positioned in the named file. Matched by path
 // suffix so `--only rooms/pulse.declare` and `--only pulse.declare` both work;
 // the main file itself is `--only <the program file>`. The others are counted,
@@ -460,8 +469,24 @@ if (flags.json) {
   }
   if (probeNote) console.log(`  note ${probeNote}`);
   if (onlyNote) console.log(`  note ${onlyNote}`);
-  for (const w of warnings) console.log(`  warn ${show(w)}`);
-  for (const h of hints) console.log(`  hint ${show(h)}`);
+  // Warnings and hints by kind — bugs, then accessibility, devices, lint — and
+  // one line per code: the first in full, the rest counted (--all lists them).
+  // A program that prints thirty of one kind teaches its reader to stop
+  // reading; the one that mattered is then missed.
+  const KINDS = ["bugs", "accessibility", "devices", "lint"];
+  const kindOf = (d) => d.category ?? "bugs";
+  const byCode = new Map();
+  for (const d of [...warnings, ...hints].sort((a, b) => KINDS.indexOf(kindOf(a)) - KINDS.indexOf(kindOf(b)))) {
+    const k = `${d.severity} ${d.code}`;
+    if (!byCode.has(k)) byCode.set(k, []);
+    byCode.get(k).push(d);
+  }
+  for (const ds of byCode.values()) {
+    const tag = ds[0].severity === "hint" ? "hint" : "warn";
+    if (flags.all || ds.length === 1) for (const d of ds) console.log(`  ${tag} ${kindOf(d)}: ${show(d)}`);
+    else console.log(`  ${tag} ${kindOf(ds[0])}, ${ds.length} like this (--all lists them): ${show(ds[0])}`);
+  }
+  if (out.quieted?.length) console.log(`  note ${out.quieted.map((q) => `${q.count} finding${q.count === 1 ? "" : "s"} quieted by ${q.by}`).join(", ")} (the program's defaultFlags, or this run's --lint/--devices)`);
   for (const n of boot.notes) console.log(`  note ${n}`);
   if (behave.serviceNote) console.log(`  note ${behave.serviceNote}`);
   for (const w of behave.warned ?? []) console.log(`  note the runtime said: ${w}`);

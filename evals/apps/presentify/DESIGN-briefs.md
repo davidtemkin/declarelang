@@ -154,19 +154,15 @@ as an exemplar of design and interaction: consumer-grade, polished, with no roug
 - **Keyboard and pointer both first-class,** and everything can be undone.
 - **No rough edges.** No clipped text, layout shifts, flicker, unstyled controls or dead ends.
 
-## 10. How it will be checked
+## 10. Labels
 
-Besides being looked at and used, the app will be driven by an automated test that finds things the way a screen
-reader does, by role and accessible name, and checks what reaches the service. So:
-- **The tools** are buttons named Select, Rectangle, Ellipse, Line and Text.
-- **The slide being edited** is one element named **Slide**, whose 1280 × 720 points scale evenly to fill it, so a
-  point on it is a point on the slide.
-- **Each thing on the slide** has an accessible name: its kind ("Rectangle", "Ellipse", "Line", "Group") or, for a
-  text box, its text.
-- **The slides in the list** are named "Slide 1", "Slide 2" and so on, in order.
-- **The other controls** are named by what they say or do.
+Every control says what it does, both to a pointer resting on it and to a screen reader:
+- the tools are **Select**, **Rectangle**, **Ellipse**, **Line** and **Text**;
+- the slides in the list are **Slide 1**, **Slide 2** and so on, in order;
+- the slide being edited is labelled **Slide**, and its edges are the slide's edges: its 1280 × 720 points scale
+  evenly to fill it.
 
-What the service stores is what the test reads, so it must be what the person sees.
+Screen-reader access to the things on a slide is not asked for in this round.
 
 ## 11. Constraints
 

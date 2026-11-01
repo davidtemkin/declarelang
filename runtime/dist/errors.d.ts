@@ -36,6 +36,10 @@ export declare function at(where: Where | null | undefined): string;
 export interface DiagMeta {
     code?: string;
     hint?: string;
+    /** Other places the message names — "first at …" — as data, so whatever
+     *  maps a position back to its file maps these too. The message refers to
+     *  them as `{at0}`, `{at1}`, …, rendered here. */
+    related?: readonly Pos[];
 }
 /** An error in Declare source. `pos`, when present, is folded into the message
  *  so callers get a legible "… (line 2, col 12)" without extra plumbing.
@@ -45,6 +49,10 @@ export interface DiagMeta {
 export declare class DeclareError extends Error {
     readonly pos?: Pos;
     readonly rawMessage: string;
+    /** The message as written, `{atN}` and all: rebuilt with moved positions
+     *  (a position mapped back to its file), it renders again. */
+    readonly template: string;
+    readonly related?: readonly Pos[];
     readonly code?: string;
     readonly hint?: string;
     constructor(message: string, pos?: Pos, meta?: DiagMeta);
@@ -69,7 +77,12 @@ export declare class DeclareErrors extends DeclareError {
  *  attribute is the layout's while it arranges the child. Either way the
  *  message names the layout, the child and attribute, the author's line, and
  *  the two ways out. `by` names who else set it when that helps. */
-export declare function layoutConflictMessage(childClass: string, slot: string, arranger: string, by: string | null, where?: Where | null, write?: boolean): string;
+export declare function layoutConflictMessage(childClass: string, slot: string, arranger: string, by: string | null, where?: Where | null, write?: boolean, child?: unknown): string;
+/** When a refusal's line is inside a library class, the place in the author's
+ *  own code that built it: " — in the Slider at line 3, col 20". A library's
+ *  line says where the conflict landed; this says what the author wrote to
+ *  cause it. Nothing when the line is the author's own, or unknown. */
+export declare function authorSite(view: unknown, where: Where | null | undefined): string;
 /** A LITERAL on an attribute a layout places — the same sentence as every other
  *  spelling, with the value shown, because the answer never depends on how the
  *  value was written: `y = 99` and `y = { 99 }` are one declaration. */

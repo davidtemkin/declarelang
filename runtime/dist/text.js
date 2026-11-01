@@ -30,7 +30,7 @@ const clampN = (n, max) => (max > 0 ? Math.min(n, max) : n);
 import { bindDerived, defineAttributes, faceSlots, isSet, ownerOf, providedDefault, setBound } from "./attributes.js";
 /** A Text's alignment on the page: `start` and `end` by the run's direction,
  *  `left`, `center` and `right` as written. */
-function physicalAlign(a, dir) {
+export function physicalAlign(a, dir) {
     if (a === "start")
         return dir === "rtl" ? "right" : "left";
     if (a === "end")
@@ -39,7 +39,7 @@ function physicalAlign(a, dir) {
 }
 /** The base direction a Text's run is laid out in: its own `direction`, else
  *  the nearest ancestor's; "auto" reads the first strong letter of the text. */
-function runDirection(t) {
+export function runDirection(t) {
     let d = "inherit";
     for (let v = t; v != null && d === "inherit"; v = v.parent ?? null)
         d = v.direction ?? "inherit";

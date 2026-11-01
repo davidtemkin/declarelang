@@ -11,6 +11,7 @@ import { compile } from "../compiler/dist/compile-node.js";
 import { buildProgram, DeclareErrors, settle, Dataset } from "../runtime/dist/index.js";
 import { provideTransport } from "../runtime/dist/data.js";
 import { validateShape } from "../runtime/dist/data-schema.js";
+import { buildProduction } from "../tools/declarec.mjs";
 
 /** Compile a source and build the program compile() hands over; a compile error
  *  throws, carrying every error. */
@@ -548,6 +549,31 @@ await test("in a DataSource's own onLoad its value is not null; a class's schema
       onLoad() { n = value[0].cuont } ]
     App [ width = 100, height = 100, ws: Weeks [ ] ]`);
   assert.ok((typo.errors ?? []).some((e) => /cuont/.test(e.message)), "the class's value is typed by its schema");
+});
+
+// A schema that names itself: a slide's group holds items, which may be groups.
+// It once crashed the checker (a program walk followed the link round forever)
+// and the build (the program can't be written out if it is a cycle). The link
+// is kept out of sight of both; validation still follows it.
+await test("a schema may name itself: it compiles, builds, and validates nested data", async () => {
+  const src = await compile(`schema Item [ id: string, kind: string, children[]?: Item ]
+  App [ width=1, height=1, ds: DataSource [ url = "/x", schema = [ items[]: Item ] ] ]`);
+  assert.deepEqual(src.errors.map((e) => e.message), []);
+  const out = await buildProduction(`schema Item [ id: string, kind: string, children[]?: Item ]
+  App [ width=1, height=1, ds: DataSource [ url = "/x", schema = [ items[]: Item ] ] ]`, {});
+  assert.ok(out.ok, "the production build writes the program out: " + (out.errors ?? []).map((e) => e.message).join("; "));
+  const app = buildProgram(src.program);
+  const prev = provideTransport(() => jsonResponse({ items: [{ id: "g", kind: "group", children: [{ id: "a", kind: "rect" }] }] }));
+  try {
+    await app.ds.fetch();
+    assert.equal(app.ds.loaded, true, "nested items conform");
+    provideTransport(() => jsonResponse({ items: [{ id: "g", kind: "group", children: [{ id: "a" }] }] }));
+    await app.ds.fetch();
+    assert.equal(app.ds.failed, true);
+    assert.match(app.ds.error, /\/items\/0\/children\/0\/kind is missing/);
+  } finally {
+    provideTransport(prev);
+  }
 });
 
 summarize("dataschema");

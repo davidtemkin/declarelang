@@ -569,4 +569,48 @@ await test("a browser script that looks up elements in the page is warned; one t
   assert.equal(codes(own, "DECLARE4033").length, 0);
 });
 
+// Presentify run 1's audit (2026-10-31): where a refusal points, and two things
+// the compiler accepted that could never work.
+await test("an included file's parse error names the file, and says an expression goes in braces", async () => {
+  const { mkdtempSync, writeFileSync } = await import("node:fs");
+  const { join } = await import("node:path");
+  const { tmpdir } = await import("node:os");
+  const dir = mkdtempSync(join(tmpdir(), "declare-include-"));
+  writeFileSync(join(dir, "part.declare"), "class P [ width = 100, height = 50,\n    graveyard: any = ({}) ]\n");
+  writeFileSync(join(dir, "dup.declare"), "class R [ width = 1, height = 1 ]\n");
+  const r = await compile(`include [ "part.declare" ]\nApp [ width = 300, height = 200, P [ ] ]`, { originDir: dir });
+  const e = (r.errors ?? [])[0];
+  assert.equal(e?.pos?.file, "part.declare", e?.message);
+  assert.match(e.message, /goes in braces/);
+  const d = await compile(`include [ "dup.declare" ]\nApp [ width = 300, height = 200,\n    home: View [ width = 10, height = 10 ],\n    home() { } ]`, { originDir: dir });
+  assert.match((d.errors ?? [])[0]?.message ?? "", /first at line 3, col 5/, "the first one's line is the file's, not the merged program's");
+});
+await test("a TextInput aligns and slants its text, as a Text does", async () => {
+  const r = await compile(`App [ width = 300, height = 200, TextInput [ width = 200, accessibilityLabel = "Title", textAlign = center, italic = true ] ]`);
+  assert.deepEqual((r.errors ?? []).map((e) => e.message), []);
+});
+
+// Quieting is a fact the program states (or a run passes), never a code switched
+// off: lint = false drops advice; devices = desk drops what matters only on a
+// phone. Errors and bugs can't be quieted, and what was quieted is counted.
+await test("defaultFlags quiet lint and another device's findings, and say how many", async () => {
+  const src = (flags) => `${flags}
+App [ width = 300, height = 200,
+    f: TextInput [ fontSize = 13, width = 100, accessibilityLabel = "Name" ],
+    v: View [ width = 10, height = 10, x = { app.width > 1 ? (app.width > 2 ? 1 : (app.width > 3 ? 2 : 3)) : 4 } ] ]`;
+  const codes = (r) => r.diagnostics.map((d) => d.code);
+  const all = await compile(src(""));
+  assert.ok(codes(all).includes("DECLARE3005") && codes(all).includes("DECLARE4025"), codes(all).join());
+  assert.equal(all.diagnostics.find((d) => d.code === "DECLARE3005").category, "devices");
+  assert.equal(all.diagnostics.find((d) => d.code === "DECLARE4025").category, "lint");
+  const quiet = await compile(src("defaultFlags [ lint = false, devices = desk ]"));
+  assert.deepEqual(codes(quiet).filter((c) => c === "DECLARE3005" || c === "DECLARE4025"), []);
+  assert.deepEqual(quiet.quieted.map((q) => q.by).sort(), ["devices = desk", "lint = false"]);
+  assert.match(quiet.report, /quieted by lint = false/);
+  const run = await compile(src("defaultFlags [ lint = false ]"), { lint: true });
+  assert.ok(codes(run).includes("DECLARE4025"), "a run's own flag overrides the program's");
+  const phone = await compile(src("defaultFlags [ devices = phone ]"));
+  assert.ok(codes(phone).includes("DECLARE3005"), "a phone program keeps the phone's findings");
+});
+
 summarize("diagnostics-hints");

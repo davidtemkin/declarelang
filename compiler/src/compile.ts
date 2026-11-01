@@ -206,7 +206,8 @@ import { runtimeMethodsOf } from "../../runtime/dist/runtime-methods.js";
 import { accessibilityDiagnostics } from "./a11y-check.js";
 import { resolveIncludes, resolveAutoIncludes, spliceScriptFiles, NO_INCLUDES, type IncludeHost, type AutoIncludeHost, type Splice } from "../../runtime/dist/include.js";
 import { typecheckBodies, bodyRewrites } from "./typecheck.js";
-import { Diag, toDiagnostic, formatDiagnostic, renderReport, type Diagnostic, type DiagPhase } from "../../runtime/dist/diagnostics.js";
+import { Diag, toDiagnostic, formatDiagnostic, renderReport, quietedBy, type Diagnostic, type DiagPhase } from "../../runtime/dist/diagnostics.js";
+import type { CompileFlags } from "../../runtime/dist/flags.js";
 
 /** The names resolution leaves alone in CALLEE position: the four value
  *  constructors expr.ts scopes into every body — `stroke(…)` builds a Stroke
@@ -271,6 +272,8 @@ export interface Compiled {
    *  A CLI prints it verbatim; a rich consumer reads `diagnostics` instead —
    *  the same dual-form rule each Diagnostic itself follows. */
   report: string;
+  /** What the flags quieted: by which flag, how many. Absent when nothing was. */
+  quieted?: readonly { by: string; count: number }[];
   /** The program this compile built — parsed, resolved, checked, its deps and
    *  kernel bytecode on its code values — present when `source` is. In-process
    *  only: non-enumerable, so JSON and structured clone drop it, and a result
@@ -891,6 +894,10 @@ export interface CompileOptions {
    *  are skipped and every `accessibility…` member is compiled away
    *  (docs/system-design/accessibility.md §4.1). */
   accessibility?: boolean;
+  /** The `lint` and `devices` flags for this run (a URL's, `--lint=false`):
+   *  which findings to quiet. Unset, the program's own `defaultFlags` decide. */
+  lint?: boolean;
+  devices?: "all" | "desk" | "phone";
   /** The main file's path, when there is one: its name names the program in messages
    *  (a class that takes a library name is offered `<Program><Class>`). */
   mainId?: string;
@@ -922,7 +929,37 @@ function programPrefix(opts: CompileOptions): string {
  *  merged text, not its own file. This is the v1 reading §1 already defers
  *  (multi-file `Pos`); it keeps the emit path drift-free — one source feeds
  *  check, the Resolver, and the output, so their offsets cannot disagree. */
+/** Compile, then quiet what the run's and the program's flags say to: ONE place,
+ *  after every phase and on every path out, so no phase decides it alone. What
+ *  was quieted is counted in the report, never dropped silently. */
 export async function compile(source: string, opts: CompileOptions = {}): Promise<Compiled> {
+  const seen: { flags?: Partial<CompileFlags> } = {};
+  const out = await compileUnquieted(source, opts, seen);
+  const flags = {
+    lint: opts.lint ?? (seen.flags?.lint as boolean | undefined) ?? true,
+    devices: opts.devices ?? (seen.flags?.devices as string | undefined) ?? "all",
+  };
+  const quiet = new Map<string, number>();
+  const kept = out.diagnostics.filter((d) => {
+    const by = quietedBy(d, flags);
+    if (by !== null) quiet.set(by, (quiet.get(by) ?? 0) + 1);
+    return by === null;
+  });
+  if (quiet.size === 0) return out;
+  const gone = new Set(out.diagnostics.filter((d) => !kept.includes(d)).map((d) => `${d.code} ${d.pos?.file ?? ""}:${d.pos?.line}:${d.pos?.col}`));
+  const keep = (e: DeclareError): boolean => !gone.has(`${e.code} ${e.pos?.file ?? ""}:${e.pos?.line}:${e.pos?.col}`);
+  const said = [...quiet].map(([by, n]) => `${n} quieted by ${by}`).join(", ");
+  return {
+    ...out,
+    warnings: out.warnings.filter(keep),
+    ...(out.hints !== undefined ? { hints: out.hints.filter(keep) } : {}),
+    diagnostics: kept,
+    quieted: [...quiet].map(([by, count]) => ({ by, count })),
+    report: [renderReport(kept), said].filter((x) => x !== "").join("\n"),
+  };
+}
+
+async function compileUnquieted(source: string, opts: CompileOptions, seen: { flags?: Partial<CompileFlags> }): Promise<Compiled> {
   let main: Program;
   try {
     main = parseProgram(source);
@@ -1105,6 +1142,7 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
   let program: Program;
   try {
     program = parseProgram(merged);
+    seen.flags = program.flags as Partial<CompileFlags> | undefined;
   } catch (e) {
     if (e instanceof DeclareError) { const es = rbAll([e]); return { source: null, errors: es, warnings: [], ...diagnose(es, [], "syntax") }; }
     throw e;
@@ -1662,7 +1700,9 @@ function displayFile(id: string, originDir: string): string {
 function makeRebaser(mainSource: string, mainSplices: readonly Splice[], segments: readonly PreludeSegment[], display: (id: string) => string): (e: DeclareError) => DeclareError {
   const map = makePosMapper(mainSource, mainSplices, segments, display);
   if (map === null) return (e) => e;
-  return (e) => e.pos === undefined ? e : new DeclareError(e.rawMessage, map(e.pos), { code: e.code, hint: e.hint });
+  // the error's own place, and any it names ("first at …"), mapped alike
+  return (e) => e.pos === undefined ? e
+    : new DeclareError(e.template, map(e.pos), { code: e.code, hint: e.hint, ...(e.related !== undefined ? { related: e.related.map((r) => map(r)) } : {}) });
 }
 
 /** A merged-text position → where the author wrote it (null: the merged text

@@ -15,6 +15,18 @@ export function describePos(pos) {
 export function at(where) {
     return where == null ? "" : " " + describePos(where);
 }
+/** `{atN}` in a message, as "at line L, col C" — or "at file:L:C" when the
+ *  related place is in another file than the error's own. */
+function renderRelated(message, related, own) {
+    if (related === undefined || related.length === 0)
+        return message;
+    return message.replace(/\{at(\d+)\}/g, (m, i) => {
+        const r = related[Number(i)];
+        if (r === undefined)
+            return m;
+        return r.file !== undefined && r.file !== own?.file ? `at ${r.file}:${r.line}:${r.col}` : `at line ${r.line}, col ${r.col}`;
+    });
+}
 /** An error in Declare source. `pos`, when present, is folded into the message
  *  so callers get a legible "… (line 2, col 12)" without extra plumbing.
  *  `rawMessage` keeps the message WITHOUT that suffix (the Diagnostic carries
@@ -23,14 +35,22 @@ export function at(where) {
 export class DeclareError extends Error {
     pos;
     rawMessage;
+    /** The message as written, `{atN}` and all: rebuilt with moved positions
+     *  (a position mapped back to its file), it renders again. */
+    template;
+    related;
     code;
     hint;
     constructor(message, pos, meta) {
-        super(pos ? `${message} ${describePos(pos)}` : message);
+        const said = renderRelated(message, meta?.related, pos);
+        super(pos ? `${said} ${describePos(pos)}` : said);
         this.name = "DeclareError";
-        this.rawMessage = message;
+        this.rawMessage = said;
+        this.template = message;
         if (pos)
             this.pos = pos;
+        if (meta?.related !== undefined)
+            this.related = meta.related;
         if (meta?.code !== undefined)
             this.code = meta.code;
         if (meta?.hint !== undefined)
@@ -63,10 +83,25 @@ export class DeclareErrors extends DeclareError {
  *  attribute is the layout's while it arranges the child. Either way the
  *  message names the layout, the child and attribute, the author's line, and
  *  the two ways out. `by` names who else set it when that helps. */
-export function layoutConflictMessage(childClass, slot, arranger, by, where, write = false) {
+export function layoutConflictMessage(childClass, slot, arranger, by, where, write = false, child) {
     const who = by !== null ? ` (set by ${by})` : "";
     const clause = write ? `cannot set its ${slot} while the layout arranges it` : `does not declare its ${slot}`;
-    return diag `${childClass}.${slot}${who}${at(where)} — ${arranger} ${arranges(slot)} its children, so this child ${clause}; ${layoutEscape(slot)}.`;
+    return diag `${childClass}.${slot}${who}${at(where)}${authorSite(child, where)} — ${arranger} ${arranges(slot)} its children, so this child ${clause}; ${layoutEscape(slot)}.`;
+}
+/** When a refusal's line is inside a library class, the place in the author's
+ *  own code that built it: " — in the Slider at line 3, col 20". A library's
+ *  line says where the conflict landed; this says what the author wrote to
+ *  cause it. Nothing when the line is the author's own, or unknown. */
+export function authorSite(view, where) {
+    const inLibrary = (w) => w?.file !== undefined && /(^|\/)library\//.test(w.file);
+    if (where == null || !inLibrary(where))
+        return "";
+    for (let v = view, n = 0; v != null && n < 64; v = (v.classroot ?? v.parent), n++) {
+        const c = v.$createdAt;
+        if (c !== undefined && !inLibrary(c))
+            return ` — in the ${c.tag} at ${c.file !== undefined ? `${c.file}:${c.line}:${c.col}` : `line ${c.line}, col ${c.col}`}`;
+    }
+    return "";
 }
 /** What a layout DOES to the attribute — "sizes" or "places", decided once. */
 function arranges(slot) {

@@ -67,7 +67,7 @@ export class TweenLayout extends Layout {
         const refuseIfOwned = (child, slot) => {
             const prior = ownerOf(child, slot);
             if (prior !== null && !prior.yielding) {
-                throw new DeclareError(layoutConflictMessage(declareName(child), slot, arranger, null, prior.sourcePos));
+                throw new DeclareError(layoutConflictMessage(declareName(child), slot, arranger, null, prior.sourcePos, false, child));
             }
         };
         const SLOTS = [

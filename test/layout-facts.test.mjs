@@ -297,4 +297,21 @@ await test("a weight written before anything reads the view reads back as writte
   assert.equal(v.flexes, 2, "an untouched view's untracked read is not the class default once a value left the table");
 });
 
+// A layout written beside children a class places elsewhere arranges THOSE
+// children, in the view that holds them (Presentify run 1: a Popover with a
+// layout failed at boot, blaming the library's own frame). It replaces that
+// view's own layout; written in the class's own body, a layout is the frame's.
+await test("a layout at the use site of a class with defaultPlacement arranges the placed children", () => {
+  const g = layOut("placed-layout", `App [ width = 600, height = 300,
+    f: Frame [ layout: SimpleLayout [ axis = x, spacing = 10 ],
+        a: View [ width = 40, height = 20 ], b: View [ width = 40, height = 20 ] ],
+    plain: Frame [ c: View [ width = 40, height = 20 ], d: View [ width = 40, height = 20 ] ] ]
+class Frame [ width = 300, height = 200, defaultPlacement = body,
+    edge: View [ x = 2, y = 2, width = 10, height = 10 ],
+    body: View [ x = 20, y = 30, layout: SimpleLayout [ axis = y, spacing = 5 ] ] ]`);
+  assert.deepEqual([g["app.f.body.b"][0], g["app.f.body.b"][1]], [50, 0], "written at the use site: across, in the body, nothing left of its column");
+  assert.deepEqual([g["app.f.edge"][0], g["app.f.edge"][1]], [2, 2], "the frame's own child is not arranged by it");
+  assert.deepEqual([g["app.plain.body.d"][0], g["app.plain.body.d"][1]], [0, 25], "with none written, the body's own column stands");
+});
+
 summarize("layout-facts");

@@ -20,6 +20,10 @@ export const FLAG_SPECS = [
         description: "the reactive kernel a build carries: the C kernel as WebAssembly, or the JavaScript one (a smaller download); unset, the program's flags decide" },
     { name: "accessibility", kind: "bool", default: true,
         description: "carry the accessibility layer: what screen readers and the platform's accessibility API are given, the accessibility warnings, and the accessibility settings an app can read; unset, the program's flags decide" },
+    { name: "lint", kind: "bool", default: true,
+        description: "report the compiler's lint: advice on readability and idiom; it changes nothing that is built; unset, the program's flags decide" },
+    { name: "devices", kind: "enum", values: ["all", "desk", "phone"], default: "all",
+        description: "the devices the program is for: desk quiets what matters only on a phone, phone what matters only at a desk; it changes nothing that is built; unset, the program's flags decide" },
 ];
 /** Defaults, derived from the registry. */
 export const DEFAULT_FLAGS = Object.fromEntries(FLAG_SPECS.map((s) => [s.name, s.default]));

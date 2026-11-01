@@ -545,7 +545,7 @@ export function defineAttributes<S extends object>(
         if (owner !== undefined) {
           if (!owner.yielding && !owner.fillsContent) {
             throw new DeclareError(owner.arrangedBy !== null
-              ? layoutConflictMessage(declareName(this), name, owner.arrangedBy, null, null, true)
+              ? layoutConflictMessage(declareName(this), name, owner.arrangedBy, null, null, true, this)
               : `${declareName(this)}.${name} is bound by a constraint (${owner.label}) — a direct write would be silently overwritten; change what the constraint reads instead`
             );
           }
@@ -1298,7 +1298,7 @@ export function own(self: object, name: string, c: Constraint): void {
       // The INCOMING constraint is the author's (bind.ts records the source text
       // and position on it before installing), so its `sourcePos` is the line
       // that wrote the losing value — which is the line an author needs.
-      ? layoutConflictMessage(declareName(self), name, prior.arrangedBy, null, c.sourcePos)
+      ? layoutConflictMessage(declareName(self), name, prior.arrangedBy, null, c.sourcePos, false, self)
       : `${declareName(self)}.${name} is already bound (by ${prior.label})${at(c.sourcePos)}`);
   }
   owners[name] = c;

@@ -91,7 +91,7 @@ export abstract class TweenLayout extends Layout {
       const prior = ownerOf(child, slot);
       if (prior !== null && !prior.yielding) {
         throw new DeclareError(
-          layoutConflictMessage(declareName(child), slot, arranger, null, prior.sourcePos)
+          layoutConflictMessage(declareName(child), slot, arranger, null, prior.sourcePos, false, child)
         );
       }
     };

@@ -24,6 +24,7 @@ import { heldFamily, type FamilyValue } from "./font-value.js";
 import { isTwoWay, edited, commitDraft, revertDraft, judgeDraft, runValidate, floorError } from "./editor.js";
 import { insetSides, stroke, type Color, type Inset } from "./value.js";
 import { hintsOf, type Purpose } from "./purpose.js";
+import { physicalAlign, runDirection } from "./text.js";
 import type { NumeralWidth } from "./font-features.js";
 
 export class TextInput extends View {
@@ -37,6 +38,11 @@ export class TextInput extends View {
   declare letterSpacing: number;
   /** The digits' advance: "tabular" lines figures up (a card number, an amount). */
   declare numeralWidth: NumeralWidth;
+  /** Where the text sits across the field, as a Text's: "start" (the default),
+   *  "center", "end", or "left"/"right" whatever the direction. */
+  declare textAlign: "start" | "center" | "end" | "left" | "right";
+  /** The text slants, as a Text's. */
+  declare italic: boolean;
   declare selectable: boolean;
   declare text: string;
   declare placeholder: string;
@@ -272,6 +278,8 @@ export class TextInput extends View {
       color: this.textColor,
       shadow: null,
       ...(this.numeralWidth !== "normal" ? { numeralWidth: this.numeralWidth } : {}),
+      align: physicalAlign(this.textAlign, runDirection(this)),
+      italic: this.italic,
     };
   }
 
@@ -463,6 +471,8 @@ defineAttributes(TextInput, {
   } },
   initial: { def: "" },
   numeralWidth: { def: "normal" },
+  textAlign: { def: "start" },
+  italic: { def: false },
   selectionStart: { def: 0 },
   selectionEnd: { def: 0 },
   disabled: { def: false, push: (t) => t.$syncEditable() },

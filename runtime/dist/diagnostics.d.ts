@@ -19,6 +19,9 @@ export interface Diagnostic {
     code: string;
     severity: Severity;
     phase: DiagPhase;
+    /** What kind of finding it is (categoryOf): an error, or one of the four
+     *  kinds a warning or hint can be — the order a report reads them in. */
+    category: Category;
     message: string;
     pos?: Pos;
     hint?: string;
@@ -32,6 +35,25 @@ export interface Diagnostic {
 export declare const CODE_PREFIX = "DECLARE";
 /** The phase a code belongs to (its thousands digit, just past the prefix). */
 export declare function phaseOfCode(code: string): DiagPhase;
+/** The kinds of finding, in the order a report reads them: what blocks, what
+ *  will misbehave as written, who it doesn't work for, which devices it doesn't
+ *  work on, and advice. Each warning or hint code is one; an error is an error. */
+export type Category = "error" | "bugs" | "accessibility" | "devices" | "lint";
+export declare const CATEGORY_ORDER: readonly Category[];
+/** A finding's category. A warning or hint not named above is a bug: the
+ *  compiler warns because the program, as written, will misbehave — so a new
+ *  code is never quietened until it is placed. */
+export declare function categoryOf(code: string, severity: Severity): Category;
+/** Whether the program's flags quiet a finding: lint when `lint` is false, a
+ *  device's findings when `devices` names only the other one. Errors and bugs
+ *  never; accessibility findings go with the accessibility layer itself. */
+export declare function quietedBy(d: {
+    code: string;
+    category: Category;
+}, flags: {
+    lint: boolean;
+    devices: string;
+}): string | null;
 /** Names that EXTEND what was written — `Segment` against `SegmentedItem`.
  *
  *  Edit distance cannot see these: `Segment` → `SegmentedItem` is eight edits, far

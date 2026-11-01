@@ -4,6 +4,16 @@ import { type Fill, type Shadow, type Outline, type Color } from "./value.js";
 import { type TextTransform, type FontWeight } from "./measure.js";
 import type { Numerals, NumeralWidth } from "./font-features.js";
 import { type FamilyValue } from "./font-value.js";
+/** A Text's alignment on the page: `start` and `end` by the run's direction,
+ *  `left`, `center` and `right` as written. */
+export declare function physicalAlign(a: string, dir: "ltr" | "rtl"): "left" | "center" | "right";
+/** The base direction a Text's run is laid out in: its own `direction`, else
+ *  the nearest ancestor's; "auto" reads the first strong letter of the text. */
+export declare function runDirection(t: {
+    text?: unknown;
+    direction?: string;
+    parent?: unknown;
+}): "ltr" | "rtl";
 export declare class Text extends View {
     textColor: Color;
     fontSize: number;

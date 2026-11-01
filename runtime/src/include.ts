@@ -19,7 +19,18 @@
 // checker's job, so the main program seeds the origin table with no self-check.
 
 import { parseLibrary, mergeShip, ONE_FLAGS, type Ship, type Flags, type Program, type Library, type ClassDecl, type TopDecl, type Span, type Element, type ScriptBlock, type IncludeRef } from "./parser.js";
-import { DeclareError } from "./errors.js";
+import { DeclareError, DeclareErrors } from "./errors.js";
+
+/** A refusal from parsing an included file on its own, with that file named:
+ *  its position is the file's own line, so without the name it reads as the
+ *  main file's. */
+function inFile(e: DeclareError, file: string): DeclareError[] {
+  const one = (x: DeclareError): DeclareError =>
+    x.pos === undefined || x.pos.file !== undefined ? x
+      : new DeclareError(x.template, { ...x.pos, file }, { ...(x.code !== undefined ? { code: x.code } : {}), ...(x.hint !== undefined ? { hint: x.hint } : {}),
+        ...(x.related !== undefined ? { related: x.related.map((r) => ({ ...r, file })) } : {}) });
+  return e instanceof DeclareErrors ? e.errors.map(one) : [one(e)];
+}
 import { Diag } from "./diagnostics.js";
 
 /** Cut a source's `include [ … ]` directives out of its text, leaving the rest
@@ -243,7 +254,7 @@ export async function resolveIncludes(
       try {
         lib = parseLibrary(resolved.source);
       } catch (e) {
-        if (e instanceof DeclareError) { errors.push(e); continue; }
+        if (e instanceof DeclareError) { errors.push(...inFile(e, inc.path)); continue; }
         throw e;
       }
       // DEPENDENCY-FIRST: resolve the library's OWN includes before folding /
@@ -463,7 +474,7 @@ export async function resolveAutoIncludes(
     visited.add(resolved.canonical);
     let lib: Library;
     try { lib = parseLibrary(resolved.source); }
-    catch (e) { if (e instanceof DeclareError) { errors.push(e); return; } throw e; }
+    catch (e) { if (e instanceof DeclareError) { errors.push(...inFile(e, path)); return; } throw e; }
     const mine: ClassDecl[] = [];
     for (const c of lib.classes) if (foldOne(c.name, c.pos, path)) mine.push(c);
     // dependency-first: pull what this library references, then emit it

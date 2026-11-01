@@ -196,6 +196,9 @@ export declare class DataSource extends Dataset {
      *  decides when (`doEnterDown() { weatherData.fetch() }`); `autoFetch = true` is the
      *  opt-in for reactive addresses (above). A non-GET `method` sends `body`. */
     fetch(): Promise<void>;
+    private autoCalling;
+    /** The request itself. */
+    private $request;
     /** As if never fetched (the doc's "back to the entry screen —
      *  declaratively"): no document, so `loaded` drops; no request, no failure. */
     clear(): void;

@@ -61,7 +61,7 @@ applied to structure, space, data, style, and time.
    expression, so React's `{items.map(…)}` and `{cond && …}` have no equivalent there: a
    collection comes from *replication* over a datapath, and conditional presence is `visible`.
    (Both are ordinary TypeScript inside a `{ }` value, and a handler can build views with
-   `createView`; the tree is simply not where either happens.) (§7)
+   `createView`; the tree is not where either happens.) (§7)
 5. **There is no CSS, and no DOM to program.** No selectors, cascade, specificity, media queries, z-index,
    flexbox, or grid. Style is attributes, stacking is declaration order, and responsiveness is
    constraints on `app.width`. (§6, §9)
@@ -246,7 +246,7 @@ or `Dataset` when it is those records' own logic.
 (and a use site's) are appended to the instance, after the base class's own. A class that is a
 frame around content names the child the content belongs in — `class Sheet [
 defaultPlacement = body, body: View [ … ] ]` — and every subclass's and use site's children go
-into `body`, in order; the base's own children never move. **A child can exist
+into `body`, in order, and a `layout:` written beside them goes with them, replacing `body`'s; the base's own children never move. **A child can exist
 conditionally:** `exists = { … }` builds it while true and discards it while false, in its
 place (`visible` keeps a hidden view built — a focus sink, a definition read by its parent).
 
@@ -277,7 +277,7 @@ literal names or that live outside its folder; `compiler = true`, it compiles so
 true`, it answers questions about itself in production ([Packaging](declare-docs:guide:packaging)). A
 literal `program = "name"` or `url = "path"` needs no entry, and hosts that carry sources and a compiler read none of it.
 **`defaultFlags [ … ]`** gives the program's own defaults for the platform's flags — `render = canvas`,
-`kernel = js`, `crawler = true`, `accessibility = false` — which a request's `?render=` or `declarec --render=` overrides; a
+`kernel = js`, `crawler = true`, `accessibility = false`, `lint = false`, `devices = desk` (these two quiet warnings) — which a request's `?render=` or `declarec --render=` overrides; a
 program has at most one, in any of its files ([Renderers](declare-docs:guide:renderers), [defaultFlags](declare-docs:language:defaultFlags)). **`theme Name [ … ]`** and **`style Name [ … ]`** are named records of
 literal values — a token record, and the style of a run of text with no view (§9).
 
@@ -411,18 +411,13 @@ the socket.
 ### What you can assign
 
 A `{ }` can appear on either member kind from §3 — **setting** an existing attribute, or
-**declaring** a new one — and one difference decides everything: who owns the value. A **set** attribute is owned by its
-constraint, which the runtime keeps current and guards — a direct write is refused, with a
-message naming the fix. A **computed
-default** (`segIndex: number = { … }`, a *declaration* whose default is an expression) is a
-formula the value follows until an assignment replaces it —
-the right tool for a value you may take over later, which is why `TextInput` offers
-`initial = { … }`, the field-owned twin of a constrained `text = { … }`, which the program
-keeps, and the user's typing only proposes to through `onInput`.
+**declaring** a new one with a computed default — and one difference decides everything: who
+owns the value. That is why `TextInput` has both: `text = { … }`, which the program keeps and
+typing only proposes to through `onInput`, and `initial = { … }`, which the field takes over.
 
 | you wrote | owned by its constraint? | reading it | assigning to it | reach for it when |
 |---|---|---|---|---|
-| `width = { … }` — **set** an existing attribute | yes | subscribes to it | **refused** at runtime | the value is simply derived and should stay that way |
+| `width = { … }` — **set** an existing attribute | yes | subscribes to it | **refused** at runtime | the value is derived and should stay that way |
 | `segIndex: number = { … }` — **declare** with a default | no | subscribes to it | lands, and the formula is gone | you may want to take the value over later |
 
 Either kind is worked out once and kept, and worked out again only when what it reads
@@ -625,8 +620,8 @@ headers — are ordinary reactive attributes, so a write is a `DataSource` too: 
 a `body`, `.fetch()` from the handler, `onLoad()` for what follows the reply.
 
 **A schema is a named type — declare it once, at the top level, and use it in any type position.**
-`schema Task [ id: string, done: boolean, status: "open" | "closed", note?: string ]` is a
-declaration in the one type system: the name works in every type position (`sel: Task? = null`,
+`schema Task [ id: string, done: boolean, status: "open" | "closed", note?: string ]` is then
+a type like any other (`sel: Task? = null`,
 `advance(t: Task) -> Task`, a field of another schema — `owner: Person`) — and there, as for a
 class or `View`, a trailing `?` is what lets it be empty: `Task?` may be null, `Task` never is, a dataset declares the
 shape of its data with it (`schema = [ tasks[]: Task ]`, or `schema = Task[]` for a bare-array response),
@@ -692,8 +687,7 @@ close of a settle in which one of them ended different from where it started, on
 name with its previous and current value — for a state change the program must act on, never to
 follow a value (a constraint) or to move one (a Spring).
 
-**Nothing bubbles.** A handler fires on the node that declares it, full stop. A child that needs
-to tell its owner something calls a method. There is no `addEventListener`, no `event` keyword,
+**Nothing bubbles** (§1): there is no `addEventListener`, no `event` keyword,
 and no capture or propagation phase; the `on` prefix is a naming convention, not syntax.
 
 **Pointer input has two layers.** The **raw** layer — `onPointerDown`/`Move`/`Up`, the multi-finger
@@ -730,7 +724,7 @@ game taking **full gesture control**.
 ### Opacity is paint; `visible` is presence
 
 A view at `opacity = 0` is invisible but entirely present — it holds its layout space and still
-takes clicks, subtree included, exactly as CSS opacity does. That is a tool, not a trap: a fully
+takes clicks, subtree included, as CSS opacity does. That is a tool, not a trap: a fully
 transparent view is the natural press-catcher — a scrim behind a modal, a hit target larger than
 the mark it serves.
 
@@ -767,7 +761,7 @@ shadows read the same. The names do not. A border is a **stroke**, rounding is *
 and `borderWidth`, `boxShadow`, and `outline` do not exist.
 
 What replaces the cascade is **provided values**: `provided("name")` reads the value the nearest
-ancestor makes available under that name, and *providing* is just setting a value on a node — no
+ancestor makes available under that name, and *providing* is setting a value on a node — no
 keyword. The text face — `fontFamily`, `fontSize`, `fontWeight`, `textColor`, `letterSpacing` —
 works this way (each lives on `Text`, defaulting to `provided(…)`, so setting one on a container
 provides it to the runs below), and so does **`theme`**, a token record every color in an app
@@ -874,7 +868,7 @@ A state is driven by its condition (`applied = { … }`) or imperatively by the 
 so a gated state changes when what the gate reads changes.
 
 A **`Spring`** drives one attribute toward a reactive target. Declare where the thing belongs and
-the spring finds the path, so a change of target mid-flight is simply a new destination and
+the spring finds the path, so a change of target mid-flight is a new destination and
 interruption needs no code.
 
 ```declare-fragment
