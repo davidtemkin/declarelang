@@ -223,6 +223,11 @@ export declare class Constraint {
      *  Usually one; a stack layout owns each child's place. */
     ownsCell: number;
     private moreCells;
+    /** The cell a kernel-run rule this adopted computes (a content size, a
+     *  visibility, a compiled expression) — what it writes, for a cycle's loop. */
+    targetCell: number;
+    /** Every cell it writes now: those it owns, and the one the kernel lands. */
+    ownedCells(): number[];
     ownCell(cell: number): void;
     /** Give up the kernel's ownership of `cell`. */
     releaseCell(cell?: number): void;

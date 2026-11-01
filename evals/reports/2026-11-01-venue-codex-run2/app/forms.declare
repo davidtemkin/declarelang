@@ -1,0 +1,159 @@
+class Entry extends TextInput [ width = 100%, height = 48, fontSize = 16, padding = 12, cornerRadius = 3, fill = { provided("theme").surface }, stroke = { stroke(1,provided("theme").line) } ]
+
+class Labeled extends Field [ width = 100%, stacked = true ]
+
+class SignIn extends Form [ width = 100%, source = { app.session },
+    layout: SimpleLayout [ axis = y, spacing = 18 ],
+    showing: boolean = false,
+    email: TextInput = { classroot.emailRow.entry },
+    password: TextInput = { classroot.passwordRow.entry },
+    Heading [ text = "Welcome back", fontSize = 32 ],
+    Text [ width = 100%, wrap = true, text = "Your seats and checkout details will stay right here.", fontSize = 14 ],
+    emailRow: Labeled [ label = "Email",
+        entry: Entry [ name = "email", purpose = username, required = "Enter your email address.",
+            validate(v: string) -> string { return emailError(v) }
+            ]
+        ],
+    passwordRow: Labeled [ label = "Password",
+        entry: Entry [ name = "password", purpose = password, required = "Enter your password.", concealed = { !classroot.showing } ]
+        ],
+    Checkbox [ label = "Show password", height = 44, checked = { classroot.showing },
+        input(v: boolean) { classroot.showing = v }
+        ],
+    Text [ visible = { classroot.error != "" }, width = 100%, wrap = true, text = { classroot.error }, textColor = { provided("theme").error }, accessibilityLive = assertive ],
+    Action [ label = { classroot.pending ? "Signing in…" : "Sign in" }, primary = true, disabled = { classroot.pending },
+        onClick() { classroot.submit() }
+        ],
+    Action [ label = "Continue without signing in",
+        onClick() { app.signin.close() }
+        ]
+    ]
+
+
+class SavedCardChoice extends Control [ width = 100%, height = 68, padding = 12, cornerRadius = 3,
+    expiredCard: boolean = { expired(:expMonth,:expYear) },
+    chosen: boolean = { app.checkout.savedId == :id },
+    cardLabel: string = { (:brand == "visa" ? "Visa" : "Mastercard") + " ending " + :last4 },
+    expiryLabel: string = { :expMonth + "/" + :expYear + (expiredCard ? " · Expired" : "") },
+    accessibilityLabel = { cardLabel + " · " + expiryLabel },
+    accessibilityPressed = { chosen }, disabled = { expiredCard || app.order.loading },
+    fill = { chosen ? provided("theme").accent : provided("theme").control },
+    textColor = { chosen ? 0xFFFFFF : provided("theme").text },
+    opacity = { expiredCard ? 0.55 : 1 },
+    layout: SimpleLayout [ axis = y, spacing = 6 ],
+    Text [ text = { classroot.cardLabel }, fontSize = 15, fontWeight = semibold ],
+    Text [ text = { classroot.expiryLabel }, fontSize = 12 ],
+    press() { app.checkout.savedId = :id; app.checkout.cvc.text = "" }
+    ]
+
+
+class Checkout extends Form [ source = { app.order }, enterMoves = true,
+    savedId: string = { app.me.value?.cards?.find(c => !expired(c.expMonth,c.expYear))?.id ?? "" },
+    usingSaved: boolean = { app.me.loaded && classroot.savedId != "" },
+    email: TextInput = { classroot.columns.fields.emailRow.entry },
+    cardName: TextInput = { classroot.columns.fields.newCard.nameRow.entry },
+    number: TextInput = { classroot.columns.fields.newCard.numberRow.entry },
+    expiry: TextInput = { classroot.columns.fields.newCard.expiryRow.entry },
+    cvc: TextInput = { classroot.columns.fields.cvcRow.entry },
+    line1: TextInput = { classroot.columns.fields.address.street.entry },
+    line2: TextInput = { classroot.columns.fields.address.street2.entry },
+    city: TextInput = { classroot.columns.fields.address.cityRow.entry },
+    postal: TextInput = { classroot.columns.fields.address.postalRow.entry },
+    country: string = { app.me.value?.billing?.country ?? "US" },
+    currentBrand: string = { classroot.usingSaved ? (app.me.value?.cards?.find(c => c.id == classroot.savedId)?.brand ?? "visa") : brand(classroot.number.text) },
+    codeLength: number = { ["amex","American Express"].includes(classroot.currentBrand) ? 4 : 3 },
+    payload() -> object {
+        const [m,y] = expiryParts(this.expiry.text)
+        const payment = this.usingSaved ? {savedCardId:this.savedId,cvc:this.cvc.text} : {
+            card:{number:this.number.text.replace(/\s/g,""),expMonth:m,expYear:y,cvc:this.cvc.text,name:this.cardName.text},
+            billing:{line1:this.line1.text,line2:this.line2.text||null,city:this.city.text,postalCode:this.postal.text,country:this.country}}
+        return {performanceId:app.performanceId,seatIds:app.selection,email:this.email.text,payment}
+        },
+    validate() -> string { return app.selection.length ? "" : "Choose at least one seat before paying." },
+    showProblems() { super.showProblems(); afterSettle(() => { const c = this.problems[0]?.control; if(c) c.scrollIntoView("start",false,16) }) },
+    refusedWith(body: Refusal) {
+        if(body.error == "card_declined" || body.error == "insufficient_funds") this.cvc.text = ""
+        if(body.error == "unavailable") { app.lose(body.conflicts ?? [],body.message ?? ""); app.step = "hall"; afterSettle(() => Focus.focus(app.content.hallPage.back)) }
+        },
+    layout: SimpleLayout [ axis = y, spacing = 18 ],
+    Text [ width = 100%, wrap = true, text = "Electronic tickets. No delivery address needed. All fields are required unless marked optional.", fontSize = 13, textColor = { provided("theme").muted } ],
+    columns: View [ width = 100%,
+        layout: SimpleLayout [ axis = { app.phone ? "y" : "x" }, spacing = { app.phone ? 32 : 64 }, align = stretch ],
+        fields: View [ flexes = { !app.phone },
+            layout: SimpleLayout [ axis = y, spacing = 18 ],
+            emailRow: Labeled [ label = "Email",
+                entry: Entry [ name = "email", purpose = email, required = "Enter your email address.", initial = { app.me.value?.email ?? "" },
+                    validate(v: string) -> string { return emailError(v) }
+                    ]
+                ],
+            View [ width = 100%, visible = { app.me.loaded },
+                layout: SimpleLayout [ axis = y, spacing = 10 ],
+                Text [ fontSize = 20, fontFamily = "Georgia", text = "Your saved cards" ],
+                View [ width = 100%, datapath = { app.me.value },
+                    layout: SimpleLayout [ axis = y, spacing = 8 ],
+                    SavedCardChoice [ datapath = :cards[] ]
+                    ],
+                Action [ label = "Use a new card", primary = { !classroot.usingSaved }, disabled = { app.order.loading },
+                    onClick() { classroot.savedId = ""; classroot.cvc.text = "" }
+                    ]
+                ],
+            newCard: View [ visible = { !classroot.usingSaved }, width = 100%,
+                layout: SimpleLayout [ axis = y, spacing = 18 ],
+                nameRow: Labeled [ label = "Name on card",
+                    entry: Entry [ name = "name", purpose = cardName, required = "Enter the name on your card.", initial = { app.me.value?.name ?? "" } ]
+                    ],
+                numberRow: Labeled [ label = "Card number",
+                    entry: Entry [ name = "number", purpose = cardNumber, required = "Enter your card number.",
+                        onInput(v: string) { this.text = grouped(v) },
+                        validate(v: string) -> string { return cardError(v) }
+                        ]
+                    ],
+                Text [ text = { brand(classroot.number.text) }, textColor = { provided("theme").muted }, fontSize = 12 ],
+                expiryRow: Labeled [ label = "Expiry",
+                    entry: Entry [ name = "expiry", purpose = cardExpiry,
+                        onInput(v: string) { const digits = v.replace(/\D/g, "").slice(0,6); this.text = digits.length > 2 ? digits.slice(0,2) + " / " + digits.slice(2) : digits },
+                        placeholder = "MM / YY", required = "Enter the expiry date.",
+                        validate(v: string) -> string { return expiryError(v) }
+                        ]
+                    ]
+                ],
+            cvcRow: Labeled [ label = "Security code",
+                entry: Entry [ name = "cvc", purpose = cardCode, concealed = true, required = "Enter your security code.", placeholder = { classroot.codeLength + " digits" },
+                    validate(v: string) -> string { return new RegExp("^\\d{" + classroot.codeLength + "}$").test(v) ? "" : "Enter the " + classroot.codeLength + "-digit security code." }
+                    ]
+                ],
+            Text [ visible = { classroot.error != "" }, width = 100%, wrap = true, text = { classroot.error }, textColor = { provided("theme").error }, accessibilityLive = assertive ],
+            address: View [ width = 100%, visible = { !classroot.usingSaved },
+                layout: SimpleLayout [ axis = y, spacing = 18 ],
+                Text [ fontFamily = "Georgia", fontSize = 24, text = "Billing address" ],
+                street: Labeled [ label = "Street address",
+                    entry: Entry [ name = "line1", purpose = addressLine1, required = "Enter your street address.", initial = { app.me.value?.billing?.line1 ?? "" } ]
+                    ],
+                street2: Labeled [ label = "Address line 2 (optional)",
+                    entry: Entry [ name = "line2", purpose = addressLine2, initial = { app.me.value?.billing?.line2 ?? "" } ]
+                    ],
+                cityRow: Labeled [ label = "City",
+                    entry: Entry [ name = "city", purpose = city, required = "Enter your city.", initial = { app.me.value?.billing?.city ?? "" } ]
+                    ],
+                Labeled [ label = "Country",
+                    Combobox [ width = 100%, height = 48, name = "country", purpose = country, value = { ({US:"United States",CA:"Canada",GB:"United Kingdom"})[classroot.country] },
+                        items = { ["United States","Canada","United Kingdom"] },
+                        input(v: string) { classroot.country = ({"United States":"US","Canada":"CA","United Kingdom":"GB"})[v] ?? "US" }
+                        ]
+                    ],
+                postalRow: Labeled [ label = "Postal code",
+                    entry: Entry [ name = "postalCode", purpose = postalCode, required = "Enter your postal code.", initial = { app.me.value?.billing?.postalCode ?? "" },
+                        validate(v: string) -> string { return postalError(v,classroot.country) }
+                        ]
+                    ]
+                ]
+            ],
+        summary: View [ flexes = { !app.phone },
+            layout: SimpleLayout [ axis = y, spacing = 20 ],
+            Eyebrow [ text = "YOUR EVENING" ],
+            Heading [ width = 100%, fontSize = 32, text = "The Marriage\nof Figaro" ],
+            Summary [ ],
+            Text [ width = 100%, wrap = true, text = "Your tickets arrive by email, ready to show at the door.", fontSize = 13, textColor = { provided("theme").muted } ]
+            ]
+        ]
+    ]

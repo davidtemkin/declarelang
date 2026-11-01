@@ -1,0 +1,6 @@
+{
+  "_": "Which published eval runs the site cites. The figures themselves are read from each report's own table by tools/internal/stamp-stats.mjs; only the choice of run is the author's.",
+  "venueDeclare": "evals/reports/2026-10-31-venue-run19",
+  "venueReact": "evals/reports/2026-10-30-venue-react-run2",
+  "presentify": "evals/reports/2026-10-31-presentify-run1"
+}

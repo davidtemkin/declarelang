@@ -12,7 +12,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { compile } from "../compiler/dist/compile-node.js";
-import { buildProgram } from "../runtime/dist/index.js";
+import { buildProgram, settle } from "../runtime/dist/index.js";
 import { test, summarize } from "./harness.mjs";
 
 // Each case: a class body line (it lands on line 3 of its file) that one phase
@@ -84,6 +84,18 @@ await test("a runtime refusal inside a library class names the author's line tha
         layout: SimpleLayout [ axis = y ] ] ]`);
   assert.deepEqual((r.errors ?? []).map((e) => e.message), []);
   assert.throws(() => buildProgram(r.program), /library\/slider\.declare:\d+:\d+\) — in the Slider at line 2, col 5/);
+});
+
+// A constraint cycle names its loop, not only the rule that hit the limit —
+// which can sit downstream of it (a layout reading two widths that feed each
+// other). "Depends on its own output" alone sent authors hunting (Codex Venue 2).
+await test("a constraint cycle names the loop, in the order values flow", async () => {
+  const r = await compile(`App [ width = 400, height = 300,
+    box: View [ layout: SimpleLayout [ axis = y ],
+        a: View [ height = 20, width = { app.box.b.width + 10 } ],
+        b: View [ height = 20, width = { app.box.a.width + 10 } ] ] ]`);
+  assert.deepEqual((r.errors ?? []).map((e) => e.message), []);
+  assert.throws(() => { buildProgram(r.program); settle(); }, /The loop: View\.width \(at app\.box\.(a|b)\) → View\.width \(at app\.box\.(b|a)\) → View\.width \(at app\.box\.(a|b)\)/);
 });
 
 summarize("locations");

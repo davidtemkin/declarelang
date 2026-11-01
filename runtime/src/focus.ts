@@ -161,9 +161,10 @@ export class FocusService {
     this.calls++;
     // the web's :focus-visible rule for focus moved by code: it shows when the
     // person's last input was the keyboard — a key's handler roving a group,
-    // or an overlay giving focus back a turn after Esc — and not after a press
+    // — and not after a press; an overlay giving focus back keeps the look the
+    // focus had when it opened (_giveBack)
     const was = this.keyboard;
-    this.setKeyboard(this.keys?.inKeyDispatch() === true || this.lastInputKeyboard);
+    this.setKeyboard(this.givingBack ?? (this.keys?.inKeyDispatch() === true || this.lastInputKeyboard));
     // a press on what already has focus changes no focus, but may change how it
     // was reached: those watching (the ring) hear it, as a change to the same view
     if (view !== null && view === this.current && was !== this.keyboard) {
@@ -448,6 +449,19 @@ export class FocusService {
    *  passing over the closing overlay. The web leaves focus on nothing when a
    *  dialog's opener is gone; the dialog pattern asks for a logical place. */
   _giveBack(overlay: View): void {
+    // Focus given back shows its ring only if it showed it when the overlay
+    // opened, and the person is still at the keyboard: Esc after a click is a
+    // dismissal, not navigation, and Esc after Tab-and-Enter carries on where
+    // the keyboard was. (The web's rule — show after any key — rang the opener
+    // up after every Esc.)
+    const ring = (overlay as unknown as { _savedRing?: boolean })._savedRing === true && this.lastInputKeyboard;
+    this.givingBack = ring;
+    try { this.giveBackTo(overlay); } finally { this.givingBack = null; }
+  }
+  /** While focus is being given back: the modality it lands with. */
+  private givingBack: boolean | null = null;
+
+  private giveBackTo(overlay: View): void {
     const held = overlay as unknown as { _savedFocus?: View | null; _savedParent?: View | null; _savedAt?: number };
     const back = held._savedFocus ?? null, parent = held._savedParent ?? null, at = held._savedAt ?? -1;
     held._savedFocus = null;

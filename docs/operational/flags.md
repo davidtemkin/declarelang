@@ -1,6 +1,6 @@
 # Modifiers (flags)
 
-There are exactly **four** compile-time modifiers, defined once in the registry
+There are exactly **six** compile-time modifiers, defined once in the registry
 (`runtime/src/flags.ts` — `FLAG_SPECS`) and read the same way by every surface: a program's
 `defaultFlags`, a URL query and a `declarec` switch all mean the same thing and cannot drift.
 They compose onto a run or a build; `kernel` matters only to a build.

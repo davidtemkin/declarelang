@@ -332,6 +332,7 @@ if (failedRung === null && flags.rung >= 5 && flags.assert !== null) {
     behave.warned = r.warned ?? [];
     behave.waited = r.waited ?? [];
     behave.writes = r.writes ?? [];
+    behave.intercepted = r.intercepted ?? [];
     // A LIVE SERVICE REMEMBERS. What earlier runs wrote to a service is still
     // there for this one: a script that bought seats meets them sold the next
     // time. Each run's writes are kept by service and time (in the system's temp
@@ -491,6 +492,10 @@ if (flags.json) {
   if (behave.serviceNote) console.log(`  note ${behave.serviceNote}`);
   for (const w of behave.warned ?? []) console.log(`  note the runtime said: ${w}`);
   for (const w of behave.waited ?? []) console.log(`  note a settle waited its whole time for ${w}, which never came back — a request open for good (a stream by fetch, a long poll) holds every settle that long`);
+  if ((behave.intercepted ?? []).length > 0) {
+    const shown = [...new Set(behave.intercepted)];
+    console.log(`  note the script intercepted ${behave.intercepted.length} write${behave.intercepted.length === 1 ? "" : "s"} in the page (${shown.slice(0, 4).join(", ")}${shown.length > 4 ? ", …" : ""}) — none reached the service`);
+  }
   if (behave.writes.length > 0) {
     const shown = [...new Set(behave.writes)];
     console.log(`  note the script sent ${behave.writes.length} write${behave.writes.length === 1 ? "" : "s"} to the live service (${shown.slice(0, 4).join(", ")}${shown.length > 4 ? ", …" : ""}) — what they made stays there; --fixtures <dir> answers requests from files instead, so a run leaves nothing behind (verify.md)`);

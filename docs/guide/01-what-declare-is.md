@@ -249,7 +249,7 @@ crawlers read real content from a static host with no server-side rendering
 ([Packaging for production](declare-docs:guide:packaging)).
 
 And it was designed for a time when much code is written by LLMs. The whole language
-fits in [one file](declare-docs:spec:core) of about <!--stat:spec.tokens-->13,000<!--/stat--> tokens, small enough
+fits in [one file](declare-docs:spec:core) of about <!--stat:spec.tokens-->21,000<!--/stat--> tokens, small enough
 to hand to an LLM whole, and the compiler's errors name the rule and the fix, so an
 LLM's write-check-revise loop converges. Every property that makes the language
 workable for a machine — small, regular, strictly checked — is a property you benefit

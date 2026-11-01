@@ -286,6 +286,7 @@ function bindKernelExpr(view, name, expr, classroot, label, src, pos, yielding =
     if (id < 0)
         return false;
     const k = new Constraint(label, () => undefined, () => { }, 0, yielding);
+    k.targetCell = target;
     k.adoptRule(id);
     if (percent)
         markPercent(k);

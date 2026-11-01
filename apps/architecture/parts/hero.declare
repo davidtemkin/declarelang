@@ -94,13 +94,13 @@ class HeroStage [ height = { this.H },
         opacity = { unit(classroot.k * 3) }, kk = 1,
         hue = { provided("theme").run }, soft = { provided("theme").runSoft0 },
         nameA = "", nameB = "Runtime",
-        noteA = "", noteB = "decides everything below: ~79 KB gz" ],
+        noteA = "", noteB = { "decides everything below: ~" + Math.round(FIGURES.runtimeKB) + " KB gz" } ],
     ker: Band [ x = { classroot.inset }, width = { classroot.bw },
         y = { classroot.run.y + classroot.run.height + 8 }, height = { mix(0, 38, classroot.k) },
         opacity = { unit(classroot.k * 2 - 0.6) }, kk = 1,
         hue = { provided("theme").ker }, soft = { provided("theme").kerSoft },
         nameA = "", nameB = "Kernel — C, as WebAssembly or linked natively",
-        noteA = "", noteB = "the settle and the geometry rules: 11.5 KB gzipped, as shipped" ],
+        noteA = "", noteB = { "the settle and the geometry rules: " + Math.round(FIGURES.kernelKB) + " KB gzipped, as shipped" } ],
 
     // the render seam — a dashed rule that exists only in the real picture
 
@@ -123,7 +123,7 @@ class HeroStage [ height = { this.H },
         tagBg: View [ x = { parent.width - this.width - 24 }, y = -2, height = 16,
             padding = [1, 8, 1, 8], fill = { provided("theme").panel },
             t: Mono [ fontSize = 11, textColor = { provided("theme").muted },
-                text = "render seam · one interface, 60 methods" ]
+                text = { "render seam · one interface, " + FIGURES.surfaceMethods + " methods" } ]
             ]
         ],
 

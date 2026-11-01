@@ -19,7 +19,7 @@
 //   node tools/internal/stamp-stats.mjs
 
 import path from "node:path";
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, readdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { isPublished, pushedVersion } from "./release.mjs";
 import { fileURLToPath } from "node:url";
@@ -57,29 +57,76 @@ const FORMATS = {
   // thousand while the file had grown past twelve.
   //
   // ESTIMATED, because the repo ships four dependencies and a tokenizer is not
-  // going to be the fifth. ~1.33 tokens per word is the standard figure for
-  // English prose under a BPE vocabulary, and it is the reasonable reading for a
-  // document that is mostly prose with fenced code. Rounded to the nearest
-  // thousand and spoken as "about", which is what the prose says.
-  //
-  // It is a MARKETING number and may read optimistically — the char-count
-  // estimate would put it a thousand higher — but not dishonestly: it is
-  // measured from the file on every derive, so it cannot drift again, and the
-  // claim it supports (the whole language fits in a context window) is
-  // unaffected either way.
+  // going to be the fifth — but calibrated: on 2026-11-01 Claude's own count of
+  // the file (59,538 characters) was 20,915 tokens, 2.85 characters a token. The
+  // file's code and punctuation make words a poor measure (1.33 a word had it at
+  // 13,000), so the estimate is by characters at that ratio, rounded to the
+  // nearest thousand and spoken as "about", which is what the prose says. It is
+  // measured from the file on every derive, so it cannot drift.
   // the release a project pins (embedding.md's dependency line) — package.json's
   // version, so the example names the current release, not the first one
   "version":           () => JSON.parse(readFileSync(path.join(ROOT, "package.json"), "utf8")).version,
-  "spec.tokens":       () => group(Math.round(specWords() * 1.33 / 1000) * 1000),
+  "spec.tokens":       () => group(Math.round(specText().length / 2.85 / 1000) * 1000),
+  // the calendar's code, as prose says it ("about 500 lines of code")
+  "calendar.codeAbout": () => group(Math.round(stats.calendar.code / 100) * 100),
+  // counted from the tree, never typed: the guide's chapters, the kernel's
+  // lines (to the hundred, "about"), the Surface interface's methods
+  "guide.chapters":    () => String(readdirSync(path.join(ROOT, "docs/guide")).filter((f) => /^\d+-.*\.md$/.test(f)).length),
+  "kernel.linesAbout": () => group(Math.round(readFileSync(path.join(ROOT, "kernel/src/kernel.c"), "utf8").split("\n").length / 100) * 100),
+  "surface.methods":   () => String(surfaceMethods()),
+  // THE EVIDENCE: figures from the published eval reports the site cites
+  // (apps/homepage/evidence.json names the runs — the one choice that is the
+  // author's), read from each report's own table, so a citation cannot
+  // disagree with the report it points to.
+  "venue.checks":            () => String(passes(EVIDENCE.venueDeclare, /^hidden acceptance as delivered/)[1]),
+  "venue.checksWord":        () => word(passes(EVIDENCE.venueDeclare, /^hidden acceptance as delivered/)[1]),
+  "venue.declare.code":      () => group(num(cell(EVIDENCE.venueDeclare, /^code, excluding/))),
+  "venue.declare.delivered": () => String(passes(EVIDENCE.venueDeclare, /^hidden acceptance as delivered/)[0]),
+  "venue.declare.firstBoot": () => String(passes(EVIDENCE.venueDeclare, /^hidden acceptance at first boot/)[0]),
+  "venue.declare.firstBootWord": () => word(passes(EVIDENCE.venueDeclare, /^hidden acceptance at first boot/)[0]),
+  "venue.declare.firstBootMin": () => String(nums(cell(EVIDENCE.venueDeclare, /first boot$/)).at(-1)),
+  "venue.react.code":        () => group(num(cell(EVIDENCE.venueReact, /^code, excluding/))),
+  "venue.react.firstBoot":   () => String(passes(EVIDENCE.venueReact, /^hidden acceptance at first boot/)[0]),
+  "venue.react.firstBootWord": () => word(passes(EVIDENCE.venueReact, /^hidden acceptance at first boot/)[0]),
+  // the React run's first-boot bug, fixed at a minute its report's prose names
+  "venue.react.fixMin":      () => String(Math.round(Number(reportText(EVIDENCE.venueReact).match(/fixed at ([0-9.]+) min/)[1]))),
+  "venue.codeRatioWord":     () => ratioWord(num(cell(EVIDENCE.venueDeclare, /^code, excluding/)) / num(cell(EVIDENCE.venueReact, /^code, excluding/))),
+  "presentify.delivered":    () => passes(EVIDENCE.presentify, /^hidden checks delivered/).join(" of "),
 };
 
+const EVIDENCE = JSON.parse(readFileSync(path.join(ROOT, "apps/homepage/evidence.json"), "utf8"));
+const reportText = (dir) => readFileSync(path.join(ROOT, dir, "report.md"), "utf8");
+/** A report's figure: the row whose label matches, its bold cell (the run's
+ *  own column in a comparison table) or else its last. */
+function cell(dir, label) {
+  for (const line of reportText(dir).split("\n")) {
+    if (!line.startsWith("|")) continue;
+    const cells = line.split("|").slice(1, -1).map((c) => c.trim());
+    if (!label.test(cells[0])) continue;
+    const bold = cells.slice(1).find((c) => c.includes("**"));
+    return (bold ?? cells.at(-1)).replace(/\*\*/g, "");
+  }
+  throw new Error(`stamp-stats: no row ${label} in ${dir}/report.md`);
+}
+const nums = (s) => s.replace(/,/g, "").match(/[0-9]+(\.[0-9]+)?/g).map(Number);
+const num = (s) => nums(s)[0];
+const passes = (dir, label) => { const m = cell(dir, label).match(/(\d+) of (\d+)/); return [Number(m[1]), Number(m[2])]; };
+const WORDS = ["zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine", "ten", "eleven", "twelve",
+  "thirteen", "fourteen", "fifteen", "sixteen", "seventeen", "eighteen", "nineteen", "twenty"];
+const word = (n) => WORDS[n] ?? group(n);
+const ratioWord = (r) => r < 0.4 ? "under half" : r <= 0.55 ? "half" : r <= 0.7 ? "two-thirds" : `${Math.round(r * 100)}%`;
+function surfaceMethods() {
+  const src = readFileSync(path.join(ROOT, "runtime/src/backend.ts"), "utf8");
+  const body = src.slice(src.indexOf("export interface Surface"));
+  return body.slice(0, body.indexOf("\n}")).split("\n").filter((l) => /^\s+[A-Za-z_]+\??\(/.test(l)).length;
+}
+
 const specText = () => readFileSync(path.join(ROOT, "docs/declare.md"), "utf8");
-const specWords = () => specText().split(/\s+/).filter(Boolean).length;
 
 /** Thousands separators — prose reads "1,623 lines", never "1623". */
 function group(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
 
-const FILES = ["README.md", "docs/declare.md", "apps/homepage/declare-faq.md", "docs/tenets/1 SATOR.md",
+const FILES = ["README.md", "docs/declare.md", "apps/homepage/declare-faq.md", "apps/homepage/why.md", "apps/homepage/getstarted.md", "docs/tenets/1 SATOR.md",
   "docs/tenets/2 AREPO.md", "docs/guide/01-what-declare-is.md", "docs/guide/27-with-an-llm.md",
   "docs/guide/28-calendar.md",
   "docs/guide/26-packaging.md", "docs/operational/building.md", "docs/operational/embedding.md",
@@ -133,5 +180,30 @@ for (const rel of FILES) {
     return open + v + close;
   });
   if (next !== text) writeFileSync(p, next);
+}
+// THE ARCHITECTURE PAGE is a program, not prose: its figures arrive as one
+// generated file of constants (parts/figures.declare) that its views read, the
+// calendar's build block by block (stats.json `calendarParts`, prewarm) and the
+// counts above. Rewritten only when a figure moved.
+{
+  const p = stats.calendarParts;
+  const figures = {
+    sizes: { calDom: p.calDom, calCanvas: p.calCanvas, calMac: p.calMac, totals: p.totals },
+    runtimeKB: p.runtimeKB, kernelKB: p.calDom.ker, kernelWasmGzipKB: p.kernelWasmGzipKB,
+    kernelWasmRawKB: p.kernelWasmRawKB, kernelLoaderKB: p.kernelLoaderKB, layoutKB: p.calDom.layout,
+    canvasCarriesDomBackendKB: p.canvasCarriesDomBackendKB,
+    kernelLines: FORMATS["kernel.linesAbout"](), surfaceMethods: surfaceMethods(),
+  };
+  const text = `// GENERATED by tools/internal/stamp-stats.mjs from apps/homepage/stats.json and
+// the tree — do not edit. The Architecture page's measured figures, as constants
+// its views read.
+
+script {
+    const FIGURES = ${JSON.stringify(figures, null, 4).replace(/\n/g, "\n    ")}
+    }
+`;
+  const out = path.join(ROOT, "apps/architecture/parts/figures.declare");
+  if (!existsSync(out) || readFileSync(out, "utf8") !== text) { writeFileSync(out, text); stamped++; }
+  else unchanged++;
 }
 console.log(`stamp-stats: ${stamped} stamped, ${unchanged} already current`);

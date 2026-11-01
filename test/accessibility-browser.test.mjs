@@ -350,7 +350,7 @@ await test("composites: focus follows overlays by key and by pointer, and the it
   await key("Tab");
   await pg.keyboard.type("Be"); await wait();
   await key("ArrowDown");
-  assert.deepEqual([(await at()).role, (await at()).item], ["input", "Berlin"], "the field keeps the focus and names the suggestion");
+  assert.deepEqual([(await at()).role, (await at()).item], ["combobox", "Berlin"], "the field keeps the focus (a combobox, under ARIA 1.2) and names the suggestion");
   assert.deepEqual(await pg.evaluate(() => { const id = document.activeElement.getAttribute("aria-activedescendant"); const t = document.getElementById(id); return [t.getAttribute("role"), t.closest("[role]:not([role=option])")?.getAttribute("role"), document.querySelectorAll("[role=menu]").length]; }),
     ["option", "listbox", 0], "a combobox's list is a listbox of options, not a menu");
   await key("Escape");

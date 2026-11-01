@@ -1,0 +1,99 @@
+[
+  {
+    "name": "guest_pays",
+    "pass": false,
+    "error": "not found: a control named /\\b13\\b.*Nov|Nov.*\\b13\\b/i",
+    "ms": 15802,
+    "requests": [
+      "GET /api/performances/p01/seats"
+    ]
+  },
+  {
+    "name": "phone_guest_pays",
+    "pass": false,
+    "error": "not found: a control named /\\b13\\b.*Nov|Nov.*\\b13\\b/i",
+    "ms": 15905,
+    "requests": [
+      "GET /api/performances/p01/seats"
+    ]
+  },
+  {
+    "name": "double_press_sends_one",
+    "pass": false,
+    "error": "not found: a control named /\\b13\\b.*Nov|Nov.*\\b13\\b/i",
+    "ms": 15777,
+    "requests": [
+      "GET /api/performances/p01/seats"
+    ]
+  },
+  {
+    "name": "declined_then_retry",
+    "pass": false,
+    "error": "not found: a control named /\\b13\\b.*Nov|Nov.*\\b13\\b/i",
+    "ms": 15778,
+    "requests": [
+      "GET /api/performances/p01/seats"
+    ]
+  },
+  {
+    "name": "security_code_wrong",
+    "pass": false,
+    "error": "not found: a control named /\\b13\\b.*Nov|Nov.*\\b13\\b/i",
+    "ms": 15781,
+    "requests": [
+      "GET /api/performances/p01/seats"
+    ]
+  },
+  {
+    "name": "seat_taken_before_paying",
+    "pass": false,
+    "error": "not found: a control named /\\b13\\b.*Nov|Nov.*\\b13\\b/i",
+    "ms": 15779,
+    "requests": [
+      "GET /api/performances/p01/seats"
+    ]
+  },
+  {
+    "name": "seat_taken_while_choosing",
+    "pass": false,
+    "error": "not found: a control named /\\b13\\b.*Nov|Nov.*\\b13\\b/i",
+    "ms": 15801,
+    "requests": [
+      "GET /api/performances/p01/seats"
+    ]
+  },
+  {
+    "name": "signed_in_saved_card",
+    "pass": false,
+    "error": "not found: a control named /\\b13\\b.*Nov|Nov.*\\b13\\b/i",
+    "ms": 15824,
+    "requests": [
+      "GET /api/performances/p01/seats"
+    ]
+  },
+  {
+    "name": "wrong_password",
+    "pass": false,
+    "error": "not found: a field named /e-?mail/i",
+    "ms": 26607,
+    "requests": []
+  },
+  {
+    "name": "bad_postcode_stays_home",
+    "pass": false,
+    "error": "not found: a control named /\\b13\\b.*Nov|Nov.*\\b13\\b/i",
+    "ms": 15758,
+    "requests": [
+      "GET /api/performances/p01/seats"
+    ]
+  },
+  {
+    "name": "sign_in_midway_keeps_choice",
+    "pass": false,
+    "error": "not found: a control named /\\b13\\b.*Nov|Nov.*\\b13\\b/i",
+    "ms": 15786,
+    "requests": [
+      "GET /api/performances/p01/seats"
+    ]
+  }
+]

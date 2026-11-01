@@ -9,7 +9,7 @@ backend — the one block that differs between hosts — and every other block
 holds still; on the Mac the kernel also leaves the bundle, linked into the
 executable as C. Beneath, the same desktop program captured on all three hosts.
 
-The arrangement is a `TweenLayout`. The sizes are a `Dataset` on the figure,
+The arrangement is a `TweenLayout`. The sizes are an attribute of the figure, from the generated `FIGURES`,
 and the build on screen is one value beside it: each block reads its own size
 from the two, the dimension column its bands, and the layout places the blocks
 by the sizes they carry. A tween is the one
@@ -18,13 +18,14 @@ the re-snapshot: the arranged view tracks the build and asks for a
 `retarget(true)` once the settle has landed, and every block glides from where
 it is to where the new numbers put it.
 
-Figures: the DOM and canvas builds measured 2026-09-18 from `declarec`
-production builds, gzip default level; per-subsystem bytes attributed through
-source maps (two methods agree within ~1 KB per group). The Mac host loads a
+Figures: the DOM and canvas builds measured 2026-11-01 from `declarec`
+production builds, gzip default level; per-subsystem bytes from `declarec
+--sizes` (each module gzipped alone, scaled to the bundle's runtime part,
+which they match within about 1%). The Mac host loads a
 platform runtime bundle rather than a per-app build, so its column reuses the
 DOM build's attribution for the modules the two share and measures its own
-backend the same way — minified and gzipped alone (the DOM backend so measured
-lands within 0.2 KB of its attributed figure). Its kernel is native and not in
+backend minified and gzipped alone, scaled as the DOM backend so measured is to
+its attributed figure. Its kernel is native and not in
 the JavaScript at all.
 */
 
@@ -238,24 +239,17 @@ class ShotCol [
 
 class ShipsFig [
     build: string = "calDom",
-    shown: number = 108.4,
+    shown: number = { FIGURES.sizes.totals.calDom },
 
-    // gz KB per block, per build. The app/library split of the program literal
-    // is by class name; `boot` folds in the 0.3 KB seam module.
+    // gz KB per block, per build: measured (tools/internal/site-figures.mjs) and
+    // carried here by the generated parts/figures.declare.
 
-    sizes: Dataset { {
-        "calDom":    { "app": 11.1, "lib": 7.0, "core": 34.9, "view": 7.8, "backend": 10.5, "input": 7.1, "draw": 5.7,
-                       "anim": 3.5, "text": 3.4, "boot": 2.5, "layout": 1.8, "themes": 1.7, "ker": 11.5 },
-        "calCanvas": { "app": 11.1, "lib": 7.0, "core": 34.9, "view": 7.8, "backend": 14.2, "input": 9.6, "draw": 8.4,
-                       "anim": 3.5, "text": 3.6, "boot": 2.5, "layout": 1.8, "themes": 1.7, "ker": 11.5 },
-        "calMac":    { "app": 11.1, "lib": 7.0, "core": 34.9, "view": 7.8, "backend": 7.0, "input": 7.1, "draw": 5.7,
-                       "anim": 3.5, "text": 3.4, "boot": 2.5, "layout": 1.8, "themes": 1.7, "ker": 0 },
-        "totals":    { "calDom": 108.4, "calCanvas": 117.7, "calMac": 93.4 },
+    sizes: object = { { ...FIGURES.sizes,
         "layers":    { "app": ["app"], "lib": ["lib"], "ker": ["ker"],
-                       "run": ["core", "view", "backend", "input", "draw", "anim", "text", "boot", "layout", "themes"] } } },
+                       "run": ["core", "view", "backend", "input", "draw", "anim", "text", "boot", "layout", "themes", "a11y"] } } },
 
-    sizeOf(part: string) -> number { return this.sizes.value[this.build]?.[part] ?? 0 },
-    layerKb(layer: string) -> number { return (this.sizes.value.layers[layer] as string[]).reduce((s, p) => s + this.sizeOf(p), 0) },
+    sizeOf(part: string) -> number { return this.sizes[this.build]?.[part] ?? 0 },
+    layerKb(layer: string) -> number { return (this.sizes.layers[layer] as string[]).reduce((s, p) => s + this.sizeOf(p), 0) },
 
     layout: Run [ spacing = 14 ],
 
@@ -265,7 +259,7 @@ class ShipsFig [
             input(v: object) { classroot.build = "" + v }
             ]
         ],
-    Spring [ attribute = shown, to = { classroot.sizes.value.totals[classroot.build] ?? 0 }, stiffness = 90, damping = 18 ],
+    Spring [ attribute = shown, to = { classroot.sizes.totals[classroot.build] ?? 0 }, stiffness = 90, damping = 18 ],
 
     planH: number = { Math.max(300, Math.min(440, this.width * 0.46)) },
     bands: LayerBand[] = { bandsOf(LAYERS.map((L) => this.layerKb(L)), this.planH, 3) },
@@ -318,7 +312,7 @@ class ShipsFig [
                 tooltipLabel = "reactive, attributes, bind, instantiate, replicate, data, value, schema — the graph and the tree." ],
             Block [ layer = "run", kb = { classroot.sizeOf("backend") },
                 name = { classroot.build == "calCanvas" ? "Canvas backend & compositor" : classroot.build == "calMac" ? "Mac backend — the bridge to the Swift host" : "DOM backend" },
-                tooltipLabel = { classroot.build == "calMac" ? "Batches Surface calls into one op buffer per settle for the Swift host to apply." : "The renderer: one of two ships, chosen at build time." } ],
+                tooltipLabel = { classroot.build == "calMac" ? "Batches Surface calls into one op buffer per settle for the Swift host to apply." : classroot.build == "calCanvas" ? "The canvas renderer, chosen at build time — and today the DOM backend's " + FIGURES.canvasCarriesDomBackendKB + " KB rides along with it." : "The renderer, chosen at build time." } ],
             Block [ layer = "run", kb = { classroot.sizeOf("view") }, name = "View",
                 tooltipLabel = "view.ts — the element every visual thing extends." ],
             Block [ layer = "run", kb = { classroot.sizeOf("input") }, name = "Input, focus, gestures, scrolling",
@@ -332,12 +326,14 @@ class ShipsFig [
             Block [ layer = "run", kb = { classroot.sizeOf("boot") }, name = "Boot",
                 tooltipLabel = "Entry, host wiring, the Surface interface." ],
             Block [ layer = "run", kb = { classroot.sizeOf("layout") }, name = "Layout",
-                tooltipLabel = "1.8 KB: the strategies themselves are Declare, in the library." ],
+                tooltipLabel = { FIGURES.layoutKB + " KB: the strategies themselves are Declare, in the library." } ],
+            Block [ layer = "run", kb = { classroot.sizeOf("a11y") }, name = "Accessibility",
+                tooltipLabel = "What each view is to assistive technology: role, name, state, kept current." ],
             Block [ layer = "run", kb = { classroot.sizeOf("themes") }, name = "Themes",
                 tooltipLabel = "Preset token records, when a program uses library widgets." ],
             Block [ layer = "ker", kb = { classroot.sizeOf("ker") },
                 name = { classroot.build == "calMac" ? "Kernel — linked into the host as C" : "Kernel — WebAssembly + loader" },
-                tooltipLabel = { classroot.build == "calMac" ? "The same C source, compiled into the executable: 36 KB of native code, none of it JavaScript." : "kernel.wasm (17 KB raw) inlined as base64, plus its 2.3 KB loader." } ]
+                tooltipLabel = { classroot.build == "calMac" ? "The same C source, compiled into the executable: 36 KB of native code, none of it JavaScript." : "kernel.wasm (" + FIGURES.kernelWasmRawKB + " KB raw) inlined as base64, plus its " + FIGURES.kernelLoaderKB + " KB loader." } ]
             ],
 
         dimcol: View [ height = { classroot.planH },

@@ -135,4 +135,27 @@ await test("an overlay's restoresFocusTo is read as it closes, and null keeps th
   same(Focus.getFocus(), app.b, "null: back to what had focus when it opened");
 });
 
+// Esc closing an overlay is a dismissal, not navigation: the focus it gives back
+// shows its ring only if it showed it when the overlay opened, and the person
+// is still at the keyboard. The web's rule (ring after any key) rang the opener
+// up after every Esc, the ring sweeping across to it (seen across eval runs).
+await test("focus given back on close shows its ring only if it showed it on opening", async () => {
+  const src = `App [ width = 500, height = 300,
+    b: Button [ x = 20, y = 100, label = "Open" ],
+    dlg: Dialog [ title = "Settings", Button [ label = "OK" ] ] ]`;
+  const run = async (openedByKeyboard, closedByKeyboard) => {
+    const app = await boot(src);
+    Focus.lastInputKeyboard = openedByKeyboard;   // a press on the button, or Tab to it
+    Focus.focus(app.b); settle();
+    app.dlg.show(); settle(); await turns();
+    Focus.lastInputKeyboard = closedByKeyboard;   // Esc, or a press outside
+    app.dlg.close(); settle(); await turns();
+    same(Focus.getFocus(), app.b, "focus is back on the opener");
+    return Focus.byKeyboard();
+  };
+  assert.equal(await run(false, true), false, "clicked open, Esc to close: no ring");
+  assert.equal(await run(true, true), true, "opened from the keyboard, Esc to close: the ring, as navigation goes on");
+  assert.equal(await run(true, false), false, "opened from the keyboard, closed by a press: no ring");
+});
+
 summarize("focus-place");

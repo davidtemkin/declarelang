@@ -1,0 +1,153 @@
+[
+  {
+    "name": "guest_pays",
+    "pass": true,
+    "error": null,
+    "ms": 9312,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01",
+      "POST /api/orders"
+    ]
+  },
+  {
+    "name": "phone_guest_pays",
+    "pass": false,
+    "error": "not found: seat Orchestra, row A, seat 4",
+    "ms": 12873,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01"
+    ]
+  },
+  {
+    "name": "double_press_sends_one",
+    "pass": false,
+    "error": "never shown: 1 seat · $65.00",
+    "ms": 8348,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01"
+    ]
+  },
+  {
+    "name": "declined_then_retry",
+    "pass": true,
+    "error": null,
+    "ms": 11074,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01",
+      "POST /api/orders",
+      "POST /api/orders"
+    ]
+  },
+  {
+    "name": "security_code_wrong",
+    "pass": false,
+    "error": "never shown: 1 seat · $35.00",
+    "ms": 8392,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01"
+    ]
+  },
+  {
+    "name": "seat_taken_before_paying",
+    "pass": false,
+    "error": "never shown: 1 seat · $80.00",
+    "ms": 13196,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01",
+      "POST /api/orders"
+    ]
+  },
+  {
+    "name": "seat_taken_while_choosing",
+    "pass": false,
+    "error": "never shown: 1 seat · $65.00",
+    "ms": 9658,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01"
+    ]
+  },
+  {
+    "name": "signed_in_saved_card",
+    "pass": false,
+    "error": "never shown: 1 seat · $80.00",
+    "ms": 8393,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01"
+    ]
+  },
+  {
+    "name": "wrong_password",
+    "pass": true,
+    "error": null,
+    "ms": 3073,
+    "requests": [
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01",
+      "POST /api/session"
+    ]
+  },
+  {
+    "name": "bad_postcode_stays_home",
+    "pass": false,
+    "error": "never shown: 1 seat · $50.00",
+    "ms": 8395,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01"
+    ]
+  },
+  {
+    "name": "sign_in_midway_keeps_choice",
+    "pass": true,
+    "error": null,
+    "ms": 5627,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01",
+      "POST /api/session",
+      "GET /api/me"
+    ]
+  }
+]

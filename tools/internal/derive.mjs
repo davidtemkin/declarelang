@@ -158,8 +158,12 @@ const RULES = [
     // only final once extract has written them. (It once ran first and a second
     // rule re-measured into this same file afterwards — which left this rule's
     // record, and every reader's, stale after any derive that moved the docs.)
-    inputs: ["tools/internal/prewarm.mjs", "tools/declarec.mjs", "compiler/dist", "runtime/dist", "library", "browser",
-             { dir: "apps", ext: ".declare", exclude: ["dist"], notPre: "seg_" },
+    // site-figures.mjs: the calendar's build block by block (`calendarParts`),
+    // DOM and canvas, and the Mac backend weighed alone (runtime/dist). The
+    // Architecture page's generated figures file is stamp-stats' output, not
+    // a measured program, so it is left out here.
+    inputs: ["tools/internal/prewarm.mjs", "tools/internal/site-figures.mjs", "tools/declarec.mjs", "compiler/dist", "runtime/dist", "library", "browser",
+             { dir: "apps", ext: ".declare", exclude: ["dist", "figures.declare"], notPre: "seg_" },
              "apps/docs/chapters", "apps/docs/search-index.json", { dir: "apps/docs/demos", pre: "seg_" }],
     outputs: ["apps/homepage/stats.json"],
     run: () => run("node", ["tools/internal/prewarm.mjs", "--stats-only"]),
@@ -172,9 +176,16 @@ const RULES = [
     // release is a projection of the tree (RELEASING.md), and its figures are
     // stamped, never typed. The notes are an input as well: an edit to the prose
     // re-runs the stamper, which is what re-fills its markers.
-    inputs: ["tools/internal/stamp-stats.mjs", "tools/internal/release.mjs", "apps/homepage/stats.json", "package.json", { dir: "releases", ext: ".md" }],
-    outputs: [],
-    stamps: ["README.md", "docs/declare.md", "apps/homepage/declare-faq.md", "docs/operational/embedding.md", { dir: "releases", ext: ".md" }],
+    // The counts it reads from the tree (the guide's chapters, the kernel's
+    // lines, the Surface interface's methods) and the eval reports the site
+    // cites (apps/homepage/evidence.json names them) are inputs too; the
+    // Architecture page's figures file is its one output.
+    inputs: ["tools/internal/stamp-stats.mjs", "tools/internal/release.mjs", "apps/homepage/stats.json", "package.json", { dir: "releases", ext: ".md" },
+             "apps/homepage/evidence.json", { dir: "evals/reports", ext: ".md" }, { dir: "docs/guide", ext: ".md" },
+             "kernel/src/kernel.c", "runtime/src/backend.ts"],
+    outputs: ["apps/architecture/parts/figures.declare"],
+    stamps: ["README.md", "docs/declare.md", "apps/homepage/declare-faq.md", "apps/homepage/why.md", "apps/homepage/getstarted.md",
+             "docs/operational/embedding.md", { dir: "releases", ext: ".md" }],
     run: () => run("node", ["tools/internal/stamp-stats.mjs"]),
   },
   {

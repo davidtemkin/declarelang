@@ -168,6 +168,9 @@ export declare class FocusService {
      *  passing over the closing overlay. The web leaves focus on nothing when a
      *  dialog's opener is gone; the dialog pattern asks for a logical place. */
     _giveBack(overlay: View): void;
+    /** While focus is being given back: the modality it lands with. */
+    private givingBack;
+    private giveBackTo;
     /** Enter the focused region (Enter on a window focused as one stop): focus
      *  what last had focus inside it, else its first stop. True when it entered. */
     enter(): boolean;

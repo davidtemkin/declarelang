@@ -1049,6 +1049,7 @@ export class View extends Node {
     if (rule < 0) return null;
     const k = new Constraint(`${declareName(this)}.${size} (runtime derive)`, () => undefined, () => {}, 0, true);
     k.isAutoExtent = true;
+    k.targetCell = target;
     k.adoptRule(rule);
     k.onDecline = () => {
       const d = EXTENT.get(this);

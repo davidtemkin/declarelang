@@ -66,14 +66,14 @@
 <p>→</p></a>
 <a href="apps/tracker/tracker.declare"><img loading="lazy" src="apps/homepage/shots/tracker-dark.webp"></a>
 <p>1,000,000 issues · search as you type · edit in place, with undo · not one line of virtualization code</p>
-<p>1507 lines — 982 code, 251 comment · 177 KB over the wire, before its data · no dependencies</p>
+<p>1507 lines — 982 code, 251 comment · 178 KB over the wire, before its data · no dependencies</p>
 <a href="apps/tracker/tracker.declare?viewer"><p>View &amp; edit source →</p></a>
 <a href="apps/desktop/desktop.declare"><p>3</p>
 <h5>Declare Desktop</h5>
 <p>→</p></a>
 <a href="apps/desktop/desktop.declare"><img loading="lazy" src="apps/homepage/shots/desktop-dark.webp"></a>
 <p>Windows that drag, resize, layer, and minimize into live dock thumbnails · a magnifying dock · menus that follow focus · the calendar running inside one of them</p>
-<p>3499 lines — 1994 code, 932 comment · 243 KB over the wire · every pixel drawn from shapes, no image assets</p>
+<p>3499 lines — 1994 code, 932 comment · 244 KB over the wire · every pixel drawn from shapes, no image assets</p>
 <a href="apps/desktop/desktop.declare?viewer"><p>View &amp; edit source →</p></a>
 <p>02</p>
 <h2>Declare it. It runs. It stays true.</h2>
@@ -140,7 +140,7 @@
 <p>What an LLM gets from a mainstream stack is corpus leverage: fluency by imitation — broad, shallow, self-contradictory, unverifiable. The other kind is comprehension leverage: a language small enough to hand to a model whole, regular enough that its programs can be analyzed rather than pattern-matched, and backed by a compiler that turns each mistake into a precise correction. Corpus leverage arrives free with popularity. Comprehension leverage has to be designed in — and it is the only kind a new language can compete on.</p>
 <p>This is a measured bet, not a hunch. LLMs can learn a language they never trained on from a spec in context — in recent studies, a small language purpose-designed for LLM use, with zero training exposure, beat the same model writing Python, its best-trained language. And what bounds a model’s ability to repair its own mistakes is the quality of the feedback: a compiler that explains beats one that merely rejects, by a double-digit margin.</p>
 <p>The studies: <a href="https://arxiv.org/abs/2512.23214">a zero-corpus DSL vs. Python →</a> · <a href="https://arxiv.org/abs/2504.06939">feedback quality vs. repair →</a></p>
-<p>We measure it too. Given the same brief — a box office with a drawn seat map, seats selling live while you choose, sign-in and checkout — the same agent, Claude Code (Opus 5.5), built it once in React and once in Declare, from a download it had never seen. Both passed all eleven of the same hidden acceptance checks. The React app was 4,861 lines; the Declare app, 1,437.</p>
+<p>We measure it too. Given the same brief — a box office with a drawn seat map, seats selling live while you choose, sign-in and checkout — the same agent, Claude Code (Opus 5.5), built it once in React and once in Declare, from a download it had never seen. Both finished passing all eleven of the same hidden acceptance checks, which drive the app by its controls' accessible names. The Declare app was 1,279 lines of code; the React app, 2,666. And the first Declare build that ran passed eleven of eleven, 12.5 minutes in. The first React build passed six, and its main bug was fixed at 23 minutes.</p>
 <p><a href="https://github.com/davidtemkin/declarelang/tree/main/evals/reports">The runs, in full →</a></p>
 <h2>Designed in, not bolted on</h2>
 <p>Declare’s declarative layer is small — the whole language fits in a model’s context window with room left for your app — and everything inside a { } is ordinary TypeScript, so the hard part of generation rides the largest corpus there is. Where Declare looks familiar, it behaves the way a model — or you — will assume: assignment is assignment, and there is no bypass to forget. Where it’s genuinely new, it looks new — brackets for structure, :path for data — a visible cue to consult the spec instead of autocompleting from memory.</p>
@@ -148,7 +148,7 @@
 <p>Indexable content is there from the start: the compiler runs your program at build time and serializes what it renders, so what a visitor sees and what a crawler sees can never drift. No server-side rendering, no hydration. That’s why this page works on a static host like GitHub Pages.</p>
 <h2>What it’s actually for</h2>
 <p>All of that is the floor, not the point. The point is what a language makes sayable. The most prized layer of modern UI — the continuity you feel in the best native software, where a view doesn’t switch so much as become the next one, where motion carries meaning and everything stays interruptible — has always been bespoke: specialist craft, one interaction at a time, locked to a platform. It is also the least machine-writable code there is; the corpus is thin, custom, and wrong in ways nothing catches.</p>
-<p>Declare makes continuity the grain, not the garnish. Motion is a Spring on an attribute; layout is a reactive attribute; a mode is a reversible state — so the continuous version of an interface is often less code than the discrete one. The reference app is a calendar whose four views are one surface seen through a moving, zooming rectangle — normally a bespoke project of its own, here a few hundred lines of declarations, readable end to end, written with an LLM. The whole category moves into the declarative, analyzable layer: the hardest part of ambitious UX becomes the part a model is best at.</p>
+<p>Declare makes continuity the grain, not the garnish. Motion is a Spring on an attribute; layout is a reactive attribute; a mode is a reversible state — so the continuous version of an interface is often less code than the discrete one. The reference app is a calendar whose four views are one surface seen through a moving, zooming rectangle — normally a bespoke project of its own, here about 500 lines of code, readable end to end, written with an LLM. The whole category moves into the declarative, analyzable layer: the hardest part of ambitious UX becomes the part a model is best at.</p>
 <p>And that is the forward-looking wager. There is another generation of experiences beyond the hand-crafted best-in-class interfaces of today — built on a foundation with continuity at its core, enabled at the language level, deployed as universally as a URL, and iterated by imaginative designer-developers working with an LLM at their side. Declare is built to find that out.</p>
 <p>None of this trades away the human. What makes code legible to a model is what makes it fast for you to read — and you are still the reader who decides. You don’t teach an LLM Declare with a million examples. You hand it the language and let the compiler keep it honest. The corpus will come; the language doesn’t need it first.</p>
 <p>WHERE THIS CAME FROM</p>
@@ -516,9 +516,9 @@ Slider   [ value = { app.volume },
 <h1>Declare: Frequently Asked Questions</h1>
 <h2>The basics</h2>
 <h3>What is Declare?</h3>
-<p>Declare is a programming language for user interfaces — a domain-specific language, the way SQL is a domain-specific language for querying data. You describe an interface as a tree of views with attributes; any attribute can be a live expression, and when the things it reads change, everything that depends on it updates. All real logic is ordinary TypeScript. Programs compile in the browser or ahead of time, and one program renders either to the DOM or directly to pixels on a canvas.</p>
+<p>Declare is a programming language for user interfaces — a domain-specific language, the way SQL is a domain-specific language for querying data. You describe an interface as a tree of views with attributes; any attribute can be a live expression, and when the things it reads change, everything that depends on it updates. All real logic is ordinary TypeScript. Programs compile in the browser or ahead of time, and one program renders to the DOM, directly to pixels on a canvas, or as a native Mac app.</p>
 <h3>Why should I use it?</h3>
-<p>Because most of what makes UI code hard isn't your application — it's the plumbing. In Declare there is no render lifecycle to manage, no state synchronization to orchestrate, no CSS cascade to fight, no build pipeline to configure. An application is a readable tree of declarations: the flagship calendar — four views, continuous zoom, drag-to-reschedule — is a few hundred lines you can read end to end, and it ships smaller than the <em>runtime alone</em> of most frameworks. And Declare is built for the era when much code is written by machines: the language is small enough to hand a model in its entirety, and strict enough to verify what comes back.</p>
+<p>Because most of what makes UI code hard isn't your application — it's the plumbing. In Declare there is no render lifecycle to manage, no state synchronization to orchestrate, no CSS cascade to fight, no build pipeline to configure. An application is a readable tree of declarations: the flagship calendar — four views, continuous zoom, drag-to-reschedule — is about 500 lines of code you can read end to end. Given the same brief, an agent's Declare app came out at half the code of its React app. And Declare is built for the era when much code is written by machines: the language is small enough to hand a model in its entirety, and strict enough to verify what comes back.</p>
 <h3>What kinds of applications is it designed to build?</h3>
 <p>Any kind of data-driven application, at any level of interactivity — Declare is designed for everyday apps with everyday needs: forms, lists, settings screens, dashboards, admin tools. It is especially well suited to continuous, dynamic interfaces — the app-like web rather than the page-like web: calendars, editors, data tools, product sites. Text and documents are first-class too (Markdown rendering is built in), so content-heavy apps work well. Everything on this site is a Declare program: the homepage you're reading, the documentation app, the calendar.</p>
 <h3>What specific features make it well-suited to continuous, dynamic user experiences?</h3>
@@ -546,11 +546,11 @@ Slider   [ value = { app.volume },
 <h3>What benefits does in-browser compilation bring? Can I ship a Declare site without the compiler?</h3>
 <p>Because the compiler runs in the page, the page can edit and re-run itself: every sample on this site is live-editable — change the source and the app re-renders as you type. It restores view-source culture: "View and edit source" on any app here opens the viewer — a highlighted reader, the verbatim source, and a live-edit tab (<code>?viewer=edit</code> on the program's URL). And it means development needs no build step — the dev server and the browser use the <em>same</em> compiler with byte-identical output. For production you don't ship the compiler: the <code>declarec</code> build precompiles everything into a small artifact, no compiler aboard.</p>
 <h3>What does Declare's renderer-independence bring to the table?</h3>
-<p>One program renders through managed DOM elements, directly to a single canvas, or in a native Mac host — same tree, same layout, same input handling, the three held to each other by a conformance suite (append <code>?render=canvas</code> to any app URL to see it). What this buys: the language owns its semantics — no DOM assumptions leak into your program; the canvas path suits environments where a DOM isn't available or isn't fast enough; and future renderers can be added without rewriting applications. Programs also run headlessly — no screen, no renderer at all — which is what powers static extraction and testing.</p>
+<p>One program renders through managed DOM elements, directly to a single canvas, or in a native Mac host — same tree, same layout, same input handling, the three held to each other by a conformance suite (append <code>?render=canvas</code> to any app URL to see it). The Mac host is a native macOS application, AppKit layers in place of DOM nodes, with the runtime's kernel linked in natively; you build it from the repository with one command (<code>npm run build:mac</code>). What this buys: the language owns its semantics — no DOM assumptions leak into your program; the canvas path suits environments where a DOM isn't available or isn't fast enough; and future renderers can be added without rewriting applications. Programs also run headlessly — no screen, no renderer at all — which is what powers static extraction and testing.</p>
 <h2>Performance</h2>
 <h3>What should I expect in terms of performance — download size and interactive responsiveness?</h3>
 <p>Concretely, measured from the deployed production artifacts:</p>
-<ul><li><strong>Wire size</strong>: the entire Declare calendar — application <em>and</em> runtime — ships at about 159 KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).</li><li><strong>Source size</strong>: the tracker — a million issues, search as you type, editing in place with undo — is 1,507 lines: 982 of code and 251 of comments, and no dependencies. It ships at 177 KB gzipped before its data, which a <code>DataSource</code> fetches at run time.</li><li><strong>Responsiveness</strong>: when you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.</li><li><strong>Startup</strong>: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.</li></ul>
+<ul><li><strong>Wire size</strong>: the entire Declare calendar — application <em>and</em> runtime — ships at about 159 KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).</li><li><strong>Source size</strong>: the tracker — a million issues, search as you type, editing in place with undo — is 1,507 lines: 982 of code and 251 of comments, and no dependencies. It ships at 178 KB gzipped before its data, which a <code>DataSource</code> fetches at run time.</li><li><strong>Responsiveness</strong>: when you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.</li><li><strong>Finding what's slow</strong>: the profiler (<code>declare-profile</code>, or the Inspector while you use the app) says which of <em>your</em> rules ran, how often and for how long, what each class cost to build, what drawings cost the GPU, and how long each frame took to reach the screen — in the program's own terms, its classes, attributes and source lines, never the runtime's internals. It runs in the browser or the Mac host.</li><li><strong>Startup</strong>: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.</li></ul>
 <p>Live numbers are on the homepage, measured from the deployed artifacts themselves.</p>
 <h2>Declare and LLMs</h2>
 <h3>What benefits does Declare bring for LLM coding, where a human may never read or write the code?</h3>
@@ -558,11 +558,15 @@ Slider   [ value = { app.volume },
 <h3>The calendar says "0 lines written by hand." What did that actually involve?</h3>
 <p>A person directed; a model wrote. The calendar was built by describing what was wanted and letting an LLM write the Declare — every line — with the compiler in the loop: each attempt was compiled and type-checked, the diagnostics steered the next revision, and the running app was the judge. The person's work was product work — deciding what the calendar should be, reviewing behavior, and pushing back — not typing code. That's the workflow the language is designed around: the human owns intent, the model owns the text, and the toolchain keeps the text honest.</p>
 <h3>How can Declare, with no training data to speak of, be useful to an LLM — or compete with billions of lines of training corpus?</h3>
-<p>Two ways. First, the language is small enough that its <em>entire definition</em> fits in a model's context window — one file, <a href="https://github.com/davidtemkin/declarelang/blob/main/docs/declare.md">docs/declare.md</a>, about 13,000 tokens: a small fraction of a modern context window. A model doesn't need to have trained on a language it can hold the complete spec of while writing; recent research (cited in the essay on this site) shows models write never-before-seen languages competently from a spec in context. Second, most of what an LLM writes in a Declare program <em>is</em> covered by billions of lines of training data — the logic is ordinary TypeScript. Only the small declarative shell is new, and it's regular enough to learn from the spec. For agent workflows, the repository ships the same knowledge as an installable agent skill (<a href="https://github.com/davidtemkin/declarelang/tree/main/skill">skill/</a> — auto-discovered by Claude Code, usable as plain instructions by any coding agent).</p>
+<p>Two ways. First, the language is small enough that its <em>entire definition</em> fits in a model's context window — one file, <a href="https://github.com/davidtemkin/declarelang/blob/main/docs/declare.md">docs/declare.md</a>, about 21,000 tokens: a small fraction of a modern context window. A model doesn't need to have trained on a language it can hold the complete spec of while writing; recent research (cited in the essay on this site) shows models write never-before-seen languages competently from a spec in context. Second, most of what an LLM writes in a Declare program <em>is</em> covered by billions of lines of training data — the logic is ordinary TypeScript. Only the small declarative shell is new, and it's regular enough to learn from the spec. For agent workflows, the repository ships the same knowledge as an installable agent skill (<a href="https://github.com/davidtemkin/declarelang/tree/main/skill">skill/</a> — auto-discovered by Claude Code, usable as plain instructions by any coding agent).</p>
 <h3>What does Declare do to optimize for reliability and correctness of LLM-generated code?</h3>
-<ul><li><strong>Mandatory type-checking</strong> — every <code>{ }</code> body, every compile, no opt-out; the checker is held to zero false positives across the repository's own corpus (every app, library class, and documentation example it ships), so an error always means something is actually wrong.</li><li><strong>Diagnostics that name the fix</strong> — messages are written to steer the <em>next</em> attempt, including "did you mean" guidance for common instincts from other frameworks (e.g., reaching for a CSS property).</li><li><strong>No magic</strong> — Declare consistently chooses predictability over cleverness: dependencies are extracted statically, events don't bubble, there's one way to say most things. Code that looks right <em>is</em> right more often, and code that's wrong fails loudly.</li><li><strong>Verification tooling</strong> — a <code>verify</code> command compiles, type-checks, and actually boots a program headlessly, so an agent can prove its output runs before handing it back.</li></ul>
+<ul><li><strong>Mandatory type-checking</strong> — every <code>{ }</code> body, every compile, no opt-out; the checker is held to zero false positives across the repository's own corpus (every app, library class, and documentation example it ships), so an error always means something is actually wrong.</li><li><strong>Diagnostics that name the fix</strong> — messages are written to steer the <em>next</em> attempt, including "did you mean" guidance for common instincts from other frameworks (e.g., reaching for a CSS property).</li><li><strong>No magic</strong> — Declare consistently chooses predictability over cleverness: dependencies are extracted statically, events don't bubble, there's one way to say most things. Code that looks right <em>is</em> right more often, and code that's wrong fails loudly.</li><li><strong>Verification tooling</strong> — a <code>verify</code> command compiles, type-checks, boots the program in a real browser at laptop and phone sizes, and drives it with real input, so an agent can prove its output works before handing it back.</li></ul>
+<h3>Does it work? What's the evidence?</h3>
+<p>Starting cold from the repository, agents have built complete apps and passed hidden acceptance checks they never saw:</p>
+<ul><li><strong>A box office</strong> — a drawn seat map, seats selling live while you choose, sign-in and checkout. Claude Code built it in Declare and, separately, in React. Both finished passing all 11 checks. The Declare app was 1,279 lines of code, the React app 2,666; the first Declare build that ran passed 11, 12.5 minutes in, where the first React build passed 6.</li><li><strong>A slide editor</strong> with a service behind it: 19 of 19 checks as delivered.</li><li><strong>The same box office, built by OpenAI's Codex</strong> from the same cold download.</li></ul>
+<p>They are single runs, not yet a benchmark, and <a href="https://github.com/davidtemkin/declarelang/tree/main/evals/reports">every one is published in full</a>, the agent's own account included.</p>
 <h3>What has been done during Declare's development to optimize for LLM usage? What methodology ensures it works?</h3>
-<p>It's tested, not assumed. Declare's development runs an evaluation harness: a ladder of application-building tasks given to models cold, in one-shot and iterated configurations, across model tiers. Failures feed back into the language, the diagnostics, and the documentation — several language changes exist specifically because evals showed models tripping. The documentation is written to double as training material: plain declarative prose, and every code fence in the teaching docs is compiled by the test suite, so nothing a model reads is stale or wrong. The result is a feedback loop — spec, diagnostics, evals — rather than a hope.</p>
+<p>It's tested, not assumed. Agents are given a brief for a complete app and the repository, cold, and build it start to finish. Hidden acceptance checks they never see then drive the result through its controls' accessible names, both as delivered and at the first build that ran. The same brief goes to React, and to more than one vendor's model, and each run is published in full with the agent's own account of it, word for word. Failures feed back into the language, the diagnostics, and the documentation — several language changes exist specifically because evals showed models tripping. The documentation is written to double as training material: plain declarative prose, and every code fence in the teaching docs is compiled by the test suite, so nothing a model reads is stale or wrong. The result is a feedback loop — spec, diagnostics, evals — rather than a hope.</p>
 <h2>Background and practicalities</h2>
 <h3>Where does Declare come from?</h3>
 <p>Declare is a from-the-ground-up modern successor to OpenLaszlo, the open-source rich-internet-application platform first released in 2002. OpenLaszlo had the core ideas remarkably early: interfaces declared as trees, attributes connected by live constraints, declarative data binding, compiled applications running in the browser — a decade before today's declarative frameworks. Declare  keeps those convictions — the declarative tree, constraint-based reactivity, a real compiler — while rebuilding everything else for the modern era: a clean keyword-free syntax, TypeScript for logic, DOM and canvas renderers, in-browser compilation, and a design shaped from day one for the LLM era.</p>
@@ -583,7 +587,7 @@ npm start</code></pre>
 <h3>Can I save or share something I've edited in the browser?</h3>
 <p>Your live edits belong to the session — copy the source out to keep it (it's one file). There's no playground permalink service yet: this site runs on a static host with no server to store shared snippets. The durable path is the ordinary one — save the <code>.declare</code> file, serve it from the dev server or any static host, and the program's URL is shareable from there.</p>
 <h3>How do I test a Declare app?</h3>
-<p>Three layers. The <code>verify</code> command is the cheapest and catches the most: it compiles, type-checks, and actually boots a program headlessly — proof it runs, no browser needed, ideal in CI or an agent loop. Because programs settle deterministically, you can drive one headlessly and assert on the resulting tree — that's how Declare's own test suite works. And a Declare app is a web page, so standard end-to-end tooling (Playwright, Puppeteer) applies unchanged. The platform itself is held to a stricter bar: the DOM and canvas renderers are compared pixel-for-pixel on every change.</p>
+<p>With <code>verify</code>, which climbs six rungs, cheapest first, and stops at the first failure. The first three read the program: structure, names, types. The fourth boots it in Chrome, at a laptop's size and a phone's, and notes what it can see wrong in the layout — a control clipped out of reach, a child spilling out of its box, text running past its edge, a phone target smaller than 44 × 44. The fifth drives the app with real input from a script and checks what happens; the sixth compares screenshots against baselines. It suits CI and an agent's loop alike. Because programs settle deterministically, you can also drive one headlessly and assert on the resulting tree — that's how Declare's own test suite works. And a Declare app is a web page, so standard end-to-end tooling (Playwright, Puppeteer) applies unchanged. The platform itself is held to a stricter bar: a conformance suite holds the DOM, canvas and Mac renderers to the same answers.</p>
 <h3>Is Declare accessible?</h3>
 <p>Yes. The library's controls tell a screen reader what they are, what they are called and what state they are in, and keep it current; dialogs, sheets and menus hold and return the focus as their kind should; text fields are native, and say what they hold so autofill works. A control you draw yourself is given a role, and the compiler holds it to that role, as it does the library's. This is on the DOM renderer, the default; the canvas renderer does not yet carry it. The guide's Accessibility chapter has the detail.</p>
 <h3>What do I need to learn in order to use it, with or without an LLM?</h3>
@@ -634,10 +638,10 @@ npm start</code></pre>
 <p>components, a store, re-rendering</p>
 <p>Button, Slider, SimpleLayout: the same kind of code as yours</p>
 <p>Runtime</p>
-<p>decides everything below: ~79 KB gz</p>
+<p>decides everything below: ~122 KB gz</p>
 <p>Kernel — C, as WebAssembly or linked natively</p>
-<p>the settle and the geometry rules: 11.5 KB gzipped, as shipped</p>
-<p>render seam · one interface, 60 methods</p>
+<p>the settle and the geometry rules: 15 KB gzipped, as shipped</p>
+<p>render seam · one interface, 69 methods</p>
 <p>The browser</p>
 <p>Host</p>
 <p>does the real work</p>
@@ -703,13 +707,13 @@ npm start</code></pre>
 <p>9</p>
 <p>Pixels</p>
 <p>Steps 2 and 3 are the ones a web framework leaves to the browser: which element is under the pointer, and whether this was a click or the start of a drag. Here the runtime answers both, so hover, press, click-versus-drag and gesture ownership are one implementation — the same under a finger as under a pointer, and the same on every renderer.</p>
-<p>Steps 5 and 6 run no JavaScript at all. Beneath the runtime sits a kernel: one C file, about 1,000 lines, that holds the graph’s tables — every attribute, every edge, the settle’s order — and evaluates the arithmetic the compiler turned into bytecode. Step 7, the label’s text, is a template string rather than arithmetic, so the kernel calls back into your compiled TypeScript for it, inside the same settle. In the browser it ships as WebAssembly, 11 KB gzipped inside the bundle; on the Mac the same source is linked in natively. It is unusual for a web framework to carry a C library, and it is only possible because the compiler left nothing for the runtime to work out: with every dependency and every arithmetic body known in advance, the bookkeeping of a settle is a fixed procedure over fixed tables, which is what C is for. A frame that only moves geometry — most animation frames — finishes inside it without entering JavaScript.</p>
+<p>Steps 5 and 6 run no JavaScript at all. Beneath the runtime sits a kernel: one C file, about 1,400 lines, that holds the graph’s tables — every attribute, every edge, the settle’s order — and evaluates the arithmetic the compiler turned into bytecode. Step 7, the label’s text, is a template string rather than arithmetic, so the kernel calls back into your compiled TypeScript for it, inside the same settle. In the browser it ships as WebAssembly, 13 KB gzipped inside the bundle; on the Mac the same source is linked in natively. It is unusual for a web framework to carry a C library, and it is only possible because the compiler left nothing for the runtime to work out: with every dependency and every arithmetic body known in advance, the bookkeeping of a settle is a fixed procedure over fixed tables, which is what C is for. A frame that only moves geometry — most animation frames — finishes inside it without entering JavaScript.</p>
 <p>03</p>
 <h2>Motion</h2>
 <p>Continuity — a view becoming the next one rather than being replaced by it — is the part of good native software that is usually bespoke. Here is what makes it ordinary at run time. A <code>Spring</code> is an attribute with a target; each frame it writes its next value, and that write is a settle like any other — the same graph, the same kernel, the same dependency order. Nothing about animation is special-cased. Because geometry arithmetic runs as bytecode, a frame that only moves things — most frames of most animations — completes inside the kernel, in WebAssembly, and never enters JavaScript. Because a settle is one indivisible step, a new target arriving mid-flight is simply the next write: the spring retargets from wherever it is, and every value that read it follows. Interruptibility isn’t a feature of the animation system; it is what a reactive graph does when you write to it. And a layout is re-derived in the same settle, so an arrangement can travel as one thing — the calendar’s four views are one surface under a moving rectangle, and each frame of that zoom is a settle over the same few hundred kernel bodies.</p>
 <p>04</p>
 <h2>Layout and hit-testing</h2>
-<p>Open a Declare page in the browser’s element inspector and every view is there — a <code>div</code> per view, nested to mirror the tree — with its position and size written on it as inline style and no layout CSS anywhere. That is not a shortcut. It is the division of labor: every box is decided before the host hears about it, by one of three things. Arithmetic over slots (<code>x = { parent.width - 40 }</code>) runs in the kernel. A layout is a library class with one method, <code>place()</code>, returning a box per child — 1.8 KB of runtime applies it. An unset width is the bounding box of the visible children, kept current as a rule over the geometry table. Text is the one place the host contributes a number: it measures glyph widths. Wrapping, line count and the resulting height are the runtime’s, so a paragraph breaks into the same lines on every renderer.</p>
+<p>Open a Declare page in the browser’s element inspector and every view is there — a <code>div</code> per view, nested to mirror the tree — with its position and size written on it as inline style and no layout CSS anywhere. That is not a shortcut. It is the division of labor: every box is decided before the host hears about it, by one of three things. Arithmetic over slots (<code>x = { parent.width - 40 }</code>) runs in the kernel. A layout is a library class with one method, <code>place()</code>, returning a box per child — 2.3 KB of runtime applies it. An unset width is the bounding box of the visible children, kept current as a rule over the geometry table. Text is the one place the host contributes a number: it measures glyph widths. Wrapping, line count and the resulting height are the runtime’s, so a paragraph breaks into the same lines on every renderer.</p>
 <p>Because the runtime placed every box, it can answer the inverse question — what is under this point? — and that answer decides hover, press, whether a gesture was a click, and where a drag lands. The scene below computes none of it. Each view is reporting its own <code>hovered</code> fact, kept true by the same walk that routes a press. Try the rotated card’s corners, the invisible glass, the badge, and the child the pane’s clip cuts off: the walk runs in reverse paint order and stops at the first view that has declared an interest in the pointer.</p>
 <p>Card</p>
 <p>Plain. Declares onClick.</p>
@@ -729,45 +733,43 @@ npm start</code></pre>
 <p>Drawn to pixels, or on the Mac, there is no DOM to ask, so this walk is the whole of hit-testing: clips subtracted, transforms inverted, scrollers corrected. In the DOM the browser names the element and the runtime resolves it to the nearest view with a handler. Either way the decision is one implementation, and the same one that decides whether a touch is a tap, a scroll, or a drag the page should not claim. Your program can ask it directly — <code>app.viewAt(x, y)</code> — which is how drag and drop is written.</p>
 <p>05</p>
 <h2>Where the host begins</h2>
-<p>Everything above happens on one side of a single interface. It is called <code>Surface</code>, it has 60 methods — <code>setX</code>, <code>setFill</code>, <code>setText</code>, <code>setDrawing</code> — the runtime calls them and a backend implements them, and a view never learns which backend it has. Below that interface a backend does one job: realize what it was told. The DOM backend keeps a <code>div</code> per view with its geometry as inline style, and hands the platform what the platform does best — real text that selects and finds, the page’s own scroll, links that ⌘-click, native form fields. The canvas backend draws the whole tree directly to pixels, with its own compositor and its own scroll physics, for surfaces that must be uniform or capturable. The Mac host is a Swift application with no web engine in it: it runs the same runtime bundle in JavaScriptCore, links the same kernel as C, and applies one batch of drawing operations per settle to a tree of Core Animation layers.</p>
+<p>Everything above happens on one side of a single interface. It is called <code>Surface</code>, it has 69 methods — <code>setX</code>, <code>setFill</code>, <code>setText</code>, <code>setDrawing</code> — the runtime calls them and a backend implements them, and a view never learns which backend it has. Below that interface a backend does one job: realize what it was told. The DOM backend keeps a <code>div</code> per view with its geometry as inline style, and hands the platform what the platform does best — real text that selects and finds, the page’s own scroll, links that ⌘-click, native form fields. The canvas backend draws the whole tree directly to pixels, with its own compositor and its own scroll physics, for surfaces that must be uniform or capturable. The Mac host is a Swift application with no web engine in it: it runs the same runtime bundle in JavaScriptCore, links the same kernel as C, and applies one batch of drawing operations per settle to a tree of Core Animation layers.</p>
 <p>The figure below is the calendar’s build, drawn to scale by gzipped bytes. Switch hosts and one block is exchanged while everything else holds still; on the Mac the kernel also leaves the bundle for the executable. Beneath it is the same desktop program, with the same four windows open, on each host.</p>
 <p>DOM</p>
 <p>Canvas</p>
 <p>Mac host</p>
 <p>Your program</p>
-<p>11.1 KB</p>
+<p>12.2 KB</p>
 <p>Library classes it uses</p>
-<p>7.0 KB</p>
+<p>10.4 KB</p>
 <p>Reactive core, instantiation &amp; data</p>
-<p>34.9 KB</p>
+<p>38.3 KB</p>
 <p>DOM backend</p>
-<p>10.5 KB</p>
+<p>15.1 KB</p>
 <p>View</p>
-<p>7.8 KB</p>
+<p>12.1 KB</p>
 <p>Input, focus, gestures, scrolling</p>
-<p>7.1 KB</p>
+<p>20.3 KB</p>
 <p>Draw &amp; compositing</p>
-<p>5.7 KB</p>
+<p>16.1 KB</p>
 <p>Springs &amp; animators</p>
-<p>3.5 KB</p>
+<p>3.2 KB</p>
 <p>Text &amp; fonts</p>
-<p>3.4 KB</p>
+<p>5.0 KB</p>
 <p>Boot</p>
-<p>2.5 KB</p>
-<p>Layout</p>
-<p>1.8 KB</p>
-<p>Themes</p>
-<p>1.7 KB</p>
+<p>5.6 KB</p>
+<p>Accessibility</p>
+<p>3.4 KB</p>
 <p>Kernel — WebAssembly + loader</p>
-<p>11.5 KB</p>
+<p>15.2 KB</p>
 <p>App</p>
-<p>11.1 KB</p>
+<p>12.2 KB</p>
 <p>Library</p>
-<p>7.0 KB</p>
+<p>10.4 KB</p>
 <p>Runtime</p>
-<p>78.9 KB</p>
+<p>121.6 KB</p>
 <p>Kernel</p>
-<p>11.5 KB</p>
+<p>15.2 KB</p>
 <img loading="lazy" src="apps/homepage/../architecture/resources/desktop-dom.webp">
 <p>Browser · DOM</p>
 <img loading="lazy" src="apps/homepage/../architecture/resources/desktop-canvas.webp">
@@ -785,7 +787,7 @@ npm start</code></pre>
 <p>What keeps that description honest is the second rendering. A program that owns its own semantics — no stylesheet, no browser layout engine to defer to — can be checked against another realization of itself, and the platform’s test suite holds the DOM renderer and the pixel renderer to the same picture on every change. The discipline that makes a front end complete is the same one that makes it mean exactly one thing.</p>
 <a href="apps/architecture/architecture.declare?render=canvas"><p>Reopen this page on the canvas renderer →</p></a>
 <a href="apps/architecture/architecture.declare?viewer=reader"><p>Read this page’s source →</p></a>
-<p>This page is a Declare program; every figure on it is made of views. Sizes were measured on 18 September 2026 from declarec production builds, gzipped at the default level.</p>
+<p>This page is a Declare program; every figure on it is made of views. Sizes are measured from declarec production builds, gzipped at the default level, each time the site is built.</p>
 <a href="#home"><h1>Declare</h1></a>
 <a href="#getstarted"><p>Try it now</p></a>
 <a href="#why"><p>Why Declare</p></a>
@@ -810,7 +812,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=af47da3bc946";
+  import boot from "./bundles/declare-boot.js?v=8fcbf9faf57b";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().

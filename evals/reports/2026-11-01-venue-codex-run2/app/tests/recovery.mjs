@@ -1,0 +1,52 @@
+// UI-only recovery checks: the profile GET is a fixture and no POST is submitted.
+const profile={name:'Ada Lovelace',email:'ada@example.com',billing:{line1:'12 Marchmont Street',line2:null,city:'London',postalCode:'WC1N 1AB',country:'GB'},cards:[{id:'card_1',brand:'visa',last4:'4242',expMonth:4,expYear:2028},{id:'card_2',brand:'mastercard',last4:'4444',expMonth:8,expYear:2026}]};
+export default async ({drive,expect,page})=>{
+ await drive.settleData();
+ const refuse=async body=>{
+  await page.evaluate(b=>{window.__declare.find('app').checkout.refusedWith(b);return null},body);await drive.settleMotion();
+  await page.evaluate(b=>{const f=window.__declare.find('app').checkout;f.refuse(f.refusal(b));return null},body);await drive.settleMotion();
+  await page.evaluate(()=>{window.__declare.find('app').checkout.showProblems();return null});await drive.settleMotion();
+ };
+ await page.setRequestInterception(true);
+ page.on('request',async r=>{
+  if(r.url().includes(':8350') && r.method()!=='GET' && r.method()!=='OPTIONS') return r.abort();
+  if(r.url().endsWith('/api/me')) return r.respond({status:200,contentType:'application/json',headers:{'Access-Control-Allow-Origin':'http://127.0.0.1:8200','Access-Control-Allow-Credentials':'true'},body:JSON.stringify(profile)});
+  return r.continue();
+ });
+ await page.getByRole('button',{name:/Fri 13 Nov/}).click();await drive.settleData();
+ const seats=await page.evaluate(()=>window.__declare.find('app').places.value.seats.filter(s=>s.seat.status==='available').slice(0,3).map(s=>({id:s.id,name:`${s.section}, row ${s.row}, seat ${s.seat.number}`})));
+ const phone=await page.evaluate(()=>innerWidth<760);
+ if(phone) await page.getByRole('button',{name:'Row A',exact:true}).click();
+ for(const s of seats)await page.getByRole('button',{name:s.name,exact:true}).click();
+ if(phone) await page.getByRole('button',{name:'Done',exact:true}).click();
+ await page.getByRole('button',{name:'Checkout →'}).click();
+ await page.getByLabel('Name on card',{exact:true}).fill('My typed name');
+ await page.evaluate(()=>{window.__declare.find('app').me.fetch();return null});await drive.settleData();
+ await expect(page.getByLabel('Email',{exact:true})).toHaveValue('ada@example.com');
+ await expect(page.getByRole('button',{name:/Mastercard ending 4444/})).toBeDisabled();
+ await expect(page.getByLabel('Name on card',{exact:true})).toBeHidden();
+ await page.getByLabel('Security code',{exact:true}).fill('000');
+ await refuse({error:'card_declined',message:'Your card was declined. Please try another card.'});
+ await expect(page.getByLabel('Security code',{exact:true})).toHaveValue('');
+ await expect(page.getByText('Your card was declined. Please try another card.',{exact:true})).toBeVisible();
+ await page.screenshot({path:'/private/tmp/venue-decline.png'});
+ await page.getByRole('button',{name:'Use a new card'}).click();
+ await expect(page.getByLabel('Name on card',{exact:true})).toHaveValue('My typed name');
+ await expect(page.getByLabel('Street address',{exact:true})).toHaveValue('12 Marchmont Street');
+ await page.getByLabel('Card number',{exact:true}).fill('4242424242424242');
+ await page.getByLabel('Expiry',{exact:true}).fill('0428');
+ await page.getByLabel('Security code',{exact:true}).fill('123');
+ await expect(await page.evaluate(()=>window.__declare.find('app').checkout.payload().payment.card.number)).toBe('4242424242424242');
+ await refuse({error:'invalid',field:'postalCode',message:'Your postal code does not match.'});
+ await expect(page.getByLabel('Postal code',{exact:true})).toBeFocused();
+ await refuse({error:'unavailable',conflicts:[seats[0].id],message:'That seat was just taken.'});
+ await expect.attr('app','step','hall');
+ await expect.attr('app','selection',seats.slice(1).map(s=>s.id));
+ await page.evaluate(()=>{const a=window.__declare.find('app');const seats=a.cart.value.seats;a.order.set([],{code:'VN-PREVIEW',email:'ada@example.com',totalCents:a.total,tickets:seats.map((s,i)=>({seatId:s.id,section:s.section,row:s.row,number:s.seat.number,barcode:'VN-PREVIEW-'+i}))});a.order.onLoad();return null});
+ await drive.settleMotion();
+ await expect(page.getByText('Sent to ada@example.com',{exact:true})).toBeVisible();
+ await page.screenshot({path:'/private/tmp/venue-tickets.png'});
+ await page.getByRole('button',{name:'Next ticket'}).click();
+ await expect.attr('app','ticketIndex',1);
+ await expect.request('POST','/api/orders',{count:0});
+};

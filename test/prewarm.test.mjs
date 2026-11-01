@@ -165,7 +165,9 @@ await test("every run artifact carries the program object", () => {
 await test("stats.json's over-the-wire figures are production builds of the cited apps", async () => {
   const { buildProduction } = await import("../tools/declarec.mjs");
   const stats = JSON.parse(readFileSync(join(ROOT, "apps/homepage/stats.json"), "utf8"));
-  for (const name of Object.keys(stats)) {
+  // every entry that is an app's figures (calendarParts is the calendar's build
+  // block by block, for the Architecture page — site-figures.mjs)
+  for (const name of Object.keys(stats).filter((k) => stats[k].wireGzip !== undefined)) {
     const src = readFileSync(join(ROOT, "apps", name, name + ".declare"), "utf8");
     const out = await buildProduction(src, { name, originDir: join(ROOT, "apps", name) });
     assert.ok(out.ok, `${name} does not build: ${out.report}`);

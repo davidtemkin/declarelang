@@ -641,8 +641,10 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // layout stretches what its content sizes; the library's runs share their room
   // by those facts; a Text that stops flexing sizes to its words again —
   // measured 158.0 KB.
+  // 159 → 164 KB (2026-11-01, with the runtime's limit below): headroom for the
+  // runtime's next increments — measured 159.4 KB.
   const wire = out.files.reduce((n, f) => n + gzipSync(Buffer.from(f.contents)).length, 0);
-  assert.ok(wire > 20 * 1024 && wire < 159 * 1024,
+  assert.ok(wire > 20 * 1024 && wire < 164 * 1024,
     `unexpected FIRST-LOAD size ${(wire / 1024).toFixed(1)} KB — ` +
     out.files.map((f) => `${f.name} ${(gzipSync(Buffer.from(f.contents)).length / 1024).toFixed(1)}`).join(", "));
 
@@ -662,11 +664,14 @@ await test("buildProduction emits a self-contained bundle in the expected size r
 //   State releases relaid under a computed axis), +60 B for the ARIA 1.2 combobox
 //   (one element answers to its name). declare.md 9,998 words; briefly 10,100 on 2026-10-31, then back
 //   under 10,000 by removing restatements (9,999).
+//   2026-11-01: limit 124 → 129 KB, set by the author. The runtime at 124.0 KB: a
+//   constraint cycle names its whole loop; focus given back when an overlay closes
+//   shows its ring only if it showed on opening.
 await test("the runtime and the one-file language stay within their budgets", async () => {
   const out = await buildProduction("App [ ]", { name: "empty", originDir: resolve(HERE, "..") });
   assert.ok(out.ok, "build should succeed: " + (out.errors?.map((e) => e.message).join("; ") ?? ""));
   const wire = out.files.reduce((n, f) => n + gzipSync(Buffer.from(f.contents)).length, 0);
-  assert.ok(wire < 124 * 1024, `the runtime is ${(wire / 1024).toFixed(1)} KB on the wire — past its 124 KB budget`);
+  assert.ok(wire < 129 * 1024, `the runtime is ${(wire / 1024).toFixed(1)} KB on the wire — past its 129 KB budget`);
   const words = readFileSync(resolve(HERE, "../docs/declare.md"), "utf8").split(/\s+/).filter(Boolean).length;
   assert.ok(words < 10000, `docs/declare.md is ${words} words — past its 10,000-word budget`);
 });

@@ -232,7 +232,14 @@ bootHost(cfg);
         let pageOrigin = null;
         try { pageOrigin = new URL(page.url()).origin; } catch { /* no page yet */ }
         if (u.origin === pageOrigin && u.pathname === "/compile") return;
-        requests.push({ method: r.method(), url: r.url(), path: u.pathname + u.search, body: parseBody(r.postData()), status: null, $req: r });
+        const q = { method: r.method(), url: r.url(), path: u.pathname + u.search, body: parseBody(r.postData()), status: null, $req: r };
+        // a request the script answers itself (request interception's respond)
+        // or aborts never reaches the service: it is not a write to it
+        for (const verb of ["respond", "abort"]) {
+          const real = r[verb]?.bind(r);
+          if (real !== undefined) r[verb] = (...a) => { q.intercepted = verb === "respond" ? "answered by the script" : "aborted by the script"; return real(...a); };
+        }
+        requests.push(q);
       });
       page.on("response", (res) => {
         const e = requests.find((q) => q.$req === res.request());
@@ -1679,11 +1686,14 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
   // what they made stays there — a failed run's half-finished story included —
   // so a run reports them
   const writesOf = (app) => fixturesDir !== null ? [] : app.drive.requests()
-    .filter((q) => q.method !== "GET" && q.method !== "HEAD").map((q) => `${q.method} ${q.path}`);
+    .filter((q) => q.method !== "GET" && q.method !== "HEAD" && q.intercepted === undefined).map((q) => `${q.method} ${q.path}`);
+  // writes the script intercepted: in the page's requests, never at the service
+  const interceptedOf = (app) => app.drive.requests()
+    .filter((q) => q.method !== "GET" && q.method !== "HEAD" && q.intercepted !== undefined).map((q) => `${q.method} ${q.path} (${q.intercepted})`);
   // the services this run talked to, and those it wrote to, by origin — what a
   // later run that fails is told it may be meeting (verify.mjs)
   const originsOf = (app, writing) => fixturesDir !== null ? [] : [...new Set(app.drive.requests()
-    .filter((q) => !writing || (q.method !== "GET" && q.method !== "HEAD"))
+    .filter((q) => q.intercepted === undefined && (!writing || (q.method !== "GET" && q.method !== "HEAD")))
     .map((q) => { try { return new URL(q.url).origin; } catch { return null; } }).filter((o) => o !== null))];
   return withHost({ compiled, appDir, fixturesDir, backendClass, built, scrollbars: true, url }, async ({ openApp }) => {
     const failures = [];
@@ -1701,7 +1711,7 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
     try {
       await app.watched(() => mod.default({ drive: app.drive, expect: app.expect, page: app.scriptPage }));
     } catch (e) {
-      if (e?.lines !== undefined) { failures.push(...e.lines); return { ok: false, failures, log: app.log, writes: writesOf(app), talked: originsOf(app, false), wrote: originsOf(app, true), warned: app.warned, waited: app.waited }; }
+      if (e?.lines !== undefined) { failures.push(...e.lines); return { ok: false, failures, log: app.log, writes: writesOf(app), intercepted: interceptedOf(app), talked: originsOf(app, false), wrote: originsOf(app, true), warned: app.warned, waited: app.waited }; }
       const where = app.log.length > 0 ? ` (after: ${app.log.slice(-3).join(" → ")})` : "";
       // For an unexpected error, the first stack frame is the difference
       // between "my assert threw here" and an anonymous page error a reader
@@ -1713,7 +1723,7 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
     if (failures.length === 0) { await app.quiet(2000); await app.checkHere("at the end of the script"); }
     for (const e of app.pageErrors) failures.push(`page error: ${e}`);
     for (const e of new Set(app.thrown)) failures.push(`error: ${e}`);
-    return { ok: failures.length === 0, failures, log: app.log, writes: writesOf(app), talked: originsOf(app, false), wrote: originsOf(app, true), checks: app.checks, asserted: app.asserted(), warned: app.warned, waited: app.waited };
+    return { ok: failures.length === 0, failures, log: app.log, writes: writesOf(app), intercepted: interceptedOf(app), talked: originsOf(app, false), wrote: originsOf(app, true), checks: app.checks, asserted: app.asserted(), warned: app.warned, waited: app.waited };
   });
 }
 

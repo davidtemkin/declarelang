@@ -211,6 +211,10 @@ the close.
 ## _savedAt
 **Internal.** The index `_savedFocus` held among `_savedParent`'s children.
 
+## _savedRing
+**Internal.** Whether `_savedFocus` showed its focus ring when it opened: focus given back
+shows it again only then — a dismissal is not navigation.
+
 ## visible
 Follows `present`: it is drawn while open, and while its closing motion runs.
 
@@ -258,6 +262,7 @@ class Floating [
     _savedFocus: View? = null,
     _savedParent: View? = null,
     _savedAt: number = -1,
+    _savedRing: boolean = false,
     _hostedLayer: boolean = false,
     _sharesProgram: boolean = true,
     _baseScale: number = 1,
@@ -352,6 +357,7 @@ class Floating [
             _savedFocus = Focus.getFocus()
             _savedParent = _savedFocus != null ? _savedFocus.parent as View | null : null
             _savedAt = _savedParent != null ? _savedParent.childViews.indexOf(_savedFocus) : -1
+            _savedRing = _savedFocus != null && Focus.byKeyboard()
             afterSettle(() => this.focusFirst())
             }
         },

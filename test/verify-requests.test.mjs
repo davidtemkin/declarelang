@@ -42,4 +42,25 @@ await test("a request that was not sent fails, naming what was", () => {
   assert.match(r.stdout + r.stderr, /sent: POST \/no-such-endpoint → 404/);
 });
 
+// A request the script answers itself (request interception) never reaches a
+// service, and is not reported as a write to one. It was (Codex Venue run 2,
+// 2026-11-01): "the script sent 1 write to the live service" for an order the
+// script had answered — and an automatic permission review took that at its word
+// and blocked every later run.
+await test("a write the script intercepts is reported as intercepted, not as sent to the service", () => {
+  const r = verify(`export default async ({ drive, page }) => {
+    await page.setRequestInterception(true);
+    page.on("request", (q) => {
+      if (q.isInterceptResolutionHandled()) return;
+      if (q.method() === "POST") q.respond({ status: 200, contentType: "application/json", body: "{}" });
+      else q.continue();
+    });
+    await drive.click("app.go");
+    await drive.wait(200);
+  };`);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  assert.doesNotMatch(r.stdout, /write to the live service|writes to the live service/);
+  assert.match(r.stdout, /intercepted 1 write in the page \(POST \/no-such-endpoint \(answered by the script\)\) — none reached the service/);
+});
+
 summarize("verify-requests");

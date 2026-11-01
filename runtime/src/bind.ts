@@ -259,6 +259,7 @@ function bindKernelExpr(view: Node, name: string, expr: { code: number[]; paths:
   const id = K.addExprRule(target, (yielding ? KERNEL_FLAG.YIELDING : 0) | (percent ? KERNEL_FLAG.PERCENT : 0), edges, off, code.length);
   if (id < 0) return false;
   const k = new Constraint(label, () => undefined, () => {}, 0, yielding);
+  k.targetCell = target;
   k.adoptRule(id);
   if (percent) markPercent(k);
   k.source = src;

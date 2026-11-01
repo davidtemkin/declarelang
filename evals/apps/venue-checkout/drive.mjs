@@ -121,9 +121,22 @@ async function openPerformance(page) {
 // not yet, is found again where it now is and tapped again, as a person would.
 const chosen = (n) => n.pressed === true || n.checked === true || n.selected === true;
 const tellsChosen = (n) => n.pressed !== undefined || n.checked !== undefined || n.selected !== undefined;
+// A seat not on screen may sit behind a step a design puts first — its section,
+// then its row ("Choose a row, then tap a numbered seat", a phone layout):
+// pressed as a person would, by the names the seat's own name carries.
+async function reachSeat(page, s, seat) {
+  if (await maybe(find(page, seat, { timeout: 2500 }))) return;
+  const [section, rowPart] = s.name.split(", ");
+  const row = rowPart?.replace(/^row /, "");
+  const sec = await maybe(button(page, new RegExp(`^${section}\\b`, "i"), { timeout: 800 }));
+  if (sec && !chosen(sec.node)) { await press(page, sec); await sleep(400); }
+  const r = await maybe(button(page, new RegExp(`^row ${row}\\b`, "i"), { timeout: 1500 }));
+  if (r) { await press(page, r); await sleep(600); }
+}
 async function chooseSeats(page, seats) {
   for (const s of seats) {
     const seat = (n) => typeof n.name === "string" && (n.name === s.name || n.name.startsWith(s.name + ",") || n.name.startsWith(s.name + " "));
+    await reachSeat(page, s, seat);
     for (let tap = 0; tap < 3; tap++) {
       const el = await find(page, seat, { what: `seat ${s.name}`, timeout: 12000 });
       if (tap > 0 && (!tellsChosen(el.node) || chosen(el.node))) break;

@@ -35,8 +35,11 @@ The studies: [a zero-corpus DSL vs. Python →](https://arxiv.org/abs/2512.23214
 We measure it too. Given the same brief — a box office with a drawn seat map,
 seats selling live while you choose, sign-in and checkout — the same agent,
 Claude Code (Opus 5.5), built it once in React and once in Declare, from a
-download it had never seen. Both passed all eleven of the same hidden
-acceptance checks. The React app was 4,861 lines; the Declare app, 1,437.
+download it had never seen. Both finished passing all <!--stat:venue.checksWord-->eleven<!--/stat--> of the same hidden
+acceptance checks, which drive the app by its controls' accessible names. The
+Declare app was <!--stat:venue.declare.code-->1,279<!--/stat--> lines of code; the React app, <!--stat:venue.react.code-->2,666<!--/stat-->. And the first Declare
+build that ran passed <!--stat:venue.declare.firstBootWord-->eleven<!--/stat--> of <!--stat:venue.checksWord-->eleven<!--/stat-->, <!--stat:venue.declare.firstBootMin-->12.5<!--/stat--> minutes in. The first React
+build passed <!--stat:venue.react.firstBootWord-->six<!--/stat-->, and its main bug was fixed at <!--stat:venue.react.fixMin-->23<!--/stat--> minutes.
 
 [The runs, in full →](https://github.com/davidtemkin/declarelang/tree/main/evals/reports)
 
@@ -77,8 +80,8 @@ Declare makes continuity the grain, not the garnish. Motion is a Spring on an
 attribute; layout is a reactive attribute; a mode is a reversible state — so the
 continuous version of an interface is often less code than the discrete one.
 The reference app is a calendar whose four views are one surface seen through
-a moving, zooming rectangle — normally a bespoke project of its own, here a
-few hundred lines of declarations, readable end to end, written with an LLM.
+a moving, zooming rectangle — normally a bespoke project of its own, here
+about <!--stat:calendar.codeAbout-->500<!--/stat--> lines of code, readable end to end, written with an LLM.
 The whole category moves into the declarative, analyzable layer: the hardest
 part of ambitious UX becomes the part a model is best at.
 

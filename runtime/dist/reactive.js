@@ -90,6 +90,69 @@ const RULES = [];
 let stillOwns = () => true;
 export function setOwnershipCheck(check) { stillOwns = check; }
 export function constraintOfRule(id) { return id >= 0 ? RULES[id] ?? null : null; }
+/** The loop a cycling rule is on, in the order its values flow — each rule by
+ *  its label and where it is — found from what each rule last read and which
+ *  rule writes each cell it read. "Depends on its own output" says there is a
+ *  loop; this says which, so a layout's author can see which size feeds back.
+ *  Only on an error: nothing is kept for it otherwise. Null when the reads
+ *  don't lead back (a loop through a JS write no rule owns). */
+function cycleLoop(start) {
+    if (K === null)
+        return null;
+    const writer = new Map();
+    RULES.forEach((c, id) => { if (c != null)
+        for (const cell of c.ownedCells())
+            writer.set(cell, id); });
+    const writerOf = (cell) => writer.get(cell) ?? (K.owner(cell) >= 0 ? K.owner(cell) : undefined);
+    // the rules whose outputs a rule reads: what feeds it
+    const feeds = (r) => {
+        const out = [];
+        for (const cell of K.deps(r)) {
+            const w = writerOf(cell);
+            if (w !== undefined && w !== r)
+                out.push(w);
+        }
+        return out;
+    };
+    // A loop among the rules that feed it, or through it: the rule that hit the
+    // limit can be downstream of the loop (a layout reading two widths that feed
+    // each other), so any loop upstream is the answer, nearest first.
+    const state = new Map(); // 1 on the path, 2 done
+    const path = [];
+    let found = null;
+    const visit = (r) => {
+        if (found !== null || state.size > 2000)
+            return;
+        state.set(r, 1);
+        path.push(r);
+        for (const w of feeds(r)) {
+            if (found !== null)
+                break;
+            if (state.get(w) === 1) {
+                found = path.slice(path.indexOf(w));
+                break;
+            }
+            if (!state.has(w))
+                visit(w);
+        }
+        path.pop();
+        state.set(r, 2);
+    };
+    visit(start);
+    if (found === null)
+        return null;
+    // in the order values flow: each feeds the next (the path runs reader → writer)
+    const flow = [...found].reverse();
+    flow.push(flow[0]);
+    const name = (id) => {
+        const c = RULES[id];
+        if (c == null)
+            return "a value the runtime computes";
+        const at = c.owner != null ? addressOf?.(c.owner) ?? null : null;
+        return `${c.label}${at !== null ? ` (at ${at})` : ""}`;
+    };
+    return flow.map(name).join(" → ");
+}
 let traceHook = null;
 export function setTraceHook(h) { traceHook = h; }
 export let profileHook = null;
@@ -212,7 +275,8 @@ const HOST = {
             // where it is, by path: a label names a class, and a program has many Views
             const owner = RULES[rule]?.owner;
             const at = owner != null ? addressOf?.(owner) ?? null : null;
-            pendingError = new DeclareError(`constraint cycle: ${label}${at !== null ? ` (at ${at})` : ""} re-evaluated ${CYCLE_LIMIT} times in one update — it (transitively) depends on its own output`);
+            const loop = cycleLoop(rule);
+            pendingError = new DeclareError(`constraint cycle: ${label}${at !== null ? ` (at ${at})` : ""} re-evaluated ${CYCLE_LIMIT} times in one update — it (transitively) depends on its own output${loop !== null ? `. The loop: ${loop}` : ""}`);
         }
         else if (code === KERNEL_ERR.AFTER) {
             pendingError = new DeclareError(stepsRan
@@ -822,6 +886,18 @@ export class Constraint {
      *  Usually one; a stack layout owns each child's place. */
     ownsCell = -1;
     moreCells = null;
+    /** The cell a kernel-run rule this adopted computes (a content size, a
+     *  visibility, a compiled expression) — what it writes, for a cycle's loop. */
+    targetCell = -1;
+    /** Every cell it writes now: those it owns, and the one the kernel lands. */
+    ownedCells() {
+        const out = this.ownsCell >= 0 ? [this.ownsCell, ...(this.moreCells ?? [])] : [...(this.moreCells ?? [])];
+        if (this.targetCell >= 0)
+            out.push(this.targetCell);
+        if (this.landedCell >= 0)
+            out.push(this.landedCell);
+        return out;
+    }
     ownCell(cell) {
         if (this.ownsCell >= 0 && this.ownsCell !== cell)
             (this.moreCells ??= []).push(this.ownsCell);

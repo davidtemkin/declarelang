@@ -43,6 +43,7 @@ import { fnv1a } from "../../compiler/dist/closure.js";
 import { prewarmKey } from "../../browser/prewarm-cache.js";
 import { PREWARMED } from "../../browser/prewarm-manifest.js";
 import { buildProduction, compactValue, minifyBodies } from "../declarec.mjs";
+import { calendarParts } from "./site-figures.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, "../..");
@@ -169,11 +170,16 @@ for (const rel of ["apps/homepage/homepage.declare", "apps/calendar/calendar.dec
   const parts = lineMetrics(readFileSync(path.join(ROOT, "apps/todo/todo-parts.declare"), "utf8"));
   stats.todo.codeWithParts = stats.todo.code + parts.code;
 }
+// The calendar's build, block by block — what the Architecture page draws to
+// scale (Fig. 4) and quotes in its prose: site-figures.mjs, from the same
+// production builds, DOM and canvas, and the Mac host's own backend.
+stats.calendarParts = await calendarParts(readFileSync(path.join(ROOT, "apps/calendar/calendar.declare"), "utf8"),
+  path.join(ROOT, "apps/calendar"));
 const statsFile = path.join(ROOT, "apps/homepage/stats.json");
 const statsJson = JSON.stringify(stats, null, 2) + "\n";
 if (!existsSync(statsFile) || readFileSync(statsFile, "utf8") !== statsJson) {
   writeFileSync(statsFile, statsJson);
-  console.log(`prewarm: wrote apps/homepage/stats.json (${Object.entries(stats).map(([k, v]) => `${k} ${v.code} code · ${(v.wireGzip / 1024).toFixed(1)}KB gz`).join(", ")})`);
+  console.log(`prewarm: wrote apps/homepage/stats.json (${Object.entries(stats).filter(([, v]) => v.code !== undefined).map(([k, v]) => `${k} ${v.code} code · ${(v.wireGzip / 1024).toFixed(1)}KB gz`).join(", ")})`);
 }
 }
 

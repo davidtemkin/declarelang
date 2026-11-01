@@ -4,11 +4,11 @@
 
 ### What is Declare?
 
-Declare is a programming language for user interfaces — a domain-specific language, the way SQL is a domain-specific language for querying data. You describe an interface as a tree of views with attributes; any attribute can be a live expression, and when the things it reads change, everything that depends on it updates. All real logic is ordinary TypeScript. Programs compile in the browser or ahead of time, and one program renders either to the DOM or directly to pixels on a canvas.
+Declare is a programming language for user interfaces — a domain-specific language, the way SQL is a domain-specific language for querying data. You describe an interface as a tree of views with attributes; any attribute can be a live expression, and when the things it reads change, everything that depends on it updates. All real logic is ordinary TypeScript. Programs compile in the browser or ahead of time, and one program renders to the DOM, directly to pixels on a canvas, or as a native Mac app.
 
 ### Why should I use it?
 
-Because most of what makes UI code hard isn't your application — it's the plumbing. In Declare there is no render lifecycle to manage, no state synchronization to orchestrate, no CSS cascade to fight, no build pipeline to configure. An application is a readable tree of declarations: the flagship calendar — four views, continuous zoom, drag-to-reschedule — is a few hundred lines you can read end to end, and it ships smaller than the *runtime alone* of most frameworks. And Declare is built for the era when much code is written by machines: the language is small enough to hand a model in its entirety, and strict enough to verify what comes back.
+Because most of what makes UI code hard isn't your application — it's the plumbing. In Declare there is no render lifecycle to manage, no state synchronization to orchestrate, no CSS cascade to fight, no build pipeline to configure. An application is a readable tree of declarations: the flagship calendar — four views, continuous zoom, drag-to-reschedule — is about <!--stat:calendar.codeAbout-->500<!--/stat--> lines of code you can read end to end. Given the same brief, an agent's Declare app came out at <!--stat:venue.codeRatioWord-->half<!--/stat--> the code of its React app. And Declare is built for the era when much code is written by machines: the language is small enough to hand a model in its entirety, and strict enough to verify what comes back.
 
 ### What kinds of applications is it designed to build?
 
@@ -68,7 +68,7 @@ Because the compiler runs in the page, the page can edit and re-run itself: ever
 
 ### What does Declare's renderer-independence bring to the table?
 
-One program renders through managed DOM elements, directly to a single canvas, or in a native Mac host — same tree, same layout, same input handling, the three held to each other by a conformance suite (append `?render=canvas` to any app URL to see it). What this buys: the language owns its semantics — no DOM assumptions leak into your program; the canvas path suits environments where a DOM isn't available or isn't fast enough; and future renderers can be added without rewriting applications. Programs also run headlessly — no screen, no renderer at all — which is what powers static extraction and testing.
+One program renders through managed DOM elements, directly to a single canvas, or in a native Mac host — same tree, same layout, same input handling, the three held to each other by a conformance suite (append `?render=canvas` to any app URL to see it). The Mac host is a native macOS application, AppKit layers in place of DOM nodes, with the runtime's kernel linked in natively; you build it from the repository with one command (`npm run build:mac`). What this buys: the language owns its semantics — no DOM assumptions leak into your program; the canvas path suits environments where a DOM isn't available or isn't fast enough; and future renderers can be added without rewriting applications. Programs also run headlessly — no screen, no renderer at all — which is what powers static extraction and testing.
 
 ## Performance
 
@@ -77,8 +77,9 @@ One program renders through managed DOM elements, directly to a single canvas, o
 Concretely, measured from the deployed production artifacts:
 
 - **Wire size**: the entire Declare calendar — application *and* runtime — ships at about <!--stat:calendar.wireKB-->159<!--/stat--> KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).
-- **Source size**: the tracker — a million issues, search as you type, editing in place with undo — is <!--stat:tracker.total-->1,507<!--/stat--> lines: <!--stat:tracker.code-->982<!--/stat--> of code and <!--stat:tracker.comment-->251<!--/stat--> of comments, and no dependencies. It ships at <!--stat:tracker.wireKB-->177<!--/stat--> KB gzipped before its data, which a `DataSource` fetches at run time.
+- **Source size**: the tracker — a million issues, search as you type, editing in place with undo — is <!--stat:tracker.total-->1,507<!--/stat--> lines: <!--stat:tracker.code-->982<!--/stat--> of code and <!--stat:tracker.comment-->251<!--/stat--> of comments, and no dependencies. It ships at <!--stat:tracker.wireKB-->178<!--/stat--> KB gzipped before its data, which a `DataSource` fetches at run time.
 - **Responsiveness**: when you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.
+- **Finding what's slow**: the profiler (`declare-profile`, or the Inspector while you use the app) says which of *your* rules ran, how often and for how long, what each class cost to build, what drawings cost the GPU, and how long each frame took to reach the screen — in the program's own terms, its classes, attributes and source lines, never the runtime's internals. It runs in the browser or the Mac host.
 - **Startup**: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.
 
 Live numbers are on the homepage, measured from the deployed artifacts themselves.
@@ -95,18 +96,28 @@ A person directed; a model wrote. The calendar was built by describing what was 
 
 ### How can Declare, with no training data to speak of, be useful to an LLM — or compete with billions of lines of training corpus?
 
-Two ways. First, the language is small enough that its *entire definition* fits in a model's context window — one file, [docs/declare.md](https://github.com/davidtemkin/declarelang/blob/main/docs/declare.md), about <!--stat:spec.tokens-->13,000<!--/stat--> tokens: a small fraction of a modern context window. A model doesn't need to have trained on a language it can hold the complete spec of while writing; recent research (cited in the essay on this site) shows models write never-before-seen languages competently from a spec in context. Second, most of what an LLM writes in a Declare program *is* covered by billions of lines of training data — the logic is ordinary TypeScript. Only the small declarative shell is new, and it's regular enough to learn from the spec. For agent workflows, the repository ships the same knowledge as an installable agent skill ([skill/](https://github.com/davidtemkin/declarelang/tree/main/skill) — auto-discovered by Claude Code, usable as plain instructions by any coding agent).
+Two ways. First, the language is small enough that its *entire definition* fits in a model's context window — one file, [docs/declare.md](https://github.com/davidtemkin/declarelang/blob/main/docs/declare.md), about <!--stat:spec.tokens-->21,000<!--/stat--> tokens: a small fraction of a modern context window. A model doesn't need to have trained on a language it can hold the complete spec of while writing; recent research (cited in the essay on this site) shows models write never-before-seen languages competently from a spec in context. Second, most of what an LLM writes in a Declare program *is* covered by billions of lines of training data — the logic is ordinary TypeScript. Only the small declarative shell is new, and it's regular enough to learn from the spec. For agent workflows, the repository ships the same knowledge as an installable agent skill ([skill/](https://github.com/davidtemkin/declarelang/tree/main/skill) — auto-discovered by Claude Code, usable as plain instructions by any coding agent).
 
 ### What does Declare do to optimize for reliability and correctness of LLM-generated code?
 
 - **Mandatory type-checking** — every `{ }` body, every compile, no opt-out; the checker is held to zero false positives across the repository's own corpus (every app, library class, and documentation example it ships), so an error always means something is actually wrong.
 - **Diagnostics that name the fix** — messages are written to steer the *next* attempt, including "did you mean" guidance for common instincts from other frameworks (e.g., reaching for a CSS property).
 - **No magic** — Declare consistently chooses predictability over cleverness: dependencies are extracted statically, events don't bubble, there's one way to say most things. Code that looks right *is* right more often, and code that's wrong fails loudly.
-- **Verification tooling** — a `verify` command compiles, type-checks, and actually boots a program headlessly, so an agent can prove its output runs before handing it back.
+- **Verification tooling** — a `verify` command compiles, type-checks, boots the program in a real browser at laptop and phone sizes, and drives it with real input, so an agent can prove its output works before handing it back.
+
+### Does it work? What's the evidence?
+
+Starting cold from the repository, agents have built complete apps and passed hidden acceptance checks they never saw:
+
+- **A box office** — a drawn seat map, seats selling live while you choose, sign-in and checkout. Claude Code built it in Declare and, separately, in React. Both finished passing all <!--stat:venue.checks-->11<!--/stat--> checks. The Declare app was <!--stat:venue.declare.code-->1,279<!--/stat--> lines of code, the React app <!--stat:venue.react.code-->2,666<!--/stat-->; the first Declare build that ran passed <!--stat:venue.declare.firstBoot-->11<!--/stat-->, <!--stat:venue.declare.firstBootMin-->12.5<!--/stat--> minutes in, where the first React build passed <!--stat:venue.react.firstBoot-->6<!--/stat-->.
+- **A slide editor** with a service behind it: <!--stat:presentify.delivered-->19 of 19<!--/stat--> checks as delivered.
+- **The same box office, built by OpenAI's Codex** from the same cold download.
+
+They are single runs, not yet a benchmark, and [every one is published in full](https://github.com/davidtemkin/declarelang/tree/main/evals/reports), the agent's own account included.
 
 ### What has been done during Declare's development to optimize for LLM usage? What methodology ensures it works?
 
-It's tested, not assumed. Declare's development runs an evaluation harness: a ladder of application-building tasks given to models cold, in one-shot and iterated configurations, across model tiers. Failures feed back into the language, the diagnostics, and the documentation — several language changes exist specifically because evals showed models tripping. The documentation is written to double as training material: plain declarative prose, and every code fence in the teaching docs is compiled by the test suite, so nothing a model reads is stale or wrong. The result is a feedback loop — spec, diagnostics, evals — rather than a hope.
+It's tested, not assumed. Agents are given a brief for a complete app and the repository, cold, and build it start to finish. Hidden acceptance checks they never see then drive the result through its controls' accessible names, both as delivered and at the first build that ran. The same brief goes to React, and to more than one vendor's model, and each run is published in full with the agent's own account of it, word for word. Failures feed back into the language, the diagnostics, and the documentation — several language changes exist specifically because evals showed models tripping. The documentation is written to double as training material: plain declarative prose, and every code fence in the teaching docs is compiled by the test suite, so nothing a model reads is stale or wrong. The result is a feedback loop — spec, diagnostics, evals — rather than a hope.
 
 ## Background and practicalities
 
@@ -150,7 +161,7 @@ Your live edits belong to the session — copy the source out to keep it (it's o
 
 ### How do I test a Declare app?
 
-Three layers. The `verify` command is the cheapest and catches the most: it compiles, type-checks, and actually boots a program headlessly — proof it runs, no browser needed, ideal in CI or an agent loop. Because programs settle deterministically, you can drive one headlessly and assert on the resulting tree — that's how Declare's own test suite works. And a Declare app is a web page, so standard end-to-end tooling (Playwright, Puppeteer) applies unchanged. The platform itself is held to a stricter bar: the DOM and canvas renderers are compared pixel-for-pixel on every change.
+With `verify`, which climbs six rungs, cheapest first, and stops at the first failure. The first three read the program: structure, names, types. The fourth boots it in Chrome, at a laptop's size and a phone's, and notes what it can see wrong in the layout — a control clipped out of reach, a child spilling out of its box, text running past its edge, a phone target smaller than 44 × 44. The fifth drives the app with real input from a script and checks what happens; the sixth compares screenshots against baselines. It suits CI and an agent's loop alike. Because programs settle deterministically, you can also drive one headlessly and assert on the resulting tree — that's how Declare's own test suite works. And a Declare app is a web page, so standard end-to-end tooling (Playwright, Puppeteer) applies unchanged. The platform itself is held to a stricter bar: a conformance suite holds the DOM, canvas and Mac renderers to the same answers.
 
 ### Is Declare accessible?
 
