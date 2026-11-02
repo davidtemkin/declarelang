@@ -67,6 +67,13 @@ export declare function slotOfCell(cell: number): {
  *  the kernel's alike, since both push through this table. interaction.ts uses
  *  it to know when a view's box, place or transform moved. */
 export declare function afterPush(ctor: object, names: readonly string[], then: (self: object) => void): void;
+/** A reader the kernel wires to `self.name`'s cell directly — a compiled
+ *  expression's LOAD, which never calls the getter — counts as a tracked read
+ *  for the attribute's onTrack hook. Without this the hook never fired for such
+ *  a reader: `res = { classroot.apparentScale }` compiles to a kernel rule, the
+ *  visibility feed it arms never armed, and the fact sat at its default
+ *  (2026-11-01, test/vis-camera.test.mjs). */
+export declare function noteStaticRead(self: object, name: string): void;
 /** The kernel cell of `self.name` when it is a table slot of this instance
  *  (numeric, not escaped, not retired); −1 otherwise. Allocates the block.
  *  The EXPR binder resolves its read paths and its target through this. */

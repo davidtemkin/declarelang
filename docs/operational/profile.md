@@ -165,7 +165,7 @@ The Inspector's **◉ profile** records while you use the app. **■ stop** puts
 its console, opened tall enough to read. It records the app's turns only, not the
 Inspector's own. A turn the two share can still show one of the Inspector's rules.
 
-In a page's console (development builds):
+In a page's console (debug builds):
 - `__declare.profile.start({ why })` starts recording;
 - `.stop()` stops it;
 - `.measureDrawings()` measures each recorded drawing on the GPU;

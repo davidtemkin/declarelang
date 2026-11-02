@@ -141,6 +141,8 @@ export class Spring extends Animator {
   override $teardown(): void {
     this.slotWatch?.dispose();
     this.slotWatch = null;
+    // off the clock with its view: a spring's flight is not Animator's run
+    if (this.springRunning) { this.springRunning = false; sharedClock.remove(this); }
     super.$teardown();
   }
 

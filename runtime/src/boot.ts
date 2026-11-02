@@ -11,6 +11,7 @@ import { phasesStart, phasesStop } from "./phase-timer.js";
 import { armFirstFrame } from "./boot-deferrals.js";
 import { instantiate } from "./instantiate.js";
 import { App, View, withHostProvides } from "./view.js";
+import { onDiscard } from "./node.js";
 import { applyDeps } from "./deps.js";
 import { fontsReady } from "./font-value.js";
 import { setAppAssetBase } from "./asset-base.js";
@@ -68,13 +69,22 @@ export function provideHostServices(app: App, services: HostServices): void {
  *  linger. */
 const TEARDOWN = new WeakMap<App, () => void>();
 
-/** Tear down an embedded app's environment wiring (ResizeObserver + pointer listeners).
- *  Its rendered DOM is removed by the caller (clearing the island box); its input
- *  router self-retires once the root element is disconnected. A no-op for a
- *  top-level app. */
+/** End an embedded app: its environment wiring (ResizeObserver + pointer
+ *  listeners) at once, then, when the page is idle, the program itself — its tree discarded, so its views,
+ *  rules, cells and clocks go with it. Until 2026-11-01 only the wiring went,
+ *  and every tenant an island ever hosted stayed whole in memory, held by the
+ *  kernel's block registry (test/soak/island-*). Its rendered DOM is removed by
+ *  the caller (clearing the island box); its input router self-retires once the
+ *  root element is disconnected. */
 export function disposeApp(app: App): void {
   TEARDOWN.get(app)?.();
   TEARDOWN.delete(app);
+  // The program goes when the page is idle: its island is already empty and its
+  // wiring gone, so nothing waits on it, and the close that ended it (a window,
+  // a pane) is not made slower by tearing a whole program down inside it.
+  const end = (): void => { if (!(app as unknown as { $tornDown: boolean }).$tornDown) app.discard(); };
+  if (typeof requestIdleCallback === "function") requestIdleCallback(end, { timeout: 1000 });
+  else setTimeout(end, 0);
 }
 
 /** Wire the runtime input services to a freshly-rooted app. A TOP-LEVEL app owns
@@ -96,7 +106,7 @@ export function wireInput(app: App, host: HTMLElement, chrome = false): void {
   wireEnvironment(app, host, chrome ? false : embedded);
   // files dragged onto this app's own box (files.ts — a stand-in when the
   // program takes none); an embedded app answers for its box before its host
-  if (!chrome) wireFiles(app, host);
+  if (!chrome) onDiscard(app, wireFiles(app, host));
   if (chrome || embedded) return;
   Focus.setRoot(app);
   Keys.listen(() => app.$surface !== null);
@@ -528,14 +538,21 @@ export function reflectAppName(app: App, served: string, reflected: string): str
  *  it). Top-level apps only: an embedded child app must never retitle the
  *  page, which is why this is wired into renderProgram* — the production page
  *  entry — and never into mountApp, which islands also use. */
-function startTitleMirror(app: App, _host: HTMLElement): void {
-  if (typeof document === "undefined") return;
+function startTitleMirror(app: App, host: HTMLElement): void {
+  // an island's tenant is rendered through here too: it never retitles the
+  // page, and the mirror would hold it after its island let it go
+  if (typeof document === "undefined" || isEmbedded(host)) return;
   const served = document.title;
   let reflected = reflectAppName(app, served, "");
-  observe(() => app.appName, () => { reflected = reflectAppName(app, served, reflected); }, "titleMirror");
+  const unmirror = observe(() => app.appName, () => { reflected = reflectAppName(app, served, reflected); }, "titleMirror");
   const onUserScroll = (): void => { app.$cancelReveal(); };
   window.addEventListener("wheel", onUserScroll, { passive: true });
   window.addEventListener("touchstart", onUserScroll, { passive: true });
+  onDiscard(app, () => {
+    unmirror();
+    window.removeEventListener("wheel", onUserScroll);
+    window.removeEventListener("touchstart", onUserScroll);
+  });
 }
 
 /** Render a PRECOMPILED program (the artifact `declarec` emits) — instantiate

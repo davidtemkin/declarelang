@@ -134,6 +134,10 @@ focus if it takes focus.
 ## _closing()
 **Internal.** The close work: lets the keyboard go, gives focus back, calls `closed()`.
 
+## onRetire
+An overlay that goes while it is open leaves the overlays' stack and lets the keyboard
+go, as a close would. An override calls `super.onRetire()`.
+
 ## show()
 Opens it, through `input(true)`: picks its layer, builds it, holds the keyboard, and takes
 focus if it takes focus.
@@ -396,6 +400,16 @@ class Floating [
         },
 
     closed() { },
+
+    // gone while open (its row rebuilt, its view discarded): off the stack and
+    // the keyboard released, or both would hold the discarded overlay for good
+
+    onRetire() {
+        if (!_live) return
+        _live = false
+        for (const c of app.children) { if ((c as any)._isOverlayStrata === true) (c as any).closedIt(this) }
+        Keys.navClaim(this, false)
+        },
 
     isTop() -> boolean { return this._strata().top() == this },
 

@@ -1,0 +1,7 @@
+// a tenant with nothing but views (island-each.declare)
+
+App [ width = 200, height = 100,
+    View [ width = 50, height = 20, fill = #336699,
+        Text [ text = "plain" ]
+        ]
+    ]

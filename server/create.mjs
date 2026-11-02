@@ -404,6 +404,7 @@ bootHost(cfg);
       .digest("hex").slice(0, 16);
   }
 
+  const prodInflight = new Map();   // key → the build running for it
   async function ensureProdBuild(srcPath, flags) {
     if (!existsSync(srcPath)) return null;
     const source = readFileSync(srcPath, "utf8");
@@ -423,14 +424,26 @@ bootHost(cfg);
     if (existsSync(manPath)) {
       try { const d = JSON.parse(readFileSync(manPath, "utf8")); if (await fresh(d)) { prodMem.set(key, d); return d; } } catch { /* rebuild */ }
     }
-    const built = await toolchain.production({ source, name, srcDir: dir, outDir, ...flags, props: { toolchain: tc } });
-    if (!built.ok) return { error: built.errors, report: built.report };
-    man = { closure: built.closure, dir: outDir, moduleName: built.moduleName, sizes: built.sizes,
-      assets: built.assets, used: built.usedClasses, source: srcPath, builtAt: null };
-    mkdirSync(outDir, { recursive: true });
-    writeFileSync(manPath, JSON.stringify(man, null, 2));
-    prodMem.set(key, man);
-    return man;
+    // ONE build per key at a time: a page and the assets it asks for arrive
+    // together, each found no fresh build, and each started one into the same
+    // directory — the second failed (EEXIST on the build's data/), and the page's
+    // images came back 500 (test/prod-parity, lzx-calendar, 2026-11-01). Later
+    // requests wait on the build already running.
+    let pending = prodInflight.get(key);
+    if (pending === undefined) {
+      pending = (async () => {
+        const built = await toolchain.production({ source, name, srcDir: dir, outDir, ...flags, props: { toolchain: tc } });
+        if (!built.ok) return { error: built.errors, report: built.report };
+        const m = { closure: built.closure, dir: outDir, moduleName: built.moduleName, sizes: built.sizes,
+          assets: built.assets, used: built.usedClasses, source: srcPath, builtAt: null };
+        mkdirSync(outDir, { recursive: true });
+        writeFileSync(manPath, JSON.stringify(m, null, 2));
+        prodMem.set(key, m);
+        return m;
+      })().finally(() => prodInflight.delete(key));
+      prodInflight.set(key, pending);
+    }
+    return pending;
   }
 
   // ── the SIZES request: what the production build is made of, as JSON ───────

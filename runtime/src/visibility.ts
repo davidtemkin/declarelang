@@ -45,13 +45,16 @@ interface Feed {
    *  wired rules over the vis* output cells. */
   elem: number;
   rule: number;
+  /** startVisibility is installing: the first value it lands can wake a read
+   *  of another fact, which arms again — that arm finds the install under way */
+  starting: boolean;
 }
 
 const FEEDS = new WeakMap<View, Feed>();
 function feedOf(v: View): Feed {
   let f = FEEDS.get(v);
   if (f === undefined) {
-    f = { armed: false, unwatch: null, generic: null, wake: null, pending: null, stale: false, flushTimer: 0, elem: -1, rule: -1 };
+    f = { armed: false, unwatch: null, generic: null, wake: null, pending: null, stale: false, flushTimer: 0, elem: -1, rule: -1, starting: false };
     FEEDS.set(v, f);
   }
   return f;
@@ -150,7 +153,7 @@ function fallbackToJS(v: View, f: Feed): void {
   kernel().dispose(f.rule); f.rule = -1;
   if (f.generic !== null) { f.generic.dispose(); f.generic = null; }
   if (f.wake !== null) { f.wake.dispose(); f.wake = null; }
-  startVisibility(v);
+  installFeed(v, f);   // not startVisibility: this may run inside an install (wiring)
 }
 
 /** The model's own answer — the ancestor walk, with TRACKED reads: the visible
@@ -181,7 +184,12 @@ export function readVisibility(v: View): { on: boolean; rect: Rect | null; scale
 
 function startVisibility(v: View): void {
   const f = feedOf(v);
-  if (!f.armed) return;
+  if (!f.armed || f.starting) return;
+  f.starting = true;
+  try { installFeed(v, f); } finally { f.starting = false; }
+}
+
+function installFeed(v: View, f: Feed): void {
   const s = v.$surface;
   if (s?.watchVisibility) {
     // backend feed available: retire any generic computer from a prior life
@@ -208,7 +216,10 @@ function startVisibility(v: View): void {
         v.$surface?.refreshVisibility?.();
       };
       if (installKernelVis(v, f)) {
-        f.wake = outputRule(v, f, `${declareName(v)}.visibilityWake`, () => wake());
+        // wiring runs the rule: a chain it finds 3D falls back to the JS walk
+        // (fallbackToJS) before this returns, and that walk is the wake then
+        const w = outputRule(v, f, `${declareName(v)}.visibilityWake`, () => wake());
+        if (f.rule >= 0) f.wake = w; else w.dispose();
       } else {
         f.wake = new Constraint(`${declareName(v)}.visibilityWake`, () => readVisibility(v), wake);
         f.wake.owner = v;
@@ -219,7 +230,9 @@ function startVisibility(v: View): void {
   }
   if (f.generic !== null) { if (f.rule >= 0) relinkKernelVis(v, f); return; } // already computing
   if (installKernelVis(v, f)) {
-    f.generic = outputRule(v, f, `${declareName(v)}.visibility`, (on, rect, scale) => deliverVisibility(v, f, on, rect, scale));
+    // as above: a fallback during the wiring has already installed the JS walk
+    const g = outputRule(v, f, `${declareName(v)}.visibility`, (on, rect, scale) => deliverVisibility(v, f, on, rect, scale));
+    if (f.rule >= 0) f.generic = g; else g.dispose();
     return;
   }
   f.generic = new Constraint(

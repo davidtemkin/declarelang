@@ -11,7 +11,9 @@ presentations (`api/seed.mjs`).
 - the hidden checks' results, delivered and at first boot (`drive/`);
 - the prompt and the questions it was asked (`prompt.txt`, `impressions.txt`).
 
-Its account is at the end, word for word.
+Its account is near the end, word for word, followed by the names ledger. The React build of the same brief is
+`evals/reports/2026-11-01-presentify-react-run1`; the side-by-side page (figures, flows, code review, 29 matched
+screenshots) is the Artifact https://claude.ai/artifact/4XFttZkHrdEcu7qNdAcQA7.
 
 ## Figures
 
@@ -98,45 +100,38 @@ Each reproduced in a minimal program against the current runtime.
 
 1. **A recursive schema crashes the checker.** `schema Item [ … children[]?: Item ]` → `RangeError: Maximum call
    stack size exceeded` in `check.js` `walk`. Confirmed. It cost the agent a workaround (`children[]?: any` and
-   casts) through the whole app.
+   casts) through the whole app. *(Fixed since: a recursive schema checks
+   cleanly.)*
 2. **A parse error in an included file names no file.** `graveyard: any = ({})` in an included file →
-   "expected a value, got '(' [DECLARE5000] (line 2, col 22)", read as the main file's line. Confirmed. (The
+   "expected a value, got '(' [DECLARE5000] (line 2, col 22)", read as the main file's line. Confirmed. *(Fixed since, `d6218aee`: every phase names the
+   included file.)* (The
    agent also saw an `outline` refusal without a file; that one names its file in a minimal program.)
 3. **"first at line N" is a position in the merged program.** A duplicate member reports its own line right but
    the first one's in merged lines ("first at line 5" for line 3; the agent saw "line 7047" in an 835-line
-   file). Confirmed.
+   file). Confirmed. *(Fixed since, `d6218aee`: the first one's line is the file's own.)*
 4. **A `layout:` on a `Popover` fails at boot, blaming the library.** "View.y (library/popover.declare:126:35) —
    Popover's SimpleLayout places its children, so this child does not declare its y". The layout reached the
    library's own frame inside the popover. Confirmed; the error should name the use site, and could be refused at
-   compile time.
+   compile time. *(Fixed since, `d6218aee`: a use-site `layout:` beside children placed by `defaultPlacement`
+   arranges them.)*
 5. **Set, then `fetch()`, inside `onChange` sends the old URL.** `onChange(e) { opening = "d1"; src.fetch() }` with
    `url = { … + app.opening }` → `GET /api/decks/ → 404`. Confirmed. The docs say `fetch()` settles first; inside
-   `onChange` it doesn't, and nothing says so.
+   `onChange` it doesn't, and nothing says so. *(Fixed since, `d6218aee`: a `fetch()` made during a settle runs once
+   the settle has landed its writes.)*
 6. **~~A `Text` inside a `TextInput` is accepted and never drawn.~~ Withdrawn.** A view inside a field draws,
    placed or not: the corpus relies on it (desktop's magnifying glass, weather's clear button). The audit first
    confirmed only that the agent's case compiled clean; a refusal built on that broke both apps and was reverted.
    What hid the agent's label was in its own code.
 7. **`TextInput` has no text alignment or italic.** Confirmed in the reference. In a slide editor, centred text is
-   left-aligned while it's typed: shipped as a visible limitation, and the agent's top request.
+   left-aligned while it's typed: shipped as a visible limitation, and the agent's top request. *(Fixed since: `TextInput` has
+   `textAlign` and `italic`, kept while the text is typed.)*
 8. **Warning noise.** About 30 warnings on every run, mostly DECLARE3005 (a field's text size under iOS's
    focus-zoom line) in a desk-only app. The agent stopped reading warnings, and so missed DECLARE4031 (an
-   `onKeyDown` that didn't call `super`), which was real.
+   `onKeyDown` that didn't call `super`), which was real. *(Addressed since, `d6218aee`: warnings come in kinds —
+   bugs, accessibility, devices, lint — and a program quiets a kind it doesn't care about, e.g. `devices = desk`.)*
 
 Not platform defects, but asked for: undo and redo in the library; a fullscreen facility; `outline` and `home`
 as names an app would want.
-
-## Names
-
-```
-NAMES — eval-presentify-1: 0 missed name(s), 1 collision(s), 0 declare-help miss(es), 0 empty search(es)
-
-MISSES (min · kind · name · on · origin · the platform's answer · times · resolved at min · how it ended)
-
-COLLISIONS (min · held by · name)
-     4 · Declare's type · Stroke
-
-SUMMARY: 0 of 0 misses got no hint · 0 declared instead (none) · 0 never resolved (none)
-```
 
 ## Its account, word for word
 
@@ -372,3 +367,16 @@ The hardest idea to absorb was "set and then fetch" versus settles. That is a pa
 Interactive, state-heavy tools: editors, dashboards, internal apps, anything with live previews of the same data at several scales. I'd especially use it where a team or an LLM writes most of the code and the compiler's strictness pays for itself.
 
 I'd hesitate for text-heavy editing until `TextInput` grows. I'd also hesitate where I need a deep library ecosystem today.
+
+## Names
+
+```
+NAMES — eval-presentify-1: 0 missed name(s), 1 collision(s), 0 declare-help miss(es), 0 empty search(es)
+
+MISSES (min · kind · name · on · origin · the platform's answer · times · resolved at min · how it ended)
+
+COLLISIONS (min · held by · name)
+     4 · Declare's type · Stroke
+
+SUMMARY: 0 of 0 misses got no hint · 0 declared instead (none) · 0 never resolved (none)
+```

@@ -102,6 +102,17 @@ export function routeInput(alive, resolve, rootPoint, onHover,
 // the top-level program's router — the one that answers the open overlays
 // (an embedded program's own router leaves it to the page's)
 topLevel = true) {
+    // Every window listener the router keeps, so its program's end removes them
+    // at once (the returned stop) — each also retires itself on the first event
+    // after its root is gone (`alive`), but a key never pressed again kept the
+    // whole discarded program alive through it (soak, 2026-11-01).
+    const offs = [];
+    const onWindow = (type, fn, opts) => {
+        const f = fn;
+        window.addEventListener(type, f, opts);
+        const capture = typeof opts === "boolean" ? opts : opts?.capture === true;
+        offs.push(() => window.removeEventListener(type, f, capture));
+    };
     // The pressed view captures the pointer: while held, `pointerMove` (and the
     // eventual release) go to IT, not to whatever is under the pointer — the
     // capture a drag needs. (For touch the browser already implicitly captures the
@@ -271,7 +282,7 @@ topLevel = true) {
             noteModifiers(e);
             handle(e);
         };
-        window.addEventListener(type, listener);
+        onWindow(type, listener);
     };
     // The platform's CONTEXT gesture (right-click / two-finger tap): resolved
     // through the same seam as every press; delivered — and the browser's own
@@ -316,7 +327,7 @@ topLevel = true) {
                 keyTook = performance.now();
             }
         };
-        window.addEventListener("keydown", keyListener, true);
+        onWindow("keydown", keyListener, true);
         const ctxListener = (e) => {
             if (!alive()) {
                 window.removeEventListener("contextmenu", ctxListener);
@@ -330,7 +341,7 @@ topLevel = true) {
             }
             deliverAt(e, e);
         };
-        window.addEventListener("contextmenu", ctxListener);
+        onWindow("contextmenu", ctxListener);
     }
     // a scroll aimed past an open overlay: `scrollBelow = block` swallows it
     // (wheel and touch alike); listened in the capture phase, ahead of every
@@ -370,8 +381,8 @@ topLevel = true) {
             if (t !== undefined)
                 refuse(e, t.clientX, t.clientY);
         };
-        window.addEventListener("wheel", onWheel, { capture: true, passive: false });
-        window.addEventListener("touchmove", onTouchMove, { capture: true, passive: false });
+        onWindow("wheel", onWheel, { capture: true, passive: false });
+        onWindow("touchmove", onTouchMove, { capture: true, passive: false });
         // A TAP'S TRAILING MOUSE EVENTS. After a finger lifts, the browser sends the
         // mouse events a tap stands for (mousedown, mouseup, click) at the same
         // point. When the tap changed what is there — Continue opens the next
@@ -404,7 +415,7 @@ topLevel = true) {
                 lastTap = null;
         };
         for (const k of ["mousedown", "mouseup", "click"])
-            window.addEventListener(k, trailing, true);
+            onWindow(k, trailing, true);
     }
     listen("pointerdown", (e) => {
         // a press aimed past an open overlay: its policy first (planes.md §8.1)
@@ -810,8 +821,10 @@ topLevel = true) {
             captor.sink("pointerUp", lastX, lastY, { canceled: true, ...moved(lastX, lastY) });
             clearHover();
         };
-        window.addEventListener("scroll", scrollListener, true);
+        onWindow("scroll", scrollListener, true);
     }
+    return () => { for (const off of offs.splice(0))
+        off(); };
 }
 /** Does a wheel scroll pass a view whose `claim` covers only one axis — a
  *  scroll mostly along the other, which goes on to the page as a finger's does

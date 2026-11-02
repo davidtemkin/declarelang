@@ -51,7 +51,7 @@ Where each is read:
 
 - **typecheck** — a phase of every compile, always on, with no opt-out.
 - **slim / stripPos** — these are simply what a build *is*: always slimmed, always
-  position-stripped. `declarec --debug` keeps both for debugging a build.
+  position-stripped. A debug build (`declarec --debug`) keeps both.
 - **build** — a *request type*, not a modifier: `?build` (see [dev-server](declare-docs:operational:dev-server)).
 
 Because the surfaces derive from `FLAG_SPECS`, adding a modifier is one registry edit and every

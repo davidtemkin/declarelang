@@ -68,6 +68,8 @@ import { declareName } from "./declare-name.js";
 // than a View field: only the pusher below touches it, and a layout-free
 // view (the common case) carries nothing.
 const INSTALLED = new WeakMap();
+/** The layout each view arranges with — torn down with the view (below). */
+const LAYOUT_NODE = new WeakMap();
 // Teardown registration (onDiscard) moved to node.ts (2026-07-13): a plain
 // Node can host a `<-` subscription, so the registry lives at the base.
 // Re-exported here so existing importers keep their path.
@@ -126,8 +128,11 @@ export function readRowIndex(v) {
 }
 export function setRowIndex(v, index) {
     const p = ROW_PLACES.get(v);
-    if (p === undefined)
-        ROW_PLACES.set(v, { index, cell: new Cell() });
+    if (p === undefined) {
+        const place = { index, cell: new Cell() };
+        ROW_PLACES.set(v, place);
+        onDiscard(v, () => { place.cell.free(); ROW_PLACES.delete(v); }); // its kernel cell goes with the row
+    }
     else if (p.index !== index) {
         p.index = index;
         p.cell.changed();
@@ -350,6 +355,10 @@ const isPlaced = (s) => s != null && !isDeferred(s) && !DETACHED_SURFACES.has(s)
 /** Waiting views held back by a real ancestor that is hidden (shown once,
  *  hidden since), filed under that ancestor: its next show brings them in. */
 const WAITING_UNDER = new WeakMap();
+/** The ancestor each waiting view is filed under — so a view torn down while it
+ *  waits leaves the set (2026-11-01: rows discarded inside a hidden pane stayed
+ *  filed, alive, under the pane until it was shown again). */
+const FILED_UNDER = new WeakMap();
 /** How many views are filed there — while none are, a show looks nothing up. */
 let waitingUnderCount = 0;
 /** A view shown while deferral has work for it: it waits on a stand-in (it
@@ -365,8 +374,10 @@ function showDeferring(v) {
     if (held !== undefined) {
         WAITING_UNDER.delete(v);
         waitingUnderCount -= held.size;
-        for (const w of held)
+        for (const w of held) {
+            FILED_UNDER.delete(w);
             w.$ensureReal("shown");
+        }
     }
 }
 /** Views attached inside a settle (View.$attach): the settle's close brings
@@ -585,7 +596,6 @@ export class View extends Node {
      *  geometry re-runs when the arrangement lands — the result is the one the
      *  final child list gives either way. */
     $mutationQueued = false;
-    $tornDown = false;
     $childrenMutated() {
         if (isSettling()) {
             this.layout?.$retireNative?.();
@@ -1084,6 +1094,17 @@ export class View extends Node {
             fireRetireTree(this);
         // Move focus off this subtree before it is torn down (input.md §mutation).
         focusDiscardHook?.(this);
+        // a view filed to come in under a hidden ancestor leaves the filing
+        const filed = waitingUnderCount > 0 ? FILED_UNDER.get(this) : undefined;
+        if (filed !== undefined) {
+            FILED_UNDER.delete(this);
+            const set = WAITING_UNDER.get(filed);
+            if (set !== undefined && set.delete(this)) {
+                waitingUnderCount--;
+                if (set.size === 0)
+                    WAITING_UNDER.delete(filed);
+            }
+        }
         // EVERY child, not just Views: an Animator/Spring child is a Node, and its
         // `to`/`attribute` bindings must be disposed too (else they leak, subscribed
         // to whatever they read — e.g. a Spring `to = { app.openSection … }`).
@@ -1094,6 +1115,16 @@ export class View extends Node {
         if (undoLayout !== undefined) {
             INSTALLED.delete(this);
             undoLayout();
+        }
+        // The layout goes with the view it arranges (a layout arranges one view).
+        // Uninstalled but never torn down, it kept its own rules bound, its cells
+        // listed, and its methods' scope — the view's classroot — alive: every
+        // torn-down view with a layout stayed in memory with everything it held
+        // (2026-11-01, found churning a chat app's conversations).
+        const lay = LAYOUT_NODE.get(this);
+        if (lay !== undefined) {
+            LAYOUT_NODE.delete(this);
+            lay.$teardown();
         }
         disposeBindings(this);
         freeCells(this);
@@ -1146,6 +1177,7 @@ export class View extends Node {
                     if (!set.has(this)) {
                         set.add(this);
                         waitingUnderCount++;
+                        FILED_UNDER.set(this, u);
                     }
                     return false;
                 }
@@ -1359,6 +1391,9 @@ export class View extends Node {
     /** @internal the facts' feed (visibility.ts), armed by the attribute
      *  table's onTrack — the first tracked read of a fact — and by a drawing. */
     $armVisibility() {
+        // a torn-down view has no feed to arm: one armed now is never retired
+        if (this.$tornDown)
+            return;
         armVisibility(this);
     }
     /** The composed transform from MY frame to ROOT-frame space — `{x, y,
@@ -2107,8 +2142,12 @@ defineAttributes(View, {
         push: (v, l) => {
             INSTALLED.get(v)?.();
             INSTALLED.delete(v);
-            if (l !== null)
+            if (l !== null) {
                 INSTALLED.set(v, l.attachTo(v));
+                LAYOUT_NODE.set(v, l);
+            }
+            else
+                LAYOUT_NODE.delete(v);
         },
     },
 });
@@ -2185,8 +2224,12 @@ export function noteFocused(now, byKeyboard = false) {
 function readFocused(v) {
     let c = focusedCells.get(v);
     if (c === undefined) {
-        c = new Cell();
-        focusedCells.set(v, c);
+        const cell = (c = new Cell());
+        focusedCells.set(v, cell);
+        // the cell goes with its view: a WeakMap lets the Cell go, but its kernel
+        // cell stays until freed (2026-11-01: every focusable row a chat app
+        // rebuilt kept one)
+        onDiscard(v, () => { cell.free(); focusedCells.delete(v); });
     }
     c.track();
     return FOCUSED === v;
@@ -2821,6 +2864,10 @@ export class App extends View {
             this.$surface?.setPageExtent?.(w, h);
         }, 1);
         this.$pageScroll.run();
+        // it goes with the App: left standing, its closure held the App — and with
+        // it every view, record and cell of a discarded program (2026-11-01: one
+        // rule per discarded program kept the whole program alive)
+        onDiscard(this, () => { this.$pageScroll?.dispose(); this.$pageScroll = null; });
     }
     $childrenMutated() {
         super.$childrenMutated();

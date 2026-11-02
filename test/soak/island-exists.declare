@@ -1,0 +1,10 @@
+// island-exists — an AppIsland that is itself built and discarded
+// (exists = { app.on }), so its tenant program is disposed with it each cycle.
+// Driven by island-exists.assert.mjs.
+
+App [ width = 800, height = 600,
+    on: boolean = true,
+    box: View [ x = 20, y = 70, width = 340, height = 240,
+        AppIsland [ exists = { app.on }, width = 320, height = 220, program = "island-tenant" ]
+        ]
+    ]

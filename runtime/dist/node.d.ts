@@ -17,6 +17,9 @@ export declare function provideCursorWrite(fn: CursorWrite): void;
 export declare class Node {
     constructor();
     parent: Node | null;
+    /** Torn down: retired with its subtree. Services that hold nodes they did
+     *  not build (Keys' shortcut sets and claims) drop the ones that are. */
+    protected $tornDown: boolean;
     /** The parent a removeChild just unlinked from — a re-link back to the SAME
      *  parent (what replication does to every row of a block on any change) is
      *  not a move, and must not invalidate the provider memos. */

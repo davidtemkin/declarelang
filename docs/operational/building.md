@@ -151,7 +151,7 @@ prose that remains is one sentence — the `.error` an app may show.
 | `--crawler=true` | bake the extracted static document into `index.html` (crawlers read it; the client clears it at boot) |
 | `--kernel=js` | carry the JavaScript reactive kernel instead of the WebAssembly one: about 9 KB gzipped smaller, the same results, somewhat slower on view-heavy work and at startup on phones. `wasm` is the default |
 | `--extract` | also write the static document standalone as `<name>.extract.html` |
-| `--debug` | a developer's build: the program verbatim, positions, prose, the Inspector, no slimming. For a program that needs some of that *in production*, declare it — `ship [ inspector = true ]` |
+| `--debug` | a **debug build**, the kind the dev server serves: the program verbatim, positions, prose, the Inspector, no slimming. For a program that needs some of that *in production*, declare it — `ship [ inspector = true ]` |
 | `--sizes` | after the build, report what it is made of and what each part weighs (below); with `--json`, the report alone as JSON |
 | `--quiet` | suppress progress output |
 

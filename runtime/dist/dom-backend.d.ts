@@ -484,6 +484,8 @@ export declare class DomSurface implements Surface {
     watchVisibility(cb: VisibilityCb): () => void;
     refreshVisibility(): void;
     private unwatchVisibility;
+    /** The root's input router: its window listeners go with the program. */
+    stopInput: (() => void) | null;
     destroy(): void;
 }
 /** THE USER'S SCROLL, reported as one fact (`userScrolling`): true from the first

@@ -120,25 +120,31 @@ function instantiateKernelJS(host, caps = {}) {
   const known = /* @__PURE__ */ __name((rule) => rule >= 0 && rule < nrules, "known");
   const consts = [];
   const code = [];
-  const CODE_CLASSES = 64;
-  const codeFree = /* @__PURE__ */ new Map();
+  const CONST_SEEN = 64, CODE_EXACT = 64;
+  const codeFree = [];
   const constFree = [];
+  const codeSlot = /* @__PURE__ */ __name((n) => {
+    if (n <= CODE_EXACT)
+      return [n, n];
+    let c = 7;
+    while (1 << c < n)
+      c++;
+    return [CODE_EXACT + 1 + (c - 7), 1 << c];
+  }, "codeSlot");
   const codeTake = /* @__PURE__ */ __name((n) => {
-    const list = n >= 1 && n <= CODE_CLASSES ? codeFree.get(n) : void 0;
+    const [slot, size] = codeSlot(n);
+    const list = n >= 1 ? codeFree[slot] : void 0;
     if (list !== void 0 && list.length > 0)
       return list.pop();
     const at = code.length;
-    for (let i = 0; i < n; i++)
+    for (let i = 0; i < size; i++)
       code.push(0);
     return at;
   }, "codeTake");
   const codeGive = /* @__PURE__ */ __name((off, n) => {
-    if (n === 0 || n > CODE_CLASSES || off + n > code.length)
+    if (n === 0 || off + n > code.length)
       return;
-    let list = codeFree.get(n);
-    if (list === void 0)
-      codeFree.set(n, list = []);
-    list.push(off);
+    (codeFree[codeSlot(n)[0]] ??= []).push(off);
   }, "codeGive");
   let ncells = 0;
   const cellFree = [];
@@ -447,7 +453,7 @@ ${new Error().stack ?? ""}`);
         const ci = code[i++];
         if (seen.includes(ci))
           continue;
-        if (seen.length < CODE_CLASSES)
+        if (seen.length < CONST_SEEN)
           seen.push(ci);
         if (ci < consts.length)
           constFree.push(ci);

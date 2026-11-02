@@ -11,7 +11,7 @@
 import { deferral } from "./boot-deferrals.js";
 import { DeclareError } from "./errors.js";
 import { Constraint, kernel, touchCell, readsCellDuring } from "./reactive.js";
-import { defaultOf, hasSlot, markPercent, setPercentMark, own, release, setBound, provideWrite, computingProvision, slotCellOf, writeOwned, isSetOrOwned, ownerOf, kernelLanding, defaultIsLive } from "./attributes.js";
+import { defaultOf, hasSlot, markPercent, setPercentMark, own, release, setBound, provideWrite, computingProvision, slotCellOf, noteStaticRead, writeOwned, isSetOrOwned, ownerOf, kernelLanding, defaultIsLive } from "./attributes.js";
 import { KERNEL_FLAG } from "./kernel-loader.js";
 import { watchingContentRead } from "./size-probe.js";
 import { compileExpr, bodyLabel } from "./expr.js";
@@ -259,6 +259,7 @@ function bindKernelExpr(view, name, expr, classroot, label, src, pos, yielding =
         const c = slotCellOf(node, slot);
         if (c < 0 || c === target)
             return exprWhy(label, (c === target ? "self-read: " : "slot not numeric: ") + p);
+        noteStaticRead(node, slot); // what a tracked read through the getter would have armed
         cells.push(c);
     }
     const K = kernel();

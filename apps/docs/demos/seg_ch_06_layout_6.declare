@@ -1,0 +1,49 @@
+class NoteRow extends View [ width = 100%, padding = 8,
+    fill = { app.open == rowIndex ? 0xE6E6FA : null },
+    onClick() { app.open = rowIndex },
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Text [ fontWeight = semibold, text = { :title } ],
+    Text [ width = 100%, fontSize = 12, textColor = slategray, text = { :text } ]
+    ]
+
+
+App [ width = 640, height = 260, fill = white, textColor = black,
+    notes: Dataset { { "items": [
+        { "title": "Groceries", "text": "Oat milk, lemons, the good bread." },
+        { "title": "Garden", "text": "Move the rosemary out of the shade before the frost.",
+          "photos": [ { "tone": 1 }, { "tone": 2 }, { "tone": 0 }, { "tone": 2 } ] },
+        { "title": "Plumber", "text": "The kitchen tap again. Ask about the boiler." }
+        ] } },
+    open: number = -1,
+    layout: SimpleLayout [ axis = y ],
+    header: View [ width = 100%, height = 40, fill = steelblue,
+        Text [ x = 12, y = center, textColor = white, fontWeight = semibold, text = "Notes" ]
+        ],
+    body: View [ width = 100%, flexes = true,
+        layout: ResponsiveLayout [ align = stretch, plan = { [
+            ({ from: 480, flow: "row", share: ({ list: 35, pane: 65 }) }),
+            ({ from: 0, flow: "row",
+               share: app.open < 0 ? ({ list: 100, pane: 0 }) : ({ list: 0, pane: 100 }) })
+            ] } ],
+        list: View [ scrolls = y, fill = whitesmoke,
+            datapath = { app.notes.value },
+            layout: SimpleLayout [ axis = y ],
+            NoteRow [ datapath = :items[] ]
+            ],
+        pane: View [
+            Text [ x = 16, y = 16, width = { parent.width - 32 },
+                text = { app.open < 0 ? "No note open" : app.notes.value.items[app.open].text } ]
+            ]
+        ],
+    actions: View [ width = 100%, height = 40, visible = { app.open >= 0 }, fill = lavender,
+        padding = [0, 12, 0, 12],
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Button [ label = "Pin" ],
+        Button [ label = "Close",
+            onClick() { app.open = -1 }
+            ]
+        ],
+    footer: View [ width = 100%, height = 28, fill = gainsboro,
+        Text [ x = 12, y = center, fontSize = 12, text = "3 notes" ]
+        ]
+    ]

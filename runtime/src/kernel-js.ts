@@ -131,23 +131,29 @@ export function instantiateKernelJS(host: KernelHost, caps: KernelCaps = {}): Ke
   const consts: number[] = [];
   const code: number[] = [];
   // REUSE of the code and constant arenas (kernel.c code_take/code_give): a
-  // freed rule's bytecode, constants and lists come back, the next allocation
-  // of the same length taking the last one freed.
-  const CODE_CLASSES = 64;
-  const codeFree = new Map<number, number[]>();
+  // freed rule's bytecode, constants and lists come back. A block of up to
+  // CODE_EXACT words is reused by its exact length, unrounded; a longer one
+  // takes the smallest power of two that holds it, so it too comes back for any
+  // later block of its class, however long.
+  const CONST_SEEN = 64, CODE_EXACT = 64;
+  const codeFree: number[][] = [];
   const constFree: number[] = [];
+  const codeSlot = (n: number): [number, number] => {
+    if (n <= CODE_EXACT) return [n, n];
+    let c = 7; while ((1 << c) < n) c++;
+    return [CODE_EXACT + 1 + (c - 7), 1 << c];
+  };
   const codeTake = (n: number): number => {
-    const list = n >= 1 && n <= CODE_CLASSES ? codeFree.get(n) : undefined;
+    const [slot, size] = codeSlot(n);
+    const list = n >= 1 ? codeFree[slot] : undefined;
     if (list !== undefined && list.length > 0) return list.pop()!;
     const at = code.length;
-    for (let i = 0; i < n; i++) code.push(0);
+    for (let i = 0; i < size; i++) code.push(0);
     return at;
   };
   const codeGive = (off: number, n: number): void => {
-    if (n === 0 || n > CODE_CLASSES || off + n > code.length) return;
-    let list = codeFree.get(n);
-    if (list === undefined) codeFree.set(n, (list = []));
-    list.push(off);
+    if (n === 0 || off + n > code.length) return;
+    (codeFree[codeSlot(n)[0]] ??= []).push(off);
   };
   let ncells = 0;
   const cellFree: number[] = [];
@@ -353,7 +359,7 @@ export function instantiateKernelJS(host: KernelHost, caps: KernelCaps = {}): Ke
         if (op !== 2) continue;                    // operators take no operand
         const ci = code[i++];
         if (seen.includes(ci)) continue;
-        if (seen.length < CODE_CLASSES) seen.push(ci);
+        if (seen.length < CONST_SEEN) seen.push(ci);
         if (ci < consts.length) constFree.push(ci);
       }
       codeGive(c0, n);

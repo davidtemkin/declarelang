@@ -1,0 +1,40 @@
+// rows-edit — rows whose views are being edited, focused, dragged, or hold a
+// modal dialog, rich text and drawings when they are rebuilt (keyless).
+// Driven by rows-edit.assert.mjs.
+
+App [ width = 900, height = 700,
+    seq: number = 0,
+    drags: number = 0,
+    model: Dataset [ contents = { ({ rows: [0, 1, 2, 3].map((i) => ({ k: "row " + i + "." + app.seq, md: "**bold " + i + "** and `code` [a link](https://example.com)" })) }) } ],
+    list: View [ x = 20, y = 20, width = 600, datapath = { app.model.value },
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        Row [ datapath = :rows[] ]
+        ],
+    rebuild: Button [ x = 700, y = 20, label = "Rebuild",
+        onClick() { app.seq = app.seq + 1 }
+        ],
+
+    // a key rebuilds too (Keys is app-wide): the focused field is discarded by it
+
+    Keys [ onKeyDown(e: KeyEvent) { if (e.key == "F2") app.seq = app.seq + 1 }
+        ]
+    ]
+
+
+class Row extends View [ width = 600, height = 90, fill = #f4f4f4,
+    field: TextInput [ x = 10, y = 8, width = 180, height = 28, text = :k,
+        onInput(v: string) { }
+        ],
+    dlgBtn: Button [ x = 200, y = 8, label = "Dialog",
+        onClick() { classroot.dlg.show() }
+        ],
+    dlg: Dialog [ title = "Modal", message = "row dialog", buttons = { [{ id: "ok", label: "OK" }] } ],
+    handle: View [ x = 300, y = 8, width = 40, height = 40, fill = #8899aa,
+        onPointerMove(e: PointerEvent) { app.drags = app.drags + 1; if (app.drags % 7 == 0) app.seq = app.seq + 1 }
+        ],
+    Markdown [ x = 350, y = 4, width = 240, text = :md ],
+    HTMLText [ x = 10, y = 44, width = 280, html = { "<p>row <b>" + app.seq + "</b> <i>html</i></p>" } ],
+    ink: View [ x = 300, y = 52, width = 40, height = 30,
+        draw(d: DrawContext) { d.fillStyle = "#336699"; d.fillRect(0, 0, 10 + app.seq % 30, 20) }
+        ]
+    ]

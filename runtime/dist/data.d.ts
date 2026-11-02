@@ -29,6 +29,13 @@ export declare class Dataset extends Node {
      *  `:path`s and types `{ }` reads from it. */
     schema: DataShape | null;
     private readonly cursors;
+    /** Retire with the program: the cells readers made inside its value are freed
+     *  once no rule listens to them (retireAll — a record shared with a program
+     *  still running keeps its listened ones). Without this they waited for the
+     *  collector to find the records, so a program built after a discarded one
+     *  found them still held, and the cell table's high-water mark crept with each
+     *  program discarded (2026-11-01). */
+    $teardown(): void;
     /** Counts changes to the dataset's SHAPE — a record inserted, removed,
      *  moved or replaced, or the whole value adopted. A replicated row's
      *  positional cursor is current while this matches the count it was given

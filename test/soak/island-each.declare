@@ -1,0 +1,15 @@
+// island-each — one AppIsland per tenant in tenants/, each built and discarded
+// on its own flag, to say which feature of a tenant keeps it alive.
+// Driven by island-each.assert.mjs.
+
+App [ width = 900, height = 600,
+    which: string = "",
+    box: View [ x = 20, y = 70, width = 860, height = 240,
+        layout: SimpleLayout [ axis = x, spacing = 4 ],
+        AppIsland [ exists = { app.which == "plain" }, width = 160, height = 120, program = "tenants/t-plain" ],
+        AppIsland [ exists = { app.which == "button" }, width = 160, height = 120, program = "tenants/t-button" ],
+        AppIsland [ exists = { app.which == "shortcuts" }, width = 160, height = 120, program = "tenants/t-shortcuts" ],
+        AppIsland [ exists = { app.which == "popover" }, width = 160, height = 120, program = "tenants/t-popover" ],
+        AppIsland [ exists = { app.which == "keys" }, width = 160, height = 120, program = "tenants/t-keys" ]
+        ]
+    ]

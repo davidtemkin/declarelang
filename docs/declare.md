@@ -308,15 +308,16 @@ instance, and keep `parent` for when you mean *whatever encloses me*.
 
 ### Layout is an attribute
 
-**Each of a view's `x`, `y`, `width` and `height` has one decider: its content, the view itself,
-or its parent's layout.** A layout is an object — a library class or your own, with one
+**Each of `x`, `y`, `width` and `height` has one decider: the view, its parent's layout,
+or (a size only) its content.** A layout is an object — a library class or your own, with one
 method — set as the `layout:` member and swapped like any member. A child never states what its
 layout decides; it tells the layout facts about itself (`flexes`, `shrinks`, a
 `minWidth`/`maxWidth` range), and the layout places every child and sizes those that ask.
 
-**An unset size is the content's, inside a layout too:** unlike flexbox, nothing stretches unless
-the layout says `align = stretch`. A size travels one way: a view sized by its children can't
-size them, so they fill it by `align = stretch`. A size that holds only sometimes is a `State`.
+**An unset size is the content's, inside a layout too:** unlike flexbox, nothing stretches
+without `align = stretch`. A size travels one way: a view sized by its children can't size
+them, so they fill it by `align = stretch`. A size that applies only while, say, editing is a
+`State`'s.
 
 ```declare-fragment
 layout: SimpleLayout   [ axis = y, spacing = 10 ],

@@ -204,7 +204,7 @@ export function negativeSizeMessage(
  *  size from the view: each waits for the other, and nothing decides it. */
 export function emptyContainerMessage(parentClass: string, size: "width" | "height", childClass: string): string {
   const most = size === "height" ? "as tall as the tallest" : "as wide as the widest";
-  return diag`${parentClass}.${size} is 0 — it takes its ${size} from its children, and every one of them (${childClass}) takes its ${size} from it, so nothing decides it. To make them ${most}, use align = stretch on ${parentClass}'s layout; or give ${parentClass} a ${size}.`;
+  return diag`${parentClass}.${size} is 0 — it takes its ${size} from its children, and every one of them (${childClass}) takes its ${size} from it, so nothing decides it. To make them ${most}, remove their own ${size} and use align = stretch on ${parentClass}'s layout; or give ${parentClass} a ${size}.`;
 }
 
 export function placedFromParentMessage(parentClass: string, size: "width" | "height", childClass: string, pos: "x" | "y"): string {
@@ -228,7 +228,7 @@ export function placedAttributeMessage(
   const yourself = diag`set 'ignoreLayout = true' on the child to ${slot === "width" || slot === "height" ? "size" : "place"} it yourself`;
   switch (kind) {
     case "cross":
-      return diag`${head}. Across the flow, where a child sits is the layout's 'align'; to place this child yourself, ${yourself}.`;
+      return diag`${head}. Across the flow, where a child sits is the layout's 'align'; or ${yourself}.`;
     case "cross-offset":
       return diag`${head}. Across the flow, where a child sits is the layout's 'align', and a plan entry's 'offset' shifts one child from there; or ${yourself}.`;
     case "computed":

@@ -46,7 +46,7 @@ App [ width = 360, height = 200, fill = white,
 **Examples** `apps/tracker/tracker.declare`: counts and workload derived on the App ·
 `apps/desktop/desktop.declare`: `Window.wx`, `wy`, formulas seeded from the record and
 taken over by dragging · `apps/architecture/parts/ships.declare`: `ShipsFig`, sizes from
-a `Dataset` through methods.
+generated figures through methods.
 
 **Guide** Constraints · Data § Deriving summaries: methods, and a
 typed result.

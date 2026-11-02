@@ -33,6 +33,7 @@
 // own instance test at module init, so view.ts can import this module without
 // a cycle.
 import { Cell, Constraint, afterSettle, isSettling, untracked } from "./reactive.js";
+import { onDiscard } from "./node.js";
 import { affineFit, childHomography, unprojectChild } from "./projective.js";
 import { leavesPlane, IDENTITY as IDENTITY_AFFINE, apply as applyAffine, boxThrough as boxThroughAffine, compose as composeAffine, fromParts as affineFromParts, invert as invertAffine, isIdentity as affineIsIdentity, rotationOf as affineRotationOf, scaleOf as affineScaleOf } from "./affine.js";
 import { walkHit } from "./hit-walk.js";
@@ -411,6 +412,15 @@ function ensureApp(app) {
     });
     state = { recs, press, driver, booked: false, tap };
     APPS.set(app, state);
+    // the driver leaves with its App: it reads the module's scroll cell, which
+    // would otherwise hold it, and through it the discarded program, for good
+    onDiscard(app, () => {
+        APPS.delete(app);
+        driver.dispose();
+        if (tap.timer !== null)
+            clearTimeout(tap.timer);
+        tap.ends.free();
+    });
     return state;
 }
 function recOf(view) {
@@ -422,6 +432,15 @@ function recOf(view) {
             // A parked pre-attach rec migrates in, keeping any subscribers wired to it.
             r = ORPHANS.get(view) ?? { hovered: false, pressed: false, hCell: new Cell(), pCell: new Cell() };
             state.recs.set(view, r);
+            // The record leaves with its view. The driver's own pruning (a view no
+            // longer in the tree) saw only the root of a torn-down subtree — its
+            // descendants keep their parent — and ran only when the pointer moved, so
+            // every hoverable view inside a discarded row stayed here for good, and
+            // with it the view and everything it held (2026-11-01: ~330 views and
+            // ~3.5 MB of heap per pass through a chat app's six conversations).
+            const st = state, rec = r;
+            onDiscard(view, () => { if (st.recs.get(view) === rec)
+                st.recs.delete(view); rec.hCell.free(); rec.pCell.free(); });
             // The record must reflect the CURRENT chain before anything is drawn —
             // the driver re-runs, sees the new record, and lands its truth. Records
             // arriving inside a settle (a list building rows) share ONE run at its

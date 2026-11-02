@@ -40,11 +40,15 @@ const islandSinks = new Set();
 const liveIslands = new Map();
 /** @internal Backends call this from setEmbed (mark, re-mark, or clear). */
 export function notifyIslandSlot(ev) {
-    if (ev.slot === "") {
+    // an island torn down without clearing its slot leaves as the next one comes
+    for (const v of liveIslands.keys())
+        if (v.$tornDown === true)
+            liveIslands.delete(v);
+    if (ev.slot === "")
         liveIslands.delete(ev.view);
-        return;
-    }
-    liveIslands.set(ev.view, ev);
+    else
+        liveIslands.set(ev.view, ev);
+    // a cleared slot is heard too: the host ends the program the island hosted
     for (const s of islandSinks)
         s(ev);
 }

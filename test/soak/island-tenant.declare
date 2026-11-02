@@ -1,0 +1,35 @@
+// island-tenant — the program island-host.declare mounts and unmounts. It uses
+// what a real app uses: controls (hover/press), Keys, Shortcuts, a Time, a
+// State, an overlay opened at boot, a drawing and a list.
+
+App [ width = 300, height = 200,
+    n: number = 0,
+    open: boolean = false,
+    keys: Shortcuts [ items = { [ ({ id: "save", key: "⌘S", label: "Save" }) ] },
+        picked(id: string) { app.n = app.n + 1 }
+        ],
+    Keys [ onKeyDown(e: KeyEvent) { app.n = app.n + 1 }
+        ],
+    clock: Time [ tick = 100,
+        onTick(dt: number) { app.n = app.n + 1 }
+        ],
+    data: Dataset { { "rows": [ { "k": "a" }, { "k": "b" }, { "k": "c" } ] } },
+    col: View [ x = 10, y = 10, datapath = { app.data.value },
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Button [ label = "press me",
+            onClick() { app.open = !app.open }
+            ],
+        Checkbox [ label = "check" ],
+        View [ datapath = :rows[], width = 120, height = 18, fill = { hovered ? 0xdddddd : 0xffffff },
+            Text [ text = :k ]
+            ]
+        ],
+    lit: View [ x = 180, y = 10, width = 40, height = 40, fill = #446688,
+        on: State [ applied = { app.open }, width = 80 ],
+        draw(d: DrawContext) { d.fillStyle = "#ffffff"; d.fillRect(4, 4, 10 + app.n % 20, 6) }
+        ],
+    pop: Popover [ anchorTo = { app.lit },
+        Text [ text = "tenant popover" ]
+        ],
+    onReady() { app.pop.show() }
+    ]

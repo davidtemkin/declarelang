@@ -34,7 +34,7 @@ export declare function deliverFiles(app: View, kind: "over" | "out" | "drop", x
  *  files is left alone; one over a view that takes files is allowed, and one
  *  anywhere else in the app is refused, so a file dropped beside a target is
  *  not opened by the browser in place of the app. */
-export declare function wireFiles(app: View, el: HTMLElement): void;
+export declare function wireFiles(app: View, el: HTMLElement): () => void;
 /** A DataSource body that holds files, as a form: each field a part, a file a
  *  file part (a list of files, one part each), any other object as JSON text.
  *  null when the body holds no file — it goes as JSON, as before. */

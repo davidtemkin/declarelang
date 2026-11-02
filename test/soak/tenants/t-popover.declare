@@ -1,0 +1,9 @@
+// a tenant with a Popover open from boot (island-each.declare)
+
+App [ width = 200, height = 100,
+    v: View [ width = 20, height = 20 ],
+    p: Popover [ anchorTo = { app.v },
+        Text [ text = "pop" ]
+        ],
+    onReady() { app.p.show() }
+    ]

@@ -108,7 +108,7 @@ inside it did not take, and a turn's parts add up to the turn. Activity before a
   `--native` profile measures what ships. The experiment found that a one-off class (a use
   site with its own declarations, the root `App` among them) was stamped with its base's
   minified JavaScript name; it is now stamped with the program's tag. It also led to the
-  development build's blank-raster readback being removed: a readback is a GPU sync, and in
+  debug build's blank-raster readback being removed: a readback is a GPU sync, and in
   Chrome it can move a canvas off the GPU, so development drew differently from production.
 - **The Mac host** (`declare-profile --mac`): the same profiler over the host's control
   channel (`eval`), plus the host's own frames: commits against the display's budget, a

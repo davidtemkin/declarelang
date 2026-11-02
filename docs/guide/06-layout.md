@@ -3,24 +3,48 @@
 
 # Size, position and layout
 
-Where CSS gives you several layout systems — flow, flexbox, grid — each with its own
-vocabulary and its own negotiations, Declare gives you one idea: **a view's
-[`layout`](declare-docs:View.layout) attribute arranges its children**, and a view with no
-size set takes its size from what it holds. Numbers and arithmetic are always available
-underneath, for the surfaces where you place things yourself.
+Layout in Declare is a small model that goes a long way. Where CSS gives you several
+layout systems, each with its own vocabulary and its own negotiations, Declare gives you a
+handful of ideas — a view that is as large as its content unless it says otherwise, a
+`layout` that places a view's children, sizes that are passed down or gathered up — and
+they cover a page frame, a scrolling list, a responsive split and a grid of squares.
+Nothing in it is special to the platform: the layouts the library ships are written in
+Declare, in a few lines each, and when none of them says what you mean, you write your own
+with one method and it is exactly as capable as theirs. A layout is an attribute, so it
+can be swapped, driven by a constraint, or animated. And because every size and place has
+a single decider, you can always ask why a view is where it is, and get one answer.
 
-A view's place and size come down to four values — `x` and `width`, `y` and `height` —
-and each one has a single decider:
+This chapter builds it up a step at a time. It starts with a single box and ends with a
+small notes reader: a list of notes beside the one that is open, an action bar that comes
+and goes, a phone arrangement where the list and the note take turns, and a grid of
+photos. Each step adds one idea, and by the end the rule that holds them together will be
+something you have already watched happen.
 
-> **Each of `x`, `y`, `width` and `height` is decided by exactly one thing: the view's
-> content, the view itself, or the layout of its parent.**
+## A view and its size
 
-To learn why a view is where it is, find the one thing that decided it.
+A view's place is its [`x`](declare-docs:View.x) and [`y`](declare-docs:View.y), and its
+size its [`width`](declare-docs:View.width) and [`height`](declare-docs:View.height). Here
+are two views, one that says how large it is and one that doesn't:
 
-## Layout is an attribute
+```declare
+App [ width = 320, height = 110, fill = white, textColor = black,
+    box: View [ x = 20, y = 24, width = 120, height = 60, cornerRadius = 8, fill = steelblue ],
+    label: Text [ x = 160, y = 44, text = "as large as its words" ]
+    ]
+```
 
-How a view's children are arranged is a `layout:` member on the view itself — not a
-special container type you build the tree around:
+The box states its size, 120 by 60. The label states none, so it is as large as what it
+holds: the words of its text, in its font. That is true of every view. A view that states
+no size takes it from its content: the lines a [`Text`](declare-docs:Text) lays out, the
+bitmap an [`Image`](declare-docs:Image) shows, or the boxes of its children. Both views
+here state their places, `x` and `y`, measured from the parent's top left.
+
+## A column
+
+Placing every view by hand gets tedious, and brittle: change one size and the views
+below it are in the wrong place. So a view can be given a **layout**, which places its
+children for it. A layout is not a special container type you build the tree around. It
+is a `layout:` member on the view itself:
 
 ```declare
 App [ width = 320, height = 170, fill = white, textColor = black,
@@ -38,135 +62,225 @@ App [ width = 320, height = 170, fill = white, textColor = black,
     ]
 ```
 
-[`SimpleLayout`](declare-docs:SimpleLayout) stacks children along an axis, `spacing` apart,
-in the order they are written. Neither view gives a size: each is as large as what it
-holds. Because layout is an attribute and not a type, it can be swapped, nested, driven by
-a constraint, or animated.
+[`SimpleLayout`](declare-docs:SimpleLayout) stacks children along an axis, `spacing`
+apart, in the order they are written. The column stacks its three children down the page;
+the row inside it lines its three up across. Neither the column nor the row states a size,
+so each is as large as what it holds, and the children state no `x` or `y` of their own:
+the layout gives them their places. The library also ships
+[`WrappingLayout`](declare-docs:WrappingLayout), which flows children onto new rows when
+the width runs out, and [`ResponsiveLayout`](declare-docs:ResponsiveLayout), which the notes
+reader uses below.
 
-The library ships two more arrangements, also written in Declare (`library/`):
-[`WrappingLayout`](declare-docs:WrappingLayout) flows children onto new rows when the width
-runs out, and [`ResponsiveLayout`](declare-docs:ResponsiveLayout) changes arrangement with
-the view's width (below). When the arrangement you need is genuinely your own — masonry, a
-radial menu, a timeline — you write a layout class with one method;
-[Your own views](declare-docs:guide:your-own-views@writing-a-layout) shows how.
+A layout always decides its children's positions **along** its flow: a row places each
+child's `x`, a column each child's `y`. Across the flow it decides them only when you set
+its `align`: `start`, `center`, `end`, `baseline` to sit a row of text and controls on one
+line, or `stretch` (below). Without one, each child places itself across: at the start,
+unless it says otherwise, with `y = center` for instance. A child that must stand apart says so itself: `ignoreLayout = true`
+takes it out of the arrangement, so it keeps its own position while its siblings are
+arranged around it, a badge pinned to a corner of a stacked card.
 
-## What a layout decides
+What a view's content wants is available as two read-only facts,
+[`contentWidth`](declare-docs:View.contentWidth) and
+[`contentHeight`](declare-docs:View.contentHeight), so a limit is ordinary arithmetic
+rather than a special attribute: `height = { Math.min(contentHeight, 90) }` grows with the
+content up to 90, and `scrolls = y` then scrolls what is left
+([Scrolling](declare-docs:guide:scrolling)).
 
-A layout always decides its children's positions along its flow: a row places each
-child's [`x`](declare-docs:View.x), a column each child's [`y`](declare-docs:View.y).
-Across the flow it decides them only when you set its `align` — `start`, `center`, `end`,
-`baseline` to sit a row of text and controls on one line, or `stretch` (below). Without
-one, each child places itself across, with `y = center` for instance.
+## The frame
 
-What a layout decides, the child does not also state — in any spelling, a number,
-`center`, or a `{ }`. Declaring it anyway is a compile error at that line, and the message
-names what to write instead. The rule is what keeps an arrangement predictable: one
-value, one decider.
-
-A child that must stand apart says so itself. `ignoreLayout = true` takes it out of the
-arrangement: it keeps its own position while its siblings are arranged around it — a
-badge pinned to a corner of a stacked card. `ignoreClip = true` lets a child paint and
-receive clicks outside a parent that clips — a window's resize border living just
-outside the box it resizes.
-
-## Sizes
-
-A view that states no size is as large as its content: the text a
-[`Text`](declare-docs:Text) lays out, the bitmap an [`Image`](declare-docs:Image) shows, or
-the boxes of its visible children. A size it does state is a constant, `width = 300`, or a
-constraint, `width = { parent.width - 40 }`.
-
-Sizes travel in two directions. A size can be **passed down**: `width = 100%` is the room
-the parent gives. Or it can be **gathered up** from the children, when the view states
-none. On any one axis a size goes one way, not both — a child sized from its parent does
-not count toward the parent's content size on that axis. So a card given a width hands it
-down to its wrapping text, and the text's height comes back up to size the card.
-
-Two read-only facts, [`contentWidth`](declare-docs:View.contentWidth) and
-[`contentHeight`](declare-docs:View.contentHeight), give what the content wants, so a limit
-is ordinary arithmetic rather than a special attribute:
+Now the notes reader. From here on, each example is the one before it with one thing
+added. It starts as a frame: a header, a body and a footer, filling the window.
 
 ```declare
-App [ width = 260, height = 150, fill = white, textColor = black,
-    box: View [ x = 20, y = 20, width = 200, cornerRadius = 8, fill = whitesmoke, clip = true,
-        padding = 10,
-        height = { Math.min(contentHeight, 90) },
-        layout: SimpleLayout [ axis = y, spacing = 8 ],
-        Text [ text = "grows with its content" ],
-        Text [ text = "up to 90 pixels" ],
-        Text [ text = "then stops" ],
-        Text [ text = "and clips the rest" ]
+App [ width = 360, height = 240, fill = white, textColor = black,
+    layout: SimpleLayout [ axis = y ],
+    header: View [ width = 100%, height = 40, fill = steelblue,
+        Text [ x = 12, y = center, textColor = white, fontWeight = semibold, text = "Notes" ]
+        ],
+    body: View [ width = 100%, flexes = true, fill = whitesmoke ],
+    footer: View [ width = 100%, height = 28, fill = gainsboro,
+        Text [ x = 12, y = center, fontSize = 12, text = "4 notes" ]
         ]
     ]
 ```
 
-Change the limit to `scrolls = y` on the box instead, and the extra content scrolls
-([Scrolling](declare-docs:guide:scrolling)).
+The App's layout stacks the three bands. Each band's width is `100%`, the room the App
+gives it. The header and footer state their heights. The body states none: it `flexes`,
+which asks the layout for a share of the room left over.
 
-### A child asks its layout
-
-Some sizes depend on the siblings: the room left over, or the room there isn't. A child
-never works those out itself. It states a fact about itself, and the layout, which sees
-every child, sizes it.
+That is how a size that depends on the siblings is written. A child never works it out
+itself, as the window's height minus the others. It states a fact about itself, and the
+layout, which sees every child, sizes it:
 
 - [`flexes = true`](declare-docs:View.flexes) asks for a share of the room left along the
-  flow. The children that do not flex keep their own sizes, and the flexing ones share
-  what remains, equally; a number weights the share, so `flexes = 2` takes twice what
-  `true` takes.
+  flow. The children that don't flex keep their sizes, and the flexing ones share what
+  remains, equally. Along the flow, `width = 100%` is not what remains: it is the view's
+  whole room, so the siblings run past the end. A number weights the share: `flexes = 2` takes twice what `true` takes.
 - [`shrinks = true`](declare-docs:View.shrinks) lets a child give some of its size up when
-  the run is too long for the view.
-- [`minWidth`](declare-docs:View.minWidth) and `maxWidth` (and the heights) bound what the
-  layout gives it.
+  the run is too long for the view. When nothing shrinks, the run goes on past the view's
+  end, and the view's `clip` or `scrolls` decides what shows.
+- [`minWidth`](declare-docs:View.minWidth) and `maxWidth`, and the heights, bound what
+  the layout gives it.
 
-The layout sizes everything else first, then shrinks or shares, each child within its
-range. It is how a page frame is written:
+In a real program the App states no size: it fills the window, and when the window
+changes, only the body's height changes with it. An empty flexing view is a
+[`Spacer`](declare-docs:Spacer): one between two groups in a row pushes them apart, and one
+on each side centers the run. Room is left over only in a view that has a size of its own
+along the flow, a stated one or one its parent gives it; a row as long as its children has
+none to share, and a `Spacer` in it gets nothing.
+
+## A list that fills and scrolls
+
+The body becomes a row: a list of notes beside a pane where an open note will show. Each
+note is a row with a title and a wrapped preview, as wide as the list.
 
 ```declare
-App [ width = 320, height = 200, fill = white, textColor = black,
+class NoteRow extends View [ width = 100%, padding = 8,
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Text [ fontWeight = semibold, text = { :title } ],
+    Text [ width = 100%, fontSize = 12, textColor = slategray, text = { :text } ]
+    ]
+
+
+App [ width = 360, height = 240, fill = white, textColor = black,
+    notes: Dataset { { "items": [
+        { "title": "Groceries", "text": "Oat milk, lemons, the good bread." },
+        { "title": "Garden", "text": "Move the rosemary out of the shade before the frost.",
+          "photos": [ { "tone": 1 }, { "tone": 2 }, { "tone": 0 }, { "tone": 2 } ] },
+        { "title": "Plumber", "text": "The kitchen tap again. Ask about the boiler." }
+        ] } },
     layout: SimpleLayout [ axis = y ],
-    header: View [ width = 100%, height = 36, fill = steelblue ],
+    header: View [ width = 100%, height = 40, fill = steelblue,
+        Text [ x = 12, y = center, textColor = white, fontWeight = semibold, text = "Notes" ]
+        ],
     body: View [ width = 100%, flexes = true,
         layout: SimpleLayout [ axis = x, align = stretch ],
-        list: View [ flexes = true, scrolls = y, fill = whitesmoke,
-            Text [ x = 12, y = 12, text = "the list takes what is left" ]
+        list: View [ width = 160, scrolls = y, fill = whitesmoke,
+            datapath = { app.notes.value },
+            layout: SimpleLayout [ axis = y ],
+            NoteRow [ datapath = :items[] ]
             ],
-        rail: View [ width = 90, fill = gainsboro ]
+        pane: View [ flexes = true,
+            Text [ x = 16, y = 16, textColor = slategray, text = "No note open" ]
+            ]
         ],
-    footer: View [ width = 100%, height = 28, fill = lightsteelblue ]
+    footer: View [ width = 100%, height = 28, fill = gainsboro,
+        Text [ x = 12, y = center, fontSize = 12, text = "3 notes" ]
+        ]
     ]
 ```
 
-Resize the window and only `body` and `list` change size; nothing computes a height by
-subtracting the others. The list scrolls what it holds and stays the size it is given. An empty flexing view is a [`Spacer`](declare-docs:Spacer): one
-between two groups in a row pushes them apart, and one on each side centers the run.
+Sizes go both ways here, and it is worth following each one:
 
-Across the flow, the same holds. Only the layout sees all its children, so filling the
-row is asked of it: `align = stretch` makes every child whose size comes from its content
-fill the view across — the panes of a row as tall as the row, as in the frame above. On a
-view sized by these very children there is nothing to fill but the largest of them, so
-it means "as tall as the tallest": a menu's items as wide as its widest. A child that
-states its own size keeps it. Because stretch is a fact about the arrangement rather than
-about either axis, it still holds when a constraint turns the row into a column on a
-narrow screen.
+- **Down:** the list's height comes from the body, whose row has `align = stretch`, which
+  fills each child to the row's height. Each row's width comes from the list, `width =
+  100%`, and the preview's width from the row, which is how the preview knows where to wrap.
+  A `Text` given no width is one line, as long as its words; it wraps only when a width
+  comes down to it.
+- **Up:** the preview's height comes from its wrapped lines, each row's height from its
+  title and preview, and the list's content height from its rows.
+- **Where they meet:** the list keeps the height it was given, and because it `scrolls =
+  y`, rows that don't fit scroll inside it. A narrower list makes taller rows.
 
-A size a class sets is a default, like anything else a class sets, and a default gives way
-to the layout. A class that fills its column with `width = 100%` still flexes when a use
-site puts it in a row with `flexes = true`.
+On any one axis a size goes one way, not both: a child sized from its parent does not
+count toward the parent's content size on that axis, however it is written, `100%` or a
+`{ }` that reads `parent.width`, and neither does one placed by `center` or `end`. This is
+where an intuition from CSS misleads, because there a width can be worked out from the
+content and handed back down in the same pass. The tempting mistake is to leave the list's
+width out, as if it could take the width of its widest row while each row takes the width
+of the list. Each size would wait on the other, and the program says so when it starts:
+
+> View.width is 0 — it takes its width from its children, and every one of them (NoteRow)
+> takes its width from it, so nothing decides it. To make them as wide as the widest, remove
+> their own width and use align = stretch on View's layout; or give View a width.
+
+Either answer works. A width the list states is the room its rows share. Or the rows drop
+their `width = 100%`, and `align = stretch` on the list's own layout makes them as wide as
+the widest of them: on a view sized by
+its children, stretch means "as large as the largest", a menu's items as wide as its widest
+item. A child that states its own size keeps it.
+
+## Something that comes and goes
+
+Open a note, and an action bar appears above the footer while it is open:
+
+```declare
+class NoteRow extends View [ width = 100%, padding = 8,
+    fill = { app.open == rowIndex ? 0xE6E6FA : null },
+    onClick() { app.open = rowIndex },
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Text [ fontWeight = semibold, text = { :title } ],
+    Text [ width = 100%, fontSize = 12, textColor = slategray, text = { :text } ]
+    ]
+
+
+App [ width = 360, height = 260, fill = white, textColor = black,
+    notes: Dataset { { "items": [
+        { "title": "Groceries", "text": "Oat milk, lemons, the good bread." },
+        { "title": "Garden", "text": "Move the rosemary out of the shade before the frost.",
+          "photos": [ { "tone": 1 }, { "tone": 2 }, { "tone": 0 }, { "tone": 2 } ] },
+        { "title": "Plumber", "text": "The kitchen tap again. Ask about the boiler." }
+        ] } },
+    open: number = -1,
+    layout: SimpleLayout [ axis = y ],
+    header: View [ width = 100%, height = 40, fill = steelblue,
+        Text [ x = 12, y = center, textColor = white, fontWeight = semibold, text = "Notes" ]
+        ],
+    body: View [ width = 100%, flexes = true,
+        layout: SimpleLayout [ axis = x, align = stretch ],
+        list: View [ width = 160, scrolls = y, fill = whitesmoke,
+            datapath = { app.notes.value },
+            layout: SimpleLayout [ axis = y ],
+            NoteRow [ datapath = :items[] ]
+            ],
+        pane: View [ flexes = true,
+            Text [ x = 16, y = 16, width = { parent.width - 32 },
+                text = { app.open < 0 ? "No note open" : app.notes.value.items[app.open].text } ]
+            ]
+        ],
+    actions: View [ width = 100%, height = 40, visible = { app.open >= 0 }, fill = lavender,
+        padding = [0, 12, 0, 12],
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Button [ label = "Pin" ],
+        Button [ label = "Close",
+            onClick() { app.open = -1 }
+            ]
+        ],
+    footer: View [ width = 100%, height = 28, fill = gainsboro,
+        Text [ x = 12, y = center, fontSize = 12, text = "3 notes" ]
+        ]
+    ]
+```
+
+The bar is a band like the others, placed by the App's layout. It is shown only while a
+note is open, `visible = { app.open >= 0 }`, and a hidden child leaves the flow: it takes
+no room and leaves no gap. The body is still the one that flexes, so when the bar appears
+the body gives up exactly the bar's 40, and when it goes, takes it back.
+
+The tempting mistake is to place the bar yourself, `y = { app.height - 68 }`, working out
+where it goes from the others' heights. What a layout decides, its child does not also
+state, in any spelling: a number, `center`, or a `{ }`. The compiler refuses the second
+decider and says what to write instead:
+
+> View.y — App's SimpleLayout places its children, so this child does not declare its y.
+> Remove it and let the layout place the child, or set 'ignoreLayout = true' on the child
+> to place it yourself.
+
+`ignoreLayout` is for something that genuinely floats over the others. The bar is part of
+the column, so the layout places it.
 
 ## Padding and Card
 
 An inset is an attribute of the **view**: [`padding`](declare-docs:View.padding), one
-number for all four sides or `[top, right, bottom, left]`. A padded view has an inside,
-and every child is measured from it — one a layout arranged, one that placed itself, one
-that opted out of the layout. A layout does not need to know; it arranges within the room
-it is given.
+number for all four sides or `[top, right, bottom, left]`, as the rows above use. A padded
+view has an inside, and every child is measured from it: one a layout arranged, one that
+placed itself, one that opted out of the layout. A layout does not need to know; it
+arranges within the room it is given.
 
-Two spellings answer two questions:
-
-- **`width = 100%`** means *the room I am given*: the parent's width less its padding.
-  `x = center` and `x = end` resolve against the same room.
-- **`width = { parent.width }`** means *the parent's own box*, padding and all. Paired
-  with a negative `x` it gives a band that runs edge to edge inside a padded card.
+`width = 100%` means *the room I am given*: the parent's width less its padding, and
+`x = center` and `x = end` resolve against the same room. Inside a `{ }`, `parent.width` is
+the parent's whole box, padding included; the room inside it is
+[`parent.contentBox("width")`](declare-docs:View.method.contentBox), what `100%` means.
 
 Paint does not move with padding: [`fill`](declare-docs:View.fill),
 [`stroke`](declare-docs:View.stroke) and [`cornerRadius`](declare-docs:View.cornerRadius)
@@ -177,7 +291,7 @@ insets included.
 That arrangement is common enough that the library ships it. **[`Card`](declare-docs:Card)**
 is a view whose fill, corner radius, hairline edge, padding and stacking layout come from
 the theme, so its children are a plain list. **[`Divider`](declare-docs:Divider)** is the
-rule between them — a painted view, not a border, spanning the parent's content width:
+rule between them, a painted view, not a border, spanning the parent's content width:
 
 ```declare
 App [ width = 320, height = 190, fill = #F4F6FA, textColor = #172530,
@@ -194,112 +308,226 @@ App [ width = 320, height = 190, fill = #F4F6FA, textColor = #172530,
 Everything is a default: `stroke = null` drops the edge, and a `layout:` of your own
 replaces the stack (the padding stays; `padding = 0` removes it).
 
-## Placing by hand
+## A desktop and a phone
 
-Position is `x` and `y`, measured from the parent's content origin. Two named literals
-cover the common cases: `x = center` and `x = end` (and the same on `y`) center a view in
-its parent, or push it flush to the far edge, and follow as sizes change.
-
-Hand placement is the right tool on free-form surfaces — a diagram, a canvas of cards,
-an overlay, the cells of a calendar whose geometry is a formula. For anything that is a
-row, a column, a flow or a grid of parts, use a layout: a ladder of hand-set `y` values is
-a layout written out by hand, and it breaks the first time a size changes.
-
-Siblings that overlap paint in the order they are written: **later members draw on
-top**. There is no z-index; you restack by reordering, so reading order is paint order.
-Floating chrome, such as a toolbar over content, is declared last.
-
-## Responsiveness
-
-`ResponsiveLayout` takes a list of **plans**, each saying "from this width up, arrange
-the children like this", and keeps the right plan applied as the view's width changes:
+On a desktop the list sits beside the open note. On a phone there is room for only one, so
+the reader shows the list until a note is open, and then the note:
 
 ```declare
-App [ width = 520, height = 120, fill = white, textColor = black,
-    bar: View [ x = 20, y = 20, width = { app.width - 40 },
-        layout: ResponsiveLayout [ plan = { [
-            ({ from: 480, flow: "row", share: ({ menu: 30, body: 70 }) }),
-            ({ from: 0, flow: "stack", share: ({ menu: 100, body: 100 }) })
+class NoteRow extends View [ width = 100%, padding = 8,
+    fill = { app.open == rowIndex ? 0xE6E6FA : null },
+    onClick() { app.open = rowIndex },
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Text [ fontWeight = semibold, text = { :title } ],
+    Text [ width = 100%, fontSize = 12, textColor = slategray, text = { :text } ]
+    ]
+
+
+App [ width = 640, height = 260, fill = white, textColor = black,
+    notes: Dataset { { "items": [
+        { "title": "Groceries", "text": "Oat milk, lemons, the good bread." },
+        { "title": "Garden", "text": "Move the rosemary out of the shade before the frost.",
+          "photos": [ { "tone": 1 }, { "tone": 2 }, { "tone": 0 }, { "tone": 2 } ] },
+        { "title": "Plumber", "text": "The kitchen tap again. Ask about the boiler." }
+        ] } },
+    open: number = -1,
+    layout: SimpleLayout [ axis = y ],
+    header: View [ width = 100%, height = 40, fill = steelblue,
+        Text [ x = 12, y = center, textColor = white, fontWeight = semibold, text = "Notes" ]
+        ],
+    body: View [ width = 100%, flexes = true,
+        layout: ResponsiveLayout [ align = stretch, plan = { [
+            ({ from: 480, flow: "row", share: ({ list: 35, pane: 65 }) }),
+            ({ from: 0, flow: "row",
+               share: app.open < 0 ? ({ list: 100, pane: 0 }) : ({ list: 0, pane: 100 }) })
             ] } ],
-        menu: View [ height = 60, fill = gainsboro ],
-        body: View [ height = 60, fill = whitesmoke ]
+        list: View [ scrolls = y, fill = whitesmoke,
+            datapath = { app.notes.value },
+            layout: SimpleLayout [ axis = y ],
+            NoteRow [ datapath = :items[] ]
+            ],
+        pane: View [
+            Text [ x = 16, y = 16, width = { parent.width - 32 },
+                text = { app.open < 0 ? "No note open" : app.notes.value.items[app.open].text } ]
+            ]
+        ],
+    actions: View [ width = 100%, height = 40, visible = { app.open >= 0 }, fill = lavender,
+        padding = [0, 12, 0, 12],
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Button [ label = "Pin" ],
+        Button [ label = "Close",
+            onClick() { app.open = -1 }
+            ]
+        ],
+    footer: View [ width = 100%, height = 28, fill = gainsboro,
+        Text [ x = 12, y = center, fontSize = 12, text = "3 notes" ]
         ]
     ]
 ```
 
-Wide, it is a 30/70 row; narrow, a stack of two full-width bands. `share` is width in
-both flows: in a row the shares divide the run, in a stack each one sets its band's width
-on its own — so the narrow plan names `menu` and `body` at 100. A plan watches its **own**
-view's width, not the window's, so plans nest: a parent decides how much room a child
-gets, and the child's own layout decides what to do with it. The reference entry for
-`ResponsiveLayout` has the full plan vocabulary.
+The body's layout is now a `ResponsiveLayout`. It takes a list of **plans**, each saying
+"from this width up, arrange the children like this", and keeps the right plan applied as
+the view's width changes. From 480 up, the list and the pane share a row, 35 and 65. Below
+that, one of them gets all of the width and the other none: `share` divides the width, and
+a share of 0 takes a child out of the flow entirely. Which one gets it is a constraint
+inside the plan, `app.open < 0 ? …`. Nothing in the list or the pane knows how wide the
+window is. Where the room goes is decided once, in the body's layout, and both follow it.
+The action bar's Close button is also the phone's way back to the list.
+
+`share` is width in both flows: in a `"row"` the shares divide the run, in a `"stack"`
+each one sets its band's width on its own. A plan watches its **own** view's width, not the
+window's, so plans nest: a parent decides how much room a child gets, and the child's own
+layout decides what to do with it. The reference entry for `ResponsiveLayout` has the full
+plan vocabulary.
 
 Smaller adjustments are ordinary constraints: `spacing = { app.width < 480 ? 6 : 12 }`,
-`flexes = { app.wide }`, or `axis = { app.narrow ? "y" : "x" }` on a `SimpleLayout` when
-only the direction changes. A configuration that holds at some widths, with attributes
+`flexes = { app.wide }`, or `axis = { app.narrow ? "y" : "x" }` on a `SimpleLayout`
+when only the direction changes. A configuration that holds at some widths, with attributes
 that differ and children only those widths have, is a [`State`](declare-docs:State)
 ([Program structure](declare-docs:guide:structure@a-view-in-each-of-the-user-s-places)).
 
-When what changes is **where the room goes** — a panel beside the main view on a wide
-screen, a strip under it on a narrow one, the main view taking what is left either way —
-the arrangement is a layout of your own. Its one method returns a box for each child, and
-a box can carry a size as well as a place, so neither child states a size or a place: the
-layout divides the room it has one way or the other, and follows the room as it changes.
-Written without it, each child carries the division itself, `width = { app.wide ? … : … }`,
-worked out again in each — a layout done by hand
-([Your own views](declare-docs:guide:your-own-views@writing-a-layout)).
+An `App` with no size fills its host, the window or the element it is embedded in, and
+resizes with it, which is why responsive code reads `app.width`. And often the cleanest
+answer is a floor: [`App [ minWidth = 360 ]`](declare-docs:App) holds the design at that
+width and lets a narrower window pan, instead of reflowing a layout below the width where it
+works.
 
-An `App` with no size fills its host — the window, or the element it is embedded in —
-and resizes with it, which is why responsive code reads `app.width`. And often the
-cleanest answer is a floor: [`App [ minWidth = 360 ]`](declare-docs:App) holds the design
-at that width and lets a narrower window pan, instead of reflowing a layout below the
-width where it works.
+## A layout of your own
 
-## One screen, three deciders
-
-Most screens mix the kinds of surface this chapter has covered: an arrangement of parts
-that answers to the room, and a free-form surface inside it. Here is a chart beside its
-key, a row when there is room and a column when there isn't:
+In the pane, the open note: a reading column, centered and never wider than is comfortable,
+with the note's photos below the text as square thumbnails, as many across as fit. No
+library layout says "square", so that one is written, as a class with one method:
 
 ```declare
-App [ width = 480, height = 220, fill = white, textColor = black, padding = 16,
-    months: Dataset { { "rows": [ { "m": "Jan", "v": 12 }, { "m": "Feb", "v": 19 },
-        { "m": "Mar", "v": 7 }, { "m": "Apr", "v": 15 }, { "m": "May", "v": 22 } ] } },
-    // the App's layout places both children, and sizes them where they ask
-    layout: SimpleLayout [ axis = { app.width >= 400 ? "x" : "y" }, spacing = 12, align = stretch ],
-    plot: View [ flexes = true, fill = whitesmoke, cornerRadius = 8,  // both sizes: the layout's
-        datapath = { app.months.value },
-        // a free-form surface: each bar decides its own place and size, from the plot's
-        View [ datapath = :rows[], fill = steelblue, cornerRadius = 3,
-            width = { parent.width / 5 - 12 },
-            height = { :v / 25 * (parent.height - 16) },
-            x = { rowIndex * parent.width / 5 + 6 },
-            y = end ]
+class Squares extends Layout [
+    cell: number = 96,
+    gap: number = 8,
+    place() {
+        const w = this.contentExtent("width")
+        const across = Math.max(1, Math.floor((w + this.gap) / (this.cell + this.gap)))
+        const side = (w - (across - 1) * this.gap) / across
+        return this.laid().map((c, i) => ({ x: (i % across) * (side + this.gap),
+            y: Math.floor(i / across) * (side + this.gap), w: side, h: side }))
+        }
+    ]
+
+
+class NoteRow extends View [ width = 100%, padding = 8,
+    fill = { app.open == rowIndex ? 0xE6E6FA : null },
+    onClick() { app.open = rowIndex },
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Text [ fontWeight = semibold, text = { :title } ],
+    Text [ width = 100%, fontSize = 12, textColor = slategray, text = { :text } ]
+    ]
+
+
+App [ width = 900, height = 300, fill = white, textColor = black,
+    notes: Dataset { { "items": [
+        { "title": "Groceries", "text": "Oat milk, lemons, the good bread." },
+        { "title": "Garden", "text": "Move the rosemary out of the shade before the frost.",
+          "photos": [ { "tone": 1 }, { "tone": 2 }, { "tone": 0 }, { "tone": 2 } ] },
+        { "title": "Plumber", "text": "The kitchen tap again. Ask about the boiler." }
+        ] } },
+    open: number = -1,
+    layout: SimpleLayout [ axis = y ],
+    header: View [ width = 100%, height = 40, fill = steelblue,
+        Text [ x = 12, y = center, textColor = white, fontWeight = semibold, text = "Notes" ]
         ],
-    key: View [ datapath = { app.months.value },  // its size: its content (and, across, the stretch)
-        layout: SimpleLayout [ axis = y, spacing = 4 ],
-        Text [ datapath = :rows[], text = { :m + "  " + :v } ]
+    body: View [ width = 100%, flexes = true,
+        layout: ResponsiveLayout [ align = stretch, plan = { [
+            ({ from: 480, flow: "row", share: ({ list: 35, pane: 65 }) }),
+            ({ from: 0, flow: "row",
+               share: app.open < 0 ? ({ list: 100, pane: 0 }) : ({ list: 0, pane: 100 }) })
+            ] } ],
+        list: View [ scrolls = y, fill = whitesmoke,
+            datapath = { app.notes.value },
+            layout: SimpleLayout [ axis = y ],
+            NoteRow [ datapath = :items[] ]
+            ],
+        pane: View [ scrolls = y,
+            page: View [ x = center, y = 20, width = { Math.min(parent.width - 40, 420) },
+                layout: SimpleLayout [ axis = y, spacing = 8 ],
+                Text [ fontSize = 18, fontWeight = semibold,
+                    text = { app.open < 0 ? "No note open" : app.notes.value.items[app.open].title } ],
+                Text [ width = 100%, textColor = slategray,
+                    text = { app.open < 0 ? "" : app.notes.value.items[app.open].text } ],
+                photos: View [ width = 100%, datapath = { app.open < 0 ? null : app.notes.value.items[app.open] },
+                    layout: Squares [ cell = 96 ],
+                    View [ datapath = :photos[], cornerRadius = 6,
+                        fill = { [0xC8D6E5, 0xB8D8C8, 0xE8D2B0][:tone] } ]
+                    ]
+                ]
+            ]
+        ],
+    actions: View [ width = 100%, height = 40, visible = { app.open >= 0 }, fill = lavender,
+        padding = [0, 12, 0, 12],
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Button [ label = "Pin" ],
+        Button [ label = "Close",
+            onClick() { app.open = -1 }
+            ]
+        ],
+    footer: View [ width = 100%, height = 28, fill = gainsboro,
+        Text [ x = 12, y = center, fontSize = 12, text = "3 notes" ]
         ]
     ]
 ```
 
-Read it by asking who decides each value:
+The reading column is placed by hand. The pane has no layout, so the page states its own
+width, `Math.min(parent.width - 40, 420)`, never more than 420 and never wider than the
+pane, and its own place, `x = center`. A single view on a free surface places itself, and
+`x = center` and `x = end` (and the same on `y`) center it or push it flush to the far
+edge, following as sizes change. Placing by hand is the right tool on free surfaces like
+this, a diagram, an overlay, the cells of a calendar whose geometry is a formula. For
+anything that is a row, a column, a flow or a grid of parts, use a layout: a ladder of
+hand-set `y` values is a layout written out by hand, and it breaks the first time a size
+changes. Siblings that overlap paint in the order they are written, **later members on
+top**, so reading order is paint order.
 
-- **The App's layout** places `plot` and `key`. It gives `plot` the length left along the
-  flow, because the plot `flexes`, and it fills both across, because of `align = stretch`.
-  Neither child states a width or a height, and nothing subtracts the key's width from the
-  window's.
-- **The key's content** sizes the key along the flow: its lines of text, however long they
-  are.
-- **Each bar** decides all four of its own values. The plot is a surface with no layout, so
-  the bars are placed by hand, from the room the plot was given (`parent.width`,
-  `parent.height`) and their own record. The bars never read the window or the key.
+The tempting mistake there is the CSS habit, `width = 100%, maxWidth = 420`. A range like
+`maxWidth` bounds what a **layout** gives a view: a share, a shrink, a stretch. The page
+states its own width, so the range has nothing to bound, and the compiler says so:
 
-Set the App's `width` to 320 and the row turns into a column. Every rule above still
-holds: the plot flexes down the page instead of across it, the stretch now gives the key
-the full width, and the bars follow the plot's new size. One decision changed, the axis,
-and no other value had to change with it. When a value seems to need working out from a
-sibling or from the window, it usually belongs to the layout, or to a layout of your own.
+> View.maxWidth has no effect here — a range bounds the width a layout gives a view (a
+> share, a shrink, a stretch), and View states its own width. To cap a stated width, write
+> it: width = { Math.min(900, parent.width) }
+
+The photos are the layout of your own. `Squares`'s `place()` reads the width it has, works
+out how many cells fit across, and returns a box for each child: its place and its size, a
+square. The grid's width comes **down** from the page, `width = 100%`; its height comes back
+**up** from the boxes it returned. Both directions meet inside one layout: the width
+decides the size of the cells, and the cells decide the height. Make the window narrower
+and the cells shrink, then a row wraps, and the page grows to hold it, with no number
+written for any of it.
+
+A box names only what the layout decides. One with just `x` and `y` leaves each child its
+own size; `Squares` returns `w` and `h` too, so it sizes every child, and a photo that also
+stated a `width` would be refused, as anywhere a layout decides.
+
+A layout of your own is also the answer when what changes is **where the room goes**: a
+panel beside the main view on a wide screen, a strip under it on a narrow one, the main
+view taking what is left either way. The layout divides the room it has, one way or the
+other, and neither child states a size or a place. Written without it, each child carries
+the division itself, `width = { app.wide ? … : … }`, worked out again in each: a layout
+done by hand. [Your own views](declare-docs:guide:your-own-views@writing-a-layout) has the
+whole of the `Layout` class.
+
+## One decider for each value
+
+Every value in the notes reader was decided by exactly one thing, and each time you could
+name it. That is the rule the whole chapter has been showing:
+
+> **A view's place has one decider: the view itself, or its parent's layout.**
+> **Its size has one decider: the view itself, its parent's layout, or what it holds.**
+
+"The view itself" includes every way a view states a value, `width = 300`, `width = 100%`,
+`x = center`, a `{ }`: each is the view's own choice, even when it refers to the parent. To
+learn why a view is where it is, or the size it is, find the one thing that decided it.
+
+When a value seems to need working out from a sibling or from the window, such as a height
+minus the others, or a width that depends on the screen, it usually belongs to a layout, a
+library one or your own. When a size seems to need to come both from above and from below,
+pick one direction for it. The program will tell you if you haven't.
 
 ## Scale and rotation
 
@@ -311,8 +539,9 @@ content all see the same box, so a view at `scale = 0.5` really takes half the r
 
 ---
 
-**What you can now do:** arrange children with layouts, size views from content or by
-rule, let a child ask its layout for room, pad them, respond to width without media
-queries, and place things by hand where a surface is genuinely free-form.
+**What you can now do:** give views sizes or let their content size them, arrange children
+with layouts, let a child ask its layout for room, pass sizes down and gather them up, pad
+views, respond to width without media queries, place things by hand on free surfaces, write
+a layout of your own, and name the one thing that decides any value.
 
 [Next: **Scrolling** →](declare-docs:guide:scrolling)

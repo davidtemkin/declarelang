@@ -15,7 +15,7 @@
 // poke. A change fires the push below, which installs or removes the effects:
 // the override precedence stack (below) and the child subtree (buildChildren).
 
-import { Node } from "./node.js";
+import { Node, onDiscard } from "./node.js";
 import { View } from "./view.js";
 import { Constraint, afterSettle } from "./reactive.js";
 import { defineAttributes, disown, disposeBindings, own, ownerOf, setBound, slotCellOf } from "./attributes.js";
@@ -59,7 +59,15 @@ const STACKS = Symbol("overrideStacks");
 
 function stacksFor(view: View): Map<string, SlotStack> {
   const v = view as unknown as { [STACKS]?: Map<string, SlotStack> };
-  return (v[STACKS] ??= new Map());
+  let map = v[STACKS];
+  if (map === undefined) {
+    map = v[STACKS] = new Map();
+    // a view torn down with a state applied: the top is among its owners and
+    // goes with them, but the base it displaced is held only here
+    const held = map;
+    onDiscard(view, () => { for (const st of held.values()) st.baseOwner?.dispose(); held.clear(); });
+  }
+  return map;
 }
 
 /** Build and install the current top entry as the slot's live driver. The

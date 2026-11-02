@@ -1,0 +1,12 @@
+// island-host — an AppIsland whose program is attached and detached (program
+// = "" and back) every cycle. Driven by island-host.assert.mjs.
+
+ship [ islands = ["island-tenant"] ]
+
+App [ width = 800, height = 600,
+    on: boolean = true,
+    toggle: Button [ x = 20, y = 20, label = "Toggle",
+        onClick() { app.on = !app.on }
+        ],
+    isl: AppIsland [ x = 20, y = 70, width = 320, height = 220, program = { app.on ? "island-tenant" : "" } ]
+    ]

@@ -708,7 +708,7 @@ export class DomBackend {
         // pointer-inert, see DomSurface), so resolution is just "walk up to the
         // nearest surface with a sink and localize the point to its box". The
         // pairing/click rule is the shared router's (input.ts).
-        routeInput(() => rootEl.isConnected, (e) => {
+        root.stopInput = routeInput(() => rootEl.isConnected, (e) => {
             let el = e.target instanceof HTMLElement && rootEl.contains(e.target) ? e.target : null;
             // A view hit only for its cursor takes no press: the press goes to the
             // topmost view beneath it that does — a sibling as readily as an
@@ -3045,8 +3045,18 @@ export class DomSurface {
             refreshObserved(this.element);
     }
     unwatchVisibility = null;
+    /** The root's input router: its window listeners go with the program. */
+    stopInput = null;
     destroy() {
         this.gone = true;
+        this.stopInput?.();
+        this.stopInput = null;
+        // a pane's scroll watch listens on the window for keys: it goes with the pane
+        if (this.scrollWatch !== undefined) {
+            this.scrollWatch.stop();
+            PANE_WATCH.delete(this.element);
+            this.scrollWatch = undefined;
+        }
         this.unwatchDpr?.();
         this.unwatchDpr = null;
         this.unwatchVisibility?.();

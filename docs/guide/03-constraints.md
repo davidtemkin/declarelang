@@ -168,7 +168,7 @@ it runs, and nothing changes for you. What it cannot follow at all is a compile 
   by name is different: `toolbar[name]` looks up a member
   ([Program structure](declare-docs:guide:structure@a-member-by-a-name-known-at-run-time)).
 - **Aggregating over the live view tree**, `children.map((c) => c.width)` — arranging
-  children is a layout's job ([Size, position and layout](declare-docs:guide:layout@what-a-layout-decides)),
+  children is a layout's job ([Size, position and layout](declare-docs:guide:layout@a-layout-of-your-own)),
   and counts come from data, not from views.
 - **Passing a node into a `script` function** — script is outside the reactive
   system, so a constraint depends only on the values it passes. Pass the values

@@ -52,7 +52,7 @@ await boxes();
 await sleep(400);
 
 await test("a DIRECT ancestor-scale write reaches every box — the fully visible ones included", async () => {
-  await page.evaluate(`window.__app.camScale = 2.5`);
+  await page.evaluate(`window.__app.zoom = 2.5`);
   await sleep(500);
   const b = await boxes();
   // the fully visible boxes are the regression: they cross no observer
@@ -62,6 +62,7 @@ await test("a DIRECT ancestor-scale write reaches every box — the fully visibl
 });
 
 await test("a SPRUNG ancestor scale settles every box to the resting value — no mid-flight samples survive", async () => {
+  await page.evaluate(`window.__app.zoom = 1`);
   await page.evaluate(`window.__app.camTarget = 0.5`);
   await sleep(2000);                       // the glide (~500ms) plus the at-rest flush
   const b = await boxes();

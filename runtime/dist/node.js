@@ -19,6 +19,9 @@ export class Node {
     constructor() { if (profileHook !== null)
         profileHook.built(this); }
     parent = null;
+    /** Torn down: retired with its subtree. Services that hold nodes they did
+     *  not build (Keys' shortcut sets and claims) drop the ones that are. */
+    $tornDown = false;
     /** The parent a removeChild just unlinked from — a re-link back to the SAME
      *  parent (what replication does to every row of a block on any change) is
      *  not a move, and must not invalidate the provider memos. */
@@ -280,6 +283,7 @@ export class Node {
     $teardown() {
         if (profileHook !== null)
             profileHook.discarded(this);
+        this.$tornDown = true;
         for (const child of this.children)
             child.$teardown();
         runRetire(this);

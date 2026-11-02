@@ -1,0 +1,9 @@
+// island-swap — an AppIsland whose program changes between two programs, and
+// to "" and back. Driven by island-swap.assert.mjs.
+
+ship [ islands = ["island-tenant", "island-tenant-b"] ]
+
+App [ width = 800, height = 600,
+    prog: string = "island-tenant",
+    isl: AppIsland [ x = 20, y = 70, width = 320, height = 220, program = { app.prog } ]
+    ]

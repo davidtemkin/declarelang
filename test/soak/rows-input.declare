@@ -1,0 +1,33 @@
+// rows-input — rows that are hovered, pressed, tool-tipped, focused and have a
+// popover open when they are rebuilt (keyless: every rebuild discards them).
+// Driven by rows-input.assert.mjs.
+
+App [ width = 700, height = 600,
+    seq: number = 0,
+    model: Dataset [ contents = { ({ rows: [0, 1, 2, 3, 4, 5].map((i) => ({ k: "row " + i + "." + app.seq })) }) } ],
+    list: View [ x = 20, y = 20, width = 400, datapath = { app.model.value },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        Row [ datapath = :rows[] ]
+        ],
+    rebuild: Button [ x = 500, y = 20, label = "Rebuild",
+        onClick() { app.seq = app.seq + 1 }
+        ]
+    ]
+
+
+class Row extends View [ width = 400, height = 40, fill = { hovered ? 0xdde6f0 : pressed ? 0xaabbcc : 0xf4f4f4 },
+    tooltipLabel = { "tip for " + :k },
+    Text [ x = 10, y = center, text = :k ],
+    go: Button [ x = 250, y = 5, label = "Open",
+        onClick() { classroot.pop.show() }
+        ],
+    pop: Popover [ anchorTo = { classroot.go },
+        Text [ text = "a popover" ]
+        ],
+
+    // pressing this one rebuilds the rows WHILE it is pressed (from its own press)
+
+    kill: View [ x = 340, y = 5, width = 50, height = 30, fill = { pressed ? 0xff0000 : 0xffa500 },
+        onPointerDown(e: PointerEvent) { app.seq = app.seq + 1 }
+        ]
+    ]

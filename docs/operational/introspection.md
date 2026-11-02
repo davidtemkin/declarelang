@@ -22,8 +22,8 @@ out is part of what the build is for. The stub is not silent about it:
 `window.__declare.stub` names what happened and the way back in. Two ways back: a
 program that answers questions about itself *in production* declares it — `ship [ inspector
 = true ]` keeps the bridge, the Inspector (compiled ahead, so no compiler is needed to open
-it), source positions, and error prose in the package — and a developer's `declarec
---debug` keeps all of that plus the program verbatim. Either is the right mode for an
+it), source positions, and error prose in the package — and a debug build (`declarec
+--debug`) keeps all of that plus the program verbatim. Either is the right mode for an
 artifact you intend to `verify` or question after the fact.
 
 ```js

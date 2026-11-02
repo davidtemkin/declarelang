@@ -1,0 +1,6 @@
+// island-tenant-b — a second program for island-swap.declare to swap to.
+
+App [ width = 300, height = 200,
+    which: string = "B",
+    Text [ x = 10, y = 10, text = "tenant B" ]
+    ]

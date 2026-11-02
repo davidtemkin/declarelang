@@ -122,7 +122,7 @@ export function deliverFiles(app, kind, x, y, count, files = []) {
  *  not opened by the browser in place of the app. */
 export function wireFiles(app, el) {
     if (typeof document === "undefined" || typeof el.addEventListener !== "function" || typeof el.getBoundingClientRect !== "function")
-        return;
+        return () => { };
     const isFiles = (e) => e.dataTransfer !== null && Array.from(e.dataTransfer.types).includes("Files");
     const at = (e) => {
         const r = el.getBoundingClientRect();
@@ -137,17 +137,15 @@ export function wireFiles(app, el) {
         e.stopPropagation(); // an app embedded in this one answered for its own box
         e.dataTransfer.dropEffect = takes ? "copy" : "none";
     };
-    el.addEventListener("dragenter", hover);
-    el.addEventListener("dragover", hover);
-    el.addEventListener("dragleave", (e) => {
+    const leave = (e) => {
         if (!isFiles(e))
             return;
         // leaving a child for another is not leaving the app
         if (e.relatedTarget instanceof Node && el.contains(e.relatedTarget))
             return;
         deliverFiles(app, "out", 0, 0, 0);
-    });
-    el.addEventListener("drop", (e) => {
+    };
+    const drop = (e) => {
         if (!isFiles(e))
             return;
         e.preventDefault();
@@ -169,7 +167,19 @@ export function wireFiles(app, el) {
             }
             deliverFiles(app, "drop", p.x, p.y, files.length, files);
         })();
-    });
+    };
+    el.addEventListener("dragenter", hover);
+    el.addEventListener("dragover", hover);
+    el.addEventListener("dragleave", leave);
+    el.addEventListener("drop", drop);
+    // the element outlives the app when it is an island's box, which hosts the
+    // next program: the listeners go with this one
+    return () => {
+        el.removeEventListener("dragenter", hover);
+        el.removeEventListener("dragover", hover);
+        el.removeEventListener("dragleave", leave);
+        el.removeEventListener("drop", drop);
+    };
 }
 /** A dropped entry, and a folder's whole tree: each file with its path from the
  *  dropped folder ("photos/2026/a.jpg"); a file dropped on its own has none. */

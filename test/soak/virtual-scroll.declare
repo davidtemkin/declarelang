@@ -1,0 +1,20 @@
+// virtual-scroll — a virtualized list scrolled by the wheel while its records
+// are replaced (keyless rebuild), with a Keys member in every row counting
+// keys. Driven by virtual-scroll.assert.mjs.
+
+App [ width = 700, height = 600,
+    seq: number = 0,
+    heard: number = 0,
+    d: Dataset [ contents = { ({ rows: Array.from({ length: 400 }, (_, i) => ({ k: "row " + i + "." + app.seq })) }) } ],
+    list: View [ x = 20, y = 20, width = 400, height = 400, scrolls = y, datapath = { app.d.value },
+        layout: SimpleLayout [ axis = y ],
+        View [ datapath = :rows[], virtualize = true, width = 400, height = 28, fill = { hovered ? 0xdde6f0 : 0xf8f8f8 },
+            Text [ x = 8, y = 6, text = :k ],
+            Keys [ onKeyDown(e: KeyEvent) { if (e.key == "k") app.heard = app.heard + 1 }
+                ]
+            ]
+        ],
+    rebuild: Button [ x = 500, y = 20, label = "Rebuild",
+        onClick() { app.seq = app.seq + 1 }
+        ]
+    ]

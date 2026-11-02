@@ -198,7 +198,7 @@ export class KeysService {
    *  down while an overlay owns the keys — the menu's rover is the focus). */
   navClaim(owner: object, on: boolean): void {
     const was = this.navClaims.size > 0;
-    if (on) { this.navClaims.delete(owner); this.navClaims.add(owner); }
+    if (on) { this.dropTornDown(); this.navClaims.delete(owner); this.navClaims.add(owner); }
     else this.navClaims.delete(owner);
     const is = this.navClaims.size > 0;
     if (was !== is) for (const fn of [...this.navHandlers]) fn(is);
@@ -381,6 +381,9 @@ export class KeysService {
 
   /** A `Shortcuts` node declares its set (it registers at init). */
   _declareShortcuts(owner: object): void {
+    // a set that left (its row rebuilt) goes as a new one comes, so the sets
+    // held never outgrow the live ones, keys pressed or not
+    for (const o of this.shortcutOwners) if (o.$tornDown === true) this.shortcutOwners.delete(o);
     this.shortcutOwners.add(owner as ShortcutOwner);
   }
 

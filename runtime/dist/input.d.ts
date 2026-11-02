@@ -98,7 +98,7 @@ export declare function provideKeyContextTarget(fn: () => {
 export declare function routeInput(alive: () => boolean, resolve: (e: MouseEvent) => HitTarget | null, rootPoint?: (e: MouseEvent) => {
     x: number;
     y: number;
-}, onHover?: (t: HitTarget | null) => void, topLevel?: boolean): void;
+}, onHover?: (t: HitTarget | null) => void, topLevel?: boolean): () => void;
 /** Does a wheel scroll pass a view whose `claim` covers only one axis — a
  *  scroll mostly along the other, which goes on to the page as a finger's does
  *  (a chart that pans sideways leaves a vertical wheel scrolling past it)? */

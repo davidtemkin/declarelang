@@ -774,8 +774,8 @@ export interface IslandSlotEvent {
     view: unknown;
     /** The island's DOM element, when the backend has one; null on canvas. */
     el: HTMLElement | null;
-    /** The slot marker, `"run:name|k=v"` style ("" never reaches sinks — a
-     *  cleared slot only leaves the live set). */
+    /** The slot marker, `"run:name|k=v"` style; "" when the island cleared it
+     *  (the host ends what it mounted there). */
     slot: string;
 }
 /** @internal Backends call this from setEmbed (mark, re-mark, or clear). */

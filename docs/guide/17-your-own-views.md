@@ -397,7 +397,7 @@ decide it.
 
 A layout of your own reads the same facts the library's do — each child's natural size
 (`contentWidth`, `contentHeight`), its range, whether it flexes or shrinks — and a `w` or `h`
-in a box sizes that child within its range ([Sizes](declare-docs:guide:layout@sizes)). For an arrangement that glides between two
+in a box sizes that child within its range ([Sizes](declare-docs:guide:layout@a-list-that-fills-and-scrolls)). For an arrangement that glides between two
 layouts, extend [`TweenLayout`](declare-docs:TweenLayout) instead
 ([Animated arrangements](declare-docs:guide:animated-arrangements@tweenlayout)).
 

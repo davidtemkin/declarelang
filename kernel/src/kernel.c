@@ -11,7 +11,9 @@
 #include "declare_kernel.h"
 
 #define NONE 0xffffffffu
-#define CODE_CLASSES 64   /* freed code blocks up to this many words are reused by exact length */
+#define CODE_EXACT 64     /* a block up to this many words is reused by its exact length, unrounded */
+#define CODE_SLOTS (CODE_EXACT + 1 + 32)   /* free lists: one per exact length, then one per power of two above */
+#define CONST_SEEN 64     /* a rule's distinct constants tracked when its storage is given back */
 
 /* ── the host, both ways ────────────────────────────────────────────────────
  * Natively the callbacks are the function pointers in dk_host. Under
@@ -140,7 +142,7 @@ struct dk_kernel {
    * freed; a runtime rule's bytecode, constants and lists return here when the
    * rule is freed, and the next allocation of the same size takes them back. */
   uint32_t code_image, const_image;          /* the image's part of each arena */
-  uint32_t code_free[CODE_CLASSES + 1];      /* per exact length: a freed block's first word links the next */
+  uint32_t code_free[CODE_SLOTS];            /* per exact length, then per power of two: a freed block's first word links the next */
   uint32_t const_free;                       /* a freed slot holds the next index */
 };
 
@@ -254,7 +256,7 @@ dk_kernel *kernel_load(const void *image, uint32_t bytes, const dk_caps *caps,
   k->nedges_static = im.nedges; k->ncode = im.ncode; k->nconsts = im.nconsts;
   k->active = -1; k->cell_free = NONE; k->rule_free = NONE;
   k->code_image = im.ncode; k->const_image = im.nconsts; k->const_free = NONE;
-  for (uint32_t i = 0; i <= CODE_CLASSES; i++) k->code_free[i] = NONE;
+  for (uint32_t i = 0; i < CODE_SLOTS; i++) k->code_free[i] = NONE;
   k->nstatic = im.ncells; k->node_hw = 0;
   /* ONLY the image's cells are initialized here: runtime cells are set up by
    * kernel_add_cell as they are handed out, so the capacity beyond the image
@@ -568,21 +570,35 @@ int kernel_set(dk_kernel *k, uint32_t cell, double v) {
 void kernel_touch(dk_kernel *k, uint32_t cell) { drain_track(k); if (cell < k->ncells) wake(k, cell); }
 
 /* ── reuse of the code and constant arenas ───────────────────────────────── */
+/* A block of up to CODE_EXACT words — nearly every expression — is reused by
+ * its exact length and never rounded. A longer one (a long expression, a list
+ * of a layout's children) takes the smallest power of two that holds it, so it
+ * too can be taken again by any later block of its class, however long: nothing
+ * the arena hands out is lost to it. (Rounding every block cost about 1% on a
+ * code-heavy program's boot: the arena grew more.) */
+static uint32_t code_slot(uint32_t n, uint32_t *size) {
+  if (n <= CODE_EXACT) { *size = n; return n; }
+  uint32_t c = 7; while ((1u << c) < n) c++;   /* n > 64, so at least 128 */
+  *size = 1u << c;
+  return CODE_EXACT + 1 + (c - 7);
+}
 static int32_t code_take(dk_kernel *k, uint32_t n) {
-  if (n >= 1 && n <= CODE_CLASSES && k->code_free[n] != NONE) {
-    uint32_t off = k->code_free[n];
-    k->code_free[n] = k->code[off];
+  uint32_t size, s = code_slot(n, &size);
+  if (n >= 1 && k->code_free[s] != NONE) {
+    uint32_t off = k->code_free[s];
+    k->code_free[s] = k->code[off];
     return (int32_t)off;
   }
-  if (k->ncode + n > k->code_cap) return DK_ERR_FULL;
+  if (k->ncode + size > k->code_cap) return DK_ERR_FULL;
   uint32_t off = k->ncode;
-  k->ncode += n;
+  k->ncode += size;
   return (int32_t)off;
 }
 static void code_give(dk_kernel *k, uint32_t off, uint32_t n) {
-  if (n == 0 || n > CODE_CLASSES || off < k->code_image || off + n > k->ncode) return;   /* a longer block stays where it is */
-  k->code[off] = k->code_free[n];
-  k->code_free[n] = off;
+  if (n == 0 || off < k->code_image || off + n > k->ncode) return;   /* the image's own code stays where it is */
+  uint32_t size, s = code_slot(n, &size);
+  k->code[off] = k->code_free[s];
+  k->code_free[s] = off;
 }
 static void const_give(dk_kernel *k, uint32_t i) {
   if (i < k->const_image || i >= k->nconsts) return;
@@ -594,7 +610,7 @@ static void const_give(dk_kernel *k, uint32_t i) {
 static void give_rule_storage(dk_kernel *k, Rule *r) {
   if (r->ncode == 0) return;
   if (r->kind == DK_EXPR && r->code0 >= k->code_image) {
-    uint32_t seen[CODE_CLASSES]; uint32_t nseen = 0;
+    uint32_t seen[CONST_SEEN]; uint32_t nseen = 0;
     const uint32_t *c = k->code + r->code0, *end = c + r->ncode;
     while (c < end) {
       uint32_t op = *c++;
@@ -604,7 +620,7 @@ static void give_rule_storage(dk_kernel *k, Rule *r) {
       uint32_t i = *c++, dup = 0;
       for (uint32_t j = 0; j < nseen; j++) if (seen[j] == i) { dup = 1; break; }
       if (dup) continue;
-      if (nseen < CODE_CLASSES) seen[nseen++] = i;
+      if (nseen < CONST_SEEN) seen[nseen++] = i;
       const_give(k, i);
     }
     code_give(k, r->code0, r->ncode);

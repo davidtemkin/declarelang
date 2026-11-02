@@ -88,12 +88,12 @@ export function wireIslands({ app, host, cfg, seeds, compile, navServices, resol
       // the island discarded — its window closed — ends the program it hosts:
       // the bridge first (its overlays leave the host's layers, its keyboard
       // claim goes), then the app itself (its clocks and fetches stop)
-      if (childApp && islView) onDiscard(islView, () => {
-        if (box.__childApp !== childApp) return;            // a newer render owns the box
-        for (const fn of childUndo.splice(0)) { try { fn(); } catch {} }
-        disposeApp(childApp);
-        box.__childApp = null;
-      });
+      // Registered once per island, for whatever it hosts when it goes: one per
+      // render held every program the island ever hosted until it went.
+      if (childApp && islView && !endsWithIsland.has(islView)) {
+        endsWithIsland.add(islView);
+        onDiscard(islView, () => unmount(box));
+      }
       if (childApp) {
         childApp.demoSources = seeds;                     // populate a nested copy's own editors
         // The child's own wiring, by observation (its lifetime is known HERE):
@@ -163,17 +163,30 @@ export function wireIslands({ app, host, cfg, seeds, compile, navServices, resol
   // Wire ONE island box (called per slot event, never per frame — see the
   // registration below). Idempotent: a wired box is left alone — what the
   // host provides reaches the tenant through the island link, not the slot.
+  const endsWithIsland = new WeakSet();
+  // The program a box hosts ends: its island cleared its slot (program = ""),
+  // or names another program now. The bridge first, then the app, as a discard.
+  function unmount(box) {
+    for (const fn of childUndoOf.get(box)?.splice(0) ?? []) { try { fn(); } catch {} }
+    if (box.__childApp) { disposeApp(box.__childApp); box.__childApp = null; }
+    box.innerHTML = "";
+    delete box.dataset.wired;
+  }
+
   async function mountPreview(box) {
     if (isStopped() || !box.dataset.declareSlot?.startsWith("run:")) return;
     if (!box.isConnected) { deferPreview({ el: box }); return; }   // mid-attach — retry lands it
     const name = box.dataset.declareSlot.slice(4);
+    // a re-mark that names another program replaces the one mounted; one that
+    // changes only what the island provides (after "|") leaves it, linked
+    if (box.dataset.wired && box.dataset.wired !== name.split("|")[0]) unmount(box);
     if (box.dataset.wired || box.dataset.wiring) return;
     box.dataset.wiring = "1";                              // in-flight: one compile at a time
     const { compiled, unseeded } = await resolveCompiled(name, islandViewOf.get(box) ?? null);
     delete box.dataset.wiring;
     if (unseeded) return;
     if (!hasProgram(compiled)) { deferPreview({ el: box }); return; }  // compiler not warm / fetch missed — retry when it lands
-    box.dataset.wired = "1";                               // committed: don't remount
+    box.dataset.wired = name.split("|")[0];                // committed: don't remount this program
     renderChild(box, compiled, name);
   }
 
@@ -313,7 +326,8 @@ export function wireIslands({ app, host, cfg, seeds, compile, navServices, resol
   // nested children included) while two sibling apps stay out of each other.
   // Registered LAST: the replay fires synchronously into everything above.
   const discover = () => undo.push(onIslandSlot((ev) => {
-    if (isStopped() || ev.slot === "") return;
+    if (isStopped()) return;
+    if (ev.slot === "") { if (ev.el && ev.el.dataset.wired) unmount(ev.el); return; }
     if (ev.el) {
       // a DOM island: the box mounts content; containment keeps the scope the
       // old scan had (everything under THIS host, nested children included).

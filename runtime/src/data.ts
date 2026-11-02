@@ -41,7 +41,7 @@
 import { formBody } from "./files.js";
 import { mapUrl } from "./asset-base.js";
 import { Node, authoredName } from "./node.js";
-import { Cell, isSettling, isTracking, noteOrigin, retireCell, setRetireValue, settle } from "./reactive.js";
+import { Cell, isSettling, isTracking, noteOrigin, retireCell, setRetireValue, settle, untracked } from "./reactive.js";
 import { DeclareError } from "./errors.js";
 import { defineAttributes, setBound } from "./attributes.js";
 import type { AttrType } from "./value.js";
@@ -189,6 +189,19 @@ function retireTree(v: unknown): void {
   for (const k of Object.keys(v)) retireTree(v[k]);
 }
 setRetireValue(retireTree);
+/** retireTree for a value's last home going away (a Dataset torn down): every
+ *  container is entered, read or not. retireTree's shortcut — enter only what
+ *  has cells — holds for a value replaced while its readers stand, but a row
+ *  reads its record through its own cursor, so the array between holds no
+ *  cells and the records under it were never reached. Visits the whole value
+ *  once, on teardown only. */
+function retireAll(v: unknown, seen = new Set<object>()): void {
+  if (!isContainer(v) || seen.has(v)) return;
+  seen.add(v);
+  const cells = CELLS.get(v);
+  if (cells !== undefined) for (const c of cells.values()) retireCell(c);
+  for (const k of Object.keys(v)) retireAll(v[k], seen);
+}
 
 function tagTree(data: Dataset, v: unknown, path: string[]): void {
   if (!isContainer(v)) return;
@@ -315,6 +328,17 @@ export class Dataset extends Node {
   declare schema: DataShape | null;
 
   private readonly cursors = new Map<string, Cursor>();
+
+  /** Retire with the program: the cells readers made inside its value are freed
+   *  once no rule listens to them (retireAll — a record shared with a program
+   *  still running keeps its listened ones). Without this they waited for the
+   *  collector to find the records, so a program built after a discarded one
+   *  found them still held, and the cell table's high-water mark crept with each
+   *  program discarded (2026-11-01). */
+  override $teardown(): void {
+    retireAll(unwrapValue(untracked(() => this.value)));
+    super.$teardown();
+  }
 
   /** Counts changes to the dataset's SHAPE — a record inserted, removed,
    *  moved or replaced, or the whole value adopted. A replicated row's

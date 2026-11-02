@@ -30,10 +30,13 @@ export interface HostServices {
     inspect?: (slot: string) => void;
 }
 export declare function provideHostServices(app: App, services: HostServices): void;
-/** Tear down an embedded app's environment wiring (ResizeObserver + pointer listeners).
- *  Its rendered DOM is removed by the caller (clearing the island box); its input
- *  router self-retires once the root element is disconnected. A no-op for a
- *  top-level app. */
+/** End an embedded app: its environment wiring (ResizeObserver + pointer
+ *  listeners) at once, then, when the page is idle, the program itself — its tree discarded, so its views,
+ *  rules, cells and clocks go with it. Until 2026-11-01 only the wiring went,
+ *  and every tenant an island ever hosted stayed whole in memory, held by the
+ *  kernel's block registry (test/soak/island-*). Its rendered DOM is removed by
+ *  the caller (clearing the island box); its input router self-retires once the
+ *  root element is disconnected. */
 export declare function disposeApp(app: App): void;
 /** Wire the runtime input services to a freshly-rooted app. A TOP-LEVEL app owns
  *  the page: it takes the focus-tree root (Tab from nothing focused), the keyboard

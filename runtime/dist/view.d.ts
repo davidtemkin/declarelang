@@ -449,7 +449,6 @@ export declare class View extends Node {
      *  geometry re-runs when the arrangement lands — the result is the one the
      *  final child list gives either way. */
     private $mutationQueued;
-    private $tornDown;
     $childrenMutated(): void;
     private $applyChildrenMutated;
     /** This view's own content's extent on a size axis, folded into the

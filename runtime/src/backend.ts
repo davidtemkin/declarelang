@@ -745,8 +745,8 @@ export interface IslandSlotEvent {
   view: unknown;
   /** The island's DOM element, when the backend has one; null on canvas. */
   el: HTMLElement | null;
-  /** The slot marker, `"run:name|k=v"` style ("" never reaches sinks — a
-   *  cleared slot only leaves the live set). */
+  /** The slot marker, `"run:name|k=v"` style; "" when the island cleared it
+   *  (the host ends what it mounted there). */
   slot: string;
 }
 
@@ -755,8 +755,11 @@ const liveIslands = new Map<unknown, IslandSlotEvent>();
 
 /** @internal Backends call this from setEmbed (mark, re-mark, or clear). */
 export function notifyIslandSlot(ev: IslandSlotEvent): void {
-  if (ev.slot === "") { liveIslands.delete(ev.view); return; }
-  liveIslands.set(ev.view, ev);
+  // an island torn down without clearing its slot leaves as the next one comes
+  for (const v of liveIslands.keys()) if ((v as { $tornDown?: boolean }).$tornDown === true) liveIslands.delete(v);
+  if (ev.slot === "") liveIslands.delete(ev.view);
+  else liveIslands.set(ev.view, ev);
+  // a cleared slot is heard too: the host ends the program the island hosted
   for (const s of islandSinks) s(ev);
 }
 

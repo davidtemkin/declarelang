@@ -47,7 +47,7 @@ Returning *views* (not flattened sequences) is what buys composability: an outer
 - **Overridden → you return the complete member order for your subtree** — no partial mixing (omit a member → its subtree is excluded; you took over, you own it). Simple case reads like a list: `tabOrder() { return [name, address, submit] }`. Partial reorder is explicit composition, never an auto-append: `tabOrder() { return [submit, ...this.tabDefault().filter(v => v !== submit)] }`.
 - **Dynamic-safe:** it runs at traversal time over the live tree, so replicated / runtime children flow through the default (or an override reading live children). You never name instances — you list a container (`[search, ...rows, ok]`) and its own `tabOrder()` expands its instances.
 
-Safety net (dev builds): since `tabOrder()` is dynamic there's no static "you forgot a field" check — after a traversal the service can compare the returned order against the actual focusable descendants and warn on omissions.
+Safety net (debug builds): since `tabOrder()` is dynamic there's no static "you forgot a field" check — after a traversal the service can compare the returned order against the actual focusable descendants and warn on omissions.
 
 **Keyboard delivery to focus:** the focused view receives `onKeyDown` / `onKeyUp` (target-only, per D-2 — no bubbling; replication refills the delegation gap). `Tab` / `Shift-Tab` are consumed by the focus service (advance/retreat) unless a focusTrap escapes.
 

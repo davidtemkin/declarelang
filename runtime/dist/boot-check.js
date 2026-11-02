@@ -135,6 +135,35 @@ function layoutChecks(app, { touch = false, realText = false, skip = [] }, flagg
                 }
             }
         }
+        // A FLEX WITH NOTHING TO SHARE: the room a flexing child shares is what is
+        // left along the flow, and a view as long as its children has none
+        const axis = v.layout?.axis;
+        if (axis === "x" || axis === "y") {
+            const size = axis === "x" ? "width" : "height";
+            const flexer = sizedByContent(v, size) ? v.children.find((c) => c instanceof View && c.visible && !c.ignoreLayout && c.flexes !== false && c.flexes !== 0) : undefined;
+            if (flexer !== undefined && fresh("flex", pathOf(app, v))) {
+                out.push(`${pathOf(app, flexer)} flexes, but ${pathOf(app, v)} is as ${size === "width" ? "wide" : "tall"} as its children, so there is no room left over to share and it gets none. Give ${pathOf(app, v)} a ${size} (${size} = 100% is the room its parent gives it).`);
+            }
+            // A RUN PAST ITS VIEW'S END: a view with a size of its own whose laid
+            // children need more than it has, neither clipped nor scrolled — the run
+            // simply goes on past the end
+            const pos = axis === "x" ? "x" : "y";
+            if (flexer === undefined && !sizedByContent(v, size) && v.scrolls !== axis && v.scrolls !== "both" && (v.clip === null || v.clip === false || v.clip === "")) {
+                const room = v.contentBox(size);
+                let end = 0, last = null;
+                for (const c of v.children) {
+                    if (!(c instanceof View) || !c.visible || c.ignoreLayout)
+                        continue;
+                    if (c[pos] + c[size] > end) {
+                        end = c[pos] + c[size];
+                        last = c;
+                    }
+                }
+                if (last !== null && end > room + 1 && fresh("run", pathOf(app, v))) {
+                    out.push(`${pathOf(app, v)}'s children need ${Math.round(end)} ${size === "width" ? "across" : "down"} and it has ${Math.round(room)}, so ${pathOf(app, last)} runs past its end. Let a child give room up (shrinks = true), take what is left rather than the whole (flexes instead of ${size} = 100%), or let ${pathOf(app, v)} scroll or clip.`);
+                }
+            }
+        }
         if (realText) {
             // TEXT PAST ITS BOX: a run that does not wrap and is wider than its box
             const t = v;

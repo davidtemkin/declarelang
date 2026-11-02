@@ -1,0 +1,6 @@
+// a tenant with one Shortcuts member (island-each.declare)
+
+App [ width = 200, height = 100,
+    Shortcuts [ items = { [ ({ id: "s", key: "⌘S", label: "Save" }) ] } ],
+    Text [ text = "keys" ]
+    ]

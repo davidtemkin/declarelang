@@ -99,6 +99,9 @@ const DEFAULTS = new WeakMap<object, Record<string, unknown>>();
 const DEF_RULES = new WeakMap<object, Record<string, { fn: (this: unknown, parent: unknown, classroot: unknown) => unknown; outer: boolean }>>();
 const PUSHERS = new WeakMap<object, Record<string, Push | undefined>>();
 const EQUALS = new WeakMap<object, Record<string, Equal | undefined>>();
+/** Per class, each attribute's once-per-instance `onTrack` hook, as a tracked
+ *  read would fire it — for readers that never call the getter (noteStaticRead). */
+const TRACK_HOOKS = new WeakMap<object, Record<string, ((self: object) => void) | undefined>>();
 // NUMERIC SLOTS LIVE IN THE KERNEL'S TABLE (kernel.md §2). A slot whose default
 // is a number or a boolean, with no live/tracked hook and no custom equality,
 // is stored as an f64 in the kernel. Each class has a LAYOUT — slot name →
@@ -125,19 +128,72 @@ function slotValue(L: Layout, slot: number, c: number): unknown {
   return L.kinds[slot] === "b" ? n !== 0 : n;
 }
 const LAYOUT = new WeakMap<object, Layout>();
-/** Blocks returned by torn-down instances, per class, for reuse (cleared). */
-const FREE_BLOCKS = new WeakMap<object, number[]>();
-/** Every block ever allocated, sorted by base, with the instance that holds it
- *  now — cell → (instance, slot) for the push sweep. Bases only grow (the
- *  kernel hands blocks out from its high-water mark), so appends stay sorted;
- *  a reused block keeps its entry and changes hands. */
+/** Every block the kernel has handed out, sorted by base, with its length and
+ *  the instance that holds it now (null: free) — cell → (instance, slot) for
+ *  the push sweep, and the free space for reuse. New blocks come from the
+ *  kernel's high-water mark, so appends stay sorted; a reused block keeps its
+ *  entry and changes hands, a split or a merge rewrites entries in place. */
 const BLOCK_BASE: number[] = [];
+const BLOCK_LEN: number[] = [];
 const BLOCK_VIEW: (Carrier | null)[] = [];
-const BLOCK_AT = new Map<number, number>();   // base → index in the arrays
 function blockIndexOf(cell: number): number {
   let lo = 0, hi = BLOCK_BASE.length - 1;
   while (lo <= hi) { const mid = (lo + hi) >> 1; if (BLOCK_BASE[mid] <= cell) lo = mid + 1; else hi = mid - 1; }
   return hi;   // the last base ≤ cell
+}
+
+/* FREE BLOCKS, BY LENGTH, SHARED BY EVERY CLASS (docs/system-design/memory.md).
+ * A torn-down instance's block (cleared) goes here, and any later instance of
+ * any class takes it: a block of that length first, else a longer one split,
+ * the rest going back. Only when neither exists, and enough is free in all, are
+ * neighbouring free blocks merged — lazily, so steady churn (rows rebuilt,
+ * screens swapped) never pays for it. Blocks were once pooled per class, so a
+ * class no longer used kept its cells from every other, and a program built
+ * again — new classes — orphaned every block the old one had. */
+const FREE_BY_LEN = new Map<number, number[]>();
+let freeTotal = 0;          // cells in free blocks
+let mergeable = false;      // a block was freed since the last merge
+function giveBlock(base: number, len: number): void {
+  let list = FREE_BY_LEN.get(len);
+  if (list === undefined) FREE_BY_LEN.set(len, (list = []));
+  list.push(base);
+  freeTotal += len;
+  mergeable = true;
+}
+function takeBlock(n: number): number {
+  const exact = FREE_BY_LEN.get(n);
+  if (exact !== undefined && exact.length > 0) { freeTotal -= n; return exact.pop()!; }
+  let best = longerFree(n);
+  if (best < 0 && mergeable && freeTotal >= n) { mergeFree(); best = longerFree(n); if (best === n) { freeTotal -= n; return FREE_BY_LEN.get(n)!.pop()!; } }
+  if (best < 0) return -1;
+  const base = FREE_BY_LEN.get(best)!.pop()!;
+  freeTotal -= best;
+  const i = blockIndexOf(base);
+  BLOCK_LEN[i] = n;
+  BLOCK_BASE.splice(i + 1, 0, base + n); BLOCK_LEN.splice(i + 1, 0, best - n); BLOCK_VIEW.splice(i + 1, 0, null);
+  giveBlock(base + n, best - n);
+  return base;
+}
+/** The shortest free length of at least n (n itself after a merge), or -1. */
+function longerFree(n: number): number {
+  let best = -1;
+  for (const [len, list] of FREE_BY_LEN) if (len >= n && list.length > 0 && (best < 0 || len < best)) best = len;
+  return best;
+}
+/** Merge every run of neighbouring free blocks into one, and list them again. */
+function mergeFree(): void {
+  const base: number[] = [], len: number[] = [], view: (Carrier | null)[] = [];
+  for (let i = 0; i < BLOCK_BASE.length; i++) {
+    const j = base.length - 1;
+    if (BLOCK_VIEW[i] === null && j >= 0 && view[j] === null && base[j] + len[j] === BLOCK_BASE[i]) { len[j] += BLOCK_LEN[i]; continue; }
+    base.push(BLOCK_BASE[i]); len.push(BLOCK_LEN[i]); view.push(BLOCK_VIEW[i]);
+  }
+  BLOCK_BASE.length = 0; BLOCK_BASE.push(...base);
+  BLOCK_LEN.length = 0; BLOCK_LEN.push(...len);
+  BLOCK_VIEW.length = 0; BLOCK_VIEW.push(...view);
+  FREE_BY_LEN.clear(); freeTotal = 0;
+  for (let i = 0; i < base.length; i++) if (view[i] === null) giveBlock(base[i], len[i]);
+  mergeable = false;
 }
 /** The instance and slot a kernel cell belongs to, when it is a numeric block
  *  slot — the push sweep's lookup, exposed for tooling that names cells (the
@@ -192,6 +248,17 @@ export function afterPush(ctor: object, names: readonly string[], then: (self: o
   }
 }
 
+
+/** A reader the kernel wires to `self.name`'s cell directly — a compiled
+ *  expression's LOAD, which never calls the getter — counts as a tracked read
+ *  for the attribute's onTrack hook. Without this the hook never fired for such
+ *  a reader: `res = { classroot.apparentScale }` compiles to a kernel rule, the
+ *  visibility feed it arms never armed, and the fact sat at its default
+ *  (2026-11-01, test/vis-camera.test.mjs). */
+export function noteStaticRead(self: object, name: string): void {
+  if ((self as Carrier).$base === -1) return;   // torn down: nothing to arm (as a tracked read)
+  tableFor(TRACK_HOOKS, self.constructor)?.[name]?.(self);
+}
 /** The kernel cell of `self.name` when it is a table slot of this instance
  *  (numeric, not escaped, not retired); −1 otherwise. Allocates the block.
  *  The EXPR binder resolves its read paths and its target through this. */
@@ -408,6 +475,7 @@ export function defineAttributes<S extends object>(
   const defaults: Record<string, unknown> = Object.create(tableFor(DEFAULTS, parent));
   const pushers: Record<string, Push | undefined> = Object.create(tableFor(PUSHERS, parent));
   const equals: Record<string, Equal | undefined> = Object.create(tableFor(EQUALS, parent));
+  const trackHooks: Record<string, ((self: object) => void) | undefined> = Object.create(tableFor(TRACK_HOOKS, parent));
   const parentLayout = tableFor(LAYOUT, parent);
   const layout: Layout = {
     index: Object.create(parentLayout?.index ?? null) as Record<string, number | undefined>,
@@ -455,6 +523,7 @@ export function defineAttributes<S extends object>(
     const readOnly = spec.readOnly === true;
     const onTrack = spec.onTrack as ((self: object) => void) | undefined;
     const trackedOnce = onTrack !== undefined ? new WeakSet<object>() : null;
+    if (onTrack !== undefined) trackHooks[name] = (self) => { if (!trackedOnce!.has(self)) { trackedOnce!.add(self); onTrack(self); } };
     const live = spec.live as ((self: object) => unknown) | undefined;
     const trackedHook = spec.tracked as ((self: object, v: unknown) => unknown) | undefined;
     Object.defineProperty(ctor.prototype, name, {
@@ -496,7 +565,10 @@ export function defineAttributes<S extends object>(
           }
           // retired (base −1) or escaped: the JS store below
         }
-        if (isTracking()) {
+        // a retired instance (torn down) answers its last value but is not
+        // tracked: a cell made for it now would never be freed — a scroll
+        // anchor reading a discarded row allocated one a rebuild (soak, 2026-11-01)
+        if (isTracking() && self.$base !== -1) {
           cellFor(self, name).track();
           if (trackedOnce !== null && !trackedOnce.has(self)) { trackedOnce.add(self); onTrack!(self); }
         } else if (live !== undefined) {
@@ -560,6 +632,7 @@ export function defineAttributes<S extends object>(
   DEFAULTS.set(ctor, defaults);
   PUSHERS.set(ctor, pushers);
   EQUALS.set(ctor, equals);
+  TRACK_HOOKS.set(ctor, trackHooks);
   layout.defaults = Float64Array.from(layoutDefaults);
   for (let i = 0; i < layout.count; i++) { layoutNulls[i] ??= 0; layout.nullable[i] ??= false; }
   layout.defaultNulls = Uint8Array.from(layoutNulls);
@@ -579,17 +652,17 @@ export function blockOf(self: object): number {
 }
 
 /** This instance's block, allocated on first need with the class defaults —
- *  a block a torn-down instance of the same class returned, when there is one. */
+ *  a block a torn-down instance of any class gave back, when one fits. */
 function ensureBase(self: Carrier): number {
   let base = self.$base;
   if (base !== undefined) return base;
   const L = tableFor(LAYOUT, self.constructor)!;
-  const free = FREE_BLOCKS.get(self.constructor);
-  if (free !== undefined && free.length > 0) { base = free.pop()!; BLOCK_VIEW[BLOCK_AT.get(base)!] = self; }
+  base = takeBlock(L.count);
+  if (base >= 0) BLOCK_VIEW[blockIndexOf(base)] = self;
   else {
     base = kernel().addCells(L.count);
     if (base < 0) throw new DeclareError("kernel: out of cells — the program exceeds the runtime's cell capacity");
-    BLOCK_AT.set(base, BLOCK_BASE.length); BLOCK_BASE.push(base); BLOCK_VIEW.push(self);
+    BLOCK_BASE.push(base); BLOCK_LEN.push(L.count); BLOCK_VIEW.push(self);
   }
   table.set(L.defaults, base);
   nulls.set(L.defaultNulls, base);
@@ -1052,11 +1125,16 @@ export function freeCells(self: object): void {
   const carrier = self as Carrier;
   const cells = carrier.$cells;
   if (cells !== undefined) for (const name of Object.keys(cells)) cells[name].free();
+  // the cells a provision's readers track (provideCellFor) go too: kept beside
+  // $cells but not freed with them, each held a kernel cell after its node was
+  // gone (2026-11-01, found by a chat app's churn)
+  const pc = carrier.$provideCells;
+  if (pc !== undefined) for (const name of Object.keys(pc)) pc[name].free();
   const base = carrier.$base;
   if (base !== undefined && base >= 0) {
     // a discarded view still ANSWERS its last values (a test, the Inspector,
     // a handler holding a reference): copy them out, then clear the block
-    // and keep it for the next instance of this class
+    // and give it back for the next instance of any class
     // — only the values that DIFFER from the class defaults: `$attrs` sits on
     // the defaults, so a slot still at its default answers without a copy
     // (a row torn down under churn has most of its 40-odd slots untouched;
@@ -1073,10 +1151,8 @@ export function freeCells(self: object): void {
       attrs[name] = slotValue(L, slot, base + slot);
     }
     kernel().clearCells(base, L.count);
-    BLOCK_VIEW[BLOCK_AT.get(base)!] = null;
-    let free = FREE_BLOCKS.get(self.constructor);
-    if (free === undefined) FREE_BLOCKS.set(self.constructor, (free = []));
-    free.push(base);
+    BLOCK_VIEW[blockIndexOf(base)] = null;
+    giveBlock(base, L.count);
     carrier.$base = -1;   // retired: reads fall through to $attrs from here on
   } else if (base === undefined) {
     // never allocated a block: retire it all the same, or a read after

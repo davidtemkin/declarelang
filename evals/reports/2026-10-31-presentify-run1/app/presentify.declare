@@ -449,6 +449,7 @@ App [ appName = "Presentify", minWidth = 960, minHeight = 600,
 
     // What the conflict notice says: what happened, and whether work here
     // is waiting on the person's choice.
+
     mineChanged: boolean = { (app.doc.currentPage?.rev ?? 0) > (app.doc.currentPage?.savedRev ?? 0) },
     clashWords: string = { "Slide " + (app.doc.currentIndex + 1) + " was changed in another window since you opened it. "
         + (app.mineChanged ? "Your changes to it are kept here, unsaved, until you choose." : "You're seeing it as it was before.") },

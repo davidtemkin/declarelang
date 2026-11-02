@@ -113,6 +113,17 @@ class ExtentLedger {
     }
     rebuild(ids, fallbackEst) {
         this.n = ids.length;
+        // records that left are forgotten once more are remembered than there are
+        // records, so replacing the collection again and again keeps at most two
+        // generations of extents, not every one ever measured
+        if (this.known.size > ids.length) {
+            const live = new Set(ids);
+            for (const [id, h] of this.known)
+                if (!live.has(id)) {
+                    this.known.delete(id);
+                    this.knownSum -= h;
+                }
+        }
         if (this.known.size > 0) {
             const mean = this.knownSum / this.known.size;
             if (!this.estMeasured || Math.abs(mean - this.est) > this.est * 0.2)
@@ -243,8 +254,15 @@ export class Windowing {
     measureCell = new Cell();
     constructor(host) {
         this.host = host;
-        onDiscard(host.parent, () => { this.dropHeightOwner(); if (this.drainTimer !== null)
-            clearTimeout(this.drainTimer); });
+        onDiscard(host.parent, () => {
+            this.dropHeightOwner();
+            if (this.drainTimer !== null)
+                clearTimeout(this.drainTimer);
+            if (this.jumpTimer !== null)
+                clearTimeout(this.jumpTimer);
+            this.measureCell.free();
+            this.inViewCell.free();
+        });
     }
     // ── the window API (replicate.ts' kernel window door) ──────────────────
     realized() {
