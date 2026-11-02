@@ -20,17 +20,17 @@ App [ width = 640, height = 260, fill = white, textColor = black,
         Text [ x = 12, y = center, textColor = white, fontWeight = semibold, text = "Notes" ]
         ],
     body: View [ width = 100%, flexes = true,
-        layout: ResponsiveLayout [ align = stretch, plan = { [
+        layout: ResponsiveLayout [ align = stretch, plan = { [   // changed: plans
             ({ from: 480, flow: "row", share: ({ list: 35, pane: 65 }) }),
             ({ from: 0, flow: "row",
                share: app.open < 0 ? ({ list: 100, pane: 0 }) : ({ list: 0, pane: 100 }) })
             ] } ],
-        list: View [ scrolls = y, fill = whitesmoke,
+        list: View [ scrolls = y, fill = whitesmoke,   // changed: no width, the plan gives it
             datapath = { app.notes.value },
             layout: SimpleLayout [ axis = y ],
             NoteRow [ datapath = :items[] ]
             ],
-        pane: View [
+        pane: View [   // changed: no flexes, the plan gives its width
             Text [ x = 16, y = 16, width = { parent.width - 32 },
                 text = { app.open < 0 ? "No note open" : app.notes.value.items[app.open].text } ]
             ]

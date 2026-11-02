@@ -1,0 +1,200 @@
+// Small seats belong to the room; the enlarged chooser uses the same source records.
+
+class SeatButton extends Control [
+    seatId: string = "",
+    sectionName: string = "",
+    rowName: string = "",
+    seatNumber: number = 0,
+    price: number = 0,
+    gone: boolean = false,
+    large: boolean = false,
+    chosen: boolean = { app.selection.includes(this.seatId) },
+    unchosen: boolean = { !this.gone && !this.chosen },
+    numbered: boolean = { !this.large && this.width >= 16 },
+    accessibilityLabel = { this.sectionName + ", row " + this.rowName + ", seat " + this.seatNumber },
+    accessibilityHint = { money(this.price) + (this.gone ? ", sold" : this.chosen ? ", selected; press to remove" : ", available; press to select") },
+    accessibilityRole = toggle, accessibilityPressed = { this.chosen },
+    tooltipLabel = { this.sectionName + " · " + this.rowName + this.seatNumber + " · " + money(this.price) },
+    disabled = { this.gone || app.order.loading },
+    press() { app.toggleSeat(this.seatId); afterSettle(() => this.scrollIntoView()) },
+    pulse: number = 0,
+    Spring [ attribute = pulse, to = { classroot.chosen ? 1 : 0 }, stiffness = 440, damping = 24 ],
+    draw(d: DrawContext) {
+        const w = this.width, h = this.height, pad = this.large ? 4 : 2
+        const ink = provided("theme").ink, accent = provided("theme").accent
+        d.fillStyle = this.gone ? provided("theme").sold : this.chosen ? accent : provided("theme").paper
+        d.strokeStyle = this.gone ? provided("theme").sold : this.chosen ? accent : ink
+        d.lineWidth = 1 + this.pulse
+        d.beginPath(); d.roundRect(pad, pad, w - pad * 2, h - pad * 2, [5, 5, 2, 2]); d.fill(); d.stroke()
+        if (this.gone) {
+            d.strokeStyle = provided("theme").muted; d.lineWidth = 1
+            d.beginPath(); d.moveTo(w * 0.32, h * 0.32); d.lineTo(w * 0.68, h * 0.68)
+            d.moveTo(w * 0.68, h * 0.32); d.lineTo(w * 0.32, h * 0.68); d.stroke()
+        } else if (this.chosen && !this.large) {
+            d.strokeStyle = "#FFFFFF"; d.lineWidth = 1.5
+            d.beginPath(); d.moveTo(w * 0.25, h * 0.5); d.lineTo(w * 0.43, h * 0.68); d.lineTo(w * 0.75, h * 0.3); d.stroke()
+            }
+        },
+    TextLabel [ visible = { classroot.numbered && classroot.unchosen },
+        x = center, y = center, fontSize = 9, text = { "" + classroot.seatNumber } ],
+    TextLabel [ visible = { classroot.large && !classroot.gone }, x = center, y = center,
+        fontSize = 15, fontWeight = semibold,
+        textColor = { classroot.chosen ? 0xFFFFFF : provided("theme").ink },
+        text = { (classroot.chosen ? "✓ " : "") + classroot.seatNumber } ]
+    ]
+
+
+class HouseRow [ width = 100%, height = 24,
+    rowName: string = { :name },
+    n: number = { :seats.length },
+    pitch: number = { Math.min(22, (this.width - 32) / 34) },
+    Text [ x = 0, y = 5, fontSize = 10, textColor = { provided("theme").muted }, text = { parent.rowName } ],
+    SeatButton [ datapath = :seats[],
+        seatId = :id, seatNumber = :number, gone = { :status != "available" },
+        sectionName = { provided("sectionName") }, rowName = { parent.rowName }, price = { provided("seatPrice") },
+        width = { parent.pitch }, height = 20,
+        x = { (parent.width - parent.n * parent.pitch) / 2 + rowIndex * parent.pitch },
+        y = { 7 * (1 - Math.pow((rowIndex - (parent.n - 1) / 2) / (parent.n / 2), 2)) } ]
+    ]
+
+
+class HouseSection [ width = 100%, padding = [8, 0, 15, 0],
+    sectionName: string = { :name },
+    seatPrice: number = { :priceCents },
+    layout: SimpleLayout [ axis = y, spacing = 3 ],
+    View [ width = 100%, padding = [0, 0, 8, 0],
+        layout: SimpleLayout [ axis = x, align = baseline ],
+        Text [ flexes = true, fontSize = 13, fontWeight = semibold, text = { :name } ],
+        SmallText [ text = { money(:priceCents) + " / seat" } ]
+        ],
+    HouseRow [ datapath = :rows[] ],
+    Rule [ ]
+    ]
+
+
+class MiniHouse [ width = 100%, height = 300, accessibilityLabel = "Grand Hall overview; choose a section and row below for full-size seats.",
+    draw(d: DrawContext) {
+        const sections = app.hall.sections(), w = this.width
+        const allRows = sections.reduce((n, s) => n + s.rows.length, 0)
+        const pitchY = 216 / Math.max(1, allRows)
+        let y = 35
+        d.fillStyle = provided("theme").ink
+        d.beginPath(); d.roundRect(w * 0.28, 0, w * 0.44, 20, [2, 2, 12, 12]); d.fill()
+        sections.forEach((s, si) => {
+            s.rows.forEach((r) => {
+                const pitch = Math.min(9, (w - 24) / 34)
+                r.seats.forEach((seat, i) => {
+                    const x = (w - r.seats.length * pitch) / 2 + i * pitch
+                    const curve = 5 * (1 - Math.pow((i - (r.seats.length - 1) / 2) / (r.seats.length / 2), 2))
+                    const selected = app.selection.includes(seat.id)
+                    const gone = seat.status == "sold"
+                    d.fillStyle = selected ? provided("theme").accent : gone ? provided("theme").sold : provided("theme").paper
+                    d.strokeStyle = gone ? provided("theme").sold : selected ? provided("theme").accent : provided("theme").ink
+                    d.lineWidth = 0.7
+                    d.beginPath(); d.roundRect(x, y + curve, pitch - 2, 5, 1); d.fill(); d.stroke()
+                    if (selected || gone) {
+                        d.strokeStyle = selected ? "#FFFFFF" : provided("theme").muted
+                        d.beginPath(); d.moveTo(x + 1, y + curve + 2); d.lineTo(x + 3, y + curve + 4)
+                        if (selected) d.lineTo(x + pitch - 3, y + curve + 1)
+                        d.stroke()
+                        }
+                    })
+                y += pitchY
+                })
+            y += 10
+            if (si < sections.length - 1) {
+                d.strokeStyle = provided("theme").lineStrong; d.lineWidth = 0.6
+                d.beginPath(); d.moveTo(12, y - 2); d.quadraticCurveTo(w / 2, y + 8, w - 12, y - 2); d.stroke()
+                }
+            })
+        }
+    ]
+
+
+class SectionChoice extends Control [ width = 100%, height = 52, padding = [0, 12, 0, 12], cornerRadius = 4,
+    accessibilityLabel = { :name + ", " + money(:priceCents) + " per seat" },
+    accessibilityRole = toggle, accessibilityPressed = { app.sectionKey == :key },
+    fill = { app.sectionKey == :key ? provided("theme").accentPale : provided("theme").pale },
+    press() { app.sectionKey = :key; app.rowName = :rows[0].name },
+    layout: SimpleLayout [ axis = x, align = center ],
+    Text [ flexes = true, fontSize = 15, text = :name ],
+    Text [ fontSize = 14, numeralWidth = tabular, text = { money(:priceCents) } ]
+    ]
+
+
+class RowPicker [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+    Eyebrow [ text = "FIND YOUR PLACE" ],
+    SmallText [ width = 100%, text = "Choose a section, then a row. Tap a numbered seat to make it yours." ],
+    sections: View [ width = 100%, datapath = { app.hall.value },
+        layout: SimpleLayout [ axis = y, spacing = 6 ],
+        SectionChoice [ datapath = :sections[] ]
+        ],
+    Text [ text = "Row", fontSize = 14, fontWeight = semibold ],
+    rows: View [ width = 100%, datapath = { app.currentSection },
+        layout: WrappingLayout [ spacing = 5, rowSpacing = 5 ],
+        Control [ datapath = :rows[], width = 44, height = 44, cornerRadius = 22,
+            accessibilityLabel = { "Row " + :name }, accessibilityRole = toggle, accessibilityPressed = { app.rowName == :name },
+            fill = { app.rowName == :name ? provided("theme").ink : provided("theme").pale },
+            press() { app.rowName = :name },
+            TextLabel [ x = center, y = center, fontSize = 15, text = :name,
+                textColor = { app.rowName == :name ? 0xFFFFFF : provided("theme").ink } ]
+            ]
+        ],
+    Text [ width = 100%, fontFamily = "Georgia", fontSize = 22,
+        text = { (app.currentSection?.name ?? "") + " · Row " + app.rowName } ],
+    SmallText [ text = "↑ Facing the stage" ],
+    seats: View [ width = 100%, datapath = { app.currentRow },
+        layout: WrappingLayout [ spacing = 4, rowSpacing = 6 ],
+        SeatButton [ datapath = :seats[], width = 48, height = 48, large = true,
+            seatId = :id, seatNumber = :number, gone = { :status != "available" },
+            sectionName = { app.currentSection?.name ?? "" }, rowName = { app.rowName }, price = { app.currentSection?.priceCents ?? 0 } ]
+        ],
+    SmallText [ width = 100%, text = "Outlined: available   ✓ Yours   × Sold\nPrices shown before booking fees." ]
+    ]
+
+
+class HallPage [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 20 ],
+    Action [ label = "← Performances", disabled = { app.order.loading },
+        onClick() { app.go("performances") }
+        ],
+    heading: Headline [ text = "A place for you." ],
+    SmallText [ text = { "Grand Hall · " + dateLabel(app.performance?.startsAt ?? "") + " · " + timeLabel(app.performance?.startsAt ?? "") } ],
+    Text [ visible = { app.hall.loading }, text = "Opening the house…" ],
+    Notice [ visible = { app.hall.failed }, text = { app.hall.error } ],
+    Action [ visible = { app.hall.failed }, label = "Reload seats",
+        onClick() { app.hall.fetch() }
+        ],
+    room: View [ width = 100%, visible = { app.hall.loaded },
+        layout: ResponsiveLayout [ gap = 40, plan = { [
+            { from: 780, flow: "row", share: { map: 65, chooser: 35 } },
+            { from: 0, flow: "stack", share: { map: 100, chooser: 100 } } ] } ],
+        map: View [ layout: SimpleLayout [ axis = y, spacing = 16 ],
+            Eyebrow [ text = "THE GRAND HALL / LIVE AVAILABILITY" ],
+            MiniHouse [ visible = { app.useRowPicker } ],
+            desktop: View [ visible = { !app.useRowPicker }, width = 100%,
+                layout: SimpleLayout [ axis = y, spacing = 15 ],
+                View [ width = 70%, x = center, height = 44, fill = { provided("theme").ink }, cornerRadius = [2, 2, 60, 60],
+                    TextLabel [ x = center, y = center, text = "S T A G E", fontSize = 11, textColor = white ]
+                    ],
+                View [ width = 100%, datapath = { app.hall.value },
+                    layout: SimpleLayout [ axis = y, spacing = 2 ],
+                    HouseSection [ datapath = :sections[] ]
+                    ]
+                ],
+            SmallText [ width = 100%, text = "Outlined seats are free. A check is yours. Crossed seats are sold." ],
+            SmallText [ width = 100%, text = { app.events.open ? "● Availability is updating live" : "Reconnecting to live availability…" } ]
+            ],
+        chooser: View [ layout: SimpleLayout [ axis = y, spacing = 20 ],
+            RowPicker [ visible = { app.useRowPicker } ],
+            View [ visible = { !app.useRowPicker }, width = 100%,
+                layout: SimpleLayout [ axis = y, spacing = 16 ],
+                Eyebrow [ text = "THE WHOLE HOUSE" ],
+                MiniHouse [ ],
+                SmallText [ width = 100%, text = "Four levels. Every seat faces the stage. Choose an outlined seat in the room to make it yours." ],
+                OrderSummary [ visible = { app.selection.length > 0 } ]
+                ]
+            ]
+        ]
+    ]

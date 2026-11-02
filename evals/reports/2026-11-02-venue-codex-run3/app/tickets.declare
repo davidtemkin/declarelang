@@ -1,0 +1,35 @@
+class TicketsPage [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = { app.phone ? 12 : 20 }, align = center ],
+    heading: Headline [ text = "The evening is yours.", textAlign = center ],
+    Text [ width = 100%, textAlign = center, fontSize = 15, text = { "Sent to " + (app.order.value?.email ?? "") } ],
+    SmallText [ text = { "Confirmation " + (app.order.value?.code ?? "") } ],
+    ticket: View [ width = { Math.min(430, parent.width) }, fill = white, cornerRadius = 8, padding = { app.phone ? 20 : 24 },
+        stroke = { stroke(1, provided("theme").line) },
+        layout: SimpleLayout [ axis = y, spacing = { app.phone ? 12 : 16 }, align = center ],
+        Eyebrow [ text = "THE VENUE / GRAND HALL" ],
+        Text [ width = 100%, textAlign = center, fontFamily = "Georgia", fontSize = { app.phone ? 26 : 30 }, text = "The Marriage\nof Figaro" ],
+        Text [ fontSize = 17, text = { dateLabel(app.performance?.startsAt ?? "") + " · " + timeLabel(app.performance?.startsAt ?? "") } ],
+        SmallText [ text = { "Arrive from " + timeLabel(app.performance?.doorsAt ?? "") } ],
+        Rule [ ],
+        Text [ fontSize = 22, fontFamily = "Georgia", text = { app.ticket?.section ?? "" } ],
+        Text [ fontSize = 30, fontWeight = semibold, text = { "Row " + (app.ticket?.row ?? "") + "  ·  Seat " + (app.ticket?.number ?? "") } ],
+        Image [ width = { app.phone ? 180 : 204 }, height = { this.width }, stretches = contain, source = { qrImage(app.ticket?.barcode ?? "") },
+            accessibilityLabel = { "Scannable ticket " + (app.ticket?.barcode ?? "") } ],
+        Text [ fontSize = 14, letterSpacing = 1.6, text = { app.ticket?.barcode ?? "" } ],
+        SmallText [ text = "Present this code at the door" ]
+        ],
+    pager: View [ width = { Math.min(430, parent.width) },
+        layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+        Action [ label = "← Previous", disabled = { app.ticketIndex == 0 },
+            onClick() { app.ticketIndex = app.ticketIndex - 1; app.announceTicket() }
+            ],
+        Text [ flexes = true, textAlign = center, accessibilityLive = polite, fontSize = 14,
+            text = { (app.ticketIndex + 1) + " of " + (app.order.value?.tickets.length ?? 0) } ],
+        Action [ label = "Next →", disabled = { app.ticketIndex + 1 >= (app.order.value?.tickets.length ?? 0) },
+            onClick() { app.ticketIndex = app.ticketIndex + 1; app.announceTicket() }
+            ]
+        ],
+    Action [ label = "Book another evening",
+        onClick() { app.startAgain() }
+        ]
+    ]

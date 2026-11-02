@@ -148,8 +148,11 @@ reply that is not a refusal. Say it in the program's own words.
 **Internal.** the form's own request is out.
 
 ## _heard()
-**Internal.** What became of the request the form sent: a refusal goes onto the members,
-a success resets them; for a form with no `source`, `pending` turning false after a submit.
+**Internal.** For a form with no `source`: `pending` turning false after a submit.
+
+## _ended()
+**Internal.** The request the form sent has come back: a refusal goes onto the members, a
+success resets them.
 
 ## _join()
 **Internal.** A control inside joins the form.
@@ -295,7 +298,11 @@ class Form [
     send() {
         if (source == null) return
         _sending = true
-        ;(source as any).fetch()
+        // its end is the request's own: sent from inside a settle, the request
+        // starts only once the settle is over, so until then its flags still say
+        // nothing is loading, and read as an answer they ended the send at once
+        // and dropped the refusal that came after
+        ;(source as any).fetch().then(() => this._ended())
         },
 
     showProblems() {
@@ -343,22 +350,21 @@ class Form [
         return p.split("/").join(".")
         },
 
-    // What became of the request the form sent. Heard by this member, not by
-    // the form's own handlers, so a use site's `trackChanges` and `onChange`
-    // are its own.
+    // A form with no source: its own send ends when `pending` turns false. Heard
+    // by this member, not by the form's own handlers, so a use site's
+    // `trackChanges` and `onChange` are its own.
 
     _watch: Node [
-        out: boolean = { classroot.source != null && classroot.source.loading },
         pend: boolean = { classroot.pending },
-        trackChanges = ["out", "pend"],
-        onChange(e: ChangeEvent) { classroot._heard(e.changed.some((c) => c.name == "pend")) }
+        trackChanges = ["pend"],
+        onChange(e: ChangeEvent) { classroot._heard() }
         ],
-    _heard(pendingMoved: boolean) {
-        if (source == null) {
-            if (submitted && !pending && pendingMoved) _landed()
-            return
-            }
-        if (_watch.out || !_sending) return
+    _heard() {
+        if (source == null && submitted && !pending) _landed()
+        },
+    _ended() {
+        // a later send stopped this one: that one ends it
+        if (!_sending || (source as any).loading) return
         _sending = false
         if ((source as any).failed) _refused((source as any).errorBody ?? null)
         else _succeeded()

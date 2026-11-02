@@ -1,0 +1,9 @@
+# The Venue implementation
+
+- Data: typed DataSources for production, the selected hall, account, session writes, and orders. EventStream updates the hall's source records. Derived datasets wrap seats with section/row context; no duplicated inventory. Cookie credentials on every service request; no browser persistence.
+- State: performance id, current step, selected seat ids, mobile section/row, ticket index, sign-in visibility, and payment draft. Draft defaults follow account data until edited. Signing in preserves the draft and selection.
+- Parts: performance row, a drawn house overview, exact seat Control, section/row chooser, checkout Form and labeled fields, order summary, sign-in Dialog, ticket with a real QR code.
+- Layout: library layouts arrange all ordinary content. A custom scene arranges the curved hall. At phone widths the overview remains visible and row chips open a numbered row with 48-point seats; no pinch or precision tap is needed. Desktop can choose directly in the house or through the same enlarged row chooser.
+- Changes: a short spring records seat selection; persistent summary follows the true seat sum. Navigation focuses headings. Forms handle blur/submit validation, field refusals, Enter navigation and single in-flight submission. A live loss removes only conflicted seats and announces them; a payment conflict returns to the hall.
+- Styling: ivory paper, dark ink, one vermilion accent; Georgia display type and system sans for controls. Checkout gives the fields and order equal care; tickets display one at a time at door-readable size.
+- Validation: Declare formatter and verify on phone/desk, browser screenshots, service-backed assert flows covering guest purchase, sign-in/session, saved-card decline, local/server validation, live seat loss, and ticket navigation. No server modifications.

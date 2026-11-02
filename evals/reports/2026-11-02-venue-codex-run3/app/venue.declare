@@ -1,0 +1,152 @@
+/* The Venue. The service owns inventory, accounts and orders. This App holds only
+   the person's place and draft. Native Declare forms and streams own their lifecycle. */
+
+include [ "model.declare", "style.declare", "performances.declare", "hall.declare", "checkout.declare", "tickets.declare" ]
+
+App [ appName = "The Venue — The Marriage of Figaro", minWidth = 320, scrolls = none,
+    height = { app.hostHeight - app.keyboardHeight },
+    theme = { { ...SanFrancisco, ...Venue } }, fontFamily = "system-ui", fontSize = 16,
+    fill = { provided("theme").paper }, textColor = { provided("theme").ink },
+    phone: boolean = { app.width < 820 },
+    useRowPicker: boolean = { app.phone || app.touchFirst },
+    step: string = "performances",
+    performanceId: string = "",
+    selection: string[] = [],
+    sectionKey: string = "ORCH",
+    rowName: string = "A",
+    ticketIndex: number = 0,
+    notice: string = "",
+    clock: Time [ tick = day ],
+    production: DataSource [ url = "http://127.0.0.1:8350/api/production", credentials = include, autoFetch = true,
+        schema = [ title: string, hall: string, runningTime: string, performances[]: Performance ] ],
+    account: DataSource [ url = "http://127.0.0.1:8350/api/me", credentials = include, autoFetch = true, schema = Account ],
+    hall: HallSource [ url = { app.performanceId == "" ? "" : "http://127.0.0.1:8350/api/performances/" + app.performanceId + "/seats" },
+        autoFetch = true,
+        onLoad() {
+            const lost = app.selection.filter((id) => !this.seats().some((s) => s.id == id && s.seat.status == "available"))
+            if (lost.length) app.loseSeats(lost, "")
+            }
+        ],
+    events: EventStream [ url = { app.performanceId == "" ? "" : "http://127.0.0.1:8350/api/events?performance=" + app.performanceId },
+        active = { app.performanceId != "" && app.step != "tickets" }, listenTo = ["seatchanged"], credentials = include, retry = 3,
+        onOpen() { app.hall.fetch() },
+        onMessage(e: StreamMessage) {
+            const change = JSON.parse(e.data) as { seatId: string; status: string }
+            if (change.status == "sold") app.loseSeats([change.seatId], "")
+            }
+        ],
+    draft: PaymentDraft [ ],
+    session: DataSource [ url = "http://127.0.0.1:8350/api/session", method = "POST", credentials = include,
+        body = { { email: app.login.entry.email.trim(), password: app.login.entry.password } },
+        onLoad() { app.account.fetch(); app.login.entry.password = ""; app.login.close() }
+        ],
+    logout: DataSource [ url = "http://127.0.0.1:8350/api/session", method = "DELETE", credentials = include,
+        onLoad() { app.account.clear(); app.draft.saved = ""; app.draft.cvc = ""; Accessibility.announce("Signed out.") }
+        ],
+    order: DataSource [ url = "http://127.0.0.1:8350/api/orders", method = "POST", credentials = include, schema = Order,
+        body = { { performanceId: app.performanceId, seatIds: app.selection, email: app.draft.email.trim(), payment: app.draft.payment() } },
+        onLoad() { app.draft.cvc = ""; app.draft.number = ""; app.ticketIndex = 0; app.notice = ""; app.go("tickets") }
+        ],
+    performance: Performance? = { app.production.value?.performances.find((p) => p.id == app.performanceId) ?? null },
+    currentSection: Section? = { app.hall.sections().find((s) => s.key == app.sectionKey) ?? null },
+    currentRow: Row? = { app.currentSection?.rows.find((r) => r.name == app.rowName) ?? null },
+    chosen: Dataset [ schema = [ seats[]: SeatRef ], contents = { { seats: app.hall.seats().filter((s) => app.selection.includes(s.id)) } } ],
+    subtotal: number = { (app.chosen.value?.seats ?? []).reduce((n, s) => n + s.priceCents, 0) },
+    fees: number = { (app.chosen.value?.seats ?? []).reduce((n, s) => n + s.feeCents, 0) },
+    total: number = { app.subtotal + app.fees },
+    summary: string = { app.selection.length + " seats · " + money(app.subtotal) },
+    ticket: Ticket? = { app.order.value?.tickets[app.ticketIndex] ?? null },
+    checkoutForm: CheckoutForm = { app.body.page.checkout.split.form },
+    seasonLabel() -> string {
+        const performances = app.production.value?.performances ?? []
+        if (performances.length == 0) return "Loading the season…"
+        return performances.length + " performances · " + seasonRange(performances[0].startsAt, performances[performances.length - 1].startsAt)
+        },
+    choosePerformance(id: string) {
+        if (id != app.performanceId) { app.selection = []; app.hall.clear(); app.sectionKey = "ORCH"; app.rowName = "A" }
+        app.performanceId = id; app.notice = ""; app.go("hall")
+        },
+    go(place: string) {
+        if (app.order.loading) return
+        if (place == "performances") app.production.fetch()
+        app.step = place; app.body.scrollTo(0)
+        afterSettle(() => {
+            if (place == "hall") Focus.focus(app.body.page.hall.heading)
+            if (place == "checkout") Focus.focus(app.body.page.checkout.heading)
+            if (place == "tickets") Focus.focus(app.body.page.tickets.heading)
+            })
+        },
+    toggleSeat(id: string) {
+        if (app.order.loading) return
+        const seat = app.hall.seats().find((s) => s.id == id)
+        if (!seat || seat.seat.status != "available") return
+        app.selection = app.selection.includes(id) ? app.selection.filter((s) => s != id) : [...app.selection, id]
+        Accessibility.announce(app.selection.length + " seats · " + money(app.hall.seats().filter((s) => app.selection.includes(s.id)).reduce((n, s) => n + s.priceCents, 0)))
+        },
+    loseSeats(ids: string[], message: string) {
+        const lost = app.hall.seats().filter((s) => ids.includes(s.id) && app.selection.includes(s.id))
+        app.hall.markSold(ids)
+        app.selection = app.selection.filter((id) => !ids.includes(id))
+        if (message != "" || lost.length > 0) {
+            app.notice = message || lost.map((s) => s.section + ", row " + s.row + ", seat " + s.seat.number + " was just taken.").join(" ")
+            Accessibility.announce(app.notice)
+            }
+        },
+    announceTicket() { Accessibility.announce("Ticket " + (app.ticketIndex + 1) + " of " + (app.order.value?.tickets.length ?? 0)) },
+    startAgain() {
+        app.selection = []; app.performanceId = ""; app.notice = ""; app.order.clear(); app.hall.clear();
+        app.go("performances")
+        afterSettle(() => Focus.focus(app.header.brand))
+        },
+    countries: Menu [ items = { [ { id: "US", label: "United States" }, { id: "CA", label: "Canada" }, { id: "GB", label: "United Kingdom" } ] },
+        picked(id: string) { app.draft.country = countryName(id) }
+        ],
+
+    layout: SimpleLayout [ axis = y ],
+    header: View [ width = 100%, height = { app.phone ? 68 : 86 }, padding = { [0, app.phone ? 20 : 48, 0, app.phone ? 20 : 48] },
+        stroke = { [null, null, stroke(1, provided("theme").line), null] },
+        layout: SimpleLayout [ axis = x, spacing = 20, align = center ],
+        accessibilityRole = banner,
+        brand: Control [ height = 48, padding = [0, 0, 0, 0], accessibilityLabel = "The Venue", disabled = { app.order.loading },
+            press() { if (app.step != "tickets") app.go("performances") },
+            TextLabel [ y = center, fontFamily = "Georgia", fontSize = 26, letterSpacing = -1, text = "The Venue" ]
+            ],
+        Eyebrow [ visible = { !app.phone }, text = "AN EVENING WELL SPENT" ],
+        Spacer [ ],
+        SmallText [ visible = { app.account.loaded && !app.phone }, text = { app.account.value?.name ?? "" } ],
+        Action [ label = { app.account.loaded ? "Sign out" : "Sign in" }, disabled = { app.order.loading || app.logout.loading },
+            onClick() { if (app.account.loaded) app.logout.fetch(); else app.login.show() }
+            ]
+        ],
+    body: View [ width = 100%, flexes = true, scrolls = y, accessibilityRole = main,
+        padding = { app.phone ? [20, 20, 28, 20] : [30, 48, 48, 48] },
+        page: View [ width = { Math.min(1184, parent.contentBox("width")) }, x = center,
+            layout: SimpleLayout [ axis = y, spacing = 18 ],
+            progress: Eyebrow [ width = 100%, visible = { app.step == "hall" || app.step == "checkout" },
+                text = "01 EVENING  /  02 SEATS  /  03 PAYMENT" ],
+            notice: Notice [ visible = { app.notice != "" }, text = { app.notice } ],
+            performances: PerformancesPage [ visible = { app.step == "performances" } ],
+            hall: HallPage [ visible = { app.step == "hall" } ],
+            checkout: CheckoutPage [ visible = { app.step == "checkout" } ],
+            tickets: TicketsPage [ visible = { app.step == "tickets" } ]
+            ]
+        ],
+    dock: View [ width = 100%, visible = { (app.step == "hall" || app.step == "checkout") && app.selection.length > 0 },
+        padding = { app.phone ? [12, 20, 12, 20] : [18, 48, 18, 48] },
+        fill = white, stroke = { [stroke(1, provided("theme").line), null, null, null] },
+        layout: SimpleLayout [ axis = x, spacing = 16, align = center ],
+        View [ flexes = true,
+            layout: SimpleLayout [ axis = y, spacing = 5 ],
+            Text [ width = 100%, fontSize = { app.phone ? 16 : 22 }, fontWeight = semibold, numeralWidth = tabular,
+                text = { app.summary } ],
+            SmallText [ width = 100%, text = { app.step == "checkout" ? app.chosen.value.seats.map((s) => s.section + " " + s.row + s.seat.number).join(" · ") + "\nIncludes " + money(app.fees) + " booking fees" : "+ " + money(app.fees) + " booking fees" } ]
+            ],
+        Action [ primary = true,
+            label = { app.order.loading ? "Processing…" : app.step == "checkout" ? "Pay " + money(app.total) : "Continue →" },
+            onClick() { if (app.order.loading) return; if (app.step == "checkout") app.checkoutForm.submit(); else app.go("checkout") }
+            ]
+        ],
+    login: Dialog [ title = "Welcome back", accessibilityLabel = "Sign in",
+        entry: LoginForm [ ]
+        ]
+    ]

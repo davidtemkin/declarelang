@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "card-validator": "^10.0.4",
+    "qrcode-generator": "^2.0.4"
+  }
+}

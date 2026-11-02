@@ -1,0 +1,28 @@
+export default async ({ drive, expect, page }) => {
+  await drive.settleData();
+  await page.getByRole('button',{name:/Fri 13 Nov, 7:30pm/}).click();await drive.settleData();
+  const seat=await page.evaluate(()=>{const s=window.__declare.find('app').hall.seats().find(s=>s.seat.status==='available');return `${s.section}, row ${s.row}, seat ${s.seat.number}`;});
+  await page.getByRole('button',{name:seat,exact:true}).click();
+  await page.getByRole('button',{name:'Continue →',exact:true}).click();
+  for(const [name,value] of Object.entries({'Email address':'errors@example.com','Name on card':'Card Reader','Card number':'4242424242424241','Expiry date':'04/28','Street address':'22 Grove Street','City':'San Francisco','Postal code':'94103'}))await page.getByRole('textbox',{name,exact:true}).fill(value);
+  await page.getByLabel('Security code',{exact:true}).fill('123');
+  await page.getByRole('button',{name:'Pay $87.00',exact:true}).click();
+  await expect.request('POST','/api/orders',{count:0});
+  await expect(page.getByRole('textbox',{name:'Card number',exact:true})).toBeFocused();
+  await page.getByRole('textbox',{name:'Card number',exact:true}).fill('4000000000009995');
+  await page.getByRole('button',{name:'Pay $87.00',exact:true}).click();await drive.settleData();
+  await expect.attr('app.order','statusCode',402);
+  let message=await page.evaluate(()=>window.__declare.find('app').order.errorBody.message);
+  await expect.text('app.body.page.checkout',message);
+  await expect(page.getByLabel('Security code',{exact:true})).toHaveValue('');
+  await expect(page.getByRole('textbox',{name:'Street address',exact:true})).toHaveValue('22 Grove Street');
+  await page.getByRole('textbox',{name:'Card number',exact:true}).fill('4000000000000127');
+  await page.getByLabel('Security code',{exact:true}).fill('123');
+  await page.getByRole('button',{name:'Pay $87.00',exact:true}).click();await drive.settleData();
+  await expect.attr('app.order','statusCode',422);
+  message=await page.evaluate(()=>window.__declare.find('app').order.errorBody.message);
+  await expect.text('app.body.page.checkout',message);
+  await expect(page.getByLabel('Security code',{exact:true})).toBeFocused();
+  await expect(page.getByLabel('Security code',{exact:true})).toHaveAttribute('aria-invalid','true');
+  await expect.request('POST','/api/orders',{count:2});
+};

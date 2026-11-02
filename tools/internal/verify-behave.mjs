@@ -343,8 +343,18 @@ bootHost(cfg);
       const inflight = new Set();
       let lastChange = Date.now();
       const LONG_LIVED = new Set(["eventsource", "websocket"]);
-      page.on("request", (r) => { if (!LONG_LIVED.has(r.resourceType())) { inflight.add(r); lastChange = Date.now(); } });
+      // A navigation (the page's own document) is not one either: the page
+      // arriving is awaited by arrive(). And a page another load replaced takes
+      // its requests with it, unreported — neither a finish nor a failure —
+      // so they are forgotten when the new page commits: Codex Venue 3's
+      // usability flow waited out settles on its own GET of venue.declare,
+      // then on a script of the page it replaced (2026-11-02).
+      page.on("request", (r) => { if (!LONG_LIVED.has(r.resourceType()) && !r.isNavigationRequest()) { inflight.add(r); lastChange = Date.now(); } });
       const settled = (r) => { if (inflight.delete(r)) lastChange = Date.now(); };
+      page.on("framenavigated", (f) => {
+        if (f !== page.mainFrame()) return;
+        for (const r of [...inflight]) if (r.frame() === f) settled(r);
+      });
       page.on("requestfinished", settled);
       page.on("requestfailed", settled);
       // …and a request that has answered is done half a second later at most,

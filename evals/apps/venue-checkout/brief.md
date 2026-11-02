@@ -36,7 +36,8 @@ chosen is always visible while they have any, and reads exactly:
 
 > **3 seats · $240.00**
 
-with the count and the true total of the chosen seats' prices, which differ by section.
+(**1 seat · $80.00** for one), with the count and the true total of the chosen seats' prices, which
+differ by section.
 
 Other people are buying at the same time. Seats will be taken while this person is looking
 at them, and the room must not lie about what is still free. A seat they had chosen that

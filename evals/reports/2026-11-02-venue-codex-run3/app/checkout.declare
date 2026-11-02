@@ -1,0 +1,233 @@
+// This distribution's Form source watcher can finish before DataSource.loading
+// enters its first frame (verified against an actual 401). Keep Form's validation
+// and refusal APIs; tie the send lifetime to DataSource's documented promise.
+
+class ServiceForm extends Form [ pending = false,
+    send() {
+        if (this.pending || this.source == null) return
+        const source = this.source
+        this.pending = true
+        source.fetch().then(() => {
+            this.pending = false
+            if (source.failed) {
+                const body = (source.errorBody ?? {}) as Refusal
+                this.refusedWith(body)
+                afterSettle(() => {
+                    this.refuse(this.refusal(body))
+                    afterSettle(() => this.showProblems())
+                    })
+            } else { this.submitted = false; this.error = "" }
+            })
+        }
+    ]
+
+
+class OrderSummary [ width = 100%, padding = 24, fill = { provided("theme").pale }, cornerRadius = 4,
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+    Eyebrow [ text = "YOUR EVENING" ],
+    Text [ width = 100%, fontFamily = "Georgia", fontSize = 25, text = "The Marriage of Figaro" ],
+    SmallText [ width = 100%, text = { "Grand Hall\n" + dateLabel(app.performance?.startsAt ?? "") + " · " + timeLabel(app.performance?.startsAt ?? "") } ],
+    Rule [ ],
+    seats: View [ width = 100%, datapath = { app.chosen.value },
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        View [ datapath = :seats[], width = 100%,
+            layout: SimpleLayout [ axis = y, spacing = 5 ],
+            View [ width = 100%,
+                layout: SimpleLayout [ axis = x, spacing = 8 ],
+                Text [ flexes = true, fontSize = 14, text = { :section + " · " + :row + :seat.number } ],
+                Text [ fontSize = 14, numeralWidth = tabular, text = { money(:priceCents) } ]
+                ],
+            View [ width = 100%,
+                layout: SimpleLayout [ axis = x ],
+                SmallText [ flexes = true, text = "Booking fee" ],
+                SmallText [ numeralWidth = tabular, text = { money(:feeCents) } ]
+                ]
+            ]
+        ],
+    Rule [ ],
+    View [ width = 100%,
+        layout: SimpleLayout [ axis = x, align = baseline ],
+        Text [ flexes = true, fontSize = 16, fontWeight = semibold, text = "Total" ],
+        Text [ fontSize = 24, fontFamily = "Georgia", numeralWidth = tabular, text = { money(app.total) } ]
+        ],
+    SmallText [ width = 100%, text = "Electronic tickets. No delivery charge.\nYour seats are confirmed after payment." ]
+    ]
+
+
+class SavedCardChoice extends Control [ width = 100%, padding = 14, cornerRadius = 4,
+    isExpired: boolean = { expired(:expMonth, :expYear, app.clock.now) },
+    disabled = { this.isExpired || app.order.loading },
+    accessibilityRole = toggle, accessibilityPressed = { app.draft.saved == :id },
+    accessibilityLabel = { cardBrand(:brand) + " ending " + :last4 + ", " + :expMonth + "/" + :expYear + (this.isExpired ? ", expired" : "") },
+    fill = { app.draft.saved == :id ? provided("theme").accentPale : provided("theme").pale },
+    press() { if (app.draft.saved != :id) { app.draft.saved = :id; app.draft.cvc = "" } },
+    layout: SimpleLayout [ axis = y, spacing = 5 ],
+    Text [ fontSize = 16, fontWeight = semibold, text = { (app.draft.saved == :id ? "✓ " : "") + cardBrand(:brand) + " ···· " + :last4 } ],
+    SmallText [ text = { (classroot.isExpired ? "Expired " : "Expires ") + String(:expMonth).padStart(2, "0") + "/" + :expYear } ]
+    ]
+
+
+class CheckoutForm extends ServiceForm [ width = 100%, source = { app.order }, enterMoves = true,
+    layout: SimpleLayout [ axis = y, spacing = 20 ],
+    validate() -> string { return app.selection.length == 0 ? "Choose at least one available seat." : "" },
+    refusedWith(body: Refusal) {
+        if (body.error == "card_declined" || body.error == "insufficient_funds" || body.field == "cvc") app.draft.cvc = ""
+        if (body.error == "unavailable") {
+            app.loseSeats(body.conflicts ?? [], body.message ?? "")
+            app.go("hall")
+        } else if (body.error == "signed_out") {
+            app.account.clear(); app.draft.saved = ""
+            }
+        },
+    showProblems() {
+        super.showProblems()
+        if (this.problems.length == 0 && this.error != "") {
+            afterSettle(() => { Focus.focus(this.failure); this.failure.scrollIntoView() })
+            }
+        },
+    Text [ width = 100%, fontSize = 14, text = "All fields are required unless marked optional." ],
+    account: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        Text [ width = 100%, fontSize = 14,
+            text = { app.account.loaded ? "Signed in as " + (app.account.value?.name ?? "") : "Have an account? Use a saved card." } ],
+        Action [ visible = { !app.account.loaded }, label = "Sign in",
+            onClick() { app.login.show() }
+            ]
+        ],
+    cards: View [ visible = { app.account.loaded }, width = 100%, datapath = { app.account.value },
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        SavedCardChoice [ datapath = :cards[] ],
+        Action [ width = 100%, label = "Use a new card",
+            onClick() { app.draft.saved = ""; app.draft.cvc = "" }
+            ]
+        ],
+    delivery: SmallText [ visible = { !app.draft.newCard }, width = 100%, text = { "Tickets will be sent to " + app.draft.email } ],
+    failure: Notice [ visible = { classroot.error != "" }, text = { classroot.error } ],
+    SmallText [ visible = { classroot.pending }, width = 100%, accessibilityLive = polite, text = "Processing your payment…" ],
+    email: Labeled [ visible = { app.draft.newCard }, label = "Email address",
+        Entry [ name = "email", purpose = email, required = "Enter your email address.",
+            text = { app.draft.email },
+            onInput(v: string) { app.draft.email = v },
+            validate(v: string) -> string { return emailError(v) }
+            ]
+        ],
+    holder: Labeled [ visible = { app.draft.newCard }, label = "Name on card",
+        Entry [ name = "holder", purpose = cardName, required = "Enter the name on the card.",
+            text = { app.draft.holder },
+            onInput(v: string) { app.draft.holder = v }
+            ]
+        ],
+    number: Labeled [ visible = { app.draft.newCard }, label = "Card number",
+        Entry [ name = "number", purpose = cardNumber, required = "Enter your card number.",
+            text = { app.draft.number },
+            onInput(v: string) { app.draft.number = cardFormat(v) },
+            validate(v: string) -> string { return cardError(v) }
+            ]
+        ],
+    brand: SmallText [ visible = { app.draft.newCard }, accessibilityLive = polite,
+        text = { app.draft.brand || "Visa · Mastercard · American Express · Discover" } ],
+    expiry: Labeled [ visible = { app.draft.newCard }, label = "Expiry date",
+        Entry [ name = "expiry", purpose = cardExpiry, placeholder = "MM/YY", required = "Enter the expiry date.",
+            text = { app.draft.expiry },
+            onInput(v: string) { app.draft.expiry = v },
+            validate(v: string) -> string { return expiryError(v) }
+            ]
+        ],
+    cvc: Labeled [ label = "Security code",
+        entry: Entry [ name = "cvc", purpose = cardCode, concealed = true,
+            placeholder = { app.draft.codeSize + " digits" }, required = "Enter the security code.",
+            text = { app.draft.cvc },
+            onInput(v: string) { app.draft.cvc = v },
+            validate(v: string) -> string { return new RegExp("^\\d{" + app.draft.codeSize + "}$").test(v) ? "" : "Enter the " + app.draft.codeSize + "-digit security code." }
+            ]
+        ],
+    billing: View [ visible = { app.draft.newCard }, width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 20 ],
+        Rule [ ],
+        Text [ fontFamily = "Georgia", fontSize = 24, text = "Billing address" ],
+        SmallText [ width = 100%, text = "The address registered to your card." ],
+        Labeled [ label = "Street address",
+            Entry [ name = "line1", purpose = addressLine1, required = "Enter your street address.",
+                text = { app.draft.line1 },
+                onInput(v: string) { app.draft.line1 = v }
+                ]
+            ],
+        Labeled [ label = "Address line 2 (optional)",
+            Entry [ name = "line2", purpose = addressLine2, text = { app.draft.line2 },
+                onInput(v: string) { app.draft.line2 = v }
+                ]
+            ],
+        Labeled [ label = "City",
+            Entry [ name = "city", purpose = city, required = "Enter your city.",
+                text = { app.draft.city },
+                onInput(v: string) { app.draft.city = v }
+                ]
+            ],
+        Labeled [ label = "Country",
+            Entry [ name = "country", purpose = country, required = "Choose your country.",
+                text = { app.draft.country },
+                onInput(v: string) { app.draft.country = v },
+                validate(v: string) -> string { return countryCode(v) ? "" : "Choose United States, Canada or United Kingdom." }
+                ]
+            ],
+        Action [ label = "Choose country", menu = { app.countries } ],
+        Labeled [ label = "Postal code",
+            Entry [ name = "postalCode", purpose = postalCode, required = "Enter your postal code.",
+                text = { app.draft.postal },
+                onInput(v: string) { app.draft.postal = v },
+                validate(v: string) -> string { return postalError(v, countryCode(app.draft.country)) }
+                ]
+            ]
+        ],
+    SmallText [ width = 100%, text = "Your payment details go directly to the payment service. Your tickets will arrive by email." ]
+    ]
+
+
+class CheckoutPage [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 20 ],
+    Action [ label = "← Your seats", disabled = { app.order.loading },
+        onClick() { app.go("hall") }
+        ],
+    Eyebrow [ text = "03 / MAKE IT AN EVENING" ],
+    heading: Headline [ text = "A few final details." ],
+    split: View [ width = 100%,
+        layout: ResponsiveLayout [ gap = 48,
+            plan = { [ { from: 760, flow: "row", share: { form: 58, summary: 42 } },
+                { from: 0, flow: "stack", share: { form: 100, summary: 100 } } ] } ],
+        form: CheckoutForm [ ],
+        summary: OrderSummary [ ]
+        ]
+    ]
+
+
+class LoginForm extends ServiceForm [ width = 100%, source = { app.session },
+    email: string = "",
+    password: string = "",
+    showing: boolean = false,
+    layout: SimpleLayout [ axis = y, spacing = 18 ],
+    SmallText [ width = 100%, text = "Your seats and payment details will stay right here." ],
+    Labeled [ label = "Email address",
+        Entry [ name = "email", purpose = email, required = "Enter your email address.",
+            text = { classroot.email },
+            onInput(v: string) { classroot.email = v },
+            validate(v: string) -> string { return emailError(v) }
+            ]
+        ],
+    Labeled [ label = "Password",
+        Entry [ name = "password", purpose = password, concealed = { !classroot.showing }, required = "Enter your password.",
+            text = { classroot.password },
+            onInput(v: string) { classroot.password = v }
+            ]
+        ],
+    Checkbox [ label = "Show password", height = 44, checked = { classroot.showing },
+        input(v: boolean) { classroot.showing = v }
+        ],
+    Notice [ visible = { classroot.error != "" }, text = { classroot.error } ],
+    Action [ width = 100%, primary = true,
+        label = { classroot.pending ? "Signing in…" : "Sign in" },
+        onClick() { classroot.submit() }
+        ],
+    Action [ width = 100%, label = "Continue as guest",
+        onClick() { app.login.close() }
+        ]
+    ]

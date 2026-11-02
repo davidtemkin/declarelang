@@ -1,0 +1,171 @@
+[
+  {
+    "name": "guest_pays",
+    "pass": true,
+    "error": null,
+    "ms": 9058,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01",
+      "GET /api/performances/p01/seats",
+      "POST /api/orders"
+    ]
+  },
+  {
+    "name": "phone_guest_pays",
+    "pass": true,
+    "error": null,
+    "ms": 8511,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01",
+      "GET /api/performances/p01/seats",
+      "POST /api/orders"
+    ]
+  },
+  {
+    "name": "double_press_sends_one",
+    "pass": true,
+    "error": null,
+    "ms": 8646,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01",
+      "GET /api/performances/p01/seats",
+      "POST /api/orders"
+    ]
+  },
+  {
+    "name": "declined_then_retry",
+    "pass": false,
+    "error": "never shown: Your bank declined the payment.",
+    "ms": 15389,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01",
+      "GET /api/performances/p01/seats",
+      "POST /api/orders"
+    ]
+  },
+  {
+    "name": "security_code_wrong",
+    "pass": false,
+    "error": "never shown: The security code doesn't match this card.",
+    "ms": 14667,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01",
+      "GET /api/performances/p01/seats",
+      "POST /api/orders"
+    ]
+  },
+  {
+    "name": "seat_taken_before_paying",
+    "pass": false,
+    "error": "never shown: Orchestra, row A, seat 5 was just taken by someone else.",
+    "ms": 15368,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01",
+      "GET /api/performances/p01/seats",
+      "POST /api/orders"
+    ]
+  },
+  {
+    "name": "seat_taken_while_choosing",
+    "pass": true,
+    "error": null,
+    "ms": 3382,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01",
+      "GET /api/performances/p01/seats"
+    ]
+  },
+  {
+    "name": "signed_in_saved_card",
+    "pass": true,
+    "error": null,
+    "ms": 6958,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01",
+      "GET /api/performances/p01/seats",
+      "POST /api/session",
+      "GET /api/me",
+      "POST /api/orders",
+      "GET /api/production",
+      "GET /api/me"
+    ]
+  },
+  {
+    "name": "wrong_password",
+    "pass": false,
+    "error": "never shown: That email and password don't match.",
+    "ms": 8768,
+    "requests": [
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01",
+      "GET /api/performances/p01/seats",
+      "POST /api/session"
+    ]
+  },
+  {
+    "name": "bad_postcode_stays_home",
+    "pass": true,
+    "error": null,
+    "ms": 9023,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01",
+      "GET /api/performances/p01/seats"
+    ]
+  },
+  {
+    "name": "sign_in_midway_keeps_choice",
+    "pass": true,
+    "error": null,
+    "ms": 5349,
+    "requests": [
+      "GET /api/performances/p01/seats",
+      "GET /api/production",
+      "GET /api/me",
+      "GET /api/performances/p01/seats",
+      "GET /api/events?performance=p01",
+      "GET /api/performances/p01/seats",
+      "POST /api/session",
+      "GET /api/me"
+    ]
+  }
+]

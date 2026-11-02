@@ -991,6 +991,13 @@ class Parser {
                 this.next();
                 continue;
             }
+            // `class` or `schema` here begins the next top-level declaration: what is
+            // missing is this body's `]`, not a comma — said once, not as a comma
+            // before every word of the next declaration (Codex Venue 3, 2026-11-02)
+            const kw = this.peek();
+            if (kw.kind === "ident" && (kw.text === "class" || kw.text === "schema")) {
+                throw new DeclareError(`${el.tag} (line ${el.pos.line}) is missing its closing ']' — a ${kw.text} is declared at the top level, so close ${el.tag} before it`, kw.pos);
+            }
             if (this.peek().kind !== "rbracket" && this.peek().kind !== "eof") {
                 this.errors.push(new DeclareError(`members are separated by commas — add ',' before '${this.peek().text || this.peek().kind}'`, this.peek().pos));
             }

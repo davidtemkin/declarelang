@@ -34,8 +34,10 @@ write, then check the program and look at it running (§ Checking and looking).
    content, swipes, a drawer, a sheet and a popover, search, menus, shortcuts and undo,
    two themes.
 
-Read each of these files whole, one at a time. These are long files, so if your read tool
-stops short or truncates its output, read the rest in parts until you reach the end.
+Read each of these files whole, one at a time. Declare is not in your training data, so
+what you know of it is what you read here: reading this material in full is critical, and
+what you skip, you will get wrong. These are long files, so if your read tool stops short
+or truncates its output, read the rest in parts until you reach the end of each.
 
 Then stop reading. Everything else is read when you reach the part that needs it.
 

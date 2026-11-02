@@ -1,4 +1,4 @@
-class NoteRow extends View [ width = 100%, padding = 8,
+class NoteRow extends View [ width = 100%, padding = 8,   // new: a row for each note
     layout: SimpleLayout [ axis = y, spacing = 2 ],
     Text [ fontWeight = semibold, text = { :title } ],
     Text [ width = 100%, fontSize = 12, textColor = slategray, text = { :text } ]
@@ -17,13 +17,13 @@ App [ width = 360, height = 240, fill = white, textColor = black,
         Text [ x = 12, y = center, textColor = white, fontWeight = semibold, text = "Notes" ]
         ],
     body: View [ width = 100%, flexes = true,
-        layout: SimpleLayout [ axis = x, align = stretch ],
-        list: View [ width = 160, scrolls = y, fill = whitesmoke,
+        layout: SimpleLayout [ axis = x, align = stretch ],   // new: the body is a row
+        list: View [ width = 160, scrolls = y, fill = whitesmoke,   // new
             datapath = { app.notes.value },
             layout: SimpleLayout [ axis = y ],
             NoteRow [ datapath = :items[] ]
             ],
-        pane: View [ flexes = true,
+        pane: View [ flexes = true,   // new
             Text [ x = 16, y = 16, textColor = slategray, text = "No note open" ]
             ]
         ],

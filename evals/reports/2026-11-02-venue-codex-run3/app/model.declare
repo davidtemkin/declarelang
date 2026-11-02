@@ -1,0 +1,52 @@
+script [ "helpers.ts" ]
+
+schema Performance [ id: string, startsAt: string, doorsAt: string, priceFromCents: number, seatsLeft: number, seats: number ]
+schema Seat [ id: string, number: number, status: string ]
+schema Row [ name: string, seats[]: Seat ]
+schema Section [ key: string, name: string, priceCents: number, feeCents: number, rows[]: Row ]
+schema SeatRef [ id: string, seat: Seat, section: string, sectionKey: string, row: string, priceCents: number, feeCents: number ]
+schema Billing [ line1: string, line2?: string, city: string, postalCode: string, country: string ]
+schema SavedCard [ id: string, brand: string, last4: string, expMonth: number, expYear: number ]
+schema Account [ name: string, email: string, billing: Billing, cards[]: SavedCard ]
+schema Refusal [ error?: string, field?: string, message?: string, conflicts[]?: string ]
+schema Ticket [ seatId: string, section: string, row: string, number: number, barcode: string ]
+schema Order [ code: string, email: string, totalCents: number, brand: string, last4: string, performanceId: string, tickets[]: Ticket ]
+
+class HallSource extends DataSource [ credentials = include,
+    schema = [ performanceId: string, sections[]: Section ],
+    sections() -> Section[] { return this.value?.sections ?? [] },
+    seats() -> SeatRef[] {
+        return this.sections().flatMap((s) => s.rows.flatMap((r) => r.seats.map((seat) => ({ id: seat.id, seat, section: s.name, sectionKey: s.key, row: r.name, priceCents: s.priceCents, feeCents: s.feeCents }))))
+        },
+    markSold(ids: string[]) {
+        this.sections().forEach((s, si) => s.rows.forEach((r, ri) => r.seats.forEach((seat, i) => {
+            if (ids.includes(seat.id)) this.set(["sections", si, "rows", ri, "seats", i, "status"], "sold")
+            })))
+        }
+    ]
+
+
+// Editable defaults follow an account only until the person writes their own value.
+
+class PaymentDraft extends Node [
+    email: string = { app.account.value?.email ?? "" },
+    holder: string = { app.account.value?.name ?? "" },
+    line1: string = { app.account.value?.billing?.line1 ?? "" },
+    line2: string = { app.account.value?.billing?.line2 ?? "" },
+    city: string = { app.account.value?.billing?.city ?? "" },
+    postal: string = { app.account.value?.billing?.postalCode ?? "" },
+    country: string = { countryName(app.account.value?.billing?.country ?? "US") },
+    number: string = "",
+    expiry: string = "",
+    cvc: string = "",
+    saved: string = { app.account.value?.cards?.find((c) => !expired(c.expMonth, c.expYear, app.clock.now))?.id ?? "" },
+    brand: string = { detectBrand(this.number) },
+    codeSize: number = { this.saved == "" ? codeLength(this.number) : 3 },
+    newCard: boolean = { this.saved == "" },
+    payment() -> object {
+        if (this.saved != "") return { savedCardId: this.saved, cvc: this.cvc }
+        const exp = expiryParts(this.expiry)
+        return { card: { number: digits(this.number), expMonth: exp.month, expYear: exp.year, cvc: this.cvc, name: this.holder.trim() },
+            billing: { line1: this.line1.trim(), line2: this.line2.trim() || null, city: this.city.trim(), postalCode: this.postal.trim(), country: countryCode(this.country) } }
+        }
+    ]

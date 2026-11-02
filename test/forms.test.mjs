@@ -221,6 +221,29 @@ await test("Sheet says how it presents as `presentation`, leaving `form` to form
   assert.doesNotMatch(src, /^\s*form: string = /m);
 });
 
+await test("a Form with a source: the service's refusal reaches it, though submit sends from inside a settle", async () => {
+  // submit() sends after a settle, and a request asked for inside one starts only
+  // once it is over: read off the source's flags in between, the send looked
+  // finished before it began, and the 401 that came after was dropped (Codex
+  // Venue 3, 2026-11-02)
+  const { provideTransport } = await import("../runtime/dist/data.js");
+  let sent = 0;
+  const prev = provideTransport(async () => {
+    sent++;
+    return { ok: false, status: 401, headers: new Headers({ "content-type": "application/json" }), text: async () => "{\"error\":\"bad_credentials\",\"message\":\"That email and password don't match.\"}" };
+  });
+  try {
+    const app = await boot(`App [ width = 400, height = 300,
+      session: DataSource [ url = "/api/session", method = "POST", body = { { password: app.f.pw } } ],
+      f: Form [ source = { app.session }, pw: string = "wrong" ] ]`);
+    app.f.submit(); settle();
+    for (let i = 0; i < 10 && app.f.error === ""; i++) { await new Promise((r) => setTimeout(r, 5)); settle(); }
+    assert.equal(sent, 1, "one request");
+    assert.equal(app.f.error, "That email and password don't match.", "the refusal is the form's error");
+    assert.equal(app.f.pending, false, "and the send is over");
+  } finally { provideTransport(prev); }
+});
+
 summarize("forms");
 // an attached app keeps its timers (the focus ring's, a tooltip's): end here
 process.exit(process.exitCode ?? 0);

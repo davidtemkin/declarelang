@@ -1,4 +1,4 @@
-class Squares extends Layout [
+class Squares extends Layout [   // new
     cell: number = 96,
     gap: number = 8,
     place() {
@@ -43,8 +43,8 @@ App [ width = 900, height = 300, fill = white, textColor = black,
             layout: SimpleLayout [ axis = y ],
             NoteRow [ datapath = :items[] ]
             ],
-        pane: View [ scrolls = y,
-            page: View [ x = center, y = 20, width = { Math.min(parent.width - 40, 420) },
+        pane: View [ scrolls = y,   // changed
+            page: View [ x = center, y = 20, width = { Math.min(parent.width - 40, 420) },   // new: the reading column
                 layout: SimpleLayout [ axis = y, spacing = 8 ],
                 Text [ fontSize = 18, fontWeight = semibold,
                     text = { app.open < 0 ? "No note open" : app.notes.value.items[app.open].title } ],

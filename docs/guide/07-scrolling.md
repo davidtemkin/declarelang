@@ -4,12 +4,18 @@
 # Scrolling
 
 Scrolling looks like several features — a page that scrolls, panes that scroll inside
-it, chrome that stays put — but it is one model, and it starts from a fact about
-quality: **the browser's own page scroll is the best scroller you will ever be
-offered.** It has the physics your user's hands already know, the browser's toolbar
-collapses for it, and it is the only
-scroll a browser lets a second finger turn into a pinch-zoom. So the model gives your
-content that scroller first.
+it, chrome that stays put — but it is one model, and it starts from who does it:
+
+> **Scrolling is the platform's.** It moves a scroller on its own time — the user's hand,
+> momentum, a glide — and the program never sets where a scroller is. It reads the facts the
+> platform writes (`scrollY`, `userScrolling`) and makes requests the platform carries out
+> when it can (`scrollTo`, `scrollIntoView`): clamped to the content, held until the pane can
+> take them, waiting while the user scrolls.
+
+The rest of this chapter is that sentence worked out. And the best scroller the platform
+offers is **the browser's own page scroll**. It has the physics your user's hands already
+know, the browser's toolbar collapses for it, and it is the only scroll a browser lets a
+second finger turn into a pinch-zoom. So the model gives your content that scroller first:
 
 > **An app scrolls by default, and its scroller is the page.**
 

@@ -90,7 +90,8 @@ content up to 90, and `scrolls = y` then scrolls what is left
 ## The frame
 
 Now the notes reader. From here on, each example is the one before it with one thing
-added. It starts as a frame: a header, a body and a footer, filling the window.
+added, its lines marked `// new` or `// changed`. It starts as a frame: a header, a body and
+a footer, filling the window.
 
 ```declare
 App [ width = 360, height = 240, fill = white, textColor = black,
@@ -136,7 +137,7 @@ The body becomes a row: a list of notes beside a pane where an open note will sh
 note is a row with a title and a wrapped preview, as wide as the list.
 
 ```declare
-class NoteRow extends View [ width = 100%, padding = 8,
+class NoteRow extends View [ width = 100%, padding = 8,   // new: a row for each note
     layout: SimpleLayout [ axis = y, spacing = 2 ],
     Text [ fontWeight = semibold, text = { :title } ],
     Text [ width = 100%, fontSize = 12, textColor = slategray, text = { :text } ]
@@ -155,13 +156,13 @@ App [ width = 360, height = 240, fill = white, textColor = black,
         Text [ x = 12, y = center, textColor = white, fontWeight = semibold, text = "Notes" ]
         ],
     body: View [ width = 100%, flexes = true,
-        layout: SimpleLayout [ axis = x, align = stretch ],
-        list: View [ width = 160, scrolls = y, fill = whitesmoke,
+        layout: SimpleLayout [ axis = x, align = stretch ],   // new: the body is a row
+        list: View [ width = 160, scrolls = y, fill = whitesmoke,   // new
             datapath = { app.notes.value },
             layout: SimpleLayout [ axis = y ],
             NoteRow [ datapath = :items[] ]
             ],
-        pane: View [ flexes = true,
+        pane: View [ flexes = true,   // new
             Text [ x = 16, y = 16, textColor = slategray, text = "No note open" ]
             ]
         ],
@@ -178,13 +179,26 @@ Every size comes from one of three places, and the view says which:
    share).
 3. **From what it holds:** nothing stated, so it is as big as its text or its children.
 
-In the list, the list's width is stated, 160. Each row's width is from its parent, `100%`,
-and so is each preview's, which is how the preview knows where to wrap; a `Text` with no
-width is one line, as long as its words, and one given a width wraps to it (unless
-`wrap = false`). The heights come from what each view holds: a preview's from its wrapped
-lines, a row's from its title and preview. The list's height is the exception: its
-parent's layout gives it, `align = stretch`. Its rows add up to more than that, and
-because it `scrolls = y`, the rest scrolls.
+In the list:
+
+| value | comes from | decided by |
+|---|---|---|
+| the list's width | stated, 160 | the list |
+| the list's height | its parent, `align = stretch` | the body's layout |
+| a row's width | its parent, `100%` | the row |
+| a preview's width | its parent, `100%`, which is how it knows where to wrap | the preview |
+| a row's and a preview's height | what each holds: its lines, its title and preview | what it holds |
+
+A `Text` with no width is one line, as long as its words; one given a width wraps to it
+(unless `wrap = false`). The list's rows add up to more than its height, and because it
+`scrolls = y`, the rest scrolls.
+
+The list is a **pane**: it scrolls inside the window while the header and footer stay put,
+a choice this frame makes. An app's own default is the other way round: the page itself
+scrolls, the browser's best scroller, and anything that must stay on screen, a header or a
+bar of actions at the foot, opts out of the scroll with `ignoreScroll = true` (and `y = end`
+at the foot) ([Scrolling](declare-docs:guide:scrolling)). A pane is for a region that
+scrolls inside a frame that does not, like this list beside the open note.
 
 A child whose size comes from its parent is not counted when the parent's size comes from
 what it holds, however the child writes it: `100%`, a `{ }` that reads `parent.width`, or
@@ -210,7 +224,7 @@ Open a note, and an action bar appears above the footer while it is open:
 
 ```declare
 class NoteRow extends View [ width = 100%, padding = 8,
-    fill = { app.open == rowIndex ? 0xE6E6FA : null },
+    fill = { app.open == rowIndex ? 0xE6E6FA : null },   // new: the open row is lit
     onClick() { app.open = rowIndex },
     layout: SimpleLayout [ axis = y, spacing = 2 ],
     Text [ fontWeight = semibold, text = { :title } ],
@@ -225,7 +239,7 @@ App [ width = 360, height = 260, fill = white, textColor = black,
           "photos": [ { "tone": 1 }, { "tone": 2 }, { "tone": 0 }, { "tone": 2 } ] },
         { "title": "Plumber", "text": "The kitchen tap again. Ask about the boiler." }
         ] } },
-    open: number = -1,
+    open: number = -1,   // new
     layout: SimpleLayout [ axis = y ],
     header: View [ width = 100%, height = 40, fill = steelblue,
         Text [ x = 12, y = center, textColor = white, fontWeight = semibold, text = "Notes" ]
@@ -238,11 +252,11 @@ App [ width = 360, height = 260, fill = white, textColor = black,
             NoteRow [ datapath = :items[] ]
             ],
         pane: View [ flexes = true,
-            Text [ x = 16, y = 16, width = { parent.width - 32 },
+            Text [ x = 16, y = 16, width = { parent.width - 32 },   // changed: the open note
                 text = { app.open < 0 ? "No note open" : app.notes.value.items[app.open].text } ]
             ]
         ],
-    actions: View [ width = 100%, height = 40, visible = { app.open >= 0 }, fill = lavender,
+    actions: View [ width = 100%, height = 40, visible = { app.open >= 0 }, fill = lavender,   // new: the bar
         padding = [0, 12, 0, 12],
         layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
         Button [ label = "Pin" ],
@@ -340,17 +354,17 @@ App [ width = 640, height = 260, fill = white, textColor = black,
         Text [ x = 12, y = center, textColor = white, fontWeight = semibold, text = "Notes" ]
         ],
     body: View [ width = 100%, flexes = true,
-        layout: ResponsiveLayout [ align = stretch, plan = { [
+        layout: ResponsiveLayout [ align = stretch, plan = { [   // changed: plans
             ({ from: 480, flow: "row", share: ({ list: 35, pane: 65 }) }),
             ({ from: 0, flow: "row",
                share: app.open < 0 ? ({ list: 100, pane: 0 }) : ({ list: 0, pane: 100 }) })
             ] } ],
-        list: View [ scrolls = y, fill = whitesmoke,
+        list: View [ scrolls = y, fill = whitesmoke,   // changed: no width, the plan gives it
             datapath = { app.notes.value },
             layout: SimpleLayout [ axis = y ],
             NoteRow [ datapath = :items[] ]
             ],
-        pane: View [
+        pane: View [   // changed: no flexes, the plan gives its width
             Text [ x = 16, y = 16, width = { parent.width - 32 },
                 text = { app.open < 0 ? "No note open" : app.notes.value.items[app.open].text } ]
             ]
@@ -403,7 +417,7 @@ with the note's photos below the text as square thumbnails, as many across as fi
 library layout says "square", so that one is written, as a class with one method:
 
 ```declare
-class Squares extends Layout [
+class Squares extends Layout [   // new
     cell: number = 96,
     gap: number = 8,
     place() {
@@ -448,8 +462,8 @@ App [ width = 900, height = 300, fill = white, textColor = black,
             layout: SimpleLayout [ axis = y ],
             NoteRow [ datapath = :items[] ]
             ],
-        pane: View [ scrolls = y,
-            page: View [ x = center, y = 20, width = { Math.min(parent.width - 40, 420) },
+        pane: View [ scrolls = y,   // changed
+            page: View [ x = center, y = 20, width = { Math.min(parent.width - 40, 420) },   // new: the reading column
                 layout: SimpleLayout [ axis = y, spacing = 8 ],
                 Text [ fontSize = 18, fontWeight = semibold,
                     text = { app.open < 0 ? "No note open" : app.notes.value.items[app.open].title } ],
@@ -531,6 +545,10 @@ name it. That is the rule the whole chapter has been showing:
 "The view itself" includes every way a view states a value, `width = 300`, `x = center`, a
 `{ }`, and `width = 100%`, which is the view choosing to take its size from its parent. To
 learn why a view is where it is, or the size it is, find the one thing that decided it.
+
+Where a value comes from and who decides it are different questions, as the table in the
+list showed: `width = 100%` takes its value from the parent, but the view decided that; with
+`align = stretch`, the parent's layout decides.
 
 When a value seems to need working out from a sibling or from the window, such as a height
 minus the others, or a width that depends on the screen, it usually belongs to a layout, a

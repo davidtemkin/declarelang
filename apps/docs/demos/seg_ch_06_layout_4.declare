@@ -1,5 +1,5 @@
 class NoteRow extends View [ width = 100%, padding = 8,
-    fill = { app.open == rowIndex ? 0xE6E6FA : null },
+    fill = { app.open == rowIndex ? 0xE6E6FA : null },   // new: the open row is lit
     onClick() { app.open = rowIndex },
     layout: SimpleLayout [ axis = y, spacing = 2 ],
     Text [ fontWeight = semibold, text = { :title } ],
@@ -14,7 +14,7 @@ App [ width = 360, height = 260, fill = white, textColor = black,
           "photos": [ { "tone": 1 }, { "tone": 2 }, { "tone": 0 }, { "tone": 2 } ] },
         { "title": "Plumber", "text": "The kitchen tap again. Ask about the boiler." }
         ] } },
-    open: number = -1,
+    open: number = -1,   // new
     layout: SimpleLayout [ axis = y ],
     header: View [ width = 100%, height = 40, fill = steelblue,
         Text [ x = 12, y = center, textColor = white, fontWeight = semibold, text = "Notes" ]
@@ -27,11 +27,11 @@ App [ width = 360, height = 260, fill = white, textColor = black,
             NoteRow [ datapath = :items[] ]
             ],
         pane: View [ flexes = true,
-            Text [ x = 16, y = 16, width = { parent.width - 32 },
+            Text [ x = 16, y = 16, width = { parent.width - 32 },   // changed: the open note
                 text = { app.open < 0 ? "No note open" : app.notes.value.items[app.open].text } ]
             ]
         ],
-    actions: View [ width = 100%, height = 40, visible = { app.open >= 0 }, fill = lavender,
+    actions: View [ width = 100%, height = 40, visible = { app.open >= 0 }, fill = lavender,   // new: the bar
         padding = [0, 12, 0, 12],
         layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
         Button [ label = "Pin" ],

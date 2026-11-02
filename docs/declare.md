@@ -185,16 +185,14 @@ calls the replaced one, wherever in the body it is written, or never.
 gives a node app-wide keyboard handling regardless of focus. There is no subscription syntax and
 nothing to unregister: the source is a child, so it lives and dies with the node that declares it.
 
-**Members are separated by commas**, and the compiler names the spot when one is
-missing. A *trailing* comma before a closing `]` is legal; the formatter
-(§12) removes it.
+**Members are separated by commas**; a trailing one before a closing `]` is legal.
 
 ### What a name reaches
 
 **A bare name resolves outward through the enclosing brackets, innermost first** — the brackets
 are the scope exactly as they are the tree. Each `[ ]` you are nested inside is a level whose
-surface is that node's whole member set, and the nearest level owning the name wins. The
-compiler rewrites the read to an explicit path, so this is settled at compile time. One consequence to hold on to: every view carries
+surface is that node's whole member set, and the nearest level owning the name wins, at compile
+time. One consequence to hold on to: every view carries
 the built-in attributes, so a bare `width` always means *this* node's `width` — built-ins never
 resolve outward.
 
@@ -437,8 +435,8 @@ sanctioned path, and why a state may override a `{ }`-owned attribute at all.
 
 A constraint reads specific things, and the compiler must be able to follow every one. When it
 cannot, that is a blocking compile error — `DECLARE7001`, the *residue*, meaning the part
-of an expression no static reading can name — rather than a silent fallback. Do not try to hold the refusals in your head; the diagnostic names the exact
-read it could not follow and the rewrite that resolves it. Three instincts account for most of
+of an expression no static reading can name — rather than a silent fallback. The diagnostic names
+the exact read it could not follow and the rewrite that resolves it. Three instincts account for most of
 them:
 
 - **Aggregating the rendered tree** — `this.children.map(…)`. The number you want lives in the
@@ -479,12 +477,6 @@ Which globals a piece of code may name depends on where it is written:
   don't exist on the Mac, so a script never looks them up or changes them. Whatever you'd reach
   into the DOM for is already a Declare attribute or class, so ask `declare-help` first.
 
-Only declared reactive attributes participate at all, so locals and plain objects in
-`script { }` cost nothing.
-
-You never have to guess what a constraint is wired to — `__declare.explain` answers it on the
-running program (§12).
-
 ## 6. Space
 
 A view's size on each axis is one of three things: **unset** takes it from its content — its own
@@ -500,8 +492,14 @@ height = { Math.min(contentHeight, 480) },    // grow to a cap, then stop
 clip   = true                                // hide whatever passes the cap
 ```
 
-`clip = true` clips children to the box, `scrolls = y` scrolls taller content natively, and a
-child opts out of its parent's regime with `ignoreLayout` or `ignoreClip`.
+**Scrolling is the platform's.** It moves a scroller on its own time — the user's hand,
+momentum, a glide — and the program never sets where a scroller is. It reads the facts the
+platform writes (`scrollY`, `userScrolling`) and makes requests the platform carries out when it
+can (`scrollTo`, `scrollIntoView`): clamped to the content, held until the pane can take them,
+waiting while the user scrolls. An App scrolls by default, and its scroller is the page;
+`scrolls = y` makes a view a pane of its own. A view that must stay on screen opts out with
+`ignoreScroll` (`y = end` at the foot), as a child opts out of layout and clipping with
+`ignoreLayout` and `ignoreClip`; `clip = true` clips children to the box.
 
 **Positions are literals.** `x = center` and `x = end`, and the same on `y`, place a view against
 its parent — resolved reactively, exactly like `100%`. The closed set is `center` and `end`; the
@@ -515,9 +513,8 @@ resizes with it, while an explicit size makes a fixed widget. For an embedded ap
 container element, which is what lets apps nest. Responsive code reads `app.width`; the App also
 carries the live host facts — viewport, colour scheme, pointer — as reactive attributes.
 
-`App [ minWidth = 480, minHeight = 420 ]` sets a **size floor**: below it the app stops adapting,
-holds the floor, and the host pans instead. It is a policy the host cooperates with rather than
-clamp arithmetic you write into constraints — and it is the App's alone, not a view attribute.
+`App [ minWidth = 480, minHeight = 420 ]` sets a **size floor**: below it the app holds the floor
+and the host pans instead. It is the App's alone, not a view attribute.
 
 ### The URL is an attribute; links are declared
 

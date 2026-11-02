@@ -5522,125 +5522,129 @@
     "message": "expected the method body '{ … }', got '…'",
     "at": "parser.ts:1214"
    },
+   "E6EFDBF": {
+    "message": "… (line …) is missing its closing ']' — a … is declared at the top level, so close … before it",
+    "at": "parser.ts:1243"
+   },
    "EDC2060": {
     "message": "members are separated by commas — add ',' before '…'",
-    "at": "parser.ts:1239"
+    "at": "parser.ts:1249"
    },
    "E04A326": {
     "message": "'…(' — a schema declares shape, not behavior: no methods, no handlers. Methods live on classes; a record's derived values live in { } constraints that read its fields",
-    "at": "parser.ts:1315"
+    "at": "parser.ts:1325"
    },
    "ECC858C": {
     "message": "'…!' — identity is never declared: a record's 'id' field IS its identity by convention (key = :field overrides an unconventional name); drop the '!'",
-    "at": "parser.ts:1323"
+    "at": "parser.ts:1333"
    },
    "ED28610": {
     "message": "a literal union is all strings or all numbers — '…' mixes them",
-    "at": "parser.ts:1343"
+    "at": "parser.ts:1353"
    },
    "E18CCFD": {
     "message": "a shape field's type is string | number | boolean | any, a schema name (capitalized), a literal union of strings, or a nested [ … ] — not '…'",
-    "at": "parser.ts:1360"
+    "at": "parser.ts:1370"
    },
    "E53F3DD": {
     "message": "'…' is marked an array twice — write '…: …[]' or '…[]: …', not both (a field is one array deep)",
-    "at": "parser.ts:1370"
+    "at": "parser.ts:1380"
    },
    "EA1DC53": {
     "message": "'…: …[][]' — a schema field is one array deep: a list of lists is a list of records ('…[]: Row', with 'schema Row [ items[]: … ]'), or 'any' when the program only passes it along",
-    "at": "parser.ts:1379"
+    "at": "parser.ts:1389"
    },
    "E9B7802": {
     "message": "'…: … | …' — a schema field has one type; a union is a literal union of strings or of numbers ('status: \"open\" | \"closed\"'), or a type with null ('…: … | null')",
-    "at": "parser.ts:1390"
+    "at": "parser.ts:1400"
    },
    "E8E345D": {
     "message": "'… = …' — a schema field takes no default: a schema declares shape, never values. Defaults belong to attribute declarations ('name: Type = value' on a class), or to the code that builds the record",
-    "at": "parser.ts:1395"
+    "at": "parser.ts:1405"
    },
    "EA1FFF4": {
     "message": "a computed key [( … )] is TypeScript, so its path is written in braces — { :@[(key)] }",
-    "at": "parser.ts:1450"
+    "at": "parser.ts:1460"
    },
    "EDFFABD": {
     "message": "filter selectors ([?…]) are not in the path subset yet (jsonpath-spelling.md §5) — derive the subset in a Dataset [ contents = { … } ] and bind to that",
-    "at": "parser.ts:1453"
+    "at": "parser.ts:1463"
    },
    "E3129C4": {
     "message": "a path index is a plain integer",
-    "at": "parser.ts:1467"
+    "at": "parser.ts:1477"
    },
    "E07DE5F": {
     "message": "a path selector is [index], [start:end:step], [*], or ['name']",
-    "at": "parser.ts:1486"
+    "at": "parser.ts:1496"
    },
    "EEB27CE": {
     "message": "union selectors ([a, b]) are not in the path subset (jsonpath-spelling.md §5) — write separate reads, or derive the set in a Dataset [ contents = { … } ]",
-    "at": "parser.ts:1489"
+    "at": "parser.ts:1499"
    },
    "EB65D4E": {
     "message": "a schema's name is capitalized ('schema …… [ … ]') — it is a type name, like a class's",
-    "at": "parser.ts:1534"
+    "at": "parser.ts:1544"
    },
    "E41A54B": {
     "message": "schemas do not extend — a schema is composed by NESTING (a field typed by another schema: 'owner: Person') or by repeating the fields it shares",
-    "at": "parser.ts:1538"
+    "at": "parser.ts:1548"
    },
    "E088E2A": {
     "message": "'…' is not a host — a script runs on …",
-    "at": "parser.ts:1584"
+    "at": "parser.ts:1594"
    },
    "E538C16": {
     "message": "host = [ ] names no host — list the hosts this script runs on, or drop host to run on every host",
-    "at": "parser.ts:1605"
+    "at": "parser.ts:1615"
    },
    "EB5B2DE": {
     "message": "a script takes file paths and host — script [ \\\"helpers.ts\\\" ], script [ host = browser ] { … }; for inline code on every host, braces alone: script { … }",
-    "at": "parser.ts:1611"
+    "at": "parser.ts:1621"
    },
    "E83D16A": {
     "message": "a script is from files or written here, not both — script [ \\\"a.ts\\\", host = browser ] or script [ host = browser ] { … }",
-    "at": "parser.ts:1619"
+    "at": "parser.ts:1629"
    },
    "EF1BEAC": {
     "message": "script [ ] names no file — script [ \\\"helpers.ts\\\" ], or follow it with the code: script [ host = browser ] { … }",
-    "at": "parser.ts:1629"
+    "at": "parser.ts:1639"
    },
    "EDBDD5F": {
     "message": "a use entry is a class name",
-    "at": "parser.ts:1676"
+    "at": "parser.ts:1686"
    },
    "E783F90": {
     "message": "ship has no member '…' — islands, files, compiler, or inspector",
-    "at": "parser.ts:1707"
+    "at": "parser.ts:1717"
    },
    "E3DAC32": {
     "message": "ship names '…' twice — one entry per member",
-    "at": "parser.ts:1711"
+    "at": "parser.ts:1721"
    },
    "E1EC0FD": {
     "message": "ship's … is a list of quoted paths — … = [ \"…\" ]",
-    "at": "parser.ts:1716"
+    "at": "parser.ts:1726"
    },
    "E3AE548": {
     "message": "ship's … is true or false",
-    "at": "parser.ts:1727"
+    "at": "parser.ts:1737"
    },
    "E4AC7CC": {
     "message": "defaultFlags has no member '…' — …",
-    "at": "parser.ts:1756"
+    "at": "parser.ts:1766"
    },
    "E868ACE": {
     "message": "defaultFlags names '…' twice — one entry per member",
-    "at": "parser.ts:1760"
+    "at": "parser.ts:1770"
    },
    "EEEB8C3": {
     "message": "defaultFlags' … is …",
-    "at": "parser.ts:1765"
+    "at": "parser.ts:1775"
    },
    "EDD3394": {
     "message": "an include path is a quoted string",
-    "at": "parser.ts:1788"
+    "at": "parser.ts:1798"
    },
    "E20143A": {
     "message": "'…' is a built-in class — a class of the program can't take its name; rename yours",
@@ -10061,6 +10065,11 @@
    "Form.method._counts": {
     "path": "docs/declare-model.json",
     "title": "Form.method._counts",
+    "kind": "reference"
+   },
+   "Form.method._ended": {
+    "path": "docs/declare-model.json",
+    "title": "Form.method._ended",
     "kind": "reference"
    },
    "Form.method._enter": {
@@ -55384,10 +55393,10 @@
    "id": "Form.method._heard",
    "name": "_heard",
    "kind": "method",
-   "doc": "**Internal.** What became of the request the form sent: a refusal goes onto the members,\na success resets them; for a form with no `source`, `pending` turning false after a submit.",
+   "doc": "**Internal.** For a form with no `source`: `pending` turning false after a submit.",
    "docSegs": [
     {
-     "md": "**Internal.** What became of the request the form sent: a refusal goes onto the members,\na success resets them; for a form with no `source`, `pending` turning false after a submit.",
+     "md": "**Internal.** For a form with no `source`: `pending` turning false after a submit.",
      "code": []
     }
    ],
@@ -55399,7 +55408,28 @@
    },
    "parent": "Form",
    "seeAlso": [],
-   "signature": "_heard(pendingMoved)"
+   "signature": "_heard()"
+  },
+  "Form.method._ended": {
+   "id": "Form.method._ended",
+   "name": "_ended",
+   "kind": "method",
+   "doc": "**Internal.** The request the form sent has come back: a refusal goes onto the members, a\nsuccess resets them.",
+   "docSegs": [
+    {
+     "md": "**Internal.** The request the form sent has come back: a refusal goes onto the members, a\nsuccess resets them.",
+     "code": []
+    }
+   ],
+   "api": false,
+   "internal": true,
+   "source": {
+    "file": "library/form.declare",
+    "line": 0
+   },
+   "parent": "Form",
+   "seeAlso": [],
+   "signature": "_ended()"
   },
   "Form.method._refused": {
    "id": "Form.method._refused",
@@ -55493,6 +55523,7 @@
     "Form.method.refusal",
     "Form.method._nameOf",
     "Form.method._heard",
+    "Form.method._ended",
     "Form.method._refused"
    ],
    "events": [],
@@ -116824,7 +116855,7 @@
        "kind": "doc",
        "label": "Guide chapter",
        "path": "docs/guide/07-scrolling.md",
-       "preview": "Scrolling looks like several features — a page that scrolls, panes that scroll inside it, chrome that stays put — but it is one model, and it starts from a fact about quality: the browser's own page scroll is the best scroller you will ever…",
+       "preview": "Scrolling looks like several features — a page that scrolls, panes that scroll inside it, chrome that stays put — but it is one model, and it starts from who does it: Scrolling is the platform's. It moves a scroller on its own time — the us…",
        "loc": "guide/07-scrolling"
       },
       {

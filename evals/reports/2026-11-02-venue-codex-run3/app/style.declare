@@ -1,0 +1,37 @@
+theme Venue [
+    background = #F7F5EF, surface = #FFFFFF, text = #25251F, textMuted = #6D6C63,
+    accent = #BE402D, accentHovered = #A93525, accentPressed = #912C20, accentTextColor = #FFFFFF,
+    line = #DCD9CF, lineStrong = #B9B5A8, control = #EEEBE3, controlHovered = #E5E1D7,
+    controlSelected = #F3DED6, selection = #F3DED6, error = #A52F21, danger = #A52F21,
+    ink = #25251F, paper = #F7F5EF, muted = #6D6C63, pale = #EEEBE3,
+    sold = #C8C5BC, accentPale = #F3DED6,
+    buttonHeight = 46, buttonCornerRadius = 4, buttonFontSize = 15,
+    inputHeight = 48, inputCornerRadius = 4, inputFontSize = 16,
+    dialogWidth = 430, dialogCornerRadius = 8
+    ]
+
+
+class Eyebrow extends Text [ fontSize = 11, fontWeight = semibold, letterSpacing = 1.8, textColor = { provided("theme").muted } ]
+
+class Headline extends Text [ fontFamily = "Georgia", fontSize = 38, letterSpacing = -1.1,
+    accessibilityRole = heading, accessibilityLevel = 1, focusable = quiet, width = 100%
+    ]
+
+
+class SmallText extends Text [ fontSize = 13, textColor = { provided("theme").muted } ]
+
+class Action extends Button [ height = 48, fontSize = 15, cornerRadius = 4 ]
+
+class Entry extends TextInput [ width = 100%, height = 48, fontSize = 16, padding = [0, 12, 0, 12],
+    fill = white, stroke = { stroke(1, provided("theme").lineStrong) }, cornerRadius = 4,
+    State [ applied = { parent.error != "" }, stroke = { stroke(1.5, provided("theme").error) } ]
+    ]
+
+
+class Labeled extends Field [ width = 100%, stacked = true ]
+
+class Rule extends View [ width = 100%, height = 1, fill = { provided("theme").line } ]
+
+class Notice extends Text [ width = 100%, fontSize = 14, textColor = { provided("theme").error },
+    accessibilityLive = assertive, focusable = quiet
+    ]

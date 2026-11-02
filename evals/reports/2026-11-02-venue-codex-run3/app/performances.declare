@@ -1,0 +1,83 @@
+// An abstract proscenium: programme art made from the same geometry as the hall.
+
+class Proscenium [ width = 100%, height = 180, accessibilityHidden = true,
+    draw(d: DrawContext) {
+        const w = this.width, h = this.height
+        d.strokeStyle = provided("theme").accent
+        d.lineWidth = 1
+        for (let i = 0; i < 9; i++) {
+            const inset = i * 11
+            d.beginPath(); d.moveTo(w * 0.16 + inset, h)
+            d.lineTo(w * 0.16 + inset, 76 + inset * 0.28)
+            d.bezierCurveTo(w * 0.16 + inset, -20 + inset * 0.5, w * 0.84 - inset, -20 + inset * 0.5, w * 0.84 - inset, 76 + inset * 0.28)
+            d.lineTo(w * 0.84 - inset, h); d.stroke()
+            }
+        }
+    ]
+
+
+class Programme [ width = 100%, padding = { app.phone ? [12, 0, 24, 0] : [28, 32, 40, 0] },
+    layout: SimpleLayout [ axis = y, spacing = 20 ],
+    Eyebrow [ text = "WOLFGANG AMADEUS MOZART" ],
+    Text [ width = 100%, fontFamily = "Georgia", fontSize = { app.phone ? 48 : 68 }, letterSpacing = -2,
+        text = "The Marriage\nof Figaro", accessibilityRole = heading, accessibilityLevel = 1 ],
+    Text [ width = 100%, fontFamily = "Georgia", italic = true, fontSize = 20,
+        textColor = { provided("theme").accent }, text = "One day. A thousand desires." ],
+    Proscenium [ visible = { !app.phone } ],
+    Rule [ ],
+    SmallText [ width = 100%, text = { (app.production.value?.hall ?? "Grand Hall") + "  /  " + (app.production.value?.runningTime ?? "3h 10m") } ],
+    SmallText [ width = 100%, text = "An evening of beautiful complications.\nYour place in the story starts here." ]
+    ]
+
+
+class PerformanceRow extends Control [ width = 100%, padding = [18, 0, 18, 0],
+    accessibilityLabel = { dateLabel(:startsAt) + ", " + timeLabel(:startsAt) + ", from " + money(:priceFromCents) },
+    disabled = { :seatsLeft == 0 },
+    fill = { hovered ? provided("theme").pale : null },
+    stroke = { [null, null, stroke(1, provided("theme").line), null] },
+    press() { app.choosePerformance(:id) },
+    layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+    date: View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 7 ],
+        Text [ fontSize = 20, fontFamily = "Georgia", text = { dateLabel(:startsAt) } ],
+        SmallText [ text = { timeLabel(:startsAt) } ]
+        ],
+    availability: View [ width = { app.phone ? 98 : 146 },
+        layout: SimpleLayout [ axis = y, spacing = 9 ],
+        SmallText [ text = { :seatsLeft < :seats * 0.15 ? "Only " + :seatsLeft + " left" : :seatsLeft + " seats left" },
+            textColor = { :seatsLeft < :seats * 0.15 ? provided("theme").accent : provided("theme").muted } ],
+        View [ width = 100%, height = 3, fill = { provided("theme").line },
+            View [ width = { parent.width * (1 - :seatsLeft / :seats) }, height = 3,
+                fill = { :seatsLeft < :seats * 0.15 ? provided("theme").accent : provided("theme").ink } ]
+            ]
+        ],
+    View [ width = 78,
+        layout: SimpleLayout [ axis = y, spacing = 5, align = end ],
+        SmallText [ text = "from" ],
+        Text [ fontSize = 16, fontWeight = semibold, numeralWidth = tabular, text = { money(:priceFromCents) } ]
+        ],
+    Text [ visible = { !app.phone }, fontSize = 22, text = "↗", textColor = { provided("theme").accent } ]
+    ]
+
+
+class PerformancesPage [ width = 100%,
+    layout: ResponsiveLayout [ gap = 48, plan = { [
+        { from: 740, flow: "row", share: { programme: 42, dates: 58 } },
+        { from: 0, flow: "stack", share: { programme: 100, dates: 100 } } ] } ],
+    programme: Programme [ ],
+    dates: View [ padding = [28, 0, 48, 0],
+        layout: SimpleLayout [ axis = y, spacing = 18 ],
+        Eyebrow [ text = "01 / CHOOSE YOUR EVENING" ],
+        Text [ fontFamily = "Georgia", fontSize = 30, text = "The season awaits." ],
+        SmallText [ text = { app.seasonLabel() } ],
+        Text [ visible = { app.production.loading }, text = "Finding your evening…" ],
+        Notice [ visible = { app.production.failed }, text = { app.production.error } ],
+        Action [ visible = { app.production.failed }, label = "Try again",
+            onClick() { app.production.fetch() }
+            ],
+        list: View [ width = 100%, datapath = { app.production.value },
+            layout: SimpleLayout [ axis = y ],
+            PerformanceRow [ datapath = :performances[] ]
+            ]
+        ]
+    ]
