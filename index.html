@@ -54,7 +54,7 @@
 <p>It runs on real data: open an event, drag it to another day, and it’s moved.</p>
 <p>540</p>
 <p>lines of code, plus 214 of comments — four views, zoom, drag and edit</p>
-<p>160 KB</p>
+<p>161 KB</p>
 <p>over the wire, gzipped — app (structure, logic, styling) and runtime</p>
 <p>0</p>
 <p>lines written by hand — an LLM wrote it</p>
@@ -283,7 +283,7 @@ true</code>, it answers questions about itself in production (<a href="declare-d
 <p>A <strong>direct</strong> child of the class body can reach the same instance as <code>parent</code>, and that is legal — <code>parent</code> is the enclosing view, which for a direct child is the instance itself. The difference shows up later: nest that child one level deeper and <code>parent</code> now means the new wrapper, while <code>classroot</code> still means the instance. Reach for <code>classroot</code> when you mean the instance, and keep <code>parent</code> for when you mean <em>whatever encloses me</em>.</p>
 <h3>Layout is an attribute</h3>
 <p><strong>Each of <code>x</code>, <code>y</code>, <code>width</code> and <code>height</code> has one decider: the view, its parent's layout, or (a size only) its content.</strong> A layout is an object — a library class or your own, with one method — set as the <code>layout:</code> member and swapped like any member. A child never states what its layout decides; it tells the layout facts about itself (<code>flexes</code>, <code>shrinks</code>, a <code>minWidth</code>/<code>maxWidth</code> range), and the layout places every child and sizes those that ask.</p>
-<p><strong>An unset size is the content's, inside a layout too:</strong> unlike flexbox, nothing stretches without <code>align = stretch</code>. A size travels one way: a view sized by its children can't size them, so they fill it by <code>align = stretch</code>. A size that applies only while, say, editing is a <code>State</code>'s.</p>
+<p><strong>An unset size is the content's, inside a layout too:</strong> unlike flexbox, nothing stretches without <code>align = stretch</code>. A view sized by its children can't size them; they fill it by <code>align = stretch</code>. A size that applies only while, say, editing is a <code>State</code>'s.</p>
 <pre><code class="language-declare-fragment">layout: SimpleLayout   [ axis = y, spacing = 10 ],
 layout: WrappingLayout [ spacing = 20, rowSpacing = 20 ]</code></pre>
 <p>The inset is the <strong>view's</strong>, not the arrangement's: <code>padding</code> — one number, or <code>[top,
@@ -328,7 +328,7 @@ showNewest() { app.frameOn(app.list.first) }      // the new row is real, placed
 <pre><code class="language-declare-fragment">height = { Math.min(contentHeight, 480) },    // grow to a cap, then stop
 clip   = true                                // hide whatever passes the cap</code></pre>
 <p><code>clip = true</code> clips children to the box, <code>scrolls = y</code> scrolls taller content natively, and a child opts out of its parent's regime with <code>ignoreLayout</code> or <code>ignoreClip</code>.</p>
-<p><strong>Positions are literals.</strong> <code>x = center</code> and <code>x = end</code>, and the same on <code>y</code>, place a view against its parent — resolved reactively, exactly like <code>100%</code>. The closed set is <code>center</code> and <code>end</code>; the start is <code>0</code>. <code>y = center</code> centers a view's box, a <code>Text</code> included. A label inside a control usually wants its <em>ink</em> centered instead — the cap band, not the font box with its uneven leading — and that is what the library's <code>TextLabel</code> is: a <code>Text</code> whose <code>y</code> is a cap-centering constraint over its own metric facts.</p>
+<p><strong>Positions are literals.</strong> <code>x = center</code> and <code>x = end</code>, and the same on <code>y</code>, place a view against its parent — resolved reactively, exactly like <code>100%</code>. The closed set is <code>center</code> and <code>end</code>; the start is <code>0</code>. <code>center</code> puts a view's center (<code>centerX</code>, <code>centerY</code>: its box's middle unless it says otherwise) on the parent's middle, as <code>align = center</code> does. A label wants its <em>ink</em> centered — the cap band, not the font box with its uneven leading — so the library's <code>TextLabel</code> is a <code>Text</code> whose <code>centerY</code> is its capitals' middle.</p>
 <p><strong>The App fills its host by default</strong>, so <code>App [ … ]</code> with no size line fills the window and resizes with it, while an explicit size makes a fixed widget. For an embedded app the host is its container element, which is what lets apps nest. Responsive code reads <code>app.width</code>; the App also carries the live host facts — viewport, colour scheme, pointer — as reactive attributes.</p>
 <p><code>App [ minWidth = 480, minHeight = 420 ]</code> sets a <strong>size floor</strong>: below it the app stops adapting, holds the floor, and the host pans instead. It is a policy the host cooperates with rather than clamp arithmetic you write into constraints — and it is the App's alone, not a view attribute.</p>
 <h3>The URL is an attribute; links are declared</h3>
@@ -550,7 +550,7 @@ Slider   [ value = { app.volume },
 <h2>Performance</h2>
 <h3>What should I expect in terms of performance — download size and interactive responsiveness?</h3>
 <p>Concretely, measured from the deployed production artifacts:</p>
-<ul><li><strong>Wire size</strong>: the entire Declare calendar — application <em>and</em> runtime — ships at about 160 KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).</li><li><strong>Source size</strong>: the tracker — a million issues, search as you type, editing in place with undo — is 1,507 lines: 982 of code and 251 of comments, and no dependencies. It ships at 179 KB gzipped before its data, which a <code>DataSource</code> fetches at run time.</li><li><strong>Responsiveness</strong>: when you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.</li><li><strong>Finding what's slow</strong>: the profiler (<code>declare-profile</code>, or the Inspector while you use the app) says which of <em>your</em> rules ran, how often and for how long, what each class cost to build, what drawings cost the GPU, and how long each frame took to reach the screen — in the program's own terms, its classes, attributes and source lines, never the runtime's internals. It runs in the browser or the Mac host.</li><li><strong>Startup</strong>: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.</li></ul>
+<ul><li><strong>Wire size</strong>: the entire Declare calendar — application <em>and</em> runtime — ships at about 161 KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).</li><li><strong>Source size</strong>: the tracker — a million issues, search as you type, editing in place with undo — is 1,507 lines: 982 of code and 251 of comments, and no dependencies. It ships at 179 KB gzipped before its data, which a <code>DataSource</code> fetches at run time.</li><li><strong>Responsiveness</strong>: when you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.</li><li><strong>Finding what's slow</strong>: the profiler (<code>declare-profile</code>, or the Inspector while you use the app) says which of <em>your</em> rules ran, how often and for how long, what each class cost to build, what drawings cost the GPU, and how long each frame took to reach the screen — in the program's own terms, its classes, attributes and source lines, never the runtime's internals. It runs in the browser or the Mac host.</li><li><strong>Startup</strong>: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.</li></ul>
 <p>Live numbers are on the homepage, measured from the deployed artifacts themselves.</p>
 <h2>Declare and LLMs</h2>
 <h3>What benefits does Declare bring for LLM coding, where a human may never read or write the code?</h3>
@@ -743,7 +743,7 @@ npm start</code></pre>
 <p>Library classes it uses</p>
 <p>10.4 KB</p>
 <p>Reactive core, instantiation &amp; data</p>
-<p>38.8 KB</p>
+<p>38.9 KB</p>
 <p>DOM backend</p>
 <p>15.2 KB</p>
 <p>View</p>
@@ -767,7 +767,7 @@ npm start</code></pre>
 <p>Library</p>
 <p>10.4 KB</p>
 <p>Runtime</p>
-<p>122.5 KB</p>
+<p>122.6 KB</p>
 <p>Kernel</p>
 <p>15.2 KB</p>
 <img loading="lazy" src="apps/homepage/../architecture/resources/desktop-dom.webp">
@@ -812,7 +812,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=6f591697f5de";
+  import boot from "./bundles/declare-boot.js?v=813d7918c815";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().
