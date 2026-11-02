@@ -28,17 +28,17 @@
     "code": 1994,
     "comment": 932,
     "blank": 573,
-    "wireGzip": 250810,
+    "wireGzip": 250787,
     "programGzip": 21209
   },
   "todo": {
-    "total": 1076,
-    "code": 663,
+    "total": 1075,
+    "code": 662,
     "comment": 236,
     "blank": 177,
-    "wireGzip": 184985,
-    "programGzip": 20153,
-    "codeWithParts": 848
+    "wireGzip": 184977,
+    "programGzip": 20137,
+    "codeWithParts": 847
   },
   "calendarParts": {
     "calDom": {

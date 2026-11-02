@@ -24,7 +24,7 @@ write, then check the program and look at it running (§ Checking and looking).
    decides each size and place, and how a child asks its layout. Every program has layout,
    and it is not CSS, even where it looks like it.
 3. **The to-do app, whole** — `apps/todo/todo.declare` and the parts it includes,
-   `apps/todo/todo-parts.declare`, read together: <!--stat:todo.codeWithParts-->848<!--/stat--> lines of code, with
+   `apps/todo/todo-parts.declare`, read together: <!--stat:todo.codeWithParts-->847<!--/stat--> lines of code, with
    comments written for a first reader. It is a familiar program written in the grain
    Declare is designed for, one program for phone and desktop. Read it for how the work
    divides — the tasks as a dataset class that makes every write, the user's place on the
