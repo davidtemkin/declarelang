@@ -74,12 +74,10 @@ export declare function percentRule(view: View, name: string, percent: number, p
 export declare function isTransformSlot(name: string): boolean;
 /** Bind `x = center` / `y = end` — the position literals (value.ts Align).
  *  Symbolic like a percent, resolved as a standing constraint over the
- *  parent's extent AND the view's own. `center` centers the view's box (its
- *  alignBand) — for a Text that is the geometric box, the ordinary meaning
- *  (a label wanting its cap band optically centered uses the library's
- *  TextLabel). `end` aligns end edges — the geometric box, always. The written-out
- *  formula `{ (parent.height - this.height) / 2 }` remains the no-smarts
- *  spelling: only the named literal invokes the optics.
+ *  parent's extent AND the view's own. `center` puts the view's center
+ *  (`centerX`/`centerY`, the middle of its box unless it says otherwise —
+ *  TextLabel's is the middle of its capitals) on the middle of the room. `end`
+ *  aligns end edges — the geometric box, always.
  *
  *  A TRANSFORMED view is placed by the box it visibly covers (its footprint),
  *  as a layout places it — one geometry: two bars rotated ±45° about their

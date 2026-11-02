@@ -5,30 +5,32 @@ A `Text` that centers its ink in its parent's height — the vertical placement 
 *label* wants, as opposed to a paragraph. Use it for the text inside a control
 or any centered caption; use plain `Text` for flowing copy.
 
-Why it exists. `y = center` on a plain `Text` centers the geometric box (the
-ordinary meaning, matching every other view). But a label sitting in a box wants
-its **letterforms** optically centered, not the font's box with its asymmetric
-ascent/descent leading — otherwise the text reads a hair low. `TextLabel`
-supplies a `y` that centers the cap band (cap-top to baseline), the optical
-centre for a label:
+Why it exists. A plain `Text` is centered by its box, like every other view. But a label
+sitting in a box wants its **letterforms** optically centered, not the font's box with its
+asymmetric ascent/descent leading — otherwise the text reads a hair low. So a `TextLabel`
+says where its center is — the middle of its capitals:
 
-    y = { parent.height / 2 - this.baseline + this.capHeight / 2 }
+    centerY = { baseline - capHeight / 2 }
 
-That expression cap-centres the label: the ink sits centred by its cap band rather
-than by its box, which is what reads as centred for a label. It is written out here,
-once, instead of at every use site. It is a plain constraint over the Text's own live
-metric facts
-(`baseline`, `capHeight`, measured from the effective font), so it re-centers
-when the font, the size, or the parent's height changes. Override `y` on an
-instance to opt out.
+and anything that centers it centers that: its own `y = center`, a row's `align = center`.
+It is a plain constraint over the Text's own live metric facts (`baseline`, `capHeight`,
+measured from the effective font), so it follows the font and the size. A label placed by
+hand (`y = 4`) is placed as written.
 
 The centre is the cap band because that is what the platform control themes
 (Cupertino, Mountain View, Redmond) are matched against.
 
 ## y
-Centres the ink on the parent's height by its cap band — baseline and cap height — rather than by the line box, which is what a label beside a control wants and a paragraph does not.
+`center`: the label centers itself in its parent — by its capitals (`centerY`). Give it
+any other `y` to place it yourself.
+
+## centerY
+The middle of its capitals — baseline and cap height — rather than of its line box, which
+is what a label beside a control wants and a paragraph does not. Whatever centers the label,
+its own `y = center` or a row's `align = center`, centers this.
 */
 
 class TextLabel extends Text [
-    y = { parent.height / 2 - this.baseline + this.capHeight / 2 }
+    y = center,
+    centerY = { baseline - capHeight / 2 }
     ]

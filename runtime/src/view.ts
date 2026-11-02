@@ -573,6 +573,13 @@ export class View extends Node {
   declare scale: number;
   declare pivotX: number;
   declare pivotY: number;
+  /** Where this view's center is, in its own coordinates — the point that
+   *  `x = center` and a layout's `align = center` put on the middle of the
+   *  room. Unset, the middle of the box (`width / 2`, `height / 2`); a view
+   *  whose visual middle is elsewhere says where (TextLabel: the middle of its
+   *  capitals). Read it like any fact: `y = { parent.height / 2 - centerY }`. */
+  declare centerX: number;
+  declare centerY: number;
   /** Rotation in DEGREES, clockwise, about (pivotX, pivotY) — paint-only,
    *  like `scale`, whose pivot it shares (scale-then-rotate, one documented
    *  order). Layout never rotates; hit-testing follows the visible result
@@ -1358,13 +1365,10 @@ export class View extends Node {
    *  its own under the build flag). */
   declare $leafRole?: () => "text" | "textField" | "image" | "document";
 
-  /** The OPTICAL band the `center` position literal centers — { lead, size }
-   *  along the given axis, in this view's own coordinates. The base answer is
-   *  the whole box (lead 0); Text overrides the y axis with its ink band (cap
-   *  height to last baseline — the text-box-trim semantics). The same
-   *  class-supplies-its-shape protocol family as the focus silhouette. */
-  $alignBand(axis: "x" | "y"): { lead: number; size: number } {
-    return { lead: 0, size: axis === "x" ? this.width : this.height };
+  /** `centerX`/`centerY` was set: a `center` the kernel was computing from the
+   *  box's middle (bind.ts bindAlign's fast path) now asks the view instead. */
+  $centerMoved(axis: "x" | "y"): void {
+    centerMovedHook?.(this, axis);
   }
 
   /** The self-completing exit (Node.discard does the unlink + ex-parent
@@ -2224,6 +2228,10 @@ defineAttributes(View, {
   scale: { def: 1, push: pushTransform },
   pivotX: { def: 0, push: pushTransform },
   pivotY: { def: 0, push: pushTransform },
+  // unset: the middle of the box, read live (no rule per view); set: where
+  // `center` puts this view's middle (bind.ts alignRule, the layouts' align)
+  centerX: { def: null as unknown as number, defBinding: function (this: unknown) { return (this as View).width / 2; }, push: (v) => v.$centerMoved("x") },
+  centerY: { def: null as unknown as number, defBinding: function (this: unknown) { return (this as View).height / 2; }, push: (v) => v.$centerMoved("y") },
   rotation: { def: 0, push: pushTransform },
   rotateX: { def: 0, push: pushTransform },
   rotateY: { def: 0, push: pushTransform },
@@ -2397,6 +2405,13 @@ export function inheritedCursor(node: Node | null): Cursor | null {
  *  view.ts never imports focus.ts (one-directional import, no cycle); called at
  *  the top of discard() so focus moves off a subtree before it is torn down
  *  (docs/system-design/input.md §mutation during traversal). */
+/** bind.ts's answer to a `centerX`/`centerY` that changed (View.$centerMoved) —
+ *  a seam, so view.ts never imports bind.ts. */
+let centerMovedHook: ((view: View, axis: "x" | "y") => void) | null = null;
+export function setCenterMovedHook(fn: (view: View, axis: "x" | "y") => void): void {
+  centerMovedHook = fn;
+}
+
 let focusDiscardHook: ((view: View) => void) | null = null;
 export function setFocusDiscardHook(fn: (view: View) => void): void {
   focusDiscardHook = fn;

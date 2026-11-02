@@ -15,7 +15,7 @@ import { defaultOf, hasSlot, markPercent, setPercentMark, own, release, setBound
 import { KERNEL_FLAG } from "./kernel-loader.js";
 import { watchingContentRead } from "./size-probe.js";
 import { compileExpr, bodyLabel } from "./expr.js";
-import { View, inheritedCursor, withCursorDefining } from "./view.js";
+import { View, inheritedCursor, withCursorDefining, setCenterMovedHook } from "./view.js";
 import { authoredName, onDiscard } from "./node.js";
 import { coerceData, toCursor } from "./data.js";
 import { splitPath } from "./path-plan.js";
@@ -703,12 +703,10 @@ function mayTransform(view) {
 }
 /** Bind `x = center` / `y = end` — the position literals (value.ts Align).
  *  Symbolic like a percent, resolved as a standing constraint over the
- *  parent's extent AND the view's own. `center` centers the view's box (its
- *  alignBand) — for a Text that is the geometric box, the ordinary meaning
- *  (a label wanting its cap band optically centered uses the library's
- *  TextLabel). `end` aligns end edges — the geometric box, always. The written-out
- *  formula `{ (parent.height - this.height) / 2 }` remains the no-smarts
- *  spelling: only the named literal invokes the optics.
+ *  parent's extent AND the view's own. `center` puts the view's center
+ *  (`centerX`/`centerY`, the middle of its box unless it says otherwise —
+ *  TextLabel's is the middle of its capitals) on the middle of the room. `end`
+ *  aligns end edges — the geometric box, always.
  *
  *  A TRANSFORMED view is placed by the box it visibly covers (its footprint),
  *  as a layout places it — one geometry: two bars rotated ±45° about their
@@ -723,9 +721,9 @@ export function bindAlign(view, name, align, pos, transformLater = false, yieldi
     // Against the parent's CONTENT box, for the same reason a percent resolves
     // there: a position is measured from the content origin, and centring in the
     // literal box would push a padded parent's child off centre by the leading
-    // inset. IN THE KERNEL for the plain box (View.alignBand's base answer: lead
-    // 0, the whole size); a view whose alignBand is overridden keeps the
-    // JavaScript form, which asks it.
+    // inset. IN THE KERNEL while the view's center is its box's middle; one
+    // that says where its center is takes the JavaScript form, which reads it
+    // (and a center set later moves it there: centerMoved, below).
     const insetA = size === "width" ? "$insetX" : "$insetY";
     const transformed = transformLater || mayTransform(view);
     // a child of the App placed at its end is measured against the WINDOW when
@@ -733,10 +731,17 @@ export function bindAlign(view, name, align, pos, transformLater = false, yieldi
     const frameChild = !(view.parent.parent instanceof View);
     if (frameChild && align === "end")
         view.$endAnchor.add(name);
-    if (kernelDerives() && !transformed && !frameChild && view.$alignBand === View.prototype.$alignBand && bindKernelExpr(view, name, align === "end"
+    const centerName = name === "x" ? "centerX" : "centerY";
+    const before = ownerOf(view, name);
+    if (kernelDerives() && !transformed && !frameChild && (align === "end" || !isSetOrOwned(view, centerName)) && bindKernelExpr(view, name, align === "end"
         ? { code: [...CONTENT_BOX, OP_LOAD, 2, OP_SUB, OP_END], paths: [`parent.${size}`, `parent.${insetA}`, `this.${size}`], consts: [0] }
-        : { code: [...CONTENT_BOX, OP_LOAD, 2, OP_SUB, OP_CONST, 1, OP_DIV, OP_END], paths: [`parent.${size}`, `parent.${insetA}`, `this.${size}`], consts: [0, 2] }, null, `${cls}.${name} = ${align}`, align === "end" ? `parent.contentBox(${size}) - this.${size}` : `(parent.contentBox(${size}) - this.${size}) / 2`, pos, yielding, [], true))
+        : { code: [...CONTENT_BOX, OP_LOAD, 2, OP_SUB, OP_CONST, 1, OP_DIV, OP_END], paths: [`parent.${size}`, `parent.${insetA}`, `this.${size}`], consts: [0, 2] }, null, `${cls}.${name} = ${align}`, align === "end" ? `parent.contentBox(${size}) - this.${size}` : `(parent.contentBox(${size}) - this.${size}) / 2`, pos, yielding, [], true)) {
+        // only the rule this made: a slot a layout already holds stays the layout's
+        const k = ownerOf(view, name);
+        if (align === "center" && k !== null && k !== before)
+            KERNEL_CENTER.add(k);
         return;
+    }
     const k = alignRule(view, name, align, pos, transformed, yielding);
     own(view, name, k);
     k.run();
@@ -761,13 +766,27 @@ export function alignRule(view, name, align, pos, transformed = mayTransform(vie
         }
         if (align === "end")
             return P - view[size];
-        const band = view.$alignBand(name);
-        return (P - band.size) / 2 - band.lead;
+        return P / 2 - view[name === "x" ? "centerX" : "centerY"];
     }, (v) => setBound(view, name, v), 0, yielding);
     markPercent(k); // like a percent: excluded from the parent's auto-extent (no cycle)
     k.sourcePos = sourceAt(pos); // `x = center` meeting a layout's claim names this line
     return k;
 }
+/** The `center`s the kernel computes from the box's middle (bindAlign). */
+const KERNEL_CENTER = new WeakSet();
+/** A view's center was set after its `center` went to the kernel: the
+ *  JavaScript form, which reads the center, takes the slot over. */
+setCenterMovedHook((view, axis) => {
+    const o = ownerOf(view, axis);
+    if (o === null || !KERNEL_CENTER.has(o))
+        return;
+    KERNEL_CENTER.delete(o);
+    release(view, axis, o);
+    o.dispose();
+    const k = alignRule(view, axis, "center", null, mayTransform(view), o.yielding);
+    own(view, axis, k);
+    k.run();
+});
 const DEFERRED = Symbol("deferred");
 /** A DECLARED slot's `{ }` default as a standing rule (attributes.ts
  *  AttrSpec.defRule): installed at construction on a slot no attribute channel

@@ -198,6 +198,10 @@ const ViewSchema: ClassSchema = {
     scale: { kind: "number" },
     pivotX: { kind: "number" },
     pivotY: { kind: "number" },
+    // Where the view's center is, in its own coordinates — what `center` and a
+    // layout's `align = center` put on the middle. Unset: the box's middle.
+    centerX: { kind: "number" },
+    centerY: { kind: "number" },
     // Rotation in DEGREES, clockwise, about the same pivot scale uses — the
     // same one-geometry rule: paint, hit-testing (inverse transform,
     // interaction.ts), rootOrigin/inspect, auto-size and layouts all agree,

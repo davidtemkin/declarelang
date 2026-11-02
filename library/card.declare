@@ -16,11 +16,6 @@ Card [ x = 20, y = 20, width = 280,
     ]
 ```
 
-**Use `Text`, not `TextLabel`, as a direct child.** A `TextLabel` positions itself
-vertically — that cap-centering `y` is the whole of what it adds — and the card's layout
-places the children it holds, so the two would own the same attribute. `TextLabel` belongs
-inside a control or a row that leaves `y` alone; a card's own lines are `Text`.
-
 **Give it a width, not a height.** A Card has no height of its own: it takes the one its
 content needs, `padding` counted in — so the box grows and shrinks with what is inside it,
 and nothing has to be kept in step by hand. Set `height` only to cap it (with `clip = true`

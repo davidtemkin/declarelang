@@ -315,8 +315,8 @@ layout decides; it tells the layout facts about itself (`flexes`, `shrinks`, a
 `minWidth`/`maxWidth` range), and the layout places every child and sizes those that ask.
 
 **An unset size is the content's, inside a layout too:** unlike flexbox, nothing stretches
-without `align = stretch`. A size travels one way: a view sized by its children can't size
-them, so they fill it by `align = stretch`. A size that applies only while, say, editing is a
+without `align = stretch`. A view sized by its children can't size them; they fill it
+by `align = stretch`. A size that applies only while, say, editing is a
 `State`'s.
 
 ```declare-fragment
@@ -505,10 +505,10 @@ child opts out of its parent's regime with `ignoreLayout` or `ignoreClip`.
 
 **Positions are literals.** `x = center` and `x = end`, and the same on `y`, place a view against
 its parent — resolved reactively, exactly like `100%`. The closed set is `center` and `end`; the
-start is `0`. `y = center` centers a view's box, a `Text` included. A label inside a control usually
-wants its *ink* centered instead — the cap band, not the font box with its uneven leading —
-and that is what the library's `TextLabel` is: a `Text` whose `y` is a cap-centering
-constraint over its own metric facts.
+start is `0`. `center` puts a view's center (`centerX`, `centerY`: its box's middle unless it says
+otherwise) on the parent's middle, as `align = center` does. A label wants its *ink*
+centered — the cap band, not the font box with its uneven leading — so the library's `TextLabel`
+is a `Text` whose `centerY` is its capitals' middle.
 
 **The App fills its host by default**, so `App [ … ]` with no size line fills the window and
 resizes with it, while an explicit size makes a fixed widget. For an embedded app the host is its

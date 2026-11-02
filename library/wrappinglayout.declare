@@ -260,7 +260,8 @@ class WrappingLayout extends Layout [
             for (let j = rowStart; j < end; j++) {
                 if (!kids[j].visible) continue
                 let off = 0
-                if (al == "center") off = (lineH - heights[j]) / 2
+                // a child's own center, where it says one (a TextLabel's capitals)
+                if (al == "center") off = (lineH - heights[j]) / 2 - ((kids[j] as any).centerY - (kids[j] as any).height / 2)
                 else if (al == "end") off = lineH - heights[j]
                 else if (al == "baseline") {
                     if (bases[j] != null) off = rowBase - bases[j]

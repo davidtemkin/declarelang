@@ -314,8 +314,8 @@ export interface Percent {
 
 /** A position literal (`x = center`, `y = end`) — symbolic like Percent,
  *  resolved at bind time against the parent's extent AND the view's own
- *  (bind.ts bindAlign). `center` centers the box (View.alignBand) — for a Text
- *  too, the geometric box; the library's TextLabel cap-centers a label. The closed set: center | end —
+ *  (bind.ts bindAlign). `center` puts the view's centerX/centerY (its box's
+ *  middle unless it says otherwise) on the middle of the room. The closed set: center | end —
  *  start is 0, the default; nothing else, ever. */
 export interface Align {
   readonly align: "center" | "end";

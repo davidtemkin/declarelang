@@ -1043,13 +1043,10 @@ export class View extends Node {
      *  its native element without occupying the author's event slot. No-op on a
      *  plain view. */
     $focusChanged(_focused) { }
-    /** The OPTICAL band the `center` position literal centers — { lead, size }
-     *  along the given axis, in this view's own coordinates. The base answer is
-     *  the whole box (lead 0); Text overrides the y axis with its ink band (cap
-     *  height to last baseline — the text-box-trim semantics). The same
-     *  class-supplies-its-shape protocol family as the focus silhouette. */
-    $alignBand(axis) {
-        return { lead: 0, size: axis === "x" ? this.width : this.height };
+    /** `centerX`/`centerY` was set: a `center` the kernel was computing from the
+     *  box's middle (bind.ts bindAlign's fast path) now asks the view instead. */
+    $centerMoved(axis) {
+        centerMovedHook?.(this, axis);
     }
     /** The self-completing exit (Node.discard does the unlink + ex-parent
      *  notify): this override only moves the DEPARTURE hook earlier for the
@@ -2010,6 +2007,10 @@ defineAttributes(View, {
     scale: { def: 1, push: pushTransform },
     pivotX: { def: 0, push: pushTransform },
     pivotY: { def: 0, push: pushTransform },
+    // unset: the middle of the box, read live (no rule per view); set: where
+    // `center` puts this view's middle (bind.ts alignRule, the layouts' align)
+    centerX: { def: null, defBinding: function () { return this.width / 2; }, push: (v) => v.$centerMoved("x") },
+    centerY: { def: null, defBinding: function () { return this.height / 2; }, push: (v) => v.$centerMoved("y") },
     rotation: { def: 0, push: pushTransform },
     rotateX: { def: 0, push: pushTransform },
     rotateY: { def: 0, push: pushTransform },
@@ -2191,6 +2192,12 @@ export function inheritedCursor(node) {
  *  view.ts never imports focus.ts (one-directional import, no cycle); called at
  *  the top of discard() so focus moves off a subtree before it is torn down
  *  (docs/system-design/input.md §mutation during traversal). */
+/** bind.ts's answer to a `centerX`/`centerY` that changed (View.$centerMoved) —
+ *  a seam, so view.ts never imports bind.ts. */
+let centerMovedHook = null;
+export function setCenterMovedHook(fn) {
+    centerMovedHook = fn;
+}
 let focusDiscardHook = null;
 export function setFocusDiscardHook(fn) {
     focusDiscardHook = fn;

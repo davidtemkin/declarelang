@@ -255,11 +255,10 @@ export class Text extends View {
     return Math.ceil(this.$lineAdvance(m) * lines);
   }
 
-  // `y = center` centers the geometric box (View.alignBand), like every other
-  // view and like the x axis — the ordinary meaning. A label that wants its cap
-  // band optically centered uses the library's TextLabel (a Text whose y is a
-  // cap-centering constraint over baseline/capHeight); box-centering was the
-  // surprising default and is retired here (2026-09-06).
+  // `y = center` puts the view's `centerY` on the middle — for a Text, as for
+  // every view, the middle of its box. A label that wants its capitals
+  // optically centered is the library's TextLabel, whose centerY is their
+  // middle (baseline − capHeight / 2).
 
   protected override $flush(s: Surface): void {
     super.$flush(s);

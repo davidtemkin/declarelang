@@ -205,6 +205,9 @@ class SimpleLayout extends Layout [
         const al = this.align
         const cross = axis == "x" ? "y" : "x"
         const crossSize = axis == "x" ? "height" : "width"
+        // how far a child's own center (centerY in a row, centerX in a column)
+        // sits from its box's middle: 0 unless it says otherwise (a TextLabel)
+        const centerShift = (c) => (c as any)[axis == "x" ? "centerY" : "centerX"] - (c as any)[crossSize] / 2
         const crossOf = (c) => {
             if (flexing(c)) return ({ lead: 0, extent: (c as any)[crossSize] })
             const fc = (c as any).footprint()
@@ -250,7 +253,7 @@ class SimpleLayout extends Layout [
                 const co = crossOf(c)
                 const leadC = co.lead
                 let off = 0
-                if (al == "center") off = (line - co.extent) / 2
+                if (al == "center") off = (line - co.extent) / 2 - centerShift(c)
                 else if (al == "end") off = line - co.extent
                 else if (al == "baseline" && axis == "x") {
                     const b = (c as any).baseline

@@ -148,7 +148,12 @@ function layoutChecks(app, { touch = false, realText = false, skip = [] }, flagg
             // children need more than it has, neither clipped nor scrolled — the run
             // simply goes on past the end
             const pos = axis === "x" ? "x" : "y";
-            if (flexer === undefined && !sizedByContent(v, size) && v.scrolls !== axis && v.scrolls !== "both" && (v.clip === null || v.clip === false || v.clip === "")) {
+            // a size worked out from contentWidth (a cap over what it holds) is checked
+            // too: its children keep their own sizes, and a run longer than the cap
+            // goes on past it — the child is the one to cap
+            const own = !isSet(v, size) ? ownerOf(v, size) : null;
+            const capped = own !== null && own.isAutoExtent !== true && /content(Height|Width)/.test(own.source ?? "");
+            if (flexer === undefined && (capped || !sizedByContent(v, size)) && v.scrolls !== axis && v.scrolls !== "both" && (v.clip === null || v.clip === false || v.clip === "")) {
                 const room = v.contentBox(size);
                 let end = 0, last = null;
                 for (const c of v.children) {
@@ -160,7 +165,9 @@ function layoutChecks(app, { touch = false, realText = false, skip = [] }, flagg
                     }
                 }
                 if (last !== null && end > room + 1 && fresh("run", pathOf(app, v))) {
-                    out.push(`${pathOf(app, v)}'s children need ${Math.round(end)} ${size === "width" ? "across" : "down"} and it has ${Math.round(room)}, so ${pathOf(app, last)} runs past its end. Let a child give room up (shrinks = true), take what is left rather than the whole (flexes instead of ${size} = 100%), or let ${pathOf(app, v)} scroll or clip.`);
+                    out.push(capped
+                        ? `${pathOf(app, v)}'s children need ${Math.round(end)} ${size === "width" ? "across" : "down"} and it has ${Math.round(room)}: its ${size} is worked out from what it holds, so they keep their own sizes, and ${pathOf(app, last)} runs past its end. Cap the child instead: ${size} = { Math.min(${size === "width" ? "contentWidth" : "contentHeight"}, … ) } on it.`
+                        : `${pathOf(app, v)}'s children need ${Math.round(end)} ${size === "width" ? "across" : "down"} and it has ${Math.round(room)}, so ${pathOf(app, last)} runs past its end. Let a child give room up (shrinks = true), take what is left rather than the whole (flexes instead of ${size} = 100%), or let ${pathOf(app, v)} scroll or clip.`);
                 }
             }
         }

@@ -1069,6 +1069,18 @@ top-left.
 ## pivotY
 The vertical pivot — the twin of `pivotX`.
 
+## centerX
+Where this view's center is across, in its own coordinates — the point `x = center`
+and a column's `align = center` put on the middle of the room. Unset, it is the middle of
+the box, `width / 2`. A view whose visual middle is elsewhere says where: a play mark whose
+weight sits left of its box's middle, nudged right. Read it like any fact:
+`x = { parent.width / 2 - centerX }` is what `center` does.
+
+## centerY
+The vertical twin of `centerX`: what `y = center` and a row's `align = center` put on the
+middle. Unset, `height / 2`. A `TextLabel`'s is the middle of its capitals, so a label
+looks centered however it is centered.
+
 ## rotation
 Rotation in **degrees**, clockwise, about the same (`pivotX`, `pivotY`) pivot `scale`
 uses — and the same one-geometry rule: hit-testing follows the *visible* geometry

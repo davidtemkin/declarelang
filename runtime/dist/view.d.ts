@@ -225,6 +225,13 @@ export declare class View extends Node {
     scale: number;
     pivotX: number;
     pivotY: number;
+    /** Where this view's center is, in its own coordinates — the point that
+     *  `x = center` and a layout's `align = center` put on the middle of the
+     *  room. Unset, the middle of the box (`width / 2`, `height / 2`); a view
+     *  whose visual middle is elsewhere says where (TextLabel: the middle of its
+     *  capitals). Read it like any fact: `y = { parent.height / 2 - centerY }`. */
+    centerX: number;
+    centerY: number;
     /** Rotation in DEGREES, clockwise, about (pivotX, pivotY) — paint-only,
      *  like `scale`, whose pivot it shares (scale-then-rotate, one documented
      *  order). Layout never rotates; hit-testing follows the visible result
@@ -689,15 +696,9 @@ export declare class View extends Node {
      *  views, and everywhere in a build without the layer (each leaf installs
      *  its own under the build flag). */
     $leafRole?: () => "text" | "textField" | "image" | "document";
-    /** The OPTICAL band the `center` position literal centers — { lead, size }
-     *  along the given axis, in this view's own coordinates. The base answer is
-     *  the whole box (lead 0); Text overrides the y axis with its ink band (cap
-     *  height to last baseline — the text-box-trim semantics). The same
-     *  class-supplies-its-shape protocol family as the focus silhouette. */
-    $alignBand(axis: "x" | "y"): {
-        lead: number;
-        size: number;
-    };
+    /** `centerX`/`centerY` was set: a `center` the kernel was computing from the
+     *  box's middle (bind.ts bindAlign's fast path) now asks the view instead. */
+    $centerMoved(axis: "x" | "y"): void;
     /** The self-completing exit (Node.discard does the unlink + ex-parent
      *  notify): this override only moves the DEPARTURE hook earlier for the
      *  still-linked caller — presence ends while the tree is WHOLE, so an
@@ -970,6 +971,7 @@ export declare function withCursorDefining<T>(view: Node, fn: () => T): T;
  *  slot is a tracked read, so a cursor appearing, changing, or clearing
  *  ANYWHERE on the chain wakes exactly the reads below it. */
 export declare function inheritedCursor(node: Node | null): Cursor | null;
+export declare function setCenterMovedHook(fn: (view: View, axis: "x" | "y") => void): void;
 export declare function setFocusDiscardHook(fn: (view: View) => void): void;
 export declare function setKeyDefaultHook(fn: (view: View, e: unknown) => void): void;
 export declare function noteFocused(now: View | null, byKeyboard?: boolean): void;

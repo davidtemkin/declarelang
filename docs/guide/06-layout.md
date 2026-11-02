@@ -6,13 +6,14 @@
 Layout in Declare is a small model that goes a long way. Where CSS gives you several
 layout systems, each with its own vocabulary and its own negotiations, Declare gives you a
 handful of ideas — a view that is as large as its content unless it says otherwise, a
-`layout` that places a view's children, sizes that are passed down or gathered up — and
-they cover a page frame, a scrolling list, a responsive split and a grid of squares.
-Nothing in it is special to the platform: the layouts the library ships are written in
-Declare, in a few lines each, and when none of them says what you mean, you write your own
-with one method and it is exactly as capable as theirs. A layout is an attribute, so it
-can be swapped, driven by a constraint, or animated. And because every size and place has
-a single decider, you can always ask why a view is where it is, and get one answer.
+`layout` that places a view's children, a size that comes from the parent or from what a
+view holds — and they cover a page frame, a scrolling list, a responsive split and a grid
+of squares. Nothing in it is special to the platform: the layouts the library ships are
+written in Declare, in a few lines each, and when none of them says what you mean, you
+write your own with one method and it is exactly as capable as theirs. A layout is an
+attribute, so it can be swapped, driven by a constraint, or animated. And because every
+size and place has a single decider, you can always ask why a view is where it is, and get
+one answer.
 
 This chapter builds it up a step at a time. It starts with a single box and ends with a
 small notes reader: a list of notes beside the one that is open, an action bar that comes
@@ -170,25 +171,28 @@ App [ width = 360, height = 240, fill = white, textColor = black,
     ]
 ```
 
-Sizes go both ways here, and it is worth following each one:
+Every size comes from one of three places, and the view says which:
 
-- **Down:** the list's height comes from the body, whose row has `align = stretch`, which
-  fills each child to the row's height. Each row's width comes from the list, `width =
-  100%`, and the preview's width from the row, which is how the preview knows where to wrap.
-  A `Text` given no width is one line, as long as its words; it wraps only when a width
-  comes down to it.
-- **Up:** the preview's height comes from its wrapped lines, each row's height from its
-  title and preview, and the list's content height from its rows.
-- **Where they meet:** the list keeps the height it was given, and because it `scrolls =
-  y`, rows that don't fit scroll inside it. A narrower list makes taller rows.
+1. **Stated:** `width = 160`.
+2. **From its parent:** `width = 100%`, or the parent's layout gives it one (a stretch, a
+   share).
+3. **From what it holds:** nothing stated, so it is as big as its text or its children.
 
-On any one axis a size goes one way, not both: a child sized from its parent does not
-count toward the parent's content size on that axis, however it is written, `100%` or a
-`{ }` that reads `parent.width`, and neither does one placed by `center` or `end`. This is
-where an intuition from CSS misleads, because there a width can be worked out from the
-content and handed back down in the same pass. The tempting mistake is to leave the list's
-width out, as if it could take the width of its widest row while each row takes the width
-of the list. Each size would wait on the other, and the program says so when it starts:
+In the list, the list's width is stated, 160. Each row's width is from its parent, `100%`,
+and so is each preview's, which is how the preview knows where to wrap; a `Text` with no
+width is one line, as long as its words, and one given a width wraps to it (unless
+`wrap = false`). The heights come from what each view holds: a preview's from its wrapped
+lines, a row's from its title and preview. The list's height is the exception: its
+parent's layout gives it, `align = stretch`. Its rows add up to more than that, and
+because it `scrolls = y`, the rest scrolls.
+
+A child whose size comes from its parent is not counted when the parent's size comes from
+what it holds, however the child writes it: `100%`, a `{ }` that reads `parent.width`, or
+a place by `center` or `end`. This is where an intuition from CSS misleads, because there
+a width can be worked out from the content and given back to the children in the same
+pass. The tempting mistake is to leave the list's width out, as if it could take the width
+of its widest row while each row takes the width of the list. Each size would wait on the
+other, and the program says so when it starts:
 
 > View.width is 0 — it takes its width from its children, and every one of them (NoteRow)
 > takes its width from it, so nothing decides it. To make them as wide as the widest, remove
@@ -196,9 +200,9 @@ of the list. Each size would wait on the other, and the program says so when it 
 
 Either answer works. A width the list states is the room its rows share. Or the rows drop
 their `width = 100%`, and `align = stretch` on the list's own layout makes them as wide as
-the widest of them: on a view sized by
-its children, stretch means "as large as the largest", a menu's items as wide as its widest
-item. A child that states its own size keeps it.
+the widest of them: on a view sized by its children, stretch means "as large as the
+largest", a menu's items as wide as its widest item. A child that states its own size
+keeps it.
 
 ## Something that comes and goes
 
@@ -492,10 +496,14 @@ states its own width, so the range has nothing to bound, and the compiler says s
 > share, a shrink, a stretch), and View states its own width. To cap a stated width, write
 > it: width = { Math.min(900, parent.width) }
 
+A view as wide as what it holds, up to a cap, reads its own content instead: a `Text` with
+`width = { Math.min(contentWidth, 280) }` keeps a short line short and wraps a long one at
+280, the shape of a chat bubble or a tag.
+
 The photos are the layout of your own. `Squares`'s `place()` reads the width it has, works
 out how many cells fit across, and returns a box for each child: its place and its size, a
-square. The grid's width comes **down** from the page, `width = 100%`; its height comes back
-**up** from the boxes it returned. Both directions meet inside one layout: the width
+square. The grid's width comes from its parent, `width = 100%`; its height comes from what it
+holds, the boxes it returned. The two meet inside one layout: the width
 decides the size of the cells, and the cells decide the height. Make the window narrower
 and the cells shrink, then a row wraps, and the page grows to hold it, with no number
 written for any of it.
@@ -520,14 +528,14 @@ name it. That is the rule the whole chapter has been showing:
 > **A view's place has one decider: the view itself, or its parent's layout.**
 > **Its size has one decider: the view itself, its parent's layout, or what it holds.**
 
-"The view itself" includes every way a view states a value, `width = 300`, `width = 100%`,
-`x = center`, a `{ }`: each is the view's own choice, even when it refers to the parent. To
+"The view itself" includes every way a view states a value, `width = 300`, `x = center`, a
+`{ }`, and `width = 100%`, which is the view choosing to take its size from its parent. To
 learn why a view is where it is, or the size it is, find the one thing that decided it.
 
 When a value seems to need working out from a sibling or from the window, such as a height
 minus the others, or a width that depends on the screen, it usually belongs to a layout, a
-library one or your own. When a size seems to need to come both from above and from below,
-pick one direction for it. The program will tell you if you haven't.
+library one or your own. When a size seems to need to come both from the parent and from
+what the view holds, pick one. The program will tell you if you haven't.
 
 ## Scale and rotation
 
@@ -540,7 +548,7 @@ content all see the same box, so a view at `scale = 0.5` really takes half the r
 ---
 
 **What you can now do:** give views sizes or let their content size them, arrange children
-with layouts, let a child ask its layout for room, pass sizes down and gather them up, pad
+with layouts, let a child ask its layout for room, size a view from its parent or from what it holds, pad
 views, respond to width without media queries, place things by hand on free surfaces, write
 a layout of your own, and name the one thing that decides any value.
 
