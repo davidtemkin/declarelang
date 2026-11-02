@@ -4,50 +4,50 @@
     "code": 596,
     "comment": 572,
     "blank": 359,
-    "wireGzip": 225104,
-    "programGzip": 14375
+    "wireGzip": 226176,
+    "programGzip": 14386
   },
   "calendar": {
     "total": 930,
     "code": 540,
     "comment": 214,
     "blank": 176,
-    "wireGzip": 163348,
-    "programGzip": 11438
+    "wireGzip": 164243,
+    "programGzip": 11454
   },
   "tracker": {
     "total": 1507,
     "code": 982,
     "comment": 251,
     "blank": 274,
-    "wireGzip": 182106,
-    "programGzip": 17550
+    "wireGzip": 183029,
+    "programGzip": 17568
   },
   "desktop": {
     "total": 3499,
     "code": 1994,
     "comment": 932,
     "blank": 573,
-    "wireGzip": 249580,
-    "programGzip": 21219
+    "wireGzip": 250700,
+    "programGzip": 21214
   },
   "todo": {
     "total": 1076,
     "code": 663,
     "comment": 236,
     "blank": 177,
-    "wireGzip": 183905,
-    "programGzip": 20156,
+    "wireGzip": 184810,
+    "programGzip": 20161,
     "codeWithParts": 848
   },
   "calendarParts": {
     "calDom": {
-      "app": 12.2,
+      "app": 12.3,
       "lib": 10.4,
-      "core": 38.4,
-      "view": 12.1,
-      "backend": 15.1,
-      "input": 20.3,
+      "core": 38.8,
+      "view": 12.3,
+      "backend": 15.2,
+      "input": 20.4,
       "draw": 16.1,
       "anim": 3.2,
       "text": 5,
@@ -58,28 +58,28 @@
       "ker": 15.2
     },
     "calCanvas": {
-      "app": 12.2,
+      "app": 12.3,
       "lib": 10.4,
-      "core": 37.8,
-      "view": 11.8,
+      "core": 38.3,
+      "view": 12,
       "backend": 35.3,
-      "input": 23.7,
+      "input": 23.8,
       "draw": 17.8,
       "anim": 3.9,
       "text": 5,
-      "boot": 5.5,
+      "boot": 5.6,
       "layout": 2.3,
       "themes": 0.1,
       "a11y": 3.3,
       "ker": 15.1
     },
     "calMac": {
-      "app": 12.2,
+      "app": 12.3,
       "lib": 10.4,
-      "core": 38.4,
-      "view": 12.1,
+      "core": 38.8,
+      "view": 12.3,
       "backend": 8.7,
-      "input": 20.3,
+      "input": 20.4,
       "draw": 16.1,
       "anim": 3.2,
       "text": 5,
@@ -90,14 +90,14 @@
       "ker": 0
     },
     "totals": {
-      "calDom": 159.5,
-      "calCanvas": 184.3,
-      "calMac": 135.3
+      "calDom": 160.4,
+      "calCanvas": 185.3,
+      "calMac": 136.1
     },
-    "runtimeKB": 121.7,
+    "runtimeKB": 122.5,
     "kernelWasmGzipKB": 12.6,
     "kernelWasmRawKB": 23,
     "kernelLoaderKB": 2.6,
-    "canvasCarriesDomBackendKB": 14.6
+    "canvasCarriesDomBackendKB": 14.7
   }
 }

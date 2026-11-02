@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "986ec194dcd6",
+  "buildId": "6f591697f5de",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -4414,11 +4414,11 @@
    },
    "E6E758C": {
     "message": "mountEmbeddedApp: the island is not attached to a backend yet",
-    "at": "boot.ts:454"
+    "at": "boot.ts:459"
    },
    "E846C40": {
     "message": "a program's root must be 'App [ … ]'",
-    "at": "boot.ts:559"
+    "at": "boot.ts:564"
    },
    "EBB032F": {
     "message": "…(\"…\"): nothing provides '…' here, and this read declares no default — give the read a default, or have the …",

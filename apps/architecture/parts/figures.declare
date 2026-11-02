@@ -6,12 +6,12 @@ script {
     const FIGURES = {
         "sizes": {
             "calDom": {
-                "app": 12.2,
+                "app": 12.3,
                 "lib": 10.4,
-                "core": 38.4,
-                "view": 12.1,
-                "backend": 15.1,
-                "input": 20.3,
+                "core": 38.8,
+                "view": 12.3,
+                "backend": 15.2,
+                "input": 20.4,
                 "draw": 16.1,
                 "anim": 3.2,
                 "text": 5,
@@ -22,28 +22,28 @@ script {
                 "ker": 15.2
             },
             "calCanvas": {
-                "app": 12.2,
+                "app": 12.3,
                 "lib": 10.4,
-                "core": 37.8,
-                "view": 11.8,
+                "core": 38.3,
+                "view": 12,
                 "backend": 35.3,
-                "input": 23.7,
+                "input": 23.8,
                 "draw": 17.8,
                 "anim": 3.9,
                 "text": 5,
-                "boot": 5.5,
+                "boot": 5.6,
                 "layout": 2.3,
                 "themes": 0.1,
                 "a11y": 3.3,
                 "ker": 15.1
             },
             "calMac": {
-                "app": 12.2,
+                "app": 12.3,
                 "lib": 10.4,
-                "core": 38.4,
-                "view": 12.1,
+                "core": 38.8,
+                "view": 12.3,
                 "backend": 8.7,
-                "input": 20.3,
+                "input": 20.4,
                 "draw": 16.1,
                 "anim": 3.2,
                 "text": 5,
@@ -54,18 +54,18 @@ script {
                 "ker": 0
             },
             "totals": {
-                "calDom": 159.5,
-                "calCanvas": 184.3,
-                "calMac": 135.3
+                "calDom": 160.4,
+                "calCanvas": 185.3,
+                "calMac": 136.1
             }
         },
-        "runtimeKB": 121.7,
+        "runtimeKB": 122.5,
         "kernelKB": 15.2,
         "kernelWasmGzipKB": 12.6,
         "kernelWasmRawKB": 23,
         "kernelLoaderKB": 2.6,
         "layoutKB": 2.3,
-        "canvasCarriesDomBackendKB": 14.6,
+        "canvasCarriesDomBackendKB": 14.7,
         "kernelLines": "1,400",
         "surfaceMethods": 69
     }
