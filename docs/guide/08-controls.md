@@ -46,7 +46,7 @@ order. Constrain it (`disabled = { app.muted }`) rather than assigning it.
 The library also has classes that are not controls — they have no value of their
 own: [`ProgressBar`](declare-docs:ProgressBar) (the read-only sibling of `Slider`), [`Gauge`](declare-docs:Gauge) (a captioned value bar for
 demos and dashboards), [`Field`](declare-docs:Field) (a labeled form row),
-[`Card`](declare-docs:Card) and [`Divider`](declare-docs:Divider) ([Size, position and layout](declare-docs:guide:layout@padding-and-card)),
+[`Card`](declare-docs:Card) and [`Divider`](declare-docs:Divider) ([Size, position and layout](declare-docs:guide:layout@a-view-and-its-size)),
 [`Accordion`](declare-docs:Accordion) with [`AccordionPane`](declare-docs:AccordionPane) children, [`Table`](declare-docs:Table) and [`DataGrid`](declare-docs:DataGrid)
 ([Large collections](declare-docs:guide:collections)), the overlay family — [`Menu`](declare-docs:Menu),
 [`MenuBar`](declare-docs:MenuBar), [`ContextMenu`](declare-docs:ContextMenu), [`Dialog`](declare-docs:Dialog), [`Tooltip`](declare-docs:Tooltip)

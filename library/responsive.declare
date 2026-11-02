@@ -62,7 +62,7 @@ what leaving the child out means — keep its natural size, divide the rest —
 so it buys no new geometry, only legibility: the plan reads as a complete
 statement of the row, and a name in a plan is checked against the tree, where
 an omission is mentioned nowhere. It is **not** `share: 0`, which is the
-opposite: `0` drops the child and reclaims its space, `"auto"` keeps the
+opposite: `0` drops the child and reclaims its room, `"auto"` keeps the
 child at the size it chose for itself. In a stack `"auto"` is accepted and
 changes nothing — the flow axis there is height, which a share never touches.
 
@@ -80,7 +80,7 @@ could say `{ from: 0, flow: "stack", share: { logo: 100, nav: 100 } }` to make
 both bands full-bleed. (A stack's shares are independent percentages of the
 view, not slices of one run, which is why two hundreds are fine there and a
 row's total is held to 100.) And `share: 0` is the whole of "hide it when
-it's tight": a child dropped this way leaves the flow entirely and its space
+it's tight": a child dropped this way leaves the flow entirely and its room
 is reclaimed, so there is no reason to branch a tree on a width
 (`narrow ? … : …`) — appearing and disappearing is one number in one plan,
 and the plan is the only place the breakpoint is written down.
@@ -162,7 +162,7 @@ wherever it sits in the list, and `from: 0` is the fallback. `flow` is `"row"` o
 `"stack"`. **`share` divides width in either flow** — not row-only: a `"stack"` entry may
 carry shares, and they set each band's width. It names the children by their **own child
 names**, checked when the layout first arranges — a name with no child is a loud error.
-**A share of `0` drops that child while the plan is active** — out of the flow, its space
+**A share of `0` drops that child while the plan is active** — out of the flow, its room
 reclaimed — so "the actions disappear on small screens" is one number rather than a
 `narrow ? … : …` branch, and they return by themselves when the view widens.
 

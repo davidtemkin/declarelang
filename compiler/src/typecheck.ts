@@ -460,9 +460,15 @@ function explainTs(d: TsDiag, u: Unit, synthTags: ReadonlyMap<string, string>): 
         return `${home} does not fit '${u.slot}', typed ${u.slotTs} — ${msg.replace(/\s+/g, " ")}`;
       }
       if (m !== null && u.slot !== null) {
+        const sizeSlot = u.slot === "width" || u.slot === "height";
         const canon =
           m[1] === "boolean" && u.slotTs === "Length"
             ? ` — a condition belongs in a ternary that yields numbers: { cond ? 40 : 25 }`
+            // `width = { cond ? null : 100% }` means "no width of mine in this
+            // case": say how to get that, by what the author is after (Venue run
+            // 20 met it twice)
+            : (m[1] === "null" || m[1] === "undefined") && sizeSlot
+              ? ` — a size can't be unset by a value. To take the parent's room only sometimes, give it in a State: State [ applied = { … }, ${u.slot} = 100% ]; to be as ${u.slot === "width" ? "wide" : "tall"} as a layout's band, align = stretch on that layout`
             // The font slot's accepted forms, stated where the mistake is made
             // (borrowed from coerceFont's own failure text — the type alone
             // says "string" without saying WHICH string).

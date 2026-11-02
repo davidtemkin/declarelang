@@ -3,8 +3,5 @@ App [ width = 360, height = 240, fill = white, textColor = black,
     header: View [ width = 100%, height = 40, fill = steelblue,
         Text [ x = 12, y = center, textColor = white, fontWeight = semibold, text = "Notes" ]
         ],
-    body: View [ width = 100%, flexes = true, fill = whitesmoke ],
-    footer: View [ width = 100%, height = 28, fill = gainsboro,
-        Text [ x = 12, y = center, fontSize = 12, text = "4 notes" ]
-        ]
+    body: View [ width = 100%, flexes = true, fill = whitesmoke ]
     ]

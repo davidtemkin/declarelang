@@ -595,7 +595,6 @@ class AddForm [ width = 100%,
 // ── The app ─────────────────────────────────────────────────────────────────
 
 App [ appName = "To-do", minWidth = 320,
-    scrolls = y,
     fill = { provided("theme").background },
     textColor = { provided("theme").text },
 

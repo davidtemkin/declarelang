@@ -15,7 +15,7 @@ Button [ iconLeft = "CloseIcon" ]                             // icon only
 
 Three slots in a row — `iconLeft`, the label, `iconRight` — laid out by
 `SimpleLayout` and sized from `contentWidth`, so an absent label or icon costs
-nothing and needs no special case: an invisible child is skipped and its space
+nothing and needs no special case: an invisible child is skipped and its room
 reclaimed. A `menu` supplies the right icon on its own (`control.declare`).
 
 The fill walks the four-rung ladder — `control` at rest, `controlHovered`,

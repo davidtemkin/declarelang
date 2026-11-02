@@ -1,0 +1,222 @@
+/*
+# The Venue: helpers and the shape of the data
+
+Plain functions the constraints call — money, dates, card numbers, postal codes,
+the ticket's barcode — and the schemas of what the service sends. `venue.declare`
+includes this file.
+*/
+
+script {
+    const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+    function pad2(n: number): string { return n < 10 ? "0" + n : "" + n }
+
+    // $1,240.00 — amounts are integer cents
+    function money(cents: number): string {
+        const whole = Math.floor(Math.abs(cents) / 100)
+        const rest = Math.abs(cents) % 100
+        return (cents < 0 ? "−$" : "$") + whole.toLocaleString("en-US") + "." + pad2(rest)
+    }
+
+    // "3 seats · $240.00"
+    function seatsSummary(n: number, cents: number): string {
+        return n + (n == 1 ? " seat" : " seats") + " · " + money(cents)
+    }
+
+    // The hall's local time, as printed on a ticket: "2026-11-13T19:30"
+    function stamp(iso: string): number[] {
+        const [d, t] = iso.split("T")
+        const [y, m, day] = d.split("-").map(Number)
+        const [h, mi] = (t ?? "0:0").split(":").map(Number)
+        return [y, m, day, h, mi]
+    }
+    function weekday(iso: string): string {
+        const p = stamp(iso)
+        return DAYS[new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay()]
+    }
+    function dayNum(iso: string): string { return "" + stamp(iso)[2] }
+    function monthName(iso: string): string { return MONTHS[stamp(iso)[1] - 1] }
+    // "Fri 13 Nov"
+    function dayLabel(iso: string): string { return weekday(iso) + " " + dayNum(iso) + " " + monthName(iso) }
+    // "7:30pm"
+    function timeLabel(iso: string): string {
+        const p = stamp(iso)
+        const h = p[3] % 12 == 0 ? 12 : p[3] % 12
+        return h + ":" + pad2(p[4]) + (p[3] >= 12 ? "pm" : "am")
+    }
+    function isMatinee(iso: string): boolean { return stamp(iso)[3] < 17 }
+
+    // ── cards ──────────────────────────────────────────────────────────────
+
+    function digitsOf(s: string): string { return s.replace(/\D/g, "") }
+
+    // The kind of card, from its first digits.
+    function brandOf(d: string): string {
+        if (/^4/.test(d)) return "visa"
+        if (/^3[47]/.test(d)) return "amex"
+        if (/^(5[1-5]|2(2[2-9][1-9]|2[3-9]|[3-6]|7[01]|720))/.test(d)) return "mastercard"
+        if (/^(6011|65|64[4-9])/.test(d)) return "discover"
+        return ""
+    }
+    function brandName(b: string): string {
+        return b == "visa" ? "Visa" : b == "mastercard" ? "Mastercard" : b == "amex" ? "American Express"
+            : b == "discover" ? "Discover" : ""
+    }
+    function cardLength(b: string): number { return b == "amex" ? 15 : 16 }
+    function codeLength(b: string): number { return b == "amex" ? 4 : 3 }
+
+    // Grouped as printed on the card: 4-6-5 for Amex, fours for the rest.
+    function groupCard(d: string): string {
+        const gaps = brandOf(d) == "amex" ? [4, 10] : [4, 8, 12]
+        let out = ""
+        for (let i = 0; i < d.length; i++) {
+            if (gaps.includes(i)) out += " "
+            out += d[i]
+        }
+        return out
+    }
+    // Where the caret goes once the text is regrouped: after the same count of digits.
+    function caretAfter(formatted: string, digitsBefore: number): number {
+        if (digitsBefore <= 0) return 0
+        let seen = 0
+        for (let i = 0; i < formatted.length; i++) {
+            if (/\d/.test(formatted[i])) seen++
+            if (seen == digitsBefore) return i + 1
+        }
+        return formatted.length
+    }
+    function luhn(d: string): boolean {
+        let sum = 0
+        for (let i = 0; i < d.length; i++) {
+            let n = Number(d[d.length - 1 - i])
+            if (i % 2 == 1) { n = n * 2; if (n > 9) n = n - 9 }
+            sum += n
+        }
+        return d.length > 0 && sum % 10 == 0
+    }
+    function cardProblem(d: string): string {
+        const b = brandOf(d)
+        if (b == "") return "That isn't a card number we can take — check the first digits."
+        if (d.length < cardLength(b)) return "The card number is too short."
+        if (d.length > cardLength(b) || !luhn(d)) return "That card number isn't valid — check it against the card."
+        return ""
+    }
+
+    // The expiry as typed, "04 / 28" (or autofill's "04/2028"), into [month, year].
+    function expiryParts(s: string): number[] {
+        const m = s.match(/^\s*(\d{1,2})\s*\/\s*(\d{2}|\d{4})\s*$/)
+        if (m != null) {
+            const y = Number(m[2])
+            return [Number(m[1]), y < 100 ? 2000 + y : y]
+        }
+        const d = digitsOf(s)
+        if (d.length == 4) return [Number(d.slice(0, 2)), 2000 + Number(d.slice(2))]
+        if (d.length == 6) return [Number(d.slice(0, 2)), Number(d.slice(2))]
+        return [0, 0]
+    }
+    // As it is typed: "0428" becomes "04 / 28".
+    function groupExpiry(s: string): string {
+        if (s.includes("/")) {
+            const [a, b] = s.split("/")
+            const m = digitsOf(a).slice(0, 2)
+            const y = digitsOf(b ?? "")
+            return m + " / " + (y.length == 4 ? y.slice(2) : y.slice(0, 2))
+        }
+        const d = digitsOf(s).slice(0, 4)
+        return d.length <= 2 ? d : d.slice(0, 2) + " / " + d.slice(2)
+    }
+    function expiryProblem(s: string, nowYear: number, nowMonth: number): string {
+        const [m, y] = expiryParts(s)
+        if (y == 0) return "Enter the expiry as MM / YY."
+        if (m < 1 || m > 12) return "There's no month " + m + " — enter the month as 01 to 12."
+        if (y < nowYear || (y == nowYear && m < nowMonth)) return "That card has expired."
+        if (y > nowYear + 20) return "Check the expiry year."
+        return ""
+    }
+    function isExpired(month: number, year: number, nowYear: number, nowMonth: number): boolean {
+        return year < nowYear || (year == nowYear && month < nowMonth)
+    }
+
+    // ── addresses ──────────────────────────────────────────────────────────
+
+    function postalProblem(v: string, country: string): string {
+        const s = v.trim().toUpperCase()
+        if (country == "US") return /^\d{5}(-\d{4})?$/.test(s) ? "" : "Enter a 5-digit ZIP code, like 94103."
+        if (country == "CA") return /^[A-Z]\d[A-Z] ?\d[A-Z]\d$/.test(s) ? "" : "Enter a postal code like K1A 0B1."
+        if (country == "GB") return /^[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}$/.test(s) ? "" : "Enter a postcode like SW1A 1AA."
+        return ""
+    }
+    function postalLabel(country: string): string {
+        return country == "US" ? "ZIP code" : country == "GB" ? "Postcode" : "Postal code"
+    }
+
+    // ── the ticket's barcode: Code 128, set B ──────────────────────────────
+    //
+    // Bar and space widths for each symbol, in modules; a real, scannable code.
+
+    const CODE128 = ("212222 222122 222221 121223 121322 131222 122213 122312 132212 221213 221312 231212 " +
+        "112232 122132 122231 113222 123122 123221 223211 221132 221231 213212 223112 312131 311222 321122 " +
+        "321221 312212 322112 322211 212123 212321 232121 111323 131123 131321 112313 132113 132311 211313 " +
+        "231113 231311 112133 112331 132131 113123 113321 133121 313121 211331 231131 213113 213311 213131 " +
+        "311123 311321 331121 312113 312311 332111 314111 221411 431111 111224 111422 121124 121421 141122 " +
+        "141221 112214 112412 122114 122411 142112 142211 241211 221114 413111 241112 134111 111242 121142 " +
+        "121241 114212 124112 124211 411212 421112 421211 212141 214121 412121 111143 111341 131141 114113 " +
+        "114311 411113 411311 113141 114131 311141 411131 211412 211214 211232").split(" ")
+
+    // The run of widths, bar first, start to stop.
+    function code128(text: string): number[] {
+        const values = [104]
+        for (const ch of text) values.push(Math.max(0, Math.min(94, ch.charCodeAt(0) - 32)))
+        let check = 104
+        for (let i = 1; i < values.length; i++) check += values[i] * i
+        values.push(check % 103)
+        const out: number[] = []
+        for (const v of values) for (const w of CODE128[v]) out.push(Number(w))
+        for (const w of "2331112") out.push(Number(w))
+        return out
+    }
+    }
+
+
+// ── The shape of the data ───────────────────────────────────────────────────
+
+schema Performance [ id: string, startsAt: string, doorsAt: string, priceFromCents: number,
+    seatsLeft: number, seats: number ]
+schema Production [ title: string, hall: string, runningTime: string, performances[]: Performance ]
+
+schema Seat [ id: string, number: number, status: string ]
+schema SeatRow [ name: string, seats[]: Seat ]
+schema Section [ key: string, name: string, priceCents: number, feeCents: number, rows[]: SeatRow ]
+schema SeatMap [ performanceId: string, sections[]: Section ]
+
+schema Billing [ line1: string, line2?: string, city: string, postalCode: string, country: string ]
+schema SavedCard [ id: string, brand: string, last4: string, expMonth: number, expYear: number ]
+schema Account [ name: string, email: string, billing?: Billing, cards[]?: SavedCard ]
+
+schema Ticket [ seatId: string, section: string, row: string, number: number, barcode: string ]
+schema Order [ code: string, email: string, totalCents: number, brand: string, last4: string,
+    performanceId: string, tickets[]: Ticket ]
+
+// What a refusal says: a code, a sentence, and sometimes the field or seats it names.
+
+schema Refusal [ error?: string, message?: string, field?: string, conflicts[]?: string ]
+
+// A seat as the hall draws it: the service's seat with where it sits, in seat-widths
+// from the house's left edge and the stage's front.
+
+schema Place [ id: string, sec: number, secName: string, row: string, num: number,
+    x: number, y: number, price: number, fee: number, status: string, line: number, at: number ]
+
+// A section's band behind its seats, and where its name goes.
+
+schema Edge [ r: number, h: number ]
+schema Band [ id: string, sec: number, name: string, price: number, r0: number, r1: number,
+    edges[]: Edge, labelY: number ]
+
+// A row's letter, beside each end of it.
+
+schema RowMark [ id: string, label: string, x: number, y: number ]
+
+schema House [ w: number, h: number, cx: number, cy: number, stageR: number,
+    seats[]: Place, bands[]: Band, marks[]: RowMark ]

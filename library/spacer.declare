@@ -1,7 +1,7 @@
 /*
 # Spacer — an empty view that absorbs a run's slack
 
-When a row (or stack) does not fill its container, the leftover space has to
+When a row (or stack) does not fill its container, the leftover room has to
 go somewhere. A Spacer says where, structurally: put one between two groups
 and they push apart ("logo left, actions right"); put one on each side of a
 run and it centers; put one first and the run right-aligns. Several spacers

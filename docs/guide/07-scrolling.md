@@ -12,19 +12,27 @@ it, chrome that stays put — but it is one model, and it starts from who does i
 > when it can (`scrollTo`, `scrollIntoView`): clamped to the content, held until the pane can
 > take them, waiting while the user scrolls.
 
-The rest of this chapter is that sentence worked out. And the best scroller the platform
-offers is **the browser's own page scroll**. It has the physics your user's hands already
-know, the browser's toolbar collapses for it, and it is the only scroll a browser lets a
-second finger turn into a pinch-zoom. So the model gives your content that scroller first:
+The rest of this chapter is that sentence worked out. The second idea is where scrolling
+happens:
 
-> **An app scrolls by default, and its scroller is the page.**
+> **Every scroller is a pane, the App included, and content scrolls only where it outgrows
+> its room.** A layout that fits its window never scrolls; choosing how an app scrolls is
+> choosing whose content may outgrow its room.
+
+The App's pane is the host's own scroll — in a browser, the page — and only it gets what the
+host does for a page: on a phone the browser's bars collapse as it scrolls, giving the content
+the whole screen, and a person's pinch zooms it, the browser's own zoom. So a column of content
+scrolls with the App, and what must stay on screen opts out. A region that scrolls on its own,
+a list beside a document or a map that pans, is a pane inside the App, with room given to it.
+Both are good designs; they answer different layouts.
 
 ## The page scroll
 
 An [`App`](declare-docs:App) fills its window. When its content is taller than the window, the page itself
 scrolls, and [`app.scrollY`](declare-docs:App.scrollY) reports where it is — the same fact every scroller reports.
 An app whose content fits, like the calendar, simply has nothing to scroll: a "fixed
-window" is not a mode you declare, it is scrolling with nothing to do.
+window" is not a mode you declare, it is scrolling with nothing to do. `scrolls = none` on the
+App says something else, that overflow is cut off and the page does not bounce.
 
 Every scroller, the App included, **keeps to its frame**. Overflow along a scrolling
 axis becomes scroll range; overflow along any other axis is out of frame — not drawn,
@@ -41,6 +49,11 @@ log: View [ width = 100%, height = 320, scrolls = y,
     rows: View [ layout: SimpleLayout [ axis = y ] ]
     ]
 ```
+
+**A pane needs room it is given** on the axis it scrolls: a stated height, a share of a
+layout's room (`flexes`), a stretch. One whose height comes from its content is as tall as
+what it holds, so it has nothing to scroll; it grows, and the page scrolls instead. The
+program's check at boot names such a pane.
 
 A finger or wheel on the pane scrolls the pane; elsewhere it scrolls the page. The
 nearest scroller wins, with native momentum and its own edge bounce, and panes nest to

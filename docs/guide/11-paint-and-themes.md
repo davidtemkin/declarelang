@@ -29,7 +29,7 @@ App [ width = 320, height = 170, fill = whitesmoke, textColor = #172530,
 ```
 
 - [`fill`](declare-docs:View.fill) paints the box: a color or a gradient. `null`, the default, paints nothing, but
-  the box still takes space and clicks.
+  the box still takes room and clicks.
 - [`cornerRadius`](declare-docs:View.cornerRadius) rounds it: one number, or four for `[topLeft, topRight, bottomRight,
   bottomLeft]` — a tab joined to its pane is `[8, 8, 0, 0]`.
 - [`stroke`](declare-docs:View.stroke) is a border drawn *inside* the box, so it never changes the layout:

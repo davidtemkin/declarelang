@@ -52,14 +52,16 @@ a single-line `TextInput` inside the form calls it (or moves on, under `enterMov
 the field declares an `onEnter` of its own.
 
 ## enterMoves
-Return in a single-line field takes the person **to the next field** — in reading order,
-among the fields that count — and submits from the last; an on-screen keyboard's Return
-key says "Next" on the way and "Go" on the last. Off (the default), Return submits from
+Return in a single-line field takes the person **to the next field they type into** — in
+reading order, among the fields that count — and submits from the last; an on-screen
+keyboard's Return key says "Next" on the way and "Go" on the last. A checkbox, a switch or a
+set of choices is not a stop, so Return in a password field above "Show password" signs in;
+a multi-line field keeps Return for its newlines. Off (the default), Return submits from
 any field, as on the web. A field that declares its own `onEnter` decides for itself.
 
 ## next()
-`next(from)` takes the focus from a field to the next one that counts, in reading order,
-or submits the form when `from` is the last. What Return does under `enterMoves`; a field's
+`next(from)` takes the focus from a field to the next one that counts and is typed into, in
+reading order, or submits the form when `from` is the last. What Return does under `enterMoves`; a field's
 own `onEnter` may call it.
 
 ## showProblems()
@@ -169,6 +171,10 @@ success resets them.
 ## _ordered()
 **Internal.** The counted members in reading order: top to bottom, then left to right.
 
+## _typed()
+**Internal.** The fields Return walks under `enterMoves`, in reading order: those typed into on
+one line.
+
 ## _enter()
 **Internal.** What Return in a member does: `next` under `enterMoves`, else `submit`.
 
@@ -240,8 +246,15 @@ class Form [
     // submit from the last
 
     enterMoves: boolean = false,
+
+    // the fields Return walks: those typed into on one line (a text field, a
+    // combobox), never a checkbox between them — and the one Return came from
+
+    _typed(from: any) -> any[] {
+        return this._ordered().filter((c) => c === from || (c as any).multiline === false || (c as any).entry != null)
+        },
     next(from: any) {
-        const ms = this._ordered()
+        const ms = this._typed(from)
         const at = ms.indexOf(from)
         const to = at < 0 ? null : ms[at + 1] ?? null
         if (to == null) { submit(); return }
@@ -251,7 +264,7 @@ class Form [
     _enter(from: any) { if (enterMoves) next(from); else submit() },
     _enterHint(from: any) -> string {
         if (!enterMoves) return "go"
-        const ms = this._ordered()
+        const ms = this._typed(from)
         return ms.indexOf(from) == ms.length - 1 ? "go" : "next"
         },
     validate() -> string { return "" },

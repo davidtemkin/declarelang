@@ -124,8 +124,13 @@ Presentify should be good enough that people choose it over the tool they alread
 as an exemplar of design and interaction: consumer-grade, polished, with no rough edges.
 - **Its own identity.** A wordmark, palette, type and icons that are recognisably Presentify, used consistently from
   the list of presentations down to the smallest handle.
-- **Calm and precise, like a good tool.** The slide is the brightest thing on the screen. The controls around it are
-  quiet, consistent, and easy to aim at with a pointer.
+- **Attractive, even fun, and unmistakably Presentify.** It should rival or exceed the best native apps, with a look
+  people want to open: branded typography as part of a clear visual identity, and illustrations or images where they
+  help. The brand shows throughout the app, while the slide stays the brightest thing on the screen and the controls
+  stay easy to aim at with a pointer.
+- **Motion and continuity throughout.** Things move rather than appear: opening a presentation grows it from its place
+  in the list, slides reorder by gliding, panels slide in and out, a selection's handles follow what they hold. Motion
+  is quick and never in the way.
 - **Learned without instructions.** Someone who has used any slide tool can make a three-slide presentation in their
   first minute. Every action can be found on screen, not only through a shortcut.
 - **Direct manipulation that feels physical.** Handles are easy to hit, guides and snapping appear while dragging,
@@ -149,9 +154,9 @@ Screen-reader access to the things on a slide is not asked for in this round.
 
 ## 11. Constraints
 
-- **Desk only** in this round: no phone or tablet layout is asked for.
-- **Not in this round:** rotation, images, charts, tables, animations, transitions, speaker notes, comments, sharing
-  and accounts.
+- **Desktop only** in this round: no phone or tablet layout is asked for.
+- **Not in this round:** rotation, images on slides, charts, tables, slide animations and transitions (the app's own motion is
+  asked for, §9), speaker notes, comments, sharing and accounts.
 - **No server of your own.** The format is the service's (`api/API.md`).
 
 ## 12. What done looks like

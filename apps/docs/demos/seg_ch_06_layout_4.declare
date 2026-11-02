@@ -10,9 +10,9 @@ class NoteRow extends View [ width = 100%, padding = 8,
 App [ width = 360, height = 260, fill = white, textColor = black,
     notes: Dataset { { "items": [
         { "title": "Groceries", "text": "Oat milk, lemons, the good bread." },
-        { "title": "Garden", "text": "Move the rosemary out of the shade before the frost.",
-          "photos": [ { "tone": 1 }, { "tone": 2 }, { "tone": 0 }, { "tone": 2 } ] },
-        { "title": "Plumber", "text": "The kitchen tap again. Ask about the boiler." }
+        { "title": "Garden", "text": "Move the rosemary out of the shade before the frost." },
+        { "title": "Plumber", "text": "The kitchen tap again. Ask about the boiler." },
+        { "title": "Books", "text": "Return the two library books by Friday." }
         ] } },
     open: number = -1,   // new
     layout: SimpleLayout [ axis = y ],
@@ -33,13 +33,9 @@ App [ width = 360, height = 260, fill = white, textColor = black,
         ],
     actions: View [ width = 100%, height = 40, visible = { app.open >= 0 }, fill = lavender,   // new: the bar
         padding = [0, 12, 0, 12],
-        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
-        Button [ label = "Pin" ],
+        layout: SimpleLayout [ axis = x, align = center ],
         Button [ label = "Close",
             onClick() { app.open = -1 }
             ]
-        ],
-    footer: View [ width = 100%, height = 28, fill = gainsboro,
-        Text [ x = 12, y = center, fontSize = 12, text = "3 notes" ]
         ]
     ]

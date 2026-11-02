@@ -114,7 +114,7 @@ export declare const Diag: {
     rowIndexUnreplicated: (owner: string, pos: Pos) => DeclareError;
     writeToComputedDataset: (name: string, verb: string, pos: Pos) => DeclareError;
     tangledConstraint: (attr: string, depth: number, parts: number, pos: Pos) => DeclareError;
-    rangeWithoutEffect: (owner: string, range: string, size: string, pos: Pos) => DeclareError;
+    rangeWithoutEffect: (owner: string, range: string, size: string, pos: Pos, bound?: string | null) => DeclareError;
     scriptSearchesPage: (lookup: string, pos: Pos) => DeclareError;
     accessibilityRadioAlone: (owner: string, pos: Pos) => DeclareError;
     keyDownWithoutSuper: (owner: string, pos: Pos) => DeclareError;

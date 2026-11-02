@@ -64,7 +64,11 @@ that arrives whole and names exactly one item, as autofill's does, picks that it
 
 ## query
 What the user has typed since the last pick. **Not the value** — the draft that filters
-the list.
+the list. Leaving the field settles it: a query that names exactly one item picks that item,
+however it was typed, and one that names none clears the choice it no longer says.
+
+## _left()
+**Internal.** Settles the query when the person leaves the field, not into the list.
 
 ## matches
 The filtered options, as a **derived collection**: a constraint over `items`, so the
@@ -186,6 +190,19 @@ class Combobox extends ValueControl [
     // ── the delivery seam ─────────────────────────────────────────────────
 
     input(v: object) { value = v },
+
+    // leaving with a query typed (not into the list): what was typed letter by
+    // letter is settled as autofill's whole text is — naming exactly one item
+    // picks it; naming none takes back a choice it no longer says, so the form
+    // never sends a value under other text
+
+    _left() {
+        if (!filtering || entry.focused || this.listShown()) return
+        const t = query.trim().toLowerCase()
+        const exact = t == "" ? [] : (items ?? []).filter((m) => this.labelOf(m).toLowerCase() == t)
+        if (exact.length == 1) { filtering = false; input(exact[0]); return }
+        if (value != null) input(null)
+        },
     focusField() { Focus.focus(entry) },
 
     pickIndex(i: number) {
@@ -260,7 +277,10 @@ class Combobox extends ValueControl [
         accessibilityError = { classroot.error },
         stroke = { stroke(1, classroot.error != "" ? provided("theme").error : this.focused ? provided("theme").accent : provided("theme").line) },
         accessibilityRequired = { classroot.accessibilityRequired },
-        onBlur() { if (!classroot.listShown()) classroot.judged = true },
+        onBlur() {
+            if (!classroot.listShown()) classroot.judged = true
+            afterSettle(() => classroot._left())
+            },
         accessibilityActiveItem = { classroot.list == null ? null : (classroot.list as any).accessibilityActiveItem },
         focusable = { !classroot.disabled },
         onInput(t: string) {

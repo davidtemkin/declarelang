@@ -63,7 +63,7 @@ so `width = 100%` in a `padding = 16` card is the card's width less 32, and a ce
 is centered between the insets. `{ parent.width }` is the deliberate escape hatch — the
 parent's literal width, padding and all — and an edge-to-edge child inside a padded box is
 that paired with a negative `x`: `x = -16, width = { parent.width }`, the divider that runs
-wall to wall across a card. The asymmetry is the point: "the space I am given" and "the
+wall to wall across a card. The asymmetry is the point: "the room I am given" and "the
 parent's own width" are different questions, and the spelling says which one you asked.
 
 **Paint does not move.** `fill`, `stroke`, `cornerRadius` and `draw()` are all this view's
@@ -1014,7 +1014,7 @@ at any scroll. Hand-accumulating ancestor `x`/`y` is scroll-blind; call this ins
 A uniform transform — the view's subtree renders scaled about its pivot, and **every
 reader agrees on the one geometry**: paint, hit-testing, `rootOrigin`, the parent's
 auto-size, and layouts all compose the same transform, so a `scale = 0.5` child really
-occupies half its space (the fractal idiom) — where CSS makes transform paint-only and
+occupies half its room (the fractal idiom) — where CSS makes transform paint-only and
 lets layout disagree with what you see. The view's **own** `width`/`height` stay local
 (its interior world is untouched — that is what makes scale mean "the same world,
 smaller"); the parent packs the transformed **footprint** (`bounds()`). Pair with

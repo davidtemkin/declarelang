@@ -114,6 +114,10 @@ function outOfReach(app: Node): string[] {
 }
 
 /** What the layout shows wrong, each naming the view. */
+/** A size for a message: whole when it is whole, else to a tenth, so 43.6 is not
+ *  said as 44 under a rule that it be at least 44. */
+const size1 = (n: number): string => (Math.abs(n - Math.round(n)) < 0.05 ? String(Math.round(n)) : n.toFixed(1));
+
 function layoutChecks(app: Node, { touch = false, realText = false, skip = [] }: BootCheckOptions, flagged: string[]): string[] {
   const skipped = new Set(skip);
   // a control reported once is not reported again: kept by kind and path
@@ -148,6 +152,17 @@ function layoutChecks(app: Node, { touch = false, realText = false, skip = [] }:
         const end = (size === "height" ? c.y : c.x) + c[size];
         if (end > v[size] + 1) {
           out.push(`${pathOf(app, v)} is ${Math.round(v[size])} ${size === "height" ? "tall" : "wide"}, sized by its content — but ${pathOf(app, c)} (${Math.round(c[size])}) takes its ${size} from it, so it is not counted, and spills out. Give ${pathOf(app, v)} a ${size}, or size the child from something else.`);
+        }
+      }
+    }
+    // A PANE WITH NOTHING TO SCROLL: a view that scrolls an axis whose size on
+    // it comes from what it holds is as long as its content — it grows, and the
+    // page scrolls instead. Judged by what decides the size, not whether one is
+    // written: a share or a stretch is room given. The App's room is its window.
+    if (v.parent instanceof View) {
+      for (const [ax, size] of [["y", "height"], ["x", "width"]] as const) {
+        if ((v.scrolls === ax || v.scrolls === "both") && sizedByContent(v, size) && fresh("pane", pathOf(app, v) + ax)) {
+          out.push(`${pathOf(app, v)} scrolls on ${ax}, but its ${size} comes from what it holds, so it has nothing to scroll: it grows, and the page scrolls instead. Give it room — a ${size}, flexes in its parent's layout, or a stretch.`);
         }
       }
     }
@@ -287,7 +302,7 @@ function layoutChecks(app: Node, { touch = false, realText = false, skip = [] }:
     // A TARGET TOO SMALL FOR A FINGER, on a touch screen
     // — at the size it is on screen, through any scale it sits under
     if (touch && isA(v, "Control") && shown !== null && !passes && inView && v.width > 0 && v.height > 0
-        && (shown.width < 44 || shown.height < 44) && fresh("small", pathOf(app, v))) touchSmall.push(`${pathOf(app, v)} ${Math.round(shown.width)}×${Math.round(shown.height)}`);
+        && (shown.width < 44 || shown.height < 44) && fresh("small", pathOf(app, v))) touchSmall.push(`${pathOf(app, v)} ${size1(shown.width)}×${size1(shown.height)}`);
     const across = scrollsAcross || v.scrolls === "x" || v.scrolls === "both";
     for (const c of v.children) if (c instanceof View) visit(c, across);
   };

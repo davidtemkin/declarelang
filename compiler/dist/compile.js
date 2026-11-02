@@ -710,8 +710,11 @@ function idiomDiagnostics(program, schemas) {
             const readsIt = levels.some((b) => b.methods.some((m) => word.test(m.body)) ||
                 b.attrs.some((a) => a !== r && a.value.kind === "code" && word.test(a.value.src)) ||
                 b.decls.some((d) => d.def?.kind === "code" && word.test(d.def.src)));
+            // the cap to suggest is the author's own number, when the range wrote one
+            const lit = r.value;
+            const bound = lit.kind === "number" ? String(lit.value) : null;
             if (!readsIt)
-                warnings.push(Diag.rangeWithoutEffect(decl !== undefined ? decl.name : el.tag, range, size, r.pos));
+                warnings.push(Diag.rangeWithoutEffect(decl !== undefined ? decl.name : el.tag, range, size, r.pos, bound));
         }
         // 4013 — a press() override where the receiver descends from Button. A
         // class BODY is judged by its base, so `class Button extends Control`

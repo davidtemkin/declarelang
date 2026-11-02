@@ -116,7 +116,12 @@ class FieldLayout extends Layout [
             h = Math.max(h, c.height)
             }
         out.push(f.stacked ? ({ x: 0, y: 0 }) : ({ x: 0, y: 6, w: f.labelWidth }))
-        out.push({ x: x0, y: y0 + h + 4, w: Math.max(160, x - 12 - x0) })
+        // the message spans the controls, at least 160 so a short one's is not
+        // cramped — but never past the field's own room, when it has one (a
+        // half-width field on a phone ran its message off the screen)
+        const room = this.viewExtent("width") - x0
+        const span = Math.max(160, x - 12 - x0)
+        out.push({ x: x0, y: y0 + h + 4, w: room > 0 ? Math.min(span, room) : span })
         let cx = x0
         for (let i = 2; i < kids.length; i++) {
             const c = kids[i]

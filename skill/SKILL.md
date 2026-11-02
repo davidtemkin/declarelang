@@ -256,7 +256,8 @@ shows the Declare form.
   `x = { (parent.width - this.width) / 2 }`, which is `x = center`; equal widths by
   arithmetic, `width = { (parent.width - 24) / 4 }`, which is `flexes = true` on each; and
   `width = { app.wide ? parent.width - 280 : parent.width }` with its like on several
-  siblings, which is a layout of your own: one `place()` that divides the room.
+  siblings, which is one layout that divides the room: `ResponsiveLayout` when its plans
+  say the arrangement, else one of your own.
   (`06-layout.md`)
 - **A method per control that only passes the press on** — `picked() { }` declared on the
   class, `press() { this.picked() }`, the use site overriding `picked`. The use site overrides

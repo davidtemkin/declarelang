@@ -7,17 +7,17 @@ needs to enumerate edge cases.*
 
 *Declare is new, and no LLM has been trained on it. It resembles React, CSS, and HTML in places,
 and this file is where those resemblances stop. Every complete program below is compiled by the
-test suite, so the examples are current by construction; where this file and the
-compiler disagree, the compiler is right. Status: pre-1.0, under active design.*
+test suite, so the examples are current by construction; where this file and the compiler
+disagree, the compiler is right.*
 
 *The classes and their attributes are in the reference — `npx declare-help <name>` answers any of
 them by name. How to work with Declare, and where everything else is, starts at
 [`skill/SKILL.md`](../skill/SKILL.md).*
 
-One boundary makes the rest of this file readable. **Every capitalized tag is a class** —
-`View`, `Text`, and `Image`, but equally `Dataset`, `State`, `Spring`, and `Keys`. Classes
-are surface, and the reference lists them all. The language is the grammar that declares,
-instantiates, configures, and relates them, and that grammar is what follows.
+One boundary makes the rest of this file readable. **Every capitalized tag is a class** — `View`,
+`Text`, and `Image`, but equally `Dataset`, `State`, `Spring`, and `Keys`. The language is the
+grammar that declares, instantiates, configures, and relates them, and that grammar is what
+follows.
 
 ---
 
@@ -52,11 +52,8 @@ applied to structure, space, data, style, and time.
    `0x4169E1`, not `royalblue` or `#4169E1`. (§2)
 2. **Assignment is the whole update model.** `count = count + 1` sets *and* notifies. There is
    no `setState`, no `setAttribute`, and no way to change a value without the cascade. (§5)
-3. **Dependencies are extracted by the compiler, and what it cannot follow is refused.** It
-   wires what it can name before the program runs, keeps a read it can see but not name on
-   runtime tracking, and makes a constraint it cannot follow at all a blocking compile error
-   rather than a silent fallback. This is the sharpest break from every reactive system you
-   know. (§5)
+3. **Dependencies are extracted by the compiler, and what it cannot follow is refused.** This is
+   the sharpest break from every reactive system you know. (§5)
 4. **Children come from data, not from code.** The `[ ]` tree never generates children from an
    expression, so React's `{items.map(…)}` and `{cond && …}` have no equivalent there: a
    collection comes from *replication* over a datapath, and conditional presence is `visible`.
@@ -223,7 +220,6 @@ class Chip [ height = 30, cornerRadius = 10, fill = darkslategray,
     t: Text [ x = 10, y = 5, fontSize = 12, text = { label } ]
     ]
 
-
 App [ width = 400, height = 100, fill = black,
     layout: SimpleLayout [ axis = x, spacing = 10 ],
     Chip [ label = "one" ],
@@ -304,39 +300,6 @@ difference shows up later: nest that child one level deeper and `parent` now mea
 wrapper, while `classroot` still means the instance. Reach for `classroot` when you mean the
 instance, and keep `parent` for when you mean *whatever encloses me*.
 
-### Layout is an attribute
-
-**Each of `x`, `y`, `width` and `height` has one decider: the view, its parent's layout,
-or (a size only) its content.** A layout is an object — a library class or your own, with one
-method — set as the `layout:` member and swapped like any member. A child never states what its
-layout decides; it tells the layout facts about itself (`flexes`, `shrinks`, a
-`minWidth`/`maxWidth` range), and the layout places every child and sizes those that ask.
-
-**An unset size is the content's, inside a layout too:** unlike flexbox, nothing stretches
-without `align = stretch`. A view sized by its children can't size them; they fill it
-by `align = stretch`. A size that applies only while, say, editing is a
-`State`'s.
-
-```declare-fragment
-layout: SimpleLayout   [ axis = y, spacing = 10 ],
-layout: WrappingLayout [ spacing = 20, rowSpacing = 20 ]
-```
-
-The inset is the **view's**, not the arrangement's: `padding` — one number, or `[top,
-right, bottom, left]` clockwise from the top — gives a view a **content box**, and `x = 0`
-and `width = 100%` mean that box for every child, whether a layout placed it or it placed
-itself. `{ parent.width }` is the escape hatch that still names the parent's literal box,
-and paint never moves: `fill`, `stroke` and `cornerRadius` stay on it. A view's `stroke`
-takes that same
-one-or-four shape, with `null` for a bare side, which is how a single rule under a row is
-drawn.
-
-**Stacking order is declaration order**; later siblings paint on top. There is no `z-index`, so
-chrome that must float above everything is declared last (a menu, popover or dialog is a library
-overlay, which floats on its own).
-
-→ the layouts that ship: `library/` · their attributes: the reference (`npx declare-help <name>`)
-
 ## 5. Constraints
 
 A `{ }` as an attribute's value is a **constraint**: re-evaluated when, and only when, its inputs change.
@@ -362,11 +325,10 @@ outside the reactive system, so `{ fmt(app.total) }` depends on `app.total` — 
 pass — and never on what `fmt` does inside. Pass values, not nodes (a node reference never
 changes, so a node-typed argument is refused); a helper that should be *analyzed* is a method.
 
-**Assignment is the setter.** `count = count + 1` updates the value and notifies everything
-that reads it; there is no bypass. Reads are symmetric — a bare read **is** the tracked read.
-**Only a change notifies:** a write, or a constraint re-deriving, that lands on the value already
-there (the same number, string or boolean, the same object) wakes nothing. A new array or
-record is a change, even with the same contents.
+Reads are symmetric — a bare read **is** the tracked read. **Only a change notifies:** a write, or
+a constraint re-deriving, that lands on the value already there (the same number, string or
+boolean, the same object) wakes nothing. A new array or record is a change, even with the same
+contents.
 
 ### The settle
 
@@ -375,7 +337,7 @@ is applied **together** — constraints re-derive, views appear and retire where
 so, layout places, sizes update — one indivisible step, run to completion, called the
 **settle**. Nothing paints in the middle of one, and no time passes inside one: a fetch or a
 glide cannot be *in* a settle, only cause the next. This is why the world is never
-half-updated, and why history can count "one entry per settle" (§6). Animation is a user of
+half-updated, and why history can count "one entry per settle" (§7). Animation is a user of
 it, not an exception: a Spring writes its attribute once per frame, and each frame's writes
 get a settle of their own — motion is many small settles, never one long one.
 
@@ -479,10 +441,33 @@ Which globals a piece of code may name depends on where it is written:
 
 ## 6. Space
 
-A view's size on each axis is one of three things: **unset** takes it from its content — its own
-(a `Text`'s run) and its visible children's boxes — **a constant** is fixed, and **a constraint** is
-whatever it computes. A child sized *from* its parent does not count toward the parent's content
-size on that axis, however it is written.
+**Each of `x`, `y`, `width` and `height` has one decider: the view, its parent's layout,
+or (a size only) its content.** A size the view does not state is its content's — a `Text`'s
+run, an image, its visible children's boxes, padding included — inside a layout too: unlike
+flexbox, nothing stretches without `align = stretch`. A child sized from its parent (`100%`, or
+a `{ }` reading the parent's size) is not counted in the parent's size from its content, so a
+view sized by its children can't size them; they fill it by `align = stretch`.
+
+**A layout is an object** — a library class or your own, with one method — set as the
+`layout:` member and swapped like any member. It places every child along its flow, across it
+only with `align`, and sizes the children that ask: a child tells it facts (`flexes` for a share
+of what is left, `shrinks`, a `minWidth`/`maxWidth` range) and never also states what the layout
+decides. Along the flow, `100%` is the whole room, not what is left; a hidden child leaves the
+flow.
+
+```declare-fragment
+layout: SimpleLayout   [ axis = y, spacing = 10 ],
+layout: WrappingLayout [ spacing = 20, rowSpacing = 20 ]
+```
+
+`padding` — one number, or `[top, right, bottom, left]` — gives a view a **content box**:
+`x = 0`, `width = 100%`, `center` and `end` mean that box for every child, laid out or not;
+`{ parent.width }` still names the whole box, and paint (`fill`, `stroke`, `cornerRadius`)
+stays on it. `stroke` takes the same one-or-four shape, `null` for a bare side.
+
+**Stacking order is declaration order**; later siblings paint on top. There is no `z-index`, so
+chrome that must float above everything is declared last (a menu, popover or dialog is a library
+overlay, which floats on its own).
 
 A view has no `overflow` attribute. Ranges (`minWidth`, `maxHeight`, …) bound what a layout gives;
 elsewhere `contentWidth` and `contentHeight` say what the content wants, so a clamp is arithmetic.
@@ -496,10 +481,19 @@ clip   = true                                // hide whatever passes the cap
 momentum, a glide — and the program never sets where a scroller is. It reads the facts the
 platform writes (`scrollY`, `userScrolling`) and makes requests the platform carries out when it
 can (`scrollTo`, `scrollIntoView`): clamped to the content, held until the pane can take them,
-waiting while the user scrolls. An App scrolls by default, and its scroller is the page;
-`scrolls = y` makes a view a pane of its own. A view that must stay on screen opts out with
-`ignoreScroll` (`y = end` at the foot), as a child opts out of layout and clipping with
-`ignoreLayout` and `ignoreClip`; `clip = true` clips children to the box.
+waiting while the user scrolls.
+
+**Every scroller is a pane, the App included**, and content scrolls only where it outgrows its
+room, so a layout that fits its window never scrolls. Choosing how an app scrolls is choosing
+whose content may outgrow its room. The App's pane is the host's own scroll — in a browser, the
+page — and only it gets what the host does for a page: a phone's bars collapse as it scrolls,
+and a pinch zooms it. So a column of content scrolls with the App, and a view that must stay
+on screen opts out with `ignoreScroll` (`y = end` at the foot). A region that scrolls on its
+own, a list beside a document or a map, is a pane inside it (`scrolls = y`), and **a pane needs
+room it is given**: one sized by its content just grows, and the page scrolls instead.
+`scrolls = none` says overflow is cut off (and, for the App, that the page does not bounce).
+`clip = true` clips children to the box; a child opts out of its parent's regime with
+`ignoreLayout`, `ignoreClip` or `ignoreScroll`.
 
 **Positions are literals.** `x = center` and `x = end`, and the same on `y`, place a view against
 its parent — resolved reactively, exactly like `100%`. The closed set is `center` and `end`; the
@@ -509,64 +503,23 @@ centered — the cap band, not the font box with its uneven leading — so the l
 is a `Text` whose `centerY` is its capitals' middle.
 
 **The App fills its host by default**, so `App [ … ]` with no size line fills the window and
-resizes with it, while an explicit size makes a fixed widget. For an embedded app the host is its
-container element, which is what lets apps nest. Responsive code reads `app.width`; the App also
-carries the live host facts — viewport, colour scheme, pointer — as reactive attributes.
+resizes with it, while an explicit size makes a fixed widget. Responsive code reads `app.width`;
+the App also carries the live host facts — viewport, colour scheme, pointer — as reactive
+attributes.
 
 `App [ minWidth = 480, minHeight = 420 ]` sets a **size floor**: below it the app holds the floor
-and the host pans instead. It is the App's alone, not a view attribute.
+and the host pans instead.
 
-### The URL is an attribute; links are declared
-
-There is no router. **`location`** is the app's slice of the URL, as one two-way reactive string
-the host seeds before first settle, mirrors outward, and writes back on back/forward. A view
-that manifests a location declares it with **`shows`**; a place inside one is named with
-**`anchor`**; and any view becomes a link with **`link`** — one reference string, the same one
-an authored Markdown href carries:
-
-```declare-fragment
-home: View [ shows = "home",
-    pill: Text [ text = "Why", link = "#why" ],           // a destination
-    faq:  Text [ text = "The note", link = "#story" ],    // an anchor — its location DERIVED
-    repo: Text [ text = "GitHub", link = "https://github.com/example" ]
-    ],
-why: View [ shows = "why",
-    note: View [ anchor = "story", width = 200, height = 80 ]
-    ]
-```
-
-Because references are declared rather than assembled, the compiler gains a **registry** and
-checks every one at build: a typo'd `#stroy` is a compile error naming the real names. A linked
-view realizes a real `<a href>`, so ⌘-click and copy-link work, and the build's crawler walks
-the same edges — which is what makes a deep link indexable.
-
-Arrival is one operation whatever caused it, so a link, a prose href, a pasted URL and the Back
-button are the same event, and an app answers it in one place: a hook to transform or veto the
-reference, and a handler delivered the view it names once that view exists. Undeclared, arriving
-scrolls; declaring the landing replaces that with your own idea of showing, a camera or a pan.
-
-**Location is the app's shareable coordinates** — what a recipient should see when handed the
-URL, nothing more; a draft or a session's working values are ordinary attributes. Between those
-two sits a third kind, state the Back button *should* undo but a stranger should never see, and
-it has its own attribute: **`waypoint`**, location's twin, carried in the history entry and never
-in the URL. A history entry is the pair, one per settle in which either changed,
-and one Back restores both. The dividing test takes five seconds: *would you hand the value to a
-stranger?* Yes → `location`. No, but Back should undo it → `waypoint`. Neither → an ordinary
-attribute.
-
-→ `link`/`shows`/`anchor`, arrival and the crawl: the reference (`npx declare-help <name>`) ·
-[the URLs chapter](declare-docs:guide:urls)
+→ the layouts that ship: `library/` · their attributes: the reference (`npx declare-help <name>`)
 
 ## 7. Data
 
-**Data is JSON, held in the tree.** A `Dataset` holds data — written inline, derived from
-other state, or fetched by a `DataSource` — as a named member of the node whose subtree uses it.
-A view's `datapath` points it at a place in that data, and its descendants read fields
-relative to it with `:path` — every member, not only the visible ones: a `Spring`'s target, a
-`Time`'s gate, or a class that extends `Node`, standing on a record of its own — and a path
-matching many records **replicates** its view, one instance per record. This is the
-replacement for React's `{items.map(…)}`: a collection of children comes from data, never from
-code in the tree.
+**Data is JSON, held in the tree.** A `Dataset` holds data — written inline, derived from other
+state, or fetched by a `DataSource` — as a named member of the node whose subtree uses it. A
+view's `datapath` points it at a place in that data, and its descendants read fields relative to
+it with `:path` — every member, not only the visible ones: a `Spring`'s target, a `Time`'s gate,
+or a class that extends `Node`, standing on a record of its own — and a path matching many records
+**replicates** its view, one instance per record.
 
 ```declare
 App [ width = 420, height = 260, fill = midnightblue, textColor = gainsboro,
@@ -676,6 +629,47 @@ a `DataSource`, and nothing to unsubscribe.
 [the data chapter](declare-docs:guide:data) · virtualization at scale:
 [collections](declare-docs:guide:collections)
 
+### The URL is an attribute; links are declared
+
+There is no router. **`location`** is the app's slice of the URL, as one two-way reactive string
+the host seeds before first settle, mirrors outward, and writes back on back/forward. A view
+that manifests a location declares it with **`shows`**; a place inside one is named with
+**`anchor`**; and any view becomes a link with **`link`** — one reference string, the same one
+an authored Markdown href carries:
+
+```declare-fragment
+home: View [ shows = "home",
+    pill: Text [ text = "Why", link = "#why" ],           // a destination
+    faq:  Text [ text = "The note", link = "#story" ],    // an anchor — its location DERIVED
+    repo: Text [ text = "GitHub", link = "https://github.com/example" ]
+    ],
+why: View [ shows = "why",
+    note: View [ anchor = "story", width = 200, height = 80 ]
+    ]
+```
+
+Because references are declared rather than assembled, the compiler gains a **registry** and
+checks every one at build: a typo'd `#stroy` is a compile error naming the real names. A linked
+view realizes a real `<a href>`, so ⌘-click and copy-link work, and the build's crawler walks
+the same edges — which is what makes a deep link indexable.
+
+Arrival is one operation whatever caused it, so a link, a prose href, a pasted URL and the Back
+button are the same event, and an app answers it in one place: a hook to transform or veto the
+reference, and a handler delivered the view it names once that view exists. Undeclared, arriving
+scrolls; declaring the landing replaces that with your own idea of showing, a camera or a pan.
+
+**Location is the app's shareable coordinates** — what a recipient should see when handed the
+URL, nothing more; a draft or a session's working values are ordinary attributes. Between those
+two sits a third kind, state the Back button *should* undo but a stranger should never see, and
+it has its own attribute: **`waypoint`**, location's twin, carried in the history entry and never
+in the URL. A history entry is the pair, one per settle in which either changed,
+and one Back restores both. The dividing test takes five seconds: *would you hand the value to a
+stranger?* Yes → `location`. No, but Back should undo it → `waypoint`. Neither → an ordinary
+attribute.
+
+→ `link`/`shows`/`anchor`, arrival and the crawl: the reference (`npx declare-help <name>`) ·
+[the URLs chapter](declare-docs:guide:urls)
+
 ## 8. Input
 
 **Handlers are methods named with an `on` prefix**, answering this node's own events: `onClick`,
@@ -684,9 +678,6 @@ construction. **`onChange`** answers the values a node names in `trackChanges = 
 close of a settle in which one of them ended different from where it started, once, carrying each
 name with its previous and current value — for a state change the program must act on, never to
 follow a value (a constraint) or to move one (a Spring).
-
-**Nothing bubbles** (§1): there is no `addEventListener`, no `event` keyword,
-and no capture or propagation phase; the `on` prefix is a naming convention, not syntax.
 
 **Pointer input has two layers.** The **raw** layer — `onPointerDown`/`Move`/`Up`, the multi-finger
 touch family, and `onWheel` — reports what the pointer physically did, immediately: the layer for
@@ -721,7 +712,7 @@ game taking **full gesture control**.
 
 ### Opacity is paint; `visible` is presence
 
-A view at `opacity = 0` is invisible but entirely present — it holds its layout space and still
+A view at `opacity = 0` is invisible but entirely present — it holds its room in the layout and still
 takes clicks, subtree included, as CSS opacity does. That is a tool, not a trap: a fully
 transparent view is the natural press-catcher — a scrim behind a modal, a hit target larger than
 the mark it serves.
