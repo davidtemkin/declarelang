@@ -818,12 +818,12 @@ await test("Divider: spans the parent's CONTENT, insets from the leading edge, s
   assert.equal(d.width, 280 - 32, "the card's content width — the padding is not the divider's arithmetic");
   assert.equal(d.x, 0, "at the content origin — the card's inset is not in the slot");
   assert.equal(d.rootOrigin().x, 20 + 16, "…and lands on the card's content edge");
-  assert.equal(app.c.e.rule.x, 40, "inset moves the rule's leading edge…");
-  assert.equal(app.c.e.rule.width, 280 - 32 - 40, "…and shortens it by the same amount");
+  assert.equal(app.c.e._rule.x, 40, "inset moves the rule's leading edge…");
+  assert.equal(app.c.e._rule.width, 280 - 32 - 40, "…and shortens it by the same amount");
   const q = app.row.q;
   assert.equal(q.width, 2, "a vertical rule is `thickness` wide");
   assert.equal(q.height, 120 - 20, "and spans the row's content height");
-  assert.deepEqual([q.rule.y, q.rule.height], [4, 120 - 20 - 4]);
+  assert.deepEqual([q._rule.y, q._rule.height], [4, 120 - 20 - 4]);
 });
 
 await test("Divider: the rule takes the theme's line, and a colour of its own when given one", async () => {
@@ -831,8 +831,8 @@ await test("Divider: the rule takes the theme's line, and a colour of its own wh
     a: Divider [ width = 100 ],
     b: Divider [ width = 100, color = #FF0000 ],
   ]`);
-  assert.equal(app.a.rule.fill, 0xdbe1e9);
-  assert.equal(app.b.rule.fill, 0xff0000);
+  assert.equal(app.a._rule.fill, 0xdbe1e9);
+  assert.equal(app.b._rule.fill, 0xff0000);
 });
 
 summarize("layout-padding");

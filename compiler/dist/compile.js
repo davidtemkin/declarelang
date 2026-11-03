@@ -788,6 +788,16 @@ function idiomDiagnostics(program, schemas) {
             if (shape !== null && (shape.depth >= 3 || shape.parts >= 4))
                 warnings.push(Diag.tangledConstraint(name, shape.depth, shape.parts, lit.pos));
         }
+        // 4034 — colorWithAlpha's alpha written as a fraction: it is a byte
+        for (const [src, pos] of [
+            ...el.attrs.flatMap((a) => a.value.kind === "code" ? [[a.value.src, a.value.pos]] : []),
+            ...el.decls.flatMap((d) => d.def !== null && d.def.kind === "code" ? [[d.def.src, d.def.pos]] : []),
+            ...el.methods.map((m) => [m.body, m.pos]),
+        ]) {
+            const m = /\bcolorWithAlpha\s*\((?:[^(),]|\([^()]*\))+,\s*(0?\.\d+|1(?:\.0*)?)\s*\)/.exec(src);
+            if (m !== null)
+                warnings.push(Diag.alphaAsFraction(m[1], pos));
+        }
         for (const c of el.children)
             walk(c, el, classRoot);
     };

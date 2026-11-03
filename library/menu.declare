@@ -255,7 +255,7 @@ Derived from `shown`, the menu's own open fact. Visibility is never set from out
 Chrome, never prose: a menu's rows do not select, even inside a `selectable` region — the same provision every `Control` makes for its label.
 
 ## height
-As tall as its `panel`, the surface its rows sit on, which is as tall as its rows — capped just inside the app's
+As tall as its panel, which is as tall as its rows — capped just inside the app's
 height, past which the panel scrolls its rows and the rover keeps the landing row in
 view.
 
@@ -303,7 +303,7 @@ class Menu extends Floating [
     pressPolicy = { this.isRoot ? "dismiss" : "dismissAndDeliver" },
     scrollPolicy = "block",
     visible = { shown },
-    height = { this.panel.height },
+    height = { this._panel.height },
 
     // A menu is chrome, not prose: its rows never select, even inside a
     // `selectable` region — the same provision `Control` makes for a label.
@@ -500,11 +500,11 @@ class Menu extends Floating [
     _rowsOf(b: View) -> array { return b.children },
 
     step(d: number) {
-        const rows = this._rowsOf(this.panel.body).filter((r) => !r.divider && r.enabled && r.custom == "")
+        const rows = this._rowsOf(this._panel.body).filter((r) => !r.divider && r.enabled && r.custom == "")
         // opened in this same moment (a submenu entered by ArrowRight): its rows
         // are built as this settle closes, so the step waits for them
         if (rows.length == 0) {
-            if (shown && this._rowsOf(this.panel.body).length == 0 && (this.items ?? []).length > 0) afterSettle(() => this.step(d))
+            if (shown && this._rowsOf(this._panel.body).length == 0 && (this.items ?? []).length > 0) afterSettle(() => this.step(d))
             return
             }
         const i = rows.indexOf(this.activeRow)
@@ -519,7 +519,7 @@ class Menu extends Floating [
         const t = (now - _typedAt < 1000 ? _typed : "") + ch.toLowerCase()
         _typed = t
         _typedAt = now
-        const rows = this._rowsOf(this.panel.body).filter((r) => !r.divider && r.enabled && r.custom == "")
+        const rows = this._rowsOf(this._panel.body).filter((r) => !r.divider && r.enabled && r.custom == "")
         if (rows.length == 0) return
         // the same letter again cycles through the rows it starts; a longer
         // prefix keeps the current row while it still matches
@@ -593,7 +593,7 @@ class Menu extends Floating [
     // list — a thousand bound options stay usable, the rover reveals as it
     // roves)
 
-    panel: View [ width = { classroot.width },
+    _panel: View [ width = { classroot.width },
         height = { Math.min(this.body.contentHeight + 10, app.height - 8) },
         cornerRadius = { provided("theme").menuCornerRadius },
 

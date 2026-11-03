@@ -229,13 +229,13 @@ await test("the library's rows give way: a Disclosure's long label stops before 
     d: Disclosure [ width = 300, label = "${long}", detail = "12 items" ],
     s: Disclosure [ y = 60, width = 300, label = "Short", detail = "12 items" ],
     gg: Gauge [ y = 120, width = 300, label = "A caption far longer than its column", value = 50 ] ]`);
-  const [lx, , lw] = g["app.d.line.t"], [mx] = g["app.d.line.more"];
+  const [lx, , lw] = g["app.d._line.t"], [mx] = g["app.d._line.more"];
   assert.ok(lx + lw <= mx - 8, `label ends at ${lx + lw}, detail starts at ${mx}`);
   // x is in the row's content box, inset 8 on the left and 10 on the right
-  assert.equal(8 + g["app.s.line.t"][0], 30, "a label that fits sits where it always has");
-  assert.equal(8 + g["app.s.line.more"][0] + g["app.s.line.more"][2], 290, "and the detail ends 10 from the edge");
-  assert.ok(g["app.gg.cap"][2] <= 96, "the caption keeps to its column");
-  assert.equal(g["app.gg.rail"][0], 96);
+  assert.equal(8 + g["app.s._line.t"][0], 30, "a label that fits sits where it always has");
+  assert.equal(8 + g["app.s._line.more"][0] + g["app.s._line.more"][2], 290, "and the detail ends 10 from the edge");
+  assert.ok(g["app.gg._cap"][2] <= 96, "the caption keeps to its column");
+  assert.equal(g["app.gg._rail"][0], 96);
 });
 
 await test("under align = stretch a child that states its size keeps it, a constant or a constraint alike", () => {

@@ -168,7 +168,7 @@ a locator as Playwright's does:
 - **asserting:** `expect(locator)` `.toBeVisible`, `toBeHidden`, `toBeEnabled`,
   `toBeDisabled`, `toBeChecked`, `toBeFocused`, `toBeEditable`, `toHaveText`,
   `toContainText`, `toHaveValue`, `toHaveAttribute`, `toHaveCount`, `toHaveAccessibleName`,
-  each with `.not`, retrying up to 5 s on the page's clock; `expect(page)` `.toHaveURL`,
+  each with `.not`, retrying for up to 5 s of real time; `expect(page)` `.toHaveURL`,
   `toHaveTitle`; `expect(value)` the plain matchers (`toBe`, `toEqual`, `toContain`, …).
 
 A Playwright call that is not here fails naming what to write instead. The rest of `page` is
@@ -296,17 +296,14 @@ export default [
 ```
 
 Three facts assert scripts learn the hard way, recorded here instead:
-**`drive.attr(path, name, expected)` is the real check** for any attribute —
+**`expect.attr(path, name, expected)` is the real check** for any attribute —
 including formula-valued ones. It reads `find(path)[name]` live inside the page
 and falls back to `explain()`, where `inspect().attrs` carries only *written*
 attributes and reports a formula attribute as absent. To take a value **into** the
 script rather than assert one, go through the page yourself:
 `drive.page.evaluate((p, a) => window.__declare.find(p)[a], path, name)`.
 `evaluate()` returns an Inspector **transcript object** that serializes to `{}`,
-so read values that way too, never by JSON-ing a transcript; and a
-`drive.page.evaluate` callback must **`return null`, never `undefined`** — an
-undefined return fails the rung as an anonymous page error indistinguishable
-from a crash.
+so read values that way too, never by JSON-ing a transcript.
 
 ## Running the ladder across the corpus
 

@@ -6,7 +6,7 @@ a phone-width screen it rises from the bottom, and a downward swipe on its handl
 away; on a wide screen it slides in from the end edge (`edge = "end"`) or, for a sheet whose
 edge is the bottom, floats as a card in the middle. A sheet at the start edge
 (`edge = "start"`) is a navigation drawer: it slides in from the start edge at every width,
-and a swipe back toward that edge on its trailing edge, its `grip`, puts it away. Behind it the context
+and a swipe back toward that edge on its trailing edge puts it away. Behind it the context
 dims; a press there closes the sheet, and nothing behind it scrolls while it is open. Tab stays inside it;
 Esc closes it; focus goes to its first control when it opens and back when it closes.
 
@@ -155,7 +155,7 @@ class Sheet extends Floating [
     // the drawer's grip, its trailing edge within the body's inset: swipe it back
     // toward the start edge past a quarter of the drawer to put it away
 
-    grip: View [ visible = { classroot.presentation == "start" }, x = { classroot.width - 24 }, y = 0, width = 24, height = 100%, claim = x,
+    _grip: View [ visible = { classroot.presentation == "start" }, x = { classroot.width - 24 }, y = 0, width = 24, height = 100%, claim = x,
         onPointerMove(e: PointerEvent) { if (e.deltaX != 0 || classroot._dragX != 0) classroot._dragX = Math.max(0, -e.deltaX) },
         onPointerUp(e: PointerUpEvent) {
             if (!e.canceled && classroot._dragX > classroot.width / 4) classroot.close()

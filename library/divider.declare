@@ -35,7 +35,7 @@ is vertical and spans its height. A bare literal, not a string. The span is the 
 card stops where the card's content does, rather than running out under the inset.
 
 ## thickness
-The weight of the rule (the divider's `rule`, the line painted inside it) in logical pixels. `1` is the library's hairline everywhere.
+The rule's weight in logical pixels. `1` is the library's hairline everywhere.
 
 ## inset
 How far in from the **leading** edge the rule starts — the list-separator convention,
@@ -77,7 +77,7 @@ class Divider [
     // the rule itself, so `inset` can move its leading edge without the Divider
     // authoring an `x` a parent layout may be arranging
 
-    rule: View [
+    _rule: View [
         x = { classroot.axis == "x" ? classroot.inset : 0 },
         y = { classroot.axis == "x" ? 0 : classroot.inset },
         width = { classroot.axis == "x" ? Math.max(0, parent.width - classroot.inset) : classroot.thickness },

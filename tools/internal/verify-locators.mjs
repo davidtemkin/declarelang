@@ -36,7 +36,7 @@ const PAGE_HINTS = {
   route: "--fixtures <dir> answers the program's requests from files",
   unroute: "--fixtures <dir> answers the program's requests from files",
   context: "each run is a context of its own; drive.device() loads the page on another device",
-  pause: "a script runs to its end; read the page with drive.read / declare-look",
+  pause: "a script runs to its end; check a value with expect.attr, or look at the page with declare-look",
   dragAndDrop: "drive.drag(path, dx, dy) drags as a finger or a mouse does",
   setInputFiles: "file pickers are not driven here",
   getByLabelText: "getByLabel",

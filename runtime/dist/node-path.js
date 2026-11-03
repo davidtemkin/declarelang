@@ -13,6 +13,15 @@ export function pathOf(root, n) {
         parts.unshift(m ?? String(cur.parent.children.indexOf(cur)));
         cur = cur.parent;
     }
+    // a library's private container (`_body`) is left out where the address
+    // still finds the view without it — what the program wrote, not the plumbing
+    for (let i = parts.length - 2; i >= 0; i--) {
+        if (!parts[i].startsWith("_"))
+            continue;
+        const shorter = [...parts.slice(0, i), ...parts.slice(i + 1)];
+        if (findPath(root, ["app", ...shorter].join(".")) === n)
+            parts.splice(i, 1);
+    }
     return ["app", ...parts].join(".");
 }
 /** Resolve a dotted inspect path (`app.col.opts`, `app.col.3`) to the node.

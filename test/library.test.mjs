@@ -226,9 +226,9 @@ await test("Menu: a long list caps at the viewport and its body scrolls (the rov
   ]`);
   app.m.openFor(app.btn);
   settle();
-  assert.ok(app.m.panel.height <= 260 - 8, "the panel caps at the viewport");
-  assert.equal(app.m.panel.body.scrolls, "y", "…and the body is the scroller");
-  assert.ok(app.m.panel.body.contentHeight > app.m.panel.body.height, "content overflows into the scroll");
+  assert.ok(app.m._panel.height <= 260 - 8, "the panel caps at the viewport");
+  assert.equal(app.m._panel.body.scrolls, "y", "…and the body is the scroller");
+  assert.ok(app.m._panel.body.contentHeight > app.m._panel.body.height, "content overflows into the scroll");
 });
 
 await test("Menu: the ruled COLUMN model — check space always, icon column iff icons, ONE text edge", async () => {
@@ -247,7 +247,7 @@ await test("Menu: the ruled COLUMN model — check space always, icon column iff
   app.m.openFor(app.btn);
   settle();
   assert.equal(app.m.hasIcons, true);
-  const rows = app.m.panel.body.children.filter((r) => r.lbl !== undefined);
+  const rows = app.m._panel.body.children.filter((r) => r.lbl !== undefined);
   for (const r of rows) assert.equal(r.lbl.x, 50, "one text edge for iconed and plain rows alike");
   assert.equal(rows[0].check.x, 7, "the check column leads");
   assert.equal(rows[0].icoHost.x, 25, "icons get their own column");
@@ -261,7 +261,7 @@ await test("Menu: the ruled COLUMN model — check space always, icon column iff
   app2.m.openFor(app2.btn);
   settle();
   assert.equal(app2.m.hasIcons, false);
-  const rows2 = app2.m.panel.body.children.filter((r) => r.lbl !== undefined);
+  const rows2 = app2.m._panel.body.children.filter((r) => r.lbl !== undefined);
   for (const r of rows2) assert.equal(r.lbl.x, 24, "no icons → no icon gutter; the check column alone leads");
   app2.m.close();
 });
@@ -299,21 +299,21 @@ const ROWS = (n) =>
   Array.from({ length: n }, (_, i) => ({ id: i, title: "Issue " + i, state: i % 2 ? "open" : "done" }));
 
 const gridRows = (g) => g.children.filter((c) => c._isGridRow === true);
-const cellsOf = (row) => row.cells.children.filter((c) => c._isGridCell === true);
-const cellTexts = (row) => cellsOf(row).map((c) => c._drawn()?.t?.text);
+const cellsOf = (row) => row._cells.children.filter((c) => c._isGridCell === true);
+const cellTexts = (row) => cellsOf(row).map((c) => c._drawn()?._t?.text);
 
 await test("DataGrid: no children — rows from items, cells from the columns' records, offsets run", async () => {
   const app = await boot(GRID);
   app.d.value = { rows: ROWS(3) };
   settle();
-  const cols = app.g.colData.value.cols;
+  const cols = app.g._colData.value.cols;
   assert.deepEqual(cols.map((c) => c.id), ["id", "title", "state"], "a column's id is the field it shows");
   assert.deepEqual(cols.map((c) => c.x), [0, 70, 350], "running x offsets from plain widths");
   const rows = gridRows(app.g);
   assert.equal(rows.length, 3);
   assert.deepEqual(cellTexts(rows[1]), ["1", "Issue 1", "open"], "a cell with no class shows its field as text");
-  assert.ok(app.g.hdr.paintsIn === app.g.parent, "the header paints in the grid's parent, outside the scroll box");
-  assert.equal(app.g.hdr.y, app.g.y - app.g.headerH, "and floats ABOVE the scroll box, in that parent's frame");
+  assert.ok(app.g._hdr.paintsIn === app.g.parent, "the header paints in the grid's parent, outside the scroll box");
+  assert.equal(app.g._hdr.y, app.g.y - app.g.headerH, "and floats ABOVE the scroll box, in that parent's frame");
   assert.equal(rows[0].y, 0, "rows start at the box top — the scroll region is rows only");
 });
 
@@ -348,7 +348,7 @@ await test("DataGrid: reorder and resize are value-pattern state — deliveries 
   assert.deepEqual(cellTexts(gridRows(app.g)[0]), ["Issue 0", "0", "done"], "cells follow the order");
   app.g.resizeInput("title", 150);
   settle();
-  const cols = app.g.colData.value.cols;
+  const cols = app.g._colData.value.cols;
   assert.deepEqual(cols.map((c) => [c.id, c.x]), [["title", 0], ["id", 150], ["state", 220]],
     "a width override reflows every offset");
   // an app override owns the state
@@ -565,10 +565,10 @@ await test("DataGrid: columns are data — one added or removed, the model follo
     cols: array = { [ { id: "a", title: "A", width: 100 } ] },
     d: Dataset { { "rows": [ { "id": 1, "a": "x", "b": "y" } ] } },
     g: DataGrid [ width = 400, height = 120, items = { app.d.value.rows }, columns = { app.cols } ] ]`);
-  assert.equal(app.g.colData.value.cols.length, 1);
+  assert.equal(app.g._colData.value.cols.length, 1);
   app.cols = [...app.cols, { id: "b", title: "B", width: 100 }];
   settle();
-  assert.equal(app.g.colData.value.cols.length, 2, "the new column is in the model");
+  assert.equal(app.g._colData.value.cols.length, 2, "the new column is in the model");
   assert.deepEqual(cellTexts(gridRows(app.g)[0]), ["x", "y"], "…and in every row");
 });
 

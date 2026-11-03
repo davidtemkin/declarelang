@@ -428,6 +428,10 @@ export const Diag = {
   // exist on the Mac, and what a script reaches into it for is a Declare word.
   scriptSearchesPage: (lookup: string, pos: Pos): DeclareError =>
     err(code4(4033), `this script looks up elements in the page (${lookup}) — the views a program draws belong to the runtime: they differ between renderers and are not there on the Mac, so a lookup finds nothing, or the wrong thing, as the program changes. What a script reaches into the page for — focus, a field's value or autofill, scrolling, a size, a form — is a Declare attribute or class: ask npx declare-help <what you need> first. A script that hosts something of its own takes the element it is given (DOMIsland), never one it looks up`, pos),
+  // A WARNING: colorWithAlpha given a fraction for its alpha, which is a byte —
+  // 0.5 of 255 paints next to nothing, and nothing says so.
+  alphaAsFraction: (written: string, pos: Pos): DeclareError =>
+    err(code4(4034), `colorWithAlpha's alpha is a byte, 0 to 255, so ${written} is all but transparent — half is 128, or write the color as an 0xRRGGBBAA literal (0x00000080)`, pos),
   // A WARNING: a radio whose parent is no RadioGroup — no group to be one of.
   accessibilityRadioAlone: (owner: string, pos: Pos): DeclareError =>
     err(code4(4032), `${owner} is a radio outside a RadioGroup — a screen reader hears no "one of N", and the arrows do not move between the choices. Make the radios the direct children of a RadioGroup: any child with a choice is one (its press calls the group's pick(choice))`, pos),
@@ -587,6 +591,7 @@ export const DIAGNOSTIC_CATALOG: ReadonlyArray<{ code: string; phase: DiagPhase;
   { code: code4(4030), phase: "name", summary: "a size range beside a size the view states itself, where it bounds nothing (warning)" },
   { code: code4(4032), phase: "name", summary: "a radio whose parent is no RadioGroup — no group to be one of (warning)" },
   { code: code4(4033), phase: "name", summary: "a browser script that looks up elements in the page — the views belong to the runtime (warning)" },
+  { code: code4(4034), phase: "name", summary: "colorWithAlpha given an alpha between 0 and 1 — the alpha is a byte, 0 to 255 (warning)" },
   { code: code4(4031), phase: "name", summary: "an onKeyDown on a Control that never calls super.onKeyDown — Space, Enter and the arrows stop (warning)" },
   { code: code4(4027), phase: "name", summary: "a control hidden from a screen reader that the keyboard still reaches (warning)" },
   { code: code4(4025), phase: "name", summary: "a constraint whose decisions are nested three deep, or one condition with four or more parts (warning)" },

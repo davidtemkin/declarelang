@@ -55,8 +55,7 @@ The columns, as records, in their first order: `id` (the field shown, and the co
 name), `title` (the header; the id when absent), `width` (in pixels; 120 when absent),
 and optionally `cell` (the name of a class drawn in each of the column's cells) or `edit`
 (`true` for text fields). **The column model follows this list**: add, remove or change a
-record and the grid follows. The model itself is the grid's `colData`, a `Dataset` whose
-`cols` are these records in their present order and width, with their x offsets.
+record and the grid follows.
 
 ## headingClass
 The name of the class that draws a heading row — `""` for the grid's own, the record's
@@ -100,8 +99,7 @@ Toggles the sort on a column: same column flips direction, a new column starts
 ascending. Routes through `sortInput`.
 
 ## headerH
-The height of the header row, `hdr`, which paints in the grid's parent above the scroll
-region, so no row slides under it.
+The header row's height.
 
 ## selectable()
 `Table`'s, answered here: a heading record is not selectable, every other record is.
@@ -237,11 +235,11 @@ class DataGrid extends Table [
         return out
         },
 
-    _currentOrder() -> array { return this.colData.value.cols.map((r) => r.id) },
+    _currentOrder() -> array { return this._colData.value.cols.map((r) => r.id) },
 
     // the column model as a dataset, which the header and every row read
 
-    colData: Dataset [ contents = { { cols: classroot._columnRecords(classroot.columns, classroot.order, classroot.widths) } } ],
+    _colData: Dataset [ contents = { { cols: classroot._columnRecords(classroot.columns, classroot.order, classroot.widths) } } ],
 
     // the rows: one per item, replicated over the items as a dataset that holds
     // them (so a row's write lands in their source); a heading record is a
@@ -265,7 +263,7 @@ class DataGrid extends Table [
     _dropAt: number = -1,
 
     _dropIndexFor(cx: number) -> number {
-        const cols = this.colData.value.cols
+        const cols = this._colData.value.cols
         for (let i = 0; i < cols.length; i = i + 1) {
             if (cx < cols[i].x + cols[i].width / 2) return i
             }
@@ -276,7 +274,7 @@ class DataGrid extends Table [
     // it, as `_columnRecords` takes its state
 
     _dropBarX(at: number) -> number {
-        const cols = this.colData.value.cols
+        const cols = this._colData.value.cols
         if (at < 0) return -10
         if (at >= cols.length) {
             const last = cols[cols.length - 1]
@@ -286,7 +284,7 @@ class DataGrid extends Table [
         },
 
     _commitDrop(id: string) {
-        const cols = this.colData.value.cols
+        const cols = this._colData.value.cols
         const from = cols.findIndex((r) => r.id == id)
         const at = _dropAt
         _dragCol = ""
@@ -346,14 +344,14 @@ class DataGrid extends Table [
 
     onKeyDown(e: KeyEvent) {
         if (disabled) return
-        const n = this.colData.value.cols.length
+        const n = this._colData.value.cols.length
         const plain = !e.meta && !e.ctrl && !e.alt
         if (e.key == "ArrowRight" && plain) { activeCol = Math.min(n - 1, activeCol + 1); return }
         if (e.key == "ArrowLeft" && plain) { activeCol = Math.max(0, activeCol - 1); return }
         if (inHeader) {
             if (e.key == "ArrowDown" && plain) inHeader = false
             else if ((e.key == "Enter" || e.key == " ") && plain && !e.repeat) {
-                const c = this.colData.value.cols[activeCol]
+                const c = this._colData.value.cols[activeCol]
                 if (c != null) this.headerClick("" + c.id)
                 }
             return
@@ -395,13 +393,13 @@ class DataGrid extends Table [
         },
 
     _prevColId(id: string) -> string {
-        const cols = this.colData.value.cols
+        const cols = this._colData.value.cols
         const i = cols.findIndex((r) => r.id == id)
         return i > 0 ? cols[i - 1].id : ""
         },
 
     _colWidthOf(id: string) -> number {
-        const cols = this.colData.value.cols
+        const cols = this._colData.value.cols
         const r = cols.find((c) => c.id == id)
         return r != null ? r.width : 0
         },
@@ -415,7 +413,7 @@ class DataGrid extends Table [
     //    the parent's paint guests. ignoreLayout keeps full-mode stacking and
     //    the kernel's leading anchor off it — rows start at content 0 ────────
 
-    hdr: View [ height = { classroot.headerH },
+    _hdr: View [ height = { classroot.headerH },
         paintsIn = { classroot.parent },
         x = { classroot.x },
         y = { classroot.y - classroot.headerH },
@@ -428,7 +426,7 @@ class DataGrid extends Table [
         ignoreLayout = true,
         ignoreClip = true,
         fill = { provided("theme").surface },
-        datapath = { classroot.colData.value },
+        datapath = { classroot._colData.value },
         accessibilityRole = row,
 
         View [ datapath = :cols[], claim = x,
@@ -566,8 +564,8 @@ class DataGrid extends Table [
 /*
 # DataGridRow
 
-**Internal.** A row of a `DataGrid`, one per item, holding one `DataGridCell` per column in
-its `cells` view, placed from the column model.
+**Internal.** A row of a `DataGrid`, one per item, holding one `DataGridCell` per column
+placed from the column model.
 
 ## rec
 The row's record, as a derived attribute, so its cells follow the record's changes.
@@ -605,14 +603,14 @@ class DataGridRow extends TableRow [
     // the row's cells as a dataset: for each column, its place and what it draws, with
     // the row's record — the record itself, so a cell's write lands in it
 
-    _cellData: Dataset [ contents = { { cells: classroot._grid == null ? [] : classroot._grid.colData.value.cols.map((c) =>
+    _cellData: Dataset [ contents = { { cells: classroot._grid == null ? [] : classroot._grid._colData.value.cols.map((c) =>
         ({ id: c.id, title: c.title, x: c.x, width: c.width, cell: c.cell, edit: c.edit, i: c.i, row: [classroot.rec] })) } } ],
 
     cellAt(col: number) -> DataGridCell? {
-        return (this.cells.children.find((c) => (c as DataGridCell)._isGridCell === true && (c as DataGridCell)._ci == col) ?? null) as DataGridCell | null
+        return (this._cells.children.find((c) => (c as DataGridCell)._isGridCell === true && (c as DataGridCell)._ci == col) ?? null) as DataGridCell | null
         },
 
-    cells: View [ x = 0, y = 0, width = 100%, height = 100%,
+    _cells: View [ x = 0, y = 0, width = 100%, height = 100%,
         datapath = { classroot._cellData.value },
         DataGridCell [ datapath = :cells[] ]
         ]
@@ -833,7 +831,7 @@ class DataGridCell [ x = { :x }, width = { :width }, height = 100%, clip = true,
 /*
 # DataGridText
 
-**Internal.** What a `DataGrid` column with no `cell` draws: its field, as text, in its `t`.
+**Internal.** What a `DataGrid` column with no `cell` draws: its field, as text.
 
 ## field
 The field shown — its column's id.
@@ -841,7 +839,7 @@ The field shown — its column's id.
 
 class DataGridText [ width = 100%, height = 100%,
     field: string = { (parent as DataGridCell)._isGridCell === true ? (parent as DataGridCell)._fld : "" },
-    t: TextLabel [ x = 8, fontSize = { provided("theme").gridFontSize }, wrap = false,
+    _t: TextLabel [ x = 8, fontSize = { provided("theme").gridFontSize }, wrap = false,
         text = { "" + (:@[(classroot.field)] ?? "") } ]
     ]
 

@@ -396,7 +396,7 @@ export default async ({ drive }) => {
 };`);
   const r = run("verify.mjs", f, "--assert", script, "--rung=5");
   assert.equal(r.status, 0, r.out);
-  assert.match(r.out, /layout after tap app\.go: 1 control\(s\) smaller than 44 × 44, a finger's target: app\.s\._body\.tiny 41×30/, r.out);
+  assert.match(r.out, /layout after tap app\.go: 1 control\(s\) smaller than 44 × 44, a finger's target: app\.s\.tiny 41×30/, r.out);
   assert.match(r.out, /layout after tap app\.moreBtn: 1 control\(s\) another view takes the presses of: .*app\.panel\.hidden \(by app\.panel\.cover\)/, r.out);
   assert.doesNotMatch(r.out, /layout after[^\n]*app\.go 73/, "a control the boot reported is not reported again");
   assert.doesNotMatch(r.out, /\(by app\.s\b/, "what an open sheet covers is behind it by design");
@@ -477,7 +477,7 @@ await test("rung 6 asks the same layout questions in each named state", () => {
   // the questions are asked as the state is captured: one blessing run shows them
   const r = run("verify.mjs", f, "--states", states, "--baselines", join(DIR, "driven6-baselines"), "--bless", "--rung=6");
   assert.equal(r.status, 0, r.out);
-  assert.match(r.out, /layout in state 'open'[^\n]*app\.s\._body\.tiny 41×30/, r.out);
+  assert.match(r.out, /layout in state 'open'[^\n]*app\.s\.tiny 41×30/, r.out);
 });
 
 await test("a name missed on a class that a child of it holds is answered with the child's path", () => {
