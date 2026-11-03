@@ -17,6 +17,7 @@
 // stay inert (hits are box-geometry, like the canvas walk), and resolution
 // is target → nearest sinked surface; the pairing/click rule is shared
 // (input.ts), so both backends decide clicks identically.
+import { sharedClock } from "./animate.js";
 import { watchSelection } from "./edit-selection.js";
 import { allowedRef, notifyIslandSlot } from "./backend.js";
 import { domTransform3D, unproject } from "./projective.js";
@@ -901,7 +902,9 @@ const MOVES = new WeakMap();
 const LAYER_WOULD_CHANGE = '[style*="mix-blend-mode"], [style*="position: fixed"]';
 let restTimer = null;
 function noteMoved(el) {
-    if (typeof performance === "undefined")
+    // a driven clock's steps are not frames on a screen: a layer for them would
+    // depend on how fast the machine ran the steps, never on what moved
+    if (typeof performance === "undefined" || sharedClock.driven)
         return;
     const now = performance.now();
     if (PROMOTED.has(el)) {

@@ -34,7 +34,7 @@ import { DeclareError } from "./errors.js";
 import { applyH, frontFacing, homography, inFront, invertH, type Homography } from "./projective.js";
 const FIT_FRAC: Record<string, number> = { start: 0, center: 0.5, end: 1 };
 import { IDENTITY as IDENTITY_AFFINE, apply as applyAffine, fromParts as affineFromParts, invert as invertAffine, isIdentity as affineIsIdentity, rotationOf as affineRotationOf, scaleOf as affineScaleOf, type Affine } from "./affine.js";
-import { inAnimationFrame, DEFAULT_MOTION, type Motion } from "./animate.js";
+import { inAnimationFrame, DEFAULT_MOTION, sharedClock, type Motion } from "./animate.js";
 import { sample, motionToken } from "./easing.js";
 import { ScrollPhysics, type ScrollState } from "./scroll-physics.js";
 const MICROTASK_PAINT = -1;
@@ -1094,8 +1094,9 @@ class Compositor {
   private readonly frostsResting = new Set<CanvasSurface>();
   frostWantsRest(f: CanvasSurface): void {
     this.frostsResting.add(f);
-    if (this.frostRestTimer !== 0) clearTimeout(this.frostRestTimer);
-    this.frostRestTimer = setTimeout(() => {
+    if (this.frostRestTimer !== 0) clearPlatformTimeout(this.frostRestTimer);
+    // the platform's time: rendering rests by the screen's clock, never a harness's
+    this.frostRestTimer = platformTimeout(() => {
       this.frostRestTimer = 0;
       for (const s of this.frostsResting) this.invalidate(s);
       this.frostsResting.clear();
@@ -1191,7 +1192,7 @@ class Compositor {
     this.frame = 0;
     memoGeneration++;
     const now = performance.now();
-    this.inMotion = now - this.lastPaintAt < RASTER_GRACE_MS;
+    this.inMotion = !sharedClock.driven && now - this.lastPaintAt < RASTER_GRACE_MS;
     this.lastPaintAt = now;
     const { canvas, ctx, root } = this;
     if (canvas === null || ctx === null || root === null) return;
@@ -1763,7 +1764,7 @@ class CanvasSurface implements Surface, SceneSurface {
     this.rasterPending = null;               // …and orphans a raster in flight (dropped on arrival)
     this.rasterSeen = null;
     this.rasterScalePending = null;
-    if (this.rasterRestTimer !== 0) { clearTimeout(this.rasterRestTimer); this.rasterRestTimer = 0; }
+    if (this.rasterRestTimer !== 0) { clearPlatformTimeout(this.rasterRestTimer); this.rasterRestTimer = 0; }
     this.compositor.invalidate(this);
   }
 
@@ -1851,7 +1852,8 @@ class CanvasSurface implements Surface, SceneSurface {
         this.rasterScalePending = { sx, sy, since: now };
       }
       const stable = this.rasterScalePending!;
-      if (now - stable.since < RASTER_GRACE_MS) {
+      // a driven clock's steps are not frames on a screen: no transition to blit through
+      if (!sharedClock.driven && now - stable.since < RASTER_GRACE_MS) {
         e.stamp = ++memoStamp;
         e.seen = memoGeneration;
         ctx.save();
@@ -1859,8 +1861,8 @@ class CanvasSurface implements Surface, SceneSurface {
         DREW_RASTER = true; ctx.drawImage(e.canvas, m.e + m.a * e.bx, m.f + m.d * e.by,
           e.canvas.width * (sx / e.sx), e.canvas.height * (sy / e.sy));
         ctx.restore();
-        if (this.rasterRestTimer !== 0) clearTimeout(this.rasterRestTimer);
-        this.rasterRestTimer = setTimeout(() => { this.rasterRestTimer = 0; this.compositor.invalidate(this); }, RASTER_GRACE_MS + 15);
+        if (this.rasterRestTimer !== 0) clearPlatformTimeout(this.rasterRestTimer);
+        this.rasterRestTimer = platformTimeout(() => { this.rasterRestTimer = 0; this.compositor.invalidate(this); }, RASTER_GRACE_MS + 15);
         return;
       }
       this.rasterScalePending = null;          // quiet for the beat: fall through to the exact raster
@@ -2830,7 +2832,7 @@ class CanvasSurface implements Surface, SceneSurface {
   destroy(): void {
     releaseRaster(this);                       // the memo pool must not outlive the surface
     this.rasterPending = null;
-    if (this.rasterRestTimer !== 0) { clearTimeout(this.rasterRestTimer); this.rasterRestTimer = 0; }
+    if (this.rasterRestTimer !== 0) { clearPlatformTimeout(this.rasterRestTimer); this.rasterRestTimer = 0; }
     this.editEl?.remove();
     this.editEl = null;
     this.embedEl?.remove();

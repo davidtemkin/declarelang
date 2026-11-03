@@ -20,12 +20,12 @@ export default async ({ drive, expect }) => {
   await drive.settleMotion();
   await expect.attr("app", "navOpen", true);
   await expect.approx("app.drawer", "x", 0, 0.5);
-  await expect.visible("app.drawer.body.0.guideNav");
+  await expect.visible("app.drawer._body.0.guideNav");
 
   // a pick: the Building part, then its first chapter
-  await drive.click("app.drawer.body.0.guideNav.1.head");
+  await drive.click("app.drawer._body.0.guideNav.1.head");
   await drive.settleMotion();
-  await drive.click('app.drawer.body.0.guideNav.1.body."6. Size, position, layout"');
+  await drive.click('app.drawer._body.0.guideNav.1.body."6. Size, position, layout"');
   await drive.settleMotion();
   await drive.settleData();
   await expect.attr("app", "navOpen", false);

@@ -54,6 +54,7 @@
 // precision (Chrome) holds only even pixels, so a pane shrinking at the end of a
 // compressed list lost a pixel of its extent and moved the rows on screen.
 
+import { platformTimeout, clearPlatformTimeout } from "./platform-time.js";
 import { View, onDiscard, markWindowedBlock, setRowIndex, markEvicting, fireRetireTree, fireInitTree, clearRetiredTree } from "./view.js";
 import { Constraint, Cell, afterSettle } from "./reactive.js";
 import { setBound, bindDerived, isSet, ownerOf, release } from "./attributes.js";
@@ -268,7 +269,7 @@ export class Windowing {
   constructor(private readonly host: WindowHost) {
     onDiscard(host.parent, () => {
       this.dropHeightOwner();
-      if (this.drainTimer !== null) clearTimeout(this.drainTimer);
+      if (this.drainTimer !== null) clearPlatformTimeout(this.drainTimer);
       if (this.jumpTimer !== null) clearTimeout(this.jumpTimer);
       this.measureCell.free();
       this.inViewCell.free();
@@ -356,7 +357,8 @@ export class Windowing {
     const still = (typeof performance !== "undefined" ? performance.now() : 0) - this.movedAt;
     if (still >= POOL_QUIET) { this.dropPool(); return; }
     if (this.drainTimer !== null) return;
-    this.drainTimer = setTimeout(() => { this.drainTimer = null; this.measureCell.changed(); }, POOL_QUIET - still);
+    // stillness is the user's scrolling, measured on the platform's time: so is the wait
+    this.drainTimer = platformTimeout(() => { this.drainTimer = null; this.measureCell.changed(); }, POOL_QUIET - still);
   }
 
   findScroller(): View | null {

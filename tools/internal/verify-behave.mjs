@@ -287,6 +287,21 @@ bootHost(cfg);
         globalThis.__declarePlatformTimers = { set: realSet, clear: realClear };
         let now = 0, seq = 0;
         const pend = new Map();   // id → { due, fn, args, every }
+        // THE PROGRAM'S DATE is the same time: it reads the instant the runner
+        // has let pass, so a Time, an afterDelay and a double-click's pairing see
+        // one clock, and only the script moves it. (A pinned clock, installed
+        // just before this, is where it starts.) performance.now stays real: the
+        // platform's own processes — the user's scroll going quiet — run on it.
+        const RealDate = globalThis.Date, base = RealDate.now();
+        const ProgramDate = function (...a) {
+          if (!new.target) return new RealDate(base + now).toString();
+          return a.length === 0 ? new RealDate(base + now) : new RealDate(...a);
+        };
+        ProgramDate.prototype = RealDate.prototype;
+        ProgramDate.now = () => base + now;
+        ProgramDate.parse = RealDate.parse;
+        ProgramDate.UTC = RealDate.UTC;
+        globalThis.Date = ProgramDate;
         globalThis.setTimeout = (fn, ms, ...args) => {
           const d = Number(ms) || 0;
           if (d <= 0) return realSet(fn, d, ...args);
@@ -439,7 +454,9 @@ bootHost(cfg);
           // place) is run to its end on the driven clock — a loop that never ends
           // does not hold it — and two frames go by, for what the page applies after
           // a settle (its scroll extent among them)
-          await page.evaluate(() => { const c = window.__declare.clock; c?.settleMotion?.(5000); c?.auto?.(); });
+          // …and the clock stays driven: between steps nothing moves, so what a
+          // step finds is what the steps before it made, whatever the machine is doing
+          await page.evaluate(() => { const c = window.__declare.clock; c?.settleMotion?.(5000); });
           await frames(page);
         });
         // Deferred time now rides the driven clock for every stepper — the
@@ -843,6 +860,9 @@ bootHost(cfg);
       const landed = async () => {
         await frames(page);
         await page.evaluate(() => new Promise((r) => setTimeout(r, 0)));
+        // what the action asked of the network has answered, as after drive.wait
+        // (a request it made is announced by the frames just waited)
+        if (inflight.size > 0) await quiet();
       };
       const press = async (x, y) => {
         if (touching()) await page.touchscreen.tap(x, y);
@@ -1046,13 +1066,16 @@ bootHost(cfg);
           step(`${touching() ? "tap" : "click"} ${path} at (${x}, ${y})`);
           await press(p.x, p.y);
         },
-        /** Two presses as one gesture — what `onDblClick` answers — on the
-         *  view, or at a point inside it. */
+        /** A double-click as a person makes one — what `onDblClick` answers —
+         *  on the view, or at a point inside it: two presses 100 ms of the
+         *  program's time apart, inside the platform's window for a pair. */
         async dblclick(path, x, y) {
           const p = await reach(path, x === undefined ? null : { x, y });
           step(`double-${touching() ? "tap" : "click"} ${path}${x === undefined ? "" : ` at (${x}, ${y})`}`);
-          if (touching()) { await page.touchscreen.tap(p.x, p.y); await page.touchscreen.tap(p.x, p.y); }
-          else await page.mouse.click(p.x, p.y, { count: 2 });
+          const one = (n) => touching() ? page.touchscreen.tap(p.x, p.y) : page.mouse.click(p.x, p.y, { count: n });
+          await one(1);
+          await this.wait(100);
+          await one(2);
           await landed();
         },
         async drag(path, dx, dy = 0, steps = 10) {
@@ -1193,10 +1216,23 @@ bootHost(cfg);
          *  app's clock catch up on what arrived. drive.wait never waits for
          *  real; this is the one that does. */
         async waitReal(ms) {
-          await new Promise((r) => setTimeout(r, ms));
-          // the app's clock is held between steps: run it through the same
-          // `ms`, so an afterDelay due in that time fires as it would have
-          await this.wait(ms);
+          // the program runs LIVE with the world for `ms`: real frames move its
+          // motion, and its own time (timers, Date) keeps pace with them; then
+          // it is held again
+          await page.evaluate(async (m) => {
+            const c = window.__declare.clock, T = globalThis.__declareTimers;
+            c.auto();
+            let last = performance.now();
+            const end = last + m;
+            while (performance.now() < end) {
+              await T.nextFrame();
+              const t = performance.now();
+              T.advance(Math.min(t, end) - last);
+              last = Math.min(t, end);
+            }
+            c.manual();
+          }, ms);
+          await quiet(Math.max(ms, 1000));
         },
         /** Let `ms` of the app's time pass: its clock is driven through it a
          *  frame at a time — motion moves, later calls (`afterDelay`, a hold's
@@ -1206,7 +1242,7 @@ bootHost(cfg);
          *  the app made, the frame after — is waited for, as it lands. */
         async wait(ms) {
           await page.evaluate(async (m) => {
-            const c = window.__declare.clock, T = globalThis.__declareTimers, was = c.mode;
+            const c = window.__declare.clock, T = globalThis.__declareTimers;
             c.manual();
             // a frame the app is owed goes by for real — never more of them, in
             // all, than `ms` of real time would have held
@@ -1214,7 +1250,6 @@ bootHost(cfg);
             const owed = async () => { while (T.framesOwed() > 0 && performance.now() < until) await T.nextFrame(); };
             await owed();
             for (let t = 0; t < m; t += 16.7) { c.step(Math.min(16.7, m - t)); await owed(); }
-            if (was === "auto") c.auto();
             // A NATIVE SCROLL IN FLIGHT — a smooth scrollIntoView, the browser's
             // own glide — runs on real frames, which the driven steps above do
             // not give it: let it land (three quiet frames, or as long as the
@@ -1231,14 +1266,33 @@ bootHost(cfg);
           await quiet(Math.max(ms, 1000));
         },
         /** Run in-flight motion to rest DETERMINISTICALLY (driven clock,
-         *  in-page, frame-exact), then hand the clock back to rAF. */
+         *  in-page, frame-exact); the clock stays driven. */
         async settleMotion(maxMs = 5000) {
           step("settleMotion");
-          const ok = await page.evaluate((m) => {
-            const done = window.__declare.clock.settleMotion(m);
-            window.__declare.clock.auto();
-            return done;
-          }, maxMs);
+          // the program's motion runs to rest, and then the world has its say: a
+          // native scroll still gliding, the visibility it reports a frame later, a
+          // request's answer. Two quiet frames end it; anything they deliver that
+          // starts motion is run to rest in turn.
+          let ok = true;
+          for (let round = 0; round < 5; round++) {
+            const done = await page.evaluate((m) => window.__declare.clock.settleMotion(m), maxMs);
+            if (!done) { ok = false; break; }
+            const still = await page.evaluate(async () => {
+              const T = globalThis.__declareTimers;
+              const at = () => scrollY + [...document.querySelectorAll("[data-declare-scroll]")].reduce((n, e) => n + e.scrollTop + e.scrollLeft, 0);
+              let seen = at(), quietFrames = 0;
+              const until = performance.now() + 2000;
+              while (quietFrames < 2 && performance.now() < until) {
+                await T.nextFrame();
+                const y = at();
+                quietFrames = Math.abs(y - seen) < 0.5 ? quietFrames + 1 : 0;
+                seen = y;
+              }
+              return !window.__declare.clock.settling;
+            });
+            if (inflight.size > 0) { await quiet(2000); continue; }
+            if (still) break;
+          }
           if (!ok) throw new VerifyAssertion(`motion did not settle within ${maxMs} ms`);
           await atRest();
         },

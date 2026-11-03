@@ -53,6 +53,7 @@
 // counts them — and above 2²⁴ a browser that keeps scroll geometry in single
 // precision (Chrome) holds only even pixels, so a pane shrinking at the end of a
 // compressed list lost a pixel of its extent and moved the rows on screen.
+import { platformTimeout, clearPlatformTimeout } from "./platform-time.js";
 import { View, onDiscard, markWindowedBlock, setRowIndex, markEvicting, fireRetireTree, fireInitTree, clearRetiredTree } from "./view.js";
 import { Constraint, Cell, afterSettle } from "./reactive.js";
 import { setBound, bindDerived, isSet, ownerOf, release } from "./attributes.js";
@@ -257,7 +258,7 @@ export class Windowing {
         onDiscard(host.parent, () => {
             this.dropHeightOwner();
             if (this.drainTimer !== null)
-                clearTimeout(this.drainTimer);
+                clearPlatformTimeout(this.drainTimer);
             if (this.jumpTimer !== null)
                 clearTimeout(this.jumpTimer);
             this.measureCell.free();
@@ -359,7 +360,8 @@ export class Windowing {
         }
         if (this.drainTimer !== null)
             return;
-        this.drainTimer = setTimeout(() => { this.drainTimer = null; this.measureCell.changed(); }, POOL_QUIET - still);
+        // stillness is the user's scrolling, measured on the platform's time: so is the wait
+        this.drainTimer = platformTimeout(() => { this.drainTimer = null; this.measureCell.changed(); }, POOL_QUIET - still);
     }
     findScroller() {
         for (let v = this.host.parent; v instanceof View; v = v.parent) {

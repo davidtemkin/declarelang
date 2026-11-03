@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "6911bfaefbac",
+  "buildId": "767668dcdb42",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -4361,7 +4361,7 @@
    },
    "E4FF26C": {
     "message": "[Declare] a … threw during its frame and was removed from the clock: …",
-    "at": "animate.ts:201"
+    "at": "animate.ts:205"
    },
    "E619282": {
     "message": "….… is read-only — it is computed from its declaration and cannot be assigned",

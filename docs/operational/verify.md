@@ -201,18 +201,25 @@ export default async ({ drive, expect }) => {
 };
 ```
 
-**Time in a check is the check's.** The page's timers run on a virtual clock: a delay in
-the program (`afterDelay`, a tooltip's wait, a press-and-hold's half second) passes only when
-the script says time passes — `drive.wait(ms)` advances it by exactly `ms`, a frame at a
-time, **without waiting `ms` of real time** (a 6-second wait takes a fraction of a second),
-and `drive.settleMotion()` runs motion to rest frame by frame, carrying the timers with it.
-What runs on the **world's** clock is untouched by both: a service whose own schedule sends
-a message in six seconds, a socket's timed frames. To wait for one of those, wait in real
-time — `drive.waitReal(ms)` — and the page catches up on its clock after. Holding the mouse down for 800 ms of real time fires no
-hold; `drive.hold(path, 800)` does. What a press hands to the next frame (`afterDelay(0, …)` — a
-`Menu` passing on its choice) has run before the next step, as it has for a person; and a
-native scroll the program starts (a smooth `scrollIntoView`) lands within a `drive.wait`. A
-failed `expect` says when timers are still waiting, and `drive.wait(ms)` is what runs them.
+**Time in a check is the check's.** The program has one time, and only the script moves it:
+its motion, its timers (`afterDelay`, a tooltip's wait, a press-and-hold's half second), `Time`,
+and the `Date` it reads all stand still between steps. `drive.wait(ms)` moves them by exactly
+`ms`, a frame at a time, **without waiting `ms` of real time** (a 6-second wait takes a fraction
+of a second), and `drive.settleMotion()` runs motion to rest, carrying the timers with it.
+Time between inputs is the script's too: two presses inside the platform's window are a
+double-click (`drive.dblclick(path)` makes one), and `drive.click`, `drive.wait(600)`,
+`drive.click` are two clicks.
+
+What the **world** does runs on real time, and a step waits for it: a native scroll's glide,
+the visibility the browser reports after it, a request's answer. A step ends once those have
+landed, so held time never misses what the world delivered. A service whose own schedule
+sends a message in six seconds, a socket's timed frames, or anything measured over real
+frames is waited for with `drive.waitReal(ms)`: the program runs **live** with the world for
+`ms`, its motion on real frames and its time keeping pace, and is held again after. Holding
+the mouse down for 800 ms of real time fires no hold; `drive.hold(path, 800)` does. What a
+press hands to the next frame (`afterDelay(0, …)`: a `Menu` passing on its choice) has run
+before the next step, as it has for a person. A failed `expect` says when timers are still
+waiting, and `drive.wait(ms)` is what runs them.
 
 **On a touch device the press is a finger.** After `drive.device({ …, touch: true })` (or
 `declare-look --touch`, or a state's `touch: true`), every `click`, `clickAt`, `drag` and
@@ -256,7 +263,7 @@ user's scroll coming to rest, keep real time; only the program's time is the dri
 | `drive.selectAll(path)` | focus the text field and select everything in it, as select-all does before typing over a value |
 | `drive.set(path, attr, value)` | an assignment, as a handler's write |
 | `drive.wait(ms)` | exactly `ms` of the program's time, run frame by frame — not `ms` of real time; what the program asked for in the meantime (a request, a frame) is waited for as it lands |
-| `drive.waitReal(ms)` | `ms` of **real** time, then the program's clock catches up — for what runs on the world's clock: a service's timed messages, a socket's schedule |
+| `drive.waitReal(ms)` | the program runs **live** for `ms` of real time, its motion on real frames and its own time keeping pace, then is held again — for what runs on the world's clock: a service's timed messages, a socket's schedule, anything measured over real frames |
 | `drive.settleMotion(maxMs?)` | motion run to rest, frame by frame; loops that never end (`repeat = { Infinity }`, a `Time`) do not hold it |
 | `drive.settleData()` | the network gone quiet |
 | `expect.attr(path, attr, expected)`, `expect.approx(path, attr, expected, tol?)`, `expect.text(path, contains)` (the view's text, or a row's or card's: all its visible descendants' together, rich text included), `expect.visible(path)` (shown: its own `visible` and every view's above it, with a size — failing, it names what hides it), `expect.hidden(path)` (a path that names nothing fails), `expect.exists(path)`, `expect.count(path, kind, n)`, `expect.equal(a, b)` | assertions: each fails the rung with what it found |

@@ -105,6 +105,9 @@ export class Clock {
      *  never a jump in any motion's elapsed time (in either direction: the old
      *  skew ate the driven clock's first steps as negative dt, and a long
      *  settleMotion left `auto()` frozen until real time caught back up). */
+    /** Driven by hand (a harness's step), not by the screen's frames: what it
+     *  moves through is never presented frame by frame. */
+    get driven() { return this.sched !== browserScheduler; }
     setScheduler(s) {
         if (this.handle !== null) {
             this.sched.cancel(this.handle);

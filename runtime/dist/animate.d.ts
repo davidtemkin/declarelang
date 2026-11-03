@@ -118,6 +118,9 @@ export declare class Clock {
      *  never a jump in any motion's elapsed time (in either direction: the old
      *  skew ate the driven clock's first steps as negative dt, and a long
      *  settleMotion left `auto()` frozen until real time caught back up). */
+    /** Driven by hand (a harness's step), not by the screen's frames: what it
+     *  moves through is never presented frame by frame. */
+    get driven(): boolean;
     setScheduler(s: FrameScheduler): void;
     /** One frame: read `now` once, tick every ticker with that same value,
      *  drop the finished, then either re-arm for the next frame or go idle. A

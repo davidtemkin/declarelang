@@ -65,15 +65,9 @@ export default async (ctx) => {
   const { drive } = ctx;
   await drive.profileFromBoot({ itemize: ${itemize}, why: ${why} });
   if (typeof scenario.default === "function") await scenario.default(ctx);
-  // the idle: real time, and the program's own timers kept in step with it — the
-  // harness holds a delayed timer until its clock is advanced, and a profile should
-  // see an afterDelay fire when it would on a page
-  for (let end = Date.now() + ${idle}, last = Date.now(); Date.now() < end;) {
-    await new Promise((r) => setTimeout(r, 50));
-    const now = Date.now();
-    await drive.page.evaluate((ms) => globalThis.__declareTimers?.advance?.(ms), now - last);
-    last = now;
-  }
+  // the idle: the program runs live for real time — real frames, its own time
+  // keeping pace — as a profile of a page should see it
+  await drive.waitReal(${idle});
   const { report, text } = await drive.profileReport();
   console.log("<<<PROFILE");
   console.log(${json} ? JSON.stringify(report, null, 2) : text);

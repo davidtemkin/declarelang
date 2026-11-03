@@ -33,7 +33,7 @@ import { DeclareError } from "./errors.js";
 import { applyH, frontFacing, homography, inFront, invertH } from "./projective.js";
 const FIT_FRAC = { start: 0, center: 0.5, end: 1 };
 import { IDENTITY as IDENTITY_AFFINE, apply as applyAffine, fromParts as affineFromParts, invert as invertAffine, isIdentity as affineIsIdentity, rotationOf as affineRotationOf, scaleOf as affineScaleOf } from "./affine.js";
-import { inAnimationFrame, DEFAULT_MOTION } from "./animate.js";
+import { inAnimationFrame, DEFAULT_MOTION, sharedClock } from "./animate.js";
 import { sample, motionToken } from "./easing.js";
 import { ScrollPhysics } from "./scroll-physics.js";
 const MICROTASK_PAINT = -1;
@@ -1154,8 +1154,9 @@ class Compositor {
     frostWantsRest(f) {
         this.frostsResting.add(f);
         if (this.frostRestTimer !== 0)
-            clearTimeout(this.frostRestTimer);
-        this.frostRestTimer = setTimeout(() => {
+            clearPlatformTimeout(this.frostRestTimer);
+        // the platform's time: rendering rests by the screen's clock, never a harness's
+        this.frostRestTimer = platformTimeout(() => {
             this.frostRestTimer = 0;
             for (const s of this.frostsResting)
                 this.invalidate(s);
@@ -1293,7 +1294,7 @@ class Compositor {
         this.frame = 0;
         memoGeneration++;
         const now = performance.now();
-        this.inMotion = now - this.lastPaintAt < RASTER_GRACE_MS;
+        this.inMotion = !sharedClock.driven && now - this.lastPaintAt < RASTER_GRACE_MS;
         this.lastPaintAt = now;
         const { canvas, ctx, root } = this;
         if (canvas === null || ctx === null || root === null)
@@ -1926,7 +1927,7 @@ class CanvasSurface {
         this.rasterSeen = null;
         this.rasterScalePending = null;
         if (this.rasterRestTimer !== 0) {
-            clearTimeout(this.rasterRestTimer);
+            clearPlatformTimeout(this.rasterRestTimer);
             this.rasterRestTimer = 0;
         }
         this.compositor.invalidate(this);
@@ -2026,7 +2027,8 @@ class CanvasSurface {
                 this.rasterScalePending = { sx, sy, since: now };
             }
             const stable = this.rasterScalePending;
-            if (now - stable.since < RASTER_GRACE_MS) {
+            // a driven clock's steps are not frames on a screen: no transition to blit through
+            if (!sharedClock.driven && now - stable.since < RASTER_GRACE_MS) {
                 e.stamp = ++memoStamp;
                 e.seen = memoGeneration;
                 ctx.save();
@@ -2035,8 +2037,8 @@ class CanvasSurface {
                 ctx.drawImage(e.canvas, m.e + m.a * e.bx, m.f + m.d * e.by, e.canvas.width * (sx / e.sx), e.canvas.height * (sy / e.sy));
                 ctx.restore();
                 if (this.rasterRestTimer !== 0)
-                    clearTimeout(this.rasterRestTimer);
-                this.rasterRestTimer = setTimeout(() => { this.rasterRestTimer = 0; this.compositor.invalidate(this); }, RASTER_GRACE_MS + 15);
+                    clearPlatformTimeout(this.rasterRestTimer);
+                this.rasterRestTimer = platformTimeout(() => { this.rasterRestTimer = 0; this.compositor.invalidate(this); }, RASTER_GRACE_MS + 15);
                 return;
             }
             this.rasterScalePending = null; // quiet for the beat: fall through to the exact raster
@@ -3129,7 +3131,7 @@ class CanvasSurface {
         releaseRaster(this); // the memo pool must not outlive the surface
         this.rasterPending = null;
         if (this.rasterRestTimer !== 0) {
-            clearTimeout(this.rasterRestTimer);
+            clearPlatformTimeout(this.rasterRestTimer);
             this.rasterRestTimer = 0;
         }
         this.editEl?.remove();
