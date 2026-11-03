@@ -180,7 +180,7 @@ class SizeGroup extends Disclosure [ width = 100%,
     // recedes in either appearance as a recess, not a raised card
 
     draw(d: DrawContext) {
-        const h = this.line.height, r = 8
+        const h = this._line.height, r = 8
         d.fillStyle = provided("theme").background
         d.beginPath()
         d.moveTo(r, 0); d.lineTo(this.width - r, 0); d.arcTo(this.width, 0, this.width, r, r)

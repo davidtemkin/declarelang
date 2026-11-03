@@ -8,7 +8,7 @@ script {
             "calDom": {
                 "app": 12.3,
                 "lib": 10.4,
-                "core": 38.9,
+                "core": 39,
                 "view": 12.3,
                 "backend": 15.2,
                 "input": 20.4,
@@ -24,7 +24,7 @@ script {
             "calCanvas": {
                 "app": 12.3,
                 "lib": 10.4,
-                "core": 38.3,
+                "core": 38.4,
                 "view": 12.1,
                 "backend": 35.3,
                 "input": 23.8,
@@ -40,7 +40,7 @@ script {
             "calMac": {
                 "app": 12.3,
                 "lib": 10.4,
-                "core": 38.9,
+                "core": 39,
                 "view": 12.3,
                 "backend": 8.7,
                 "input": 20.4,
@@ -54,9 +54,9 @@ script {
                 "ker": 0
             },
             "totals": {
-                "calDom": 160.5,
-                "calCanvas": 185.4,
-                "calMac": 136.2
+                "calDom": 160.6,
+                "calCanvas": 185.5,
+                "calMac": 136.3
             }
         },
         "runtimeKB": 122.7,
