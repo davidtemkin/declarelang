@@ -81,7 +81,7 @@ kinds, reported in this order:
 Each kind is printed once per code, with how many places share it (`--all` lists every
 one). When a kind doesn't apply to a program, the program says so in its
 [`defaultFlags`](declare-docs:language:defaultFlags) rather than reading past it:
-`devices = desk` for a program that is only for a desk, `lint = false` for one that has
+`devices = desktop` for a program that is only for a desktop, `lint = false` for one that has
 decided against the advice, `accessibility = false` for one that is all drawing. What a
 flag quiets is still counted on every run. Errors and bugs are never quieted.
 

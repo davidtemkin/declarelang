@@ -1046,6 +1046,15 @@ bootHost(cfg);
           step(`${touching() ? "tap" : "click"} ${path} at (${x}, ${y})`);
           await press(p.x, p.y);
         },
+        /** Two presses as one gesture — what `onDblClick` answers — on the
+         *  view, or at a point inside it. */
+        async dblclick(path, x, y) {
+          const p = await reach(path, x === undefined ? null : { x, y });
+          step(`double-${touching() ? "tap" : "click"} ${path}${x === undefined ? "" : ` at (${x}, ${y})`}`);
+          if (touching()) { await page.touchscreen.tap(p.x, p.y); await page.touchscreen.tap(p.x, p.y); }
+          else await page.mouse.click(p.x, p.y, { count: 2 });
+          await landed();
+        },
         async drag(path, dx, dy = 0, steps = 10) {
           const c = await reach(path, null, { drag: true });
           step(`drag ${path} by (${dx}, ${dy})`);
@@ -1185,7 +1194,9 @@ bootHost(cfg);
          *  real; this is the one that does. */
         async waitReal(ms) {
           await new Promise((r) => setTimeout(r, ms));
-          await this.wait(50);
+          // the app's clock is held between steps: run it through the same
+          // `ms`, so an afterDelay due in that time fires as it would have
+          await this.wait(ms);
         },
         /** Let `ms` of the app's time pass: its clock is driven through it a
          *  frame at a time — motion moves, later calls (`afterDelay`, a hold's

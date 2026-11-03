@@ -133,7 +133,7 @@ class Slider extends ValueControl [
 
     // keyboard focus rings the circular grabber — the part the keys move
 
-    focusShape() { return ({ x: this.thumb.x, y: this.thumb.y, w: this.thumb.width, h: this.thumb.height, rad: this.thumb.width / 2 }) },
+    focusShape() { return ({ x: this._thumb.x, y: this._thumb.y, w: this._thumb.width, h: this._thumb.height, rad: this._thumb.width / 2 }) },
     width = 220, height = 28,
     value: number = 0,
     fieldValue = { value },
@@ -199,12 +199,12 @@ class Slider extends ValueControl [
 
     dotStyle() { return provided("theme").sliderHandleStyle == "dot" },
 
-    track: View [ height = { provided("theme").sliderTrackHeight }, y = center, cornerRadius = { this.height / 2 }, fill = { provided("theme").trackFill ?? provided("theme").control },
-        x     = { classroot.barStyle() ? classroot.thumb.x + classroot.thumb.width + 5 : 0 },
+    _track: View [ height = { provided("theme").sliderTrackHeight }, y = center, cornerRadius = { this.height / 2 }, fill = { provided("theme").trackFill ?? provided("theme").control },
+        x     = { classroot.barStyle() ? classroot._thumb.x + classroot._thumb.width + 5 : 0 },
         width = { classroot.barStyle() ? Math.max(0, classroot.width - this.x) : classroot.width } ],
-    bar: View [ height = { classroot.track.height }, y = { classroot.track.y }, cornerRadius = { this.height / 2 }, fill = { provided("theme").accent },
-        width = { classroot.barStyle() ? Math.max(0, classroot.thumb.x - 5) : 9 + (classroot.width - 18) * frac } ],
-    thumb: View [
+    _bar: View [ height = { classroot._track.height }, y = { classroot._track.y }, cornerRadius = { this.height / 2 }, fill = { provided("theme").accent },
+        width = { classroot.barStyle() ? Math.max(0, classroot._thumb.x - 5) : 9 + (classroot.width - 18) * frac } ],
+    _thumb: View [
         width  = { classroot.barStyle() ? 5 : classroot.dotStyle() ? 20 : 18 },
         height = { classroot.barStyle() ? 24 : classroot.dotStyle() ? 20 : 18 },
         y      = { classroot.barStyle() ? 2 : classroot.dotStyle() ? 4 : 5 },

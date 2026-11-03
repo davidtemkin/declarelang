@@ -613,7 +613,7 @@ const VOCAB_NOTE = {
   gradient: "build a `Gradient` from an angle and colours",
   stroke: "build a `Stroke`",
   shadow: "build a `Shadow` — the box's own, glyphs' (`textShadow`), or in a `filter` list the painted alpha's",
-  stop: "one colour stop, for `gradient(…)`",
+  colorStop: "one colour stop, for `gradient(…)`",
   frost: "the material pair `[blur(radius), saturate(saturation)]` — what lies beneath the view, blurred under its own fill",
   FilterList: "a list of filters, applied in order — to the view's own paint (`filter`) or to what lies beneath it (`backdrop`); `frost(…)` builds the common backdrop pair",
   ImageFilter: "one function of the filter vocabulary, for `filter` (the view's own paint) and `backdrop` (what lies beneath)",

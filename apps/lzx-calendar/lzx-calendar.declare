@@ -73,7 +73,7 @@ class EventBar [
 
 class InfoButton extends Control [
     width = 14, height = 14, cornerRadius = 7,
-    fill = gradient(stop(0, 0xF4F4F4), stop(1, 0xAEB6BD)),
+    fill = gradient(colorStop(0, 0xF4F4F4), colorStop(1, 0xAEB6BD)),
     stroke = stroke(1, #7C8A92),
 
     glyph: Text [ x = 5, y = 2, fontSize = 9, fontWeight = bold,
@@ -90,7 +90,7 @@ class InfoButton extends Control [
 class PlusMinus [
     isOpen: boolean = false,
     width = 11, height = 11, cornerRadius = 2,
-    fill = gradient(stop(0, 0xE8ECEC), stop(0.5, 0xC2CBCE), stop(1, 0x8A9BA3)),
+    fill = gradient(colorStop(0, 0xE8ECEC), colorStop(0.5, 0xC2CBCE), colorStop(1, 0x8A9BA3)),
     stroke = stroke(1, #46606C),
 
     draw(d: DrawContext) {
@@ -129,13 +129,13 @@ class Nudger [
     val: Text [ x = 5, y = 2, fontSize = 10, textColor = #2E3E48, text = { classroot.label } ],
 
     left: View [ x = { parent.width - 28 }, y = 1, width = 13, height = 14, cornerRadius = 2,
-        fill = gradient(stop(0, 0xE6EAEA), stop(1, 0x99A5AD)),
+        fill = gradient(colorStop(0, 0xE6EAEA), colorStop(1, 0x99A5AD)),
         draw(d: DrawContext) { d.fillStyle = 0x33454F
                   d.beginPath(); d.moveTo(8, 3); d.lineTo(4, 7); d.lineTo(8, 11); d.fill() },
         onClick() { app.stepField(classroot.field, -1) }
         ],
     right: View [ x = { parent.width - 14 }, y = 1, width = 13, height = 14, cornerRadius = 2,
-        fill = gradient(stop(0, 0xE6EAEA), stop(1, 0x99A5AD)),
+        fill = gradient(colorStop(0, 0xE6EAEA), colorStop(1, 0x99A5AD)),
         draw(d: DrawContext) { d.fillStyle = 0x33454F
                   d.beginPath(); d.moveTo(5, 3); d.lineTo(9, 7); d.lineTo(5, 11); d.fill() },
         onClick() { app.stepField(classroot.field, 1) }
@@ -446,8 +446,8 @@ class CalButton extends Control [
     cornerRadius = 8,
 
     fill = { pressed
-        ? gradient(stop(0, 0x8FA0A6), stop(0.35, 0x7D8E96), stop(1, 0x4E626E))
-        : gradient(stop(0, 0xD9DFDF), stop(0.35, 0xB4BDBF), stop(1, 0x5C717D)) },
+        ? gradient(colorStop(0, 0x8FA0A6), colorStop(0.35, 0x7D8E96), colorStop(1, 0x4E626E))
+        : gradient(colorStop(0, 0xD9DFDF), colorStop(0.35, 0xB4BDBF), colorStop(1, 0x5C717D)) },
     stroke = stroke(1, #143B45),
 
     caption: Text [ fontSize = 10, fontWeight = bold, textColor = #FFFFFF,
@@ -1001,7 +1001,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
             logo:  Image [ source = "resources/logo.png" ],
 
             viewBtns: View [ x = 142, y = 4, width = 174, height = 17, cornerRadius = 8,
-                fill = gradient(stop(0, 0xD9DFDF), stop(0.35, 0xB4BDBF), stop(1, 0x5C717D)),
+                fill = gradient(colorStop(0, 0xD9DFDF), colorStop(0.35, 0xB4BDBF), colorStop(1, 0x5C717D)),
                 stroke = stroke(1, #143B45),
 
                 // segment separators + the three tiny icons, drawn
@@ -1041,7 +1041,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
                 ],
 
             monthCtl: View [ x = 321, y = 8, width = 161, height = 17, cornerRadius = 8,
-                fill = gradient(stop(0, 0xBBC3C5), stop(0.4, 0xC5CCCF), stop(1, 0x7A8B94)),
+                fill = gradient(colorStop(0, 0xBBC3C5), colorStop(0.4, 0xC5CCCF), colorStop(1, 0x7A8B94)),
                 stroke = stroke(1, #24424F),
 
                 // the segment separators: incised vertical grooves (dark line

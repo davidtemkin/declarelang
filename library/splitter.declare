@@ -247,7 +247,7 @@ class Splitter extends Control [
                                 : ({ x: b, y: a, w: along - 2 * b, h: 2, rad: 1 })
         },
 
-    line: View [ x = center, y = center, pointerEvents = "none",
+    _line: View [ x = center, y = center, pointerEvents = "none",
         width = { classroot.axis == "x" ? (classroot.active ? 2 : 1) : parent.width },
         height = { classroot.axis == "x" ? parent.height : (classroot.active ? 2 : 1) },
         cornerRadius = { classroot.active ? 1 : 0 },

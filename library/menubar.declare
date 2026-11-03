@@ -57,7 +57,8 @@ stay themed either way** — this is the bar's own ink, not the menu's.
 Which title's menu is open, by id — `""` when none is.
 
 ## shown
-Whether any menu in the bar is currently open.
+Whether any menu in the bar is currently open. The bar opens one `Menu`, its `menu`, under
+whichever title is open; a view outside the bar closes the chain with `menu.rootClose()`.
 
 ## openMenu()
 Opens a title's menu and keeps the bar itself above the menu's backdrop, which is what
@@ -84,7 +85,7 @@ the bar.
 **Internal.** The bar's title views.
 
 ## width
-Content-sized to its row of titles, so it sits in a chrome bar without a stated width.
+Content-sized to its `row` of titles (a script presses one by its place: `app.bar.row.0`), so it sits in a chrome bar without a stated width.
 
 ## selectable
 Chrome, never prose: the titles do not select, even inside a `selectable` region — the same provision every `Control` makes for its label.
@@ -123,7 +124,7 @@ class MenuBar [
 
     // every item's key: is a shortcut for the whole program (planes.md §9)
 
-    shortcuts: Shortcuts [ on = { app }, title = "",
+    _shortcuts: Shortcuts [ on = { app }, title = "",
         items = { (classroot.menus ?? []).flatMap((m) => ((m as any).items ?? []).filter((r) => r.key != null && r.key != "").map((r) => ({ menu: "" + (m as any).label, ...r }))) },
         picked(id: string) { classroot.picked(id) }
         ],
@@ -172,7 +173,7 @@ class MenuBar [
         if (t != null) this.openMenu(t)
         },
 
-    keys: Keys [
+    _keys: Keys [
         onKeyDown(e: KeyEvent) {
             if (!classroot.menu.shown) return
             if (classroot.menu._subShown(classroot.menu.child)) return
@@ -191,11 +192,11 @@ class MenuBar [
         picked(id: string) { classroot.picked(id) }
         ],
 
-    data: Dataset [ contents = { { m: classroot.menus || [] } } ],
+    _data: Dataset [ contents = { { m: classroot.menus || [] } } ],
 
     row: View [ height = 100%,
         layout: SimpleLayout [ axis = x, spacing = 2 ],
-        datapath = { classroot.data.value },
+        datapath = { classroot._data.value },
 
         // the title highlight is the Mac's: inset above and below (the bar is
         // taller than the capsule), radius between rounded-rect and pill

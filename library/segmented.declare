@@ -136,7 +136,7 @@ selection as it slides.
 Content-sized: every segment at least `segMin` wide, so short labels never squeeze.
 
 ## datapath
-Roots the control on its own `items` data, so the segments replicate from `choices` without the author writing a datapath.
+Roots the control on its own data, so the segments replicate from `choices` without the author writing a datapath.
 
 ## height
 From the theme's `segmentedHeight` (30 by default); the labels' size is `segmentedFontSize` (13).
@@ -283,7 +283,7 @@ class Segmented [
     Spring [ attribute = lane, to = { classroot.idx < 0 ? 0 : classroot.idx },
         stiffness = 260, damping = 30, mass = 0.9, epsilon = 0.002 ],
 
-    pill: View [ y = 2, height = { parent.height - 4 }, cornerRadius = { Math.max(0, (parent as Segmented)._rad - 2) },
+    _pill: View [ y = 2, height = { parent.height - 4 }, cornerRadius = { Math.max(0, (parent as Segmented)._rad - 2) },
         x = { 2 + (parent as Segmented).lane * (parent as Segmented).segW },
         width = { (parent as Segmented).segW },
         visible = { (parent as Segmented).idx >= 0 },
@@ -294,7 +294,7 @@ class Segmented [
     // (`segmentDividerColor`; none by default). One beside the pill fades as
     // the pill reaches it, so they part around the selection as it slides.
 
-    rules: View [ width = 100%, height = 100%, pointerEvents = "none",
+    _rules: View [ width = 100%, height = 100%, pointerEvents = "none",
         visible = { provided("theme").segmentDividerColor != null },
         draw(d: DrawContext) {
             const s = parent as Segmented
@@ -312,12 +312,12 @@ class Segmented [
     // The index rides in the data — replication has no ordinal of its own, and
     // the pill needs one to place each segment.
 
-    items: Dataset [ contents = { { rows: ((classroot.choices ?? []) as any).map((c, i) => ({ ...c, i: i })) } } ],
+    _items: Dataset [ contents = { { rows: ((classroot.choices ?? []) as any).map((c, i) => ({ ...c, i: i })) } } ],
 
     // Replicated as direct children, so a segment's `parent` is the control
     // itself — the pill and the segments are siblings over one cursor.
 
-    datapath = { this.items.value },
+    datapath = { this._items.value },
     SegmentedItem [ datapath = :rows[] ]
     ]
 
@@ -345,7 +345,7 @@ class SegmentedItem extends Control [
     // Rest, hover and press only — the chosen state is the sliding pill behind
     // these, not a fill of their own. That is what lets it travel between them.
 
-    bg: View [ x = 2, y = 2, width = { parent.width - 4 }, height = { parent.height - 4 },
+    _bg: View [ x = 2, y = 2, width = { parent.width - 4 }, height = { parent.height - 4 },
         cornerRadius = { Math.max(0, (parent.parent as Segmented)._rad - 2) },
         stateFill: Color? = { parent.pressed ? provided("theme").controlPressed : parent.hovered ? provided("theme").controlHovered : null },
         fill = { parent.on ? null : this.stateFill }
@@ -357,12 +357,12 @@ class SegmentedItem extends Control [
 
     ink: Color = { this.on || this.hovered ? provided("theme").text : provided("theme").textMuted },
 
-    t: TextLabel [ wrap = false, fontSize = { provided("theme").segmentedFontSize }, fontWeight = medium, x = center,
+    _t: TextLabel [ wrap = false, fontSize = { provided("theme").segmentedFontSize }, fontWeight = medium, x = center,
         visible = { :label != null && :icon == null },
         textColor = { parent.ink },
         text = { "" + (:label ?? "") } ],
 
-    ico: IconHost [ kind = { "" + (:icon ?? "") }, ink = { parent.ink }, x = center, y = center ],
+    _ico: IconHost [ kind = { "" + (:icon ?? "") }, ink = { parent.ink }, x = center, y = center ],
 
     // The control's own disabled flag follows the group's — a segment is not
     // separately disable-able, and a disabled group takes itself out of the tab

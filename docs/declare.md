@@ -271,7 +271,7 @@ literal names or that live outside its folder; `compiler = true`, it compiles so
 true`, it answers questions about itself in production ([Packaging](declare-docs:guide:packaging)). A
 literal `program = "name"` or `url = "path"` needs no entry, and hosts that carry sources and a compiler read none of it.
 **`defaultFlags [ … ]`** gives the program's own defaults for the platform's flags — `render = canvas`,
-`kernel = js`, `crawler = true`, `accessibility = false`, `lint = false`, `devices = desk` (these two quiet warnings) — which a request's `?render=` or `declarec --render=` overrides; a
+`kernel = js`, `crawler = true`, `accessibility = false`, `lint = false`, `devices = desktop` (these two quiet warnings) — which a request's `?render=` or `declarec --render=` overrides; a
 program has at most one, in any of its files ([Renderers](declare-docs:guide:renderers), [defaultFlags](declare-docs:language:defaultFlags)). **`theme Name [ … ]`** and **`style Name [ … ]`** are named records of
 literal values — a token record, and the style of a run of text with no view (§9).
 

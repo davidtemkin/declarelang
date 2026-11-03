@@ -55,7 +55,8 @@ The columns, as records, in their first order: `id` (the field shown, and the co
 name), `title` (the header; the id when absent), `width` (in pixels; 120 when absent),
 and optionally `cell` (the name of a class drawn in each of the column's cells) or `edit`
 (`true` for text fields). **The column model follows this list**: add, remove or change a
-record and the grid follows.
+record and the grid follows. The model itself is the grid's `colData`, a `Dataset` whose
+`cols` are these records in their present order and width, with their x offsets.
 
 ## headingClass
 The name of the class that draws a heading row — `""` for the grid's own, the record's
@@ -99,7 +100,8 @@ Toggles the sort on a column: same column flips direction, a new column starts
 ascending. Routes through `sortInput`.
 
 ## headerH
-The header row's height.
+The height of the header row, `hdr`, which paints in the grid's parent above the scroll
+region, so no row slides under it.
 
 ## selectable()
 `Table`'s, answered here: a heading record is not selectable, every other record is.
@@ -564,8 +566,8 @@ class DataGrid extends Table [
 /*
 # DataGridRow
 
-**Internal.** A row of a `DataGrid`, one per item, holding one `DataGridCell` per column
-placed from the column model.
+**Internal.** A row of a `DataGrid`, one per item, holding one `DataGridCell` per column in
+its `cells` view, placed from the column model.
 
 ## rec
 The row's record, as a derived attribute, so its cells follow the record's changes.
@@ -759,7 +761,7 @@ class DataGridCell [ x = { :x }, width = { :width }, height = 100%, clip = true,
 
     _editor() -> TextInput? {
         const d = this._drawn()
-        return d != null && (d as DataGridEdit)._isGridEdit === true ? (d as DataGridEdit).ed : null
+        return d != null && (d as DataGridEdit)._isGridEdit === true ? (d as DataGridEdit)._ed : null
         },
 
     _firstControl() -> View? {
@@ -831,7 +833,7 @@ class DataGridCell [ x = { :x }, width = { :width }, height = 100%, clip = true,
 /*
 # DataGridText
 
-**Internal.** What a `DataGrid` column with no `cell` draws: its field, as text.
+**Internal.** What a `DataGrid` column with no `cell` draws: its field, as text, in its `t`.
 
 ## field
 The field shown — its column's id.
@@ -869,7 +871,7 @@ class DataGridEdit [ width = 100%, height = 100%,
     _before: string = "",
     write(v: string) { :@[(field)] = v },
 
-    ed: TextInput [ x = 4, y = 3, fontSize = { provided("theme").gridFontSize },
+    _ed: TextInput [ x = 4, y = 3, fontSize = { provided("theme").gridFontSize },
         accessibilityLabel = { (classroot.parent as DataGridCell)._isGridCell === true ? "" + (classroot.parent as any).title : "" },
         width = { parent.width - 8 },
         height = { parent.height - 6 },

@@ -271,7 +271,7 @@ packages. The runtime and compiler come built; there is no build step.
 
 - **Check as you go** with `npx declare-verify app.declare`: in a second or two it compiles
   the program, checks it, and boots it in a browser at a laptop's size (`--phone` for a
-  phone's, `--phone --desk` for both, when the program is for phones) —
+  phone's, `--phone --desktop` for both, when the program is for phones) —
   syntax, names, types, that it starts, and what it can see wrong in the layout (a child
   spilling out of a box sized by its content, text past its box or the window, a target too
   small for a finger). A program that never finishes is stopped, and its line quoted. Each error names its fix;

@@ -30,7 +30,7 @@ import { phasesOn, phased } from "./phase-timer.js"; // dependency-free: the mea
 import { rewriteDatapaths } from "./datapath.js";
 import { diag } from "./errors.js";
 import { keysCaller } from "./keys.js";
-import { colorWithAlpha, gradient, outline, shadow, stop, stroke } from "./value.js";
+import { colorWithAlpha, gradient, outline, shadow, colorStop, stroke } from "./value.js";
 import { blur, brightness, conicGradient, contrast, frost, grayscale, hueRotate, invert, radialGradient, saturate, sepia, colorize } from "./effects.js";
 // The ruled value constructors, in scope inside every `{ }` body — the "one
 // vocabulary, two lexical homes" ruling: the same names the literal grammar
@@ -39,7 +39,7 @@ import { blur, brightness, conicGradient, contrast, frost, grayscale, hueRotate,
 // leading hidden argument (never globals); the compile layer leaves
 // CALLEE-position uses of these names unresolved so `stroke(…)` is the
 // constructor while bare `stroke` stays the slot.
-const DECOR = { gradient, radialGradient, conicGradient, stroke, outline, shadow, stop, frost, blur, brightness, contrast, saturate, grayscale, invert, sepia, hueRotate, colorize };
+const DECOR = { gradient, radialGradient, conicGradient, stroke, outline, shadow, colorStop, frost, blur, brightness, contrast, saturate, grayscale, invert, sepia, hueRotate, colorize };
 // The lowering target for `0xRRGGBBAA` literals (compile.ts rewrites each 8-hex
 // color literal to a colorWithAlpha(…) call): in scope so the resolved body can
 // call it, but NOT a user-written value constructor — kept out of DECOR so

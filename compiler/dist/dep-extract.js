@@ -46,7 +46,7 @@ function baseOfChain(n) {
 const GLOBALS = new Set(["Inspect", "Math", "Object", "JSON", "Array", "Number", "String", "Boolean", "Date", "console", "parseInt", "parseFloat", "isNaN", "isFinite", "Infinity", "NaN", "undefined", "null", "RegExp", "Symbol", "Map", "Set", "Promise", "Intl", "Error"]);
 // …plus colorWithAlpha, the lowered-alpha helper compile.ts now resolves in
 // callee position (its arguments carry any deps; the call itself is pure).
-const CONSTRUCTORS = new Set(["gradient", "stroke", "shadow", "stop", "colorWithAlpha"]);
+const CONSTRUCTORS = new Set(["gradient", "stroke", "shadow", "colorStop", "colorWithAlpha"]);
 const ITER = new Set(["map", "filter", "find", "findIndex", "some", "every", "reduce", "reduceRight", "forEach", "sort", "flatMap", "slice", "concat", "indexOf", "includes", "join", "keys", "values", "entries", "flat", "at", "reverse", "fill", "findLast"]);
 const PURE_METHODS = new Set(["toFixed", "toString", "toPrecision", "valueOf", "toExponential", "toUpperCase", "toLowerCase", "trim", "trimStart", "trimEnd", "padStart", "padEnd", "charAt", "charCodeAt", "codePointAt", "substring", "substr", "repeat", "startsWith", "endsWith", "split", "replace", "replaceAll", "match", "matchAll", "search", "normalize", "localeCompare", "slice", "at", "indexOf", "lastIndexOf", "includes", "getFullYear", "getMonth", "getDate", "getDay", "getHours", "getMinutes", "getSeconds", "getTime", "getMilliseconds", "getTimezoneOffset", "toISOString", "toLocaleDateString", "toLocaleTimeString", "toLocaleString", "toDateString", "getUTCFullYear", "getUTCMonth", "getUTCDate"]);
 const NODE_COLLECTIONS = new Set(["children", "childViews", "subviews", "views", "members", "instances"]);

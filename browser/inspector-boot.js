@@ -108,6 +108,8 @@ export function originOfElement(el) {
  *  `?inspector`. Called by host-client once the subject app is mounted. */
 export function wireInspector(subject) {
   addEventListener("keydown", (e) => {
+    // the program's own ⌥⌘D wins: a shortcut it declares has taken the press
+    if (e.defaultPrevented) return;
     if (e.altKey && e.metaKey && (e.key === "d" || e.key === "D" || e.code === "KeyD")) {
       e.preventDefault();
       if (mounted !== null && mounted.app.shown) closeInspector();

@@ -1,0 +1,898 @@
+/*
+# Presentify: the model
+
+What a presentation is, and how it reaches the service. `presentify.declare`
+includes this file.
+
+- **The shapes** are the service's own (task/api/API.md): a deck, its slides,
+  and the elements on a slide. A field the service does not define is never
+  sent, so a slide always reads back exactly as it was saved.
+- **Geometry** is a set of plain functions of their arguments (the `script`
+  block): bounds, hit-testing, moving, resizing, grouping, aligning. They take
+  elements and hand back new elements; they never touch a view.
+- **`Doc`** is the open presentation as the person has it: its slides, in
+  order. Every edit is a write to it.
+- **`History`** is undo: whole-deck snapshots, one per thing the person did.
+- **`Saver`** keeps the service in step with `Doc`. It compares the two and
+  sends whatever differs, one request at a time, a moment after the last edit.
+  A refused or unreachable write is kept and tried again; a slide changed in
+  another window is held as a conflict for the person to decide.
+*/
+
+// ── The shapes ──────────────────────────────────────────────────────────────
+
+schema StrokeSpec [ color: string, width: number ]
+
+schema TextSpec [ content: string, font: string, size: number, weight: number, italic: boolean,
+    color: string, align: "left" | "center" | "right" ]
+
+// One element of any kind. Each kind carries only its own fields (API.md);
+// a group carries `children`.
+
+schema El [ id: string, kind: "rect" | "ellipse" | "line" | "text" | "group",
+    x?: number, y?: number, width?: number, height?: number,
+    x1?: number, y1?: number, x2?: number, y2?: number,
+    fill?: string, stroke?: StrokeSpec, cornerRadius?: number, keepProportions?: boolean,
+    text?: TextSpec, children[]?: El ]
+
+// A slide as the editor holds it. `id` is the slide's key here: the
+// service's id for a slide that came from it, a local one for a slide not yet
+// created there (the Saver maps one to the other).
+
+schema Slide [ id: string, background: string, elements[]: El ]
+schema DocValue [ slides[]: Slide ]
+
+schema ServerSlide [ id: string, deckId: string, version: number, background: string, elements[]: El ]
+schema Deck [ id: string, title: string, version: number, updatedAt: string, slideOrder[]: string,
+    thumbnailSlideId?: string ]
+schema DeckSummary [ id: string, title: string, updatedAt: string, slideCount: number, thumbnailSlideId?: string ]
+schema DeckList [ decks[]: DeckSummary ]
+
+// What the Saver last knew the service to hold, per slide key.
+
+schema Mirror [ sid: string, version: number, saved: string ]
+
+// A box in slide points.
+
+schema Box [ x: number, y: number, w: number, h: number ]
+
+// One undo step: the deck, and where the person was in it.
+
+schema Snap [ slides[]: Slide, sel[]: string, cur: string ]
+
+
+// ── Geometry ────────────────────────────────────────────────────────────────
+//
+// Plain TypeScript over element records. Every function returns new records
+// and leaves its arguments alone, so a snapshot taken before an edit stays
+// what it was.
+
+script {
+    type Kind = "rect" | "ellipse" | "line" | "text" | "group"
+    interface Bx { x: number; y: number; w: number; h: number }
+    interface Elm {
+        id: string; kind: Kind
+        x?: number | null; y?: number | null; width?: number | null; height?: number | null
+        x1?: number | null; y1?: number | null; x2?: number | null; y2?: number | null
+        fill?: string | null; stroke?: { color: string; width: number } | null
+        cornerRadius?: number | null; keepProportions?: boolean | null
+        text?: { content: string; font: string; size: number; weight: number; italic: boolean; color: string;
+            align: "left" | "center" | "right" } | null
+        children?: Elm[] | null
+    }
+    type Heights = Record<string, number>
+
+    const SLIDE_W = 1280
+    const SLIDE_H = 720
+
+    function num(v: number | null | undefined): number { return v ?? 0 }
+
+    // ── bounds
+
+    function textHeight(e: Elm, mh: Heights): number {
+        const m = mh[e.id]
+        const min = Math.round((e.text?.size ?? 24) * 1.25)
+        return Math.max(m != null ? m : num(e.height), min)
+    }
+
+    function boundsOf(e: Elm, mh: Heights): Bx {
+        if (e.kind == "group") return unionOf((e.children ?? []).map((c) => boundsOf(c, mh)))
+        if (e.kind == "line") {
+            const x = Math.min(num(e.x1), num(e.x2)), y = Math.min(num(e.y1), num(e.y2))
+            return { x: x, y: y, w: Math.abs(num(e.x2) - num(e.x1)), h: Math.abs(num(e.y2) - num(e.y1)) }
+        }
+        const h = e.kind == "text" ? textHeight(e, mh) : num(e.height)
+        return { x: num(e.x), y: num(e.y), w: num(e.width), h: h }
+    }
+
+    function unionOf(bs: Bx[]): Bx {
+        if (bs.length == 0) return { x: 0, y: 0, w: 0, h: 0 }
+        let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity
+        for (const b of bs) {
+            x0 = Math.min(x0, b.x); y0 = Math.min(y0, b.y)
+            x1 = Math.max(x1, b.x + b.w); y1 = Math.max(y1, b.y + b.h)
+        }
+        return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }
+    }
+
+    function boundsOfIds(els: Elm[], ids: string[], mh: Heights): Bx | null {
+        const found = ids.map((id) => findEl(els, id)).filter((e) => e != null) as Elm[]
+        return found.length == 0 ? null : unionOf(found.map((e) => boundsOf(e, mh)))
+    }
+
+    function intersects(a: Bx, b: Bx): boolean {
+        return a.x <= b.x + b.w && b.x <= a.x + a.w && a.y <= b.y + b.h && b.y <= a.y + a.h
+    }
+
+    // ── finding
+
+    function findEl(els: Elm[], id: string): Elm | null {
+        for (const e of els) {
+            if (e.id == id) return e
+            if (e.kind == "group") { const f = findEl(e.children ?? [], id); if (f) return f }
+        }
+        return null
+    }
+
+    // The top-level element an id lives under (itself, if top-level).
+    function topOf(els: Elm[], id: string): string {
+        for (const e of els) {
+            if (e.id == id) return e.id
+            if (e.kind == "group" && findEl(e.children ?? [], id)) return e.id
+        }
+        return ""
+    }
+
+    // The group directly holding an id, or "" when it is top-level.
+    function parentOf(els: Elm[], id: string, within: string = ""): string {
+        for (const e of els) {
+            if (e.id == id) return within
+            if (e.kind == "group") { const p = parentOf(e.children ?? [], id, e.id); if (p != "#none") return p }
+        }
+        return "#none"
+    }
+
+    function allIds(els: Elm[]): string[] {
+        const out: string[] = []
+        const walk = (list: Elm[]) => { for (const e of list) { out.push(e.id); if (e.kind == "group") walk(e.children ?? []) } }
+        walk(els)
+        return out
+    }
+
+    // Leaves in paint order: a group is drawn as its children, where it stands.
+    function leavesOf(els: Elm[]): Elm[] {
+        const out: Elm[] = []
+        const walk = (list: Elm[]) => { for (const e of list) { if (e.kind == "group") walk(e.children ?? []); else out.push(e) } }
+        walk(els)
+        return out
+    }
+
+    // ── hit-testing (slide points; `tol` is how near a thin thing counts)
+
+    function hitsLeaf(e: Elm, px: number, py: number, tol: number, mh: Heights): boolean {
+        if (e.kind == "line") {
+            const ax = num(e.x1), ay = num(e.y1), bx = num(e.x2), by = num(e.y2)
+            const dx = bx - ax, dy = by - ay
+            const len2 = dx * dx + dy * dy
+            const t = len2 == 0 ? 0 : Math.max(0, Math.min(1, ((px - ax) * dx + (py - ay) * dy) / len2))
+            const qx = ax + t * dx - px, qy = ay + t * dy - py
+            return Math.sqrt(qx * qx + qy * qy) <= Math.max(tol, (e.stroke?.width ?? 1) / 2 + 2)
+        }
+        const b = boundsOf(e, mh)
+        if (e.kind == "ellipse") {
+            const rx = b.w / 2 + tol / 2, ry = b.h / 2 + tol / 2
+            if (rx <= 0 || ry <= 0) return false
+            const nx = (px - b.x - b.w / 2) / rx, ny = (py - b.y - b.h / 2) / ry
+            return nx * nx + ny * ny <= 1
+        }
+        return px >= b.x - tol / 2 && px <= b.x + b.w + tol / 2 && py >= b.y - tol / 2 && py <= b.y + b.h + tol / 2
+    }
+
+    // The deepest element under a point, front to back: a leaf's id.
+    function leafAt(els: Elm[], px: number, py: number, tol: number, mh: Heights): string {
+        for (let i = els.length - 1; i >= 0; i--) {
+            const e = els[i]
+            if (e.kind == "group") { const id = leafAt(e.children ?? [], px, py, tol, mh); if (id != "") return id }
+            else if (hitsLeaf(e, px, py, tol, mh)) return e.id
+        }
+        return ""
+    }
+
+    // What a click picks: the top-level element under the point, or — inside
+    // the group the person has entered — the child of it under the point.
+    function pickAt(els: Elm[], px: number, py: number, tol: number, mh: Heights, entered: string): string {
+        const leaf = leafAt(els, px, py, tol, mh)
+        if (leaf == "") return ""
+        if (entered != "") {
+            const g = findEl(els, entered)
+            if (g && g.kind == "group") {
+                for (const c of g.children ?? []) {
+                    if (c.id == leaf || (c.kind == "group" && findEl(c.children ?? [], leaf))) return c.id
+                }
+            }
+        }
+        return topOf(els, leaf)
+    }
+
+    // The child of a group under a point (for a double-click into it).
+    function childAt(els: Elm[], groupId: string, px: number, py: number, tol: number, mh: Heights): string {
+        const g = findEl(els, groupId)
+        if (!g || g.kind != "group") return ""
+        const leaf = leafAt(g.children ?? [], px, py, tol, mh)
+        if (leaf == "") return ""
+        for (const c of g.children ?? []) if (c.id == leaf || (c.kind == "group" && findEl(c.children ?? [], leaf))) return c.id
+        return ""
+    }
+
+    function idsInBox(els: Elm[], box: Bx, mh: Heights): string[] {
+        return els.filter((e) => intersects(boundsOf(e, mh), box)).map((e) => e.id)
+    }
+
+    // ── changing
+
+    // Replace every element whose id is in `ids`, at any depth.
+    function mapIds(els: Elm[], ids: string[], fn: (e: Elm) => Elm): Elm[] {
+        return els.map((e) => {
+            if (ids.includes(e.id)) return fn(e)
+            if (e.kind == "group") return { ...e, children: mapIds(e.children ?? [], ids, fn) }
+            return e
+        })
+    }
+
+    // Apply to every leaf at or under the given ids (styling a group styles its parts).
+    function mapLeaves(els: Elm[], ids: string[], fn: (e: Elm) => Elm): Elm[] {
+        const deep = (e: Elm): Elm => e.kind == "group" ? { ...e, children: (e.children ?? []).map(deep) } : fn(e)
+        return mapIds(els, ids, deep)
+    }
+
+    function moved(e: Elm, dx: number, dy: number): Elm {
+        if (e.kind == "group") return { ...e, children: (e.children ?? []).map((c) => moved(c, dx, dy)) }
+        if (e.kind == "line") return { ...e, x1: num(e.x1) + dx, y1: num(e.y1) + dy, x2: num(e.x2) + dx, y2: num(e.y2) + dy }
+        return { ...e, x: num(e.x) + dx, y: num(e.y) + dy }
+    }
+
+    function r2(v: number): number { return Math.round(v * 100) / 100 }
+
+    // Map an element from one box to another. Corner radii are lengths, so
+    // they stay; a text box's height is its text's, so only its width maps.
+    function scaledInto(e: Elm, from: Bx, to: Bx): Elm {
+        const sx = from.w == 0 ? 1 : to.w / from.w, sy = from.h == 0 ? 1 : to.h / from.h
+        const mx = (v: number) => r2(to.x + (v - from.x) * sx)
+        const my = (v: number) => r2(to.y + (v - from.y) * sy)
+        if (e.kind == "group") return { ...e, children: (e.children ?? []).map((c) => scaledInto(c, from, to)) }
+        if (e.kind == "line") return { ...e, x1: mx(num(e.x1)), y1: my(num(e.y1)), x2: mx(num(e.x2)), y2: my(num(e.y2)) }
+        const w = Math.max(1, r2(num(e.width) * sx))
+        if (e.kind == "text") return { ...e, x: mx(num(e.x)), y: my(num(e.y)), width: w }
+        return { ...e, x: mx(num(e.x)), y: my(num(e.y)), width: w, height: Math.max(1, r2(num(e.height) * sy)) }
+    }
+
+    // The box a resize handle drags to. `mode` names the edges it holds
+    // ("l", "rb", …). With `keep`, the box keeps its proportions: a corner
+    // scales by the larger pull, a side grows the other dimension about its middle.
+    function resizedBox(b: Bx, mode: string, dx: number, dy: number, keep: boolean): Bx {
+        const hasL = mode.includes("l"), hasR = mode.includes("r"), hasT = mode.includes("t"), hasB = mode.includes("b")
+        let x0 = b.x, y0 = b.y, x1 = b.x + b.w, y1 = b.y + b.h
+        if (hasL) x0 = Math.min(x1 - 1, x0 + dx)
+        if (hasR) x1 = Math.max(x0 + 1, x1 + dx)
+        if (hasT) y0 = Math.min(y1 - 1, y0 + dy)
+        if (hasB) y1 = Math.max(y0 + 1, y1 + dy)
+        if (!keep || b.w == 0 || b.h == 0) return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 }
+        const ratio = b.w / b.h
+        let w = x1 - x0, h = y1 - y0
+        const sideOnly = (hasL || hasR) != (hasT || hasB)
+        if (sideOnly) {
+            if (hasL || hasR) { h = w / ratio; const cy = b.y + b.h / 2; y0 = cy - h / 2 }
+            else { w = h * ratio; const cx = b.x + b.w / 2; x0 = cx - w / 2; x1 = x0 + w }
+            if (hasL) x0 = x1 - w
+            return { x: x0, y: y0, w: w, h: h }
+        }
+        const s = Math.max(w / b.w, h / b.h)
+        w = b.w * s; h = b.h * s
+        const nx = hasL ? b.x + b.w - w : b.x
+        const ny = hasT ? b.y + b.h - h : b.y
+        return { x: nx, y: ny, w: w, h: h }
+    }
+
+    // A box dragged out from one corner to another; `square` makes it square.
+    function dragBox(x0: number, y0: number, x1: number, y1: number, square: boolean): Bx {
+        let w = x1 - x0, h = y1 - y0
+        if (square) { const s = Math.max(Math.abs(w), Math.abs(h)); w = Math.sign(w || 1) * s; h = Math.sign(h || 1) * s }
+        return { x: r2(Math.min(x0, x0 + w)), y: r2(Math.min(y0, y0 + h)), w: r2(Math.abs(w)), h: r2(Math.abs(h)) }
+    }
+
+    // A line's free end, at 45° steps with shift.
+    function lineEnd(x0: number, y0: number, x1: number, y1: number, snap45: boolean): number[] {
+        if (!snap45) return [r2(x1), r2(y1)]
+        const dx = x1 - x0, dy = y1 - y0
+        const len = Math.sqrt(dx * dx + dy * dy)
+        const a = Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * (Math.PI / 4)
+        return [r2(x0 + Math.cos(a) * len), r2(y0 + Math.sin(a) * len)]
+    }
+
+    // ── structure: order, groups, copies
+
+    function moveInList(list: Elm[], ids: string[], op: string): Elm[] {
+        const picked = list.filter((e) => ids.includes(e.id))
+        if (picked.length == 0) return list.map((e) => e.kind == "group" ? { ...e, children: moveInList(e.children ?? [], ids, op) } : e)
+        const rest = list.filter((e) => !ids.includes(e.id))
+        if (op == "front") return [...rest, ...picked]
+        if (op == "back") return [...picked, ...rest]
+        const out = [...list]
+        if (op == "forward") {
+            for (let i = out.length - 2; i >= 0; i--) {
+                if (ids.includes(out[i].id) && !ids.includes(out[i + 1].id)) { const t = out[i]; out[i] = out[i + 1]; out[i + 1] = t }
+            }
+        } else {
+            for (let i = 1; i < out.length; i++) {
+                if (ids.includes(out[i].id) && !ids.includes(out[i - 1].id)) { const t = out[i]; out[i] = out[i - 1]; out[i - 1] = t }
+            }
+        }
+        return out
+    }
+
+    // Group top-level elements; the group takes the place of the frontmost.
+    function grouped(els: Elm[], ids: string[], gid: string): Elm[] {
+        const kids = els.filter((e) => ids.includes(e.id))
+        if (kids.length < 2) return els
+        let last = -1
+        els.forEach((e, i) => { if (ids.includes(e.id)) last = i })
+        const out: Elm[] = []
+        els.forEach((e, i) => {
+            if (i == last) out.push({ id: gid, kind: "group", children: kids })
+            else if (!ids.includes(e.id)) out.push(e)
+        })
+        return out
+    }
+
+    // Without the given ids, at any depth; a group left with one part
+    // becomes that part, and an empty one goes.
+    function pruned(els: Elm[], ids: string[]): Elm[] {
+        const out: Elm[] = []
+        for (const e of els) {
+            if (ids.includes(e.id)) continue
+            if (e.kind == "group") {
+                const kids = pruned(e.children ?? [], ids)
+                if (kids.length >= 2) out.push({ ...e, children: kids })
+                else if (kids.length == 1) out.push(kids[0])
+            } else out.push(e)
+        }
+        return out
+    }
+
+    function ungrouped(els: Elm[], gid: string): Elm[] {
+        const out: Elm[] = []
+        for (const e of els) {
+            if (e.id == gid && e.kind == "group") out.push(...(e.children ?? []))
+            else if (e.kind == "group") out.push({ ...e, children: ungrouped(e.children ?? [], gid) })
+            else out.push(e)
+        }
+        return out
+    }
+
+    function freshId(taken: string[]): string {
+        let id = ""
+        do { id = "e" + Math.random().toString(36).slice(2, 8) } while (taken.includes(id))
+        taken.push(id)
+        return id
+    }
+
+    // Copies with ids new to a slide, offset by (dx, dy).
+    function copiesOf(list: Elm[], taken: string[], dx: number, dy: number): Elm[] {
+        const renew = (e: Elm): Elm => e.kind == "group"
+            ? { ...e, id: freshId(taken), children: (e.children ?? []).map(renew) }
+            : { ...e, id: freshId(taken) }
+        return list.map((e) => moved(renew(e), dx, dy))
+    }
+
+    // ── aligning and distributing (a single element aligns to the slide)
+
+    function aligned(els: Elm[], ids: string[], how: string, mh: Heights): Elm[] {
+        const all = boundsOfIds(els, ids, mh)
+        if (!all) return els
+        const ref = ids.length == 1 ? { x: 0, y: 0, w: SLIDE_W, h: SLIDE_H } : all
+        return mapIds(els, ids, (e) => {
+            const b = boundsOf(e, mh)
+            let dx = 0, dy = 0
+            if (how == "left") dx = ref.x - b.x
+            else if (how == "center") dx = ref.x + ref.w / 2 - (b.x + b.w / 2)
+            else if (how == "right") dx = ref.x + ref.w - (b.x + b.w)
+            else if (how == "top") dy = ref.y - b.y
+            else if (how == "middle") dy = ref.y + ref.h / 2 - (b.y + b.h / 2)
+            else if (how == "bottom") dy = ref.y + ref.h - (b.y + b.h)
+            return moved(e, r2(dx), r2(dy))
+        })
+    }
+
+    // Equal gaps between neighbours, the outermost two staying put.
+    function distributed(els: Elm[], ids: string[], across: boolean, mh: Heights): Elm[] {
+        const items = ids.map((id) => findEl(els, id)).filter((e) => e != null) as Elm[]
+        if (items.length < 3) return els
+        const bs = items.map((e) => ({ id: e.id, b: boundsOf(e, mh) }))
+        bs.sort((p, q) => across ? p.b.x - q.b.x : p.b.y - q.b.y)
+        const first = bs[0].b, lastB = bs[bs.length - 1].b
+        const span = across ? lastB.x + lastB.w - first.x : lastB.y + lastB.h - first.y
+        const total = bs.reduce((n, p) => n + (across ? p.b.w : p.b.h), 0)
+        const gap = (span - total) / (bs.length - 1)
+        const shift: Record<string, number> = {}
+        let at = across ? first.x : first.y
+        for (const p of bs) {
+            shift[p.id] = at - (across ? p.b.x : p.b.y)
+            at = at + (across ? p.b.w : p.b.h) + gap
+        }
+        return mapIds(els, ids, (e) => across ? moved(e, r2(shift[e.id] ?? 0), 0) : moved(e, 0, r2(shift[e.id] ?? 0)))
+    }
+
+    // ── snapping a moving box to the slide and its neighbours
+    //
+    // Returns the nudge that lands the box's nearest edge or middle on a
+    // guide, and the guides it landed on, each axis independently.
+
+    function snapMove(box: Bx, others: Bx[], tol: number): { dx: number; dy: number; v: number[]; h: number[] } {
+        const xs = [0, SLIDE_W / 2, SLIDE_W], ys = [0, SLIDE_H / 2, SLIDE_H]
+        for (const o of others) { xs.push(o.x, o.x + o.w / 2, o.x + o.w); ys.push(o.y, o.y + o.h / 2, o.y + o.h) }
+        const best = (edges: number[], lines: number[]) => {
+            let d = Infinity
+            for (const e of edges) for (const l of lines) if (Math.abs(l - e) < Math.abs(d)) d = l - e
+            return Math.abs(d) <= tol ? d : 0
+        }
+        const bx = [box.x, box.x + box.w / 2, box.x + box.w], by = [box.y, box.y + box.h / 2, box.y + box.h]
+        const dx = best(bx, xs), dy = best(by, ys)
+        const near = (v: number, lines: number[]) => lines.some((l) => Math.abs(l - v) < 0.01)
+        const v = xs.filter((l, i) => xs.indexOf(l) == i && bx.some((e) => Math.abs(e + dx - l) < 0.01))
+        const h = ys.filter((l, i) => ys.indexOf(l) == i && by.some((e) => Math.abs(e + dy - l) < 0.01))
+        return { dx: dx, dy: dy, v: near(0, []) ? [] : v, h: h }
+    }
+
+    // Snapping one dragged edge (a resize) to the same guides.
+    function snapEdge(v: number, lines: number[], tol: number): number {
+        let best = v, d = tol + 1
+        for (const l of lines) if (Math.abs(l - v) < d) { d = Math.abs(l - v); best = l }
+        return d <= tol ? best : v
+    }
+
+    function guideLines(others: Bx[], across: boolean): number[] {
+        const out = across ? [0, SLIDE_W / 2, SLIDE_W] : [0, SLIDE_H / 2, SLIDE_H]
+        for (const o of others) {
+            if (across) out.push(o.x, o.x + o.w / 2, o.x + o.w)
+            else out.push(o.y, o.y + o.h / 2, o.y + o.h)
+        }
+        return out
+    }
+
+    // ── what the service is sent: exactly the fields the format defines
+
+    function slideBody(background: string, elements: Elm[]): string {
+        return JSON.stringify({ background: background, elements: elements })
+    }
+
+    // ── colours
+
+    // "#RRGGBB" or "#RRGGBBAA" → [rgb, alpha 0–255]; anything else → null.
+    function parseHex(s: string | null | undefined): number[] | null {
+        if (s == null) return null
+        const m = /^#?([0-9a-fA-F]{6})([0-9a-fA-F]{2})?$/.exec(s.trim())
+        if (!m) return null
+        return [parseInt(m[1], 16), m[2] ? parseInt(m[2], 16) : 255]
+    }
+
+    function normalHex(s: string): string {
+        const p = parseHex(s.startsWith("#") ? s : "#" + s)
+        if (!p) return ""
+        const hex = "#" + p[0].toString(16).padStart(6, "0").toUpperCase()
+        return p[1] == 255 ? hex : hex + p[1].toString(16).padStart(2, "0").toUpperCase()
+    }
+
+    // Is a colour dark (so white reads on it)?
+    function isDark(s: string): boolean {
+        const p = parseHex(s)
+        if (!p) return false
+        const r = (p[0] >> 16) & 255, g = (p[0] >> 8) & 255, b = p[0] & 255
+        return 0.299 * r + 0.587 * g + 0.114 * b < 140
+    }
+
+    // ── when, in words
+
+    function ago(iso: string, now: number): string {
+        const t = Date.parse(iso)
+        if (isNaN(t)) return ""
+        const s = Math.max(0, Math.round((now - t) / 1000))
+        if (s < 45) return "Edited just now"
+        const m = Math.round(s / 60)
+        if (m < 60) return "Edited " + m + (m == 1 ? " minute ago" : " minutes ago")
+        const h = Math.round(m / 60)
+        if (h < 24) return "Edited " + h + (h == 1 ? " hour ago" : " hours ago")
+        const d = Math.round(h / 24)
+        if (d < 7) return "Edited " + (d == 1 ? "yesterday" : d + " days ago")
+        return "Edited " + new Date(t).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })
+    }
+    }
+
+
+// The page itself: a warning before closing it while changes are on their way.
+
+script [ host = browser ] {
+    let unsaved = false
+    window.addEventListener("beforeunload", (e) => { if (unsaved) { e.preventDefault(); e.returnValue = "" } })
+    function guardUnload(on: boolean) { unsaved = on }
+
+    // Presenting fills the screen. Leaving full screen (Esc, or the
+    // browser's own control) ends presenting.
+    function enterFullscreen(onLeave: () => void) {
+        const el = document.documentElement
+        const leave = () => {
+            if (!document.fullscreenElement) { document.removeEventListener("fullscreenchange", leave); onLeave() }
+        }
+        if (el.requestFullscreen && !document.fullscreenElement) {
+            el.requestFullscreen().then(() => document.addEventListener("fullscreenchange", leave)).catch(() => {})
+        }
+    }
+    function leaveFullscreen() { if (document.fullscreenElement) document.exitFullscreen().catch(() => {}) }
+    }
+
+// ── The open presentation ───────────────────────────────────────────────────
+//
+// The slides, in order, as the person has them. Views bind to it; every
+// change goes through one of these verbs.
+
+class Doc extends Dataset [ schema = DocValue,
+    slides() -> Slide[] { return this.value?.slides ?? [] },
+    indexOf(key: string) -> number { return this.slides().findIndex((s) => s.id == key) },
+    slide(key: string) -> Slide? { return this.slides().find((s) => s.id == key) ?? null },
+    elements(key: string) -> El[] { return this.slide(key)?.elements ?? [] },
+
+    load(slides: Slide[]) { this.set([], ({ slides: slides })) },
+    setElements(key: string, els: El[]) {
+        const i = this.indexOf(key)
+        if (i >= 0) this.set(["slides", i, "elements"], els)
+        },
+    setBackground(key: string, c: string) {
+        const i = this.indexOf(key)
+        if (i >= 0) this.set(["slides", i, "background"], c)
+        },
+    replace(key: string, background: string, els: El[]) {
+        const i = this.indexOf(key)
+        if (i >= 0) this.set(["slides", i], ({ id: key, background: background, elements: els }))
+        },
+    insertAt(i: number, s: Slide) { this.insert(["slides"], i, s) },
+    removeKey(key: string) { const i = this.indexOf(key); if (i >= 0) this.removeAt(["slides"], i) },
+    moveSlide(from: number, to: number) { if (from != to) this.move(["slides"], from, to) }
+    ]
+
+
+// ── Undo ────────────────────────────────────────────────────────────────────
+//
+// `base` is the deck as it stood after the last step. When the person
+// finishes doing something, `step` compares the deck with it: if it changed,
+// `base` goes on the undo stack as the step's "before" — with the selection
+// and slide the person had when they began — and the deck becomes the new
+// base. A drag, a run of typing or one inspector change is therefore one step,
+// however many writes it made.
+
+class History extends Node [
+    base: Snap? = null,
+    undos: Snap[] = [],
+    redos: Snap[] = [],
+    canUndo: boolean = { this.undos.length > 0 },
+    canRedo: boolean = { this.redos.length > 0 },
+
+    pending: boolean = false,             // the deck has changed since the last step
+    reset(now: Snap) { base = now; undos = []; redos = []; pending = false },
+
+    // The deck is changing: what the person had selected stays the step's "before".
+
+    touch() { pending = true },
+
+    // Where the person is, while nothing has changed since the last step:
+    // what an undo of the next step returns to.
+
+    note(sel: string[], cur: string) {
+        if (base != null && !pending) base = ({ slides: base.slides, sel: sel, cur: cur })
+        },
+
+    // Close a step. True when something changed.
+
+    step(now: Snap) -> boolean {
+        pending = false
+        if (base == null) { base = now; return false }
+        if (JSON.stringify(now.slides) == JSON.stringify(base.slides)) { base = now; return false }
+        undos = [...undos.slice(-199), base]
+        redos = []
+        base = now
+        return true
+        },
+
+    // Swap the present for the last step's before (or the next step's after).
+
+    back(now: Snap) -> Snap? {
+        if (undos.length == 0) return null
+        const s = undos[undos.length - 1]
+        undos = undos.slice(0, -1)
+        redos = [...redos, now]
+        base = s
+        pending = false
+        return s
+        },
+    forward(now: Snap) -> Snap? {
+        if (redos.length == 0) return null
+        const s = redos[redos.length - 1]
+        redos = redos.slice(0, -1)
+        undos = [...undos, now]
+        base = s
+        pending = false
+        return s
+        }
+    ]
+
+
+// ── Saving ──────────────────────────────────────────────────────────────────
+//
+// The service holds slides one by one, and a deck's order and title. The
+// Saver remembers what it last saw there (`mirror`, `savedOrder`,
+// `savedTitle`) and, each step, sends the first thing that differs from the
+// Doc: a slide deleted here, a slide created here, the order or title, then
+// changed slides. One request at a time, through one source; the reply
+// updates what it remembers, and it takes the next step. When nothing
+// differs, everything is saved.
+//
+// A write the service refuses because the slide changed elsewhere (409) is
+// held in `conflicts` and not sent again until the person decides. A write
+// that can't reach the service is kept: the Saver says so, and tries again.
+
+class Saver extends Node [
+    api: string = "",
+    doc: Doc? = null,
+    deckId: string = "",
+    deckVersion: number = 0,
+    title: string = "",                       // the title as the person has it
+    savedTitle: string = "",
+    savedOrder: string[] = [],                // service slide ids, in the service's order
+    mirror: Record<string, Mirror> = { {} },      // slide key → what the service holds
+    conflicts: Record<string, ServerSlide> = { {} },
+
+    dirty: boolean = false,                   // something may differ from the service
+    busy: boolean = false,                    // a request is out
+    offline: boolean = false,                 // the last request didn't reach it
+    status: "saved" | "saving" | "offline" = { this.offline ? "offline" : this.dirty || this.busy ? "saving" : "saved" },
+    statusText: string = { this.status == "offline" ? "Not saved: can't reach the service"
+        : this.status == "saving" ? "Saving…" : "All changes saved" },
+    trackChanges = ["status"],
+    onChange() { guardUnload(this.status != "saved") },
+
+    // ── the request
+
+    reqUrl: string = "",
+    reqMethod: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" = "GET",
+    reqBody: object? = null,
+    op: string = "",
+    opKey: string = "",
+    retryIn: number = 0,
+    timer: DelayHandle? = null,
+
+    req: DataSource [ url = { classroot.reqUrl }, method = { classroot.reqMethod }, body = { classroot.reqBody },
+        trackChanges = ["loading"],
+        onChange() { if (!this.loading) classroot.landed() }
+        ],
+
+    // A deck as it arrived: what the service holds is what the Doc holds.
+
+    start(deck: Deck, slides: ServerSlide[]) {
+        if (timer != null) timer.cancel()
+        deckId = deck.id
+        deckVersion = deck.version
+        title = deck.title
+        savedTitle = deck.title
+        savedOrder = [...deck.slideOrder]
+        const m: Record<string, Mirror> = {}
+        slides.forEach((s) => { m[s.id] = ({ sid: s.id, version: s.version, saved: slideBody(s.background, s.elements) }) })
+        mirror = m
+        conflicts = {}
+        dirty = false
+        offline = false
+        retryIn = 0
+        },
+    halt() { if (timer != null) timer.cancel(); deckId = "" },
+
+    // Something changed: save it a moment after the last change.
+
+    kick() {
+        dirty = true
+        if (timer != null) timer.cancel()
+        timer = afterDelay(800, () => this.step())
+        },
+    saveNow() {
+        dirty = true
+        if (timer != null) timer.cancel()
+        retryIn = 0
+        this.step()
+        },
+
+    send(m: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", path: string, body: object?, what: string, key: string) {
+        busy = true
+        op = what
+        opKey = key
+        reqMethod = m
+        reqUrl = api + path
+        reqBody = body
+        req.fetch()
+        },
+
+    // The first thing that differs, sent.
+
+    step() {
+        if (busy || doc == null || deckId == "") return
+        const slides = doc.slides()
+        const keys = slides.map((s) => s.id)
+        for (const key of Object.keys(mirror)) {
+            if (!keys.includes(key)) { this.send("DELETE", "/api/slides/" + mirror[key].sid, null, "delete", key); return }
+            }
+        for (let i = 0; i < slides.length; i++) {
+            const s = slides[i]
+            if (mirror[s.id] == null) {
+                const prev = i > 0 ? mirror[slides[i - 1].id]?.sid ?? null : null
+                this.send("POST", "/api/decks/" + deckId + "/slides",
+                    ({ after: prev, background: s.background, elements: s.elements }), "create", s.id)
+                return
+                }
+            }
+        const order = slides.map((s) => mirror[s.id].sid)
+        if (order.join(",") != savedOrder.join(",") || title != savedTitle) {
+            const name = title.trim() == "" ? "Untitled presentation" : title
+            const reorder = order.join(",") != savedOrder.join(",")
+            this.send("PATCH", "/api/decks/" + deckId,
+                reorder ? ({ version: deckVersion, title: name, slideOrder: order }) : ({ version: deckVersion, title: name }), "deck", "")
+            return
+            }
+        for (const s of slides) {
+            if (conflicts[s.id] != null) continue
+            const m = mirror[s.id]
+            const body = slideBody(s.background, s.elements)
+            if (body != m.saved) {
+                this.send("PUT", "/api/slides/" + m.sid, ({ version: m.version, background: s.background, elements: s.elements }), "slide", s.id)
+                return
+                }
+            }
+        const d = doc
+        dirty = Object.keys(conflicts).some((k) => {
+            const s = d.slide(k)
+            return s != null && mirror[k] != null && slideBody(s.background, s.elements) != mirror[k].saved
+            })
+        },
+
+    // A reply, or a failure.
+
+    landed() {
+        busy = false
+        const code = req.statusCode
+        if (!req.failed) {
+            offline = false
+            retryIn = 0
+            this.took(req.value)
+            this.step()
+            return
+            }
+        if (code == 409) { this.refused(req.errorBody); this.step(); return }
+        if (code == 404 && op == "slide") {
+            // Deleted in another window: make it again from what is here.
+            const gone = mirror[opKey]?.sid ?? ""
+            const m = { ...mirror }
+            delete m[opKey]
+            mirror = m
+            savedOrder = savedOrder.filter((sid) => sid != gone)
+            this.pull()
+            return
+            }
+        if (code == 404 && op == "delete") {
+            const m = { ...mirror }
+            delete m[opKey]
+            mirror = m
+            this.pull()
+            return
+            }
+        // Unreachable, unavailable, or refused for a reason a retry may fix:
+        // keep everything, say so, and try again.
+        offline = code == 0 || code >= 500 || code == 404
+        if (code == 422) console.warn("Presentify: the service refused a write", req.errorBody)
+        retryIn = Math.min(10000, retryIn == 0 ? 1500 : retryIn * 2)
+        if (timer != null) timer.cancel()
+        timer = afterDelay(retryIn, () => this.step())
+        },
+
+    took(v: object?) {
+        const r = (v ?? {}) as Record<string, unknown>
+        if (op == "slide") {
+            const s = r as unknown as ServerSlide
+            mirror = { ...mirror, [opKey]: ({ sid: s.id, version: s.version, saved: slideBody(s.background, s.elements) }) }
+        } else if (op == "create") {
+            const s = r.slide as ServerSlide
+            mirror = { ...mirror, [opKey]: ({ sid: s.id, version: s.version, saved: slideBody(s.background, s.elements) }) }
+            this.tookDeck(r.deck as Deck)
+        } else if (op == "delete") {
+            const m = { ...mirror }
+            delete m[opKey]
+            mirror = m
+            this.tookDeck(r.deck as Deck)
+        } else if (op == "deck") {
+            this.tookDeck(r as unknown as Deck)
+        } else if (op == "pull") {
+            this.merge((r.slides ?? []) as ServerSlide[])
+            }
+        },
+    tookDeck(d: Deck) {
+        deckVersion = d.version
+        savedOrder = [...d.slideOrder]
+        savedTitle = d.title
+        },
+
+    // 409: someone saved since we read.
+
+    refused(body: object?) {
+        const cur = (body as Record<string, object>)?.current
+        if (cur == null) return
+        if (op == "slide") {
+            conflicts = { ...conflicts, [opKey]: cur as ServerSlide }
+        } else if (op == "deck") {
+            const d = cur as Deck
+            const known = Object.values(mirror).map((m) => m.sid)
+            this.tookDeck(d)
+            savedTitle = d.title == title ? d.title : savedTitle
+            // Slides added or removed elsewhere: read them before ordering again.
+            const same = d.slideOrder.length == known.length && d.slideOrder.every((sid) => known.includes(sid))
+            if (!same) this.pull()
+            }
+        },
+
+    // Read the deck's slides again, and take in ones made elsewhere.
+
+    pull() { this.send("GET", "/api/decks/" + deckId + "/slides", null, "pull", "") },
+    merge(server: ServerSlide[]) {
+        if (doc == null) return
+        const bySid = Object.keys(mirror).map((k) => mirror[k].sid)
+        for (const s of server) {
+            if (!bySid.includes(s.id) && doc.slide(s.id) == null) {
+                doc.insertAt(doc.slides().length, ({ id: s.id, background: s.background, elements: s.elements }))
+                mirror = { ...mirror, [s.id]: ({ sid: s.id, version: s.version, saved: slideBody(s.background, s.elements) }) }
+                }
+            }
+        // Slides deleted elsewhere: forget them, so they are made again from here.
+        const live = server.map((s) => s.id)
+        const m: Record<string, Mirror> = {}
+        for (const k of Object.keys(mirror)) if (live.includes(mirror[k].sid)) m[k] = mirror[k]
+        mirror = m
+        savedOrder = savedOrder.filter((sid) => live.includes(sid))
+        },
+
+    // ── another window changed a slide
+
+    // A fresh read of a slide: newer than ours means someone else saved it.
+
+    noticed(s: ServerSlide) {
+        const key = Object.keys(mirror).find((k) => mirror[k].sid == s.id) ?? ""
+        if (key == "" || busy) return
+        if (s.version > mirror[key].version && conflicts[key] == null) conflicts = { ...conflicts, [key]: s }
+        },
+
+    // Their version, here: what the service has becomes what the person has.
+
+    theirs(key: string) -> ServerSlide? {
+        const s = conflicts[key] ?? null
+        if (s == null) return null
+        mirror = { ...mirror, [key]: ({ sid: s.id, version: s.version, saved: slideBody(s.background, s.elements) }) }
+        const c = { ...conflicts }
+        delete c[key]
+        conflicts = c
+        return s
+        },
+
+    // Ours, over theirs, at the person's say.
+
+    mine(key: string) {
+        const s = conflicts[key] ?? null
+        if (s == null) return
+        mirror = { ...mirror, [key]: ({ sid: s.id, version: s.version, saved: "" }) }
+        const c = { ...conflicts }
+        delete c[key]
+        conflicts = c
+        this.saveNow()
+        },
+    sidOf(key: string) -> string { return mirror[key]?.sid ?? "" }
+    ]

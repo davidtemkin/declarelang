@@ -874,6 +874,9 @@ interface Edit {
 interface Surface {
   all: Set<string>;
   declared: Set<string>;
+  /** The level's methods, built-in and declared: a bare call of one of these
+   *  names is the method's, even where a value constructor shares the name. */
+  methods: Set<string>;
 }
 
 /** Options for compile(): the file-access host `include` resolution rides and
@@ -900,7 +903,7 @@ export interface CompileOptions {
   /** The `lint` and `devices` flags for this run (a URL's, `--lint=false`):
    *  which findings to quiet. Unset, the program's own `defaultFlags` decide. */
   lint?: boolean;
-  devices?: "all" | "desk" | "phone";
+  devices?: "all" | "desktop" | "mobile";
   /** The main file's path, when there is one: its name names the program in messages
    *  (a class that takes a library name is offered `<Program><Class>`). */
   mainId?: string;
@@ -1833,7 +1836,7 @@ class Resolver {
   /** Per-class inherited method/named-child members (attributes already ride
    *  the schema chain) and the user-declared name set, both accumulated
    *  through user bases, each base resolved before the class that extends it. */
-  private readonly classExtras = new Map<string, { members: Set<string>; declared: Set<string> }>();
+  private readonly classExtras = new Map<string, { members: Set<string>; declared: Set<string>; methods: Set<string> }>();
   private readonly surfaces = new Map<Element, Surface>();
   private readonly lineStarts: number[] = [0];
   /** Names the program's `script { … }` blocks declare. A body may call them
@@ -1907,7 +1910,7 @@ class Resolver {
     // each class asks for its base's extras first. `visiting` stops a cyclic
     // chain (the checker reports it) from recursing.
     const visiting = new Set<string>();
-    const extrasOf = (name: string): { members: Set<string>; declared: Set<string> } | undefined => {
+    const extrasOf = (name: string): { members: Set<string>; declared: Set<string>; methods: Set<string> } | undefined => {
       const done = this.classExtras.get(name);
       if (done !== undefined) return done;
       const cls = this.classDecls.get(name);
@@ -1916,12 +1919,13 @@ class Resolver {
       const base = extrasOf(cls.base);
       const members = new Set(base?.members);
       const declared = new Set(base?.declared);
+      const methods = new Set(base?.methods);
       for (const d of cls.body.decls) declared.add(d.name);
-      for (const m of cls.body.methods) { members.add(m.name); declared.add(m.name); }
+      for (const m of cls.body.methods) { members.add(m.name); declared.add(m.name); methods.add(m.name); }
       for (const c of cls.body.children) {
         if (c.name !== null) { members.add(c.name); declared.add(c.name); }
       }
-      const out = { members, declared };
+      const out = { members, declared, methods };
       this.classExtras.set(name, out);
       return out;
     };
@@ -2279,7 +2283,10 @@ class Resolver {
         }
         continue;
       }
-      if (id.callee && CALLEE_GLOBALS.has(id.name)) continue; // a value constructor, not a member
+      // a value constructor, not a member — unless a method in scope takes the
+      // name: then a bare call is the method's (a member shadows, as `blur` the
+      // attribute shadows the filter); the bare-value form is never a body
+      if (id.callee && CALLEE_GLOBALS.has(id.name) && !levels.some((lv) => this.surfaceOf(lv).methods.has(id.name))) continue;
       if (id.name === "app") {
         // `app` (language §11) — the running App at the top of the tree. Sugar
         // for `this.$root` (the `root` getter walks parent links to the top),
@@ -2559,16 +2566,18 @@ class Resolver {
     // `fetch`): a level's whole member set, so a bare `scrollTo(0)` in a view's
     // own method is the view's, as a bare `width` is — Venue run 19 was refused it
     const base = this.schemas[el.tag];
-    if (base !== undefined) for (const name of runtimeMethodsOf(base)) all.add(name);
+    const methods = new Set<string>(base !== undefined ? runtimeMethodsOf(base) : []);
+    for (const name of methods) all.add(name);
     const extras = this.classExtras.get(el.tag);
     for (const name of extras?.members ?? []) all.add(name);
+    for (const name of extras?.methods ?? []) methods.add(name);
     const declared = new Set(extras?.declared);
     for (const d of el.decls) { all.add(d.name); declared.add(d.name); }
-    for (const m of el.methods) { all.add(m.name); declared.add(m.name); }
+    for (const m of el.methods) { all.add(m.name); declared.add(m.name); methods.add(m.name); }
     for (const c of el.children) {
       if (c.name !== null) { all.add(c.name); declared.add(c.name); }
     }
-    s = { all, declared };
+    s = { all, declared, methods };
     this.surfaces.set(el, s);
     return s;
   }

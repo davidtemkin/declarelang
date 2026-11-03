@@ -62,7 +62,7 @@ function classSets(tag: string, attr: string): boolean {
 import { validateExpr, validateBody } from "./expr.js";
 import { isSelective, staticSegs, type PathSeg } from "./path-plan.js";
 import { fontObjectHint } from "./font-value.js";
-import { NOUNS, RESERVED, structuralReason, programSchemas, checkDecl, withDecls, manyPathOf, coerceToken, provisionValue } from "./program-schema.js";
+import { NOUNS, structuralReason, programSchemas, checkDecl, withDecls, manyPathOf, coerceToken, provisionValue } from "./program-schema.js";
 import { THEME_PRESET_NAMES } from "./themes.js";
 
 /** The styling declarations in scope while an element tree checks: the
@@ -165,8 +165,20 @@ export function check(input: Element | Program): DeclareError[] {
         if (child.name === null || child.name === "layout") continue;
         const owner = childOwner(c.base, child.name);
         if (owner === null) continue;
+        // every name the chain takes, so one message ends the guessing
+        const taken: string[] = [];
+        for (let n: string | undefined = c.base, hops = 0; n !== undefined && hops < 32; n = byName.get(n)?.base, hops++) {
+          for (const k of byName.get(n)?.body.children ?? []) {
+            if (k.name !== null && k.name !== "layout" && !k.name.startsWith("_") && !taken.includes(k.name)) taken.push(k.name);
+          }
+        }
+        const placed = byName.get(owner)!.body.attrs.find((a) => a.name === "defaultPlacement")?.value;
+        const into = placed !== undefined && placed.kind === "ident" ? (placed as { name: string }).name : null;
         errors.push(new DeclareError(
-          `'${child.name}' is a child ${c.name} inherits from ${owner} — a subclass cannot declare it again. To put views INSIDE it, write 'defaultPlacement = ${child.name}' in ${owner}'s body: a subclass's children then go into ${child.name}. To vary it, make what varies an attribute of ${owner} that the child reads (a color, a label, a size), or a method the subclass overrides`,
+          `'${child.name}' is a child ${c.name} inherits from ${owner} — a subclass cannot declare it again; give yours another name (${c.name} inherits ${taken.join(", ")}). `
+          + (into !== null
+            ? `What ${c.name} declares already goes into ${owner}'s ${into}`
+            : `If ${owner} is yours and the views belong INSIDE its ${child.name}, write 'defaultPlacement = ${child.name}' in ${owner}'s body; to vary it, make what varies an attribute of ${owner} that the child reads, or a method the subclass overrides`),
           child.pos));
       }
     }
@@ -2151,9 +2163,6 @@ export function checkMethod(schema: ClassSchema, m: Method): CheckedMethod {
     ({ ok: false, error: new DeclareError(message, pos) });
   if (attrType(schema, m.name) !== null) {
     return err(`${schema.name}.${m.name} is an attribute — a method may not take an attribute's name`, m.pos);
-  }
-  if (RESERVED.includes(m.name)) {
-    return err(`'${m.name}' is a value constructor (gradient, stroke, shadow, stop, frost, the gradient kinds, the filter functions) — it cannot be a method name`, m.pos);
   }
   const structural = structuralReason(m.name);
   if (structural !== null) {

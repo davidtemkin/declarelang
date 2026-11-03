@@ -86,7 +86,10 @@ async function press(page, el) {
   await el.handle.click();
 }
 async function typeInto(page, re, text) {
-  const el = await field(page, re);
+  // a person types into a field that takes text; a slider of the same name (a
+  // radius with both) is moved, not typed into, so it is the last resort
+  const typed = await maybe(find(page, (n) => FIELD_ROLES.has(n.role) && n.role !== "slider" && named(n, re), { what: `a field named ${re}`, timeout: 2500 }));
+  const el = typed ?? await field(page, re);
   await press(page, el);
   // Command-A, with the editing command it means: keys sent through DevTools on a Mac
   // don't run editing commands on their own (a bare <input> stays unselected)
@@ -154,8 +157,18 @@ async function slide(page) {
       }
     }
     if (best && best.box) {
-      const { box } = best;
-      return { ...best, at: (x, y) => ({ x: box.x + (x / 1280) * box.width, y: box.y + (y / 720) * box.height }) };
+      // a person draws once the slide has come to rest: an app that grows it into
+      // place (an opening motion) is measured where it lands, not mid-flight
+      let box = best.box;
+      for (let i = 0; i < 25; i++) {
+        await sleep(120);
+        const now = await best.handle.boundingBox();
+        if (!now) break;
+        const still = Math.abs(now.x - box.x) < 0.5 && Math.abs(now.y - box.y) < 0.5 && Math.abs(now.width - box.width) < 0.5;
+        box = now;
+        if (still) break;
+      }
+      return { ...best, box, at: (x, y) => ({ x: box.x + (x / 1280) * box.width, y: box.y + (y / 720) * box.height }) };
     }
     if (Date.now() > until) throw new Error("not found: the slide labelled Slide, with a size on screen");
     await sleep(200);

@@ -119,13 +119,13 @@ await test("a finger's target is judged at its size on screen, and not at all wh
   assert.doesNotMatch(small, /app\.passes|app\.big\.grown|app\.clipper\.hid/, small);
 });
 
-await test("with no --size the boot fills a laptop window only; --phone a phone, --phone --desk both", () => {
+await test("with no --size the boot fills a laptop window only; --phone a phone, --phone --desktop both", () => {
   const src = `App [ small: Button [ label = "Go", width = 30, height = 30 ] ]`;
   const desk = verify("two.declare", src);
   assert.ok(!desk.boot.layout.some((l) => /finger/.test(l)), "no phone, so no touch-target finding: " + desk.boot.layout.join("\n"));
   const phone = verify("two.declare", src, "--phone");
   assert.ok(phone.boot.layout.some((l) => /finger/.test(l) && /app\.small/.test(l)), phone.boot.layout.join("\n"));
-  const both = verify("two.declare", src, "--phone", "--desk");
+  const both = verify("two.declare", src, "--phone", "--desktop");
   assert.ok(both.boot.layout.some((l) => l.startsWith("phone 390×844: ") && /app\.small/.test(l)), both.boot.layout.join("\n"));
   assert.ok(!both.boot.layout.some((l) => !l.startsWith("phone") && /finger/.test(l)), "no touch-target warning at the laptop size");
 });

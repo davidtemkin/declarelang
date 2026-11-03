@@ -306,8 +306,8 @@ class MonthCalendar [
 
     input(v: string) { value = v },
 
-    clock: Time [ tick = day ],
-    today: string = { this._isoOf(this.clock.year, this.clock.month, this.clock.day) },
+    _clock: Time [ tick = day ],
+    today: string = { this._isoOf(this._clock.year, this._clock.month, this._clock.day) },
     shownMonth: string = { (value != "" ? value : today).slice(0, 7) },
     title: string = { this._dateOf(shownMonth).toLocaleDateString(app.language, ({ month: "long", year: "numeric" })) },
     _gridW: number = { 7 * daySize + 12 },
@@ -363,8 +363,8 @@ class MonthCalendar [
         return [0, 1, 2, 3, 4, 5, 6].map((i) => ({ id: "k" + i, label: f.format(new Date(2023, 0, 1 + (weekStart + i) % 7)) }))
         },
 
-    model: Dataset [ contents = { { weeks: classroot._weeks() } } ],
-    initials: Dataset [ contents = { { days: classroot._weekdayNames() } } ],
+    _model: Dataset [ contents = { { weeks: classroot._weeks() } } ],
+    _initials: Dataset [ contents = { { days: classroot._weekdayNames() } } ],
 
     // ── what the buttons and keys do ──────────────────────────────────────
 
@@ -373,7 +373,7 @@ class MonthCalendar [
     pick(iso: string) {
         const moved = iso.slice(0, 7) != shownMonth
         shownMonth = iso.slice(0, 7)
-        if (moved && Focus.holds(this.grid)) afterSettle(() => { const c = this._cellFor(iso); if (c != null) Focus.focus(c) })
+        if (moved && Focus.holds(this._grid)) afterSettle(() => { const c = this._cellFor(iso); if (c != null) Focus.focus(c) })
         input(iso)
         },
 
@@ -383,7 +383,7 @@ class MonthCalendar [
         },
 
     _cellFor(iso: string) -> View? {
-        for (const r of this.grid.children) {
+        for (const r of this._grid.children) {
             for (const c of (r as View).children ?? []) if ((c as MonthCalendarDay).iso === iso) return c as View
             }
         return null
@@ -415,7 +415,7 @@ class MonthCalendar [
 
     // the month and year, and the buttons to the months either side
 
-    header: View [ width = { classroot._gridW }, height = 30,
+    _header: View [ width = { classroot._gridW }, height = 30,
         layout: SimpleLayout [ axis = x, spacing = 2 ],
         heading: View [ y = center, padding = [0, 0, 0, 6], accessibilityRole = heading, accessibilityLive = polite,
             Text [ fontSize = 14, fontWeight = semibold, wrap = false, textColor = { provided("theme").text }, text = { classroot.title } ]
@@ -434,7 +434,7 @@ class MonthCalendar [
     // the weekday initials are read in each day's name, so to a screen reader
     // the row is decoration: a picture with no name
 
-    weekdays: View [ height = 20, accessibilityRole = image, datapath = { classroot.initials.value },
+    _weekdays: View [ height = 20, accessibilityRole = image, datapath = { classroot._initials.value },
         layout: SimpleLayout [ axis = x, spacing = 2 ],
         View [ datapath = :days[], width = { classroot.daySize }, height = 20,
             TextLabel [ x = center, fontSize = 11, fontWeight = medium, wrap = false,
@@ -444,9 +444,9 @@ class MonthCalendar [
 
     // one Tab stop, landing on the chosen day; the days take their own keys
 
-    grid: View [ accessibilityRole = grid, accessibilityLabel = { classroot.title }, focusScope = stop,
+    _grid: View [ accessibilityRole = grid, accessibilityLabel = { classroot.title }, focusScope = stop,
         focusEntry() -> View? { return classroot._cellFor(classroot._entryDay()) },
-        datapath = { classroot.model.value },
+        datapath = { classroot._model.value },
         layout: SimpleLayout [ axis = y, spacing = 2 ],
         View [ datapath = :weeks[], accessibilityRole = row,
             layout: SimpleLayout [ axis = x, spacing = 2 ],
@@ -482,7 +482,7 @@ class MonthCalendarDay extends Control [
     // the number is what the eye reads; a screen reader hears the full date,
     // so to it the number is decoration — a picture with no name
 
-    num: View [ width = 100%, height = 100%, accessibilityRole = image,
+    _num: View [ width = 100%, height = 100%, accessibilityRole = image,
         t: TextLabel [ x = center, fontSize = 13, wrap = false,
             fontWeight = { :selected == true || :today == true ? "semibold" : "regular" },
             textColor = { classroot.ink }, text = { "" + (:day ?? "") } ]
@@ -507,7 +507,7 @@ class MonthCalendarArrow extends Control [
     cornerRadius = { provided("theme").controlCornerRadius },
     fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
     opacity = { disabled ? (provided("theme").disabledOpacity) : 1 },
-    g: ChevronIcon [ iconSize = 14, x = center, y = center,
+    _g: ChevronIcon [ iconSize = 14, x = center, y = center,
         dir = { classroot.dir < 0 ? "left" : "right" },
         ink = { classroot.hovered || classroot.pressed ? provided("theme").text : provided("theme").textMuted } ]
     ]
@@ -515,7 +515,7 @@ class MonthCalendarArrow extends Control [
 
 class DatePicker extends ValueControl [
     accessibilityRole = button,
-    accessibilityExpanded = { this.pop.shown },
+    accessibilityExpanded = { this._pop.shown },
     accessibilityLabel = { provided("fieldLabel", "") != "" ? provided("fieldLabel", "") + (display != "" ? ", " + display : "") : "" },
 
     value: string = "",
@@ -532,7 +532,7 @@ class DatePicker extends ValueControl [
     width = 180,
     height = { provided("theme").comboboxHeight },
     fill = { provided("theme").surface },
-    _edge: Color = { this.error != "" ? provided("theme").error : this.pop.shown ? provided("theme").accent : provided("theme").line },
+    _edge: Color = { this.error != "" ? provided("theme").error : this._pop.shown ? provided("theme").accent : provided("theme").line },
     stroke = { stroke(1, this._edge) },
     cornerRadius = { provided("theme").fieldCornerRadius ?? provided("theme").controlCornerRadius },
     opacity = { disabled ? (provided("theme").disabledOpacity) : 1 },
@@ -545,14 +545,14 @@ class DatePicker extends ValueControl [
         },
 
     open() {
-        if (this.pop.shown || disabled) return
-        const c = this.pop.cal
+        if (this._pop.shown || disabled) return
+        const c = this._pop.cal
         if (c != null) c.shownMonth = (value != "" ? value : c.today).slice(0, 7)
-        this.pop.showFor(this)
+        this._pop.showFor(this)
         },
 
     _choose(v: string) {
-        this.pop.close()
+        this._pop.close()
         input(v)
         },
 
@@ -560,8 +560,8 @@ class DatePicker extends ValueControl [
     // past it; the click that follows must not open it again
 
     press() {
-        if (this.pop.shown) this.pop.close()
-        else if (!this.pop.present) this.open()
+        if (this._pop.shown) this._pop.close()
+        else if (!this._pop.present) this.open()
         },
 
     onKeyDown(e: KeyEvent) {
@@ -569,15 +569,15 @@ class DatePicker extends ValueControl [
         super.onKeyDown(e)
         },
 
-    label: TextLabel [ x = { provided("theme").fieldPadding ?? 10 }, wrap = false,
+    _label: TextLabel [ x = { provided("theme").fieldPadding ?? 10 }, wrap = false,
         width = { classroot.width - this.x - 26 }, clip = true,
         textColor = { classroot.display == "" ? provided("theme").textMuted : provided("theme").text },
         text = { classroot.display == "" ? classroot.placeholder : classroot.display } ],
 
-    mark: ChevronIcon [ iconSize = 13, ink = { provided("theme").textMuted }, y = center,
+    _mark: ChevronIcon [ iconSize = 13, ink = { provided("theme").textMuted }, y = center,
         x = { classroot.width - 13 - 6 - 4 } ],
 
-    pop: Popover [ accessibilityLabel = { provided("fieldLabel", "") || classroot.placeholder },
+    _pop: Popover [ accessibilityLabel = { provided("fieldLabel", "") || classroot.placeholder },
         focusFirst() {
             const c = this.cal
             const v = c._cellFor(c._entryDay())

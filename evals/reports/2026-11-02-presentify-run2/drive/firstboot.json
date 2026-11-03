@@ -1,0 +1,348 @@
+[
+  {
+    "name": "list_and_open",
+    "pass": false,
+    "error": "not found: Slide 2 in the list",
+    "ms": 9161,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "GET /api/decks/d1",
+      "GET /api/decks/d1/slides",
+      "POST /api/decks/d103/slides",
+      "GET /api/slides/s1"
+    ]
+  },
+  {
+    "name": "new_presentation",
+    "pass": true,
+    "error": null,
+    "ms": 1276,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks",
+      "GET /api/decks",
+      "GET /api/slides/s102?at=2026-11-02T09%3A00%3A04.000Z"
+    ]
+  },
+  {
+    "name": "draw_each_kind",
+    "pass": true,
+    "error": null,
+    "ms": 4608,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks",
+      "GET /api/decks",
+      "GET /api/slides/s102?at=2026-11-02T09%3A00%3A04.000Z",
+      "PUT /api/slides/s102",
+      "POST /api/decks/d103/slides"
+    ]
+  },
+  {
+    "name": "shift_draws_square_and_circle",
+    "pass": true,
+    "error": null,
+    "ms": 3380,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks",
+      "GET /api/decks",
+      "GET /api/slides/s102?at=2026-11-02T09%3A00%3A04.000Z",
+      "PUT /api/slides/s102"
+    ]
+  },
+  {
+    "name": "rounded_corners_hold",
+    "pass": false,
+    "error": "never stored: a corner radius of 24",
+    "ms": 10869,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks",
+      "GET /api/decks",
+      "GET /api/slides/s102?at=2026-11-02T09%3A00%3A04.000Z",
+      "PUT /api/slides/s102",
+      "GET /api/slides/s102",
+      "POST /api/decks/d103/slides",
+      "GET /api/slides/s102"
+    ]
+  },
+  {
+    "name": "keep_proportions",
+    "pass": true,
+    "error": null,
+    "ms": 4400,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks",
+      "GET /api/decks",
+      "GET /api/slides/s102?at=2026-11-02T09%3A00%3A04.000Z",
+      "PUT /api/slides/s102",
+      "PUT /api/slides/s102"
+    ]
+  },
+  {
+    "name": "box_select_and_delete",
+    "pass": true,
+    "error": null,
+    "ms": 5723,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks",
+      "GET /api/decks",
+      "GET /api/slides/s102?at=2026-11-02T09%3A00%3A04.000Z",
+      "POST /api/decks/d103/slides",
+      "PUT /api/slides/s102",
+      "GET /api/slides/s102",
+      "PUT /api/slides/s102"
+    ]
+  },
+  {
+    "name": "move_and_nudge",
+    "pass": true,
+    "error": null,
+    "ms": 4548,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks",
+      "GET /api/decks",
+      "GET /api/slides/s102?at=2026-11-02T09%3A00%3A04.000Z",
+      "PUT /api/slides/s102",
+      "PUT /api/slides/s102"
+    ]
+  },
+  {
+    "name": "inspector_mixed_and_applied",
+    "pass": false,
+    "error": "never stored: one rectangle filled #AA2200",
+    "ms": 13220,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks",
+      "POST /api/decks/d103/slides",
+      "GET /api/decks",
+      "GET /api/slides/s102?at=2026-11-02T09%3A00%3A04.000Z",
+      "PUT /api/slides/s102",
+      "GET /api/slides/s102",
+      "GET /api/slides/s102",
+      "POST /api/decks/d103/slides",
+      "GET /api/slides/s102"
+    ]
+  },
+  {
+    "name": "group_and_ungroup",
+    "pass": true,
+    "error": null,
+    "ms": 6177,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks",
+      "GET /api/decks",
+      "GET /api/slides/s102?at=2026-11-02T09%3A00%3A04.000Z",
+      "PUT /api/slides/s102",
+      "PUT /api/slides/s102",
+      "GET /api/slides/s102",
+      "PUT /api/slides/s102"
+    ]
+  },
+  {
+    "name": "align_and_distribute",
+    "pass": true,
+    "error": null,
+    "ms": 6904,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks",
+      "GET /api/decks",
+      "GET /api/slides/s102?at=2026-11-02T09%3A00%3A04.000Z",
+      "POST /api/decks/d103/slides",
+      "PUT /api/slides/s102",
+      "GET /api/slides/s102",
+      "PUT /api/slides/s102",
+      "PUT /api/slides/s102"
+    ]
+  },
+  {
+    "name": "bring_to_front",
+    "pass": true,
+    "error": null,
+    "ms": 4760,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks",
+      "GET /api/decks",
+      "GET /api/slides/s102?at=2026-11-02T09%3A00%3A04.000Z",
+      "PUT /api/slides/s102",
+      "PUT /api/slides/s102"
+    ]
+  },
+  {
+    "name": "undo_is_one_step",
+    "pass": true,
+    "error": null,
+    "ms": 9061,
+    "requests": [
+      "POST /api/decks/d103/slides",
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks",
+      "GET /api/decks",
+      "GET /api/slides/s102?at=2026-11-02T09%3A00%3A04.000Z",
+      "PUT /api/slides/s102",
+      "PUT /api/slides/s102",
+      "GET /api/slides/s102",
+      "PUT /api/slides/s102",
+      "PUT /api/slides/s102",
+      "PUT /api/slides/s102"
+    ]
+  },
+  {
+    "name": "slides_add_duplicate_delete",
+    "pass": false,
+    "error": "not found: Slide 1 in the list",
+    "ms": 10401,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks",
+      "POST /api/decks/d103/slides",
+      "GET /api/decks",
+      "GET /api/slides/s102?at=2026-11-02T09%3A00%3A04.000Z",
+      "PUT /api/slides/s102",
+      "POST /api/decks/d101/slides",
+      "GET /api/slides/s103",
+      "GET /api/slides/s103"
+    ]
+  },
+  {
+    "name": "slides_reorder_by_drag",
+    "pass": false,
+    "error": "not found: Slide 3 in the list",
+    "ms": 7577,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks/d103/slides",
+      "GET /api/decks/d2",
+      "GET /api/decks/d2/slides",
+      "GET /api/slides/s9"
+    ]
+  },
+  {
+    "name": "saving_and_retry",
+    "pass": true,
+    "error": null,
+    "ms": 7811,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks",
+      "GET /api/decks",
+      "GET /api/slides/s102?at=2026-11-02T09%3A00%3A04.000Z",
+      "PUT /api/slides/s102",
+      "POST /api/decks/d103/slides",
+      "PUT /api/slides/s102",
+      "GET /api/slides/s102",
+      "PUT /api/slides/s102"
+    ]
+  },
+  {
+    "name": "conflict_is_offered",
+    "pass": false,
+    "error": "not found: Slide 2 in the list",
+    "ms": 7403,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "GET /api/decks/d1",
+      "GET /api/decks/d1/slides",
+      "GET /api/slides/s1",
+      "POST /api/decks/d103/slides"
+    ]
+  },
+  {
+    "name": "present_and_return",
+    "pass": false,
+    "error": "presenting from slide 1 and moving on twice returned to slide 1, not 3",
+    "ms": 5688,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "GET /api/decks/d1",
+      "GET /api/decks/d1/slides",
+      "GET /api/slides/s1",
+      "PUT /api/slides/s1"
+    ]
+  },
+  {
+    "name": "rename_and_delete_presentation",
+    "pass": true,
+    "error": null,
+    "ms": 5044,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "GET /api/decks/d3",
+      "PATCH /api/decks/d3",
+      "POST /api/decks/d103/slides",
+      "GET /api/decks",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A04.000Z",
+      "DELETE /api/decks/d3",
+      "GET /api/decks"
+    ]
+  }
+]

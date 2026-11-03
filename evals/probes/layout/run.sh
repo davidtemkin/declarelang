@@ -9,7 +9,7 @@
 #
 # Each agent's folder is <out-dir>/<arm>-<i>/ (arm a or b): answers.md, frame.declare,
 # form.declare, menu.declare, stream.jsonl. Returns once all have finished. Then score with
-# KEY.md: each program through `verify --phone --desk`, and its geometry read back with
+# KEY.md: each program through `verify --phone --desktop`, and its geometry read back with
 # `verify --size 1280x800 --outline app` and `--size 390x844` (copy the programs under
 # my-apps/ first). Tools are Read, Write, Glob, Grep only: what an agent writes is its
 # first attempt.

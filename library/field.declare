@@ -63,7 +63,7 @@ The caption, provided to what the field holds: a `TextInput`, `Switch`, `Checkbo
 */
 
 class Field [
-    baseline: number = { this.cap.y + this.cap.baseline },   // a row aligns the field by its caption
+    baseline: number = { this._cap.y + this._cap.baseline },   // a row aligns the field by its caption
 
     label:      string = "",
     labelWidth: number = 96,
@@ -85,10 +85,10 @@ class Field [
 
     layout: FieldLayout [ ],
 
-    cap: Text [ wrap = false,
+    _cap: Text [ wrap = false,
         textColor = { provided("theme").textMuted }, text = { label } ],
 
-    msg: Text [ visible = { classroot.message != "" }, wrap = true, fontSize = 13,
+    _msg: Text [ visible = { classroot.message != "" }, wrap = true, fontSize = 13,
         textColor = { provided("theme").error }, text = { classroot.message } ]
     ]
 

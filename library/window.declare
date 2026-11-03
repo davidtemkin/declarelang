@@ -279,7 +279,7 @@ class Window [ width = 360, height = 240,
     // the title bar (so Tab reaches the content first and the close button
     // last), then the resize edges
 
-    content: View [ width = 100%, height = 100%,
+    _content: View [ width = 100%, height = 100%,
 
         body: View [ y = { classroot.titleBarHeight }, width = 100%, height = { parent.height - classroot.titleBarHeight },
             clip = true,
@@ -351,7 +351,7 @@ class Window [ width = 360, height = 240,
     // Esc reaches this only when no overlay holds the keyboard: one open
     // inside the window takes it first
 
-    escKeys: Keys [
+    _escKeys: Keys [
         onKeyDown(e: KeyEvent) {
             if (e.key == "Escape" && classroot.frame && classroot.closable && classroot.open && Focus.holds(classroot)) classroot.close()
             }
@@ -359,7 +359,7 @@ class Window [ width = 360, height = 240,
 
     // focus arriving by F6 or a press on a control brings a framed window forward
 
-    focusWatch: Focus [
+    _focusWatch: Focus [
         onFocusChange(v: View) { if (v != null && classroot.frame && Focus.holds(classroot)) classroot._bringForward() }
         ]
     ]

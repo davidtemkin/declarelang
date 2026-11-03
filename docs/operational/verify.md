@@ -21,7 +21,7 @@ npx declare-verify app.declare
 Rungs 1–3 read the program and need nothing else. Rung 4 **boots** it, in the Chrome the
 tools keep running between calls (a page of its own each time, so it costs about a second):
 in a laptop's window (1280×800) — or, with `--phone`, a phone's held upright (390×844,
-touch), and with `--phone --desk`, both; `--size WxH [--touch]` names any other. It
+touch), and with `--phone --desktop`, both; `--size WxH [--touch]` names any other. It
 hands each `DataSource` with a `schema` a sample of it, and notes what it can see wrong in
 the layout: a control outside a view which clips and does not scroll, or above a scroller's
 origin; a child spilling out of a box sized by its content because its own size is taken
@@ -243,6 +243,7 @@ user's scroll coming to rest, keep real time; only the program's time is the dri
 | `drive.click(path)`, `drive.drag(path, dx, dy)`, `drive.wheel(path, dy, dx?)` | a press, a drag, a wheel turn on the view, as a person makes them |
 | `drive.press(path, x?, y?)`, `drive.moveBy(dx, dy)`, `drive.release()` | a drag a step at a time: the pointer goes down on the view (at a point inside it, else its centre) and stays down while `moveBy` moves it, so `expect` and pictures can look at the drag in progress — the ghost, the target lit — before `release` drops it |
 | `drive.clickAt(path, x, y)`, `drive.hold(path, ms?)` | a press at a point inside the view (from its top-left); a press held `ms` (default 600) of the program's time, then released — what `onHold` answers |
+| `drive.dblclick(path, x?, y?)` | a double-click (a double tap on a touch device) on the view, or at a point inside it — what `onDblClick` answers |
 | `drive.pinch(path, scale)` | a pinch about the view's centre to `scale`: two fingers on a touch device (`onPinch…` runs), a trackpad pinch otherwise (`onWheel` runs with `e.pinch`) |
 | `drive.profile(async () => { … }, { why?, drawings? })`, `drive.profileFromBoot({ itemize?, why? })`, `drive.profileReport()` | what the program did meanwhile, in its own terms — what opened each turn, what was built, what its drawings cost the GPU — and the time each frame took to reach the screen ([Profiling](declare-docs:operational:profile)): `{ report, text, frames }` |
 | `drive.traceInput(async () => { … })` | the gestures inside it, and what the platform did with them, read from Chrome's own trace: `{ platformScrollUpdates, waitedOnPage }` — scroll updates the browser handled itself, on its own thread and time (a swipe the page let it have), and input events that first waited for the page's main thread. A scroll the program sets counts none. Observation only: nothing is slowed or changed |

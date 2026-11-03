@@ -347,7 +347,7 @@ App [ width = 1000, height = 710, fill = #80807E, appName = "Laszlo Dashboard",
                 well: View [ x = center, y = 29, width = 258, height = 19,
                     fill = #00000033, cornerRadius = 9 ],
                 barFill: View [ x = center, y = 31, width = 254, height = 15,
-                    fill = gradient(stop(0, #E8A88E), stop(1, #A34E34)), cornerRadius = 7 ],
+                    fill = gradient(colorStop(0, #E8A88E), colorStop(1, #A34E34)), cornerRadius = 7 ],
                 fadeOut: Animator [ attribute = opacity, to = 0, duration = 700 ]
                 ],
 

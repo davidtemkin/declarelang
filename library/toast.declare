@@ -119,7 +119,7 @@ class Toast extends Floating [
 
     // held open while the pointer is over it or its action has the focus
 
-    _held: boolean = { hovered || this.row.act.focused },
+    _held: boolean = { hovered || this._row.act.focused },
     _expired: boolean = false,
 
     // a toast let go after its time ran out goes a moment later — heard by this
@@ -138,7 +138,7 @@ class Toast extends Floating [
 
     picked(id: string) { },
 
-    row: View [ padding = [10, 12, 10, 16],
+    _row: View [ padding = [10, 12, 10, 16],
         layout: SimpleLayout [ axis = x, spacing = 14, align = center ],
         Text [ fontSize = { provided("theme").toastFontSize }, wrap = false,
             textColor = { provided("theme").tooltipTextColor },

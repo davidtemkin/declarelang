@@ -1,0 +1,202 @@
+/*
+# Presentify: the gallery
+
+The person's presentations, most recently changed first: each a card with a
+picture of its first slide, its title, and when it was last changed. A card
+opens its presentation (which grows out of the card); its menu renames or
+deletes it. `presentify.declare` includes this file.
+*/
+
+// A presentation's card. The picture is its first slide, read from the
+// service; the address carries when the deck last changed, so a card shown
+// again after an edit reads the slide again.
+
+class DeckCard [ width = 264,
+    deckId: string = { :id ?? "" },
+    title: string = { :title ?? "" },
+    lift: number = 0,
+    Spring [ attribute = lift, to = { classroot.opener.hovered || classroot.opener.focused ? 1 : 0 }, stiffness = 380, damping = 30 ],
+
+    thumb: DataSource [ url = { app.api + "/api/slides/" + (:thumbnailSlideId ?? "") + "?at=" + encodeURIComponent(:updatedAt ?? "") },
+        autoFetch = true, schema = ServerSlide ],
+
+    // The card opens the presentation; its menu sits beside, not inside it.
+
+    opener: Control [ width = 100%, cornerRadius = 12,
+        accessibilityLabel = { "Open " + classroot.title },
+        cursor = "pointer",
+        press() { app.openDeck(classroot.deckId, this.pic) },
+        onContextMenu(e: PointerEvent) { app.menuDeck = classroot.deckId; app.deckMenu.open(this, e) },
+        layout: SimpleLayout [ axis = y, spacing = 12 ],
+        pic: View [ width = 264, height = { 264 * 9 / 16 }, cornerRadius = 12, clip = true,
+            fill = { provided("theme").sunk },
+            stroke = { stroke(1, provided("theme").line) },
+            shadow = { shadow(0, 4 + 10 * classroot.lift, 10 + 18 * classroot.lift, 0x2A20402E) },
+            SlideArt [ visible = { classroot.thumb.loaded }, datapath = { classroot.thumb.value }, scale = { 264 / 1280 } ]
+            ],
+        words: View [ width = 100%, padding = [0, 40, 0, 4],
+            layout: SimpleLayout [ axis = y, spacing = 3 ],
+            Text [ width = 100%, fontSize = 15, fontWeight = semibold, maxLines = 2, textColor = { provided("theme").text },
+                text = { classroot.title } ],
+            Text [ width = 100%, fontSize = 12.5, maxLines = 1, textColor = { provided("theme").textMuted },
+                text = { ago(:updatedAt ?? "", app.clock.now) + " · " + (:slideCount ?? 0) + ((:slideCount ?? 0) == 1 ? " slide" : " slides") } ]
+            ]
+        ],
+    more: IconButton [ x = 232, y = { 264 * 9 / 16 + 8 }, shape = "more", tone = { provided("theme").textMuted },
+        accessibilityLabel = { "More for " + classroot.title },
+        press() { app.menuDeck = classroot.deckId; app.deckMenu.openFor(this) }
+        ]
+    ]
+
+
+// The first card: a new presentation, with a small drawing of one.
+
+class NewCard extends Control [ width = 264, cornerRadius = 14,
+    accessibilityLabel = "New presentation",
+    cursor = "pointer",
+    press() { app.newDeck(this.pic) },
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    pic: View [ width = 264, height = { 264 * 9 / 16 }, cornerRadius = 12,
+        fill = { classroot.hovered ? provided("theme").brandSoft : provided("theme").surface },
+        stroke = { stroke(1.5, classroot.hovered ? provided("theme").brand : provided("theme").lineStrong) },
+        Illustration [ x = center, y = 22, width = 132, height = 76, kind = "new" ],
+        View [ x = center, y = 104,
+            layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+            Glyph [ iconSize = 13, weight = 2, shape = "plus", ink = { provided("theme").brand } ],
+            TextLabel [ fontSize = 13.5, fontWeight = semibold, textColor = { provided("theme").brand }, text = "New presentation" ]
+            ]
+        ],
+    meta: View [ width = 100%, padding = [0, 2, 0, 4],
+        layout: SimpleLayout [ axis = y, spacing = 3 ],
+        Text [ fontSize = 15, fontWeight = semibold, textColor = { provided("theme").text }, text = "Start something new" ],
+        Text [ fontSize = 12.5, textColor = { provided("theme").textMuted }, text = "One empty slide, ready for you" ]
+        ]
+    ]
+
+
+// Drawn illustrations: a stack of slides with shapes on them, in the brand's
+// colours. `kind` picks the scene.
+
+class Illustration [
+    kind: string = "new",
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const w = d.w, h = d.h
+        const card = (x: number, y: number, cw: number, ch: number, rot: number, fill: Color) => {
+            d.save()
+            d.translate(x + cw / 2, y + ch / 2)
+            d.rotate(rot)
+            d.shadowColor = 0x2A204026
+            d.shadowBlur = 10
+            d.shadowOffsetY = 4
+            d.fillStyle = fill
+            d.beginPath(); d.roundRect(-cw / 2, -ch / 2, cw, ch, 7); d.fill()
+            d.restore()
+            }
+        if (kind == "new") {
+            card(w * 0.12, h * 0.16, w * 0.62, h * 0.66, -0.14, t.sun)
+            card(w * 0.26, h * 0.1, w * 0.62, h * 0.66, 0.06, 0xFFFFFF)
+            const x0 = w * 0.32, y0 = h * 0.2
+            d.fillStyle = t.brand
+            d.beginPath(); d.roundRect(x0, y0, w * 0.3, h * 0.1, 3); d.fill()
+            d.fillStyle = t.accent
+            d.beginPath(); d.arc(x0 + w * 0.42, y0 + h * 0.3, h * 0.14, 0, 6.3); d.fill()
+            d.fillStyle = t.mint
+            d.beginPath(); d.roundRect(x0, y0 + h * 0.2, w * 0.2, h * 0.24, 3); d.fill()
+        } else {
+            // the empty gallery: a bigger stack, a spark
+            card(w * 0.08, h * 0.22, w * 0.56, h * 0.6, -0.16, t.mint)
+            card(w * 0.2, h * 0.14, w * 0.56, h * 0.6, -0.04, t.sun)
+            card(w * 0.34, h * 0.1, w * 0.56, h * 0.6, 0.08, 0xFFFFFF)
+            d.save(); d.translate(w * 0.62, h * 0.4); d.rotate(0.08)
+            d.fillStyle = t.brand; d.beginPath(); d.roundRect(-w * 0.2, -h * 0.2, w * 0.24, h * 0.07, 3); d.fill()
+            d.fillStyle = t.textFaint; d.beginPath(); d.roundRect(-w * 0.2, -h * 0.08, w * 0.34, h * 0.035, 2)
+            d.roundRect(-w * 0.2, -h * 0.02, w * 0.28, h * 0.035, 2); d.fill()
+            d.fillStyle = t.accent; d.beginPath(); d.arc(w * 0.08, h * 0.12, h * 0.08, 0, 6.3); d.fill()
+            d.restore()
+            d.fillStyle = t.accent
+            const sx = w * 0.88, sy = h * 0.14, r = h * 0.1
+            d.beginPath()
+            d.moveTo(sx, sy - r); d.lineTo(sx + r * 0.3, sy - r * 0.3); d.lineTo(sx + r, sy); d.lineTo(sx + r * 0.3, sy + r * 0.3)
+            d.lineTo(sx, sy + r); d.lineTo(sx - r * 0.3, sy + r * 0.3); d.lineTo(sx - r, sy); d.lineTo(sx - r * 0.3, sy - r * 0.3)
+            d.closePath(); d.fill()
+            }
+        }
+    ]
+
+
+// A card-shaped placeholder while the list loads.
+
+class CardSkeleton [ width = 264,
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    View [ width = 264, height = { 264 * 9 / 16 }, cornerRadius = 12, fill = { provided("theme").sunk } ],
+    View [ width = 180, height = 14, cornerRadius = 7, fill = { provided("theme").sunk } ],
+    View [ width = 120, height = 11, cornerRadius = 6, fill = { provided("theme").sunk } ]
+    ]
+
+
+class Home [ width = 100%, height = 100%, scrolls = y,
+    fill = { provided("theme").background },
+    layout: SimpleLayout [ axis = y ],
+
+    bar: View [ width = 100%, height = 68, padding = [0, 40, 0, 40],
+        layout: SimpleLayout [ axis = x, align = center ],
+        Wordmark [ size = 22 ],
+        Spacer [ ],
+        PillButton [ label = "New presentation", shape = "plus", tone = "brand",
+            press() { app.newDeck(this) }
+            ]
+        ],
+
+    page: View [ width = 100%, padding = [28, 40, 64, 40],
+        layout: SimpleLayout [ axis = y, spacing = 26 ],
+        heading: View [ width = 100%,
+            layout: SimpleLayout [ axis = y, spacing = 6 ],
+            Text [ fontFamily = { app.brandFace }, fontSize = 34, fontWeight = 800, letterSpacing = -0.8,
+                textColor = { provided("theme").text }, text = "Your presentations" ],
+            Text [ fontSize = 14.5, textColor = { provided("theme").textMuted },
+                text = { app.decks.loaded ? app.deckCountText : "Getting your presentations…" } ]
+            ],
+
+        // Can't reach the service: say so, and offer to try again.
+
+        offline: View [ width = 100%, visible = { app.decks.failed && !app.decks.loaded }, padding = 20, cornerRadius = 14,
+            fill = { provided("theme").dangerSoft },
+            layout: SimpleLayout [ axis = x, spacing = 14, align = center ],
+            Glyph [ iconSize = 22, weight = 1.8, shape = "cloudOff", ink = { provided("theme").danger } ],
+            View [ flexes = true,
+                layout: SimpleLayout [ axis = y, spacing = 3 ],
+                Text [ fontSize = 15, fontWeight = semibold, text = "Can't reach the Presentify service" ],
+                Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted },
+                    text = "Your presentations are kept by the service on this computer. Check that it is running, then try again." ]
+                ],
+            PillButton [ label = "Try again", tone = "accent",
+                press() { app.decks.fetch() }
+                ]
+            ],
+
+        // Loading: the shape of what is coming.
+
+        loadingGrid: View [ width = 100%, visible = { !app.decks.loaded && !app.decks.failed },
+            layout: WrappingLayout [ spacing = 28, rowSpacing = 32 ],
+            CardSkeleton [ ],
+            CardSkeleton [ ],
+            CardSkeleton [ ]
+            ],
+
+        grid: View [ width = 100%, visible = { app.decks.loaded }, datapath = { app.decks.value },
+            layout: WrappingLayout [ spacing = 28, rowSpacing = 32 ],
+            newCard: NewCard [ ],
+            DeckCard [ datapath = :decks[] ]
+            ],
+
+        // No presentations yet.
+
+        empty: View [ width = 100%, visible = { app.decks.loaded && app.deckCount == 0 }, padding = [24, 0, 0, 0],
+            layout: SimpleLayout [ axis = y, spacing = 10, align = center ],
+            Illustration [ width = 260, height = 150, kind = "empty" ],
+            Text [ fontFamily = { app.brandFace }, fontSize = 22, fontWeight = 700, text = "Nothing here yet" ],
+            Text [ fontSize = 14, textColor = { provided("theme").textMuted }, text = "Your first presentation is one click away." ]
+            ]
+        ]
+    ]

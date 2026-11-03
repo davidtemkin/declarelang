@@ -131,7 +131,7 @@ class AccordionPane extends Control [ width = 100%, clip = true,
     // is open or still sliding — closed, the content is absent, to a screen
     // reader as to Tab, not merely clipped out of sight
 
-    defaultPlacement = body,
+    defaultPlacement = _body,
 
     // a pane is its header and its content in one view: to a screen reader, a
     // group named by its header, the header a button that opens and closes it
@@ -149,7 +149,7 @@ class AccordionPane extends Control [ width = 100%, clip = true,
     // wanted extent; `clip = true` is what carries the content through the
     // whole motion — concealed by the clip, never removed
 
-    slide: Spring [ attribute = height, to = { open ? contentHeight : classroot.header.height }, stiffness = 220, damping = 26, epsilon = 0.4 ],
+    _slide: Spring [ attribute = height, to = { open ? contentHeight : classroot._header.height }, stiffness = 220, damping = 26, epsilon = 0.4 ],
 
     // a closed pane is clip-occluded, not hidden — its content stays visible
     // so the slide can carry it, but focus must never descend into it (the
@@ -168,7 +168,7 @@ class AccordionPane extends Control [ width = 100%, clip = true,
     // headers are filled, edgeless — an edge reads as an input field. Keyboard
     // focus is the ring's, shaped to the header (focusShape): one indicator.
 
-    focusShape() { return ({ x: 0, y: 0, w: this.width, h: this.header.height, rad: provided("theme").controlCornerRadius }) },
+    focusShape() { return ({ x: 0, y: 0, w: this.width, h: this._header.height, rad: provided("theme").controlCornerRadius }) },
 
     // The twisty rotates rather than swapping between two marks, and it does it
     // on a spring — so it turns in step with the pane sliding open instead of
@@ -180,7 +180,7 @@ class AccordionPane extends Control [ width = 100%, clip = true,
     Spring [ attribute = _twist, to = { classroot.open ? 0 : -Math.PI / 2 },
         stiffness = 220, damping = 26, epsilon = 0.004 ],
 
-    header: View [ width = 100%, height = { provided("theme").accordionHeaderHeight },
+    _header: View [ width = 100%, height = { provided("theme").accordionHeaderHeight },
         accessibilityRole = button,
         accessibilityExpanded = { classroot.open },
         press() { classroot.press() },
@@ -194,9 +194,9 @@ class AccordionPane extends Control [ width = 100%, clip = true,
 
     // `open` here too, so content reads its pane's state as `parent.open`
 
-    body: View [ width = 100%,
+    _body: View [ width = 100%,
         layout: SimpleLayout [ axis = y, spacing = 0 ],
         open: boolean = { classroot.open },
-        visible = { classroot.open || classroot.height > classroot.header.height + 0.5 }
+        visible = { classroot.open || classroot.height > classroot._header.height + 0.5 }
         ]
     ]

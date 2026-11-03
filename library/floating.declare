@@ -281,7 +281,7 @@ class Floating [
 
     // it animates in and out, and is torn down when the closing motion lands
 
-    motion: Spring [ attribute = openT, to = { classroot.shown ? 1 : 0 }, stiffness = 520, damping = 40, epsilon = 0.01,
+    _motion: Spring [ attribute = openT, to = { classroot.shown ? 1 : 0 }, stiffness = 520, damping = 40, epsilon = 0.01,
         onStop() { if (!classroot.shown) classroot.present = false }
         ],
 
@@ -473,7 +473,7 @@ class Floating [
 
     escape() { this.close() },
 
-    escKeys: Keys [
+    _escKeys: Keys [
         onKeyDown(e: KeyEvent) {
             // one Esc closes one overlay: the one on top when the key arrived
             if (e.key != "Escape" || !classroot.shown) return

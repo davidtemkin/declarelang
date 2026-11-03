@@ -47,8 +47,8 @@ class Breadcrumb [
     height = { provided("theme").segmentedHeight },
     layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
 
-    rows: Dataset [ contents = { { steps: ((classroot.items ?? []) as any).map((c, i, all) => ({ ...c, i: i, last: i == all.length - 1 })) } } ],
-    datapath = { this.rows.value },
+    _rows: Dataset [ contents = { { steps: ((classroot.items ?? []) as any).map((c, i, all) => ({ ...c, i: i, last: i == all.length - 1 })) } } ],
+    datapath = { this._rows.value },
     BreadcrumbStep [ datapath = :steps[], classFor = { :last == true ? BreadcrumbCurrent : :location != null ? BreadcrumbLink : BreadcrumbStep } ]
     ]
 
@@ -110,18 +110,18 @@ class BreadcrumbStep extends Control [
     focusable = { !current && !disabled },
 
     height = 100%,
-    width = { this.sep.width + this.t.width + 8 },
+    width = { this._sep.width + this._t.width + 8 },
 
-    sep: ChevronIcon [ y = center, iconSize = 12, dir = "right", visible = { :i > 0 },
+    _sep: ChevronIcon [ y = center, iconSize = 12, dir = "right", visible = { :i > 0 },
         width = { :i > 0 ? 14 : 0 }, ink = { provided("theme").textMuted } ],
-    t: TextLabel [ x = { parent.sep.width + 4 }, wrap = false, fontSize = { provided("theme").segmentedFontSize },
+    _t: TextLabel [ x = { parent._sep.width + 4 }, wrap = false, fontSize = { provided("theme").segmentedFontSize },
         fontWeight = { classroot.current ? "semibold" : "medium" },
         textColor = { classroot.current || classroot.hovered ? provided("theme").text : provided("theme").textMuted },
         text = { classroot.label } ],
-    under: View [ x = { parent.t.x }, y = { parent.t.y + parent.t.height }, height = 1, width = { parent.t.width },
+    _under: View [ x = { parent._t.x }, y = { parent._t.y + parent._t.height }, height = 1, width = { parent._t.width },
         visible = { classroot.hovered && !classroot.current }, fill = { provided("theme").text } ],
 
-    focusShape() { return { x: this.t.x - 4, y: 2, w: this.t.width + 8, h: this.height - 4, rad: provided("theme").controlCornerRadius } }
+    focusShape() { return { x: this._t.x - 4, y: 2, w: this._t.width + 8, h: this.height - 4, rad: provided("theme").controlCornerRadius } }
     ]
 
 

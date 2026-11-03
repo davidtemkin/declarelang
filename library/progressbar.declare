@@ -69,7 +69,7 @@ class ProgressBar [
     _sweeping: Animator [ attribute = _sweep, from = 0, to = 1, duration = 1400, motion = easeBoth,
         repeat = { Infinity }, started = { classroot.indeterminate && !classroot._still } ],
 
-    bar: View [ height = 100%, cornerRadius = { parent.height / 2 }, fill = { provided("theme").accent },
+    _bar: View [ height = 100%, cornerRadius = { parent.height / 2 }, fill = { provided("theme").accent },
         opacity = { classroot.indeterminate && classroot._still ? 0.45 : 1 },
         width = { !classroot.indeterminate ? parent.width * Math.max(0, Math.min(1, (value - min) / ((max - min) || 1)))
             : classroot._still ? parent.width : parent.width * 0.3 },

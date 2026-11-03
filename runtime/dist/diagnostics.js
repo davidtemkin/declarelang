@@ -73,7 +73,7 @@ const WARNING_CATEGORY = {
     DECLARE4032: "accessibility",
 };
 /** The device a "devices" finding concerns. */
-const DEVICE_OF = { DECLARE3005: "phone" };
+const DEVICE_OF = { DECLARE3005: "mobile" };
 /** A finding's category. A warning or hint not named above is a bug: the
  *  compiler warns because the program, as written, will misbehave — so a new
  *  code is never quietened until it is placed. */

@@ -81,7 +81,7 @@ export function gradient(...args) {
 }
 // radialGradient / conicGradient and the filter functions live in effects.ts —
 // carried by a production build only when a program names one.
-export const stop = (offset, color) => Object.freeze({ offset, color });
+export const colorStop = (offset, color) => Object.freeze({ offset, color });
 /** A width that cannot be a width. A stroke is drawn INSIDE the box, so a value
  *  past a few thousand points is never art — and a `Color` is a number at
  *  runtime, so `stroke(provided("theme").line, 1)` produces exactly this: a fourteen-million

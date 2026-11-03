@@ -411,9 +411,18 @@ function feedSchemaSamples(app, samples) {
 function sampleOf(fields, depth, index = 0) {
     const out = {};
     for (const f of fields) {
+        // where a recursive schema is cut off, end it the way its data ends: an
+        // optional record left out, a list of records empty
+        if (f.fields !== undefined && depth >= 3 && (f.optional || f.array)) {
+            if (!f.optional)
+                out[f.name] = [];
+            continue;
+        }
         const one = (i) => {
+            // a required record is always filled (only a schema no data could meet
+            // recurses through required records alone: it stops at 8)
             if (f.fields !== undefined)
-                return depth < 3 ? sampleOf(f.fields, depth + 1, i) : {};
+                return depth < 8 ? sampleOf(f.fields, depth + 1, i) : {};
             if (f.tokens !== undefined && f.tokens.length > 0)
                 return f.tokens[0];
             if (f.type === "number")

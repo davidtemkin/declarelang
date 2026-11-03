@@ -27,7 +27,7 @@ track takes the full width.
 The fill colour: the theme's `accent` unless you give one.
 
 ## lead
-The caption column's width, derived from whether there is a `label` at all. Set it to
+The width of the caption column, `cap` — the track, `rail`, takes the rest — derived from whether there is a `label` at all. Set it to
 align several bars whose captions differ in length.
 
 ## accessibilityLabel

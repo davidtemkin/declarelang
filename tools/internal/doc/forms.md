@@ -759,7 +759,7 @@ short: constructors
 group: Values
 family: value
 spec: §9 Style
-terms: gradient, stroke, shadow, stop, frost, value constructor, value constructors, constructor call
+terms: gradient, stroke, shadow, colorStop, frost, value constructor, value constructors, constructor call
 syntax:
     fill = gradient(#F8F8F8, #D8D8D8)          // bare: colors in the bare vocabulary
     fill = { gradient("180deg", 0xF8F8F8, 0xD8D8D8) }
@@ -770,12 +770,12 @@ syntax:
 usage: form-constructors
 
 The value constructors build the composite values decoration attributes take: a gradient, a
-stroke, a shadow, a frosted backdrop, a gradient `stop`. They are the only call forms a bare
+stroke, a shadow, a frosted backdrop, a gradient's `colorStop`. They are the only call forms a bare
 value admits, and each has one shape — the message names it when the call is wrong. Inside
 a `{ }` the same names are ordinary functions, with colors written as numbers.
 
-Their names are reserved: no member may be called `gradient`, `stroke`, `shadow`, `stop`,
-or `frost`. A stroke is drawn **inside** the box, so it never enlarges the layout; a shadow
+No attribute may be called `gradient`, `stroke`, `shadow`, `colorStop` or `frost`. A method may
+take one of these names: inside its own class's bodies, a bare call reaches the method. A stroke is drawn **inside** the box, so it never enlarges the layout; a shadow
 is cast outside it, escaping any clip, as a CSS box-shadow does. A `stroke` attribute also takes
 **four** of them — `[top, right, bottom, left]`, clockwise from the top, `null` for a bare
 side — which is the one-or-four shape `cornerRadius` and `padding` share. All three take

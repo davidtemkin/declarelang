@@ -40,11 +40,11 @@ export interface CompileFlags {
    *  (nested choices, centring by hand, a shadowed name). It changes nothing
    *  that is built; a program that has decided against the advice says so. */
   lint: boolean;
-  /** Which devices the program is for. "desk" quiets what matters only on a
-   *  phone (a text field under iOS's focus-zoom size); "phone" what matters
-   *  only at a desk. "all" (the default) reports both. It changes nothing that
+  /** Which devices the program is for. "desktop" quiets what matters only on a
+   *  phone (a text field under iOS's focus-zoom size); "mobile" what matters
+   *  only on a desktop. "all" (the default) reports both. It changes nothing that
    *  is built. */
-  devices: "all" | "desk" | "phone";
+  devices: "all" | "desktop" | "mobile";
 }
 
 /** One spec per modifier. */
@@ -63,8 +63,8 @@ export const FLAG_SPECS: readonly FlagSpec[] = [
     description: "carry the accessibility layer: what screen readers and the platform's accessibility API are given, the accessibility warnings, and the accessibility settings an app can read; unset, the program's flags decide" },
   { name: "lint", kind: "bool", default: true,
     description: "report the compiler's lint: advice on readability and idiom; it changes nothing that is built; unset, the program's flags decide" },
-  { name: "devices", kind: "enum", values: ["all", "desk", "phone"], default: "all",
-    description: "the devices the program is for: desk quiets what matters only on a phone, phone what matters only at a desk; it changes nothing that is built; unset, the program's flags decide" },
+  { name: "devices", kind: "enum", values: ["all", "desktop", "mobile"], default: "all",
+    description: "the devices the program is for: desktop quiets what matters only on a phone, mobile what matters only on a desktop; it changes nothing that is built; unset, the program's flags decide" },
 ];
 
 /** Defaults, derived from the registry. */

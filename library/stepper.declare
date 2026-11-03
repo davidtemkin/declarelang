@@ -129,13 +129,13 @@ class Stepper extends ValueControl [
 
     // the value, set like a segment's label
 
-    shown: TextLabel [ x = center, wrap = false, fontSize = { provided("theme").segmentedFontSize }, fontWeight = medium,
+    _shown: TextLabel [ x = center, wrap = false, fontSize = { provided("theme").segmentedFontSize }, fontWeight = medium,
         textColor = { provided("theme").text }, text = { classroot.format(classroot.value) } ],
 
     // − and +: for the pointer (the keys and a screen reader step the stepper
     // itself), each a hover and press inside the track, dim at its end
 
-    less: View [ x = 2, y = 2, width = { parent.height - 4 }, height = { parent.height - 4 },
+    _less: View [ x = 2, y = 2, width = { parent.height - 4 }, height = { parent.height - 4 },
         cornerRadius = { Math.max(0, provided("theme").segmentedCornerRadius - 2) },
         opacity = { classroot.value <= classroot.min ? 0.35 : 1 },
         idle: boolean = { classroot.disabled || classroot.value <= classroot.min },
@@ -144,7 +144,7 @@ class Stepper extends ValueControl [
         onClick() { if (!classroot.disabled) classroot.accessibilityDecrement() },
         MinusIcon [ x = center, y = center, iconSize = 12, ink = { provided("theme").text } ]
         ],
-    more: View [ x = { parent.width - this.width - 2 }, y = 2, width = { parent.height - 4 }, height = { parent.height - 4 },
+    _more: View [ x = { parent.width - this.width - 2 }, y = 2, width = { parent.height - 4 }, height = { parent.height - 4 },
         cornerRadius = { Math.max(0, provided("theme").segmentedCornerRadius - 2) },
         opacity = { classroot.value >= classroot.max ? 0.35 : 1 },
         idle: boolean = { classroot.disabled || classroot.value >= classroot.max },

@@ -120,7 +120,7 @@ class Carousel extends View [
     // the spring that carries `offset` to the current page; while a finger is down its
     // target is the offset itself, so it holds still and the drag owns the row
 
-    glide: Spring [ attribute = offset, to = { classroot.dragging ? classroot.offset : -classroot.page * classroot.width },
+    _glide: Spring [ attribute = offset, to = { classroot.dragging ? classroot.offset : -classroot.page * classroot.width },
         stiffness = 260, damping = 30, epsilon = 0.4 ],
 
     _x0: number = 0,

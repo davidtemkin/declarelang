@@ -4844,8 +4844,8 @@ await test("decoration literals: gradient / stroke / shadow constructor forms", 
     angle: 180,
     stops: [{ offset: null, color: 0xf8f8f8 }, { offset: null, color: 0xd8d8d8 }],
   });
-  assert.equal(v("fill=gradient(90, #000000, stop(0.3, #FFFFFF), #808080)").value.angle, 90);
-  assert.deepEqual(v("fill=gradient(90, #000, stop(0.3, #FFF), #888)").value.stops[1], { offset: 0.3, color: 0xffffff });
+  assert.equal(v("fill=gradient(90, #000000, colorStop(0.3, #FFFFFF), #808080)").value.angle, 90);
+  assert.deepEqual(v("fill=gradient(90, #000, colorStop(0.3, #FFF), #888)").value.stops[1], { offset: 0.3, color: 0xffffff });
   assert.equal(v("fill=navy").value, 0x000080, "a bare Color coerces into the fill slot");
   assert.equal(v("fill=null").value, null);
   assert.deepEqual(v("stroke=stroke(2, #1A1A1A)").value, { width: 2, color: 0x1a1a1a });
@@ -4878,7 +4878,7 @@ await test("graphics pass: filter / mask / gradient literals coerce, and the nam
   // radial and conic gradients: three numbers, then the stops
   const r = v("fill=radialGradient(0.5, 0.38, 0.3, #FFFFFF60, #FFFFFF00)").value;
   assert.equal(r.kind, "radial"); assert.equal(r.cx, 0.5); assert.equal(r.cy, 0.38); assert.equal(r.r, 0.3); assert.equal(r.stops.length, 2);
-  const c = v("fill=conicGradient(0.5, 0.5, 90, #FF5A36, stop(0.5, #2EC4B6), #FF5A36)").value;
+  const c = v("fill=conicGradient(0.5, 0.5, 90, #FF5A36, colorStop(0.5, #2EC4B6), #FF5A36)").value;
   assert.equal(c.kind, "conic"); assert.equal(c.angle, 90); assert.deepEqual(c.stops[1], { offset: 0.5, color: 0x2ec4b6 });
   assert.match(v("fill=radialGradient(0.5, #FFFFFF, #000000)").error.message, /three numbers/);
 });
@@ -4997,11 +4997,10 @@ await test("stroke: a body that reaches INTO a stroke is told to ask which form 
   assert.match(r.errors[0].message, /one Stroke on all four sides OR four of them/);
 });
 
-await test("gradient/stop are reserved member names (unreachable in call position otherwise)", () => {
+await test("a constructor's name is refused as an attribute, and may be a method's", () => {
   const errs = check(parseProgram(`class X extends View [ gradient: number = 1 ] App [ ]`));
   assert.match(errs[0].message, /value constructor/);
-  const errs2 = check(parseProgram(`App [ stop() { } ]`));
-  assert.match(errs2[0].message, /value constructor/);
+  assert.equal(check(parseProgram(`App [ stop() { }, invert() { } ]`)).length, 0);
 });
 
 await test("flush pushes decoration pay-per-use; pushers carry post-attach changes", async () => {

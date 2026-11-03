@@ -80,8 +80,8 @@ class AppearanceSwitch extends Control [
     tooltipLabel = { dark ? "Switch to light" : "Switch to dark" },
     fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
 
-    sun:  SunIcon  [ x = center, y = center, iconSize = 16, visible = { !classroot.dark },
+    _sun:  SunIcon  [ x = center, y = center, iconSize = 16, visible = { !classroot.dark },
         ink = { classroot.hovered ? provided("theme").text : provided("theme").textMuted } ],
-    moon: MoonIcon [ x = center, y = center, iconSize = 16, visible = { classroot.dark },
+    _moon: MoonIcon [ x = center, y = center, iconSize = 16, visible = { classroot.dark },
         ink = { classroot.hovered ? provided("theme").text : provided("theme").textMuted } ]
     ]

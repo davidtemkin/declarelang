@@ -136,7 +136,7 @@ class Button extends Control [
 
     // the baseline a row aligns this control by: its label's (declared, never discovered)
 
-    baseline: number = { this.run.y + this.run.cap.y + this.run.cap.baseline },
+    baseline: number = { this._run.y + this._run.cap.y + this._run.cap.baseline },
     height = { app.touchFirst ? Math.max(44, provided("theme").buttonHeight) : provided("theme").buttonHeight },
     cornerRadius = { provided("theme").buttonCornerRadius != null ? Math.min(provided("theme").buttonCornerRadius, height / 2) : provided("theme").controlCornerRadius },
     label:   string = "",
@@ -165,7 +165,7 @@ class Button extends Control [
     // cycle. A self-sizing child breaks it, because the run's width never looks
     // outward.
 
-    width   = { this.run.width + this.padH * 2 },
+    width   = { this._run.width + this.padH * 2 },
     opacity = { disabled ? (provided("theme").disabledOpacity) : 1 },
 
     // the fill by state: pressed (or its menu open), hovered, at rest
@@ -179,7 +179,7 @@ class Button extends Control [
 
     stroke  = { !primary && provided("theme").buttonStrokeColor != null ? stroke(1, provided("theme").buttonStrokeColor) : null },
 
-    run: View [ height = 100%, x = center,
+    _run: View [ height = 100%, x = center,
         width = { this.contentWidth },
         layout: SimpleLayout [ axis = x, spacing = { classroot.gap } ],
 

@@ -1961,11 +1961,13 @@ class Resolver {
             const base = extrasOf(cls.base);
             const members = new Set(base?.members);
             const declared = new Set(base?.declared);
+            const methods = new Set(base?.methods);
             for (const d of cls.body.decls)
                 declared.add(d.name);
             for (const m of cls.body.methods) {
                 members.add(m.name);
                 declared.add(m.name);
+                methods.add(m.name);
             }
             for (const c of cls.body.children) {
                 if (c.name !== null) {
@@ -1973,7 +1975,7 @@ class Resolver {
                     declared.add(c.name);
                 }
             }
-            const out = { members, declared };
+            const out = { members, declared, methods };
             this.classExtras.set(name, out);
             return out;
         };
@@ -2319,8 +2321,11 @@ class Resolver {
                 }
                 continue;
             }
-            if (id.callee && CALLEE_GLOBALS.has(id.name))
-                continue; // a value constructor, not a member
+            // a value constructor, not a member — unless a method in scope takes the
+            // name: then a bare call is the method's (a member shadows, as `blur` the
+            // attribute shadows the filter); the bare-value form is never a body
+            if (id.callee && CALLEE_GLOBALS.has(id.name) && !levels.some((lv) => this.surfaceOf(lv).methods.has(id.name)))
+                continue;
             if (id.name === "app") {
                 // `app` (language §11) — the running App at the top of the tree. Sugar
                 // for `this.$root` (the `root` getter walks parent links to the top),
@@ -2603,12 +2608,14 @@ class Resolver {
         // `fetch`): a level's whole member set, so a bare `scrollTo(0)` in a view's
         // own method is the view's, as a bare `width` is — Venue run 19 was refused it
         const base = this.schemas[el.tag];
-        if (base !== undefined)
-            for (const name of runtimeMethodsOf(base))
-                all.add(name);
+        const methods = new Set(base !== undefined ? runtimeMethodsOf(base) : []);
+        for (const name of methods)
+            all.add(name);
         const extras = this.classExtras.get(el.tag);
         for (const name of extras?.members ?? [])
             all.add(name);
+        for (const name of extras?.methods ?? [])
+            methods.add(name);
         const declared = new Set(extras?.declared);
         for (const d of el.decls) {
             all.add(d.name);
@@ -2617,6 +2624,7 @@ class Resolver {
         for (const m of el.methods) {
             all.add(m.name);
             declared.add(m.name);
+            methods.add(m.name);
         }
         for (const c of el.children) {
             if (c.name !== null) {
@@ -2624,7 +2632,7 @@ class Resolver {
                 declared.add(c.name);
             }
         }
-        s = { all, declared };
+        s = { all, declared, methods };
         this.surfaces.set(el, s);
         return s;
     }

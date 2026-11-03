@@ -3,7 +3,8 @@
 
 Filter-as-you-type over a collection: a text field owning a **query** plus a
 dismissable option list owning a **choice** — a derived selection over data.
-Composition, not invention: `TextInput` for the entry, the `Menu` machinery for
+Composition, not invention: a `TextInput` for the entry (its `entry`, the one Tab stop, which a
+script clicks and types into: `app.c.entry`), the `Menu` machinery for
 the list (overlay, raise, light-dismiss, Escape closes — the whole dismissal
 discipline rides along), and the matches are a derived collection — a
 constraint over the items array, so the live match count is free and no
@@ -324,7 +325,7 @@ class Combobox extends ValueControl [
     // the disclosure — a drawn chevron over the entry's right edge; tap
     // opens (the touch path: tap opens, tap picks)
 
-    disc: View [ width = 22,
+    _disc: View [ width = 22,
         x = { classroot.width - this.width - 2 },
         y = center,
         height = { classroot.height - 4 },

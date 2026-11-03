@@ -255,7 +255,7 @@ Derived from `shown`, the menu's own open fact. Visibility is never set from out
 Chrome, never prose: a menu's rows do not select, even inside a `selectable` region — the same provision every `Control` makes for its label.
 
 ## height
-As tall as its panel, which is as tall as its rows — capped just inside the app's
+As tall as its `panel`, the surface its rows sit on, which is as tall as its rows — capped just inside the app's
 height, past which the panel scrolls its rows and the rover keeps the landing row in
 view.
 
@@ -289,7 +289,7 @@ class Menu extends Floating [
     _asList: boolean = { accessibilityRole == "listbox" },
     focusFirst() { this._holdFocusItself() },        // the menu itself, never a view inside it
 
-    // its keys are its rover's (the keys member below): a menu holding the focus
+    // its keys are its rover's (the _keys member below): a menu holding the focus
     // inside a group, as a menu bar's does, is not walked as one of its members
 
     onKeyDown(e: KeyEvent) { },
@@ -560,7 +560,7 @@ class Menu extends Floating [
 
     sideways(d: number) { },
 
-    keys: Keys [
+    _keys: Keys [
         onKeyDown(e: KeyEvent) {
             if (!classroot.shown) return
             if (classroot._subShown(classroot.child)) return   // the deeper menu handles
@@ -585,7 +585,7 @@ class Menu extends Floating [
     // the menu is shown: a closed menu builds nothing, however long its list
     // and however often the data under it changes.
 
-    data: Dataset [ contents = { { rows: classroot.shown ? (classroot.items || []) : [] } } ],
+    _data: Dataset [ contents = { { rows: classroot.shown ? (classroot.items || []) : [] } } ],
 
     // the panel
 
@@ -611,7 +611,7 @@ class Menu extends Floating [
             height = { parent.height - 10 },
             scrolls = y, clip = true,
             layout: SimpleLayout [ axis = y, spacing = 0 ],
-            datapath = { classroot.data.value },
+            datapath = { classroot._data.value },
 
             View [ datapath = :rows[], width = 100%,
                 divider:  boolean = { !!:divider },

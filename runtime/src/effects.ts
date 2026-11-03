@@ -20,7 +20,7 @@ function gradientStops(args: (number | GradientStop)[], who: string): readonly G
   return Object.freeze(args.map((a): GradientStop => {
     if (typeof a === "number") return Object.freeze({ offset: null, color: a });
     if (typeof a === "object" && a !== null && "color" in a) return a;
-    throw new Error(diag`a gradient stop is a color or stop(offset, color)`);
+    throw new Error(diag`a gradient stop is a color or colorStop(offset, color)`);
   }));
 }
 /** `radialGradient(cx, cy, r, stops…)` — centre as fractions of the box, reach

@@ -216,7 +216,7 @@ class Dialog extends Floating [
     _full: boolean = { this.presentation == "full" },
 
     width = { this._full ? this._hostW : Math.min(this._hostW - 32, provided("theme").dialogWidth) },
-    height = { this._full ? this._hostH : this.col.height },
+    height = { this._full ? this._hostH : this._col.height },
     x = { (this._hostW - this.width) / 2 },
     y = { this._full ? 0 : Math.max(40, (this._hostH - this.height) / 3) },
 
@@ -278,8 +278,8 @@ class Dialog extends Floating [
 
     focusDefault() {
         if (!shown) return
-        if (Focus.focusIn(this.col.content)) return   // your content's first control, when it has one
-        const b = this.col.btns
+        if (Focus.focusIn(this._col.content)) return   // your content's first control, when it has one
+        const b = this._col.btns
         const kids = this._kidsOf(this.arrangement == "stack" ? b.stackInner : b.rowInner)
         const d = kids.find((k) => k.primary)
         if (d != null || kids.length > 0) Focus.focus(d != null ? d : kids[kids.length - 1])
@@ -309,7 +309,7 @@ class Dialog extends Floating [
         return f.multiline === true || typeof f.press == "function"
         },
 
-    enterKeys: Keys [
+    _enterKeys: Keys [
         onKeyDown(e: KeyEvent) {
             if (classroot.shown && classroot.isTop() && e.key == "Enter" && !classroot._returnTaken()) classroot.pickDefault()
             }
@@ -322,20 +322,20 @@ class Dialog extends Floating [
     arrangement: string = { provided("theme").dialogButtonLayout },
     centered: boolean = { provided("theme").dialogTextAlign == "center" },
 
-    data: Dataset [ contents = { { b: classroot.arrangement == "stack"
+    _data: Dataset [ contents = { { b: classroot.arrangement == "stack"
         ? [...(classroot.buttons || [])].sort((p, q) => (q.default ? 1 : q.cancel ? -1 : 0) - (p.default ? 1 : p.cancel ? -1 : 0))
         : classroot.buttons || [] } } ],
 
     // the dimming behind the panel — paint only; the dialog's `block` policy is
     // what stops presses aimed past it
 
-    scrim: View [ pointerEvents = "none",
+    _scrim: View [ pointerEvents = "none",
         x = { -classroot.x }, y = { -classroot.y },
         width = { classroot._hostW }, height = { classroot._hostH },
         fill = { provided("theme").scrimFill },
         opacity = { (provided("theme").scrimOpacity) * (classroot._full ? 0 : 1) } ],
 
-    panel: View [ width = 100%, height = 100%,
+    _panel: View [ width = 100%, height = 100%,
         cornerRadius = { classroot._full ? 0 : provided("theme").dialogCornerRadius ?? provided("theme").menuCornerRadius + 2 },
         fill = { provided("theme").surface },
         stroke = { classroot._full ? null : stroke(1, provided("theme").line) },
@@ -344,7 +344,7 @@ class Dialog extends Floating [
     // the 20pt margin is the column's own content box; the fill, the edge and
     // the shadow stay on the panel
 
-    col: View [ width = 100%, padding = { classroot._full ? 0 : 20 },
+    _col: View [ width = 100%, padding = { classroot._full ? 0 : 20 },
         layout: SimpleLayout [ axis = y, spacing = 12 ],
 
         ttl: Text [ fontWeight = bold, wrap = true, width = 100%,
@@ -374,18 +374,16 @@ class Dialog extends Floating [
             rowInner: View [ visible = { classroot.arrangement != "stack" },
                 height = { this.contentHeight },
 
-                // "end": the buttons' own width — 86 each, 10 between. (Not
-                // contentWidth: a button's width reads its row's in the "fill"
-                // arrangement, so the row's extent leaves the buttons out.)
+                // "end": the buttons' own width — each its label's, at least 86
 
                 x = { classroot.arrangement == "end" ? parent.width - this.width : 0 },
-                width = { classroot.arrangement == "end" ? Math.max(0, (classroot.buttons || []).length * 96 - 10) : parent.width },
+                width = { classroot.arrangement == "end" ? this.contentWidth : parent.width },
                 layout: SimpleLayout [ axis = x, spacing = 10 ],
-                datapath = { classroot.data.value },
+                datapath = { classroot._data.value },
                 Button [ datapath = :b[], label = { "" + :label },
                     width = { classroot.arrangement == "fill"
                             ? (this.parent.width - 10 * (((classroot.buttons || []).length || 1) - 1)) / ((classroot.buttons || []).length || 1)
-                            : 86 },
+                            : Math.max(86, this._run.width + this.padH * 2) },
                     primary = { !!:default },
                     onClick() { classroot.pick("" + :id) }
                     ]
@@ -394,7 +392,7 @@ class Dialog extends Floating [
             stackInner: View [ visible = { classroot.arrangement == "stack" },
                 height = { this.contentHeight }, width = 100%,
                 layout: SimpleLayout [ axis = y, spacing = 8 ],
-                datapath = { classroot.data.value },
+                datapath = { classroot._data.value },
                 Button [ datapath = :b[], label = { "" + :label },
                     width = 100%,
                     primary = { !!:default },

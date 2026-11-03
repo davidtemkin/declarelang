@@ -195,7 +195,8 @@ export abstract class TweenLayout extends Layout {
    *  once the motion lands instead of flying in from the origin. */
   private $snapshot(animate: boolean): void {
     const kids = this.laid();
-    const to = this.place() as FullBox[];
+    // a box that leaves out `vis` is shown, as in every other layout's place()
+    const to = (this.place() as FullBox[]).map((b) => b.vis === undefined ? { ...b, vis: true } : b);
     this.from = kids.map((c, i) => this.placed.has(c) || to[i] === undefined
       ? { x: c.x, y: c.y, w: c.width, h: c.height, vis: c.visible }
       : { ...to[i], vis: false });

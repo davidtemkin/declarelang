@@ -31,8 +31,8 @@ include [ "segmented.declare" ]
 
 class TabBar extends Segmented [
     accessibilityRole = tabList,
-    tabRows: Dataset [ contents = { { tabs: ((classroot.choices ?? []) as any).map((c, i) => ({ ...c, i: i })) } } ],
-    datapath = { this.tabRows.value },
+    _tabRows: Dataset [ contents = { { tabs: ((classroot.choices ?? []) as any).map((c, i) => ({ ...c, i: i })) } } ],
+    datapath = { this._tabRows.value },
     TabBarTab [ datapath = :tabs[] ]
     ]
 

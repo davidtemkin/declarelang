@@ -1,0 +1,107 @@
+/*
+# Presentify: a slide, drawn
+
+One class draws a slide wherever one appears: the editor, the slide list, a
+presentation's card in the gallery, the conflict notice, and the presenter.
+So a slide looks exactly the same everywhere, by construction.
+
+`SlideArt` is always 1280 × 720 points; a use site shrinks or grows it with
+`scale` (about its top left), and the layout around it sees the scaled box.
+Its record (`datapath`) is a slide: `background` and `elements`. Groups have
+no look of their own, so the slide draws its leaves, in paint order, each by
+its kind's class.
+*/
+
+class SlideArt [ width = 1280, height = 720, clip = true, pivotX = 0, pivotY = 0,
+
+    // The editor's own copy reports how tall each text box lays out
+    // (`artLive`), and hides the one being typed into (`artHidden`), whose
+    // field stands in its place. Both are read by the parts below.
+
+    artLive: boolean = false,
+    artHidden: string = "",
+
+    fill = { app.paint(:background ?? "#FFFFFF") },
+    leaves: Dataset [ schema = [ items[]: El ], contents = { { items: leavesOf(:elements ?? []) } } ],
+    layer: View [ width = 100%, height = 100%, datapath = { classroot.leaves.value },
+        ElArt [ datapath = :items[],
+            classFor = { ({ rect: RectArt, ellipse: EllipseArt, line: LineArt, text: TextArt, group: TextArt })[:kind ?? "text"] } ]
+        ]
+    ]
+
+
+class ElArt [ ]
+
+// A rectangle: its box, fill and outline. The corner radius is a length,
+// clamped so a short side becomes a fully round end.
+
+class RectArt extends ElArt [
+    x = { :x ?? 0 }, y = { :y ?? 0 }, width = { :width ?? 0 }, height = { :height ?? 0 },
+    fill = { app.paint(:fill) },
+    stroke = { :stroke != null ? stroke(:stroke.width, app.paint(:stroke.color)) : null },
+    cornerRadius = { Math.max(0, Math.min(:cornerRadius ?? 0, (:width ?? 0) / 2, (:height ?? 0) / 2)) }
+    ]
+
+
+// An ellipse, drawn: its outline sits inside its box, as a rectangle's does.
+
+class EllipseArt extends ElArt [
+    x = { :x ?? 0 }, y = { :y ?? 0 }, width = { :width ?? 0 }, height = { :height ?? 0 },
+    fillColor: Color = { app.paint(:fill) },
+    lineColor: Color = { :stroke != null ? app.paint(:stroke.color) : null },
+    lineWidth: number = { :stroke?.width ?? 0 },
+    draw(d: DrawContext) {
+        const sw = lineColor != null ? lineWidth : 0
+        const rx = Math.max(0, d.w / 2 - sw / 2), ry = Math.max(0, d.h / 2 - sw / 2)
+        d.beginPath()
+        d.ellipse(d.w / 2, d.h / 2, rx, ry, 0, 0, Math.PI * 2)
+        if (fillColor != null) { d.fillStyle = fillColor; d.fill() }
+        if (lineColor != null && sw > 0) { d.strokeStyle = lineColor; d.lineWidth = sw; d.stroke() }
+        }
+    ]
+
+
+// A line, drawn in a box around it with room for its width and round caps.
+
+class LineArt extends ElArt [
+    pad: number = { (:stroke?.width ?? 2) / 2 + 2 },
+    x = { Math.min(:x1 ?? 0, :x2 ?? 0) - this.pad }, y = { Math.min(:y1 ?? 0, :y2 ?? 0) - this.pad },
+    width = { Math.abs((:x2 ?? 0) - (:x1 ?? 0)) + 2 * this.pad },
+    height = { Math.abs((:y2 ?? 0) - (:y1 ?? 0)) + 2 * this.pad },
+    ax: number = { (:x1 ?? 0) - Math.min(:x1 ?? 0, :x2 ?? 0) + this.pad },
+    ay: number = { (:y1 ?? 0) - Math.min(:y1 ?? 0, :y2 ?? 0) + this.pad },
+    bx: number = { (:x2 ?? 0) - Math.min(:x1 ?? 0, :x2 ?? 0) + this.pad },
+    by: number = { (:y2 ?? 0) - Math.min(:y1 ?? 0, :y2 ?? 0) + this.pad },
+    lineColor: Color = { app.paint(:stroke?.color ?? "#1F2328") },
+    lineWidth: number = { :stroke?.width ?? 2 },
+    draw(d: DrawContext) {
+        d.strokeStyle = lineColor
+        d.lineWidth = lineWidth
+        d.lineCap = "round"
+        d.beginPath()
+        d.moveTo(ax, ay)
+        d.lineTo(bx, by)
+        d.stroke()
+        }
+    ]
+
+
+// A text box: one block, one style, wrapped to its width and as tall as its
+// lines. On the editor's slide it reports that height, so selection and
+// alignment use the box as laid out.
+
+class TextArt extends ElArt [
+    x = { :x ?? 0 }, y = { :y ?? 0 },
+    elId: string = { :id ?? "" },
+    opacity = { provided("artHidden") == this.elId ? 0 : 1 },
+    trackChanges = ["height"],
+    onChange() { if (provided("artLive")) app.noteHeight(this.elId, this.height) },
+    body: Text [ width = { :width ?? 100 }, wrap = true,
+        text = { :text?.content ?? "" },
+        fontFamily = { app.faceFor(:text?.font ?? "Helvetica Neue") },
+        fontSize = { :text?.size ?? 24 },
+        fontWeight = { :text?.weight ?? 400 },
+        italic = { :text?.italic ?? false },
+        textColor = { app.paint(:text?.color ?? "#1F2328") },
+        textAlign = { (:text?.align ?? "left") as "left" | "center" | "right" } ]
+    ]

@@ -73,7 +73,7 @@ const flags = {
   json: args.includes("--json"),
   // --all: every warning and hint, not one line per kind
   all: args.includes("--all"),
-  // --lint=false, --devices=desk|phone|all: the program's defaultFlags for this
+  // --lint=false, --devices=desktop|mobile|all: the program's defaultFlags for this
   // run — which findings are quieted (declare.md defaultFlags)
   lint: argVal("lint"),
   devices: argVal("devices"),
@@ -102,13 +102,13 @@ const flags = {
   // again and again while a program is written
   noBoot: args.includes("--no-boot"),
   // --size WxH [--touch]: the window the headless boot fills (default: a
-  // laptop's). --phone: a phone held upright, touch, instead; --phone --desk:
+  // laptop's). --phone: a phone held upright, touch, instead; --phone --desktop:
   // both. --read PATH.ATTR (repeatable), --outline [PATH], --semantics [PATH]:
   // answered from that boot, no browser.
   size: argVal("size"),
   touch: args.includes("--touch"),
   phone: args.includes("--phone"),
-  desk: args.includes("--desk"),
+  desktop: args.includes("--desktop"),
   reads: args.flatMap((a, i) => a === "--read" && args[i + 1] !== undefined ? [args[i + 1]] : a.startsWith("--read=") ? [a.slice(7)] : []),
   outline: optionalVal("outline"),
   semantics: optionalVal("semantics"),
@@ -186,7 +186,7 @@ if (flags.wrap && !hasApp) {
 // include (2026-08-08) and verify alone could not find a file sitting beside
 // the program.
 if (flags.lint !== null && flags.lint !== "true" && flags.lint !== "false") { console.error(`declare-verify: --lint is true or false, not '${flags.lint}'`); process.exit(2); }
-if (flags.devices !== null && !["all", "desk", "phone"].includes(flags.devices)) { console.error(`declare-verify: --devices is all, desk or phone, not '${flags.devices}'`); process.exit(2); }
+if (flags.devices !== null && !["all", "desktop", "mobile"].includes(flags.devices)) { console.error(`declare-verify: --devices is all, desktop or mobile, not '${flags.devices}'`); process.exit(2); }
 const out = await compileTracked(source, { originDir: dirname(resolve(file)), mainId: resolve(file),
   ...(flags.lint !== null ? { lint: flags.lint === "true" } : {}), ...(flags.devices !== null ? { devices: flags.devices } : {}) });
 // --only: keep the diagnostics positioned in the named file. Matched by path
@@ -242,7 +242,7 @@ async function compiledProgram() {
 // assertions are out of scope at Node rung 4 BY DESIGN (verify-and-evals.md §2.8).
 const boot = { ran: false, ok: false, nodes: 0, ms: 0, errors: [], notes: [], samples: [] };
 // THE WINDOWS ASKED FOR. With no --size, the boot fills a laptop window; --phone
-// a phone held upright (touch) instead, and --phone --desk both. A phone is
+// a phone held upright (touch) instead, and --phone --desktop both. A phone is
 // checked when the program is for one — nothing here assumes it is.
 const sized = (() => {
   const m = /^(\d+)x(\d+)$/.exec(flags.size ?? "");
@@ -265,7 +265,7 @@ if (failedRung === null && flags.rung >= 4 && !flags.noBoot) {
   try {
     const program = await compiledProgram();
     const desk = { size: [1280, 800], touch: false, tag: "" }, phone = { size: [390, 844], touch: true, tag: "" };
-    const windows = sized ?? (flags.phone && flags.desk ? [desk, { ...phone, tag: "phone 390×844: " }] : flags.phone ? [phone] : [desk]);
+    const windows = sized ?? (flags.phone && flags.desktop ? [desk, { ...phone, tag: "phone 390×844: " }] : flags.phone ? [phone] : [desk]);
     const own = (program.classes ?? []).filter((c) => !String(c.pos?.file ?? "").startsWith("library/")).map((c) => c.name);
     let results;
     if (inChrome) {
@@ -457,7 +457,7 @@ if (flags.json) {
       optionalIdle || r.n > effectiveBuilt ? "·" : "✓";
     const note =
       optionalIdle || r.n > effectiveBuilt ? ` — ${r.what}` :
-      r.n === 4 && boot.ran && boot.ok ? ` (${boot.nodes} nodes, in ${boot.where === "chrome" ? "Chrome, real text" : "Node, stand-in text"}${sized ? "" : flags.phone && flags.desk ? ", a laptop and a phone" : flags.phone ? ", a phone, touch" : ", a laptop"})${findings(boot.layout.length)}` :
+      r.n === 4 && boot.ran && boot.ok ? ` (${boot.nodes} nodes, in ${boot.where === "chrome" ? "Chrome, real text" : "Node, stand-in text"}${sized ? "" : flags.phone && flags.desktop ? ", a laptop and a phone" : flags.phone ? ", a phone, touch" : ", a laptop"})${findings(boot.layout.length)}` :
       r.n === 5 && behave.ran && behave.ok ? ` (${behave.log.length} steps, real input${behave.asserted === 0 ? "; it asserted nothing, so the pass says only that nothing threw and what the layout checks found — end a flow with an expect of what it should have done" : `, ${behave.asserted} assertion${behave.asserted === 1 ? "" : "s"}`})` :
       r.n === 6 && visual.ran && visual.ok ? ` (${visual.results.length} states${flags.bless ? ", blessed" : ""})` : "";
     console.log(`  R${r.n} ${mark} ${r.name}${note}`);

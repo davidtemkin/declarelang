@@ -1,0 +1,922 @@
+/*
+# Presentify: the editor
+
+The parts of the editing screen: the stage where the slide is edited, the
+slide list down the side, the inspector beside the slide, the toolbar over
+them, and the notice for a slide changed in another window.
+`presentify.declare` includes this file and places them.
+
+The stage is a free surface, so it is placed by hand: the slide is fitted
+into the room the stage has (`k`, its scale), and everything drawn over the
+slide — selection, handles, guides, the field for typing — is placed from the
+selection's box in slide points, through `k`. When the selection moves, its
+handles follow because their places are constraints on it.
+
+A gesture is the stage's own business: where it began and what it is doing
+(`mode`) live on the stage. What it changes is the App's: the elements of
+the slide, and the selection. Each gesture ends in one `app.commit()`, which
+is one step of undo.
+*/
+
+// ── The stage ───────────────────────────────────────────────────────────────
+
+class Stage [ clip = true,
+    fill = { provided("theme").canvas },
+
+    // The slide fitted into the stage, with room around it.
+
+    k: number = { Math.max(0.05, Math.min((this.width - 112) / 1280, (this.height - 96) / 720)) },
+    ox: number = { Math.round((this.width - 1280 * this.k) / 2) },
+    oy: number = { Math.round((this.height - 720 * this.k) / 2) },
+
+    // The gesture under way.
+
+    mode: "" | "press" | "move" | "marquee" | "draw" | "resize" | "radius" | "end1" | "end2" = "",
+    sx: number = 0,                   // where it began, in slide points
+    sy: number = 0,
+    startEls: El[] = [],              // the slide's elements when it began
+    startSel: string[] = [],
+    startBox: Box? = null,
+    startR: number = 0,
+    handle: string = "",
+    drawId: string = "",
+    guidesV: number[] = [],
+    guidesH: number[] = [],
+    marquee: Box? = null,
+    hoverId: string = "",
+
+    toX(px: number) -> number { return (px - this.ox) / this.k },
+    toY(py: number) -> number { return (py - this.oy) / this.k },
+    tol: number = { 6 / this.k },
+
+    // Everything not being dragged, as boxes to snap to.
+
+    othersOf(els: El[], ids: string[]) -> Box[] {
+        return els.filter((e) => !ids.includes(e.id)).map((e) => boundsOf(e, app.measured))
+        },
+
+    begin(e: PointerEvent) {
+        app.focusArea = "canvas"
+        if (app.editingId != "") app.endTextEdit()
+        const px = this.toX(e.x), py = this.toY(e.y)
+        sx = px
+        sy = py
+        startEls = app.els
+        startSel = app.sel
+        if (app.tool != "select") { mode = "draw"; drawId = ""; return }
+        const id = pickAt(app.els, px, py, this.tol, app.measured, app.entered)
+        if (id == "") {
+            if (!e.shift) { app.entered = ""; app.select([]) }
+            mode = "marquee"
+            return
+            }
+        if (app.entered != "" && parentOf(app.els, id) != app.entered) app.entered = ""
+        if (e.shift) {
+            app.select(app.sel.includes(id) ? app.sel.filter((s) => s != id) : [...app.sel, id])
+            mode = app.sel.includes(id) ? "" : "press"
+            if (mode == "") return
+        } else if (!app.sel.includes(id)) {
+            app.select([id])
+            }
+        mode = "press"
+        },
+
+    drag(e: PointerEvent) {
+        if (mode == "") { this.hover(e); return }
+        const px = this.toX(e.x), py = this.toY(e.y)
+        const far = Math.abs(e.deltaX) + Math.abs(e.deltaY) > 3
+        if (mode == "press") { if (!far) return; mode = "move"; startEls = app.els; startSel = app.sel }
+        if (mode == "move") {
+            const box = boundsOfIds(startEls, app.sel, app.measured)
+            if (box == null) return
+            let dx = e.deltaX / this.k, dy = e.deltaY / this.k
+            if (e.shift) { if (Math.abs(dx) > Math.abs(dy)) dy = 0; else dx = 0 }
+            const tops = app.sel.map((s) => topOf(startEls, s))
+            const snap = e.alt ? null : snapMove(({ x: box.x + dx, y: box.y + dy, w: box.w, h: box.h }),
+                this.othersOf(startEls, tops), this.tol)
+            if (snap != null) { dx = dx + snap.dx; dy = dy + snap.dy }
+            guidesV = snap?.v ?? []
+            guidesH = snap?.h ?? []
+            const ddx = Math.round(dx * 100) / 100, ddy = Math.round(dy * 100) / 100
+            app.setEls(mapIds(startEls, app.sel, (el) => moved(el, ddx, ddy)))
+        } else if (mode == "marquee") {
+            const b = dragBox(sx, sy, px, py, false)
+            marquee = b
+            const inside = idsInBox(startEls, b, app.measured)
+            app.select([...startSel.filter((s) => !inside.includes(s)), ...inside])
+        } else if (mode == "draw") {
+            if (!far && drawId == "") return
+            this.drawTo(px, py, e.shift)
+        } else if (mode == "resize") {
+            this.resizeTo(e)
+        } else if (mode == "radius") {
+            const el = app.single
+            if (el == null) return
+            const most = Math.min(el.width ?? 0, el.height ?? 0) / 2
+            const r = Math.round(Math.max(0, Math.min(most, startR + (e.deltaX + e.deltaY) / 2 / this.k)))
+            app.setEls(mapIds(startEls, [el.id], (x) => ({ ...x, cornerRadius: r })))
+        } else if (mode == "end1" || mode == "end2") {
+            const el = findEl(startEls, app.sel[0])
+            if (el == null) return
+            const one = mode == "end1"
+            const fx = one ? el.x2 ?? 0 : el.x1 ?? 0, fy = one ? el.y2 ?? 0 : el.y1 ?? 0
+            const ox0 = one ? el.x1 ?? 0 : el.x2 ?? 0, oy0 = one ? el.y1 ?? 0 : el.y2 ?? 0
+            const lines = guideLines(this.othersOf(startEls, [el.id]), true)
+            const rows = guideLines(this.othersOf(startEls, [el.id]), false)
+            let nx = ox0 + e.deltaX / this.k, ny = oy0 + e.deltaY / this.k
+            if (!e.shift && !e.alt) { nx = snapEdge(nx, lines, this.tol); ny = snapEdge(ny, rows, this.tol) }
+            const p = lineEnd(fx, fy, nx, ny, e.shift)
+            app.setEls(mapIds(startEls, [el.id], (x) => one ? ({ ...x, x1: p[0], y1: p[1] }) : ({ ...x, x2: p[0], y2: p[1] })))
+            }
+        },
+
+    finish(e: PointerUpEvent) {
+        const was = mode
+        mode = ""
+        guidesV = []
+        guidesH = []
+        marquee = null
+        if (e.canceled && (was == "move" || was == "resize" || was == "radius" || was == "end1" || was == "end2" || was == "draw")) {
+            app.setEls(startEls)
+            app.select(startSel)
+            return
+            }
+        if (was == "draw") { this.endDraw(e.shift); return }
+        if (was == "move" || was == "resize" || was == "radius" || was == "end1" || was == "end2") app.commit()
+        },
+
+    // ── drawing a new element
+
+    drawTo(px: number, py: number, square: boolean) {
+        const t = app.tool
+        if (drawId == "") {
+            drawId = app.newId()
+            app.select([])
+            }
+        let el: El
+        if (t == "line") {
+            const p = lineEnd(sx, sy, px, py, square)
+            el = app.newLine(drawId, sx, sy, p[0], p[1])
+        } else {
+            const b = dragBox(sx, sy, px, py, square && t != "text")
+            if (t == "text") el = app.newText(drawId, b.x, b.y, Math.max(40, b.w))
+            else el = app.newShape(drawId, t == "rect" ? "rect" : "ellipse", b.x, b.y, Math.max(1, b.w), Math.max(1, b.h), square)
+            }
+        app.setEls([...startEls, el])
+        },
+
+    endDraw(square: boolean) {
+        const t = app.tool
+        if (drawId == "") {
+            // A click: a text box to type into, or a shape of a usual size.
+            drawId = app.newId()
+            if (t == "text") app.setEls([...startEls, app.newText(drawId, sx, sy - 20, 0)])
+            else if (t == "line") app.setEls([...startEls, app.newLine(drawId, sx - 120, sy, sx + 120, sy)])
+            else app.setEls([...startEls, app.newShape(drawId, t == "rect" ? "rect" : "ellipse", sx - 120, sy - 80, 240, t == "ellipse" && square ? 240 : 160, square)])
+            }
+        const id = drawId
+        drawId = ""
+        app.select([id])
+        app.tool = "select"
+        if (t == "text") { app.beginTextEdit(id) } else app.commit()
+        },
+
+    // ── resizing
+
+    beginResize(which: string, e: PointerEvent) {
+        app.focusArea = "canvas"
+        if (app.editingId != "") app.endTextEdit()
+        startEls = app.els
+        startSel = app.sel
+        handle = which
+        if (which == "radius") {
+            mode = "radius"
+            startR = app.single?.cornerRadius ?? 0
+            return
+            }
+        if (which == "end1" || which == "end2") { mode = which; return }
+        startBox = boundsOfIds(app.els, app.sel, app.measured)
+        mode = "resize"
+        },
+
+    resizeTo(e: PointerEvent) {
+        const b0 = startBox
+        if (b0 == null) return
+        const keep = app.keepsProportions != e.shift
+        let dx = e.deltaX / this.k, dy = e.deltaY / this.k
+        if (!keep && !e.alt) {
+            // A dragged edge lands on a guide.
+            const tops = app.sel.map((s) => topOf(startEls, s))
+            const others = this.othersOf(startEls, tops)
+            const xs = guideLines(others, true), ys = guideLines(others, false)
+            if (handle.includes("l")) dx = snapEdge(b0.x + dx, xs, this.tol) - b0.x
+            if (handle.includes("r")) dx = snapEdge(b0.x + b0.w + dx, xs, this.tol) - b0.x - b0.w
+            if (handle.includes("t")) dy = snapEdge(b0.y + dy, ys, this.tol) - b0.y
+            if (handle.includes("b")) dy = snapEdge(b0.y + b0.h + dy, ys, this.tol) - b0.y - b0.h
+            }
+        const textOnly = app.selIsText
+        const mode2 = textOnly ? handle.replace("t", "").replace("b", "") : handle
+        const b1 = resizedBox(b0, mode2, dx, dy, keep && !textOnly)
+        app.setEls(mapIds(startEls, app.sel, (el) => scaledInto(el, b0, b1)))
+        },
+
+    // ── pointing without pressing: what is under the pointer
+
+    hover(e: PointerEvent) {
+        if (app.tool != "select") { hoverId = ""; return }
+        hoverId = pickAt(app.els, this.toX(e.x), this.toY(e.y), this.tol, app.measured, app.entered)
+        },
+
+    // A double-click types into a text box, or enters a group to pick one of its parts.
+
+    open(e: PointerEvent) {
+        if (app.tool != "select") return
+        const px = this.toX(e.x), py = this.toY(e.y)
+        const id = pickAt(app.els, px, py, this.tol, app.measured, app.entered)
+        if (id == "") return
+        const el = findEl(app.els, id)
+        if (el == null) return
+        if (el.kind == "text") { app.select([id]); app.beginTextEdit(id); return }
+        if (el.kind == "group") {
+            const child = childAt(app.els, id, px, py, this.tol, app.measured)
+            if (child != "") { app.entered = id; app.select([child]) }
+            }
+        },
+
+    // ── what is on the stage, back to front
+
+    paper: View [ x = { classroot.ox }, y = { classroot.oy }, width = { 1280 * classroot.k }, height = { 720 * classroot.k },
+        shadow = { shadow(0, 10, 30, 0x2A20402E) } ],
+
+    art: SlideArt [ x = { classroot.ox }, y = { classroot.oy }, scale = { classroot.k },
+        datapath = { app.curSlide }, artLive = true, artHidden = { app.editingId },
+        accessibilityLabel = "Slide", accessibilityRole = image ],
+
+    // The surface takes the pointer: presses, drags, double-clicks.
+
+    surface: View [ width = 100%, height = 100%,
+        cursor = { app.tool != "select" ? "crosshair" : classroot.hoverId != "" ? "move" : "default" },
+        onPointerDown(e: PointerEvent) { classroot.begin(e) },
+        onPointerMove(e: PointerEvent) { classroot.drag(e) },
+        onPointerUp(e: PointerUpEvent) { classroot.finish(e) },
+        onPointerOut() { if (classroot.mode == "") classroot.hoverId = "" },
+        onDblClick(e: PointerEvent) { classroot.open(e) },
+        onContextMenu(e: PointerEvent) {
+            const id = pickAt(app.els, classroot.toX(e.x), classroot.toY(e.y), classroot.tol, app.measured, app.entered)
+            if (id != "" && !app.sel.includes(id)) app.select([id])
+            app.canvasMenu.open(this, e)
+            }
+        ],
+
+    // Selection, hover, guides and the marquee, drawn over the slide. Each
+    // outline is drawn twice, light under dark, so it shows on any colour.
+
+    marks: View [ width = 100%, height = 100%, pointerEvents = "none",
+        draw(d: DrawContext) {
+            const k = classroot.k, ox = classroot.ox, oy = classroot.oy
+            const tx = (v: number) => ox + v * k
+            const ty = (v: number) => oy + v * k
+            const accent = provided("theme").handle
+            const outline = (b: Box, w: number, dash: boolean) => {
+                d.setLineDash(dash ? [4, 3] : [])
+                d.lineWidth = w + 2
+                d.strokeStyle = 0xFFFFFFCC
+                d.strokeRect(tx(b.x) - 0.5, ty(b.y) - 0.5, b.w * k + 1, b.h * k + 1)
+                d.lineWidth = w
+                d.strokeStyle = accent
+                d.strokeRect(tx(b.x) - 0.5, ty(b.y) - 0.5, b.w * k + 1, b.h * k + 1)
+                }
+            // the group the person is inside
+            if (app.entered != "") {
+                const g = boundsOfIds(app.els, [app.entered], app.measured)
+                if (g != null) outline(g, 1, true)
+                }
+            // under the pointer
+            if (classroot.hoverId != "" && !app.sel.includes(classroot.hoverId) && classroot.mode == "") {
+                const h = boundsOfIds(app.els, [classroot.hoverId], app.measured)
+                if (h != null) outline(h, 1, false)
+                }
+            // the text box being typed into: its bounds, quietly
+            if (app.editingId != "") {
+                const t = boundsOfIds(app.els, [app.editingId], app.measured)
+                if (t != null) outline(({ x: t.x - 4 / k, y: t.y - 4 / k, w: t.w + 8 / k, h: t.h + 8 / k }), 1, true)
+                }
+            // each selected thing, and the whole selection
+            if (app.editingId == "") {
+                if (app.sel.length > 1) {
+                    for (const id of app.sel) { const b = boundsOfIds(app.els, [id], app.measured); if (b != null) outline(b, 1, false) }
+                    }
+                const all = app.selBox
+                if (all != null && !app.selIsLine) outline(all, 1.5, false)
+                if (all != null && app.selIsLine) {
+                    const l = app.single
+                    if (l != null) {
+                        d.setLineDash([])
+                        d.lineCap = "round"
+                        d.lineWidth = 4
+                        d.strokeStyle = 0xFFFFFFAA
+                        d.beginPath(); d.moveTo(tx(l.x1 ?? 0), ty(l.y1 ?? 0)); d.lineTo(tx(l.x2 ?? 0), ty(l.y2 ?? 0)); d.stroke()
+                        d.lineWidth = 1.5
+                        d.strokeStyle = accent
+                        d.beginPath(); d.moveTo(tx(l.x1 ?? 0), ty(l.y1 ?? 0)); d.lineTo(tx(l.x2 ?? 0), ty(l.y2 ?? 0)); d.stroke()
+                        }
+                    }
+                }
+            // guides while dragging
+            d.setLineDash([])
+            d.lineWidth = 1
+            d.strokeStyle = provided("theme").guide
+            for (const v of classroot.guidesV) { d.beginPath(); d.moveTo(tx(v) + 0.5, oy - 12); d.lineTo(tx(v) + 0.5, oy + 720 * k + 12); d.stroke() }
+            for (const h of classroot.guidesH) { d.beginPath(); d.moveTo(ox - 12, ty(h) + 0.5); d.lineTo(ox + 1280 * k + 12, ty(h) + 0.5); d.stroke() }
+            // the marquee
+            const m = classroot.marquee
+            if (m != null) {
+                d.fillStyle = 0x5B3DF51A
+                d.fillRect(tx(m.x), ty(m.y), m.w * k, m.h * k)
+                d.strokeStyle = accent
+                d.lineWidth = 1
+                d.strokeRect(tx(m.x) + 0.5, ty(m.y) + 0.5, m.w * k, m.h * k)
+                }
+            }
+        ],
+
+    // The handles. Each is a fixed size on screen, whatever the zoom, with a
+    // hit area larger than its mark.
+
+    handles: View [ width = 100%, height = 100%, visible = { app.selBox != null && app.editingId == "" && app.tool == "select" },
+        bx: number = { classroot.ox + (app.selBox?.x ?? 0) * classroot.k },
+        by: number = { classroot.oy + (app.selBox?.y ?? 0) * classroot.k },
+        bw: number = { (app.selBox?.w ?? 0) * classroot.k },
+        bh: number = { (app.selBox?.h ?? 0) * classroot.k },
+        boxy: boolean = { !app.selIsLine },
+        tall: boolean = { !app.selIsText },
+        Handle [ which = "lt", cursor = "nwse-resize", visible = { parent.boxy }, cx = { parent.bx }, cy = { parent.by } ],
+        Handle [ which = "t", cursor = "ns-resize", visible = { parent.boxy && parent.tall }, cx = { parent.bx + parent.bw / 2 }, cy = { parent.by } ],
+        Handle [ which = "rt", cursor = "nesw-resize", visible = { parent.boxy }, cx = { parent.bx + parent.bw }, cy = { parent.by } ],
+        Handle [ which = "r", cursor = "ew-resize", visible = { parent.boxy }, cx = { parent.bx + parent.bw }, cy = { parent.by + parent.bh / 2 } ],
+        Handle [ which = "rb", cursor = "nwse-resize", visible = { parent.boxy }, cx = { parent.bx + parent.bw }, cy = { parent.by + parent.bh } ],
+        Handle [ which = "b", cursor = "ns-resize", visible = { parent.boxy && parent.tall }, cx = { parent.bx + parent.bw / 2 }, cy = { parent.by + parent.bh } ],
+        Handle [ which = "lb", cursor = "nesw-resize", visible = { parent.boxy }, cx = { parent.bx }, cy = { parent.by + parent.bh } ],
+        Handle [ which = "l", cursor = "ew-resize", visible = { parent.boxy }, cx = { parent.bx }, cy = { parent.by + parent.bh / 2 } ],
+
+        // a line: one at each end
+
+        Handle [ which = "end1", round = true, cursor = "move", visible = { app.selIsLine },
+            cx = { classroot.ox + (app.single?.x1 ?? 0) * classroot.k }, cy = { classroot.oy + (app.single?.y1 ?? 0) * classroot.k } ],
+        Handle [ which = "end2", round = true, cursor = "move", visible = { app.selIsLine },
+            cx = { classroot.ox + (app.single?.x2 ?? 0) * classroot.k }, cy = { classroot.oy + (app.single?.y2 ?? 0) * classroot.k } ],
+
+        // a rectangle's corner radius: a dot inside the top-left corner,
+        // as far in as the rounding (and never on top of the corner handle)
+
+        radius: Handle [ which = "radius", round = true, small = true, cursor = "pointer",
+            accessibilityLabel = "Corner radius", tooltipLabel = { "Corner radius " + Math.round(app.single?.cornerRadius ?? 0) },
+            visible = { app.selIsRect && parent.bw > 40 && parent.bh > 40 },
+            inset: number = { Math.max(16, Math.min((app.single?.cornerRadius ?? 0) * classroot.k * 0.3 + 16,
+                Math.min(parent.bw, parent.bh) / 2)) },
+            cx = { parent.bx + this.inset }, cy = { parent.by + this.inset }
+            ]
+        ],
+
+    // While a rectangle's corners are being rounded: the radius, in words.
+
+    radiusTip: View [ visible = { classroot.mode == "radius" }, height = 24, padding = [0, 8, 0, 8], cornerRadius = 6,
+        x = { classroot.handles.radius.cx + 14 }, y = { classroot.handles.radius.cy + 10 },
+        fill = { provided("theme").tooltipFill },
+        TextLabel [ fontSize = 12, fontWeight = semibold, textColor = { provided("theme").tooltipTextColor },
+            text = { "Radius " + Math.round(app.single?.cornerRadius ?? 0) } ]
+        ],
+
+    // The text box being typed into: a field laid exactly over it, in the
+    // slide's own points and style.
+
+    typing: View [ x = { classroot.ox }, y = { classroot.oy }, width = 1280, height = 720, scale = { classroot.k },
+        pivotX = 0, pivotY = 0, pointerEvents = "none",
+        field: TextInput [ exists = { app.editingId != "" && app.editEl != null }, pointerEvents = "auto",
+            multiline = true, wrap = true, fill = null, stroke = null, padding = 0,
+            accessibilityLabel = "Text",
+            x = { app.editEl?.x ?? 0 }, y = { app.editEl?.y ?? 0 }, width = { app.editEl?.width ?? 100 },
+            height = { Math.max(app.measured[app.editingId] ?? 0, (app.editEl?.text?.size ?? 24) * 1.3) },
+            fontFamily = { app.faceFor(app.editEl?.text?.font ?? "Helvetica Neue") },
+            fontSize = { app.editEl?.text?.size ?? 24 },
+            fontWeight = { app.editEl?.text?.weight ?? 400 },
+            italic = { app.editEl?.text?.italic ?? false },
+            textColor = { app.paint(app.editEl?.text?.color ?? "#1F2328") },
+            textAlign = { (app.editEl?.text?.align ?? "left") as "left" | "center" | "right" },
+            text = { app.editEl?.text?.content ?? "" },
+            onInput(v: string) { app.typeText(v) },
+            onBlur() { app.endTextEdit() },
+            onKeyDown(e: KeyEvent) { if (e.key == "Escape") app.endTextEdit() }
+            ]
+        ],
+
+    // An empty slide says what to do.
+
+    hint: View [ x = center, y = { classroot.oy + 720 * classroot.k / 2 - 34 }, pointerEvents = "none",
+        visible = { app.els.length == 0 && app.curSlide != null && classroot.mode == "" },
+        layout: SimpleLayout [ axis = y, spacing = 6, align = center ],
+        TextLabel [ fontFamily = { app.brandFace }, fontSize = 22, fontWeight = 700,
+            textColor = { app.slideIsDark ? 0xFFFFFFB3 : 0x1E1A2B80 }, text = "An empty slide" ],
+        TextLabel [ fontSize = 14, textColor = { app.slideIsDark ? 0xFFFFFF8C : 0x1E1A2B66 },
+            text = "Pick a tool above and drag on the slide — or click with Text to start typing." ]
+        ]
+    ]
+
+
+// A handle: a small square (or a dot) on screen, its hit area larger.
+
+class Handle [ width = 18, height = 18,
+    which: string = "",
+    round: boolean = false,
+    small: boolean = false,
+    cx: number = 0,
+    cy: number = 0,
+    x = { this.cx - 9 }, y = { this.cy - 9 },
+    onPointerDown(e: PointerEvent) { app.stage.beginResize(this.which, e) },
+    onPointerMove(e: PointerEvent) { app.stage.drag(e) },
+    onPointerUp(e: PointerUpEvent) { app.stage.finish(e) },
+    mark: View [ x = center, y = center,
+        width = { classroot.small ? 9 : 10 }, height = { this.width },
+        cornerRadius = { classroot.round ? this.width / 2 : 2.5 },
+        fill = { classroot.small ? provided("theme").handle : 0xFFFFFF },
+        stroke = { classroot.small ? stroke(1.5, 0xFFFFFF) : stroke(1.5, provided("theme").handle) },
+        shadow = { shadow(0, 1, 3, 0x1E1A2B4D) },
+        scale = { classroot.hovered ? 1.25 : 1 }, pivotX = { this.width / 2 }, pivotY = { this.height / 2 } ]
+    ]
+
+
+// ── The slide list ──────────────────────────────────────────────────────────
+//
+// Every slide as a small, live picture, in order. Rows are a fixed height,
+// so a drag can say where it would land without measuring anything; the
+// layout glides the rows when the order changes.
+
+class SlideStack extends TweenLayout [ duration = 260,
+    rowH: number = 116,
+    place() {
+        const w = this.contentExtent("width")
+        return this.laid().map((c, i) => ({ x: 0, y: i * this.rowH, w: w, h: this.rowH, vis: true }))
+        }
+    ]
+
+
+class SlideThumb extends Control [
+    slideKey: string = { :id ?? "" },
+    num: number = { rowIndex + 1 },
+    isCur: boolean = { app.cur == classroot.slideKey },
+    lifted: boolean = { app.dragSlide == classroot.slideKey },
+    accessibilityLabel = { "Slide " + classroot.num },
+    accessibilityRole = option,
+    focusable = { classroot.isCur ? true : "quiet" },
+    cursor = "pointer",
+    press() { app.showSlide(classroot.slideKey); app.focusArea = "list" },
+
+    // Arrow keys move through the list; focus follows the current slide.
+
+    onKeyDown(e: KeyEvent) {
+        if (e.key == "ArrowDown" || e.key == "ArrowRight") app.stepSlide(1)
+        else if (e.key == "ArrowUp" || e.key == "ArrowLeft") app.stepSlide(-1)
+        else if (e.key == "Home") app.showSlide(app.doc.slides()[0]?.id ?? "")
+        else if (e.key == "End") app.showSlide(app.doc.slides()[app.doc.slides().length - 1]?.id ?? "")
+        else super.onKeyDown(e)
+        },
+    trackChanges = ["isCur"],
+    onChange() { if (this.isCur && app.focusArea == "list") Focus.focus(this) },
+
+    // Dragging a slide to a new place: past a few points the press becomes a
+    // drag; the list shows where it would land, and the drop moves it there.
+
+    onPointerDown(e: PointerEvent) { app.focusArea = "list" },
+    onPointerMove(e: PointerEvent) {
+        if (app.dragSlide == "" && Math.abs(e.deltaY) < 5) return
+        app.dragSlideTo(this.slideKey, e.rootY)
+        },
+    onPointerUp(e: PointerUpEvent) {
+        if (app.dragSlide == this.slideKey) app.dropSlide(e.canceled)
+        },
+    onContextMenu(e: PointerEvent) { app.showSlide(this.slideKey); app.slideMenu.open(this, e) },
+
+    opacity = { classroot.lifted ? 0.3 : 1 },
+    padding = [8, 12, 8, 6],
+    layout: SimpleLayout [ axis = x, spacing = 6 ],
+    numLabel: Text [ width = 20, textAlign = right, fontSize = 12, fontWeight = semibold,
+        textColor = { classroot.isCur ? provided("theme").accent : provided("theme").textFaint },
+        text = { "" + classroot.num } ],
+    frame: View [ width = 172, height = { 172 * 9 / 16 + 6 }, cornerRadius = 9, padding = 3,
+        fill = { classroot.isCur ? provided("theme").accent : classroot.hovered ? provided("theme").lineStrong : null },
+        thumb: View [ width = 166, height = { 166 * 9 / 16 }, cornerRadius = 6, clip = true,
+            fill = { provided("theme").surface },
+            stroke = { stroke(1, provided("theme").line) },
+            SlideArt [ scale = { 166 / 1280 } ]      // the thumb's own record: the slide
+            ]
+        ],
+    conflictDot: View [ ignoreLayout = true, x = 168, y = 4, width = 18, height = 18, cornerRadius = 9,
+        visible = { app.saver.conflicts[classroot.slideKey] != null },
+        fill = { provided("theme").warn }, tooltipLabel = "Changed in another window",
+        Glyph [ x = center, y = center, iconSize = 11, weight = 2, shape = "warn", ink = white ]
+        ]
+    ]
+
+
+class SlideList [ width = 216,
+    fill = { provided("theme").background },
+    stroke = { [null, stroke(1, provided("theme").line), null, null] },
+    layout: SimpleLayout [ axis = y ],
+
+    head: View [ width = 100%, height = 40, padding = [0, 10, 0, 16],
+        layout: SimpleLayout [ axis = x, align = center ],
+        TextLabel [ flexes = true, fontSize = 11, fontWeight = bold, letterSpacing = 0.6,
+            textColor = { provided("theme").textFaint }, text = { "SLIDES · " + app.doc.slides().length } ],
+        IconButton [ shape = "plus", accessibilityLabel = "New slide after this one",
+            press() { app.addSlide() }
+            ]
+        ],
+
+    list: View [ width = 100%, flexes = true, scrolls = y, padding = [0, 0, 16, 0],
+        datapath = { app.doc.value },
+        accessibilityLabel = "Slides", accessibilityRole = listbox,
+        layout: SlideStack [ ],
+        SlideThumb [ datapath = :slides[] ]
+        ],
+
+    // Where a dragged slide would land, and the slide itself under the pointer.
+
+    dropLine: View [ ignoreLayout = true, visible = { app.dragSlide != "" }, x = 26, width = 176, height = 3, cornerRadius = 1.5,
+        fill = { provided("theme").accent },
+        y = { classroot.list.y + app.dropIndex * 116 - classroot.list.scrollY + 1 } ],
+    ghost: View [ ignoreLayout = true, visible = { app.dragSlide != "" }, x = 38, width = 166, height = { 166 * 9 / 16 },
+        y = { app.dragY - 46 }, cornerRadius = 6, clip = true, pointerEvents = "none",
+        shadow = { shadow(0, 12, 28, 0x1E1A2B40) },
+        SlideArt [ datapath = { app.doc.slide(app.dragSlide) }, scale = { 166 / 1280 } ]
+        ],
+
+    foot: View [ width = 100%, padding = [10, 12, 12, 12], stroke = { [stroke(1, provided("theme").line), null, null, null] },
+        PillButton [ width = 100%, label = "New slide", shape = "plus",
+            press() { app.addSlide() }
+            ]
+        ]
+    ]
+
+
+// ── The inspector ───────────────────────────────────────────────────────────
+//
+// What the selection looks like, and the controls that change it. Every
+// section is always there, in the same place, so the panel keeps its shape
+// as the selection changes; a section that doesn't apply is dimmed. Where
+// the selected things differ, a control says "Mixed" instead of showing one
+// of them, and a change applies to all of them.
+
+class Inspector [ width = 280,
+    fill = { provided("theme").surface },
+    stroke = { [null, null, null, stroke(1, provided("theme").line)] },
+    scrolls = y,
+    padding = [16, 16, 24, 16],
+    layout: SimpleLayout [ axis = y, spacing = 18 ],
+
+    // What is selected.
+
+    title: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        TextLabel [ fontFamily = { app.brandFace }, fontSize = 17, fontWeight = 700, wrap = false, maxLines = 1, width = 100%,
+            text = { app.selName } ],
+        TextLabel [ fontSize = 12, wrap = false, textColor = { provided("theme").textMuted }, text = { app.selNote } ]
+        ],
+
+    // Fill, or the slide's background when nothing is selected.
+
+    fillBox: View [ width = 100%, opacity = { app.fillApplies ? 1 : 0.4 },
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        SectionTitle [ label = { app.sel.length == 0 ? "Background" : "Fill" }, note = { app.fillMixed ? "Mixed" : "" } ],
+        PropRow [ label = "Colour",
+            ColorWell [ accessibilityLabel = { app.sel.length == 0 ? "Background colour" : "Fill colour" },
+                color = { app.fillValue }, mixed = { app.fillMixed }, allowNone = { app.sel.length > 0 },
+                disabled = { !app.fillApplies },
+                press() { app.picker.pick(this, app.sel.length == 0 ? "background" : "fill") }
+                ],
+            TextLabel [ fontSize = 12.5, wrap = false, textColor = { provided("theme").textMuted },
+                text = { app.fillMixed ? "Mixed" : app.fillValue == "" ? "None" : app.fillValue } ]
+            ]
+        ],
+
+    // Outline.
+
+    strokeBox: View [ width = 100%, opacity = { app.strokeApplies ? 1 : 0.4 },
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        SectionTitle [ label = "Outline", note = { app.strokeMixed ? "Mixed" : "" } ],
+        PropRow [ label = "Colour",
+            ColorWell [ accessibilityLabel = "Outline colour", color = { app.strokeColor }, mixed = { app.strokeColorMixed },
+                allowNone = { !app.selAllLines }, disabled = { !app.strokeApplies },
+                press() { app.picker.pick(this, "stroke") }
+                ],
+            TextLabel [ fontSize = 12.5, wrap = false, textColor = { provided("theme").textMuted },
+                text = { app.strokeColorMixed ? "Mixed" : app.strokeColor == "" ? "None" : app.strokeColor } ]
+            ],
+        PropRow [ label = "Width",
+            NumberField [ accessibilityLabel = "Outline width", min = 0, max = 60, unit = "pt",
+                value = { app.strokeWidth }, mixed = { app.strokeWidthMixed }, disabled = { !app.strokeApplies },
+                input(v: number) { app.setStrokeWidth(v) }
+                ]
+            ]
+        ],
+
+    // Corners, for rectangles.
+
+    cornerBox: View [ width = 100%, opacity = { app.radiusApplies ? 1 : 0.4 },
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        SectionTitle [ label = "Corners", note = { app.radiusMixed ? "Mixed" : "" } ],
+        PropRow [ label = "Radius",
+            Slider [ width = 84, min = 0, max = { Math.max(1, app.radiusMax) }, disabled = { !app.radiusApplies },
+                accessibilityLabel = "Corner radius slider",
+                value = { app.radiusValue },
+                input(v: number) { app.setRadius(Math.round(v), false) },
+                onPointerUp() { app.commit() }
+                ],
+            NumberField [ width = 72, accessibilityLabel = "Corner radius", min = 0, max = { Math.max(0, app.radiusMax) },
+                value = { app.radiusValue }, mixed = { app.radiusMixed }, disabled = { !app.radiusApplies },
+                input(v: number) { app.setRadius(v, true) }
+                ]
+            ]
+        ],
+
+    // Proportions.
+
+    keepBox: View [ width = 100%, opacity = { app.keepApplies ? 1 : 0.4 },
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        SectionTitle [ label = "Size", note = { app.keepMixed ? "Mixed" : "" } ],
+        Checkbox [ label = "Keep proportions", disabled = { !app.keepApplies },
+            checked = { app.keepValue },
+            input(v: boolean) { app.setKeep(v) }
+            ]
+        ],
+
+    // Text.
+
+    textBox: View [ width = 100%, opacity = { app.textApplies ? 1 : 0.4 },
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        SectionTitle [ label = "Text", note = { app.textMixed ? "Mixed" : "" } ],
+        PropRow [ label = "Font",
+            Button [ width = 166, height = 30, disabled = { !app.textApplies }, accessibilityLabel = "Font",
+                label = { app.textProp("font") }, menu = { app.fontMenu } ]
+            ],
+        PropRow [ label = "Size",
+            NumberField [ accessibilityLabel = "Font size", min = 6, max = 400, unit = "pt",
+                value = { app.textNum("size") }, mixed = { app.textIsMixed("size") }, disabled = { !app.textApplies },
+                input(v: number) { app.setText("size", v) }
+                ]
+            ],
+        PropRow [ label = "Weight",
+            Button [ width = 120, height = 30, disabled = { !app.textApplies }, accessibilityLabel = "Weight",
+                label = { app.textProp("weight") }, menu = { app.weightMenu } ],
+            IconButton [ shape = "italic", accessibilityLabel = "Italic", disabled = { !app.textApplies },
+                on = { app.textProp("italic") == "Italic" },
+                press() { app.setText("italic", app.textProp("italic") != "Italic") }
+                ]
+            ],
+        PropRow [ label = "Colour",
+            ColorWell [ accessibilityLabel = "Text colour", allowNone = false, disabled = { !app.textApplies },
+                color = { app.textProp("color") }, mixed = { app.textIsMixed("color") },
+                press() { app.picker.pick(this, "text") }
+                ],
+            TextLabel [ fontSize = 12.5, wrap = false, textColor = { provided("theme").textMuted },
+                text = { app.textProp("color") } ]
+            ],
+        PropRow [ label = "Align",
+            Segmented [ width = 132, disabled = { !app.textApplies }, accessibilityLabel = "Alignment",
+                value = { app.textIsMixed("align") ? "" : app.textProp("align") },
+                choices = { [ ({ id: "left", icon: "AlignLeftIcon", label: "Left" }),
+                              ({ id: "center", icon: "AlignCenterIcon", label: "Centre" }),
+                              ({ id: "right", icon: "AlignRightIcon", label: "Right" }) ] },
+                input(v: string) { app.setText("align", v) }
+                ]
+            ]
+        ],
+
+    // Arranging.
+
+    arrangeBox: View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        SectionTitle [ label = "Arrange" ],
+        row1: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 2 ],
+            IconButton [ shape = "alignLeft", accessibilityLabel = "Align left edges", disabled = { app.sel.length == 0 },
+                press() { app.align("left") }
+                ],
+            IconButton [ shape = "alignCenter", accessibilityLabel = "Align centres", disabled = { app.sel.length == 0 },
+                press() { app.align("center") }
+                ],
+            IconButton [ shape = "alignRight", accessibilityLabel = "Align right edges", disabled = { app.sel.length == 0 },
+                press() { app.align("right") }
+                ],
+            IconButton [ shape = "alignTop", accessibilityLabel = "Align tops", disabled = { app.sel.length == 0 },
+                press() { app.align("top") }
+                ],
+            IconButton [ shape = "alignMiddle", accessibilityLabel = "Align middles", disabled = { app.sel.length == 0 },
+                press() { app.align("middle") }
+                ],
+            IconButton [ shape = "alignBottom", accessibilityLabel = "Align bottoms", disabled = { app.sel.length == 0 },
+                press() { app.align("bottom") }
+                ]
+            ],
+        row2: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 2 ],
+            IconButton [ shape = "distH", accessibilityLabel = "Distribute across", disabled = { app.sel.length < 3 },
+                press() { app.distribute(true) }
+                ],
+            IconButton [ shape = "distV", accessibilityLabel = "Distribute down", disabled = { app.sel.length < 3 },
+                press() { app.distribute(false) }
+                ],
+            View [ width = 14, height = 1 ],
+            IconButton [ shape = "group", accessibilityLabel = "Group", disabled = { !app.canGroup },
+                press() { app.group() }
+                ],
+            IconButton [ shape = "ungroup", accessibilityLabel = "Ungroup", disabled = { !app.canUngroup },
+                press() { app.ungroup() }
+                ]
+            ],
+        row3: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 2 ],
+            IconButton [ shape = "front", accessibilityLabel = "Bring to front", disabled = { app.sel.length == 0 },
+                press() { app.order("front") }
+                ],
+            IconButton [ shape = "forward", accessibilityLabel = "Bring forward", disabled = { app.sel.length == 0 },
+                press() { app.order("forward") }
+                ],
+            IconButton [ shape = "backward", accessibilityLabel = "Send backward", disabled = { app.sel.length == 0 },
+                press() { app.order("backward") }
+                ],
+            IconButton [ shape = "back2", accessibilityLabel = "Send to back", disabled = { app.sel.length == 0 },
+                press() { app.order("back") }
+                ]
+            ]
+        ]
+    ]
+
+
+// A number with − and + beside it; type into it, or step it. "Mixed" when
+// the selection's values differ.
+
+class NumberField [ width = 116, height = 30,
+    value: number = 0,
+    mixed: boolean = false,
+    min: number = 0,
+    max: number = 1000,
+    unit: string = "",
+    disabled: boolean = false,
+    input(v: number) { },
+    stepBy(d: number) { if (!disabled) this.input(Math.max(min, Math.min(max, (mixed ? 0 : value) + d))) },
+    opacity = { disabled ? 0.6 : 1 },
+    cornerRadius = 7,
+    fill = { provided("theme").control },
+    stroke = { stroke(1, provided("theme").line) },
+    layout: SimpleLayout [ axis = x, align = center ],
+    minus: Control [ width = 26, height = 28, cornerRadius = 6, disabled = { classroot.disabled },
+        accessibilityLabel = { "Less " + classroot.accessibilityLabel.toLowerCase() },
+        fill = { hovered ? provided("theme").hover : null },
+        press() { classroot.stepBy(-1) },
+        View [ x = center, y = center, width = 9, height = 1.6, cornerRadius = 1, fill = { provided("theme").textMuted } ]
+        ],
+    field: TextInput [ flexes = true, height = 28, fill = null, stroke = null, padding = 0, textAlign = center,
+        fontSize = 13, numeralWidth = tabular, disabled = { classroot.disabled },
+        accessibilityLabel = { classroot.accessibilityLabel },
+        shown: string = { classroot.disabled ? "–" : classroot.mixed ? "Mixed" : "" + Math.round(classroot.value * 10) / 10 },
+        text = { this.typed ? this.draft : this.shown },
+        draft: string = "",
+        typed: boolean = false,
+        onInput(v: string) { draft = v; typed = true },
+        onEnter() { this.apply() },
+        onBlur() { this.apply() },
+        apply() {
+            if (!typed) return
+            typed = false
+            const n = parseFloat(draft)
+            if (!isNaN(n)) classroot.input(Math.max(classroot.min, Math.min(classroot.max, n)))
+            },
+        onKeyDown(e: KeyEvent) {
+            if (e.key == "ArrowUp") classroot.stepBy(e.shift ? 10 : 1)
+            else if (e.key == "ArrowDown") classroot.stepBy(e.shift ? -10 : -1)
+            }
+        ],
+    plus: Control [ width = 26, height = 28, cornerRadius = 6, disabled = { classroot.disabled },
+        accessibilityLabel = { "More " + classroot.accessibilityLabel.toLowerCase() },
+        fill = { hovered ? provided("theme").hover : null },
+        press() { classroot.stepBy(1) },
+        View [ x = center, y = center, width = 9, height = 1.6, cornerRadius = 1, fill = { provided("theme").textMuted } ],
+        View [ x = center, y = center, width = 1.6, height = 9, cornerRadius = 1, fill = { provided("theme").textMuted } ]
+        ]
+    ]
+
+
+// ── The colour picker ───────────────────────────────────────────────────────
+//
+// One popover serves every colour well. It knows which property it is
+// choosing for (`role`); each pick is applied at once and is one step of
+// undo, and the popover stays open to try another.
+
+class ColorPicker extends Popover [ placement = "left",
+    role: string = "",
+    pick(well: View, r: string) { role = r; this.showFor(well) },
+    current: string = { app.colorFor(this.role) },
+    allowNone: boolean = { this.role == "fill" || (this.role == "stroke" && !app.selAllLines) },
+    swatches: Dataset { { "rows": [
+        { "id": "#FFFFFF" }, { "id": "#F6F4EF" }, { "id": "#E9DFC9" }, { "id": "#C9C3B8" }, { "id": "#7A7486" }, { "id": "#3B3646" }, { "id": "#1E1A2B" }, { "id": "#000000" },
+        { "id": "#FF5A3C" }, { "id": "#FF8A3D" }, { "id": "#FFC23D" }, { "id": "#22B892" }, { "id": "#0FA3B1" }, { "id": "#3D9BFF" }, { "id": "#5B3DF5" }, { "id": "#C2457A" },
+        { "id": "#FFE6DF" }, { "id": "#FFEBD6" }, { "id": "#FFF4D6" }, { "id": "#DDF5EE" }, { "id": "#D9F2F4" }, { "id": "#E0EEFF" }, { "id": "#E9E4FF" }, { "id": "#F9E3EE" },
+        { "id": "#0E3B43" }, { "id": "#2F6F8F" }, { "id": "#24596F" }, { "id": "#E07A5F" }, { "id": "#8CC2C9" }, { "id": "#6B4E2E" }, { "id": "#2D2A6E" }, { "id": "#7A1F3D" } ] } },
+    chooser: View [ width = 236,
+        layout: SimpleLayout [ axis = y, spacing = 12 ],
+        TextLabel [ fontSize = 13, fontWeight = semibold, textColor = { provided("theme").text },
+            text = { app.colorRoleName(classroot.role) } ],
+        grid: View [ width = 100%, datapath = { classroot.swatches.value },
+            layout: WrappingLayout [ spacing = 4, rowSpacing = 4 ],
+            Swatch [ datapath = :rows[], hex = :id, chosen = { classroot.current == :id },
+                press() { app.setColor(classroot.role, :id) }
+                ]
+            ],
+        row: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+            hex: TextInput [ width = 110, height = 30, fontSize = 13, accessibilityLabel = "Hex colour",
+                placeholder = "#RRGGBB",
+                text = { this.typed ? this.draft : classroot.current },
+                draft: string = "",
+                typed: boolean = false,
+                onInput(v: string) { draft = v; typed = true },
+                onBlur() { typed = false },
+                onEnter() { const h = normalHex(draft); typed = false; if (h != "") app.setColor(classroot.role, h) }
+                ],
+            Spacer [ ],
+            Button [ visible = { classroot.allowNone }, label = "None", height = 30,
+                onClick() { app.setColor(classroot.role, "") }
+                ]
+            ]
+        ]
+    ]
+
+
+class Swatch extends Control [ width = 25, height = 25, cornerRadius = 6,
+    hex: string = "",
+    chosen: boolean = false,
+    accessibilityLabel = { hex },
+    accessibilityPressed = { chosen },
+    cursor = "pointer",
+    fill = { app.paint(hex) },
+    stroke = { chosen ? stroke(2, provided("theme").accent) : stroke(1, 0x1E1A2B1F) },
+    scale = { hovered ? 1.12 : 1 }, pivotX = 12.5, pivotY = 12.5
+    ]
+
+
+// ── A slide changed elsewhere ───────────────────────────────────────────────
+//
+// Shown over the stage when the slide being edited was saved from another
+// window since it was opened here. It shows that slide as it is now, and
+// nothing is written over either version until the person picks one.
+
+class ConflictBar [ width = 100%, padding = [12, 16, 12, 16],
+    fill = { provided("theme").warnSoft },
+    stroke = { [null, null, stroke(1, 0xE8C98A), null] },
+    layout: SimpleLayout [ axis = x, spacing = 14, align = center ],
+    theirs: View [ width = 128, height = 72, cornerRadius = 5, clip = true,
+        stroke = { stroke(1, 0xE8C98A) },
+        SlideArt [ datapath = { app.curConflict }, scale = { 128 / 1280 } ]
+        ],
+    words: View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 3 ],
+        Text [ width = 100%, fontSize = 14, fontWeight = semibold, textColor = { provided("theme").text },
+            text = "This slide was changed in another window." ],
+        Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted },
+            text = "Someone saved a newer version since you opened it (shown at left). Nothing has been written over either version — choose which to keep." ]
+        ],
+    PillButton [ label = "Keep mine",
+        press() { app.keepMine() }
+        ],
+    PillButton [ label = "Use their version", tone = "accent",
+        press() { app.useTheirs() }
+        ]
+    ]
+
+
+// ── The presenter ───────────────────────────────────────────────────────────
+
+class Presenter [ width = { app.width }, height = { app.height }, fill = black,
+    k: number = { Math.min(this.width / 1280, this.height / 720) },
+    accessibilityLabel = { "Presenting slide " + (app.showAt + 1) + " of " + app.doc.slides().length },
+    cursor = { app.presentIdle ? "none" : "default" },
+    onClick() { app.presentStep(1) },
+    onPointerMove() { app.wake() },
+    show: SlideArt [ x = { (classroot.width - 1280 * classroot.k) / 2 }, y = { (classroot.height - 720 * classroot.k) / 2 },
+        visible = { app.showAt < app.doc.slides().length },
+        scale = { classroot.k }, datapath = { app.doc.slides()[app.showAt] ?? null } ],
+
+    // Past the last slide: the end, said quietly.
+
+    end: View [ x = center, y = center, visible = { app.showAt >= app.doc.slides().length },
+        layout: SimpleLayout [ axis = y, spacing = 8, align = center ],
+        TextLabel [ fontFamily = { app.brandFace }, fontSize = 22, fontWeight = 700, textColor = 0xFFFFFFCC, text = "End of presentation" ],
+        TextLabel [ fontSize = 14, textColor = 0xFFFFFF80, text = "Click or press any arrow to finish · Esc to return" ]
+        ],
+    counter: View [ x = end, y = end, height = 30, padding = [0, 12, 0, 12], cornerRadius = 15,
+        Spring [ attribute = opacity, to = { app.presentIdle ? 0 : 1 }, stiffness = 120, damping = 20 ],
+        fill = 0x00000099,
+        TextLabel [ fontSize = 13, fontWeight = semibold, textColor = white,
+            text = { Math.min(app.showAt + 1, app.doc.slides().length) + " / " + app.doc.slides().length + "   ·   Esc to end" } ]
+        ]
+    ]

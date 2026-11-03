@@ -144,7 +144,7 @@ class FocusRing [
 
     overlayUp: boolean = false,
     _focusInOverlay: boolean = false,
-    claims: Keys [ onNavClaim(on: boolean) { classroot.overlayUp = on; classroot._noteOverlayFocus() }
+    _claims: Keys [ onNavClaim(on: boolean) { classroot.overlayUp = on; classroot._noteOverlayFocus() }
         ],
 
     // where the ring is headed — written by the subscription; the springs chase
@@ -209,7 +209,7 @@ class FocusRing [
     // The band sits outside the silhouette: inner edge touching the control's
     // boundary (the Mac halo's hug), displaced by gap + half the stroke.
 
-    focus: Focus [
+    _focus: Focus [
         onGeometry(g: FocusGeometry) {
             if (g.root != app) return
             // Ride the target's scroller: the ring paints in it (paintsIn) and

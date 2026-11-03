@@ -26,11 +26,11 @@ export interface CompileFlags {
      *  (nested choices, centring by hand, a shadowed name). It changes nothing
      *  that is built; a program that has decided against the advice says so. */
     lint: boolean;
-    /** Which devices the program is for. "desk" quiets what matters only on a
-     *  phone (a text field under iOS's focus-zoom size); "phone" what matters
-     *  only at a desk. "all" (the default) reports both. It changes nothing that
+    /** Which devices the program is for. "desktop" quiets what matters only on a
+     *  phone (a text field under iOS's focus-zoom size); "mobile" what matters
+     *  only on a desktop. "all" (the default) reports both. It changes nothing that
      *  is built. */
-    devices: "all" | "desk" | "phone";
+    devices: "all" | "desktop" | "mobile";
 }
 /** One spec per modifier. */
 export type FlagSpec = {

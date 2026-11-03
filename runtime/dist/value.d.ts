@@ -128,7 +128,7 @@ export declare function isMaskGradient(m: Mask): m is Gradient;
 export type FilterValue = Filter | readonly Filter[] | null;
 export declare function filterList(v: FilterValue | undefined): readonly Filter[];
 export declare function gradient(...args: (number | string | GradientStop)[]): Gradient;
-export declare const stop: (offset: number, color: Color) => GradientStop;
+export declare const colorStop: (offset: number, color: Color) => GradientStop;
 export declare const stroke: (width: number, color: Color) => Stroke;
 export declare const outline: (width: number, color: Color) => Outline;
 export declare const shadow: (dx: number, dy: number, blur: number, color: Color) => Shadow;

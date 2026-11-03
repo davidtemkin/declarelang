@@ -13,7 +13,7 @@ They compose onto a run or a build; `kernel` matters only to a build.
 | **kernel** | the reactive kernel a build carries: the C kernel as WebAssembly, or the JavaScript one (a smaller download); unset, the program's flags decide | `wasm`, `js` | `wasm` |
 | **accessibility** | carry the accessibility layer: what screen readers and the platform's accessibility API are given, the accessibility warnings, and the accessibility settings an app can read; unset, the program's flags decide | `true`, `false` | `true` |
 | **lint** | report the compiler's lint: advice on readability and idiom; it changes nothing that is built; unset, the program's flags decide | `true`, `false` | `true` |
-| **devices** | the devices the program is for: desk quiets what matters only on a phone, phone what matters only at a desk; it changes nothing that is built; unset, the program's flags decide | `all`, `desk`, `phone` | `all` |
+| **devices** | the devices the program is for: desktop quiets what matters only on a phone, mobile what matters only on a desktop; it changes nothing that is built; unset, the program's flags decide | `all`, `desktop`, `mobile` | `all` |
 <!-- /generated:flags-table -->
 
 Every modifier is written `name=value`, with the same names and the same values everywhere:

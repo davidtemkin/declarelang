@@ -366,7 +366,7 @@ function answer(app: Node, { reads = [], outline = null, semantics = null }: Non
 // and has not loaded is handed a small sample of that shape, landed as a fetch
 // lands one (value, then onLoad).
 
-interface ShapeField { name: string; type?: string | null; array?: boolean; tokens?: readonly string[]; fields?: readonly ShapeField[] }
+interface ShapeField { name: string; type?: string | null; array?: boolean; optional?: boolean; tokens?: readonly string[]; fields?: readonly ShapeField[] }
 
 function feedSchemaSamples(app: Node, samples: { source: string; value: unknown }[]): number {
   const sources: DataSource[] = [];
@@ -402,8 +402,16 @@ function feedSchemaSamples(app: Node, samples: { source: string; value: unknown 
 function sampleOf(fields: readonly ShapeField[], depth: number, index = 0): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const f of fields) {
+    // where a recursive schema is cut off, end it the way its data ends: an
+    // optional record left out, a list of records empty
+    if (f.fields !== undefined && depth >= 3 && (f.optional || f.array)) {
+      if (!f.optional) out[f.name] = [];
+      continue;
+    }
     const one = (i: number): unknown => {
-      if (f.fields !== undefined) return depth < 3 ? sampleOf(f.fields, depth + 1, i) : {};
+      // a required record is always filled (only a schema no data could meet
+      // recurses through required records alone: it stops at 8)
+      if (f.fields !== undefined) return depth < 8 ? sampleOf(f.fields, depth + 1, i) : {};
       if (f.tokens !== undefined && f.tokens.length > 0) return f.tokens[0];
       if (f.type === "number") return f.name === "id" ? i + 1 : 1;
       if (f.type === "boolean") return false;

@@ -361,8 +361,8 @@ A virtualized list keeps its place the same way, its rows' estimated heights inc
 ## defaultPlacement
 Written on a **class**: names one of the class's own children (at any depth), and the children
 its subclasses and use sites write go **into** that child, after the child's own, instead of
-beside it. `class Sheet [ defaultPlacement = body, body: View [ … ] ]` — a `DetailSheet`
-extending it, and a `Sheet [ … ]` use site, fill `body`. The class's own children are never
+beside it. `class Panel [ defaultPlacement = body, body: View [ … ] ]` — a `DetailPanel`
+extending it, and a `Panel [ … ]` use site, fill `body`. The class's own children are never
 placed. A placed child's `parent` is the child it went into; it is still reachable by name
 from the class or use site that wrote it.
 

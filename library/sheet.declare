@@ -6,7 +6,7 @@ a phone-width screen it rises from the bottom, and a downward swipe on its handl
 away; on a wide screen it slides in from the end edge (`edge = "end"`) or, for a sheet whose
 edge is the bottom, floats as a card in the middle. A sheet at the start edge
 (`edge = "start"`) is a navigation drawer: it slides in from the start edge at every width,
-and a swipe back toward that edge on its trailing edge puts it away. Behind it the context
+and a swipe back toward that edge on its trailing edge, its `grip`, puts it away. Behind it the context
 dims; a press there closes the sheet, and nothing behind it scrolls while it is open. Tab stays inside it;
 Esc closes it; focus goes to its first control when it opens and back when it closes.
 
@@ -90,7 +90,7 @@ class Sheet extends Floating [
     scrollPolicy = "block",
     takesFocus = true,
     focusScope = modal,
-    defaultPlacement = body,
+    defaultPlacement = _body,
 
     edge: "bottom" | "end" | "start" = "bottom",
     narrow: boolean = { this._hostW < 600 },
@@ -105,7 +105,7 @@ class Sheet extends Floating [
 
     _presentationMargin: number = { ({ center: 48, start: 56 })[this.presentation] ?? 0 },     // the room it leaves beside it
     width = { this.presentation == "bottom" ? this._hostW : Math.min(this.sheetWidth, this._hostW - this._presentationMargin) },
-    height = { this.presentation == "end" || this.presentation == "start" ? this._hostH : Math.min(this.body.contentHeight + (this.presentation == "bottom" ? 20 : 0), this.presentation == "bottom" ? this._footY - 24 : this._hostH - 48) },
+    height = { this.presentation == "end" || this.presentation == "start" ? this._hostH : Math.min(this._body.contentHeight + (this.presentation == "bottom" ? 20 : 0), this.presentation == "bottom" ? this._footY - 24 : this._hostH - 48) },
     _restX: number = { this.presentation == "bottom" ? 0 : (this._hostW - this.width) / 2 },     // a sheet that does not slide in from a side
     x = { this.presentation == "end" ? this._hostW - this.width * this.openT
         : this.presentation == "start" ? this.width * (this.openT - 1) - this._dragX
@@ -123,20 +123,20 @@ class Sheet extends Floating [
         onChange() { if (!open) { classroot._dragY = 0; classroot._dragX = 0 } }
         ],
 
-    scrim: View [ pointerEvents = "none",
+    _scrim: View [ pointerEvents = "none",
         x = { -classroot.x }, y = { -classroot.y },
         width = { classroot._hostW }, height = { classroot._hostH },
         fill = { provided("theme").scrimFill },
         opacity = { (provided("theme").scrimOpacity) * classroot.openT } ],
 
-    panel: View [ width = 100%, height = { parent.height + (classroot.presentation == "bottom" ? 40 + classroot._keyboardH : 0) },
+    _panel: View [ width = 100%, height = { parent.height + (classroot.presentation == "bottom" ? 40 + classroot._keyboardH : 0) },
         cornerRadius = { classroot.presentation == "bottom" ? [(provided("theme").sheetCornerRadius), (provided("theme").sheetCornerRadius), 0, 0] : classroot.presentation == "end" || classroot.presentation == "start" ? 0 : (provided("theme").sheetCornerRadius) - 2 },
         fill = { provided("theme").surface },
         shadow = { provided("theme").sheetShadow } ],
 
     // the bottom sheet's handle: pull it down past a quarter of the sheet to put it away
 
-    handle: View [ visible = { classroot.presentation == "bottom" }, width = 100%, height = 20, claim = y,
+    _handle: View [ visible = { classroot.presentation == "bottom" }, width = 100%, height = 20, claim = y,
         bar: View [ x = center, y = 7, width = 36, height = 5, cornerRadius = 3, fill = { provided("theme").line } ],
         onPointerMove(e: PointerEvent) { if (e.deltaY != 0 || classroot._dragY != 0) classroot._dragY = Math.max(0, e.deltaY) },
         onPointerUp(e: PointerUpEvent) {
@@ -145,7 +145,7 @@ class Sheet extends Floating [
             }
         ],
 
-    body: View [ y = { classroot.presentation == "bottom" ? 20 : 0 }, width = 100%,
+    _body: View [ y = { classroot.presentation == "bottom" ? 20 : 0 }, width = 100%,
         height = { classroot.height - this.y },
         scrolls = y,
         padding = { classroot.presentation == "bottom" ? [4, 18, 24, 18] : 24 },

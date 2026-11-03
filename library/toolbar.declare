@@ -148,18 +148,18 @@ class ToolButton extends Control [
     tooltipLabel = { icon != "" ? label : "" },
 
     height = { (parent as View).height - 4 },
-    width = { Math.max(this.height, (icon != "" ? this.ico.width : this.t.width) + 20) },
+    width = { Math.max(this.height, (icon != "" ? this._ico.width : this._t.width) + 20) },
     cornerRadius = { Math.max(0, provided("theme").segmentedCornerRadius - 2) },
     _stateFill: Color? = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
     fill = { toggle && on ? (provided("theme").segmentedSelectedFill ?? provided("theme").surface) : this._stateFill },
     stroke = { toggle && on ? stroke(1, provided("theme").line) : null },
     opacity = { disabled ? provided("theme").disabledOpacity : 1 },
 
-    t: TextLabel [ x = center, wrap = false, visible = { classroot.icon == "" },
+    _t: TextLabel [ x = center, wrap = false, visible = { classroot.icon == "" },
         fontSize = { provided("theme").segmentedFontSize }, fontWeight = medium,
         textColor = { classroot.on || classroot.hovered || !classroot.toggle ? provided("theme").text : provided("theme").textMuted },
         text = { classroot.label } ],
-    ico: IconHost [ x = center, y = center, kind = { classroot.icon }, ink = { provided("theme").text } ]
+    _ico: IconHost [ x = center, y = center, kind = { classroot.icon }, ink = { provided("theme").text } ]
     ]
 
 

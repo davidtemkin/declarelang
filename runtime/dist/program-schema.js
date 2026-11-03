@@ -343,7 +343,7 @@ isShape = () => false) {
         return err(diag `'${d.name}' is a scope noun (language §11) — it cannot be declared`, d.pos);
     }
     if (RESERVED.includes(d.name) && !FILTER_FN_NAMES.includes(d.name)) {
-        return err(diag `'${d.name}' is a value constructor (gradient, stroke, shadow, stop, frost, radialGradient, conicGradient) — it cannot be a member name`, d.pos);
+        return err(diag `'${d.name}' is a value constructor (gradient, stroke, shadow, colorStop, frost, radialGradient, conicGradient) — it cannot be a member name`, d.pos);
     }
     const structural = structuralReason(d.name);
     if (structural !== null) {

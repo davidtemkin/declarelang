@@ -72,7 +72,7 @@ export function coerceColor(lit) {
 //
 // The literal grammar is the ruled CONSTRUCTOR form — `name(args)`, parallel
 // to how `50%` and `#354D5B` are typed literal forms — with args themselves
-// literals (colors in any Color form, numbers, nested `stop(…)`). The same
+// literals (colors in any Color form, numbers, nested `colorStop(…)`). The same
 // names are ordinary functions inside `{ }` bodies (expr.ts puts them in
 // scope), so one vocabulary serves both lexical homes.
 export const FILL = diag `a Fill (a Color, gradient(#F8F8F8, #D8D8D8), gradient(angle, …stops), or null)`;
@@ -90,17 +90,17 @@ export function argNumber(lit) {
 export function coerceStops(args) {
     const stops = [];
     for (const a of args) {
-        if (a.kind === "call" && a.name === "stop") {
+        if (a.kind === "call" && a.name === "colorStop") {
             const offset = a.args.length === 2 ? argNumber(a.args[0]) : null;
             const color = a.args.length === 2 ? argColor(a.args[1]) : null;
             if (offset === null || color === null)
-                return diag `a stop is stop(offset, color) — offset 0…1, color a Color`;
+                return diag `a stop is colorStop(offset, color) — offset 0…1, color a Color`;
             stops.push(Object.freeze({ offset, color }));
             continue;
         }
         const color = argColor(a);
         if (color === null)
-            return diag `a gradient stop is a color or stop(offset, color)`;
+            return diag `a gradient stop is a color or colorStop(offset, color)`;
         stops.push(Object.freeze({ offset: null, color }));
     }
     if (stops.length < 2)
@@ -140,18 +140,18 @@ export function coerceFill(lit) {
         }
         const stops = [];
         for (const a of args) {
-            if (a.kind === "call" && a.name === "stop") {
+            if (a.kind === "call" && a.name === "colorStop") {
                 const offset = a.args.length === 2 ? argNumber(a.args[0]) : null;
                 const color = a.args.length === 2 ? argColor(a.args[1]) : null;
                 if (offset === null || color === null) {
-                    return fail(FILL, diag `a stop is stop(offset, color) — offset 0…1, color a Color`);
+                    return fail(FILL, diag `a stop is colorStop(offset, color) — offset 0…1, color a Color`);
                 }
                 stops.push({ offset, color });
                 continue;
             }
             const color = argColor(a);
             if (color === null)
-                return fail(FILL, diag `${describeLiteral(a)} (a gradient stop is a Color or stop(offset, color))`);
+                return fail(FILL, diag `${describeLiteral(a)} (a gradient stop is a Color or colorStop(offset, color))`);
             stops.push({ offset: null, color });
         }
         if (stops.length < 2)

@@ -18,8 +18,8 @@ App [ width = 320, height = 200,
     ]
 ```
 
-To a screen reader the line is a button that says whether it is expanded; Tab reaches the
-content only while it is open.
+The line is the disclosure's `line`: to a screen reader, a button that says whether it is
+expanded. Tab reaches the content only while it is open.
 
 ## label
 The line's text, and the section's name.
@@ -67,7 +67,7 @@ class Disclosure [ clip = true, width = 100%,
     // where the content goes: the body, present only while open or sliding,
     // so Tab and a screen reader reach it only when it can be seen
 
-    defaultPlacement = body,
+    defaultPlacement = _body,
 
     accessibilityRole = group,
     accessibilityLabel = { label },
@@ -77,7 +77,7 @@ class Disclosure [ clip = true, width = 100%,
     // the slide: height springs between the bare line and the whole content,
     // and the clip carries the content the whole way
 
-    slide: Spring [ attribute = height, to = { classroot.open ? classroot.contentHeight : classroot.line.height },
+    _slide: Spring [ attribute = height, to = { classroot.open ? classroot.contentHeight : classroot.line.height },
         stiffness = 220, damping = 26, epsilon = 0.4 ],
     _twist: number = { -Math.PI / 2 },
     Spring [ attribute = _twist, to = { classroot.open ? 0 : -Math.PI / 2 }, stiffness = 220, damping = 26, epsilon = 0.004 ],
@@ -98,7 +98,7 @@ class Disclosure [ clip = true, width = 100%,
             fontSize = { provided("theme").accordionFontSize }, textColor = { provided("theme").textMuted }, text = { classroot.detail } ]
         ],
 
-    body: View [ width = 100%, padding = [6, 0, 8, 30],
+    _body: View [ width = 100%, padding = [6, 0, 8, 30],
         layout: SimpleLayout [ axis = y, spacing = 8 ],
         visible = { classroot.open || classroot.height > classroot.line.height + 0.5 }
         ]

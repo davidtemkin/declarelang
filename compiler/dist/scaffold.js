@@ -19,7 +19,7 @@
 // Two parts, mirroring the two lexical homes of a value:
 //
 //   1. A fixed PRELUDE — the closed value vocabulary of value.ts as TS types,
-//      plus the value-constructor signatures (gradient/stroke/stop/shadow) a
+//      plus the value-constructor signatures (gradient/stroke/colorStop/shadow) a
 //      body may call. This is the single source of the AttrType → TS mapping;
 //      it mirrors value.ts's runtime types exactly.
 //
@@ -76,7 +76,7 @@ import { runtimeMethodsOf } from "../../runtime/dist/runtime-methods.js";
 /** The fixed value-type prelude — the closed vocabulary of value.ts as TS
  *  types, plus the value constructors in scope for every body. Mirrors
  *  value.ts's runtime shapes exactly (Length/Color/Fill/Stroke/Shadow/
- *  Percent/Gradient and the gradient/stroke/stop/shadow constructors). `DataCursor`
+ *  Percent/Gradient and the gradient/stroke/colorStop/shadow constructors). `DataCursor`
  *  is the deferred schema-typed-`:path` placeholder (see the header). `Theme`
  *  (and every record-typed slot) is DELIBERATELY `Record<string, any>`, not
  *  `unknown`: a record's keys are open by design (no schema construct yet), so
@@ -169,7 +169,7 @@ interface IslandMessage { readonly topic: string; readonly payload: unknown }
  *  it asked for a window of its own (\`openWindow\`). */
 interface IslandNavigation { readonly to: string; readonly program: string; readonly location: string; readonly newWindow: boolean }
 /** A linear gradient: \`gradient(#F8F8F8, #D8D8D8)\` top to bottom, or with an angle
- *  first — \`gradient("90deg", …)\`. Colors spread evenly; \`stop(offset, color)\` places
+ *  first — \`gradient("90deg", …)\`. Colors spread evenly; \`colorStop(offset, color)\` places
  *  one exactly. Legal in a bare slot, which is why it is a call and not a record. */
 declare function gradient(...args: (Color | string | { offset: number | null; color: Color })[]): Gradient;
 /** A radial gradient from a center and radius, in the view's own units — a glow,
@@ -185,7 +185,7 @@ declare function stroke(width: number, color: Color): Stroke;
 declare function outline(width: number, color: Color): GlyphOutline;
 /** Place one gradient stop at an exact offset (0 to 1) instead of letting the
  *  colors spread evenly. */
-declare function stop(offset: number, color: Color): { offset: number; color: Color };
+declare function colorStop(offset: number, color: Color): { offset: number; color: Color };
 /** Build a drop shadow — offset, blur, color. On \`shadow\` it falls from the box, on
  *  \`textShadow\` from the glyphs, and in a filter list it composes with the rest. */
 declare function shadow(dx: number, dy: number, blur: number, color: Color): Shadow;

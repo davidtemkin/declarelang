@@ -541,8 +541,8 @@ await test("a subclass cannot re-declare an inherited child — said at compile,
   await says(`class A extends View [ width = 100, height = 40, inner: View [ width = 10, height = 10 ] ]
     class B extends A [ inner: View [ width = 20, height = 20 ] ]
     App [ B [ ] ]`, "'inner' is a child B inherits from A");
-  await says(`class MyButton extends Button [ run: Text [ text = "x" ] ]
-    App [ MyButton [ label = "hi" ] ]`, "'run' is a child MyButton inherits from Button");
+  await says(`class MyButton extends Button [ _run: Text [ text = "x" ] ]
+    App [ MyButton [ label = "hi" ] ]`, "'_run' is a child MyButton inherits from Button");
   await silent(`class A extends View [ width = 100, height = 40, layout: SimpleLayout [ axis = y ] ]
     class B extends A [ layout: SimpleLayout [ axis = x ] ]
     App [ B [ ] ]`, "inherits from");
@@ -591,7 +591,7 @@ await test("a TextInput aligns and slants its text, as a Text does", async () =>
 });
 
 // Quieting is a fact the program states (or a run passes), never a code switched
-// off: lint = false drops advice; devices = desk drops what matters only on a
+// off: lint = false drops advice; devices = desktop drops what matters only on a
 // phone. Errors and bugs can't be quieted, and what was quieted is counted.
 await test("defaultFlags quiet lint and another device's findings, and say how many", async () => {
   const src = (flags) => `${flags}
@@ -603,14 +603,14 @@ App [ width = 300, height = 200,
   assert.ok(codes(all).includes("DECLARE3005") && codes(all).includes("DECLARE4025"), codes(all).join());
   assert.equal(all.diagnostics.find((d) => d.code === "DECLARE3005").category, "devices");
   assert.equal(all.diagnostics.find((d) => d.code === "DECLARE4025").category, "lint");
-  const quiet = await compile(src("defaultFlags [ lint = false, devices = desk ]"));
+  const quiet = await compile(src("defaultFlags [ lint = false, devices = desktop ]"));
   assert.deepEqual(codes(quiet).filter((c) => c === "DECLARE3005" || c === "DECLARE4025"), []);
-  assert.deepEqual(quiet.quieted.map((q) => q.by).sort(), ["devices = desk", "lint = false"]);
+  assert.deepEqual(quiet.quieted.map((q) => q.by).sort(), ["devices = desktop", "lint = false"]);
   assert.match(quiet.report, /quieted by lint = false/);
   const run = await compile(src("defaultFlags [ lint = false ]"), { lint: true });
   assert.ok(codes(run).includes("DECLARE4025"), "a run's own flag overrides the program's");
-  const phone = await compile(src("defaultFlags [ devices = phone ]"));
-  assert.ok(codes(phone).includes("DECLARE3005"), "a phone program keeps the phone's findings");
+  const phone = await compile(src("defaultFlags [ devices = mobile ]"));
+  assert.ok(codes(phone).includes("DECLARE3005"), "a mobile program keeps the phone's findings");
 });
 
 summarize("diagnostics-hints");

@@ -99,7 +99,7 @@ export interface CompileOptions {
     /** The `lint` and `devices` flags for this run (a URL's, `--lint=false`):
      *  which findings to quiet. Unset, the program's own `defaultFlags` decide. */
     lint?: boolean;
-    devices?: "all" | "desk" | "phone";
+    devices?: "all" | "desktop" | "mobile";
     /** The main file's path, when there is one: its name names the program in messages
      *  (a class that takes a library name is offered `<Program><Class>`). */
     mainId?: string;

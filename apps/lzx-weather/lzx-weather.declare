@@ -200,8 +200,8 @@ App [ width = 240, height = 320, fill = #EAEAEA,
             // rounded corners. Clicking it fetches the weather (and slides the bar away).
 
             pill: View [ width = 236, height = 28, opacity = 0.7, cornerRadius = 13,
-                fill = gradient(stop(0, #C2C2DC), stop(0.08, #797AB4),
-                stop(0.92, #797AB4), stop(1, #27283B)),
+                fill = gradient(colorStop(0, #C2C2DC), colorStop(0.08, #797AB4),
+                colorStop(0.92, #797AB4), colorStop(1, #27283B)),
                 onClick() {
                     slideOut.start()
                     weatherData.fetch()

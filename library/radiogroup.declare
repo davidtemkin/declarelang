@@ -150,12 +150,12 @@ and on a touch-first device at least 44, a finger's target, the dot unchanged.
 Follows `on`: whether this choice is the group's `value`.
 */
 
-class Radio extends Control [ height = { Math.max(this.dot.width + 4, app.touchFirst ? 44 : 0) },
-    baseline: number = { this.cap.y + this.cap.baseline },   // a row aligns the control by its label
+class Radio extends Control [ height = { Math.max(this._dot.width + 4, app.touchFirst ? 44 : 0) },
+    baseline: number = { this._cap.y + this._cap.baseline },   // a row aligns the control by its label
 
     // keyboard focus rings the round dot itself, not the dot-plus-label row
 
-    focusShape() { return ({ x: this.dot.x, y: this.dot.y, w: this.dot.width, h: this.dot.height, rad: this.dot.width / 2 }) },
+    focusShape() { return ({ x: this._dot.x, y: this._dot.y, w: this._dot.width, h: this._dot.height, rad: this._dot.width / 2 }) },
     choice: string = "",
     label:  string = "",
     accessibilityRole = radio,
@@ -176,12 +176,12 @@ class Radio extends Control [ height = { Math.max(this.dot.width + 4, app.touchF
 
     on: boolean = { (parent as RadioGroup).value == choice },
 
-    width   = { this.dot.width + (label == "" ? 0 : 8 + this.cap.width) },
+    width   = { this._dot.width + (label == "" ? 0 : 8 + this._cap.width) },
     opacity = { disabled ? (provided("theme").disabledOpacity) : 1 },
 
-    dot: View [ width = { provided("theme").radioSize }, height = { this.width }, cornerRadius = { this.width / 2 }, y = { (parent.height - this.width) / 2 },
+    _dot: View [ width = { provided("theme").radioSize }, height = { this.width }, cornerRadius = { this.width / 2 }, y = { (parent.height - this.width) / 2 },
         fill   = { provided("theme").surface },
         stroke = { stroke(on ? 5 : 1, on ? provided("theme").accent : hovered || pressed ? provided("theme").textMuted : provided("theme").line) } ],
-    cap: TextLabel [ x = 26, wrap = false, textColor = { provided("theme").text },
+    _cap: TextLabel [ x = 26, wrap = false, textColor = { provided("theme").text },
         visible = { label != "" }, text = { label } ]
     ]
