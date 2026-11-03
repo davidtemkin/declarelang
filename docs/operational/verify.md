@@ -289,7 +289,7 @@ level is the classic mistake; they belong inside `viewport`):
 |---|---|---|
 | `name` | `string` | the baseline's file name — stable across runs |
 | `viewport` | `{ width, height }` | the captured window, in CSS pixels |
-| `clock` | ISO date `string` | pin the WALL clock (`Date`) so a rendered time reads the same every run — the driven animation clock is separate and untouched |
+| `clock` | ISO date `string` | where the program's `Date` starts, so a rendered time reads the same every run — it moves only as the route lets time pass |
 | `scheme` | `"light"` \| `"dark"` | the color scheme the capture renders under (default light) |
 | `dpr` | `number` | device pixel ratio of the capture (default 1) |
 | `touch` | `boolean` | a touch device: the route's presses are fingers (see above) |
