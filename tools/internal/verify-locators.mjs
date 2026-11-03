@@ -181,7 +181,40 @@ function resolveInPage(steps) {
  *  lets the program answer an action; `advance` moves the page's clock (its timers
  *  are virtual) while a locator waits; `fail` ends the script with a message;
  *  `judged` counts an assertion that judged something. */
-export function withLocators(page, { act, settle, advance, fail = (m) => { throw new Error(m); }, judged = () => {} }) {
+// KEYS AS PEOPLE NAME THEM. A chord is written as a person reads it — "Cmd+K",
+// "Shift+Option+ArrowLeft", "Mod+S" (⌘ on a Mac, Ctrl elsewhere) — and pressed as
+// the keyboard makes it: modifiers down, the key, modifiers up. A Mac's editing
+// chords (⌘C, ⌥←, ⌘Z…) are also the editing commands a real keyboard runs and a
+// headless one does not, so they are sent with the key, as Playwright does.
+const MOD = { cmd: "Meta", command: "Meta", meta: "Meta", "⌘": "Meta", ctrl: "Control", control: "Control", "⌃": "Control",
+  option: "Alt", opt: "Alt", alt: "Alt", "⌥": "Alt", shift: "Shift", "⇧": "Shift",
+  mod: process.platform === "darwin" ? "Meta" : "Control", controlormeta: process.platform === "darwin" ? "Meta" : "Control" };
+const KEY = { esc: "Escape", return: "Enter", del: "Delete", up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight", space: "Space" };
+const MAC_COMMANDS = {
+  "Meta+a": ["selectAll"], "Meta+c": ["copy"], "Meta+x": ["cut"], "Meta+v": ["paste"], "Meta+z": ["undo"], "Meta+Shift+z": ["redo"],
+  "Alt+ArrowLeft": ["moveWordLeft"], "Alt+ArrowRight": ["moveWordRight"], "Meta+ArrowLeft": ["moveToBeginningOfLine"], "Meta+ArrowRight": ["moveToEndOfLine"],
+  "Meta+ArrowUp": ["moveToBeginningOfDocument"], "Meta+ArrowDown": ["moveToEndOfDocument"],
+  "Alt+Backspace": ["deleteWordBackward"], "Meta+Backspace": ["deleteToBeginningOfLine"],
+};
+export function parseChord(name) {
+  const text = String(name);
+  const parts = text.length > 1 && text.endsWith("++") ? [...text.slice(0, -2).split("+"), "+"] : text.length > 1 ? text.split("+") : [text];
+  const mods = parts.slice(0, -1).map((m) => MOD[m.toLowerCase()] ?? m);
+  const last = parts[parts.length - 1];
+  const key = KEY[last.toLowerCase()] ?? (last.length === 1 ? last : last);
+  return { mods, key };
+}
+export async function pressChord(page, name) {
+  const { mods, key } = parseChord(name);
+  const id = [...new Set(mods)].sort((a, b) => ["Meta", "Control", "Alt", "Shift"].indexOf(a) - ["Meta", "Control", "Alt", "Shift"].indexOf(b)).join("+");
+  const commands = process.platform === "darwin" ? MAC_COMMANDS[`${id}${id ? "+" : ""}${key.length === 1 ? key.toLowerCase() : key}`] : undefined;
+  for (const m of mods) await page.keyboard.down(m);
+  await page.keyboard.press(key, commands !== undefined ? { commands } : undefined);
+  for (const m of [...mods].reverse()) await page.keyboard.up(m);
+}
+const CLICK_OPTIONS = new Set(["button", "clickCount", "force", "modifiers", "noWaitAfter", "position", "timeout", "trial"]);
+
+export function withLocators(page, { act, settle, advance, pause = async () => {}, fail = (m) => { throw new Error(m); }, judged = () => {} }) {
   const find = (steps) => page.evaluate(resolveInPage, steps);
   const on = (i, fn, arg) => page.evaluate((i, fn, arg) => new Function("el", "arg", `return (${fn})(el, arg)`)(window.__locHits[i], arg), i, fn.toString(), arg);
   const onAll = (fn, arg) => page.evaluate((fn, arg) => new Function("els", "arg", `return (${fn})(els, arg)`)(window.__locHits, arg), fn.toString(), arg);
@@ -210,6 +243,40 @@ export function withLocators(page, { act, settle, advance, fail = (m) => { throw
     }
   };
   const centre = (i) => on(i, (el) => { el.scrollIntoView({ block: "nearest" }); const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+  // WHERE A PRESS LANDS, as the driver's own: on a still target (three looks in
+  // a row agree — a glide or a scroll moving it is waited out), and only where
+  // the element is what a person would touch there — a point another element
+  // covers is said, never pressed (force: true presses it anyway)
+  const spot = (i, at) => on(i, (el, at) => { const r = el.getBoundingClientRect(); return at ? { x: r.left + at.x, y: r.top + at.y } : { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, at ?? null);
+  const frame = () => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r())));
+  const aim = async (i, steps, o = {}) => {
+    await on(i, (el) => el.scrollIntoView({ block: "nearest" }));
+    let c = await spot(i, o.position);
+    for (let tries = 0, same = 0; same < 3; tries++) {
+      await frame();
+      const again = await spot(i, o.position);
+      if (Math.abs(again.x - c.x) < 0.5 && Math.abs(again.y - c.y) < 0.5) { same++; continue; }
+      same = 0; c = again;
+      if (tries >= 40) fail(`${describe(steps)} is still moving — a press would land where it was, not where it is going. Let its motion finish first (drive.wait, or drive.settleMotion)`);
+    }
+    if (o.force !== true) {
+      const cover = await on(i, (el, p) => {
+        const t = document.elementFromPoint(p.x, p.y);
+        if (t === null) return "nothing — the point is outside the window";
+        if (el === t || el.contains(t)) return null;
+        const v = window.__declare?.profile?.viewOf?.(t)?.view;
+        const label = t.getAttribute("aria-label") || (t.textContent ?? "").trim().slice(0, 40);
+        return `${v ?? "<" + t.tagName.toLowerCase() + ">"}${label ? ` ("${label}")` : ""}`;
+      }, c);
+      if (cover !== null) fail(`${describe(steps)}: a press at its ${o.position ? "point" : "centre"} (${Math.round(c.x)}, ${Math.round(c.y)}) would land on ${cover}, which covers it there — what a person would touch. Close or move what covers it; force: true presses there anyway`);
+    }
+    return c;
+  };
+  const clickOptions = (verb, o) => {
+    const odd = Object.keys(o).filter((k) => !CLICK_OPTIONS.has(k));
+    if (odd.length > 0) fail(`${verb}({ ${odd.join(", ")} }): not an option here — ${[...CLICK_OPTIONS].join(", ")}${odd.includes("delay") ? " (time between presses is the script's: drive.wait(ms))" : ""}`);
+    if (o.button !== undefined && !["left", "right", "middle"].includes(o.button)) fail(`${verb}({ button: ${JSON.stringify(o.button)} }): a button is "left", "right" or "middle"`);
+  };
   const typeInto = async (i, text) => {
     await on(i, (el) => el.focus());
     await page.keyboard.type(String(text));
@@ -251,13 +318,20 @@ export function withLocators(page, { act, settle, advance, fail = (m) => { throw
       async count() { return (await find(steps)).length; },
       async all() { return (await find(steps)).map((_, i) => by(steps, { by: "nth", index: i })); },
       async click(o = {}) {
+        clickOptions("click", o);
         const i = await one(steps, o.timeout);
-        const c = await centre(i);
-        for (let k = 0; k < (o.clickCount ?? 1); k++) { await act(c.x, c.y); await settle(); }
+        const c = await aim(i, steps, o);
+        if (o.trial === true) return;
+        const mods = (o.modifiers ?? []).map((m) => parseChord(m + "+x").mods[0]);
+        for (const m of mods) await page.keyboard.down(m);
+        // a double is two presses a person's beat apart, inside the platform's window
+        for (let k = 0; k < (o.clickCount ?? 1); k++) { if (k > 0) await pause(100); await act(c.x, c.y, { button: o.button, count: k + 1 }); }
+        for (const m of [...mods].reverse()) await page.keyboard.up(m);
+        await settle();
       },
-      async dblclick(o = {}) { return api.click({ ...o, clickCount: 2 }); },
+      async dblclick(o = {}) { clickOptions("dblclick", o); return api.click({ ...o, clickCount: 2 }); },
       async tap(o = {}) { return api.click(o); },
-      async hover(o = {}) { const c = await centre(await one(steps, o.timeout)); await page.mouse.move(c.x, c.y); await settle(); },
+      async hover(o = {}) { const c = await aim(await one(steps, o.timeout), steps, o); await page.mouse.move(c.x, c.y); await settle(); },
       async fill(value, o = {}) {
         const i = await one(steps, o.timeout);
         await on(i, (el) => { el.focus(); if (typeof el.select === "function") el.select(); });
@@ -268,7 +342,7 @@ export function withLocators(page, { act, settle, advance, fail = (m) => { throw
       async clear(o = {}) { return api.fill("", o); },
       async pressSequentially(text, o = {}) { await typeInto(await one(steps, o.timeout), text); },
       async type(text, o = {}) { await typeInto(await one(steps, o.timeout), text); },
-      async press(key, o = {}) { const i = await one(steps, o.timeout); await on(i, (el) => el.focus()); await page.keyboard.press(key); await settle(); },
+      async press(key, o = {}) { const i = await one(steps, o.timeout); await on(i, (el) => el.focus()); await pressChord(page, key); await settle(); },
       async check(o = {}) { if (!(await api.isChecked(o))) await api.click(o); },
       async uncheck(o = {}) { if (await api.isChecked(o)) await api.click(o); },
       async setChecked(v, o = {}) { return v ? api.check(o) : api.uncheck(o); },
@@ -428,9 +502,18 @@ export function withLocators(page, { act, settle, advance, fail = (m) => { throw
   for (const k of ["click", "dblclick", "tap", "hover", "fill", "check", "uncheck", "focus", "press", "type", "selectOption", "textContent", "innerText", "inputValue", "getAttribute", "isVisible", "isHidden", "isChecked", "isEnabled", "isDisabled"]) {
     shortcuts[k] = (sel, ...rest) => locator(parseSelector(sel))[k](...rest);
   }
+  const keyboard = new Proxy(page.keyboard, {
+    get(t, k) {
+      if (k === "press") return (name, o) => o === undefined || Object.keys(o).length === 0 ? pressChord(page, name) : t.press(parseChord(name).key, o);
+      if (k === "down" || k === "up") return (name, o) => t[k](MOD[String(name).toLowerCase()] ?? KEY[String(name).toLowerCase()] ?? name, o);
+      const v = t[k];
+      return typeof v === "function" ? v.bind(t) : v;
+    },
+  });
   const proxy = new Proxy(page, {
     get(t, k) {
       if (k === PAGE) return true;
+      if (k === "keyboard") return keyboard;
       if (k in top) return top[k];
       if (k in shortcuts) return shortcuts[k];
       const v = t[k];

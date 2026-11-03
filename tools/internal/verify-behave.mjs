@@ -7,7 +7,7 @@
 // suite's technique — the browser's own PNG decode, no Node-side dependency).
 // Loaded lazily by tools/verify.mjs; also the eval harness's execution seam.
 
-import { withLocators } from "./verify-locators.mjs";
+import { withLocators, parseChord, pressChord } from "./verify-locators.mjs";
 import http from "node:http";
 import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, statSync, mkdirSync } from "node:fs";
@@ -993,10 +993,26 @@ bootHost(cfg);
           if (c.x < 0 || c.y < 0 || c.x >= vp.width || c.y >= vp.height)
             throw new VerifyAssertion(`'${path}' is outside the window at (${Math.round(c.x)}, ${Math.round(c.y)}), and swiping did not bring it in: ${toldTried(r)}`);
         },
-        async click(path) {
+        /** A press on the view, as a person makes it. `{ modifiers: ["Shift"],
+         *  button: "right" }` holds keys down through it (Cmd, Option, Mod…), or
+         *  presses another button. */
+        async click(path, o = {}) {
+          const odd = Object.keys(o).filter((k) => k !== "modifiers" && k !== "button");
+          if (odd.length > 0) throw new VerifyAssertion(`drive.click(…, { ${odd.join(", ")} }): not an option — modifiers, button`);
           const c = await reach(path);
-          step(`${touching() ? "tap" : "click"} ${path}`);
-          await press(c.x, c.y);
+          const mods = (o.modifiers ?? []).map((m) => parseChord(m + "+x").mods[0]);
+          step(`${mods.length ? mods.join("+") + "+" : ""}${o.button && o.button !== "left" ? o.button + "-" : ""}${touching() ? "tap" : "click"} ${path}`);
+          for (const m of mods) await page.keyboard.down(m);
+          if ((o.button ?? "left") === "left" || touching()) await press(c.x, c.y);
+          else { await page.mouse.click(c.x, c.y, { button: o.button }); await landed(); }
+          for (const m of [...mods].reverse()) await page.keyboard.up(m);
+        },
+        /** The pointer brought over the view, and left there: what hovered answers. */
+        async hover(path) {
+          const c = await reach(path);
+          step(`hover ${path}`);
+          await page.mouse.move(c.x, c.y);
+          await landed();
         },
         /** Make the page another device, and load the app again on it:
          *  `{ width, height, touch }` — a phone is `{ width: 390, height: 844,
@@ -1176,11 +1192,8 @@ bootHost(cfg);
         /** A key, or a chord written with "+": "Enter", "Shift+Tab", "Meta+Z". */
         async key(name) {
           step(`key ${name}`);
-          const parts = name.length > 1 ? name.split("+") : [name];
-          const mods = parts.slice(0, -1), last = parts[parts.length - 1] || "+";
-          for (const m of mods) await page.keyboard.down(m);
-          await page.keyboard.press(last);
-          for (const m of mods.reverse()) await page.keyboard.up(m);
+          const { mods, key: last } = parseChord(name);
+          await pressChord(page, name);
           // Select-all is the platform's editing command, which a real keyboard
           // runs and a headless one does not: done here, in the focused text
           // field, as a person's ⌘A / Ctrl+A does before typing over a value.
@@ -1211,10 +1224,10 @@ bootHost(cfg);
           await landed();
         },
         async tab(n = 1) { for (let i = 0; i < n; i++) await this.key("Tab"); },
-        /** Let `ms` of REAL time pass — what runs on the world's clock (a
-         *  service's own schedule, a socket's timed frames) — then let the
-         *  app's clock catch up on what arrived. drive.wait never waits for
-         *  real; this is the one that does. */
+        /** Let `ms` of REAL time pass with the program running live — what
+         *  runs on the world's clock (a service's own schedule, a socket's
+         *  timed frames), or is measured over real frames. drive.wait never
+         *  waits for real; this is the one that does. */
         async waitReal(ms) {
           // the program runs LIVE with the world for `ms`: real frames move its
           // motion, and its own time (timers, Date) keeps pace with them; then
@@ -1467,7 +1480,12 @@ const expect = {
       // the script's page: Playwright's locators on it (getByRole, getByLabel, …),
       // pressing through the driver's own input and settling as its verbs do
       const located = withLocators(page, {
-        act: async (x, y) => { step(`press at (${Math.round(x)}, ${Math.round(y)})`); await press(x, y); },
+        act: async (x, y, o = {}) => {
+          step(`${o.button && o.button !== "left" ? o.button + "-" : ""}press at (${Math.round(x)}, ${Math.round(y)})`);
+          if (touching() || ((o.button ?? "left") === "left" && (o.count ?? 1) === 1)) await press(x, y);
+          else { await page.mouse.click(x, y, { button: o.button ?? "left", count: o.count ?? 1 }); await landed(); }
+        },
+        pause: (ms) => drive.wait(ms),
         settle: async () => { await landed(); await frames(page); },
         advance: (ms) => page.evaluate((ms) => globalThis.__declareTimers?.advance?.(ms), ms).catch(() => {}),
         fail,

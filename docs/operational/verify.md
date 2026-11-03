@@ -160,8 +160,12 @@ a locator as Playwright's does:
 - **acting:** `click`, `dblclick`, `tap`, `hover`, `fill`, `clear`, `pressSequentially`
   (`type`), `press`, `check`, `uncheck`, `setChecked`, `focus`, `blur`, `selectOption` (a
   `<select>`), `scrollIntoViewIfNeeded` — through the driver: a real press (a finger on a
-  touch device), then the program settles, as after a `drive` verb. `page.click(css)` and the
-  other selector forms are the same.
+  touch device), then the program settles, as after a `drive` verb. As the driver's own, a
+  press waits for a still target and refuses a point another element covers, naming it
+  (`force: true` presses there anyway); unlike the driver's, a locator brings its element
+  into view by scrolling it there, not by a swipe. `click` takes `button`, `clickCount`,
+  `modifiers`, `position`, `force` and `trial`; an option it can't honour is refused, never
+  ignored. `page.click(css)` and the other selector forms are the same.
 - **reading:** `isVisible`, `isHidden`, `isEnabled`, `isDisabled`, `isChecked`, `isEditable`,
   `innerText`, `textContent`, `inputValue`, `getAttribute`, `allInnerTexts`,
   `allTextContents`, `boundingBox`, `evaluate`, `evaluateAll`, `waitFor`, `screenshot`.
@@ -247,7 +251,8 @@ user's scroll coming to rest, keep real time; only the program's time is the dri
 
 | call | what it does |
 |---|---|
-| `drive.click(path)`, `drive.drag(path, dx, dy)`, `drive.wheel(path, dy, dx?)` | a press, a drag, a wheel turn on the view, as a person makes them |
+| `drive.click(path, { modifiers?, button? })`, `drive.drag(path, dx, dy)`, `drive.wheel(path, dy, dx?)` | a press, a drag, a wheel turn on the view, as a person makes them — a click with keys held (`modifiers: ["Shift"]`) or another button (`button: "right"`) |
+| `drive.hover(path)` | the pointer brought over the view and left there — what `hovered` answers |
 | `drive.press(path, x?, y?)`, `drive.moveBy(dx, dy)`, `drive.release()` | a drag a step at a time: the pointer goes down on the view (at a point inside it, else its centre) and stays down while `moveBy` moves it, so `expect` and pictures can look at the drag in progress — the ghost, the target lit — before `release` drops it |
 | `drive.clickAt(path, x, y)`, `drive.hold(path, ms?)` | a press at a point inside the view (from its top-left); a press held `ms` (default 600) of the program's time, then released — what `onHold` answers |
 | `drive.dblclick(path, x?, y?)` | a double-click (a double tap on a touch device) on the view, or at a point inside it — what `onDblClick` answers |
@@ -259,7 +264,7 @@ user's scroll coming to rest, keep real time; only the program's time is the dri
 | `drive.requests()` | the requests the program has sent so far — its data sources and streams, not the page's own files: `{ method, url, path, body, status }` each, the body parsed when it is JSON |
 | `expect.budget(profile, { runsPerTurn?, built?, builtPerTurn?, reranForNothing?, turnMs?, frameMs?, settled? })` | a profile (`drive.profile`'s answer) within limits: counts hold on every machine, times on the one they were set on — failing, it names each limit passed and what spent it |
 | `expect.request(method, path, { count?, body? })` | the program sent that request: `path` a prefix or a RegExp, `count` how many times, `body` the fields it must carry — failing, it lists what was sent |
-| `drive.key(name)`, `drive.type(text)`, `drive.tab(n?)` | keys, to whatever has the focus; a chord is written with `+`: `"Shift+Tab"`, `"Meta+Z"` |
+| `drive.key(name)`, `drive.type(text)`, `drive.tab(n?)` | keys, to whatever has the focus; a chord is written with `+` as a person names it — `"Shift+Tab"`, `"Cmd+Z"`, `"Option+ArrowLeft"`, `"Mod+S"` (⌘ on a Mac, Ctrl elsewhere) — and a Mac's editing chords (⌘C, ⌥⌫, ⌘←…) do what they do on a Mac. `page.keyboard.press` and a locator's `press` take the same names |
 | `drive.selectAll(path)` | focus the text field and select everything in it, as select-all does before typing over a value |
 | `drive.set(path, attr, value)` | an assignment, as a handler's write |
 | `drive.wait(ms)` | exactly `ms` of the program's time, run frame by frame — not `ms` of real time; what the program asked for in the meantime (a request, a frame) is waited for as it lands |
