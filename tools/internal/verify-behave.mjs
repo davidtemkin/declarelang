@@ -335,7 +335,8 @@ bootHost(cfg);
             // due-ordered, and re-read each pass: a fired callback may arm more
             for (;;) {
               let next = null;
-              for (const [id, t] of pend) if (t.due <= now && (next === null || t.due < next[1].due)) next = [id, t];
+              // a hair of slack: a wait taken in 16.7 ms frames sums to 999.999… of 1000
+              for (const [id, t] of pend) if (t.due <= now + 1e-6 && (next === null || t.due < next[1].due)) next = [id, t];
               if (next === null) return;
               const [id, t] = next;
               if (t.every > 0) t.due += t.every; else pend.delete(id);
@@ -857,6 +858,16 @@ bootHost(cfg);
       // WHAT A PRESS STARTS, LANDED: a handler that hands its work to the next
       // frame (afterDelay(0) — a Menu passing on its choice) has run before the
       // script reads, as it has for a person, who never acts within one frame
+      // WHAT HELD TIME IS STILL HOLDING, said beside a failed expect: the program's
+      // time moves only when the script moves it, so motion short of rest and
+      // timers not yet due are what a check made too soon finds
+      const heldNote = async () => {
+        const h = await page.evaluate(() => ({ timers: globalThis.__declareTimers?.pending?.() ?? 0, moving: window.__declare?.clock?.settling === true })).catch(() => ({ timers: 0, moving: false }));
+        const said = [];
+        if (h.moving) said.push("motion is still in flight — the program's time stands still between steps; drive.settleMotion() runs it to rest");
+        if (h.timers > 0) said.push(`${h.timers} timer${h.timers === 1 ? "" : "s"} still waiting — drive.wait(ms) runs them`);
+        return said.length > 0 ? ` (${said.join("; ")})` : "";
+      };
       const landed = async () => {
         await frames(page);
         await page.evaluate(() => new Promise((r) => setTimeout(r, 0)));
@@ -1403,8 +1414,7 @@ const expect = {
           // while printing two identical-looking values at the reader.
           const same = v === expected || JSON.stringify(v) === JSON.stringify(expected);
           if (!same) {
-            const waiting = await page.evaluate(() => globalThis.__declareTimers?.pending?.() ?? 0);
-            fail(`expected ${path}.${name} = ${JSON.stringify(expected)}, got ${JSON.stringify(v)}${await nodeAttrHint(path, name, v)}${waiting > 0 ? ` (${waiting} timer${waiting === 1 ? "" : "s"} still waiting — drive.wait(ms) runs them)` : ""}`);
+            fail(`expected ${path}.${name} = ${JSON.stringify(expected)}, got ${JSON.stringify(v)}${await nodeAttrHint(path, name, v)}${await heldNote()}`);
           }
         },
         async approx(path, name, expected, tol = 1) {
@@ -1412,7 +1422,7 @@ const expect = {
             const n = window.__declare.find(p);
             return n != null && a in n ? n[a] : window.__declare.explain(p, a)?.value;
           }, path, name);
-          if (typeof v !== "number" || Math.abs(v - expected) > tol) fail(`expected ${path}.${name} ≈ ${expected} (±${tol}), got ${JSON.stringify(v)}${await nodeAttrHint(path, name, v)}`);
+          if (typeof v !== "number" || Math.abs(v - expected) > tol) fail(`expected ${path}.${name} ≈ ${expected} (±${tol}), got ${JSON.stringify(v)}${await nodeAttrHint(path, name, v)}${await heldNote()}`);
         },
         /** Structural equality on any two values the script already holds —
          *  for reads made through page.evaluate, where identity never holds. */
@@ -1441,8 +1451,7 @@ const expect = {
             return [...words, ...said].join(" ");
           }, path);
           if (!said.includes(contains)) {
-            const waiting = await page.evaluate(() => globalThis.__declareTimers?.pending?.() ?? 0);
-            fail(`expected '${path}' text to contain "${contains}", got "${said}"${waiting > 0 ? ` (${waiting} timer${waiting === 1 ? "" : "s"} still waiting — drive.wait(ms) runs them)` : ""}`);
+            fail(`expected '${path}' text to contain "${contains}", got "${said}"${await heldNote()}`);
           }
         },
         async count(path, kind, expected) {

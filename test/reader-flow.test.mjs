@@ -184,7 +184,7 @@ await test("viewer: the Sizes tab weighs the program's build, file by file, and 
       files: [...v.program, ...v.library].map((f) => ({ label: f.label, note: f.note, href: f.href })), modules: v.modules.length,
       program: v.program.map((f) => f.label), library: v.library.every((f) => f.label.startsWith("library/")), heads: v.heads,
       open: ["program", "library", "runtime"].map((k) => a.content.weigh[k].open),
-      runtimeLine: a.content.weigh.runtime.line.more.text,
+      runtimeLine: a.content.weigh.runtime._line.more.text,
       hrefs: [...document.querySelectorAll("a")].map((e) => e.getAttribute("href")) };
   });
   assert.equal(st.mode, "sizes");
