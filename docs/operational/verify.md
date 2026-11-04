@@ -126,7 +126,7 @@ cookies and service — give its address instead of (or as well as) the file:
 `npx declare-look --url http://127.0.0.1:8200/my-apps/shop/shop.declare --shot served.png`.
 Every action works the same there; no browser script of your own is needed.
 
-The actions — `--click PATH`, `--click-at PATH X,Y` (a point inside it, from its top-left: a
+The actions — `--click PATH`, `--dblclick PATH`, `--click-at PATH X,Y` (a point inside it, from its top-left: a
 step of a drawn scale), `--drag PATH DX,DY`, a drag a step at a time — `--press PATH [X,Y]`,
 `--move DX,DY`, `--release`, with `--shot` and `--read` between them seeing it in progress —
 `--wheel PATH DY`, `--pinch PATH SCALE` (two
@@ -139,7 +139,10 @@ for; `--console` prints what the
 page writes to its console, and `--help` says it all with examples. It runs as rung 5 — the
 same browser and reporting. Motion is run to rest once the page opens and after each action,
 so a read or a picture shows where things land rather than a spring mid-flight;
-`--no-settle` takes them as they are. A picture shows no scrollbars, as on a Mac or a phone;
+`--no-settle` takes them as they are. A run ends by closing the page as a person closes a tab
+at once: the page is told it is leaving (`pagehide`), a "Leave site?" is answered by leaving,
+and work the program had only scheduled for later is lost, as it would be; `--wait MS` first is
+a person who pauses. A picture shows no scrollbars, as on a Mac or a phone;
 `--scrollbars` draws the classic ones. Anything more (polling a live feed, a check to keep)
 is an assert script, below — and it stays behind as a test.
 
@@ -190,7 +193,7 @@ it sent, and a run that fails after earlier runs wrote to the same service says 
 A script runs on a laptop-sized window by default. To run it on another device, export one:
 `export const device = { width: 390, height: 844, touch: true }` — the app loads once, on it.
 `drive` and `expect` drive the app by **view path**, never by DOM selector. A path names
-members (`app.toolbar.add`), a replicated row by its index (`app.list.3`), or a view by what
+members (`app.toolbar.add`), a replicated row by its index among the views (`app.list.3`: the fourth view, whatever else the list holds), or a view by what
 it says — its label, accessible name or text (`app.tabs.Settings`, quoted when it holds a dot
 or a space: `app.menu."Save As…"`). A press is a person's: a view below the fold is scrolled
 into sight first, and a press on a view something else covers fails, naming what it would
@@ -223,7 +226,9 @@ frames is waited for with `drive.waitReal(ms)`: the program runs **live** with t
 the mouse down for 800 ms of real time fires no hold; `drive.hold(path, 800)` does. What a
 press hands to the next frame (`afterDelay(0, …)`: a `Menu` passing on its choice) has run
 before the next step, as it has for a person. A failed `expect` says when timers are still
-waiting, and `drive.wait(ms)` is what runs them.
+waiting, and `drive.wait(ms)` is what runs them. When the script ends, the page is closed as a
+person closes a tab at once: told it is leaving, so a program that saves on leave keeps its
+work, and one that only scheduled a save loses it, as a person's would.
 
 **On a touch device the press is a finger.** After `drive.device({ …, touch: true })` (or
 `declare-look --touch`, or a state's `touch: true`), every `click`, `clickAt`, `drag` and

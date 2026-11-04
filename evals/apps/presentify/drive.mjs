@@ -90,6 +90,18 @@ async function typeInto(page, re, text) {
   // radius with both) is moved, not typed into, so it is the last resort
   const typed = await maybe(find(page, (n) => FIELD_ROLES.has(n.role) && n.role !== "slider" && named(n, re), { what: `a field named ${re}`, timeout: 2500 }));
   const el = typed ?? await field(page, re);
+  if (!typed && el.node?.role === "slider") {
+    // a slider alone: focused, then stepped with the arrow keys to the value, as a
+    // person with a keyboard sets one exactly
+    await el.handle.focus();
+    const want = Number(text);
+    for (let i = 0; i < 400; i++) {
+      const now = Number(await el.handle.evaluate((e) => e.getAttribute("aria-valuenow") ?? e.value));
+      if (!Number.isFinite(now) || now === want) break;
+      await page.keyboard.press(now < want ? "ArrowRight" : "ArrowLeft");
+    }
+    return el;
+  }
   await press(page, el);
   // Command-A, with the editing command it means: keys sent through DevTools on a Mac
   // don't run editing commands on their own (a bare <input> stays unselected)
@@ -467,7 +479,7 @@ const SCENARIOS = {
     const s = await slide(page);
     await draw(page, s, "Rectangle", 1000, 560, 1200, 660);
     await seeText(page, /changed (somewhere|elsewhere|in another|by someone)|someone else|another window|another device|conflict/i, 12000);
-    const take = await control(page, /their|as it is now|latest|newer|other (version|window)|use (the )?(other|new|latest|server)|reload|keep (the )?other|discard (mine|my)/i);
+    const take = await control(page, /their|as it is now|latest|newer|other (version|window)|use (the )?(other|new|latest|server|this)|reload|keep (the )?other|discard (mine|my)/i);
     await press(page, take);
     await sleep(2500);
     const s2 = (await deck("d1")).slides[1];

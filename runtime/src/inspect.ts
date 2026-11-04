@@ -12,7 +12,7 @@
 
 import { startProfile, stopProfile, profiling, profileReport, profileText, measureDrawings, clearProfile, type ProfileReport } from "./profile.js";
 import { Node, authoredName } from "./node.js";
-import { findPath, pathOf } from "./node-path.js";
+import { findPath, pathOf, indexStep } from "./node-path.js";
 
 /** Resolve a dotted inspect path (`app.col.opts`, `app.col.3`) to the node.
  *  Returns null (never throws) on a miss — the caller owns the message. A step
@@ -214,9 +214,10 @@ export function inspect(node: Node, path = "app"): InspectNode {
     shown,
     inView,
     attrs: safeAttr(ownValues(node)) as Record<string, unknown>,
-    children: node.children.map((c, i) => {
+    // the same steps find() reads: a name, else a place among the views beside it
+    children: node.children.map((c) => {
       const childName = nameOf(c);
-      return inspect(c, `${path}.${childName ?? i}`);
+      return inspect(c, `${path}.${childName ?? indexStep(node, c)}`);
     }),
   };
   const text = (node as unknown as { text?: unknown }).text;
@@ -738,7 +739,7 @@ export function explainHit(root: Node, x: number, y: number, pierce = false):
   const path = (v: unknown): string => {
     const parts: string[] = [];
     for (let n = v as unknown as Node | null; n !== null && n.parent !== null; n = n.parent) {
-      parts.unshift(nameOf(n) ?? String(n.parent.children.indexOf(n)));
+      parts.unshift(nameOf(n) ?? indexStep(n.parent, n));
     }
     return ["app", ...parts].join(".");
   };
@@ -765,9 +766,9 @@ export function dependentsOf(root: Node, attr: string): { path: string; attr: st
         out.push({ path, attr: slot, label: owner.label });
       }
     }
-    n.children.forEach((c, i) => {
+    n.children.forEach((c) => {
       const nm = (c as unknown as { $member?: string }).$member;
-      walk(c, `${path}.${nm ?? i}`);
+      walk(c, `${path}.${nm ?? indexStep(n, c)}`);
     });
   };
   walk(root, "app");

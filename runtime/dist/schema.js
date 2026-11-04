@@ -1143,8 +1143,9 @@ const DataSourceSchema = {
     },
     readOnly: ["loaded", "loading", "failed", "error", "statusCode", "errorBody", "responseHeaders"],
     // fired when a fetch lands, after value+flags settle — the imperative
-    // arrival hook (constraints keep deriving from .loaded)
-    events: ["load"],
+    // arrival hook (constraints keep deriving from .loaded); `error` its mirror,
+    // when a fetch fails, after failed/error/statusCode are set
+    events: ["load", "error"],
 };
 // Animation v1 (animation.md §1). An Animator is an ordinary twin-table
 // class — schema here, runtime class in instantiate.ts — NOT a keyword.

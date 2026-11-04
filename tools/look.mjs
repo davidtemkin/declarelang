@@ -35,6 +35,7 @@ options
 
 actions, run in the order written (each may repeat)
   --click PATH                 press the view at PATH
+  --dblclick PATH              double-click the view at PATH (a double tap with --touch)
   --click-at PATH X,Y          press at (X, Y) inside it, from its top-left — a part of a
                                drawn control that is not a view of its own
   --drag PATH DX,DY            press it, move by (DX, DY) pixels, release (a finger's
@@ -111,6 +112,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === "--no-settle") settle = false;
   else if (a === "--scrollbars") scrollbars = true;
   else if (a === "--click") actions.push({ kind: "click", path: arg() });
+  else if (a === "--dblclick") actions.push({ kind: "dblclick", path: arg() });
   else if (a === "--click-at") {
     const path = arg(), at = arg().split(",").map(Number);
     if (at.length !== 2 || at.some((n) => !Number.isFinite(n))) fail(`--click-at ${path} ${argv[i]}: write the point as X,Y inside the view, e.g. 40,12`);
@@ -178,6 +180,7 @@ const step = (x) => {
   const p = JSON.stringify(x.path);
   switch (x.kind) {
     case "click": return `await drive.click(${p});${rest}`;
+    case "dblclick": return `await drive.dblclick(${p});${rest}`;
     case "clickAt": return `await drive.clickAt(${p}, ${x.x}, ${x.y});${rest}`;
     case "pinch": return `await drive.pinch(${p}, ${x.scale});${rest}`;
     case "hold": return `await drive.hold(${p}, ${x.ms});${rest}`;

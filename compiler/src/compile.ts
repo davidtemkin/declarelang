@@ -790,6 +790,9 @@ function idiomDiagnostics(
     // one condition of four or more parts.
     for (const [name, lit] of [...el.attrs.map((a) => [a.name, a.value] as const), ...el.decls.map((d) => [d.name, d.def] as const)]) {
       if (lit === null || lit.kind !== "code") continue;
+      // a classFor reads only the record and names classes: the lookup in data
+      // this would ask for is the one thing it may not hold
+      if (name === "classFor") continue;
       const shape = decisionShape(lit.src);
       if (shape !== null && (shape.depth >= 3 || shape.parts >= 4)) warnings.push(Diag.tangledConstraint(name, shape.depth, shape.parts, lit.pos));
     }
@@ -802,6 +805,20 @@ function idiomDiagnostics(
     ]) {
       const m = /\bcolorWithAlpha\s*\((?:[^(),]|\([^()]*\))+,\s*(0?\.\d+|1(?:\.0*)?)\s*\)/.exec(src);
       if (m !== null) warnings.push(Diag.alphaAsFraction(m[1], pos as Pos));
+    }
+
+    // 4036 — commitOn on a field whose text is not two-way: it times when an
+    // edit commits into the field's datapath, and a one-way text commits nothing,
+    // so onInput runs on every edit and the field shows only what it writes
+    if (el.attrs.some((a) => a.name === "commitOn")) {
+      const sch = schemas[el.tag] as ClassSchema | undefined;
+      if (sch !== undefined && descendsFrom(sch, "TextInput")) {
+        const bodies: Element[] = [el];
+        for (let c = program.classes.find((k) => k.name === el.tag), n = 0; c !== undefined && n < 50; c = program.classes.find((k) => k.name === c!.base), n++) bodies.push(c.body);
+        const twoWay = bodies.some((b) => b.attrs.some((a) => a.name === "text" && a.bind === "two"));
+        const at = el.attrs.find((a) => a.name === "commitOn")!;
+        if (!twoWay) warnings.push(Diag.commitOnOneWay(el.name ?? el.tag, at.pos));
+      }
     }
 
     for (const c of el.children) walk(c, el, classRoot);

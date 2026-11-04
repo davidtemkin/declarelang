@@ -140,7 +140,7 @@ export default [
   {
     name: "table",
     route: async ({ drive }) => {
-      await drive.click("app.bar.pageSwitch.6");
+      await drive.click("app.bar.pageSwitch.Table");
       await settle(drive, { focused: true });
     },
   },
@@ -149,7 +149,7 @@ export default [
   {
     name: "grid",
     route: async ({ drive }) => {
-      await drive.click("app.bar.pageSwitch.7");
+      await drive.click("app.bar.pageSwitch.DataGrid");
       await settle(drive, { focused: true });
     },
   },

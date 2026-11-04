@@ -83,6 +83,12 @@ export function accessibilityDiagnostics(
   const inLibrary = (el: Element): boolean => opts.inLibrary(el.pos?.offset ?? 0);
 
   /** The class bodies above a tag, nearest first (empty for a built-in tag). */
+  /** The runtime class a tag comes down to, past the program's and the library's classes. */
+  const runtimeBase = (tag: string): string => {
+    let t = tag;
+    for (let c = classByName.get(t), n = 0; c !== undefined && n < 50; c = classByName.get(c.base), n++) t = c.base;
+    return t;
+  };
   const chainOf = (tag: string): Element[] => {
     const out: Element[] = [];
     const seen = new Set<string>();
@@ -296,6 +302,17 @@ export function accessibilityDiagnostics(
         const brought = mine === null ? controlWithin(chainOf(tag).flatMap((b) => b.children)) : null;
         if (mine !== null) warnings.push(Diag.accessibilityControlInControl(owner, mine, outer.owner, outer.role, el.pos));
         else if (brought !== null) warnings.push(Diag.accessibilityControlInControl(`${brought.tag} in ${owner}`, brought.role, outer.owner, outer.role, el.pos));
+      }
+      // a label on a view with no role reaches nothing: the runtime names only a
+      // view that has a role (semantics-dom.ts ariaOf), so the label is dropped.
+      // Judged at the use site, on a plain view — a text, a field, a picture or a
+      // document reads by what it is, a link by its link, a scroller as a stop
+      // (a mark inside a control names the control — a close icon in a button —
+      // so a label there is read, through the control)
+      if (decl === undefined && outer === null && !above.some((b) => b.attrs.some((x) => x.name === "link")) && roleOf(levels) === null && sets(levels, "accessibilityLabel")
+          && !sets(levels, "accessibilityRole") && !sets(levels, "link") && !sets(levels, "scrolls") && !sets(levels, "accessibilityHidden")
+          && runtimeBase(el.tag) === "View") {
+        warnings.push(Diag.accessibilityLabelUnread(owner, el.pos));
       }
       // a radio is one of a group: outside a RadioGroup a screen reader hears no
       // "one of N", and the arrows do not move between its choices

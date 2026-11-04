@@ -1,0 +1,106 @@
+/*
+# Presentify: how a slide looks
+
+One renderer for every place a slide is seen — the stage, the slide list, a
+presentation's card, and presenting — so each is the same picture at a different
+size. A slide is drawn in its own 1280 × 720 points and scaled, as a whole, to
+the width it is given; text wraps in slide points, so it breaks the same way at
+every size.
+
+Each element is a view bound to its record, one class per kind, picked by
+`classFor`. A group is a view that holds its children, replicated the same way,
+so groups nest as deep as the data does. None of these views takes the pointer:
+the stage decides what a press hits (editor.declare).
+*/
+
+// The base of every element's view. `classFor` picks the class from the
+// record's `kind` (it can read only the record, so the choice is written out).
+
+class ElView [ pointerEvents = "none" ]
+
+class RectEl extends ElView [ x = { :x ?? 0 }, y = { :y ?? 0 }, width = { :width ?? 0 }, height = { :height ?? 0 },
+    fill = { colorWithAlpha(rgbOf(:fill ?? null), alphaOf(:fill ?? null)) },
+    stroke = { (:stroke ?? null) == null ? null : stroke(:stroke.width, colorWithAlpha(rgbOf(:stroke.color), alphaOf(:stroke.color))) },
+    cornerRadius = { Math.max(0, Math.min(:cornerRadius ?? 0, (:width ?? 0) / 2, (:height ?? 0) / 2)) }
+    ]
+
+
+// An ellipse is drawn: a box can round its corners, but not into an ellipse.
+// Its outline lies inside its box, as a rectangle's does.
+
+class EllipseEl extends ElView [ x = { :x ?? 0 }, y = { :y ?? 0 }, width = { :width ?? 0 }, height = { :height ?? 0 },
+    paint: string = { :fill ?? "" },
+    ink: string = { :stroke.color ?? "" },
+    weight: number = { :stroke.width ?? 0 },
+    draw(d: DrawContext) {
+        const inset = this.ink == "" ? 0 : this.weight / 2
+        const rx = Math.max(0, d.w / 2 - inset), ry = Math.max(0, d.h / 2 - inset)
+        d.beginPath()
+        d.ellipse(d.w / 2, d.h / 2, rx, ry, 0, 0, Math.PI * 2)
+        if (this.paint != "") { d.fillStyle = this.paint; d.fill() }
+        if (this.ink != "" && this.weight > 0) { d.strokeStyle = this.ink; d.lineWidth = this.weight; d.stroke() }
+        }
+    ]
+
+
+// A line is drawn in a box around its two ends, with room for its width.
+
+class LineEl extends ElView [
+    x1: number = { :x1 ?? 0 },
+    y1: number = { :y1 ?? 0 },
+    x2: number = { :x2 ?? 0 },
+    y2: number = { :y2 ?? 0 },
+    ink: string = { :stroke.color ?? "#000000" },
+    weight: number = { :stroke.width ?? 1 },
+    room: number = { classroot.weight / 2 + 2 },
+    x = { Math.min(classroot.x1, classroot.x2) - classroot.room },
+    y = { Math.min(classroot.y1, classroot.y2) - classroot.room },
+    width = { Math.abs(classroot.x2 - classroot.x1) + 2 * classroot.room },
+    height = { Math.abs(classroot.y2 - classroot.y1) + 2 * classroot.room },
+    draw(d: DrawContext) {
+        const ox = Math.min(this.x1, this.x2) - this.room, oy = Math.min(this.y1, this.y2) - this.room
+        d.beginPath()
+        d.moveTo(this.x1 - ox, this.y1 - oy)
+        d.lineTo(this.x2 - ox, this.y2 - oy)
+        d.strokeStyle = this.ink
+        d.lineWidth = this.weight
+        d.lineCap = "round"
+        d.stroke()
+        }
+    ]
+
+
+// A text box: one run, wrapped at its width, as tall as its lines. While it is
+// being edited on the stage the editor's field stands in its place.
+
+class TextEl extends ElView [ x = { :x ?? 0 }, y = { :y ?? 0 },
+    opacity = { provided("hideId") == (:id ?? "") ? 0 : 1 },
+    words: Text [ width = { :width ?? 100 }, text = { :text.content ?? "" },
+        fontSize = { :text.size ?? 24 }, fontFamily = { fontStack(:text.font ?? "Helvetica Neue") },
+        fontWeight = { :text.weight ?? 400 }, italic = { :text.italic ?? false },
+        textAlign = { :text.align ?? "left" },
+        textColor = { colorWithAlpha(rgbOf(:text.color ?? "#000000"), alphaOf(:text.color ?? "#000000")) } ]
+    ]
+
+
+// A group has no box of its own: its children keep slide coordinates.
+
+class GroupEl extends ElView [
+    ElView [ datapath = :children[], classFor = { :kind == "rect" ? RectEl : :kind == "ellipse" ? EllipseEl : :kind == "line" ? LineEl : :kind == "text" ? TextEl : GroupEl } ]
+    ]
+
+
+// ── A slide at any width ────────────────────────────────────────────────────
+//
+// Bound to a slide record (`background`, `elements`). `w` is how wide it is
+// shown; the 1280 × 720 points inside scale evenly to fill it.
+
+class SlideView [ clip = true,
+    w: number = 160,
+    width = { classroot.w }, height = { classroot.w * 9 / 16 },
+    hideId: string = "",
+    fill = { colorWithAlpha(rgbOf(:background ?? "#FFFFFF"), alphaOf(:background ?? "#FFFFFF")) },
+    world: View [ width = 1280, height = 720, scale = { classroot.w / 1280 }, pivotX = 0, pivotY = 0, pointerEvents = "none",
+        ElView [ datapath = :elements[], classFor = { :kind == "rect" ? RectEl : :kind == "ellipse" ? EllipseEl : :kind == "line" ? LineEl : :kind == "text" ? TextEl : GroupEl } ]
+        ]
+    ]

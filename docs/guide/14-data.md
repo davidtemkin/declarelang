@@ -315,7 +315,7 @@ Four facts make this work without choreography:
 - **`onLoad()` is what follows the reply.** It runs once the response has landed in the
   source's `value`. Refetch the list there, as above, or merge the reply into your own
   data. A `body` that is an object is sent as JSON.
-- **`fetch()` never throws.** A refusal lands in `failed` and `error`, with the status in
+- **`fetch()` never throws.** A refusal lands in `failed` and `error` and runs `onError()`, with the status in
   `statusCode` and whatever the server said in `errorBody` — its JSON parsed, if it sent
   JSON, so a validation message can be shown next to the field it names. The reply's
   headers are in [`responseHeaders`](declare-docs:DataSource.responseHeaders), refusals' included — a paging link, a rate limit's
@@ -364,10 +364,10 @@ poll: Time [ tick = 30000, running = { app.tasks.loaded }, onTick() { app.tasks.
 A refresh keeps `loaded` true and the old data showing until the new data lands, so
 nothing flashes.
 
-**Reacting once to a failure** — logging it, moving focus — is a change event on the
-source, since `failed` is an ordinary attribute:
-`trackChanges = ["failed"], onChange(e: ChangeEvent) { … }` on the `DataSource`. Showing
-the failure is not that case; a constraint on `failed` does it.
+**Reacting once to a failure** — logging it, moving focus, sending the next write of a
+queue — is `onError()` on the source, `onLoad()`'s mirror: it runs once each time a fetch
+fails, after `failed`, `error` and `statusCode` are set, so what follows a reply has a handler
+for each outcome. Showing the failure is not that case; a constraint on `failed` does it.
 
 The host's `fetch` is not available in a `{ }` body; the compiler names `DataSource`
 instead. A request a `DataSource` genuinely cannot express belongs in a `script` module

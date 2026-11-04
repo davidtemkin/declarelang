@@ -3,14 +3,20 @@
 // page restores where the user was in every build, not only one carrying the
 // Inspector's bridge, whose `find` also matches a step by what a view says.
 import { Node, authoredName } from "./node.js";
+import { View } from "./view.js";
 import { setAddressOf } from "./reactive.js";
+/** An unnamed child's step: its place among the views beside it, or, for a
+ *  member that is no view, `$` and its place among all the children. */
+export function indexStep(parent, n) {
+    return n instanceof View ? String(parent.children.filter((c) => c instanceof View).indexOf(n)) : "$" + parent.children.indexOf(n);
+}
 /** The dotted address of a live node under `root` — the inverse of find(). */
 export function pathOf(root, n) {
     const parts = [];
     let cur = n;
     while (cur !== null && cur.parent !== null && cur !== root) {
         const m = authoredName(cur);
-        parts.unshift(m ?? String(cur.parent.children.indexOf(cur)));
+        parts.unshift(m ?? indexStep(cur.parent, cur));
         cur = cur.parent;
     }
     // a library's private container (`_body`) is left out where the address
@@ -36,7 +42,12 @@ export function findPath(root, path, said) {
         const raw = segs[i];
         const quoted = raw.startsWith('"');
         const seg = quoted ? raw.slice(1, -1) : raw;
-        const asIndex = !quoted && /^\d+$/.test(seg) ? cur.children[Number(seg)] : undefined;
+        // a number counts the views a person sees, in order — a list's rows, not the
+        // Shortcuts or Spring it also holds; `$N` is any child by its place (a member
+        // that is no view, unnamed)
+        const asIndex = quoted ? undefined
+            : /^\d+$/.test(seg) ? cur.children.filter((c) => c instanceof View)[Number(seg)]
+                : /^\$\d+$/.test(seg) ? cur.children[Number(seg.slice(1))] : undefined;
         const asName = quoted ? undefined : cur[seg];
         const next = asIndex ?? (asName instanceof Node ? asName : undefined) ?? said?.(cur, seg);
         if (next === undefined)

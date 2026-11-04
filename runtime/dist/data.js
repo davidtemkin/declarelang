@@ -1058,6 +1058,19 @@ export class DataSource extends Dataset {
             setBound(this, "error", e instanceof Error ? e.message : String(e));
             setBound(this, "failed", true);
             setBound(this, "loading", false);
+            // the failure EVENT (`onError`), onLoad's mirror: once per failed fetch,
+            // after the flags are set — so work that follows a reply either way (the
+            // next write in a queue, a retry) has a handler for each outcome
+            const h = this["onError"];
+            if (typeof h === "function") {
+                try {
+                    h.call(this);
+                }
+                catch (e2) {
+                    const nm = authoredName(this);
+                    console.error(`[Declare] onError on ${declareName(this)}${nm !== null ? ` '${nm}'` : ""} threw: ${e2?.message ?? e2}`, e2);
+                }
+            }
         }
     }
     /** As if never fetched (the doc's "back to the entry screen —

@@ -118,11 +118,18 @@ notes: DataSource [ url = "https://api.example.com/notes", credentials = include
 ## onLoad
 Fires when a fetch settles successfully, after `value` and the flags are consistent — a
 handler reading `value` sees the arrived data, never the previous one. Failures do not fire
-it; they set `failed` and `error`. **You usually do not need this**: any constraint reading
+it; they set `failed` and `error`, and fire `onError`. **You usually do not need this**: any constraint reading
 `.value` or a `:path` beneath it already updates on arrival, which is the entire reactive
 point. Reach for `onLoad` only when arrival must cause something a constraint cannot express —
 focusing the first result, chaining a follow-up fetch, announcing to a screen reader.
 
+
+## onError
+`onLoad`'s mirror: fires once each time a fetch fails, after `failed`, `error`, `statusCode`
+and `errorBody` are set. **Showing the failure is not this:** a constraint on `failed` does
+that. Reach for it when a failure must cause something, such as sending the next write of a
+queue, retrying, or moving focus, so that work following a reply has a handler for each
+outcome: `onLoad` for success, `onError` for failure.
 ## clear()
 Returns the source to never-fetched — drops `value` (so `loaded` falls), `error`, and the
 request flags, and stops a request in flight. For resetting a search field's results,

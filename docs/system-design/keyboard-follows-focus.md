@@ -172,6 +172,39 @@ Left to that design: browser-reserved chords (never registrable in a browser; a 
 can own more), and precedence across programs (nearest wins lets a tenant shadow its host; a
 host may need chords it always keeps).
 
+**Recorded 2026-11-03 for that design (Presentify run 3), not yet decided:**
+
+- **A view's own keys belong in the walk, at its front.** Today `Shortcuts` sets already
+  resolve from the focused view outward, nearest set first. But a control's built-in keys
+  (a Slider's arrows, a list's, a RadioGroup's) live in its `onKeyDown`, outside the walk, so
+  an App shortcut on a plain arrow takes the key from a focused Slider. Confirmed with a minimal
+  program, and it cost Presentify 3 its corner-radius slider. The runtime's own comment
+  (`keys.ts`, the adapter) already states the intent: "when a Declare CONTROL holds keyboard
+  focus, Space and the arrows are the control's", but only the browser's defaults stand
+  down; shortcuts don't. In the intended model a keystroke resolves like `provided()`: any view
+  may have key bindings, and the nearest wins, from the view that has the key, through a dialog,
+  the island or App, then the desktop. Unlike `provided()`, which reads from above only, the walk
+  starts with the focused view itself, so a control's own keys beat everything above it.
+- **Shortcuts that follow the user's keyboard layout.** A chord is a declared intent written
+  against a reference layout (US) and mapped to the user's keyboard:
+  - **Letters match by character.** ⌘Z is the key that types Z wherever it sits, as on
+    QWERTZ.
+  - **Punctuation matches by physical key.** ⇧⌘] is the key in the US ] position with Shift
+    (`event.code` BracketRight), so pairs like ⌘[ and ⌘] stay side by side on every layout.
+  - **Labels come from the user's layout.** The menu and the shortcut panel show what the
+    user's key prints: in a browser through the Keyboard Map API
+    (`navigator.keyboard.getLayoutMap()`, Chrome only), on the Mac host from the OS, falling back
+    to the US glyph.
+  - macOS has localized key equivalents this way since Monterey
+    (`allowsAutomaticKeyEquivalentLocalization`, with mirroring for right-to-left layouts), and
+    VS Code dispatches by key code with a choice of position or character.
+
+  Today the runtime matches by the character a press typed (`keys.ts` `comboOf`), so
+  `"⇧⌘]"` never fires: the press arrives as ⌘}. The `Shortcuts.items` reference says to write
+  the symbol the keys type (`"⌘}"`), which holds on US-style layouts only. Left to this design:
+  the matching rule per key class, the label source per host, and what happens when a
+  localized chord collides with another.
+
 ## 9. Open
 
 - *(Settled 2026-10-17: the web's rule.)* A press on content where nothing up its chain

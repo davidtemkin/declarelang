@@ -568,7 +568,7 @@ than `undefined` three constraints deep — and lets every `:path` be checked ag
 compile time. Without one, paths are dynamic: an unresolved `:path` yields null and the bound
 attribute falls back to its default. The request's own parts — method, body, credentials,
 headers — are ordinary reactive attributes, so a write is a `DataSource` too: `method = "POST"`,
-a `body`, `.fetch()` from the handler, `onLoad()` for what follows the reply.
+a `body`, `.fetch()` from the handler, `onLoad()` for what follows the reply, `onError()` for what follows a refusal.
 
 **A schema is a named type — declare it once, at the top level, and use it in any type position.**
 `schema Task [ id: string, done: boolean, status: "open" | "closed", note?: string ]` is then

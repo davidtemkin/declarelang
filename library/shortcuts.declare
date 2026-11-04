@@ -36,6 +36,10 @@ is in force where focus is — a panel of the available shortcuts reads it.
 The shortcut records: `{ id, key, label }`, and `enabled: false` for one that shows but does
 not fire. `key` is spelled with the modifier glyphs in any order — `"⌘S"`, `"⇧⌘Z"`, `"⌥⌘←"`,
 `"F5"` — or in words, `"Cmd+Shift+Z"`. ⌘ is the command key: ⌘ on a Mac, Ctrl elsewhere.
+A named key is its glyph — ← → ↑ ↓, ↩ (Return), ⎋ (Escape), ⌫ (Backspace), ⌦ (Delete),
+⇥ (Tab), `Space` — or the browser's name for it (`"Enter"`, `"Escape"`, `"ArrowLeft"`). A
+letter takes ⇧ (`"⇧⌘Z"`); a symbol is spelled as the one the keys type, without ⇧ —
+`"⌘}"`, since ⇧] types } — because a press arrives as what it typed.
 
 ## on
 The view whose subtree the set covers, when that is not the view it is declared on. A

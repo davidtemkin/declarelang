@@ -1823,6 +1823,14 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
       failures.push(`${e instanceof VerifyAssertion ? "" : "unexpected error: "}${e?.message ?? e}${where}${frame ? `\n      at ${frame}` : ""}`);
     }
     if (failures.length === 0) { await app.quiet(2000); await app.checkHere("at the end of the script"); }
+    // THE PAGE CLOSED AS A PERSON CLOSES A TAB, at once: it is told it is leaving
+    // (beforeunload, pagehide, hidden), a "Leave site?" it asks is answered by
+    // leaving, and what it sends on the way out is sent. Work the program had
+    // only scheduled for later is lost, as it would be: a program saves on leave
+    app.page.on("dialog", (d) => { d.accept().catch(() => {}); });
+    const closed = new Promise((r) => app.page.once("close", r));
+    await app.page.close({ runBeforeUnload: true }).catch(() => {});
+    await Promise.race([closed, new Promise((r) => setTimeout(r, 2000))]);
     for (const e of app.pageErrors) failures.push(`page error: ${e}`);
     for (const e of new Set(app.thrown)) failures.push(`error: ${e}`);
     return { ok: failures.length === 0, failures, log: app.log, writes: writesOf(app), intercepted: interceptedOf(app), talked: originsOf(app, false), wrote: originsOf(app, true), checks: app.checks, asserted: app.asserted(), warned: app.warned, waited: app.waited };

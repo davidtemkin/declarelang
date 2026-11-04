@@ -145,7 +145,9 @@ class Slider extends ValueControl [
 
     // the fraction the visuals share; drag bookkeeping (root-space anchor)
 
-    frac: number = { (value - min) / ((max - min) || 1) },
+    // (clamped: a value set past the range is drawn at its end, never past the track)
+
+    frac: number = { Math.max(0, Math.min(1, (value - min) / ((max - min) || 1))) },
     _x0: number = 0,
     _v0: number = 0,
 

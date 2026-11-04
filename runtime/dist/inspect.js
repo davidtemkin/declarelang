@@ -11,7 +11,7 @@
 // for top-level apps.
 import { startProfile, stopProfile, profiling, profileReport, profileText, measureDrawings, clearProfile } from "./profile.js";
 import { Node, authoredName } from "./node.js";
-import { findPath, pathOf } from "./node-path.js";
+import { findPath, pathOf, indexStep } from "./node-path.js";
 /** Resolve a dotted inspect path (`app.col.opts`, `app.col.3`) to the node.
  *  Returns null (never throws) on a miss — the caller owns the message. A step
  *  is a member's name, a child's index, or what a view says — its label, its
@@ -176,9 +176,10 @@ export function inspect(node, path = "app") {
         shown,
         inView,
         attrs: safeAttr(ownValues(node)),
-        children: node.children.map((c, i) => {
+        // the same steps find() reads: a name, else a place among the views beside it
+        children: node.children.map((c) => {
             const childName = nameOf(c);
-            return inspect(c, `${path}.${childName ?? i}`);
+            return inspect(c, `${path}.${childName ?? indexStep(node, c)}`);
         }),
     };
     const text = node.text;
@@ -681,7 +682,7 @@ export function explainHit(root, x, y, pierce = false) {
     const path = (v) => {
         const parts = [];
         for (let n = v; n !== null && n.parent !== null; n = n.parent) {
-            parts.unshift(nameOf(n) ?? String(n.parent.children.indexOf(n)));
+            parts.unshift(nameOf(n) ?? indexStep(n.parent, n));
         }
         return ["app", ...parts].join(".");
     };
@@ -708,9 +709,9 @@ export function dependentsOf(root, attr) {
                 out.push({ path, attr: slot, label: owner.label });
             }
         }
-        n.children.forEach((c, i) => {
+        n.children.forEach((c) => {
             const nm = c.$member;
-            walk(c, `${path}.${nm ?? i}`);
+            walk(c, `${path}.${nm ?? indexStep(n, c)}`);
         });
     };
     walk(root, "app");

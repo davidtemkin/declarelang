@@ -3,7 +3,7 @@
 // never extends it carries neither it nor the timed run (the `tween-layout`
 // capability, compiler/src/capabilities.ts).
 
-import { Constraint } from "./reactive.js";
+import { Constraint, afterSettle } from "./reactive.js";
 import { defineAttributes, own, ownerOf, release, setBound } from "./attributes.js";
 import { DeclareError, layoutConflictMessage } from "./errors.js";
 import type { View } from "./view.js";
@@ -178,7 +178,23 @@ export abstract class TweenLayout extends Layout {
     // to its new order and a `retarget(true)` after it found nothing to move.
     this.$snapshot(kids.some((c) => this.placed.has(c)));
     for (const o of owned) o.k.run();
-    return detach;
+    // WHAT place() READS, watched: a change to the room, the layout's own state or
+    // a child's own facts moves the target, and the children glide to it — as a
+    // retarget(true) would, which the app no longer has to call for a change the
+    // runtime can see. Off the settle: a glide writes from/to, which the lerps read.
+    let seen: string | null = null;
+    const key = (bs: readonly FullBox[]): string => bs.map((b) => `${b.x},${b.y},${b.w},${b.h},${b.vis !== false}`).join(";");
+    const watch = new Constraint(
+      `${declareName(this)}.place`,
+      () => key(this.place() as FullBox[]),
+      (k) => {
+        const was = seen;
+        seen = k as string;
+        if (was !== null && k !== was && k !== key(this.to)) afterSettle(() => this.$snapshot(true));
+      }
+    );
+    watch.run();
+    return () => { watch.dispose(); detach(); };
   }
 
   /** Snap or slide the laid children to the CURRENT target layout. `from` is

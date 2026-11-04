@@ -16,7 +16,7 @@ import { View, App, inheritedCursor } from "./view.js";
 import { rootFrameBox } from "./interaction.js";
 import { inspect, find, explain, stats, pickAt, explainHit, dependentsOf, expandValue, slotsOf, clock, kindName, nameOf, profileName } from "./inspect.js";
 import { startProfile, stopProfile, profiling, profileReport, profileText, measureDrawings } from "./profile.js";
-import { pathOf } from "./node-path.js";
+import { pathOf, indexStep } from "./node-path.js";
 import { clearTrace, readTrace, startTrace, stopTrace, traceText, tracing } from "./wake-trace.js";
 import { compileExpr, validateExpr } from "./expr.js";
 import { scanDatapaths } from "./datapath.js";
@@ -105,10 +105,10 @@ function rows(n, open, depth, path, out) {
     });
     if (open[path] !== true)
         return;
-    n.children.forEach((c, i) => {
+    n.children.forEach((c) => {
         if (!(c instanceof View))
             return;
-        rows(c, open, depth + 1, `${path}.${memberOf(c) ?? i}`, out);
+        rows(c, open, depth + 1, `${path}.${memberOf(c) ?? indexStep(n, c)}`, out);
     });
 }
 /** Split `name = rest` at the FIRST top-level `=` that is not `==`/`>=`/… */

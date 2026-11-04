@@ -113,7 +113,7 @@ const WARNING_CATEGORY: Readonly<Record<string, Exclude<Category, "error">>> = {
   DECLARE3005: "devices",
   DECLARE4016: "accessibility", DECLARE4017: "accessibility", DECLARE4018: "accessibility", DECLARE4020: "accessibility",
   DECLARE4021: "accessibility", DECLARE4022: "accessibility", DECLARE4026: "accessibility", DECLARE4027: "accessibility",
-  DECLARE4032: "accessibility",
+  DECLARE4032: "accessibility", DECLARE4035: "accessibility",
 };
 /** The device a "devices" finding concerns. */
 const DEVICE_OF: Readonly<Record<string, "mobile" | "desktop">> = { DECLARE3005: "mobile" };
@@ -432,6 +432,15 @@ export const Diag = {
   // 0.5 of 255 paints next to nothing, and nothing says so.
   alphaAsFraction: (written: string, pos: Pos): DeclareError =>
     err(code4(4034), `colorWithAlpha's alpha is a byte, 0 to 255, so ${written} is all but transparent — half is 128, or write the color as an 0xRRGGBBAA literal (0x00000080)`, pos),
+  // A WARNING: commitOn on a field whose text is one-way — it says when an edit
+  // commits into the field's datapath, and there is none to commit into.
+  commitOnOneWay: (owner: string, pos: Pos): DeclareError =>
+    err(code4(4036), `${owner}.commitOn has no effect: it says when an edit commits into the field's datapath, and this field's text is one-way (text = { … }). onInput runs on every edit, and the field shows only what onInput writes — a draft it declines to write is put back as the person types. To commit on Return, bind the text two-way (text <-> :field, commitOn = "enter"); to keep a one-way text, write every edit from onInput (into a draft attribute if the value itself must wait)`, pos),
+  // A WARNING: a label on a view that has no role. A name belongs to a role —
+  // ARIA forbids naming a plain group of nothing — so the label reaches no
+  // screen reader and no locator, and nothing said so.
+  accessibilityLabelUnread: (owner: string, pos: Pos): DeclareError =>
+    err(code4(4035), `${owner} has an accessibilityLabel but no role, so nothing reads it — a screen reader, the browser and a locator see a plain group with no name. Give it the role it is: accessibilityRole = image (a picture of something), group (a set of things), region (a part of the page), …; or, if it is decoration, accessibilityHidden = true and no label`, pos),
   // A WARNING: a radio whose parent is no RadioGroup — no group to be one of.
   accessibilityRadioAlone: (owner: string, pos: Pos): DeclareError =>
     err(code4(4032), `${owner} is a radio outside a RadioGroup — a screen reader hears no "one of N", and the arrows do not move between the choices. Make the radios the direct children of a RadioGroup: any child with a choice is one (its press calls the group's pick(choice))`, pos),
@@ -591,6 +600,8 @@ export const DIAGNOSTIC_CATALOG: ReadonlyArray<{ code: string; phase: DiagPhase;
   { code: code4(4030), phase: "name", summary: "a size range beside a size the view states itself, where it bounds nothing (warning)" },
   { code: code4(4032), phase: "name", summary: "a radio whose parent is no RadioGroup — no group to be one of (warning)" },
   { code: code4(4033), phase: "name", summary: "a browser script that looks up elements in the page — the views belong to the runtime (warning)" },
+  { code: code4(4036), phase: "name", summary: "commitOn on a field whose text is one-way — nothing to commit into (warning)" },
+  { code: code4(4035), phase: "name", summary: "an accessibilityLabel on a view with no role — nothing reads it (warning)" },
   { code: code4(4034), phase: "name", summary: "colorWithAlpha given an alpha between 0 and 1 — the alpha is a byte, 0 to 255 (warning)" },
   { code: code4(4031), phase: "name", summary: "an onKeyDown on a Control that never calls super.onKeyDown — Space, Enter and the arrows stop (warning)" },
   { code: code4(4027), phase: "name", summary: "a control hidden from a screen reader that the keyboard still reaches (warning)" },

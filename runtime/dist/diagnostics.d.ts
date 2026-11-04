@@ -117,6 +117,8 @@ export declare const Diag: {
     rangeWithoutEffect: (owner: string, range: string, size: string, pos: Pos, bound?: string | null) => DeclareError;
     scriptSearchesPage: (lookup: string, pos: Pos) => DeclareError;
     alphaAsFraction: (written: string, pos: Pos) => DeclareError;
+    commitOnOneWay: (owner: string, pos: Pos) => DeclareError;
+    accessibilityLabelUnread: (owner: string, pos: Pos) => DeclareError;
     accessibilityRadioAlone: (owner: string, pos: Pos) => DeclareError;
     keyDownWithoutSuper: (owner: string, pos: Pos) => DeclareError;
     accessibilityDrawnFocusable: (owner: string, pos: Pos) => DeclareError;

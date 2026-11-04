@@ -26,7 +26,7 @@ export default [
   // gutter and the weekday strip, the two things a bad `nr` breaks.
   st("week", {
     route: async ({ drive }) => {
-      await drive.click("app.bar.top.tabs.5");
+      await drive.click("app.bar.top.tabs.Week");
       await drive.settleMotion();
     },
   }),
@@ -34,7 +34,7 @@ export default [
   // One cell, fully zoomed: time blocks rather than chips.
   st("day", {
     route: async ({ drive }) => {
-      await drive.click("app.bar.top.tabs.4");
+      await drive.click("app.bar.top.tabs.Day");
       await drive.settleMotion();
     },
   }),
@@ -42,7 +42,7 @@ export default [
   // The year view — twelve minis, the month folding into its own slot.
   st("year", {
     route: async ({ drive }) => {
-      await drive.click("app.bar.top.tabs.7");
+      await drive.click("app.bar.top.tabs.Year");
       await drive.settleMotion();
     },
   }),
