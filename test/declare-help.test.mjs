@@ -19,6 +19,19 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const TOOL = join(ROOT, "tools/declare-help.mjs");
 const model = JSON.parse(readFileSync(join(ROOT, "docs/declare-model.json"), "utf8"));
 
+// THE TOOL IS ASKED ABOUT A SPREAD; THE MODEL IS CHECKED FOR EVERY ENTRY. Each
+// question is a process that loads the whole model (~60 ms), and asking every
+// attribute, synonym and class one by one took three minutes. What can differ per
+// entry is the model's data — an entry missing, a synonym pointing nowhere — and
+// that is checked here for all of them, in-process; the tool's lookup is one path
+// for every entry, so it is asked about the first, the last and an even spread.
+const spread = (xs, n = 16) => xs.length <= n ? xs : [...new Set(Array.from({ length: n }, (_, i) => xs[Math.round(i * (xs.length - 1) / (n - 1))]))];
+/** `member` reached on `cls` or up its chain, as the scoped form resolves it. */
+const inModel = (cls, member) => {
+  for (let c = cls, k = 0; c && k < 40; c = model.reference[c]?.extends, k++) if (model.reference[`${c}.${member}`] !== undefined) return true;
+  return false;
+};
+
 /** Run the tool; never throws — returns { code, out } for both outcomes. */
 function help(...args) {
   try {
@@ -40,7 +53,8 @@ await test("every CSS_ATTRIBUTE_HINTS key answers with its own hint", () => {
 // ── every schema class and attribute resolves ────────────────────────────────
 await test("every kernel and library class answers as a class", () => {
   const classes = [...Object.keys(model.spine.schemas), ...Object.keys(model.spine.librarySchemas)];
-  for (const cls of classes) {
+  for (const cls of classes) assert.ok(model.reference[cls] !== undefined, `class '${cls}' is in the reference`);
+  for (const cls of spread(classes)) {
     const r = help(cls);
     assert.equal(r.code, 0, `class '${cls}' should answer`);
     assert.ok(r.out.startsWith(`${cls} — `), `class '${cls}' should lead with its own name, got:\n${r.out.slice(0, 120)}`);
@@ -48,29 +62,32 @@ await test("every kernel and library class answers as a class", () => {
 });
 
 await test("every attribute of every schema resolves through the scoped form", () => {
+  const all = [];
   for (const [tier, schemas] of [["kernel", model.spine.schemas], ["library", model.spine.librarySchemas]]) {
-    for (const [cls, s] of Object.entries(schemas)) {
-      for (const attr of Object.keys(s.attrs)) {
-        const r = help(`${cls}.${attr}`);
-        assert.equal(r.code, 0, `${tier} ${cls}.${attr} should answer`);
-        assert.ok(!r.out.includes("has no member"), `${cls}.${attr} should not read as a miss:\n${r.out.slice(0, 200)}`);
-      }
-    }
+    for (const [cls, s] of Object.entries(schemas)) for (const attr of Object.keys(s.attrs)) all.push([tier, cls, attr]);
+  }
+  for (const [tier, cls, attr] of all) assert.ok(inModel(cls, attr), `${tier} ${cls}.${attr} is in the reference, on the class or up its chain`);
+  for (const [tier, cls, attr] of spread(all, 32)) {
+    const r = help(`${cls}.${attr}`);
+    assert.equal(r.code, 0, `${tier} ${cls}.${attr} should answer`);
+    assert.ok(!r.out.includes("has no member"), `${cls}.${attr} should not read as a miss:\n${r.out.slice(0, 200)}`);
   }
 });
 
 // ── the concept table: every synonym target resolves, every negative answers ─
 await test("every concept synonym points at a live reference entry", () => {
-  for (const [syn, target] of Object.entries(model.spine.concepts.synonyms)) {
-    assert.ok(model.reference[target], `synonym '${syn}' targets '${target}', which is not in the reference`);
+  const synonyms = Object.entries(model.spine.concepts.synonyms);
+  for (const [syn, target] of synonyms) assert.ok(model.reference[target], `synonym '${syn}' targets '${target}', which is not in the reference`);
+  for (const [syn] of spread(synonyms)) {
     const r = help(syn);
     assert.equal(r.code, 0, `concept '${syn}' should answer`);
   }
 });
 
 await test("negative knowledge is a SUCCESS: each entry answers its triggers, exit 0", () => {
+  // each entry carries its own answer, so one of its terms asks it
   for (const neg of model.spine.concepts.negative) {
-    for (const term of neg.terms) {
+    for (const term of neg.terms.slice(0, 1)) {
       const r = help(term);
       assert.equal(r.code, 0, `negative term '${term}' should exit 0 — the absence IS the answer`);
       assert.ok(r.out.trim().startsWith("No "), `'${term}' should state the absence first, got:\n${r.out.slice(0, 120)}`);
@@ -130,7 +147,7 @@ await test("answers hold the line budget, eliding by pointer", () => {
 await test("every shared interface, alias, function and namespace answers", () => {
   const sh = model.spine.types.shared;
   for (const [list, label] of [["interfaces", "interface"], ["aliases", "alias"], ["functions", "function"], ["namespaces", "namespace"]]) {
-    for (const x of sh[list] ?? []) {
+    for (const x of spread(sh[list] ?? [], 8)) {
       const r = help(x.name);
       assert.equal(r.code, 0, `shared ${label} '${x.name}' should answer`);
       assert.ok(!r.out.includes("appears in"), `'${x.name}' should answer as a tier, not fall to retrieval:\n${r.out.slice(0, 120)}`);

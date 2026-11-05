@@ -245,11 +245,13 @@ async function buildProgramFile(file, name, keepPos) {
 async function buildFiles(program, originDir, alsoAbs = []) {
   const out = [];
   const byAbs = new Set();
-  const add = async (path, abs) => {
+  // `beside`: the folder's copy already carries the bytes at this path, so only
+  // what no copy carries is added (a source's segments)
+  const add = async (path, abs, beside = false) => {
     if (byAbs.has(abs)) return;
     byAbs.add(abs);
     const contents = await readFile(abs);
-    out.push({ path, abs, file: "files/" + shortHash(contents) + extname(abs), contents });
+    if (!beside) out.push({ path, abs, file: "files/" + shortHash(contents) + extname(abs), contents });
     // A shipped Declare SOURCE answers the two requests every host answers for
     // one (compiler/src/reqtypes.ts): `?file`, the bytes (the entry above — the
     // map drops a query it has no entry for), and `?segments`, the reader's
@@ -266,8 +268,7 @@ async function buildFiles(program, originDir, alsoAbs = []) {
     if (!existsSync(abs) || !statSync(abs).isFile()) throw new Error(`ship: the file '${path}' is not there — expected ${abs} (a path relative to the program, as its url or source would spell it)`);
     // inside the program's folder, the copy beside the app already carries it, at
     // the path the program asks for: shipped once, not again as files/<hash>
-    if (copiedAlready(originDir, abs)) continue;
-    await add(path, abs);
+    await add(path, abs, copiedAlready(originDir, abs));
   }
   // the islands' files (buildIslands): keyed by their path from THIS program,
   // which is the URL an island's own relative request resolves to in the package
@@ -417,8 +418,8 @@ export async function buildProduction(source, opts = {}) {
     // the corpus gate's build: the `__declare` bridge aboard, nothing else changed
     ...(opts.bridge ? { bridge: "true" } : {}),
     ...(opts.keepAll ? { keepAll: "true" } : {}),
-    // the corpus gate's other build: the previous language target, to show the
-    // shipped one behaves the same (slim-corpus --compare target). Not a flag.
+    // a build at another language target (an A/B of what the bundler's target
+    // changes). Not a flag.
     ...(opts.esTarget ? { esTarget: opts.esTarget } : {}),
     ...(opts.props ?? {}),
   };

@@ -1299,8 +1299,12 @@ const coverage = [];
 // that state on 2026-09-15 — the whole touch family, dblClick, contextMenu,
 // App.follow, Keys.navClaim — reachable in every program and absent from the
 // generated reference.
+// …on a class a program uses. A class whose prose opens **Internal.** (a tree's
+// row, a calendar's day) is made by another class and never written, so nothing of
+// it is on any page, its events included; an event of a public class is held to the
+// rule whatever its own prose says.
 for (const [id, n] of Object.entries(nodes)) {
-  if (n.kind !== "event" || n.api) continue;
+  if (n.kind !== "event" || n.api || nodes[n.parent]?.internal === true) continue;
   const handler = "on" + n.name.charAt(0).toUpperCase() + n.name.slice(1);
   coverage.push(`${id}: an event with no prose — add '## ${handler}' to the class's prose file (an event is API by construction; there is no internal event)`);
 }

@@ -853,9 +853,9 @@ const answered = answer();
 // A word that is BOTH a real name and a CSS instinct gets the real answer above
 // and the orientation here — the reader arriving from CSS still learns that there
 // is no general padding, and is not told the name does not exist.
-if (answered && json?.kind !== "foreign" && Object.hasOwn(CSS_ATTRIBUTE_HINTS, query)) {
-  say(cssAttributeHint(query).replace(/^\s*—\s*/, ""));
-}
+// It sits outside the answer's line budget: a long entry must not elide it.
+const orientation = answered && json?.kind !== "foreign" && Object.hasOwn(CSS_ATTRIBUTE_HINTS, query)
+  ? cssAttributeHint(query).replace(/^\s*—\s*/, "") : null;
 
 if (!answered) {
   const searched = `reference (${Object.keys(REF).length} entries), classes (${CLASS_NAMES.length}), enums, diagnostics, the hint tables, and the concept table`;
@@ -873,6 +873,7 @@ else {
   const capped = out.length > BUDGET_LINES && !ALL
     ? [...out.slice(0, BUDGET_LINES - 1), `  …answer elided at ${BUDGET_LINES} lines — declare-help ${query.split(" ")[0]} --all`]
     : out;
+  if (orientation !== null) capped.push(orientation);
   console.log(capped.join("\n"));
 }
 process.exit(0);

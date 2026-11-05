@@ -193,31 +193,10 @@ carries its capability; no trigger is keyed on a view's member; and every import
 from a core module into a slimmable one is on a reviewed list with what makes it
 sound, so a new one fails until it is classified.
 
-`test/slim-corpus.test.mjs` checks behavior: a signal that misses shows up as a
-program that behaves differently.
-
-1. **The ladder, on the slimmed build.** Every app with a `tests/` folder has
-   its rungs 5 and 6 (`tests/assert.mjs`, `tests/states.mjs` against the
-   blessed baselines) run against its production build. The build carries the
-   `__declare` bridge (`bridge: true`) so the rungs can drive it, and is
-   otherwise unchanged.
-2. **The corpus, slim against whole.** Every program — the apps, the docs
-   demos, the probes, the eval apps — is built twice: slimmed, and whole
-   (`slim: false, keepAll: true`). Both are booted headlessly with the wall
-   clock, `performance.now`, frame times and media playback pinned. They must settle to the
-   same view tree (every view's box, visibility and text), the same pixels and
-   the same page errors. A difference counts only when the program is still:
-   a second settle of the whole build must agree with the first.
-3. **Slim against development** (`--compare dev`): the whole build with its
-   bodies compiled from text, as a development page runs them.
-4. **As shipped** (`--no-bridge`): both builds without the bridge, whose imports
-   change the module graph; pixels and page errors only, since the tree is read
-   through the bridge.
-
-It takes minutes and a browser, so it is not part of `npm test`. Run it after
-changing the manifest or splitting a module:
-
-    node test/slim-corpus.test.mjs [--only <substring>] [--skip-ladder] [--skip-corpus] [--render=canvas] [--compare dev] [--no-bridge]
+A whole-corpus behaviour gate (`test/slim-corpus.test.mjs`: every program built slimmed and
+whole, booted, and compared by tree, pixels and page errors) ran until 2026-11-05 and was then
+removed: it took about fourteen minutes to re-prove, program by program, what the trigger tests
+below check directly, and its subject — the manifest and the build — rarely changes.
 
 `declarec.test` checks the manifest itself: every module exists, every
 stand-in generates, every export is answered, and no inert value names an

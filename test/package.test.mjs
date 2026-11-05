@@ -95,7 +95,9 @@ await test("the build carried everything the block named", () => {
   const names = out.files.map((f) => f.name);
   assert.equal(out.islands.length, 2, "the declared islands, the self-naming one shipped once");
   assert.ok(out.shipped.files.some((f) => f.path === "../other/other.json"), "the sibling island's own data rides along: " + out.shipped.files.map((f) => f.path).join(", "));
-  assert.ok(out.shipped.files.length >= 3, "the two declared files, plus the island's");
+  // a declared file inside the program's own folder (demos/late.declare) rides in
+  // the folder's copy at the path the program asks for, not again as files/<hash>
+  assert.ok(out.shipped.files.length >= 2, "the declared file from outside the folder, plus the island's");  // (that the package serves it is the late-island case below)
   const seg = out.shipped.files.find((f) => f.path === "demos/late.declare?segments");
   assert.ok(seg && /\.segments\.json$/.test(seg.file), "a shipped Declare source carries its reader segments, answering ?segments");
   assert.ok(out.shipped.inspector, "the Inspector's program");
@@ -117,7 +119,7 @@ await test("an island the build never saw compiles on the page — the package c
   assert.ok(await until(() => page.evaluate(() => [...document.querySelectorAll('[data-declare-slot="run:demos/late"]')].some((b) => b.__childApp && /late compiled/.test(b.textContent))), 30000),
     "the late island mounted after an in-page compile: " + errors.join(" | "));
   assert.ok(requests.some((p) => p === "/bundles/declare-compiler.js" || p === "/bundles/compile-worker.js"), "the compiler was fetched from the package");
-  assert.ok(requests.some((p) => /^\/files\/[0-9a-f]+\.declare$/.test(p)), "its source came from the shipped file");
+  assert.ok(requests.some((p) => p === "/demos/late.declare" || /^\/demos\/late\.declare\?/.test(p)), "its source came from the package's own copy: " + requests.filter((r) => /late/.test(r)).join(" "));
 });
 
 await test("the Inspector opens from its compiled program", async () => {

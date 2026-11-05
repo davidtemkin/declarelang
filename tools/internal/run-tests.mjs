@@ -148,6 +148,19 @@ const SUITE = [
   "test/focus-reveal.test.mjs",     // focus a program moves is scrolled clear of pinned chrome
   "test/verify-requests.test.mjs",  // an assert script checks what the program sent
   "test/chrome-cleanup.test.mjs",   // a Chrome the tools start leaves no profile and no process behind
+  "test/boot-bundle.test.mjs",      // the boot bundle carries no compiler; no web host imports the runtime barrel
+  "test/package.test.mjs",          // a production package is a self-contained folder: what ship [ ] names rides in it
+  "test/forms.test.mjs",            // a form gathers its fields, judges them on submit, lays a service's refusal back
+  "test/typed-fields.test.mjs",     // a combobox picks what was typed; Return under enterMoves walks the fields
+  "test/own-handlers.test.mjs",     // a class's own handlers beside what it inherits
+  "test/effects-live.test.mjs",     // a language method's declared reads wire on the receiver the call names
+  "test/state-scope.test.mjs",      // what a name means inside a State
+  "test/teardown-cells.test.mjs",   // a torn-down view gives back every kernel cell it held
+  "test/wake-trace.test.mjs",       // the wake trace: what a settle changed, and what opened it
+  "test/mac-recording.test.mjs",    // a drawing's recording, as the Mac host reads it
+  "test/kernel-growth.test.mjs",    // the kernel's capacities are an opening size, not a ceiling
+  "test/layer-promotion.test.mjs",  // a moving view gets a layer of its own while it moves, and gives it back
+  "test/layout-facts.test.mjs",     // a child states facts about itself; its layout decides its size
 ];
 
 // THE RELEASE TIER: the tools' own behaviour driven through a browser — how the
@@ -156,6 +169,9 @@ const SUITE = [
 // run: each is a regression test of a tool that changes rarely, and together
 // they were a third of the browser time.
 const RELEASE = [
+  "test/reader-overlay-semantics.test.mjs", // what a reader, a press through overlays and a screen reader are given, through declare-verify
+  "test/pinch-list.test.mjs",       // a pinch on a drawing beside a virtualized list (Cadence's year chart)
+  "test/desktop-dock.test.mjs",     // a minimized window and its dock tile agree
   "test/profile.test.mjs",          // the profiler: turns, rules, fan-out, builds, frames — timing-sensitive under a loaded machine
   "test/look-touch.test.mjs",       // under --touch every press, drag, hold and pinch is a finger
   "test/scroll-reach.test.mjs",   // `userScrolling` is the user's hand; the driver reaches views by swiping (native, async)
@@ -168,7 +184,7 @@ const RELEASE = [
 
 // Files that measure the machine's own timing, run ALONE once the others are done:
 // beside other files their numbers are the load's, not the program's.
-const SOLO = new Set(["test/profile.test.mjs"]);
+const SOLO = new Set(["test/profile.test.mjs", "test/files-browser.test.mjs"]);   // files-browser: the native file chooser opens late under load
 
 const LIMIT_S = Number(process.env.TEST_FILE_LIMIT) || 180;
 const argv = process.argv.slice(2);
@@ -211,10 +227,11 @@ const run = (f, live) => new Promise((done) => {
   p.on("close", (code, signal) => {
     clearTimeout(timer);
     const s = (Date.now() - t) / 1000;
-    const why = overran ? `  FAILED — still running at its ${LIMIT_S} s limit, stopped (TEST_FILE_LIMIT sets it)` : code === 0 ? "" : "  FAILED";
+    const limit = LIMIT_S;
+    const why = overran ? `  FAILED — still running at its ${limit} s limit, stopped (TEST_FILE_LIMIT sets it)` : code === 0 ? "" : "  FAILED";
     if (live) { if (overran) console.error(`\n── ${f}${why}`); }
     else process.stdout.write(`\n── ${f} (${s.toFixed(1)} s)${why}\n${out}`);
-    note(f, s, overran ? `over the ${LIMIT_S} s limit` : code ?? `signal ${signal}`);
+    note(f, s, overran ? `over the ${limit} s limit` : code ?? `signal ${signal}`);
     done();
   });
 });

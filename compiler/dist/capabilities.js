@@ -27,8 +27,8 @@
 // (the built-in class schemas): left out, its module ships as itself with
 // the table cut to the entries the program names.
 //
-// docs/system-design/app-slimming.md is the account of all this, and
-// test/slim-corpus.test.mjs the gate that what a build leaves out was unreachable.
+// docs/system-design/app-slimming.md is the account of all this; test/slim.test.mjs
+// and test/slim-signals.test.mjs hold each trigger to the capability it carries.
 import ts from "typescript";
 import { SCHEMAS, descendsFrom } from "../../runtime/dist/schema.js";
 // ── the manifest ───────────────────────────────────────────────────────────

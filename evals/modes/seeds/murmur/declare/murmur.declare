@@ -616,7 +616,7 @@ App [ appName = "Murmur", minWidth = 320,
         convos.attach(tid, mid, convos.me, emoji)
         live.send(JSON.stringify(({ t: "react", thread: tid, message: m.serverId ?? m.id, emoji: emoji })))
         },
-    reactor: Popover [ placement = "above", asSheet = false, gap = 6, padding = 6,
+    reactor: Popover [ placement = "above", gap = 6, padding = 6,
         input(open: boolean) { super.input(open); if (!open) app.reacting = null },
         accessibilityLabel = "React",
         marks: View [ datapath = { app.palette.value },

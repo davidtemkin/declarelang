@@ -45,4 +45,20 @@ await test("no web host module imports the runtime barrel", () => {
   }
 });
 
+// `tsc -b` writes dist/ but never deletes from it: a source removed leaves its
+// output behind, importable and shipped, for as long as nobody notices (two did,
+// for months). Every output names a source that still exists.
+await test("no runtime or compiler output outlives its source", () => {
+  const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+  const stale = [];
+  for (const pkg of ["runtime", "compiler"]) {
+    for (const f of readdirSync(join(root, pkg, "dist"))) {
+      const m = /^(.+?)\.(?:js|d\.ts|js\.map|d\.ts\.map)$/.exec(f);
+      if (m === null) continue;
+      try { readFileSync(join(root, pkg, "src", m[1] + ".ts")); } catch { stale.push(`${pkg}/dist/${f}`); }
+    }
+  }
+  assert.deepEqual(stale, [], "delete these: their sources are gone");
+});
+
 summarize("boot bundle");

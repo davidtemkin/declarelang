@@ -86,7 +86,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").ink }, fo
 
     // ── the theme ────────────────────────────────────────────────────────────
 
-    theme = { { ...Themes.sanFrancisco(app.dark),
+    theme = { { ...SanFranciscoDark,
         bg: 0x14161A, surface: 0x1B1E24, hover: 0x232830, ink: 0xF2F4F7,
         muted: 0x9AA3B2, line: 0x2A2F38, accent: 0x4C8DFF,
         seat: 0x3A4150, seatHot: 0x596478, sold: 0x22262D } },
@@ -99,9 +99,9 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").ink }, fo
     // fetch() there sends the URL from BEFORE the cascade — the empty chosenId
     // — while the error it eventually reports names the URL the source holds by
     // then, pointing the reader at a perfectly healthy address. A reactive
-    // address is exactly what `auto` is for.
+    // address is exactly what `autoFetch` is for.
 
-    seats: DataSource [ auto = true,
+    seats: DataSource [ autoFetch = true,
         url = { app.chosenId === "" ? "" : `${API}/api/performances/${app.chosenId}/seats` } ],
     booking: DataSource [ url = { `${API}/api/bookings` }, method = "POST",
         body = { { performanceId: app.chosenId, seatIds: app.picked,
