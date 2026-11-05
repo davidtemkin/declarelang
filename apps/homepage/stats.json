@@ -4,8 +4,8 @@
     "code": 596,
     "comment": 572,
     "blank": 359,
-    "wireGzip": 226647,
-    "programGzip": 14392
+    "wireGzip": 226658,
+    "programGzip": 14414
   },
   "calendar": {
     "total": 930,
@@ -20,15 +20,15 @@
     "code": 982,
     "comment": 251,
     "blank": 274,
-    "wireGzip": 183355,
-    "programGzip": 17587
+    "wireGzip": 183349,
+    "programGzip": 17580
   },
   "desktop": {
     "total": 3499,
     "code": 1994,
     "comment": 932,
     "blank": 573,
-    "wireGzip": 251110,
+    "wireGzip": 251109,
     "programGzip": 21216
   },
   "todo": {
@@ -36,8 +36,8 @@
     "code": 662,
     "comment": 236,
     "blank": 177,
-    "wireGzip": 185314,
-    "programGzip": 20162,
+    "wireGzip": 185344,
+    "programGzip": 20187,
     "codeWithParts": 847
   },
   "calendarParts": {

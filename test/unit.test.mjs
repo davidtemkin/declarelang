@@ -2466,6 +2466,23 @@ await test("align: WrappingLayout rows align per row; justify is the renamed row
   } finally { app.discard(); }
 });
 
+// rowSpacing defaults to spacing (2026-11-04): a wrapped flow keeps one gap both ways
+// unless it says otherwise — 39 of the corpus's 41 flows wrote it, most equal to spacing
+await test("WrappingLayout: rowSpacing follows spacing unless it is said", async () => {
+  const r = await compile(`App [ width = 600, height = 300,
+      d: View [ width = 100, layout: WrappingLayout [ spacing = 8 ],
+        a: View [ width = 60, height = 10 ], b: View [ width = 60, height = 10 ] ],
+      z: View [ width = 100, layout: WrappingLayout [ spacing = 8, rowSpacing = 0 ],
+        a: View [ width = 60, height = 10 ], b: View [ width = 60, height = 10 ] ],
+    ]`, {});
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  const app = settleHeadless(r.program);
+  try {
+    assert.equal(app.d.b.y, 18, "the second row sits spacing below the first");
+    assert.equal(app.z.b.y, 10, "an explicit rowSpacing wins, 0 included");
+  } finally { app.discard(); }
+});
+
 // ── the BAND: what center/end align WITHIN (2026-09-17) ───────────────────
 // The line — the largest laid cross extent — was the whole story, and that is
 // wrong the moment a child's cross size DERIVES FROM THE PARENT: such a child

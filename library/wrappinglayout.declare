@@ -46,10 +46,11 @@ box: View [ x = 20, y = 20, width = 260,
 The horizontal gap between children in a row.
 
 ## rowSpacing
-The vertical gap between rows. The two gaps are independent: a uniform grid writes
-the same number for both, and a negative `rowSpacing` pulls rows into each other,
-which is what a large display face wants when it wraps — the row height a big face
-reports is looser than the line wants to sit.
+The vertical gap between rows: `spacing` unless said otherwise, so a flow that wraps keeps
+the same gap both ways. Say it when the two differ: a list of words in a sentence wants
+rows closer than its words, and a negative `rowSpacing` pulls rows into each other, which
+is what a large display face wants when it wraps — the row height a big face reports is
+looser than the line wants to sit.
 
 ## justify
 How a finished row sits along the flow: `start` (the default, left), `center`, `end`
@@ -102,7 +103,7 @@ has its children aligned across it, in one pass over the row.
 
 class WrappingLayout extends Layout [
     spacing: number = 0,
-    rowSpacing: number = 0,
+    rowSpacing: number = { spacing },
     justify: Justify = start,
     align: CrossAlign = start,
     indent: number = 0,
