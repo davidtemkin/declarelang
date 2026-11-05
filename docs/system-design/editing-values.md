@@ -105,21 +105,21 @@ Other facts that matter:
   autofilled. It receives the text the change would produce. It returns the text to show (usually the same; or a
   cleaned-up one, such as upper case or a pasted sentence reduced to its digits), or `null` to refuse. Returning
   the text as it was before the change also refuses.
-- **`input(text)`** is called after each change, with the text now on screen. You update your state however you
-  like: store, convert, clamp, or leave it alone because "4" isn't a size yet. With no `value`, the built-in
-  `input` keeps the text in the field.
+- **`commit(text)`** is called after each change, with the text now on screen: it commits the person's change to
+  your state, however you like (store, convert, clamp, or leave it alone because "4" isn't a size yet). With no
+  `value`, the built-in `commit` keeps the text in the field.
 
 ### 4.3 What happens, and when
 
 1. **The person makes a change.** Before anything appears, the field calls `admit`. `null`: nothing changes, and
    the caret stays. Otherwise the field shows what `admit` returned.
-2. **The field calls `input`** with the text now on screen.
+2. **The field calls `commit`** with the text now on screen.
 3. **While the person is editing, the field keeps showing their text,** whatever your value becomes.
 4. **When the person stops editing,** the field shows your value.
 5. **When nobody is editing and your value changes,** the field shows it at once.
 
-**Timing.** `commitOn = "end"` calls `input` once, when editing stops, instead of after every change. Escape stops
-editing without calling `input`: with the default every change has already been delivered, and with `"end"`
+**Timing.** `commitOn` says when `commit` is called: `"change"` (the default) after every change, `"end"` once, when
+editing stops. Escape stops editing without calling `commit`: with `"change"` every change has already been committed, and with `"end"`
 Escape is cancel. `endEdit()` lets code stop the person's editing itself, for example a shortcut that clears the
 field.
 
@@ -154,7 +154,7 @@ Undo is the browser's (on the Mac, the system's):
 | `DatePicker` | the typed date, or the month shown | a pick, leaving |
 | `Checkbox`, `Switch`, `RadioGroup`, `Stepper` | one press | at once |
 
-`value`, `admit`, `input`, `validate`, `required`, `commitOn` and `endEdit()` are defined once, on `ValueControl`,
+`value`, `admit`, `commit`, `validate`, `required`, `commitOn` and `endEdit()` are defined once, on `ValueControl`,
 and `TextInput` becomes a `ValueControl` in the library around a bare runtime editable. The runtime editable is the
 native element and nothing more: caret, selection, IME, refusal in `beforeinput`, applying rewritten text, and the
 caret's place. Judging, the form protocol and the field's chrome move to the library, so they're no longer
@@ -164,15 +164,39 @@ activating `press()`, the button role, and `flashPress`.
 ### 4.6 Removed
 
 - `<->`, and with it the third form of the value pattern and its grammar and scope checks.
-- `onInput` on `TextInput`, replaced by `input(v)`.
+- `onInput` on `TextInput`, and `input(v)` on every other control, replaced by `commit(v)`: one verb for every control.
 - `TextInput.text` as the binding: the binding is `value`, and `text` becomes the read-only text on screen.
 - `initial`: a field with no `value` keeps its own text (see §5).
 - The edit session's draft, `commit()`, `revert()`, `dirty` and `commitOn = "blur" | "enter" | "manual"`. These
-  are now Escape, `endEdit()`, and `commitOn = "input" | "end"`.
-- The schema floor on a text field. `input` parses, and the dataset's schema still checks every write.
+  are now Escape, `endEdit()`, and `commitOn = "change" | "end"`.
+- The schema floor on a text field. `commit` parses, and the dataset's schema still checks every write.
 - DECLARE4036.
 
-### 4.7 Decided against, on purpose
+### 4.7 Names
+
+- **`commit`**, not `input`. `input` reads as a noun (the person's input) where a verb is meant, and it named what was
+  typed as well as the method. `commit` says what the method does, and `commitOn` says when it's called; the two
+  steps read as "admit, then commit". `set(v)` was the runner-up: the most guessable on its own, but it loses the
+  pairing with `commitOn`, and `Dataset` already has a `set(path, v)`.
+- **`admit`**, not `filter`: `filter` is already an attribute of every view.
+- **`value`** for the binding on every control, `TextInput` included; `text` is the text on screen.
+
+### 4.8 Moving existing programs over
+
+People are using Declare, so this lands as a release, with notes, and with the compiler teaching the new forms
+rather than only refusing the old ones. Every old spelling gets an error that names its replacement, written out
+for the line at hand:
+- `onInput(v) { … }` on a field, and `input(v) { … }` on any control, become `commit(v) { … }`.
+- `text = { … }` on a field becomes `value = { … }`.
+- `text <-> :title` becomes `value = { :title }, commit(t: string) { :title = t }`.
+- `initial = { … }` becomes `value = { … }` with a `commit` that keeps the person's text in your state.
+- `commitOn = "input"` becomes `"change"`; `"blur"` and `"enter"` become `"end"`; `"manual"` needs `endEdit()`.
+- `commit()`, `revert()` and `dirty` on a field are explained in terms of `endEdit()` and Escape.
+
+These teaching errors stay for at least one release after the change. The release notes list each one with a
+before and after.
+
+### 4.9 Decided against, on purpose
 
 - **A separate `paste` hook.** `admit` sees pastes as changes like any other, and can clean them.
 - **A per-field undo history kept by Declare** (§4.4).
@@ -186,30 +210,30 @@ documents this as "a formula, not a guard", and it caused run 4's title bug.
 The field itself no longer relies on this, because §4.3 replaces `initial`. But "starts from a suggestion, then
 becomes the person's" (an address suggested from a title) is still written with it today. So the two must be
 consistent before building:
-- **keep the takeover:** `value = { app.slug }`, and `input(t) { app.slug = t }` takes the formula over;
+- **keep the takeover:** `value = { app.slug }`, and `commit(t) { app.slug = t }` takes the formula over;
 - **or one rule (a `{ }` always owns its attribute):** the suggestion is explicit, as `slugEdited: boolean` plus
   `slug = { slugEdited ? ownSlug : slugify(title) }`. Every corpus use of a takeover is found and rewritten first.
 
 ## 6. How it reads
 
 ```declare
-TextInput [ value = { app.name }, input(t: string) { app.name = t } ]
+TextInput [ value = { app.name }, commit(t: string) { app.name = t } ]
 
 TextInput [ value = { String(app.size) },
     admit(t: string) -> string | null { return /^[0-9]{0,3}$/.test(t) ? t : null },
-    input(t: string) { if (t != "") app.size = Math.max(8, Math.min(400, Number(t))) } ]
+    commit(t: string) { if (t != "") app.size = Math.max(8, Math.min(400, Number(t))) } ]
 
 TextInput [ value = { app.code }, purpose = oneTimeCode,
     admit(t: string) -> string | null { return t.replace(/[^0-9]/g, "").slice(0, 6) },
-    input(t: string) { app.code = t; if (t.length == 6) app.verify() } ]
+    commit(t: string) { app.code = t; if (t.length == 6) app.verify() } ]
 
-TextInput [ value = { app.email }, input(t: string) { app.email = t },
+TextInput [ value = { app.email }, commit(t: string) { app.email = t },
     validate(t: string) -> string { return t.includes("@") ? "" : "Enter an address like name@example.com." } ]
 
 TextInput [ value = { app.doc.title }, commitOn = "end",
-    input(t: string) { if (t.trim() != "") app.doc.setTitle(t.trim()) } ]
+    commit(t: string) { if (t.trim() != "") app.doc.setTitle(t.trim()) } ]
 
-Slider [ value = { app.opacity }, commitOn = "end", input(v: number) { app.setOpacity(v) } ]
+Slider [ value = { app.opacity }, commitOn = "end", commit(v: number) { app.setOpacity(v) } ]
 ```
 
 ## 7. Runtime obligations
@@ -238,15 +262,15 @@ This design has had less scrutiny than its predecessors' failures call for. A re
    bring each in, or state why not;
 3. every corpus use of `<->`, `onInput`, `initial`, `commitOn` and `text =` on a field, in apps, the library,
    docs demos, eval references and tests. That includes fields that use `onInput` only to watch typing: under
-   `input(v)` an override replaces the built-in one;
+   `commit(v)` an override replaces the built-in one;
 4. performance: the grid's editor cells and virtualized rows, if `TextInput` becomes a library class; slim build
    sizes;
 5. accessibility: role, error and required, a refused keystroke being silent to a screen reader;
 6. the Mac host and canvas mode (§7.4);
 7. the compiler and checker:
    - `<->` lexing (keep a teaching error);
-   - the "constrained value with no `input`" check, extended to datapath values;
-   - typing for `admit`, `input`, `value`, `text` on every control;
+   - the "constrained value with no `commit`" check, extended to datapath values;
+   - typing for `admit`, `commit`, `value`, `text` on every control;
    - retiring DECLARE4036;
    - `admit` must not collide with an existing member (`filter` was taken by `View`);
 8. the documentation: `declare.md` §5, §7 and §11, guide chapters 03, 08, 14, 15, 30 and 31, the generated
@@ -265,6 +289,9 @@ This design has had less scrutiny than its predecessors' failures call for. A re
 5. Push as one revertable series.
 6. Run the four briefs (Venue, Cadence, Murmur, Presentify) one at a time, each audited against its last runs
    before the next starts. Any regression traced to this change stops the sequence for a decision.
+7. **Migration test:** a fresh agent is given an existing app written a couple of releases earlier, plus the release
+   notes, and asked to bring it up to date. What it gets stuck on, and what the teaching errors don't explain, are
+   fixed before the release goes out.
 
 ## History
 
@@ -278,3 +305,5 @@ This design has had less scrutiny than its predecessors' failures call for. A re
   - six terms, two methods, five steps;
   - `admit` refuses or rewrites, which also covers paste;
   - undo stays the browser's.
+- **v4.1 (2026-11-05):** `input` renamed `commit`, and `commitOn` became `"change" | "end"`. Added the migration
+  plan (§4.8).
