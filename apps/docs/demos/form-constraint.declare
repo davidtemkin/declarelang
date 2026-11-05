@@ -5,7 +5,7 @@
 App [ fill = 0xF6F8FA, textColor = 0xFFFFFF, fontSize = 13,
     t: number = 0.4,
     Slider [ x = 20, y = 16, width = 220, min = 0, max = 1, value = { app.t },
-        input(v: number) { app.t = v }
+        commit(v: number) { app.t = v }
         ],
     box: View [ x = 20, y = 50, cornerRadius = 8,
         width = { 60 + app.t * 240 },

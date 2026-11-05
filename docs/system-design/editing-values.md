@@ -164,10 +164,13 @@ its message is updated at every change. Judging never refuses a change or alters
 
 ### 4.7 `<->`: one shorthand for any value control
 
-`value <-> place` means `value = { place }` plus `commit(v) { place = v }`:
+`value <-> place` means `value = { place }` plus `commit(v) { place = v }`, on whichever attribute is the control's
+value:
 - It works on **any value control**, because it expands into members every value control has: `TextInput [ value
-  <-> :title ]`, `Checkbox [ value <-> :done ]`, `Slider [ value <-> app.volume ]`.
-- **The place** is a dataset field (`:title`, `:@[(name)]`) or any writable attribute (`app.volume`).
+  <-> :title ]`, `Checkbox [ checked <-> :done ]`, `Slider [ value <-> app.volume ]`.
+- **The place** is a dataset field (`:title`; `{ :@[(name)] }` for a field chosen by name — a computed key is
+  TypeScript, so it is written in braces, as everywhere) or any writable attribute (`app.volume`). A computed default
+  (`slug: string = { … }`) is a writable place: the person's edit takes it over (§5). A `readonly` attribute is not.
 - **The types must match.** A text field bound to a number field is a compile error that names the fix: write
   `value` and `commit` yourself, and parse in `commit`.
 - **`<->` with your own `commit` is a compile error**: one place decides where the change goes.
@@ -183,8 +186,8 @@ Undo is the browser's (on the Mac, the system's):
 - **`admit` returns different text:** the runtime applies it through the browser's editing command
   (`execCommand("insertText")`), which records it as one step. ⌘Z goes back to the text before it. The caret goes
   after what was inserted (§7.3).
-- **Undo and redo are changes** like any other. They reach `commit`; they skip `admit`, because they only restore
-  text that was already admitted.
+- **Undo and redo are changes** like any other. They reach `commit`. No platform asks before they land, so `admit`
+  judges them right after (§7): undo can restore text a rewrite replaced.
 - **Showing your value again** writes the field only if the text differs. When it does, the field's undo history
   starts afresh, as a native field's does at the end of an edit.
 
@@ -199,12 +202,15 @@ Undo is the browser's (on the Mac, the system's):
 | `DatePicker` | nothing in between: it opens a calendar | at once, on a pick |
 | `Checkbox`, `Switch`, `RadioGroup` | nothing in between | at once, on a press |
 
-`value`, `admit`, `commit`, `commitOn`, `edit`, `beginEdit`, `endEdit`, `cancelEdit`, `editing`, `validate` and
-`required` are defined once, on `ValueControl`. `TextInput` becomes a `ValueControl` in the library, around a bare
+`admit`, `commit`, `commitOn`, `edit`, `beginEdit`, `endEdit`, `cancelEdit`, `editing`, `shown`, `validate` and
+`required` are defined once, on `ValueControl`; each control keeps its own value attribute (`checked`, `value`) and
+names it in `fieldValue`. `TextInput` becomes a `ValueControl` in the library, around a bare
 runtime editable. The runtime editable is the native element and nothing more: caret, selection, composition,
 cancelling a refused change, applying rewritten text, and the caret's place. Judging, the form protocol and the
 field's chrome move to the library, so they're no longer duplicated in `text-input.ts`. A text field overrides what
-it doesn't take from `Control`: Space and Enter activating `press()`, the button role, and `flashPress`.
+it doesn't take from `Control`: Space and Enter activating `press()`, the button role, and `flashPress`. (Built: a
+`Dialog` reads a single-line field as leaving Return to it, and Escape passes on when nothing is uncommitted, so a
+field in a dialog doesn't take the dialog's keys.)
 
 **Not value controls:** `Sheet`, `Popover`, `Disclosure`, `Window`, `Table`, `Tree`, `Splitter` and the like. They
 hand changes back through their own `input(v)` (the value pattern of `declare.md` §11), and they have none of the
@@ -213,7 +219,8 @@ above: nothing to admit, judge or submit. They're unchanged by this proposal.
 ### 4.10 Removed
 
 - `onInput` on `TextInput`, and `input(v)` on value controls: both become `commit(v)`.
-- `text` as a field's binding: the binding is `value`, and `text` becomes the read-only text on screen.
+- `text` as a field's binding: the binding is `value`, and `text` becomes the read-only text on screen (`readonly`:
+  writing it is a compile error).
 - `text <-> :path` as a special form: it becomes `value <-> :path`, the general shorthand.
 - `initial`: a control with no `value` keeps its own (and see §5).
 - The edit session's draft, `commit()` and `revert()` with no argument, `dirty`, and `commitOn = "input" | "blur" |
@@ -231,7 +238,8 @@ above: nothing to admit, judge or submit. They're unchanged by this proposal.
 - **`commitOn = "each" | "end"`**, not `"change"`: HTML's `change` event fires when editing *ends*, so web developers
   would read `"change"` backwards.
 - **`admit`**, not `filter`: `filter` is already an attribute of every view.
-- **`value`** for the binding on every value control, `TextInput` included; `text` is the text on screen.
+- **Each control keeps its own value attribute:** `checked` on `Checkbox` and `Switch`, `value` elsewhere. Only
+  `TextInput` and `SearchField` change, from `text` to `value`; `text` is the text on screen.
 - **`edit`, `beginEdit`, `endEdit`, `cancelEdit`, `editing`:** what the person does, as the control reports it.
 
 ### 4.12 Moving existing programs over
@@ -246,11 +254,12 @@ included:
 | `text = { … }` on a field | `value = { … }` | |
 | `text <-> :title` | `value <-> :title` | `<->` with `validate` used to block invalid writes. Now every change is written, and `validate` only judges. Write `commit` yourself to keep invalid text out of the data. |
 | `text <-> :n` on a `number` field | `value = { String(:n) }` with a parsing `commit` | `<->` used to parse; now the types must match (a compile error). |
-| `text <-> { classroot.field }` (a field chosen by name) | `value <-> :@[(classroot.field)]` | |
-| `initial = { … }` | `value = { … }` and a `commit` that keeps the text in your state | See §5. |
+| `text <-> { classroot.field }` (a field chosen by name) | `value <-> { :@[(classroot.field)] }` | |
+| `initial = { … }` | `value = { … }` with `commit(t) { value = t }` — the field follows its source until the person types, then keeps their text | See §5. |
 | `commitOn = "input"`; `"blur"` or `"enter"`; `"manual"` | `"each"`; `"end"`; `"end"` with `endEdit()` from your Save | |
 | `field.commit()`, `field.revert()`, `dirty` | `endEdit()`, `cancelEdit()`, `editing` | |
-| writing `field.text = …` on a field with no binding | give it a `value` and write your state | |
+| writing `field.text = …` | `field.value = …` | A compile error now (`text` is read-only). |
+| any `commit` override on a control whose value is not constrained | constrain it (`value <-> …`), or write the value in `commit` | The control's own `commit` was what kept its value; an override that writes elsewhere leaves it unable to change. |
 
 ### 4.13 Decided against, on purpose
 
@@ -304,30 +313,50 @@ class Rating extends ValueControl [ value: number = 0,
 
 ## 7. Runtime obligations
 
+**Measured, 2026-11-05.** The test used Chrome 150 (Chrome for Testing), Safari Technology Preview and Firefox, on
+macOS 27. Input was real (CGEvent keystrokes, System Events for the Edit menu), with Apple's Japanese input method
+for composition. The harness was a page logging every editing event to a local server.
+
+| case | Chrome | Safari TP | Firefox |
+|---|---|---|---|
+| typing, paste, Return, delete by character, word (⌥⌫) and line (⌘⌫): `beforeinput` cancellable | yes | yes | yes |
+| a refused change kept out of undo; ⌘Z undoes the rest | yes | yes | yes |
+| a rewrite applied by `execCommand("insertText")` over the changed range: one undo step; ⌘Z, ⇧⌘Z and Edit ▸ Undo/Redo; caret correct | yes | yes | yes |
+| paste cleanup ("Your code is 123 456" → `123456`), undone in one step | yes | yes | yes |
+| composition: `insertCompositionText` cancellable | no | no | not engaged in the test |
+| composition: checking it mid-composition | breaks it (a stray "K") | — | — |
+| composition: checked at `compositionend` and corrected | works | works; its final `insertFromComposition` is cancellable | — |
+| autofill (`Autofill.trigger`): `beforeinput` | none; `input` with no `inputType` | not tested | not tested |
+| ⌘Z after a correction made after the fact | restores the uncorrected text | same | — |
+
+Rewriting the whole text (select all, then insert) also works, but undo leaves the caret at the start, so the
+runtime rewrites only the changed range. Each rewrite is its own undo step, whereas the browser groups native
+typing.
+
+Not tested: Firefox composition, password managers, dictation, and autofill in Safari and Firefox.
+
 1. **Before each change lands,** compute what it would show from `beforeinput`: `inputType`, `data` (or
-   `dataTransfer` for paste and drop) and the selection, for every insert and delete kind. Then ask `admit`:
+   `dataTransfer` for paste and drop) and the selection. Then ask `admit`:
    - `null`: cancel the change;
    - the same text: let the browser apply it;
-   - different text: cancel, then apply it with `execCommand("insertText")` over the changed range.
+   - different text: cancel, then apply it with `execCommand("insertText")` over the range that differs (found from
+     the common prefix and suffix), so it's one undoable step and the caret goes after it.
+2. **A change that can't be checked before it lands is checked right after it:**
+   - a composition, at `compositionend` (never during it);
+   - a change with no `beforeinput` (autofill);
+   - undo and redo, which can restore text a later correction removed.
 
-   `historyUndo` and `historyRedo` are let through, and go to `commit`.
-2. **A change that arrives without `beforeinput`** (if autofill or a password manager turns out to send none):
-   `admit` runs immediately after it, and the corrected text is in place before the next frame is drawn. Undo of
-   that one change may be lost.
-3. **The caret after a rewrite:** the runtime compares the text before and after. The common prefix and suffix locate
-   what was inserted, and the caret goes after it. That handles grouping a card or phone number and upper-casing.
-4. **Composition (IME, Android):** while composing, what's shown follows the composition and nothing else runs. The
-   finished composition is the change. Chrome and Safari order `compositionend` and the last `input` differently,
-   and both orders must produce one change.
-5. **The caret when your value is shown again:** it keeps its distance from the end of the text.
-6. **Canvas mode's overlay element and the Mac host** have the same obligations. On the Mac that means
+   If `admit` refuses, the last admitted text is put back. If it rewrites, the rewrite is applied as in item 1. Either
+   correction is itself an undoable step. Then `commit` runs as usual.
+3. **The caret when your value is shown again:** it keeps its distance from the end of the text.
+4. **Canvas mode's overlay element and the Mac host** have the same obligations. On the Mac that means
    `shouldChangeText` for refusal, and replacement through the field editor so it stays undoable.
-7. **Everything that reads "what is shown"** (auto-height, `select()`, the content extent) reads the text on
+5. **Everything that reads "what is shown"** (auto-height, `select()`, the content extent) reads the text on
    screen.
 
 ## 8. Before any code moves
 
-1. **The real-input workout,** in headed Chrome driven by macOS's own input (CGEvent, System Events for menus) with
+1. **The real-input workout:** done 2026-11-05 (§7). The original plan was headed Chrome driven by macOS's own input (CGEvent, System Events for menus) with
    screen capture, then Safari and Firefox. For each case: whether `beforeinput` arrives and can be cancelled, what
    the caret does, and what ⌘Z, the Edit menu and the right-click menu's Undo do afterwards.
    - typing, deleting by character, word and line, and paste and drop;
@@ -338,7 +367,18 @@ class Rating extends ValueControl [ value: number = 0,
    - the field showing your value again.
 
    §7 promises exactly what the table shows.
-2. **The full scope, written out for the author before building:** runtime, compiler and checker, library (every
+2. **The full scope, in build order (posted to the author 2026-11-05):**
+   - **A.** The contract on `ValueControl`, and every value control moved to it.
+   - **B.** `TextInput` as a library `ValueControl` around the renamed runtime editable, with §7's behaviour on the
+     DOM, the canvas overlay and the Mac host.
+   - **C.** `<->` as shorthand.
+   - **D.** The corpus.
+   - **E.** Documentation.
+   - **F.** The migration system and the 0.6.0 notes.
+   - **G.** The sampler's Forms page.
+   - **H.** Tests, the full gate, then push and the four briefs.
+
+   The same scope, by area: runtime, compiler and checker, library (every
    value control's real edit model), corpus, docs demos, eval references, documentation (`declare.md` §5, §7, §11;
    guide chapters 03, 08, 14, 15, 30, 31; the generated reference; `input.md` and its kin here; the skill), tests,
    the Mac host, canvas mode, performance (the grid's editor cells, virtualized rows, slim sizes), accessibility,

@@ -2,17 +2,19 @@
 # Checkbox
 
 A boolean control. Its value is the
-`checked` attribute; **`input` owns the value's destination** — by default the
+`checked` attribute; **`commit` owns the value's destination** — by default the
 destination is the checkbox itself, so it works standalone with zero wiring:
 
     mute: Checkbox [ label = "Mute" ]          … visible = { mute.checked }
 
-Hand the value to its real owner by overriding `input` and constraining down:
+Hand the value to its real owner with the shorthand, or by constraining down and
+overriding `commit`:
 
-    Checkbox [ label = "Mute", checked = { app.muted }, input(v: boolean) { app.muted = v } ]
+    Checkbox [ label = "Mute", checked <-> app.muted ]
+    Checkbox [ label = "Mute", checked = { app.muted }, commit(v: boolean) { app.muted = v } ]
 
-`press()` never writes `checked` directly — it only delivers — so a constrained
-checkbox never fights its constraint.
+`press()` never writes `checked` directly — it reports the change with `edit` — so a
+constrained checkbox never fights its constraint.
 
 ```declare
 row: View [ x = 20, y = 20,
@@ -28,9 +30,9 @@ the box unchanged.
 
 ## checked
 Whether the box is ticked. Standalone it owns this and you read it back by name;
-constrained (`checked = { app.muted }`) it needs an `input` override to go with it — **a
-constraint with no `input` leaves the checkbox's own edit assigning to a constrained attribute,
-which is refused at runtime.**
+constrained (`checked = { app.muted }`) it needs a `commit` override to go with it — **a
+constraint with no `commit` leaves the checkbox's own edit assigning to a constrained attribute,
+which is refused at runtime** — or write `checked <-> app.muted`, which is both.
 
 ## label
 The text beside the box. `""` renders the box alone — the form for a checkbox inside a
@@ -44,13 +46,13 @@ to match its neighbours without a subclass.
 The baseline a row aligns this control by — the label's. Under `align = baseline` the
 checkbox's caption sits on the same line as its neighbours; the box rides with it.
 
-## input()
+## commit()
 **Where the value goes.** The default writes `checked`; override it and the checkbox
-becomes a delivery channel for state you own (`input(v: boolean) { app.muted = v }`).
+becomes a delivery channel for state you own (`commit(v: boolean) { app.muted = v }`).
 This is the one member to override when the value lives elsewhere.
 
 ## press()
-Toggles by delivering the flipped value through `input` — **never by writing `checked`**,
+Toggles by reporting the flipped value with `edit` — **never by writing `checked`**,
 which is what keeps a constrained checkbox from fighting its constraint. Called by a click and
 by Space/Enter.
 
@@ -103,9 +105,9 @@ class Checkbox extends ValueControl [
 
     size: number = 0,             // 0 = provided("theme").checkboxSize (else 20)
 
-    input(v: boolean) { checked = v },
+    commit(v: boolean) { checked = v },
 
-    press()   { input(!checked) },
+    press()   { edit(!checked) },
 
     width   = { this._box.width + (label == "" ? 0 : 8 + this._cap.width) },
     opacity = { disabled ? (provided("theme").disabledOpacity) : 1 },

@@ -1026,6 +1026,28 @@ final class Bridge {
         }
     }
 
+    /// What `ask` heard: the runtime's string, its null, or nothing in time.
+    enum Answer { case text(String), null, late }
+    /// Ask the runtime a question and WAIT for the answer, bounded — the one
+    /// other bounded wait main makes (beside `waitForCommit`): a field's `admit`,
+    /// asked before AppKit applies a change, so a refused change never appears
+    /// (editing-values.md §7). Deadlock-free by the bound: a runtime that is busy,
+    /// or itself waiting on main, answers `.late`, and the caller lets the change
+    /// land for the runtime to judge after. A late answer is dropped.
+    func ask(_ name: String, _ args: [Any], timeout: TimeInterval) -> Answer {
+        final class Box { var answer: Answer = .late }
+        let box = Box(), done = DispatchSemaphore(value: 0)
+        let run = { [weak self] in
+            defer { done.signal() }
+            guard let self, let fn = self.ctx.objectForKeyedSubscript(name), !fn.isUndefined,
+                  let v = fn.call(withArguments: args) else { return }
+            box.answer = v.isNull || v.isUndefined ? .null : .text(v.toString() ?? "")
+        }
+        if onRuntimeThread { run(); return box.answer }
+        onRuntime(run)
+        return done.wait(timeout: .now() + timeout) == .success ? box.answer : .late
+    }
+
     /// Evaluate a script on the runtime thread and hand the result back — the
     /// control channel's `eval`. The callback runs on the runtime thread.
     func evaluate(_ src: String, then: @escaping (String) -> Void) {

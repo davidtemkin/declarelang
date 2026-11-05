@@ -1322,7 +1322,7 @@ await test("TextInput.select: words and numbers place the caret; a held select a
   // while a CLICK keeps its clicked caret, by the platform's own ordering
   // (the click caret lands at mouseup, after focus handlers), which is the
   // ranking we want: a deliberate click names a spot.
-  await page.evaluate(() => { const f = window.__app.field; f.text = "0123456789"; f.select("start"); });
+  await page.evaluate(() => { const f = window.__app.field; f.value = "0123456789"; f.select("start"); });
   await page.keyboard.press("Tab");
   await new Promise((r) => setTimeout(r, 120));
   let g = await sel();

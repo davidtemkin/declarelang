@@ -1,7 +1,7 @@
 App [ width = 300, height = 340,
     day: string = "2026-10-18",
     MonthCalendar [ x = 20, y = 20, value = { app.day }, min = "2026-10-05",
-        input(v: string) { app.day = v }
+        commit(v: string) { app.day = v }
         ],
     Text [ x = 20, y = 310, text = { app.day } ]
     ]

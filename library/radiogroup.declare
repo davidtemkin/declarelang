@@ -9,7 +9,7 @@ any direct child with a `choice`: a `Control` with `accessibilityRole = radio`, 
 (parent as RadioGroup).value == choice }`, and `press() { (parent as RadioGroup).pick(choice) }`.
 The group does the rest — one Tab stop, and the arrows move and check.
 
-    RadioGroup [ value = "m", input(v: string) { app.size = v },
+    RadioGroup [ value = "m", commit(v: string) { app.size = v },
         Radio [ choice = "s", label = "Small" ],
         Radio [ choice = "m", label = "Medium" ],
         Radio [ choice = "l", label = "Large" ],
@@ -26,16 +26,16 @@ size: RadioGroup [ x = 20, y = 20, value = "m",
 ## value
 **The group's value — the chosen `choice`, and the only value in the pair.** A
 `Radio` has none of its own; it derives `on` from this. Standalone the group owns it;
-constrained, override `input` beside it as with any control.
+constrained, override `commit` beside it as with any control, or write `value <-> app.size`.
 
-## input()
+## commit()
 Where the choice goes. The default writes `value`; override it to own the destination
-(`input(v: string) { app.size = v }`) and the radios keep working untouched, because
+(`commit(v: string) { app.size = v }`) and the radios keep working untouched, because
 they deliver rather than store.
 
 ## pick()
 Selects a choice by name — the seam a `Radio` calls on its group. Call it to move the
-selection from code without bypassing `input`.
+selection as the person would, through `edit` and `commit`.
 
 ## focusScope
 `stop`: the group is one Tab stop — Tab lands on the checked radio and the next Tab
@@ -69,8 +69,8 @@ class RadioGroup extends ValueControl [
     focusable = false,
     focusField() { const r = focusEntry(); if (r != null) Focus.focus(r) },
 
-    input(v: string) { value = v },
-    pick(v: string)  { input(v) },
+    commit(v: string) { value = v },
+    pick(v: string)  { edit(v) },
 
     // one Tab stop, landing on the checked radio; the arrows move and check
     // (planes.md §13.6)
@@ -102,7 +102,7 @@ another stale.
 ```declare
 App [ width = 300, height = 120, fill = white, textColor = black,
     size: string = "m",
-    RadioGroup [ x = 20, y = 20, value = { app.size }, input(v: string) { app.size = v },
+    RadioGroup [ x = 20, y = 20, value = { app.size }, commit(v: string) { app.size = v },
         Radio [ choice = "s", label = "Small" ],
         Radio [ choice = "m", label = "Medium" ]
         ],

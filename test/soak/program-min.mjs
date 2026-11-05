@@ -18,7 +18,7 @@ const CASES = {
   "a virtualized list": `App [ width = 200, height = 100, d: Dataset [ contents = { ({ rows: Array.from({ length: 100 }, (_, i) => ({ k: "r" + i })) }) } ],
     View [ width = 100, height = 40, scrolls = y, datapath = { app.d.value }, layout: SimpleLayout [ axis = y ], View [ datapath = :rows[], virtualize = true, height = 20, width = 100, Text [ text = :k ] ] ] ]`,
   "a Menu": `App [ width = 200, height = 100, m: Menu [ items = { [{ id: "a", label: "A" }] } ] ]`,
-  "a TextInput": `App [ width = 200, height = 100, TextInput [ width = 100, text = "x", onInput(v: string) { } ] ]`,
+  "a TextInput": `App [ width = 200, height = 100, TextInput [ width = 100, value = "x" ] ]`,
   "a Time": `App [ width = 200, height = 100, n: number = 0, Time [ tick = 50, onTick(dt: number) { app.n = app.n + 1 } ] ]`,
   "a DataSource fetching": `App [ width = 200, height = 100, s: DataSource [ url = "http://soak.invalid/x.json" ], onReady() { app.s.fetch() } ]`,
   "Markdown": `App [ width = 300, height = 100, Markdown [ width = 280, text = "# T\\n\\n**b** [l](https://example.com)" ] ]`,

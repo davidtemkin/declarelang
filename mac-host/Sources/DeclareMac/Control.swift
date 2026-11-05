@@ -626,6 +626,19 @@ final class ControlChannel {
             }
             RunLoop.main.add(t, forMode: .common)
             return "sweeping \(n) moves at \(Int(hz))Hz (~\(Int(Double(n) / hz * 1000))ms)"
+        case "textinsert", "textundo", "textvalue":
+            // The focused native field's own editing path, as the keyboard and
+            // the Edit menu drive it: `textinsert <text>` types (or pastes) at
+            // the selection through the field editor, so AppKit asks whether the
+            // change may happen as it would for a key (editing-values.md §7);
+            // `textundo` is Edit > Undo; `textvalue` reads what the field holds.
+            guard let tv = view?.window?.firstResponder as? NSTextView else { return "no field has focus" }
+            switch a[0] {
+            case "textinsert": tv.insertText(a.dropFirst().joined(separator: " "), replacementRange: NSRange(location: NSNotFound, length: 0))
+            case "textundo": tv.undoManager?.undo()
+            default: break
+            }
+            return tv.string
         case "eval":
             // Evaluate JS in the app's own context and return the result.
             //

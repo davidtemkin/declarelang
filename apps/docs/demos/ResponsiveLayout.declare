@@ -6,7 +6,7 @@
 App [ textColor = 0xFFFFFF, fontSize = 13,
     w: number = 420,
     Slider [ x = 20, y = 12, width = 200, min = 200, max = 460, value = { app.w },
-        input(v: number) { app.w = v }
+        commit(v: number) { app.w = v }
         ],
     Text [ x = 232, y = 16, textColor = 0x6A7883, text = { Math.round(app.w) + "px — " + (app.w >= 380 ? "row" : "stack") } ],
     box: View [ x = 20, y = 44, width = { app.w }, height = 130, fill = 0xE9EFF4, cornerRadius = 8,

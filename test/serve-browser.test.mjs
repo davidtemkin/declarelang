@@ -2,7 +2,7 @@
 // serve.test.mjs covers routing at the HTTP layer; this proves the whole
 // in-browser path still works when the platform is served through the mount
 // system: the homepage boots and mounts, a live demo preview runs, and the
-// in-browser compiler (the same compiler-client the demos' onInput() drives)
+// in-browser compiler (the same compiler-client the demos' commit() drives)
 // compiles an edit and reports a broken one. Same puppeteer-core + findChrome
 // setup as perceptual.test.mjs, so it runs wherever that one does.
 

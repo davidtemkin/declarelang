@@ -409,6 +409,7 @@ export declare class DomSurface implements Surface {
     travelWith(host: Surface | null): void;
     isTraveling(): boolean;
     setEditable(spec: EditableSpec | null): void;
+    applyEditableText(text: string): void;
     /** The caret/selection write half (TextInput.select, #22): land the range on
      *  the native element. For a collapsed range at either extreme, bring the
      *  caret's end of the box into view — the platform reveals mid-text carets

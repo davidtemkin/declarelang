@@ -886,7 +886,7 @@ App [ textColor = whitesmoke, appName = "Weather",
         },
 
     // ── search ────────────────────────────────────────────────────────────
-    // The draft lives in a plain attribute the fields' onInput delivers up;
+    // The draft lives in a plain attribute the fields' commit delivers up;
     // `shown` below re-derives from it on every keystroke.
 
     query: string = "",
@@ -1281,11 +1281,11 @@ App [ textColor = whitesmoke, appName = "Weather",
                 visible = { app.openT < 0.45 },
 
                 // the value pattern: the field follows `app.query` and every
-                // keystroke delivers up through `onInput`, so Escape and the
+                // keystroke delivers up through `commit`, so Escape and the
                 // clear button empty the field by writing the one fact
 
-                text = { app.query },
-                onInput(v: string) { app.query = v },
+                value = { app.query },
+                commit(v: string) { app.query = v },
                 onKeyDown(e: KeyEvent) {
                     if (e.key == "Escape") app.query = ""
                     },
@@ -1419,8 +1419,8 @@ App [ textColor = whitesmoke, appName = "Weather",
             find: TextInput [ width = 100%, height = 36,
                 cornerRadius = 18, fill = #FFFFFF1A, padding = 14,
                 fontSize = 16, textColor = white, placeholder = "Search",
-                text = { app.query },
-                onInput(v: string) { app.query = v },
+                value = { app.query },
+                commit(v: string) { app.query = v },
                 onKeyDown(e: KeyEvent) {
                     if (e.key == "Escape") app.query = ""
                     },

@@ -99,6 +99,7 @@ interface Unit {
   tag: string; // the element the body is written on
   slot: string | null; // the attribute/declaration name; null for a method body
   slotTs: string | null; // the slot's TS type; null for a method body
+  shorthand: string | null; // the `<->` place as written (`value <-> app.size`), when the body is one
 }
 
 /** Typecheck every `{ }` body of a program whose bodies are scope-resolved
@@ -454,6 +455,11 @@ function explainTs(d: TsDiag, u: Unit, synthTags: ReadonlyMap<string, string>): 
     // The SEAM error — the body's value doesn't fit the slot's declared type.
     case 2322:
       m = msg.match(/Type '(.+?)' is not assignable to type '(.+?)'/s);
+      // `value <-> app.size` with `size` a number: the place holds another type
+      // than the control shows, and the shorthand has no conversion to write
+      if (m !== null && u.shorthand !== null && u.slot !== null) {
+        return `'${u.slot} <-> ${u.shorthand}' binds ${article(m[1])} place, but '${u.slot}' is ${article(u.slotTs ?? m[2])} — the shorthand converts nothing. Bind ${article(u.slotTs ?? m[2])} place, or show it converted and convert back: '${u.slot} = { … }' with a commit(v) that writes ${u.shorthand}`;
+      }
       // A mismatch INSIDE the value (a record's field, an array's item) is not
       // the slot's own type: name the slot's type, and keep TypeScript's detail.
       if (m !== null && u.slot !== null && u.slotTs !== null && m[2] !== u.slotTs && !u.slotTs.startsWith(m[2] + " |")) {
@@ -1050,7 +1056,7 @@ class CaseEmitter {
         // `any` does; a typed signature — `buildCols() -> Board` — closes
         // the chain end to end.)
         const slotType = a.name === "contents" ? (this.docTypeOf(el) ?? tsSlotType(this.schemas, el.tag, a.name)) : tsSlotType(this.schemas, el.tag, a.name);
-        this.emit(a.value.src, a.value.pos, a.name, slotType, levels, true, [], classBody, a.value);
+        this.emit(a.value.src, a.value.pos, a.name, slotType, levels, true, [], classBody, a.value, a.shorthand === true ? a.place ?? null : null);
       }
     }
     for (const d of el.decls) {
@@ -1081,7 +1087,8 @@ class CaseEmitter {
     expression: boolean,
     params: readonly Param[],
     classBody: boolean,
-    owner: object
+    owner: object,
+    shorthand: string | null = null
   ): void {
     // A body that still embeds a datapath island is not TypeScript — compile()
     // lowers islands before this phase, so this only guards a caller handing
@@ -1166,6 +1173,7 @@ class CaseEmitter {
       tag: levels[0].tag,
       slot,
       slotTs,
+      shorthand,
     });
   }
 

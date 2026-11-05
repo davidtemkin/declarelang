@@ -865,7 +865,7 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
                     fontSize = 12, fontFamily = ["ui-monospace", "monospace"],
                     textColor = { app.c.text },
                     placeholder = { "evaluate in " + app.sel },
-                    onEnter() { app.submit(this.text); this.text = "" }
+                    onEnter() { app.submit(this.value); this.value = "" }
                     ]
                 ]
             ],

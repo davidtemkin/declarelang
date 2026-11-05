@@ -136,7 +136,7 @@ seconds, a search that waits until typing pauses:
 query: string = "",
 searched: string = "",
 TextInput [ width = 240, placeholder = "Search",
-    onInput(v: string) {
+    commit(v: string) {
         app.query = v
         afterDelay(300, () => { if (app.query == v) app.searched = v })
         }

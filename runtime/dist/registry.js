@@ -18,7 +18,7 @@ import { Text } from "./text.js";
 import { Image } from "./image.js";
 import { Video } from "./video.js";
 import { Audio } from "./audio.js";
-import { TextInput } from "./text-input.js";
+import { NativeText } from "./native-text.js";
 import { Markdown } from "./markdown.js";
 import { HTMLText } from "./html-text.js";
 import { Layout } from "./layout.js";
@@ -37,8 +37,10 @@ import { State } from "./state.js";
  *  a Node class on the same generic path — carrying declarations and
  *  subclassable — rather than a SOURCE, which the source path would seal. */
 export const TAGS = {
-    App, View, Text, Image, Video, Audio, DOMIsland, TextInput, Markdown, HTMLText,
+    App, View, Text, Image, Video, Audio, DOMIsland, Markdown, HTMLText,
     Node: Node,
+    // the native text element a field is made of (native-text.ts): a node on the generic path
+    NativeText: NativeText,
     Time: Time,
     // A typeface as an object in the tree (font.ts): generic path, like Time.
     Font: Font,
@@ -95,7 +97,7 @@ export const REGISTRY_MANIFEST = [
     { name: "Video", table: "TAGS", module: "video.js", export: "Video" },
     { name: "Audio", table: "TAGS", module: "audio.js", export: "Audio" },
     { name: "DOMIsland", table: "TAGS", module: "island.js", export: "DOMIsland" },
-    { name: "TextInput", table: "TAGS", module: "text-input.js", export: "TextInput" },
+    { name: "NativeText", table: "TAGS", module: "native-text.js", export: "NativeText" },
     { name: "Markdown", table: "TAGS", module: "markdown.js", export: "Markdown" },
     { name: "HTMLText", table: "TAGS", module: "html-text.js", export: "HTMLText" },
     { name: "Node", table: "TAGS", module: "node.js", export: "Node" },

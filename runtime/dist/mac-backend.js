@@ -73,6 +73,9 @@ export const OP = {
     PERSPECTIVE: 49,
     /** How the node's subtree resamples its images and drawings: "smooth" or "pixelated" (case 50). */
     SCALING: 50,
+    /** A change judged after it landed, corrected: (from, text) — applied as one
+     *  undoable edit while the field still holds `from` (case 51). */
+    EDITAPPLY: 51,
 };
 /** A Declare motion token as the cubic bezier the host animates with — the
  *  platform's motion honoring the program's curve (scrolling.md: "where a
@@ -1221,6 +1224,8 @@ class MacSurface {
             enterSubmits: spec.enterSubmits === true, disabled: spec.disabled === true, // the host applies it after the refactor; the runtime refuses edits meanwhile
             wrap: spec.wrap !== false, padding: insetSides(spec.padding ?? 0),
             value: spec.value ?? "", placeholder: spec.placeholder ?? "",
+            // whether a change is put to the field before it lands (the host waits, bounded)
+            admits: spec.admit !== undefined,
             // An editable carries its OWN style — the DOM backend styles the element
             // from `spec.style`, not from the surface's text style. Leaving it out made
             // every field fall back to the default face, which is why the Viewer's
@@ -1237,6 +1242,8 @@ class MacSurface {
     activateEditable(active) { emit(OP.EDITFOCUS, this.id, active ? 1 : 0); }
     /** TextInput.select's write half (#22) — the overlay clamps and applies. */
     setSelection(start, end) { emit(OP.EDITSEL, this.id, start, end); }
+    /** A change the field judged once it had landed, corrected in the native field. */
+    applyEditableText(text, from) { emit(OP.EDITAPPLY, this.id, from ?? null, text); }
     insertChild(child, before) {
         const c = child;
         const b = before;
@@ -1660,8 +1667,16 @@ export function macRichHeight(id, h) {
 export function macRichLink(id, href) {
     richCallbacks.get(id)?.onLink(href);
 }
-export function macEditInput(id, value) {
-    editCallbacks.get(id)?.onInput?.(value);
+/** A change has landed in the native field: `checked` when the host asked
+ *  `admit` about it before it did (macEditAdmit), else the field judges it now. */
+export function macEditInput(id, value, checked = false) {
+    editCallbacks.get(id)?.onInput?.(value, checked);
+}
+/** The host asks, before a change lands, what the field makes of the text it
+ *  would produce: that text, a rewrite, or null to refuse it. */
+export function macEditAdmit(id, text) {
+    const admit = editCallbacks.get(id)?.admit;
+    return admit === undefined ? text : admit(text);
 }
 export function macEditFocus(id, focused) {
     const spec = editCallbacks.get(id);

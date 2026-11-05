@@ -885,68 +885,38 @@ const DOMIslandSchema = {
     // onNavigate (island.ts islandNavigation), else carried out by the page.
     events: ["post", "navigate"],
 };
-// TextInput (Layer 3, docs/system-design/input.md): an editable text field — the first
-// EDITOR (language §9, the leaf-input exception). `text` is the model/draft slot,
-// realized as a native editable element (DOM in-box, canvas overlay) so
-// caret/selection/IME/a11y are native (D-5). Two-way bound with `text <-> :path`:
-// the draft reads the datapath and commits edits back into the dataset. Fires
-// `input` on each edit and `enter` on a single-line submit.
-const TextInputSchema = {
-    name: "TextInput",
-    base: ViewSchema,
+// NativeText (native-text.ts; docs/system-design/editing-values.md §4.9): the native
+// text element a field is made of — a NODE that makes the view it sits in a native
+// <input>/<textarea> (DOM in-box, canvas overlay, NSTextField on the Mac), so caret,
+// selection, composition, undo and accessibility are the platform's. What the field
+// means (its value, `admit`/`commit`, judging) is the library's TextInput, a
+// ValueControl; this node only carries text across the seam.
+const NativeTextSchema = {
+    name: "NativeText",
+    base: NodeSchema,
     attrs: {
-        // Inert, as a Control's `disabled` (library control.declare): no focus,
-        // no edits, and announced as disabled. The same word on both, kept in step
-        // by a test (the shared control vocabulary).
-        disabled: { kind: "boolean" },
-        // The edit session (language §9, the leaf-input exception; editor.ts):
-        // `text` is the draft — its validity/error/dirtiness and WHEN it commits.
-        commitOn: { kind: "string" }, // "input" (live) | "blur" | "enter" | "manual"
-        // What is wrong, and whether to say so (forms; library form.declare):
-        problem: { kind: "string" }, // what is wrong with the value now, "" when nothing is
-        error: { kind: "string" }, // `problem` once judged: the default display rule
-        valid: { kind: "boolean" }, // is `problem` empty?
-        judged: { kind: "boolean" }, // left, judge()d, or submitted with its form — writable
-        dirty: { kind: "boolean" }, // does the draft differ from the committed value?
-        name: { kind: "string" }, // the field's address in its form: the key a service names it by
-        required: { kind: "object", written: "boolean | string" }, // true, or the message to say, when it may not be empty
-        refused: { kind: "string" }, // an outside message about the value: a service's refusal
-        form: { kind: "view" }, // the form it belongs to: the nearest Form above, unless set
         ...FACE_ATTRS,
-        ...SELECTABLE_ATTR,
         text: { kind: "string" },
         placeholder: { kind: "string" },
         multiline: { kind: "boolean" },
-        // a multi-line field whose Return fires `enter` (a chat composer); Shift-Return types the break
+        wrap: { kind: "boolean" },
+        // a multi-line field whose Return ends the edit and is the field's (a chat composer); Shift-Return types the break
         enterSubmits: { kind: "boolean" },
         spellcheck: { kind: "boolean" },
-        // the digits' advance, as Text's: tabular figures line up a card number or an amount
         numeralWidth: enumType("NumeralWidth", "normal", "tabular", "proportional"),
-        // where the text sits across the field, and whether it slants — as Text's
         textAlign: enumType("TextAlign", "start", "center", "end", "left", "right"),
         italic: { kind: "boolean" },
         // what the field holds, told to the platform: autofill, keyboard, capitalization (purpose.ts)
         purpose: enumType("InputPurpose", ...PURPOSE_NAMES),
         concealed: { kind: "boolean" },
-        wrap: { kind: "boolean" },
-        padding: { kind: "inset" },
-        // The UNCONTROLLED seed (cf. React's defaultValue vs value): `text` follows
-        // `initial` until the user edits, then holds the edit — for a field started
-        // from a value (a pristine source) that must stay writable. Being one-shot
-        // is the point AND the limit: once edited it stops following, so an app
-        // cannot reset a field this way. A bound `text` is the CONTROLLED form —
-        // the edit reverts and arrives as `onInput` instead, and a handler writing
-        // the bound slot closes the loop (that is the shape that CAN clear a
-        // field). Prefer `text <-> :path` for a field editing a dataset record.
-        initial: { kind: "string" },
-        // The native selection's ends, read-only (the backend reports them as the
-        // user moves the caret); `select()` is the write half.
+        // the native selection's ends, as the person moves them; `select()` is the write half
         selectionStart: { kind: "number" },
         selectionEnd: { kind: "number" },
+        // the text's own height at the field's face, padding excluded
+        textHeight: { kind: "number" },
     },
-    // the session's facts (editor.ts maintains them; a write would be recomputed on the next keystroke)
-    readOnly: ["selectionStart", "selectionEnd", "problem", "error", "valid", "dirty", "refused"],
-    events: ["input", "enter"],
+    readOnly: ["selectionStart", "selectionEnd", "textHeight"],
+    events: [],
 };
 // RichText (docs/system-design/text-and-markdown.md): the ABSTRACT family of flowing,
 // structured, styled text. Like `Layout`, it names no format — `RichText [ ]` is
@@ -1388,7 +1358,7 @@ export const SCHEMAS = {
     Video: VideoSchema,
     Audio: AudioSchema,
     DOMIsland: DOMIslandSchema,
-    TextInput: TextInputSchema,
+    NativeText: NativeTextSchema,
     Markdown: MarkdownSchema,
     HTMLText: HTMLTextSchema,
     Layout: LayoutSchema,
@@ -1479,7 +1449,6 @@ export const EVENT_PAYLOAD = {
     // the keyboard — the same normalized payload on a View and on `Keys`
     keyDown: "KeyEvent", keyUp: "KeyEvent",
     // value-carrying events
-    input: "string", // TextInput: the new text
     navClaim: "boolean", // Keys: an overlay took/released the nav keys
     commandHeld: "boolean", // Keys: the command key held alone (true), let go (false)
     link: "string", // RichText: the href

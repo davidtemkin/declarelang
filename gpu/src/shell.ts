@@ -1,5 +1,6 @@
 import { shellMedia } from "./shell-media.js";
 import { applyPurpose } from "../../runtime/dist/purpose.js";
+import { applyEditableText } from "../../runtime/dist/editable-input.js";
 import { navigationOf, type IslandNavigation } from "../../runtime/dist/navigation.js";
 // shell — the page's side of render=gpu.
 //
@@ -535,6 +536,14 @@ export async function bootGpu(cfg: { program: unknown; main: string; host?: HTML
         return;
       }
       case "edit-sel": fields.get(m.id as number)?.el?.setSelectionRange(m.start as number, m.end as number); return;
+      // the program's runtime is in a worker, so a change is judged once it has
+      // landed (editing-values.md §7): its correction, as one undoable edit, while
+      // the field still holds what was judged — a newer text is judged in its turn
+      case "edit-apply": {
+        const el = fields.get(m.id as number)?.el;
+        if (el != null && (m.from === null || el.value === m.from)) applyEditableText(el, m.text as string);
+        return;
+      }
     }
   };
   worker.onmessage = onMessage;

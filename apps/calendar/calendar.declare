@@ -407,7 +407,7 @@ class DetailSection [ clip = true, cornerRadius = 10, fill = { provided("theme")
         fontSize = 16, textColor = { provided("theme").bodyText }, placeholder = { "Add " + classroot.field },
         fill = { provided("theme").fieldBg },
         stroke = { stroke(1, this.focused ? provided("theme").accent : provided("theme").fieldEdge) },
-        text <-> { classroot.field } ],
+        value <-> { :@[(classroot.field)] } ],
     open: State [ applied = { isOpen }, fill = { provided("theme").sectionOpenBg } ]
     ]
 
@@ -813,7 +813,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
                 textColor = { provided("theme").text }, placeholder = "Untitled event",
                 fill = { provided("theme").fieldBg },
                 stroke = { stroke(1, this.focused ? provided("theme").accent : provided("theme").fieldEdge) },
-                text <-> :title ],
+                value <-> :title ],
             meta: Text [ padding = [12, 0, 0, 0], fontSize = 12.5, wrap = false, textColor = { provided("theme").textMuted },
                 text = { dayLabel(dayKey(:y, :m, :d)) + "  ·  " + shortTime(:start) + " – " + shortTime(:end) } ]
             ],

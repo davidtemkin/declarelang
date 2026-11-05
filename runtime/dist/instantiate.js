@@ -82,7 +82,6 @@ import { coerce, coerceToken, isPercent, isAlign, nullablePrimitive } from "./va
 import { defineAttributes, noteUseSiteSet, recordDeclarations, setBound, provideWrite, declaredRules, isSet, ownerOf } from "./attributes.js";
 import { contractGaps, contractMessage } from "./a11y-roles.js";
 import { bindConstraint, bindDeclDefault, provideBind, bindPercent, bindAlign, percentRule, alignRule, bindData, bindDatapath, bindCursor, isTransformSlot } from "./bind.js";
-import { bindTwoWay, bindTwoWayDynamic } from "./editor.js";
 import { Replicator } from "./replicate.js";
 import { classOfFor, KindedReplicator } from "./class-for.js";
 import { createWindowing } from "./virtualize.js";
@@ -443,10 +442,6 @@ function installBatchNow(ordered, ctx) {
     for (const p of ordered) {
         if ("code" in p)
             bindConstraint(p.view, p.attr.name, p.code, p.attr.value.pos, p.classroot, p.attr.value.kind === "code" ? p.attr.value.deps : undefined, p.yielding === true, false, p.attr.value.kind === "code" ? p.attr.value.expr : undefined);
-        else if ("twoWay" in p)
-            bindTwoWay(p.view, p.attr.name, p.twoWay, p.type);
-        else if ("twoWayCode" in p)
-            bindTwoWayDynamic(p.view, p.attr.name, p.twoWayCode, p.attr.value.pos, p.classroot, p.type);
         else if ("dataPath" in p)
             bindData(p.view, p.attr.name, p.dataPath, p.type, p.plan);
         else if ("cursorPath" in p)
@@ -1228,12 +1223,7 @@ function constructNode(el, outer, ctx, parentEl) {
         if (applyProvision(r, view, attr, ctx, acroot))
             continue;
         if ("binding" in r) {
-            if (attr.bind === "two") {
-                // `name <-> { expr }` — a DYNAMIC two-way binding: the expr names the
-                // field at runtime (a generic editor over `classroot.field`).
-                ctx.pending.push({ view, attr, twoWayCode: r.binding.src, type: slotTypeOf(attr, el.tag), classroot: acroot });
-            }
-            else if (route === "cursor") {
+            if (route === "cursor") {
                 ctx.pending.push({ view, attr, cursorCode: r.binding.src, classroot: acroot });
             }
             else if (!useSite && CLASS_DEFAULT_GEOMETRY.has(attr.name)) {
@@ -1263,17 +1253,6 @@ function constructNode(el, outer, ctx, parentEl) {
                     throw new DeclareError(`datapath = :${r.datapath.path} — a cursor is ONE place; a selective or data-resolved path matches elsewhere. Read it as a value, or replicate over it: datapath = :${r.datapath.path}[]`, r.datapath.pos);
                 }
                 ctx.pending.push({ view, attr, cursorPath: cSegs ?? r.datapath.path });
-            }
-            else if (attr.bind === "two") {
-                // `name <-> :path` — a two-way binding on an editable leaf slot: read
-                // the datapath AND write edits back to it (editor.ts). check() has
-                // already confirmed the slot is eligible — and that the path is a
-                // SINGULAR, STATIC place; the unchecked-tree path enforces it here.
-                const wSegs = r.datapath.plan === undefined ? null : staticSegs(r.datapath.plan);
-                if (r.datapath.plan !== undefined && wSegs === null) {
-                    throw new DeclareError(`'${attr.name} <-> :${r.datapath.path}' — a two-way binding writes ONE place; a selective or data-resolved path cannot name it`, r.datapath.pos);
-                }
-                ctx.pending.push({ view, attr, twoWay: wSegs ?? r.datapath.path, type: slotTypeOf(attr, el.tag) });
             }
             else {
                 ctx.pending.push({ view, attr, dataPath: r.datapath.path, type: slotTypeOf(attr, el.tag), plan: r.datapath.plan });

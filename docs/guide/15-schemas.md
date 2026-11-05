@@ -47,7 +47,7 @@ App [ width = 360, height = 170, fill = white, textColor = #172530,
         Text [ fontWeight = semibold, text = { app.open + " open" } ],
         View [ datapath = :items[], width = 100%, height = 28,
             layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
-            Checkbox [ checked = :done, accessibilityLabel = :title, input(v: boolean) { :done = v } ],
+            Checkbox [ checked = :done, accessibilityLabel = :title, commit(v: boolean) { :done = v } ],
             Text [ text = { :title + " · due in " + :due + " days" } ]
             ]
         ]
@@ -111,7 +111,7 @@ are checked.
 | a fetched response | runtime | on arrival | lands in `.failed` with the path; `.value` keeps the last good data |
 | an embedded `{ json }` body | runtime | at build | fails the build, path named |
 | a write — `:field = v`, [`set`](declare-docs:Dataset.method.set), [`insert`](declare-docs:Dataset.method.insert) | runtime | at the write | throws, naming the path and the expectation |
-| a text field's `<->` draft | the edit session | at commit | an unreadable draft makes the session invalid; nothing is written |
+| a control's `<->` to a field — `value <-> :qty` | compiler | at compile | type error when the control's value and the field differ: a number shown in a text field is `value = { String(:qty) }` with a `commit` that parses |
 | a `:path` on an attribute, `key`, or a replication path | compiler | at compile | error with the schema's fields named |
 | the typed `.value` chain in any `{ }` or method | compiler | at compile | type error, nearest name suggested |
 | a declaration or signature — `sel: Task`, `advance(t: Task)` | compiler | at compile | type error |

@@ -21,7 +21,7 @@ class ChatPanel [
         if (t === "") return
         app.chatLog.insert(["messages"], app.chatLog.value.messages.length,
             ({ text: app.userName + ": " + t, self: true }))
-        entry.text = ""
+        entry.value = ""
         transcript.scrollTo(Infinity)   // the far end — the platform clamps to the real bottom
         },
 

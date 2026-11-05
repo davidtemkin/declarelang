@@ -234,7 +234,9 @@ export function accessibilityDiagnostics(program, schemas, opts) {
      *  declares (a Control is a button), or a field — or null. */
     const controlRole = (levels, tag) => {
         const r = roleOf(levels);
-        if (r !== null)
+        // a TextInput's own `accessibilityRole = none` stands for the text field its
+        // native element makes it (native-text.ts): it is a field, not a role-less view
+        if (r !== null && !(r === "none" && isA(tag, "TextInput")))
             return CONTROL_ROLES.has(r) ? r : null;
         return isA(tag, "TextInput") ? "textField" : null;
     };
@@ -310,7 +312,7 @@ export function accessibilityDiagnostics(program, schemas, opts) {
             // a role that needs a name — judged where the view is USED, since a class
             // may leave its name to each use site; a field is one (a TextInput is a
             // textField with no role written)
-            const field = role === null && isA(tag, "TextInput");
+            const field = (role === null || role === "none") && isA(tag, "TextInput");
             const needs = field ? "textField" : role;
             // (a field's placeholder names it, as it does to every screen reader, and
             // a field inside a Field is named by its caption)

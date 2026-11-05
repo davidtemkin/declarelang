@@ -6,7 +6,7 @@ App [ fill = 0xF6F8FA, textColor = 0xFFFFFF, fontSize = 13,
     w: number = 120,
     d: Dataset { { "box": { "label": "from data", "width": 160 } } },
     Slider [ x = 20, y = 16, width = 200, min = 60, max = 300, value = { app.w },
-        input(v: number) { app.w = v }
+        commit(v: number) { app.w = v }
         ],
     col: View [ x = 20, y = 50, datapath = { d.value },
         layout: SimpleLayout [ axis = y, spacing = 8 ],

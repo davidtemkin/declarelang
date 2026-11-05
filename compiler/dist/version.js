@@ -1,0 +1,15 @@
+// The release this compiler is: package.json's version, written here by
+// `release.mjs --scaffold` and held equal to it by test/release.test.mjs. A
+// program's `declareVersion [ "…" ]` is compared with it (migration.md §2.1).
+export const DECLARE_VERSION = "0.6.0";
+/** `"0.6"` → [0, 6, 0]: a release as major.minor.patch, a missing part 0. */
+export function releaseParts(v) {
+    const [a = 0, b = 0, c = 0] = v.split(".").map((n) => Number(n));
+    return [a, b, c];
+}
+/** Negative when `a` is the earlier release, 0 when the same, positive when later. */
+export function compareReleases(a, b) {
+    const x = releaseParts(a), y = releaseParts(b);
+    return x[0] - y[0] || x[1] - y[1] || x[2] - y[2];
+}
+//# sourceMappingURL=version.js.map

@@ -19,7 +19,7 @@ import { buildProgram, mountApp, settle, observe, provideTransport, provideMeasu
          scrollPlaces, holdScrollPlaces, dropScrollPlaces, islandNavigation, provideHostServices,
          provideFilesHost, deliverFiles, feedPointer } from "../runtime/dist/index.js";
 import { MacBackend, flushOps, provideHitPath, macScrollFacts, macWheel, macRichHeight, macRichLink,
-         macEditInput, macEditFocus, macEditEnter, macEditSelect, embedsPending, mountEmbed, clearEmbed, surfaceById,
+         macEditInput, macEditAdmit, macEditFocus, macEditEnter, macEditSelect, embedsPending, mountEmbed, clearEmbed, surfaceById,
          publishChildName, islandViewById, macScrollTo, surfaceOrigin, createOverlaySurface, rootBox,
          countOps, peekOps, macTraceHit } from "../runtime/dist/mac-backend.js";
 
@@ -943,7 +943,8 @@ globalThis.__declareScrollFacts = (batch) => { macScrollFacts(batch); settle(); 
 globalThis.__declareTraceHit = (x, y) => macTraceHit(x, y);
 globalThis.__declareRichHeight = (id, h) => { macRichHeight(id, h); settle(); flushOps(); };
 globalThis.__declareRichLink = (id, href) => { macRichLink(id, href); settle(); flushOps(); };
-globalThis.__declareEditInput = (id, v) => { macEditInput(id, v); settle(); flushOps(); };
+globalThis.__declareEditInput = (id, v, checked) => { macEditInput(id, v, checked === true); settle(); flushOps(); };
+globalThis.__declareEditAdmit = (id, t) => macEditAdmit(id, t);
 globalThis.__declareEditFocus = (id, f) => { macEditFocus(id, f); settle(); flushOps(); };
 globalThis.__declareEditEnter = (id) => { macEditEnter(id); settle(); flushOps(); };
 globalThis.__declareEditSelect = (id, s, e) => { macEditSelect(id, s, e); settle(); flushOps(); };

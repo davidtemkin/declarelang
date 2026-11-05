@@ -69,6 +69,11 @@ export interface Attr {
      *  the leaf-input exception): the slot both READS the datapath and WRITES
      *  edits back to it. Absent = an ordinary one-way `name = value`. */
     bind?: "two";
+    /** Written as the `<->` shorthand and lowered at parse (lowerTwoWay) to this one-way
+     *  attribute plus a `commit` — kept so a check can name the shorthand it came from. */
+    shorthand?: true;
+    /** The `<->` place as written (`app.size`, `:title`), for a message about it. */
+    place?: string;
     /** HOW THE ATTRIBUTE IS WIRED, where its slot's type decides it (route.ts):
      *  absent for the ordinary case — a `{ }` is a constraint, a `:path` a data
      *  read, a literal a value. Set on a routed program (Program.routed). */
@@ -332,6 +337,10 @@ export interface Program {
      *  program must carry beyond what its source names (hosting.md, model 1).
      *  Absent when the program declares nothing; merged across `include`s. */
     ship?: Ship;
+    /** `declareVersion [ "0.6" ]`: the release this program was written for
+     *  (migration.md §2.1) — written by `declare-changes --done`, never required.
+     *  The main file's is the program's. */
+    declareVersion?: DeclareVersion;
     /** Top-level `script { … }` blocks, in source order. */
     scripts: ScriptBlock[];
     /** `script [ "file.ts" ]` directives — script from a FILE, spelled like
@@ -424,6 +433,12 @@ export interface Library {
  *  entry tools and tests use for pieces; a whole source goes through
  *  parseProgram (which build()/render() call). */
 export declare function parse(source: string): Element;
+/** The release a file says it was written for, as written, and where. */
+export interface DeclareVersion {
+    version: string;
+    pos: Pos;
+}
+export declare const ONE_DECLARE_VERSION = "a file says once which release it was written for, and this is a second declareVersion";
 /** A program states its flags once, in whichever of its files. */
 export declare const ONE_FLAGS = "a program has one defaultFlags block, and this is a second";
 /** Parse a whole Declare source: `include`s and top-level declarations

@@ -890,7 +890,7 @@ function mockBackend(log) {
     "setX", "setY", "setWidth", "setHeight", "setFill", "setCornerRadius",
     "setStroke", "setShadow", "setVisible",
     "setOpacity", "setClip", "setBoxClip", "setDrawing", "setText", "setTextStyle",
-    "setImage", "setImageStretch", "setInput", "setEditable", "activateEditable",
+    "setImage", "setImageStretch", "setInput", "setEditable", "activateEditable", "setPointerEvents",
     "insertChild", "destroy",
   ];
   const surface = () => {
@@ -7650,7 +7650,7 @@ await test("focus: discarding the focused subtree clears focus, and Tab goes on 
   assert.equal(Focus.getFocus(), app2.a, "Shift-Tab goes to the stop before where it was");
 });
 
-// ── TextInput (docs/system-design/input.md, Layer 3) ──────────────────────────────
+// ── TextInput (library/textinput.declare over the runtime's NativeText) ──────────────────────────────
 
 const lastSpec = (log) => log.filter((e) => e[0] === "setEditable").at(-1)?.[1];
 const activations = (log) => log.filter((e) => e[0] === "activateEditable").map((e) => e[1]);
@@ -7658,7 +7658,7 @@ const activations = (log) => log.filter((e) => e[0] === "activateEditable").map(
 await test("textinput: installs a native editable spec and is focusable by default", async () => {
   const log = [];
   const app = buildProgram(await compiled(`App [ width = 100, height = 100,
-    inp: TextInput [ text = "hi", placeholder = "name" ],
+    inp: TextInput [ value = "hi", placeholder = "name" ],
   ]`));
   app.$attach(mockBackend(log), null);
   const spec = lastSpec(log);
@@ -7672,7 +7672,7 @@ await test("textinput: installs a native editable spec and is focusable by defau
 await test("textinput: spellcheck = false carries to the editable spec (code field)", async () => {
   const log = [];
   const app = buildProgram(await compiled(`App [ width = 100, height = 100,
-    code: TextInput [ text = "x", multiline = true, spellcheck = false ],
+    code: TextInput [ value = "x", multiline = true, spellcheck = false ],
   ]`));
   app.$attach(mockBackend(log), null);
   const spec = lastSpec(log);
@@ -7684,7 +7684,7 @@ await test("textinput: purpose carries to the spec, and a password is concealed 
   const log = [];
   const app = buildProgram(await compiled(`App [ width = 100, height = 100, showing: boolean = false,
     mail: TextInput [ purpose = email ],
-    pw: TextInput [ purpose = password, text = "secret" ],
+    pw: TextInput [ purpose = password, value = "secret" ],
     shown: TextInput [ purpose = password, concealed = { app.showing } ],
   ]`));
   const backend = mockBackend(log);
@@ -7702,7 +7702,7 @@ await test("textinput: purpose carries to the spec, and a password is concealed 
 await test("textinput: a concealed field's text is not in the semantic tree", async () => {
   const { semanticTree } = await import("../runtime/dist/semantics.js");
   const app = buildProgram(await compiled(`App [ width = 200, height = 100,
-    pw: TextInput [ purpose = password, text = "secret", accessibilityLabel = "Password" ],
+    pw: TextInput [ purpose = password, value = "secret", accessibilityLabel = "Password" ],
   ]`));
   app.$attach(mockBackend([]), null);
   const json = JSON.stringify(semanticTree(app));
@@ -7710,22 +7710,22 @@ await test("textinput: a concealed field's text is not in the semantic tree", as
   assert.ok(json.includes("concealed"), "the field is marked concealed");
 });
 
-await test("textinput: a native edit updates the model text and fires input", async () => {
+await test("textinput: a native edit reaches the field's commit, and the field shows it", async () => {
   const log = [];
   globalThis.__inp = [];
   const app = buildProgram(await compiled(`${TALLY}App [ width = 100, height = 100,
-    inp: TextInput [ text = "hi", onInput(v: string) { note("__inp", v) } ],
+    inp: TextInput [ value = "hi", commit(v: string) { value = v; note("__inp", v) } ],
   ]`));
   app.$attach(mockBackend(log), null);
-  lastSpec(log).onInput("hello");
+  lastSpec(log).onInput("hello"); settle();
   assert.equal(app.inp.text, "hello", "the native value flows to the model");
-  assert.deepEqual(globalThis.__inp, ["hello"], "the input event fired with the value");
+  assert.deepEqual(globalThis.__inp, ["hello"], "commit heard the person's change");
 });
 
 await test("textinput: Declare focus activates the native caret, blur deactivates", async () => {
   Focus.reset();
   const log = [];
-  const app = buildProgram(await compiled(`App [ width = 100, height = 100, inp: TextInput [ text = "x" ] ]`));
+  const app = buildProgram(await compiled(`App [ width = 100, height = 100, inp: TextInput [ value = "x" ] ]`));
   app.$attach(mockBackend(log), null);
   Focus.setRoot(app);
   Focus.focus(app.inp);
@@ -7737,7 +7737,7 @@ await test("textinput: Declare focus activates the native caret, blur deactivate
 await test("textinput: a native focus routes back to Declare focus", async () => {
   Focus.reset();
   const log = [];
-  const app = buildProgram(await compiled(`App [ width = 100, height = 100, inp: TextInput [ text = "x" ] ]`));
+  const app = buildProgram(await compiled(`App [ width = 100, height = 100, inp: TextInput [ value = "x" ] ]`));
   app.$attach(mockBackend(log), null);
   Focus.setRoot(app);
   const spec = lastSpec(log);
@@ -8023,7 +8023,7 @@ await test("sources: `Keys` is both a component and a callable service, under on
 await test("sources: a source member does not collide with `<->` lexing", async () => {
   const r = await compile(`App [ width = 100, height = 100,
     d: Dataset { { "title": "x" } },
-    card: View [ datapath = { app.d.value }, f: TextInput [ text <-> :title ] ],
+    card: View [ datapath = { app.d.value }, f: TextInput [ accessibilityLabel = "Title", value <-> :title ] ],
     nav: Keys [ onKeyUp(e: KeyEvent) { app.d.set(["title"], e.key) } ],
     ]`, {});
   assert.notEqual(r.source, null, "the two-way arrow still lexes: " + r.errors.map((e) => e.message).join("; "));
@@ -8457,7 +8457,7 @@ await test("extractStatic: replication runs headlessly — every row's content l
 await test("extractStatic: HTMLText serializes through the same block model; a TextInput is not content", async () => {
   const out = await extractStatic(`App [
   h: HTMLText [ width = 300, html = "<h2>Sub</h2><p>body</p>" ],
-  f: TextInput [ y = 200, width = 120, initial = "draft" ],
+  f: TextInput [ y = 200, width = 120, value = "draft" ],
   ]`);
   assert.equal(out.html, "<h2>Sub</h2>\n<p>body</p>");
 });
@@ -8586,8 +8586,8 @@ await test("E-series diagnostics name the fix: bare ident, layout-in-State, dott
     s: State [ applied = true, t.opacity = 0.4 ] ]`),
     /a member sets this element's OWN attributes, never a child's/);
   // E-7: two-way arrow to an attribute chain → datapath rule + onInput idiom
-  assert.match(await msg(`App [ width=1, height=1, f: TextInput [ text <-> classroot.name ] ]`),
-    /binds a DATAPATH .* deliver up in an onInput\(\) handler/);
+  assert.match(await msg(`App [ width=1, height=1, f: TextInput [ accessibilityLabel = "x", value <-> 3 ] ]`),
+    /binds a PLACE — a datapath .* or a writable attribute/);
   // E-9 is RETIRED (2026-07-28). Typed parameters and return annotations are
   // language §4's canonical form; the diagnostics pass that refused them had
   // mistaken an unbuilt feature for a rule. They must now COMPILE — and an
@@ -8834,6 +8834,9 @@ await test("visibility facts: the camera case — an ancestor's transform re-der
           visible = { app.world.card.onScreen } ],
       ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  // at rest: no motion left in flight by an earlier test's controls (a focus
+  // ring's flight never lands without frames, and holds the facts back)
+  setClock(new Clock());
   const app = settleHeadless(r.program);
   const seen = () => app.readout.visible;
   const how = () => app.readout.opacity * 8;
@@ -9008,14 +9011,12 @@ await test("device profile: an app may not WRITE the profile (the runtime owns i
 // library class (written in Declare, so nothing in the library is privileged).
 // A word they share must mean one thing on both — this keeps them in step. ──
 
-await test("TextInput and Control share their vocabulary: `disabled` is the same boolean on both", async () => {
+await test("TextInput is a value control: its vocabulary (disabled among it) is Control's, not a copy", async () => {
   const { readFileSync } = await import("node:fs");
-  const control = readFileSync(new URL("../library/control.declare", import.meta.url), "utf8");
-  const SHARED = ["disabled"];
-  for (const name of SHARED) {
-    assert.match(control, new RegExp(`^\\s*${name}: boolean = false,`, "m"), `library Control declares ${name}: boolean = false`);
-    assert.equal(SCHEMAS.TextInput.attrs[name]?.kind, "boolean", `TextInput's schema declares ${name} as a boolean`);
-  }
+  const field = readFileSync(new URL("../library/textinput.declare", import.meta.url), "utf8");
+  assert.match(field, /^class TextInput extends ValueControl \[/m, "the library TextInput extends ValueControl");
+  assert.equal(SCHEMAS.TextInput, undefined, "and the runtime has no TextInput of its own");
+  assert.notEqual(SCHEMAS.NativeText, undefined, "only the native text it is made of");
 });
 
 await test("a scroller that holds nothing to tab to is a stop — unless it says focusable = false", async () => {
@@ -9031,7 +9032,7 @@ await test("a scroller that holds nothing to tab to is a stop — unless it says
 await test("TextInput.disabled: no focus, no edits, and announced", async () => {
   const log = [];
   const app = buildProgram(await compiled(`App [ width=200, height=100, off: boolean = true,
-    f: TextInput [ width=100, text = "kept", disabled = { app.off } ] ]`));
+    f: TextInput [ width=100, value = "kept", disabled = { app.off } ] ]`));
   app.$attach(mockBackend(log), null);
   settle();
   assert.equal(app.f.focusable, false, "a disabled field is not a tab stop");

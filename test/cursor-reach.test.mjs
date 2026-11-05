@@ -72,7 +72,7 @@ await (async () => {
 
 await (async () => {
   const r = await compile(`class Row extends View [ width = 100, height = 20,
-      f: TextInput [ width = 80, text <-> :name ] ]
+      f: TextInput [ width = 80, accessibilityLabel = "Name", value <-> :name ] ]
     App [ width = 300, height = 300,
       d: Dataset { { "rows": [ { "id": "a", "name": "x" } ] } },
       col: View [ datapath = { app.d.value }, Row [ datapath = :rows[], key = :id ] ] ]`);

@@ -56,7 +56,8 @@ this page adds only what a release does on top of it.
    node tools/internal/release.mjs --scaffold 0.4.4
    ```
 
-   bumps `package.json`, writes `releases/v0.4.4.md` — a skeleton: a headline
+   bumps `package.json` (and the compiler's `compiler/src/version.ts`, which a program's
+   `declareVersion` is compared with), writes `releases/v0.4.4.md` — a skeleton: a headline
    placeholder and a stamp marker — and **prints** the commit subjects since
    the last tag. Those are your checklist of what happened. They are not the
    notes, and they are not written into the file.
@@ -76,7 +77,8 @@ this page adds only what a release does on top of it.
    about a *previous* release is history and stays hand-written; the arrow's
    right-hand side is the stamp.)
 
-3. **`npm test`**, then **`npm run derive`** — as always. Derive stamps the
+3. **`npm run test:all`** — `npm test` plus the release tier (the tools' browser-driven
+   suites, `run-tests.mjs --full`) and the ladder — then **`npm run derive`**, as always. Derive stamps the
    notes' markers along with everything else, which is why it runs after the
    notes are written and before the commit.
 
@@ -103,6 +105,50 @@ To **amend** published notes: edit the file, derive, commit, push. The
 release body is corrected to match — it is a projection, and a hand edit on
 GitHub is overwritten on the next run, as an edit inside a stamp marker would
 be. The file is the source; the page follows it.
+
+## Changes to make
+
+A release that changes how programs must be written — a name removed or renamed, a form
+replaced, a behaviour that changes without an error — ends its notes with a section
+`## Changes to make`, one entry per change, in this form:
+
+````markdown
+### `onInput` → `commit`
+A text field hands the person's change to `commit`, as every value control does.
+
+Find: `/\bonInput\s*\(/`
+
+```declare-fragment
+TextInput [ text = { app.name }, onInput(v: string) { app.name = v } ]
+```
+
+```declare-fragment
+TextInput [ value <-> app.name ]
+```
+
+Docs: [Controls](declare-docs:guide:controls@the-value-pattern) · [`ValueControl.commit`](declare-docs:ValueControl.method.commit)
+
+Watch for: a change in behaviour that produces no error.
+````
+
+- **The heading** is the change, as "old → new"; then one sentence of why.
+- **`Find:`** is a literal, or a regular expression in `/…/`, that marks where a program needs
+  the change. It may span lines. Leave it out when no spelling is honest; the entry is then
+  listed for every program under "check these too".
+- **The two fragments** are the before and the after; both must parse (the docs test).
+- **`Docs:`** links the reference and guide pages for the new form.
+- **`Watch for:`**, optional, is what changes with no error. These matter most.
+
+[`declare-changes`](docs/operational/changes.md) reads these entries — the notes people read
+are its source. Three things keep them honest:
+
+- `test/changes.test.mjs` runs every entry's `Find:` over the apps, the library and the docs,
+  and fails on any hit: the corpus moves in the same change as the language, and each `Find:`
+  is shown to come up empty on code that has moved.
+- The same test runs `declare-changes` on an old program (`test/fixtures/migration/`), so each
+  `Find:` is also shown to find what it should.
+- The push gate refuses a pending release whose reference lost a public member since the last
+  tag (`docs/declare-model.json`) and whose notes have no `## Changes to make`.
 
 ## What holds it together
 

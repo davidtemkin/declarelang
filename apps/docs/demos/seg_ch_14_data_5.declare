@@ -5,8 +5,8 @@ App [ width = 380, height = 220, fill = white, textColor = black,
         layout: SimpleLayout [ axis = y, spacing = 12 ],
         Field [ label = "Name", stacked = true,
             entry: TextInput [ width = 240, name = "name", required = "Enter a name.",
-                text = { app.draft },
-                onInput(v: string) { app.draft = v }
+                value = { app.draft },
+                commit(v: string) { app.draft = v }
                 ]
             ],
         Button [ label = "Add", primary = true,

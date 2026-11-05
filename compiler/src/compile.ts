@@ -44,6 +44,7 @@
 // guesses, and phased diagnostics (syntax → types → resolution) beat noisy
 // ones.
 
+import { DECLARE_VERSION, compareReleases } from "./version.js";
 import { parseProgram, applyLineMap, type Element, type Program, type ClassDecl } from "../../runtime/dist/parser.js";
 import { DeclareError, DeclareErrors, type Pos } from "../../runtime/dist/errors.js";
 import { check } from "../../runtime/dist/check.js";
@@ -228,6 +229,9 @@ const CALLEE_GLOBALS = new Set([...CONSTRUCTOR_NAMES, "colorWithAlpha"]);
  *  partial paren (`(a + b) * c`, an arrow `(a) => a`) is left alone. Runs on the
  *  datapath-neutralized text so an island body still parses. */
 function wholeBodyParen(src: string): { inner: string; start: number } | null {
+  // the body as written opens with the parenthesis — a datapath's fill blanks its
+  // `:@[`, which left `{ :@[(key)] }`'s key looking like a whole-body ( … )
+  if (!src.trimStart().startsWith("(")) return null;
   const text = fillDatapaths(src);
   const sf = ts.createSourceFile("paren.ts", text, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   if (sf.statements.length !== 1) return null;
@@ -237,6 +241,10 @@ function wholeBodyParen(src: string): { inner: string; start: number } | null {
   const start = inner.getStart(sf);
   return { inner: src.slice(start, inner.getEnd()).trim(), start };
 }
+
+/** How many parts a written release names — `"0.6"` two, `"0.6.1"` three — so a
+ *  program written for "0.6" is current under 0.6.4. */
+function releaseDepth(v: string): number { return v.split(".").length; }
 
 /** A compile result. `source` is the resolved program (null when there are
  *  errors); `deps` is the extracted `{ }`-constraint dependency list (walk-order
@@ -573,8 +581,9 @@ function centersByHand(src: string, axis: "x" | "y", classrootIsParent: boolean)
 function idiomDiagnostics(
   program: Program,
   schemas: Record<string, ClassSchema>
-): { warnings: DeclareError[]; hints: DeclareError[] } {
+): { warnings: DeclareError[]; hints: DeclareError[]; errors: DeclareError[] } {
   const warnings: DeclareError[] = [];
+  const errors: DeclareError[] = [];
   const hints: DeclareError[] = [];
   const classByBody = new Map<Element, ClassDecl>(program.classes.map((c) => [c.body, c]));
   const classByName = new Map<string, ClassDecl>(program.classes.map((c) => [c.name, c]));
@@ -696,7 +705,10 @@ function idiomDiagnostics(
       const events = eventsOf(answering);
       for (const m of el.methods) {
         const ev = eventOfHandler(m.name);
-        if (ev !== null && !events.includes(ev) && !/^onMouse(Down|Up|Move|Over|Out)$/.test(m.name)) {
+        // an override of a method a base class declares (TextInput's onEnter) is no
+        // misspelt handler (the library's own declaration of such a hook is dropped below)
+        const overrides = chainBodies(decl !== undefined ? decl.base : el.tag).some((bd) => bd.methods.some((x) => x.name === m.name));
+        if (ev !== null && !events.includes(ev) && !overrides && !/^onMouse(Down|Up|Move|Over|Out)$/.test(m.name)) {
           warnings.push(Diag.unknownHandler(decl !== undefined ? decl.name : el.tag, m.name, events.map(handlerName), m.pos));
         }
       }
@@ -726,6 +738,26 @@ function idiomDiagnostics(
     // declaring press() is the definition, not an override of itself, while
     // `class Fancy extends Button` overriding it is caught like any use site.
     const receiving = decl !== undefined ? schemas[decl.base] : schemas[el.tag];
+
+    // `<->` binds a CONTROL'S VALUE: the shorthand's commit is one only a value
+    // control calls, so on anything else — a View's width, a field's placeholder
+    // — it would be a one-way constraint that silently never writes back.
+    for (const a of el.attrs) {
+      if (a.shorthand !== true) continue;
+      const who = decl !== undefined ? decl.name : el.tag;
+      if (receiving === undefined || !descendsFrom(receiving, "ValueControl")) {
+        errors.push(new DeclareError(`'${a.name} <-> …' binds a control's value, and ${who} is not a value control — <-> is for Checkbox, TextInput, Slider and the rest (ValueControl). Constrain it one way, '${a.name} = { … }', and write your state from what the person did`, a.pos));
+        continue;
+      }
+      // the value attribute is what the class's fieldValue names (`fieldValue = { checked }`)
+      const levels = [el, ...chainBodies(decl !== undefined ? decl.base : el.tag)];
+      const fv = levels.flatMap((b) => b.attrs).find((x) => x.name === "fieldValue" && x.value.kind === "code");
+      const named = fv === undefined ? null : /^\s*(?:this\.)?([A-Za-z_$][\w$]*)\s*$/.exec((fv.value as { src: string }).src)?.[1] ?? null;
+      if (named !== null && named !== a.name) {
+        errors.push(new DeclareError(`'${a.name} <-> …' — ${who}'s value is '${named}', and the person's change goes only there: write '${named} <-> …'. To drive '${a.name}', constrain it: '${a.name} = { … }'`, a.pos));
+      }
+    }
+
     if (receiving !== undefined && descendsFrom(receiving, "Button")) {
       for (const m of el.methods) {
         if (m.name === "press") warnings.push(Diag.buttonPressOverride(decl !== undefined ? decl.name : el.tag, m.pos));
@@ -807,25 +839,11 @@ function idiomDiagnostics(
       if (m !== null) warnings.push(Diag.alphaAsFraction(m[1], pos as Pos));
     }
 
-    // 4036 — commitOn on a field whose text is not two-way: it times when an
-    // edit commits into the field's datapath, and a one-way text commits nothing,
-    // so onInput runs on every edit and the field shows only what it writes
-    if (el.attrs.some((a) => a.name === "commitOn")) {
-      const sch = schemas[el.tag] as ClassSchema | undefined;
-      if (sch !== undefined && descendsFrom(sch, "TextInput")) {
-        const bodies: Element[] = [el];
-        for (let c = program.classes.find((k) => k.name === el.tag), n = 0; c !== undefined && n < 50; c = program.classes.find((k) => k.name === c!.base), n++) bodies.push(c.body);
-        const twoWay = bodies.some((b) => b.attrs.some((a) => a.name === "text" && a.bind === "two"));
-        const at = el.attrs.find((a) => a.name === "commitOn")!;
-        if (!twoWay) warnings.push(Diag.commitOnOneWay(el.name ?? el.tag, at.pos));
-      }
-    }
-
     for (const c of el.children) walk(c, el, classRoot);
   };
   for (const c of program.classes) walk(c.body, null, c.body);
   walk(program.root, null, null);
-  return { warnings, hints };
+  return { warnings, hints, errors };
 }
 
 /** Names bound in every body without being members: the scope-noun arguments of
@@ -1304,12 +1322,20 @@ async function compileUnquieted(source: string, opts: CompileOptions, seen: { fl
   for (const cls of program.classes) r.resolveElement(cls.body, [], null);
   for (const s of program.styles) r.resolveBundle(s.body);
   r.resolveElement(program.root, [], program.root);
+  // the release the program says it was written for (migration.md §2.1)
+  if (program.declareVersion !== undefined) {
+    const { version, pos } = program.declareVersion;
+    const order = compareReleases(version, DECLARE_VERSION);
+    if (order > 0) r.errors.push(Diag.versionNewer(version, DECLARE_VERSION, pos));
+    else if (compareReleases(version, DECLARE_VERSION.split(".").slice(0, releaseDepth(version)).join(".")) < 0) r.warnings.push(Diag.versionOlder(version, DECLARE_VERSION, (opts.mainId ?? "app.declare").split("/").pop()!, pos));
+  }
   r.warnings.push(...smallFieldWarnings(program, preludeLen));
   r.warnings.push(...richTextTagShadowWarnings(program));
   r.warnings.push(...pageLookupWarnings(program));
   r.warnings.push(...coldLoadWarnings);
   const idiom = idiomDiagnostics(program, r.schemas);
   r.warnings.push(...idiom.warnings);
+  r.errors.push(...idiom.errors);
   const accessible = opts.accessibility ?? program.flags?.accessibility ?? true;
   const libraryAt = inLibrary(preludeLen, libSources, libIds, libFrom);
   // A program's script name meeting a member inside a LIBRARY class is no
@@ -1318,6 +1344,8 @@ async function compileUnquieted(source: string, opts: CompileOptions, seen: { fl
   for (let i = r.warnings.length - 1; i >= 0; i--) {
     const w = r.warnings[i];
     if (w.code === "DECLARE4002" && /the script \{ \} binding/.test(w.message) && w.pos != null && libraryAt(w.pos.offset)) r.warnings.splice(i, 1);
+    // a library hook named on… (TextInput's onEnter) is declared on purpose, for programs to override
+    else if (w.code === "DECLARE4019" && w.pos != null && libraryAt(w.pos.offset)) r.warnings.splice(i, 1);
   }
   const a11y = accessibilityDiagnostics(program, r.schemas, { inLibrary: libraryAt, warnings: accessible });
   r.errors.push(...a11y.errors);
@@ -1557,10 +1585,40 @@ function registerSpans(program: Program, text: string, spans: Map<object, BodySp
     const body = (owner as Record<string, string>)[field];
     if (text.startsWith(body, start)) spans.set(owner, { start, end: start + body.length, field, prefix: "", suffix: "" });
   };
+  // `value <-> place` is emitted as what it lowered to — `value = { place }`
+  // and `commit(v: any) { place = v }`, each body as resolved — so text that
+  // is parsed again (a compile that crossed a worker boundary) holds no
+  // shorthand to lower a second time, unresolved
+  const twoWay = (el: Element, a: Element["attrs"][number]): boolean => {
+    const m = el.methods.find((x) => x.name === "commit" && x.bodyPos === a.pos);
+    const op = text.indexOf("<->", a.pos.offset);
+    const v = a.value as { kind: string; src?: string; path?: string; pos: Pos };
+    if (m === undefined || op < 0 || op > v.pos.offset) return false;
+    let end: number;
+    if (v.kind === "path") {
+      const lit = /^:(?:[^\s,[\]]|\[[^\]]*\])+/.exec(text.slice(v.pos.offset));
+      if (lit === null) return false;
+      end = v.pos.offset + lit[0].length;
+      spans.set({ src: "= " + lit[0] }, { start: op, end, field: "src", prefix: "", suffix: "" });
+    } else if (text[v.pos.offset] === "{") {
+      end = v.pos.offset + 1 + v.src!.length + 1;
+      if (text[end - 1] !== "}") return false;
+      spans.set(a.value, { start: op, end, field: "src", prefix: "= {", suffix: "}" });
+    } else {
+      if (!text.startsWith(v.src!, v.pos.offset)) return false;
+      end = v.pos.offset + v.src!.length;
+      spans.set(a.value, { start: op, end, field: "src", prefix: "= { ", suffix: " }" });
+    }
+    spans.set(m, { start: end, end, field: "body", prefix: ", commit(v: any) {", suffix: "}" });
+    return true;
+  };
   const walk = (el: Element): void => {
-    for (const a of el.attrs) if (a.value.kind === "code") add(a.value, "src", a.value.pos.offset + 1);
+    for (const a of el.attrs) {
+      if (a.shorthand === true && twoWay(el, a)) continue;
+      if (a.value.kind === "code") add(a.value, "src", a.value.pos.offset + 1);
+    }
     for (const d of el.decls) if (d.def?.kind === "code") add(d.def, "src", d.def.pos.offset + 1);
-    for (const m of el.methods) add(m, "body", m.bodyPos.offset + 1);
+    for (const m of el.methods) if (!spans.has(m)) add(m, "body", m.bodyPos.offset + 1);
     for (const c of el.children) walk(c);
   };
   walk(program.root);
@@ -2079,54 +2137,26 @@ class Resolver {
     }
   }
 
-  /** A `<->` needs a DATASET to edit. The arrow's right-hand side names a place
-   *  in data — a static `:field`, or a `{ }` that yields the field's name at
-   *  runtime (the generic-editor form) — and both resolve against the nearest
-   *  enclosing `datapath`. With no datapath anywhere above it, there is no place
-   *  to write: the binding is inert, and it was inert SILENTLY, clean through
-   *  every rung of verify.
-   *
-   *  That silence is the whole bug. It is also how `text <-> { app.note }` reads
-   *  as if it two-way binds an ordinary slot — the `{ }` is evaluated for a field
-   *  NAME, so `{ app.note }` binds to a dataset field literally called "start",
-   *  finds nothing, and does nothing in either direction. declare.md carries that
-   *  exact line as an example, so it is the shape an author is most likely to
-   *  write first.
-   *
-   *  CLASS BODIES ARE EXEMPT. A class written to be dropped into a datapath'd
-   *  context (`class Row extends View [ TextInput [ text <-> :name ] ]`) has no
-   *  datapath of its own and is entirely correct — its cursor arrives from the use
-   *  site, which is not visible here. Only the main tree, where the whole chain up
-   *  to `App` is in hand, can say for certain that nothing supplies one. */
+  /** `value <-> :field` needs a DATASET to edit: the datapath resolves against the
+   *  nearest enclosing `datapath`, and with none anywhere above it there is no place
+   *  to show or to write — the control would do nothing in either direction, clean
+   *  through every rung of verify. CLASS BODIES ARE EXEMPT: a class written to be
+   *  dropped into a datapath'd context (`class Row extends View [ TextInput [ value
+   *  <-> :name ] ]`) gets its cursor from the use site, which is not visible here.
+   *  Only the main tree, where the chain up to `App` is in hand, can say for certain. */
   checkTwoWayScope(el: Element, levels: Element[], mainRoot: Element | null): void {
     if (mainRoot === null) return;                       // class body — unknowable, see above
-    const twoWay = el.attrs.filter((a) => a.bind === "two");
-    if (twoWay.length === 0) return;
+    const bound = el.attrs.filter((a) => a.shorthand === true && a.value.kind === "path");
+    if (bound.length === 0) return;
     // a datapath anywhere up the chain, including one a State applies to a level
     const supplies = (e: Element): boolean =>
       e.attrs.some((a) => a.name === "datapath") ||
       e.children.some((c) => c.attrs.some((a) => a.name === "datapath"));
     if (levels.some(supplies)) return;
-    // The write-back spelling differs by family and the message must name the
-    // one that exists on THIS class: a TextInput delivers through
-    // the `input` EVENT (`onInput(v: string)`), a Control (Checkbox, Slider,
-    // RadioGroup) through the `input` METHOD (`input(v: …)`, Contract 1). Naming
-    // the wrong one sends the reader to a member that is legal to declare, never
-    // called, and silent — which is the failure this whole check exists to end.
-    const schema = this.schemas[el.tag] as ClassSchema | undefined;
-    const hasInputEvent = (s: ClassSchema | undefined): boolean => {
-      for (let c = s; c !== undefined && c !== null; c = c.base ?? undefined) {
-        if (c.events?.includes("input") === true) return true;
-      }
-      return false;
-    };
-    const writeBack = hasInputEvent(schema)
-      ? `'onInput(v: string) { app.note = v }'`
-      : `'input(v: …) { app.note = v }'`;
-    for (const a of twoWay) {
-      const wrote = a.value.kind === "path" ? `:${a.value.path}` : "{ … }";
+    for (const a of bound) {
+      const wrote = a.value.kind === "path" ? `:${a.value.path}` : "…";
       this.errors.push(new DeclareError(
-        `'${a.name} <-> ${wrote}' has no data to edit — a two-way binding writes into a dataset through the nearest enclosing 'datapath', and nothing above this declares one, so the binding would do nothing in either direction. Put the editor inside a view with 'datapath = { … }' over a Dataset — or, to drive an ordinary attribute, use the value pattern instead: '${a.name} = { app.note }' one-way plus ${writeBack} to write back`,
+        `'${a.name} <-> ${wrote}' has no data to edit — a datapath resolves against the nearest enclosing 'datapath', and nothing above this declares one. Put the control inside a view with 'datapath = { … }' over a Dataset — or bind it to an attribute instead: '${a.name} <-> app.${a.name}'`,
         a.pos));
     }
   }

@@ -37,7 +37,7 @@ class BeamPanel [ width = 260, theme = { SanFranciscoDark }, textColor = { SanFr
         Text [ fontWeight = semibold, text = "Beam" ],
         SettingRow [ datapath = :settings[] ],
         Checkbox [ label = "Lines add where they cross", checked = { classroot.beam.additive },
-            input(v: boolean) { classroot.beam.additive = v }
+            commit(v: boolean) { classroot.beam.additive = v }
             ],
         looks: View [ width = 100%,
             layout: SimpleLayout [ axis = x, spacing = 8 ],
@@ -60,6 +60,6 @@ class SettingRow [ width = 100%,
         Text [ x = end, fontSize = 12, textColor = { SanFranciscoDark.textMuted }, text = { (:value as number).toFixed(2) } ]
         ],
     Slider [ width = 100%, min = :min, max = :max, value = :value,
-        input(v: number) { :value = v }
+        commit(v: number) { :value = v }
         ]
     ]

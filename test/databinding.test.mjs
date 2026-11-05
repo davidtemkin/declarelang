@@ -1,16 +1,21 @@
-// Two-way data binding (`<->`) + the editor session (language §9, the
-// leaf-input exception). The dataset owns the committed value; the editor owns
-// the edit session (draft / valid / error / dirty / commit). These tests drive
-// the MODEL directly (no backend) — the native-element edit path is exercised by
-// the browser perceptual pass; here we prove the binding semantics.
+// Two-way binding (`<->`) and editing a value (docs/system-design/editing-values.md).
+// `value <-> place` is shorthand for `value = { place }` plus a `commit` that writes
+// the place, on any value control. The control shows the place; a person's change is
+// put to `admit`, shown, and handed to `commit`; while an edit is open the control
+// shows the person's change, and any other change to the place ends the edit. These
+// tests drive the MODEL directly (no backend): a person's change is what the native
+// element reports to the field (`_typed`), or a control's own `edit(v)` — the
+// native-element path itself is the browser suite's (field.assert.mjs, the sampler).
 import assert from "node:assert";
 import { compileProgram } from "../compiler/dist/declarec.js";
-import { instantiate, settle } from "../runtime/dist/index.js";
-import { edited } from "../runtime/dist/editor.js"; // simulate a native edit (what onNativeInput calls)
+import { instantiate, settle, provideMeasurer } from "../runtime/dist/index.js";
+import { approximateMeasurer } from "../compiler/dist/headless.js";
+
+provideMeasurer(approximateMeasurer());   // a checkbox's label is measured text
 
 let pass = 0, fail = 0;
-function test(name, fn) {
-  try { fn(); pass++; console.log("  ok —", name); }
+async function test(name, fn) {
+  try { await fn(); pass++; console.log("  ok —", name); }
   catch (e) { fail++; console.log("  FAIL —", name, "\n     ", e.message); }
 }
 async function build(src) {
@@ -20,127 +25,127 @@ async function build(src) {
   settle();
   return app;
 }
+/** What the native element reports when the person types `t` into a field. */
+const type = (field, t) => { field._typed(t); settle(); };
 
-console.log("two-way data binding (<->)");
+console.log("two-way binding (<->) and editing a value");
 
 const BASIC = `
 App [
   store: Dataset { { "rec": { "name": "Alice" } } },
   form: View [ datapath = { app.store.value.rec },
-    field: TextInput [ text <-> :name ],
+    field: TextInput [ accessibilityLabel = "Name", value <-> :name ],
   ],
 ]`;
 
-test("seeds the draft from the datapath", async () => {
+await test("shows the place it is bound to", async () => {
   const app = await build(BASIC);
+  assert.equal(app.form.field.value, "Alice");
   assert.equal(app.form.field.text, "Alice");
 });
 
-test("commit writes the draft back into the dataset", async () => {
+await test("a person's change is committed to the place", async () => {
   const app = await build(BASIC);
-  app.form.field.text = "Bob";
-  app.form.field.commit();
-  settle();
+  type(app.form.field, "Bob");
   assert.equal(app.store.value.rec.name, "Bob");
 });
 
-test("an external dataset change reseeds the field", async () => {
+await test("a change to the place shows when nobody is editing, and ends an edit that is open", async () => {
   const app = await build(BASIC);
-  app.form.field.text = "edited"; // uncommitted draft
-  app.store.set(["rec", "name"], "Carol"); // a new value underneath
-  settle();
-  assert.equal(app.form.field.text, "Carol", "cursor/value change resets the session");
+  const f = app.form.field;
+  f.beginEdit(); f.edit("Al"); settle();
+  assert.equal(f.editing, true);
+  app.store.set(["rec", "name"], "Carol"); settle();
+  assert.equal(f.editing, false, "a change from elsewhere ends the edit");
+  assert.equal(f.text, "Carol", "and shows");
 });
 
-test("moving the cursor to a new record reseeds (no remount)", async () => {
+await test("moving the cursor to a new record shows that record (no remount)", async () => {
   const app = await build(`
     App [
       store: Dataset { { "a": { "name": "Ann" }, "b": { "name": "Bea" } } },
       which: string = "a",
       form: View [ datapath = { app.store.value[app.which] },
-        field: TextInput [ text <-> :name ],
+        field: TextInput [ accessibilityLabel = "Name", value <-> :name ],
       ],
     ]`);
   assert.equal(app.form.field.text, "Ann");
-  app.which = "b";
-  settle();
-  assert.equal(app.form.field.text, "Bea", "the same field follows the cursor to record b");
+  app.which = "b"; settle();
+  assert.equal(app.form.field.text, "Bea");
 });
 
-test("commitOn=input commits live on each edit", async () => {
-  const app = await build(BASIC); // default commitOn is "input"
-  app.form.field.text = "Dan";
-  edited(app.form.field, "text", app.form.field.commitOn); // what a native keystroke triggers
-  settle();
-  assert.equal(app.store.value.rec.name, "Dan");
+await test("while an edit is open the field shows the person's text, whatever commit does to the value", async () => {
+  const app = await build(`App [ size: number = 32,
+      f: TextInput [ accessibilityLabel = "Size", value = { String(app.size) },
+        commit(t: string) { if (t != "") app.size = Math.max(8, Number(t)) } ] ]`);
+  const f = app.f;
+  f.beginEdit(); f.edit("4"); settle();
+  assert.equal(app.size, 8, "commit clamped");
+  assert.equal(f.text, "4", "the person's 4 stays on screen");
+  f.edit("48"); settle();
+  assert.equal(app.size, 48);
+  f.endEdit(); settle();
+  assert.equal(f.text, "48", "the edit over, the field shows the value");
 });
 
-test("commitOn=manual holds the draft until commit()", async () => {
+await test("admit refuses a change before it is shown, or tidies it", async () => {
+  const app = await build(`App [ code: string = "",
+      f: TextInput [ accessibilityLabel = "Code", value <-> app.code,
+        admit(t: string) -> string | null { return /^[0-9 ]*$/.test(t) ? t.replace(/ /g, "") : null } ] ]`);
+  const f = app.f;
+  f.beginEdit(); f.edit("12a"); settle();
+  assert.equal(app.code, "", "refused: nothing shown, nothing committed");
+  f.edit("12 34"); settle();
+  assert.equal(app.code, "1234", "tidied");
+  assert.equal(f.text, "1234");
+});
+
+await test("commitOn = \"end\" commits once, when the edit ends; cancelEdit commits nothing", async () => {
   const app = await build(`
     App [
       store: Dataset { { "rec": { "name": "Alice" } } },
       form: View [ datapath = { app.store.value.rec },
-        field: TextInput [ text <-> :name, commitOn = "manual" ],
+        field: TextInput [ accessibilityLabel = "Name", value <-> :name, commitOn = "end" ],
       ],
     ]`);
-  app.form.field.text = "Zed";
-  edited(app.form.field, "text", app.form.field.commitOn);
-  settle();
-  assert.equal(app.store.value.rec.name, "Alice", "manual: not written yet");
-  assert.equal(app.form.field.dirty, true, "draft differs from committed → dirty");
-  app.form.field.commit();
-  settle();
-  assert.equal(app.store.value.rec.name, "Zed", "now committed");
-  assert.equal(app.form.field.dirty, false, "clean after commit");
+  const f = app.form.field;
+  f.beginEdit(); f.edit("Zed"); settle();
+  assert.equal(app.store.value.rec.name, "Alice", "not written while the edit is open");
+  assert.equal(f.text, "Zed");
+  f.endEdit(); settle();
+  assert.equal(app.store.value.rec.name, "Zed", "written when it ends");
+  f.beginEdit(); f.edit("scratch"); settle();
+  f.cancelEdit(); settle();
+  assert.equal(app.store.value.rec.name, "Zed", "a cancelled edit commits nothing");
+  assert.equal(f.text, "Zed", "and the field shows the value again");
 });
 
-test("validate: an invalid draft is not committed and surfaces an error", async () => {
+await test("validate only judges: every change is committed, and the field says what is wrong once judged", async () => {
   const app = await build(`
     App [
       store: Dataset { { "rec": { "zip": "94110" } } },
       form: View [ datapath = { app.store.value.rec },
-        field: TextInput [ text <-> :zip, commitOn = "manual",
-                           validate(v: object) { return /^[0-9]{5}$/.test(v) ? null : "5 digits" } ],
+        field: TextInput [ accessibilityLabel = "Zip", value <-> :zip,
+          validate(v: string) -> string { return /^[0-9]{5}$/.test(v) ? "" : "5 digits" } ],
       ],
     ]`);
   const f = app.form.field;
-  f.text = "12ab";
-  edited(f, "text", "input"); // try to commit live
-  settle();
-  assert.equal(app.store.value.rec.zip, "94110", "invalid draft never reaches the dataset");
+  type(f, "12ab");
+  assert.equal(app.store.value.rec.zip, "12ab", "validate holds nothing back");
   assert.equal(f.valid, false);
   assert.equal(f.problem, "5 digits");
-  assert.equal(f.error, "", "said once the field is judged");
+  assert.equal(f.error, "", "said once the field is judged — left, submitted, or judge()d");
   f.judge(); settle();
   assert.equal(f.error, "5 digits");
-  // a valid value does commit
-  f.text = "60614";
-  edited(f, "text", "input");
-  settle();
-  assert.equal(app.store.value.rec.zip, "60614");
+  type(f, "60614");
   assert.equal(f.valid, true);
   assert.equal(f.error, "");
 });
 
-test("revert discards the draft back to the committed value", async () => {
-  const app = await build(`
-    App [
-      store: Dataset { { "rec": { "name": "Alice" } } },
-      form: View [ datapath = { app.store.value.rec },
-        field: TextInput [ text <-> :name, commitOn = "manual" ],
-      ],
-    ]`);
-  app.form.field.text = "scratch";
-  app.form.field.revert();
-  settle();
-  assert.equal(app.form.field.text, "Alice");
-  assert.equal(app.form.field.dirty, false);
-});
-
-test("dynamic `<-> { expr }` binds a runtime-named field (generic editor)", async () => {
+await test("a field chosen by name: `value <-> { :@[(name)] }`", async () => {
   const app = await build(`
     class Entry extends View [ which: string = "",
-      input: TextInput [ text <-> { classroot.which } ] ]
+      input: TextInput [ accessibilityLabel = "Entry", value <-> { :@[(classroot.which)] } ] ]
     App [
       store: Dataset { { "rec": { "notes": "N0", "location": "L0" } } },
       form: View [ datapath = { app.store.value.rec },
@@ -150,123 +155,72 @@ test("dynamic `<-> { expr }` binds a runtime-named field (generic editor)", asyn
     ]`);
   assert.equal(app.form.a.input.text, "N0");
   assert.equal(app.form.b.input.text, "L0");
-  app.form.a.input.text = "N1"; app.form.a.input.commit(); settle();
+  type(app.form.a.input, "N1");
   assert.equal(app.store.value.rec.notes, "N1");
   assert.equal(app.store.value.rec.location, "L0", "editing one field leaves the sibling untouched");
 });
 
-async function rejects(src) {
-  const r = await compileProgram(src);
-  return r.errors.length > 0;
-}
-const errorsOf = async (src) => (await compileProgram(src)).errors.map((e) => e.message).join("\n");
-test("check rejects `<->` misuse (non-editor, literal, many-path)", async () => {
-  assert.ok(await rejects(`App [ box: View [ width <-> :w ] ]`), "<-> on a non-editor");
-  assert.ok(await rejects(`App [ f: TextInput [ text <-> "hi" ] ]`), "<-> to a literal");
-  assert.ok(await rejects(`App [ s: Dataset { {"a":[]} }, form: View [ datapath = { app.s.value }, f: TextInput [ text <-> :a[] ] ] ]`), "<-> to a many-path");
-  // and a valid one still compiles
-  assert.ok(!await rejects(`App [ s: Dataset { {"r":{"n":"x"}} }, form: View [ datapath = { app.s.value.r }, f: TextInput [ text <-> :n ] ] ]`));
+await test("on any value control: a checkbox and a slider bind both ways", async () => {
+  const app = await build(`App [ muted: boolean = false, volume: number = 10,
+      c: Checkbox [ label = "Mute", checked <-> app.muted ],
+      s: Slider [ accessibilityLabel = "Volume", value <-> app.volume ] ]`);
+  app.c.edit(true); settle();
+  assert.equal(app.muted, true);
+  app.s.edit(40); settle();
+  assert.equal(app.volume, 40);
+  app.volume = 5; settle();
+  assert.equal(app.s.value, 5, "and the place drives the control");
 });
 
-// ── a `<->` with NOTHING TO EDIT (findings A2, 2026-08-03) ──────────────────
-// The arrow's right-hand side names a place in DATA — a static `:field`, or a
-// `{ }` yielding the field's name at runtime — and both resolve against the
-// nearest enclosing `datapath`. With no datapath above it there is no place to
-// write, and the binding was inert SILENTLY: clean through all six rungs of
-// verify, doing nothing in either direction.
-//
-// The likeliest way to write one is `text <-> { app.note }`, which reads as if
-// it two-way binds an ordinary slot. It does not: the `{ }` is evaluated for a
-// field NAME, so this binds to a dataset field literally called "start" (the
-// slot's value), finds nothing, and moves nothing. `declare.md` carries that
-// line as an example, which is how it reached the report.
-test("a `<->` with no enclosing datapath is refused, not silently inert", async () => {
-  assert.ok(await rejects(`App [ f: TextInput [ text <-> :name ] ]`),
-    "a static path with no datapath above it");
-  assert.ok(await rejects(`App [ note: string = "s", f: TextInput [ text <-> { app.note } ] ]`),
-    "the { } form — the shape declare.md's example invites");
-  const msg = await errorsOf(`App [ note: string = "s", f: TextInput [ text <-> { app.note } ] ]`);
+const errorsOf = async (src) => (await compileProgram(src)).errors.map((e) => e.message).join("\n");
+await test("misuse is refused, each naming what works", async () => {
+  assert.match(await errorsOf(`App [ d: Dataset { { "w": 3 } }, View [ datapath = { app.d.value }, width <-> :w ] ]`), /is not a value control/);
+  assert.match(await errorsOf(`App [ p: string = "", TextInput [ accessibilityLabel = "x", placeholder <-> app.p ] ]`), /TextInput's value is 'value'/);
+  assert.match(await errorsOf(`App [ f: TextInput [ accessibilityLabel = "x", value <-> "hi" ] ]`), /binds a PLACE/);
+  assert.match(await errorsOf(`App [ s: Dataset { {"a":[]} }, form: View [ datapath = { app.s.value }, f: TextInput [ accessibilityLabel = "x", value <-> :a[] ] ] ]`), /not a many-path/);
+  assert.match(await errorsOf(`App [ s: string = "", TextInput [ accessibilityLabel = "x", value <-> app.s, commit(v: string) { app.s = v } ] ]`), /already says where the person's change goes/);
+  assert.equal(await errorsOf(`App [ s: Dataset { {"r":{"n":"x"}} }, form: View [ datapath = { app.s.value.r }, f: TextInput [ accessibilityLabel = "x", value <-> :n ] ] ]`), "", "a valid one compiles");
+});
+
+// ── a `<->` with NOTHING TO EDIT (findings A2, 2026-08-03): a datapath place
+// resolves against the nearest enclosing `datapath`; with none above it the
+// binding would do nothing in either direction, clean through every rung.
+await test("a datapath place with no enclosing datapath is refused, not silently inert", async () => {
+  const msg = await errorsOf(`App [ f: TextInput [ accessibilityLabel = "x", value <-> :name ] ]`);
   assert.match(msg, /has no data to edit/);
   assert.match(msg, /datapath = \{ … \}/, "it names the fix that makes the arrow work");
-  assert.match(msg, /onInput\(v: string\)/, "and the value pattern, for driving an ordinary slot");
+  assert.match(msg, /value <-> app\.value/, "and the attribute form, for binding your own state");
 });
 
-test("a datapath ABOVE the editor still passes — the check is scope, not shape", async () => {
-  assert.ok(!await rejects(`App [ s: Dataset { {"r":{"n":"x"}} },
-      form: View [ datapath = { app.s.value.r }, f: TextInput [ text <-> :n ] ] ]`));
-  assert.ok(!await rejects(`App [ s: Dataset { {"r":{"n":"x"}} }, w: string = "n",
-      form: View [ datapath = { app.s.value.r }, f: TextInput [ text <-> { app.w } ] ] ]`),
-    "the generic-editor form is untouched");
+await test("a CLASS BODY is exempt — its cursor arrives from the use site", async () => {
+  assert.equal(await errorsOf(`class Row extends View [ TextInput [ accessibilityLabel = "x", value <-> :name ] ]
+    App [ d: Dataset { {"rows":[{"name":"a"}]} }, View [ datapath = :rows[], Row [ ] ] ]`), "");
+  assert.equal(await errorsOf(`class Row extends View [ TextInput [ accessibilityLabel = "x", value <-> :name ] ]
+    App [ Row [ ] ]`), "", "still exempt when the use site supplies nothing — unknowable, so never guessed");
 });
 
-test("a CLASS BODY is exempt — its cursor arrives from the use site", async () => {
-  // a component written to be dropped into a datapath'd context has no
-  // datapath of its own and is entirely correct; the use site is not visible
-  // from inside the class, so only the main tree can say nothing supplies one
-  assert.ok(!await rejects(`class Row extends View [ TextInput [ text <-> :name ] ]
-    App [ d: Dataset { {"rows":[{"name":"a"}]} },
-      View [ datapath = :rows[], Row [ ] ] ]`));
-  assert.ok(!await rejects(`class Row extends View [ TextInput [ text <-> :name ] ]
-    App [ Row [ ] ]`), "still exempt even when the use site supplies nothing — unknowable, so never guessed");
-});
-
-// ── the CONTROLLED field (report of 2026-08-03, found by the A2 fix) ────────
-// `text = { app.who }` plus a write-back is what the A2 diagnostic recommends,
-// and on a TextInput it produced a DEAD field: the constraint owns the slot, so
-// onNativeInput reverted the element and RETURNED — never firing `input`. No
-// edit, no event, no error at any rung, and no way for the app to drive the
-// field at all. An app could not clear its own form.
-//
-// The keystroke still must not land in `text` (a `{ }` is the value's source).
-// What was missing is that the attempt is the only news the program gets: the
-// event is the entire mechanism of the controlled pattern, since the handler
-// writes the slot the constraint reads and the value returns through it.
-test("a CONTROLLED text field still delivers the edit as an event", async () => {
+// ── the CONTROLLED field (report of 2026-08-03): a field whose value the program
+// owns must still deliver the person's change, and the program must be able to
+// drive it — clear it, above all.
+await test("a CONTROLLED field delivers the change through commit, and the program can clear it", async () => {
   const app = await build(`App [ who: string = "seeded",
-      f: TextInput [ text = { app.who }, onInput(v: string) { app.who = v } ] ]`);
-  assert.equal(app.f.text, "seeded", "the constraint seeds it");
-  edited(app.f, "text", app.f.commitOn);           // what a native keystroke triggers
-  assert.equal(app.f.text, "seeded", "an edit does NOT overwrite the constraint");
-  // and the loop closes: the handler writes the slot, the constraint follows
-  app.who = "Ada";
-  settle();
-  assert.equal(app.f.text, "Ada", "the app can drive the field");
-  app.who = "";
-  settle();
-  assert.equal(app.f.text, "", "and can CLEAR it — the case that had no spelling");
+      f: TextInput [ accessibilityLabel = "Who", value = { app.who }, commit(v: string) { app.who = v } ] ]`);
+  assert.equal(app.f.text, "seeded");
+  type(app.f, "Ada");
+  assert.equal(app.who, "Ada", "the change reached the program");
+  app.who = ""; settle();
+  assert.equal(app.f.text, "", "and the program can clear the field");
 });
 
-test("the A2 message names the write-back that exists on THAT class", async () => {
-  // a TextInput delivers through the `input` EVENT, a Control through the `input`
-  // METHOD; naming the wrong one sends the reader to a member that is legal to
-  // declare, never called, and silent — the exact failure this check ends
-  const editor = await errorsOf(`App [ n: string = "s", f: TextInput [ text <-> { app.n } ] ]`);
-  assert.match(editor, /onInput\(v: string\)/, `a TextInput delivers through onInput; got: ${editor}`);
-  assert.ok(!/plus 'input\(v: …\)/.test(editor), "it must not offer the Control spelling here");
-});
-
-test("a method named like an event is dead only when the author never calls it", async () => {
-  const dead = await errorsOf(`App [ f: TextInput [ input(v: string) { } ] ]`);
-  assert.match(dead, /is never called — 'input' is an EVENT here/, `an editor's input(v) saves nothing; got: ${dead}`);
-  const alive = await errorsOf(`class Row extends View [ hold() { }, onClick() { hold() } ]\nApp [ r: Row [ ] ]`);
-  assert.ok(!/never called/.test(alive), `hold() is the author's own verb, and they call it; got: ${alive}`);
-  // a bare call reaches its own class's member: a control's own input(…) call
-  // (a Checkbox's press) keeps that control's input alive, not a field's
-  const other = await errorsOf(`class Tick extends View [ input(v: boolean) { }, onClick() { input(true) } ]\nApp [ t: Tick [ ], f: TextInput [ input(v: string) { } ] ]`);
-  assert.match(other, /TextInput\.input\(…\) is never called/, `another class's bare input(…) excused the field; got: ${other}`);
-});
-
-test("a constrained text with nothing to take the typing is refused, naming onInput", async () => {
-  const dead = await errorsOf(`App [ note: string = "", f: TextInput [ text = { app.note } ] ]`);
-  assert.match(dead, /TextInput\.text is constrained here, so the field cannot take what is typed/, `typing into it does nothing; got: ${dead}`);
-  assert.match(dead, /onInput\(v: string\) \{ app\.note = v \}/);
+await test("a constrained value with nowhere for the change to go is refused, naming commit and <->", async () => {
+  const dead = await errorsOf(`App [ note: string = "", f: TextInput [ accessibilityLabel = "x", value = { app.note } ] ]`);
+  assert.match(dead, /value is constrained here/);
+  assert.match(dead, /value <-> app\.note/, "naming the place the constraint reads");
+  assert.match(dead, /commit\(/);
   for (const ok of [
-    `App [ note: string = "", f: TextInput [ text = { app.note }, onInput(v: string) { app.note = v } ] ]`,
-    `App [ note: string = "", f: TextInput [ initial = { app.note } ] ]`,
-  ]) {
-    const e = await errorsOf(ok);
-    assert.ok(!/cannot take what is typed/.test(e), `${ok}: ${e}`);
-  }
+    `App [ note: string = "", f: TextInput [ accessibilityLabel = "x", value = { app.note }, commit(v: string) { app.note = v } ] ]`,
+    `App [ note: string = "", f: TextInput [ accessibilityLabel = "x", value <-> app.note ] ]`,
+  ]) assert.equal(await errorsOf(ok), "", ok);
 });
 
 // Re-anchoring: a `:path` island inside `datapath = { }` resolves against the
@@ -275,7 +229,7 @@ test("a constrained text with nothing to take the typing is refused, naming onIn
 // re-run and oscillated (null ↔ cursor) until "constraint cycle: …
 // re-evaluated 100 times" — triggered by the first Dataset mutation, with or
 // without a replication beneath (the field repro's PaneB).
-test("datapath = { :detail } re-anchor + nested replication survives settle and mutation", async () => {
+await test("datapath = { :detail } re-anchor + nested replication survives settle and mutation", async () => {
   const app = await build(`
     App [
       db: Dataset { { "v": { "detail": { "details": [
@@ -295,7 +249,7 @@ test("datapath = { :detail } re-anchor + nested replication survives settle and 
   assert.deepEqual(after, ["Colour: Black", "Size: L", "Fit: Slim"], "mutation reconciles, no cycle");
 });
 
-test("datapath = { :detail } re-anchor cycles even WITHOUT a replication beneath (fixed)", async () => {
+await test("datapath = { :detail } re-anchor cycles even WITHOUT a replication beneath (fixed)", async () => {
   const app = await build(`
     App [
       db: Dataset { { "v": { "detail": { "name": "Ada" } } } },
@@ -309,7 +263,7 @@ test("datapath = { :detail } re-anchor cycles even WITHOUT a replication beneath
   assert.equal(app.host.det.t.text, "Grace", "leaf mutation flows through the re-anchor");
 });
 
-test("set([], v) replaces the WHOLE document — the guide's draft-lands spelling — and wakes readers", async () => {
+await test("set([], v) replaces the WHOLE document — the guide's draft-lands spelling — and wakes readers", async () => {
   // field report 2026-08-21: this threw "assign .value to replace it", which
   // the typechecker refuses (value is read-only) — a dead-end loop. The empty
   // path now IS the whole-document replace, one reactive write.
@@ -320,51 +274,35 @@ test("set([], v) replaces the WHOLE document — the guide's draft-lands spellin
   assert.equal(app.form.field.text, "Dora", "readers woke — arrival semantics");
 });
 
-// ── THE SCHEMA FLOOR (typed data, 2026-09-02): on a schema'd dataset the edit
-// session knows the field's declared type — a number field commits the PARSED
-// number, a union commits only a member, and an unreadable draft is an INVALID
-// SESSION (valid=false), never a thrown write and never a string in a number
-// field. Compile refuses `<->` onto fields a text editor cannot edit.
-
-test("schema floor: a number field commits the parsed number; a bad draft is an invalid session, never a throw", async () => {
-  const app = await build(`
-schema Task [ id: string, born: number, status: "open" | "closed" ]
+// ── THE SCHEMA (typed data): `<->` converts nothing, so a field bound to a typed
+// field must hold that type — a text field and a number are a compile error that
+// names the long form, which parses in its commit.
+await test("schema: a text field bound to a number field is a type error naming the conversion", async () => {
+  const msg = await errorsOf(`
+schema Task [ id: string, born: number ]
 App [ width=1, height=1,
-  d: Dataset [ schema = [ tasks[]: Task ] ] { { "tasks": [ { "id": "t1", "born": 5, "status": "open" } ] } },
-  l: View [ datapath = { d.value },
-    row: View [ datapath = :tasks[0],
-      f: TextInput [ text <-> :born ],
-      g: TextInput [ text <-> :status ],
-    ],
-  ],
+  d: Dataset [ schema = [ tasks[]: Task ] ] { { "tasks": [ { "id": "t1", "born": 5 } ] } },
+  l: View [ datapath = { d.value }, row: View [ datapath = :tasks[0],
+    f: TextInput [ accessibilityLabel = "Born", value <-> :born ] ] ],
 ]`);
-  const f = app.l.row.f, g = app.l.row.g;
-  assert.equal(f.text, "5", "seeds as the editor's string");
-  f.text = "42"; edited(f, "text", "input"); settle();
-  assert.strictEqual(app.d.read(["tasks", 0, "born"]), 42, "committed as the NUMBER, not the string");
-  f.text = "abc"; edited(f, "text", "input"); settle();
-  assert.equal(f.valid, false, "unreadable draft = invalid session");
-  assert.equal(f.problem, "must be a number", "the schema's own check is the field's problem");
-  assert.strictEqual(app.d.read(["tasks", 0, "born"]), 42, "…and the data is untouched — no write, no throw");
-  g.text = "closed"; edited(g, "text", "input"); settle();
-  assert.equal(app.d.read(["tasks", 0, "status"]), "closed", "a union member commits");
-  g.text = "paused"; edited(g, "text", "input"); settle();
-  assert.equal(g.valid, false, "a non-member is invalid");
-  assert.match(g.problem, /"open" \| "closed"/);
+  assert.match(msg, /the shorthand converts nothing/);
 });
 
-test("schema floor: <-> onto a boolean or record field refuses at compile, naming the right tool", async () => {
-  const boolSrc = `
-schema Task [ id: string, done: boolean ]
+await test("schema: the long form shows a number converted and parses it back", async () => {
+  const app = await build(`
+schema Task [ id: string, born: number ]
 App [ width=1, height=1,
-  d: Dataset [ schema = [ tasks[]: Task ] ] { { "tasks": [] } },
-  l: View [ datapath = { d.value }, View [ datapath = :tasks[], TextInput [ text <-> :done ] ] ],
-]`;
-  const r1 = await compileProgram(boolSrc, { stripPos: false });
-  assert.match(r1.errors.map((e) => e.message).join(" "), /a text editor cannot edit one; a Checkbox writes immediately/);
-  const recSrc = boolSrc.replace("done: boolean", "done: [ a: string ]").replace(":done", ":done");
-  const r2 = await compileProgram(recSrc, { stripPos: false });
-  assert.match(r2.errors.map((e) => e.message).join(" "), /a two-way binding edits a LEAF value/);
+  d: Dataset [ schema = [ tasks[]: Task ] ] { { "tasks": [ { "id": "t1", "born": 5 } ] } },
+  l: View [ datapath = { d.value }, row: View [ datapath = :tasks[0],
+    f: TextInput [ accessibilityLabel = "Born", value = { String(:born) },
+      commit(t: string) { const n = Number(t); if (t != "" && !isNaN(n)) { :born = n } } ] ] ],
+]`);
+  const f = app.l.row.f;
+  assert.equal(f.text, "5");
+  type(f, "42");
+  assert.strictEqual(app.d.read(["tasks", 0, "born"]), 42, "committed as the NUMBER");
+  type(f, "abc");
+  assert.strictEqual(app.d.read(["tasks", 0, "born"]), 42, "text that isn't a number never reaches the data");
 });
 
 console.log(`\ndatabinding: ${pass} passed, ${fail} failed`);

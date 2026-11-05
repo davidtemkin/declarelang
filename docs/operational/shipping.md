@@ -27,7 +27,8 @@ expensive mistake on this page is assuming a green test run means the tree is cu
 | you run | it builds | it does **not** build |
 |---|---|---|
 | `npx tsc -b` (= `npm run build`) | `runtime/dist`, `compiler/dist` — the JavaScript that Node imports | anything in `bundles/` |
-| `npm test` | runs `tsc -b` first, then every source suite | anything in `bundles/`; no derive, no artifact gate |
+| `npm test` | runs `tsc -b` first, then every source suite; a file still running at 180 s fails | anything in `bundles/`; no derive, no artifact gate |
+| `npm run test:all` | `npm test`, plus the release tier (the tools' browser-driven suites) and the ladder — before a release | as `npm test` |
 | `npm run derive` | every committed artifact whose inputs moved — `bundles/`, the docs model, the prewarm cache, stamped stats, the build id — and **stages what it owns** | nothing else; it runs no tests |
 | `npm run test:derived` | nothing — it *checks* artifacts against a fresh assembly | anything; only meaningful straight after a derive |
 | `npm run build:mac` | the Mac app, via `derive --only tsc,bundles` then Swift | the rest of the derive chain |

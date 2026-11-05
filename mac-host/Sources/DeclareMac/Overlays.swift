@@ -1012,6 +1012,35 @@ final class RichOverlay: NSObject, NSTextViewDelegate, NSLayoutManagerDelegate {
     }
 }
 
+/// A single-line field whose field editor asks before a change lands. AppKit
+/// asks the field (its field editor's delegate) whether a change may happen;
+/// the overlay's answer is the program's `admit` (editing-values.md §7). The
+/// question is NSTextField's own Objective-C method, not visible to Swift, so
+/// it is overridden by its selector and the superclass's answer asked first.
+private let shouldChangeSel = NSSelectorFromString("textView:shouldChangeTextInRange:replacementString:")
+private typealias ShouldChangeIMP = @convention(c) (AnyObject, Selector, NSTextView, NSRange, NSString?) -> Bool
+private func superShouldChange(_ cls: AnyClass, _ obj: AnyObject, _ tv: NSTextView, _ r: NSRange, _ s: String?) -> Bool {
+    guard let m = class_getInstanceMethod(cls, shouldChangeSel) else { return true }
+    return unsafeBitCast(method_getImplementation(m), to: ShouldChangeIMP.self)(obj, shouldChangeSel, tv, r, s as NSString?)
+}
+final class AdmitTextField: NSTextField {
+    var shouldChange: ((NSTextView, NSRange, String?) -> Bool)?
+    @objc(textView:shouldChangeTextInRange:replacementString:)
+    func admitShouldChange(_ tv: NSTextView, _ r: NSRange, _ s: String?) -> Bool {
+        guard superShouldChange(NSTextField.self, self, tv, r, s) else { return false }
+        return shouldChange?(tv, r, s) ?? true
+    }
+}
+/// The same, concealed: the platform's secure field.
+final class AdmitSecureTextField: NSSecureTextField {
+    var shouldChange: ((NSTextView, NSRange, String?) -> Bool)?
+    @objc(textView:shouldChangeTextInRange:replacementString:)
+    func admitShouldChange(_ tv: NSTextView, _ r: NSRange, _ s: String?) -> Bool {
+        guard superShouldChange(NSSecureTextField.self, self, tv, r, s) else { return false }
+        return shouldChange?(tv, r, s) ?? true
+    }
+}
+
 /// A native text field over its view's box: caret, IME, autofill, undo — the
 /// platform's, not an imitation.
 final class EditableOverlay: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
@@ -1036,6 +1065,15 @@ final class EditableOverlay: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
         return v
     }()
     private var multiline = false
+    /// Whether the program's field has an `admit` to ask before a change lands.
+    private var admits = false
+    /// The text `admit` just let through, so its report says it was judged.
+    private var admittedText: String?
+    /// A correction being applied: its own change is not asked about again.
+    private var applying = false
+    /// The text last told to the runtime (or written by it): a report of the
+    /// same text again is not a change.
+    private var reported: String?
     /// A multi-line field whose Return submits; Shift-Return is the line break.
     private var enterSubmits = false
     /// Does this editor WRAP? False means long lines run off to the right and
@@ -1078,9 +1116,23 @@ final class EditableOverlay: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
             self.lastSel = (s, e)
             self.bridge.call("__declareEditSelect", [self.id, s, e])
         }
+        observeUndo()
     }
     private var selectionObserver: NSObjectProtocol?
+    /// Undo and redo in the field: AppKit sends the field no change notification
+    /// for them, nor asks before they land, so the undo manager's own say-so is
+    /// what reports the text they leave (judged by the runtime, as it lands).
+    private var undoObservers: [NSObjectProtocol] = []
     private var lastSel: (Int, Int) = (-1, -1)
+    private func observeUndo() {
+        for name in [Notification.Name.NSUndoManagerDidUndoChange, .NSUndoManagerDidRedoChange] {
+            undoObservers.append(NotificationCenter.default.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                guard let self, self.ownsFirstResponder else { return }
+                let tv = self.textView ?? (self.field?.currentEditor() as? NSTextView)
+                if let tv { self.report(tv.string) }
+            })
+        }
+    }
 
     /// Re-apply the current spec under a new text style (a TEXTSTYLE after EDIT).
     func restyle(_ style: TextStyleSpec) {
@@ -1092,6 +1144,7 @@ final class EditableOverlay: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
         self.spec = spec
         let ml = (spec["multiline"] as? NSNumber)?.boolValue ?? false
         enterSubmits = (spec["enterSubmits"] as? NSNumber)?.boolValue ?? false
+        admits = (spec["admits"] as? NSNumber)?.boolValue ?? false
         pad = Self.insets(spec["padding"])
         let value = spec["value"] as? String ?? ""
         let placeholder = spec["placeholder"] as? String ?? ""
@@ -1142,6 +1195,7 @@ final class EditableOverlay: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
             textView?.textColor = style.color ?? .labelColor
             textView?.isContinuousSpellCheckingEnabled = (spec["spellcheck"] as? NSNumber)?.boolValue ?? false
             if textView?.string != value { textView?.string = value }
+            reported = value
             docDirty = true            // new text (or a new style) ⇒ new height
         } else {
             // a concealed field is the platform's secure field; a reveal swaps it for a plain one
@@ -1150,7 +1204,10 @@ final class EditableOverlay: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
                 f.removeFromSuperview(); field = nil
             }
             if field == nil {
-                let f = concealed ? NSSecureTextField() : NSTextField()
+                let ask: (NSTextView, NSRange, String?) -> Bool = { [weak self] tv, r, s in self?.shouldChange(tv, r, s) ?? true }
+                let f: NSTextField
+                if concealed { let s = AdmitSecureTextField(); s.shouldChange = ask; f = s }
+                else { let p = AdmitTextField(); p.shouldChange = ask; f = p }
                 f.isBordered = false
                 f.drawsBackground = false
                 f.focusRingType = .none
@@ -1173,14 +1230,48 @@ final class EditableOverlay: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
             field?.placeholderString = placeholder
             field?.alignment = style.align
             if field?.stringValue != value { field?.stringValue = value }
+            reported = value
         }
     }
 
-    func controlTextDidChange(_ obj: Notification) {
-        bridge.call("__declareEditInput", [id, field?.stringValue ?? ""])
+    func controlTextDidChange(_ obj: Notification) { report(field?.stringValue ?? "") }
+    func textDidChange(_ notification: Notification) { report(textView?.string ?? "") }
+    /// A change has landed: told to the runtime, `checked` when `admit` saw it first.
+    private func report(_ v: String) {
+        let checked = admittedText == v
+        admittedText = nil
+        if v == reported { return }
+        reported = v
+        bridge.call("__declareEditInput", [id, v, checked])
     }
-    func textDidChange(_ notification: Notification) {
-        bridge.call("__declareEditInput", [id, textView?.string ?? ""])
+
+    /// The multi-line editor's own question (NSTextViewDelegate).
+    func textView(_ tv: NSTextView, shouldChangeTextIn r: NSRange, replacementString s: String?) -> Bool {
+        shouldChange(tv, r, s)
+    }
+
+    /// May this change happen? Put to the program's `admit` with the text it
+    /// would produce, waiting a bounded moment for the answer: refused, it
+    /// never lands (nor enters undo); rewritten, the rewrite is applied in its
+    /// place as one undoable edit; admitted, it lands as asked. What can't be
+    /// asked — a composition in progress, undo and redo, an answer that comes
+    /// too late — lands, and the runtime judges it after (`applyText`).
+    private func shouldChange(_ tv: NSTextView, _ r: NSRange, _ s: String?) -> Bool {
+        // undo and redo land, and are judged after (the undo observers report them)
+        if let um = tv.undoManager, um.isUndoing || um.isRedoing { return true }
+        guard admits, !applying, let s = s, !tv.hasMarkedText() else { return true }
+        let cur = tv.string
+        let next = (cur as NSString).replacingCharacters(in: r, with: s)
+        switch bridge.ask("__declareEditAdmit", [id, next], timeout: 0.03) {
+        case .late: return true
+        case .null: return false
+        case .text(let a):
+            if a == next { admittedText = next; return true }
+            if a == cur { return false }   // what's already shown: refused too
+            // not inside AppKit's own question: once it has finished asking
+            DispatchQueue.main.async { [weak self] in self?.applyText(a, ifStill: cur) }
+            return false
+        }
     }
     func control(_ control: NSControl, textView: NSTextView, doCommandBy sel: Selector) -> Bool {
         if sel == #selector(NSResponder.insertNewline(_:)) {
@@ -1230,6 +1321,41 @@ final class EditableOverlay: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
             let s = max(0, min(n, start)), e = max(0, min(n, end))
             ed.selectedRange = NSRange(location: s, length: e - s)
         }
+    }
+
+    /// EDITAPPLY — the field's `admit` refused or rewrote a change after it had
+    /// landed: AppKit tells of a change only once it has (editing-values.md §7).
+    /// Applied as the person's own edit would be — only the range that differs,
+    /// through the text view, so it is one step on the field's undo stack and the
+    /// caret goes after it. `from` is the text the correction is of: if the field
+    /// has changed again since (the runtime is on its own thread), the newer text
+    /// stays, and is reported and judged in its turn.
+    func applyText(_ next: String, ifStill from: String?) {
+        guard let tv = textView ?? (field?.currentEditor() as? NSTextView) else {
+            // not being edited (autofill into an unfocused field): a plain write
+            guard let f = field, from == nil || f.stringValue == from else { return }
+            f.stringValue = next
+            bridge.call("__declareEditInput", [id, next, true])
+            return
+        }
+        let cur = tv.string as NSString, nx = next as NSString
+        if let from = from, tv.string != from { return }
+        if cur.isEqual(to: next) { return }
+        var p = 0
+        while p < cur.length && p < nx.length && cur.character(at: p) == nx.character(at: p) { p += 1 }
+        var q = 0
+        while q < cur.length - p && q < nx.length - p
+                && cur.character(at: cur.length - 1 - q) == nx.character(at: nx.length - 1 - q) { q += 1 }
+        let range = NSRange(location: p, length: cur.length - q - p)
+        let ins = nx.substring(with: NSRange(location: p, length: nx.length - q - p))
+        applying = true
+        admittedText = next          // the correction is `admit`'s own answer
+        if tv.shouldChangeText(in: range, replacementString: ins) {
+            tv.replaceCharacters(in: range, with: ins)
+            tv.didChangeText()
+        }
+        applying = false
+        tv.setSelectedRange(NSRange(location: p + (ins as NSString).length, length: 0))
     }
 
     func setFocus(_ on: Bool) {
@@ -1293,8 +1419,14 @@ final class EditableOverlay: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
         }
     }
 
+    // the observers live as long as the overlay: `remove()` also runs when a
+    // field turns multi-line or back, and the new editor still needs them
+    deinit {
+        if let o = selectionObserver { NotificationCenter.default.removeObserver(o) }
+        for o in undoObservers { NotificationCenter.default.removeObserver(o) }
+    }
+
     func remove() {
-        if let o = selectionObserver { NotificationCenter.default.removeObserver(o); selectionObserver = nil }
         clipBox.removeFromSuperview()
         field?.removeFromSuperview(); field = nil
         scroll?.removeFromSuperview(); scroll = nil; textView = nil

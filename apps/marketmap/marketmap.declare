@@ -1022,7 +1022,7 @@ App [ theme = { { ...SanFrancisco, ...MarketMap } }, fill = { provided("theme").
         scrubber: Slider [ width = 100%, accessibilityLabel = "Day",
             min = 1, max = { app.nDays - 1 },
             value = { app.day },
-            input(v: number) { app.scrub(v) }
+            commit(v: number) { app.scrub(v) }
             ],
 
         chips: View [ width = 100%,

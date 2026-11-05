@@ -1,7 +1,7 @@
 App [ width = 340, height = 380,
     due: string = "",
     DatePicker [ x = 20, y = 20, value = { app.due },
-        input(v: string) { app.due = v }
+        commit(v: string) { app.due = v }
         ],
     Text [ x = 20, y = 70, text = { app.due == "" ? "no date" : "due " + app.due } ]
     ]

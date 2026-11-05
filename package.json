@@ -1,6 +1,6 @@
 {
   "name": "declarelang",
-  "version": "0.5.3",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "description": "Declare — a clean-slate successor to OpenLaszlo. A single self-contained distro: the compiler (.declare → JS), the browser runtime, a class library, examples, and docs. Runs a dev server with dynamic compilation, or host the whole tree statically for in-browser compilation.",
@@ -13,7 +13,8 @@
     "declare-format": "tools/format.mjs",
     "declare-help": "tools/declare-help.mjs",
     "declare-look": "tools/look.mjs",
-    "declare-profile": "tools/profile.mjs"
+    "declare-profile": "tools/profile.mjs",
+    "declare-changes": "tools/declare-changes.mjs"
   },
   "scripts": {
     "prepare": "git config core.hooksPath tools/internal/hooks 2>/dev/null || true",
@@ -27,7 +28,7 @@
     "test": "npm run build && node tools/internal/run-tests.mjs",
     "test:derived": "npm run build && node tools/internal/run-tests.mjs test/docs.test.mjs test/schema-completeness.test.mjs test/declare-help.test.mjs test/prewarm.test.mjs test/ops.test.mjs",
     "test:ladder": "npm run build && node test/ladder.test.mjs && node test/eval-references.test.mjs --ladder",
-    "test:all": "npm test && npm run test:ladder",
+    "test:all": "npm run build && node tools/internal/run-tests.mjs --full && npm run test:ladder",
     "test:conform": "npm run build && node test/conform/conform.test.mjs",
     "test:mac": "npm run build:mac && node test/mac-shell.test.mjs && node test/conform/conform.test.mjs --mac && node mac-host/gate.mjs"
   },

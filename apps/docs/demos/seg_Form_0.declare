@@ -4,8 +4,8 @@ App [ width = 360, height = 240, fill = white,
         layout: SimpleLayout [ axis = y, spacing = 12 ],
         Field [ label = "Email", stacked = true,
             TextInput [ width = 300, name = "email", purpose = email, required = "Enter your email address.",
-                text = { app.email },
-                onInput(v: string) { app.email = v },
+                value = { app.email },
+                commit(v: string) { app.email = v },
                 validate(v: string) -> string { return v.includes("@") ? "" : "Enter an email address like name@example.com." }
                 ]
             ],

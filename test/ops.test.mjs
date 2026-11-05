@@ -3,8 +3,10 @@
 // The same entries the docs render (assemble.mjs marker-injections) are the
 // entries performed here — procedure prose and procedure reality cannot
 // diverge, because both are projections of one record.
-import { spawn, execSync } from "node:child_process";
-import { writeFileSync, mkdirSync, rmSync, readFileSync, existsSync, readdirSync } from "node:fs";
+import { spawn, execSync, execFileSync } from "node:child_process";
+import { writeFileSync, mkdirSync, rmSync, readFileSync, existsSync, readdirSync, statSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { fileSet } from "../tools/internal/filesets.mjs";
 import { fileURLToPath } from "node:url";
 import { dirname, resolve, join } from "node:path";
 import { OPS, testableOps } from "../tools/internal/ops.mjs";
@@ -19,6 +21,21 @@ writeFileSync(FIXTURE, `App [ width = 200, height = 100, fill = white,
     Text [ x = 20, y = 20, text = "ops smoke" ]
     ]
 `);
+
+// A GATE THAT CHECKS WRITES NOTHING. Every file derive produces is the same, by
+// content and by when it was written, after the entries below run as before: a
+// `--check` that rewrote one left derive's record of it stale, and the next push
+// was refused over work already done. Asked here, around the run these checks
+// already make, rather than by running them all a second time.
+function derivedSnapshot() {
+  const paths = execFileSync(process.execPath, [join(ROOT, "tools/internal/derive.mjs"), "--paths"], { cwd: ROOT, encoding: "utf8" })
+    .split("\n").filter(Boolean);
+  const specs = paths.map((p) => p.endsWith("*") ? { dir: dirname(p), pre: p.slice(p.lastIndexOf("/") + 1, -1) } : p);
+  const out = new Map();
+  for (const f of fileSet(ROOT, specs)) out.set(f, createHash("sha1").update(readFileSync(join(ROOT, f))).digest("hex") + "@" + statSync(join(ROOT, f)).mtimeMs);
+  return out;
+}
+const before = derivedSnapshot();
 
 for (const op of testableOps()) {
   const cmd = op.testCmd ?? op.cmd;
@@ -45,6 +62,14 @@ for (const op of testableOps()) {
 }
 
 rmSync(FIXTURE, { force: true });
+
+await test("ops: every --check gate left what derive wrote untouched", () => {
+  const after = derivedSnapshot();
+  const changed = [...before].filter(([f, h]) => after.get(f) !== h).map(([f]) => f);
+  const added = [...after.keys()].filter((f) => !before.has(f));
+  const checks = testableOps().map((o) => o.testCmd ?? o.cmd).filter((c) => /--check\b/.test(c));
+  if (changed.length + added.length > 0) throw new Error(`a gate wrote ${[...changed, ...added].join(", ")} (the checks: ${checks.join("; ")})`);
+});
 
 // ── the SKILL gate — the agent's front door cannot drift silently ────────────
 // SKILL.md is the map an agent reads before any file, and it rots in three

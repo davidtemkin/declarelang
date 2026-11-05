@@ -1,7 +1,8 @@
-class Counter extends Control [ width = 96, height = 28,
+class Counter extends ValueControl [ width = 96, height = 28, accessibilityLabel = "Count",
     value: number = 0,
-    input(v: number) { value = v },
-    press() { input(value + 1) }
+    fieldValue = { value },
+    commit(v: number) { value = v },
+    press() { edit(value + 1) }
     ]
 
 

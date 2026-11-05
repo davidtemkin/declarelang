@@ -252,9 +252,16 @@ function installFeed(v: View, f: Feed): void {
  *  destination. */
 function scheduleFlush(v: View, f: Feed): void {
   if (f.flushTimer !== 0) return;
+  // a flush waits on the program, never keeps a host process alive for it (a
+  // headless run whose clock never rests would otherwise poll here forever)
+  const later = (): ReturnType<typeof setTimeout> => {
+    const t = setTimeout(tick, 120);
+    (t as { unref?: () => void }).unref?.();
+    return t;
+  };
   const tick = (): void => {
     f.flushTimer = 0;
-    if (sharedClock.settling) { f.flushTimer = setTimeout(tick, 120); return; }
+    if (sharedClock.settling) { f.flushTimer = later(); return; }
     const p = f.pending;
     f.pending = null;
     const s = v.$surface;
@@ -272,7 +279,7 @@ function scheduleFlush(v: View, f: Feed): void {
       if (v.$drawing !== null && p.on) v.$surface?.setRasterScale?.(p.scale);
     }
   };
-  f.flushTimer = setTimeout(tick, 120);
+  f.flushTimer = later();
 }
 
 function deliverVisibility(v: View, f: Feed, on: boolean, rect: Rect | null, scale: number): void {

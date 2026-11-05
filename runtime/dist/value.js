@@ -289,6 +289,10 @@ const DECLARED_TYPES = {
     // What a text field holds (TextInput.purpose): declarable so a control built
     // around a field (a combobox of countries) can say it and hand it on.
     InputPurpose: enumType("InputPurpose", ...PURPOSE_NAMES),
+    // A run's digit advance and its place across its box — `Text`'s words, declarable
+    // so the library's TextInput takes them as Text does (`numeralWidth = tabular`).
+    NumeralWidth: enumType("NumeralWidth", "normal", "tabular", "proportional"),
+    TextAlign: enumType("TextAlign", "start", "center", "end", "left", "right"),
 };
 /** Resolve a written declaration type name (`count: number`), or null when
  *  the name is not in the declarable vocabulary. */

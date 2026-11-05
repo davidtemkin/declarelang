@@ -1,0 +1,21 @@
+// A field of your own
+// A value control holding NativeText is a native text field: the platform's caret,
+// selection and undo, with the control's commit and admit. Here, a code box that keeps
+// only capitals and digits; the line below shows what it holds.
+
+class CodeBox extends ValueControl [ width = 220, height = 34, cornerRadius = 6, padding = 8,
+    accessibilityLabel = "Code",
+    fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) },
+    value: string = "",
+    fieldValue = { value },
+    admit(t: any) -> any { return ("" + t).toUpperCase().replace(/[^A-Z0-9]/g, "") },
+    commit(t: any) { value = "" + t },
+    _typed(t: string) { if (!editing) beginEdit(); _take(t); if (!focused) endEdit() },
+    _native: NativeText [ text = { "" + (classroot.shown ?? "") }, placeholder = "AB12" ]
+    ]
+
+
+App [ width = 360, height = 120, theme = { SanFrancisco }, fill = { provided("theme").background },
+    box: CodeBox [ x = 20, y = 20 ],
+    Text [ x = 20, y = 70, textColor = { provided("theme").text }, text = { "holds: " + app.box.value } ]
+    ]

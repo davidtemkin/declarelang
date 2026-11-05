@@ -8,6 +8,7 @@
 //   node tools/internal/run-tests.mjs test/a.test.mjs test/b.test.mjs
 //   node tools/internal/run-tests.mjs -j 3        # at most 3 files at once
 //   node tools/internal/run-tests.mjs --serial    # one at a time, output live
+//   node tools/internal/run-tests.mjs --full      # the suite and the release tier (below)
 //
 // SEVERAL FILES AT ONCE. Each file is its own process; every server binds
 // port 0 and every browser is its own Chrome, so files share nothing but the
@@ -15,8 +16,14 @@
 // -j sets it), the longest first — the last run's times are kept in
 // node_modules/.cache — so the run ends when its longest file does. A file's
 // output is printed whole when it finishes, never interleaved.
+//
+// A FILE HAS A TIME LIMIT: 180 s, or TEST_FILE_LIMIT seconds. A file still running
+// at its limit is stopped — it and everything it started, its Chromes included —
+// and FAILS, saying so: a test that never finishes is a failure, not a long wait
+// (2026-11-05: one file finished its cases and never exited, and held a run open
+// for 37 minutes). The limit sits well above the slowest file's honest time.
 
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { availableParallelism } from "node:os";
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
@@ -32,6 +39,7 @@ const SUITE = [
   "test/locations.test.mjs",
   "test/error-codes.test.mjs",
   "test/release.test.mjs",         // a release is a projection of the tree: the check, the scaffold, the projection
+  "test/changes.test.mjs",         // moving a program to a new release: Changes to make, declare-changes, declareVersion
   "test/databinding.test.mjs",
   "test/dataset-merge.test.mjs",
   "test/change-event.test.mjs",
@@ -57,7 +65,6 @@ const SUITE = [
   "test/library.test.mjs",
   "test/overlays.test.mjs",        // overlays by kind, windows, hosted programs (planes.md §3, §8, §11, §12)
   "test/shortcuts.test.mjs",       // shortcuts as declared data, across islands (planes.md §9)
-  "test/profile.test.mjs",         // the profiler: turns, rules, fan-out, builds, frames
   "test/draw-quiet.test.mjs",      // a drawing no one can see is not re-recorded
   "test/drag-edge-scroll.test.mjs", // a drag in an edge band scrolls, under a finger as under a mouse
   "test/focus-place.test.mjs",     // where focus goes when the program changes (focus-place.md)
@@ -81,7 +88,6 @@ const SUITE = [
   "test/themes.test.mjs",
   "test/html.test.mjs",
   "test/richtext.test.mjs",
-  "test/swatchbook.test.mjs",      // every combination of what a view can look like, DOM vs canvas: layout exactly, pixels per swatch against a baseline
   "test/inline-views.test.mjs",    // a program class as a tag in rich text: one real view, placed in the line (DOM + canvas)
   "test/text.test.mjs",            // the silent text regressions only: headless, one stub measurer, ~1s
   "test/md-conformance.test.mjs",  // Declare's Markdown reader vs markdown-it (VS Code's) over the CommonMark+GFM surface
@@ -97,18 +103,15 @@ const SUITE = [
   "test/static-host.test.mjs",
   "test/streams-browser.test.mjs",
   "test/network-browser.test.mjs",
-  "test/desktop-input.test.mjs",
   "test/transform-layout.test.mjs",
   "test/safearea.test.mjs",
   "test/gesture.test.mjs",
   "test/scroll-loop.test.mjs",     // the runtime scroll provider on canvas: wheel batching, glides, touch physics, arbitration
-  "test/scroll-reach.test.mjs",   // `userScrolling` is the user's hand; the driver reaches views by swiping (native, async)
   "test/history.test.mjs",
   "test/embed.test.mjs",
   "test/page-api.test.mjs",       // browser/declare-boot.d.ts held to the bundle and the boot
   "test/dep-typed.test.mjs",
   "test/vis-camera.test.mjs",
-  "test/reader-flow.test.mjs",
   "test/raster-memo.test.mjs",
   "test/canvas-filter.test.mjs",   // the Safari filter fallback, pinned from Chrome via the forced-fallback lever
   "test/draw-bounds.test.mjs",     // text bounds, per-op extents, replayArea, byte-identical culling
@@ -123,7 +126,6 @@ const SUITE = [
   "test/island-browser.test.mjs",
   "test/two-way.test.mjs",         // the apps/two-way showcase: the whole embedder surface on one page
   "test/verify-apps.test.mjs",
-  "test/verify-boot.test.mjs",      // rung 4 as an author runs it: the host it fills, out-of-reach controls, the boot budget
   // THE KERNEL and the precompiled bodies (the native-partition arc): the two
   // kernels against one written contract (C→wasm vs kernel-js.ts), the kernel's
   // own expression / extent / visibility rules, the Mac geometry binary, a boot
@@ -141,25 +143,45 @@ const SUITE = [
   "test/api-signatures.test.mjs",   // the compiler's hand-written method signatures take the runtime's parameters
   "test/size-branch.test.mjs",      // a size reading its parent's in one branch is marked by the branch taken
   "test/member-by-name.test.mjs",   // a child reached by a name: written names checked, run-time names against every child
-  "test/look-touch.test.mjs",       // under --touch every press, drag, hold and pinch is a finger
-  "test/touch-workout.test.mjs",    // what a finger does, by the driver and by raw touch, agreeing
   "test/silent-failures.test.mjs",  // what went wrong without a word, now working or said
   "test/name-scope.test.mjs",       // a name means what its own scope says, never a namesake elsewhere
   "test/focus-reveal.test.mjs",     // focus a program moves is scrolled clear of pinned chrome
   "test/verify-requests.test.mjs",  // an assert script checks what the program sent
   "test/chrome-cleanup.test.mjs",   // a Chrome the tools start leaves no profile and no process behind
-  "test/check-gates-readonly.test.mjs", // a gate that checks writes nothing derive produced
 ];
 
+// THE RELEASE TIER: the tools' own behaviour driven through a browser — how the
+// driver presses, swipes and reaches, and what a boot reports — tested before a
+// release (`--full`, npm run test:all) and when that code changes, not on every
+// run: each is a regression test of a tool that changes rarely, and together
+// they were a third of the browser time.
+const RELEASE = [
+  "test/profile.test.mjs",          // the profiler: turns, rules, fan-out, builds, frames — timing-sensitive under a loaded machine
+  "test/look-touch.test.mjs",       // under --touch every press, drag, hold and pinch is a finger
+  "test/scroll-reach.test.mjs",   // `userScrolling` is the user's hand; the driver reaches views by swiping (native, async)
+  "test/touch-workout.test.mjs",    // what a finger does, by the driver and by raw touch, agreeing
+  "test/verify-boot.test.mjs",      // rung 4 as an author runs it: the host it fills, out-of-reach controls, the boot budget
+  "test/reader-flow.test.mjs",
+  "test/desktop-input.test.mjs",
+  "test/swatchbook.test.mjs",      // every combination of what a view can look like, DOM vs canvas: layout exactly, pixels per swatch against a baseline
+];
+
+// Files that measure the machine's own timing, run ALONE once the others are done:
+// beside other files their numbers are the load's, not the program's.
+const SOLO = new Set(["test/profile.test.mjs"]);
+
+const LIMIT_S = Number(process.env.TEST_FILE_LIMIT) || 180;
 const argv = process.argv.slice(2);
 let jobs = Number(process.env.TEST_JOBS) || Math.max(1, Math.min(6, Math.floor(availableParallelism() / 2)));
 const files = [];
+let full = false;
 for (let i = 0; i < argv.length; i++) {
   if (argv[i] === "--serial") jobs = 1;
+  else if (argv[i] === "--full") full = true;
   else if (argv[i] === "-j") jobs = Math.max(1, Number(argv[++i]) || 1);
   else files.push(argv[i]);
 }
-if (files.length === 0) files.push(...SUITE);
+if (files.length === 0) files.push(...SUITE, ...(full ? RELEASE : []));
 
 const TIMES = "node_modules/.cache/declare-test-times.json";
 let last = {};
@@ -173,30 +195,38 @@ const note = (f, s, code) => {
   if (code !== 0) failed.push({ f, code });
 };
 
-if (jobs === 1) {
-  for (const f of files) {
-    const t = Date.now();
-    const r = spawnSync(process.execPath, [f], { stdio: "inherit" });
-    note(f, (Date.now() - t) / 1000, r.status ?? `signal ${r.signal}`);
-  }
-} else {
-  const queue = [...files].sort((a, b) => (last[b] ?? 0) - (last[a] ?? 0));
-  const run = (f) => new Promise((done) => {
-    const t = Date.now();
-    const p = spawn(process.execPath, [f], { stdio: ["ignore", "pipe", "pipe"] });
-    let out = "";
-    p.stdout.on("data", (d) => (out += d));
-    p.stderr.on("data", (d) => (out += d));
-    p.on("close", (code, signal) => {
-      const s = (Date.now() - t) / 1000;
-      process.stdout.write(`\n── ${f} (${s.toFixed(1)} s)${code === 0 ? "" : "  FAILED"}\n${out}`);
-      note(f, s, code ?? `signal ${signal}`);
-      done();
-    });
+/** Run one file in its own process group, so that at its limit it can be
+ *  stopped with everything it started. `live`: its output as it comes (serial). */
+const run = (f, live) => new Promise((done) => {
+  const t = Date.now();
+  const p = spawn(process.execPath, [f], { stdio: live ? "inherit" : ["ignore", "pipe", "pipe"], detached: true });
+  let out = "";
+  p.stdout?.on("data", (d) => (out += d));
+  p.stderr?.on("data", (d) => (out += d));
+  let overran = false;
+  const timer = setTimeout(() => {
+    overran = true;
+    try { process.kill(-p.pid, "SIGKILL"); } catch { /* already gone */ }
+  }, LIMIT_S * 1000);
+  p.on("close", (code, signal) => {
+    clearTimeout(timer);
+    const s = (Date.now() - t) / 1000;
+    const why = overran ? `  FAILED — still running at its ${LIMIT_S} s limit, stopped (TEST_FILE_LIMIT sets it)` : code === 0 ? "" : "  FAILED";
+    if (live) { if (overran) console.error(`\n── ${f}${why}`); }
+    else process.stdout.write(`\n── ${f} (${s.toFixed(1)} s)${why}\n${out}`);
+    note(f, s, overran ? `over the ${LIMIT_S} s limit` : code ?? `signal ${signal}`);
+    done();
   });
-  const worker = async () => { while (queue.length) await run(queue.shift()); };
+});
+
+if (jobs === 1) {
+  for (const f of files) await run(f, true);
+} else {
+  const queue = [...files].filter((f) => !SOLO.has(f)).sort((a, b) => (last[b] ?? 0) - (last[a] ?? 0));
+  const worker = async () => { while (queue.length) await run(queue.shift(), false); };
   console.log(`run-tests: ${files.length} file(s), ${jobs} at a time`);
   await Promise.all(Array.from({ length: Math.min(jobs, files.length) }, worker));
+  for (const f of files) if (SOLO.has(f)) await run(f, false);
 }
 
 // this run's times order the next run
@@ -216,6 +246,6 @@ if (failed.length === 0) {
   console.log(`\nrun-tests: all ${files.length} file(s) passed (${mins} min)`);
 } else {
   console.error(`\nrun-tests: ${failed.length} of ${files.length} file(s) FAILED (${mins} min):`);
-  for (const { f, code } of failed) console.error(`   ${f}  (exit ${code})`);
+  for (const { f, code } of failed) console.error(`   ${f}  (${typeof code === "number" ? `exit ${code}` : code})`);
   process.exit(1);
 }

@@ -22,8 +22,8 @@ App [ width = 900, height = 700,
 
 
 class Row extends View [ width = 600, height = 90, fill = #f4f4f4,
-    field: TextInput [ x = 10, y = 8, width = 180, height = 28, text = :k,
-        onInput(v: string) { }
+    field: TextInput [ x = 10, y = 8, width = 180, height = 28, value = :k,
+        commit(v: string) { }
         ],
     dlgBtn: Button [ x = 200, y = 8, label = "Dialog",
         onClick() { classroot.dlg.show() }

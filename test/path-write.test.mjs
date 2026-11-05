@@ -69,10 +69,10 @@ await (async () => {
       d: Dataset { { "rows": [ { "id": 1, "done": false } ] } },
       col: View [ datapath = { app.d.value },
         View [ datapath = :rows[], height = 20,
-          c: Checkbox [ checked = :done, input(v: boolean) { :done = v } ]
+          c: Checkbox [ checked = :done, commit(v: boolean) { :done = v } ]
           ]
         ] ]`);
-  test("a Checkbox in a repeated row edits its record through input(v)", () => {
+  test("a Checkbox in a repeated row edits its record through commit(v)", () => {
     app.col.children[0].c.press(); settle();
     assert.equal(app.d.value.rows[0].done, true);
     assert.equal(app.col.children[0].c.checked, true, "and the box reads the record back");

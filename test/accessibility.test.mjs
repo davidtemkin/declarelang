@@ -120,14 +120,14 @@ const warnedLines = (b, code) => b.warnings.filter((w) => w.code === code).map((
 await test("a control whose label is left empty has no name, wherever its class shows the label; the warning names both fixes", async () => {
   const b = await compile(`App [ width = 400, height = 400, layout: SimpleLayout [ axis = y ],
     d: Dataset { { "rows": [ { "title": "Water the plants", "done": false } ] } },
-    View [ datapath = { app.d.value.rows[0] }, Checkbox [ checked = :done ], Text [ text = :title ] ],
+    View [ datapath = { app.d.value.rows[0] }, Checkbox [ checked <-> :done ], Text [ text = :title ] ],
     Button [ ],
     Radio [ ],
     ToolButton [ ],
     Gauge [ ],
     Combobox [ ],
     TextInput [ ],
-    View [ datapath = { app.d.value.rows[0] }, Checkbox [ checked = :done, accessibilityLabel = :title ], Text [ text = :title ] ],
+    View [ datapath = { app.d.value.rows[0] }, Checkbox [ checked <-> :done, accessibilityLabel = :title ], Text [ text = :title ] ],
     Checkbox [ label = "Mute" ], Button [ label = "Go" ], Button [ Text [ text = "Go" ] ], Radio [ label = { "Large" } ],
     ToolButton [ icon = "PlusIcon", label = "Add" ], Gauge [ label = "Disk" ], Combobox [ placeholder = "City" ],
     TextInput [ placeholder = "Search" ], Field [ label = "Name", TextInput [ ] ], Field [ label = "Muted", Checkbox [ ] ],
@@ -143,7 +143,7 @@ await test("a radio outside a RadioGroup is warned of (DECLARE4032); one inside,
   const b = await compile(`class Tile extends Control [ width = 40, height = 40, accessibilityRole = radio, accessibilityLabel = "x", accessibilityChecked = false ]
 App [ width = 300, height = 200, picked: string = "a",
     row: View [ Tile [ ] ],
-    g: RadioGroup [ value = { app.picked }, input(v: string) { app.picked = v }, Radio [ choice = "a", label = "A" ], Tile [ ] ],
+    g: RadioGroup [ value = { app.picked }, commit(v: string) { app.picked = v }, Radio [ choice = "a", label = "A" ], Tile [ ] ],
     Segmented [ choices = { [ ({ id: "a", label: "A" }), ({ id: "b", label: "B" }) ] } ] ]`);
   assert.deepEqual(warnedLines(b, "DECLARE4032"), [3]);
 });
@@ -194,7 +194,7 @@ await test("a list's row may hold an editor: no warning, and the row is named by
   const src = `class Item extends View [ accessibilityRole = option, accessibilitySelected = false, height = 90, press() { },
     layout: SimpleLayout [ axis = y ],
     Text [ text = "Fix login" ],
-    TextInput [ width = 160, accessibilityLabel = "Title", text = "Fix login", onInput(v: string) { } ],
+    TextInput [ width = 160, accessibilityLabel = "Title", value = "Fix login" ],
     Button [ label = "Save" ] ]
 App [ width = 400, height = 300, View [ accessibilityRole = listbox, accessibilityLabel = "Issues", width = 400, height = 200, Item [ width = 400 ] ] ]`;
   assert.deepEqual(warnedLines(await compile(src), "DECLARE4020"), []);
@@ -294,7 +294,7 @@ await test("the tree: a rich document reads as headings, paragraphs, lists and l
 
 await test("the tree: a field is a textField named by its placeholder; an unnamed picture is decoration", async () => {
   const app = await boot(`App [ width = 400, height = 300, layout: SimpleLayout [ axis = y ],
-  TextInput [ width = 200, placeholder = "Search", text = "birds" ],
+  TextInput [ width = 200, placeholder = "Search", value = "birds" ],
   Image [ width = 20, height = 20 ], Image [ width = 20, height = 20, accessibilityLabel = "Avatar" ] ]`);
   assert.equal(tree(app), `application\n  textField "Search" = "birds"\n  image "Avatar"`);
 });
@@ -455,12 +455,12 @@ await test("an invalid field says what is wrong, once judged, and that it is req
   const app = await boot(`App [ width = 400, height = 300,
     d: Dataset { { "name": "" } },
     name: TextInput [ width = 240, accessibilityLabel = "Display name", accessibilityRequired = true,
-        text <-> :name, datapath = { app.d.value },
+        value <-> :name, datapath = { app.d.value },
         validate(v: string) -> string { return v.trim().length < 3 ? "Use at least three letters." : "" } ] ]`);
   app.$attach(new HeadlessBackend(), null);
   settle();
   const f = app.name;
-  f.$onNativeInput("ab");
+  f._typed("ab");   // what the native element reports
   settle();
   assert.equal(f.valid, false, "valid is true to the draft at once");
   assert.equal(f.error, "", "the message waits for the field to be left");
@@ -470,7 +470,7 @@ await test("an invalid field says what is wrong, once judged, and that it is req
   assert.equal(f.error, "Use at least three letters.");
   assert.equal(f.accessibilityError, "Use at least three letters.", "the field passes its error on");
   assert.match(tree(app), /textField "Display name" = "ab" error "Use at least three letters\." \[required, invalid\]/);
-  f.$onNativeInput("Ada Lovelace");
+  f._typed("Ada Lovelace");
   settle();
   assert.equal(f.error, "", "judged once, it follows each edit");
   assert.doesNotMatch(tree(app), /invalid/);

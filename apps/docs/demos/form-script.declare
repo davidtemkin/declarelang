@@ -11,7 +11,7 @@ script {
 App [ fill = 0xF6F8FA, textColor = 0x172530, fontSize = 14,
     amount: number = 80,
     Slider [ x = 20, y = 16, width = 220, min = 0, max = 200, value = { app.amount },
-        input(v: number) { app.amount = v }
+        commit(v: number) { app.amount = v }
         ],
     Text [ x = 20, y = 50, text = { "net " + fmt(app.amount) + " · tax " + fmt(tax(app.amount, 20)) + " · gross " + fmt(app.amount + tax(app.amount, 20)) } ],
     Text [ x = 20, y = 76, fontSize = 12, textColor = 0x6A7883, text = { "the currency sign is a script constant: " + CURRENCY } ]

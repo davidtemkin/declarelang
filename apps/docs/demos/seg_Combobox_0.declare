@@ -1,9 +1,7 @@
 App [ width = 320, height = 160,
-    picked: string = "",
+    picked: object = null,
     people: array = { ["Ada Lovelace", "Grace Hopper", "Alan Turing", "Barbara Liskov"] },
     Combobox [ x = 20, y = 20, width = 240, placeholder = "Assignee",
-        items = { app.people },
-        input(v: object) { app.picked = "" + v }
-        ],
-    Text [ x = 20, y = 80, text = { app.picked == "" ? "—" : app.picked } ]
+        items = { app.people }, value <-> app.picked ],
+    Text [ x = 20, y = 80, text = { app.picked == null ? "—" : "" + app.picked } ]
     ]

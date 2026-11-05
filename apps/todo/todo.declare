@@ -424,7 +424,7 @@ class TaskRow extends Line [
             ],
         titleField: TextInput [ exists = { classroot.open }, flexes = true, height = 36,
             fontSize = { app.wide ? 17 : 18 }, fontWeight = semibold, placeholder = "Title",
-            fill = null, stroke = null, text <-> :title ],
+            fill = null, stroke = null, value <-> :title ],
 
         // The flag: shown when set. On a desk it also appears, faint, under the
         // pointer; on a phone it isn't there at all until set, so a tap at the
@@ -462,7 +462,7 @@ class TaskRow extends Line [
     ]
 
 
-// An open task's details, edited in place. `text <-> :notes` binds the field
+// An open task's details, edited in place. `value <-> :notes` binds the field
 // to the record both ways: typing writes the task, and a change to the task
 // shows in the field.
 
@@ -475,7 +475,7 @@ class TaskCard [ padding = { [0, app.edge, 12, app.edge + app.tap] },
 
     TextInput [ width = 100%, height = 64, fontSize = { app.touchFirst ? 16 : 15 }, multiline = true, wrap = true,
         textColor = { provided("theme").textMuted }, placeholder = "Notes",
-        fill = null, stroke = null, text <-> :notes ],
+        fill = null, stroke = null, value <-> :notes ],
 
     // Date, list and flag. A pill with a `menu` is a pop-up button.
 
@@ -483,7 +483,7 @@ class TaskCard [ padding = { [0, app.edge, 12, app.edge + app.tap] },
         layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = center ],
         DatePicker [ width = 150, height = { app.touchFirst ? 44 : 28 }, placeholder = "Add date",
             value = { :due ?? "" },
-            input(v: string) { :due = v }
+            commit(v: string) { :due = v }
             ],
         Pill [ glyph = { classroot.listId }, tone = { app.fillOf(classroot.listId) },
             label = { app.tasks.listName(classroot.listId) }, menu = { app.moveMenu } ],
@@ -552,8 +552,8 @@ class AddForm [ width = 100%,
         View [ width = 22, height = 22, cornerRadius = 11, stroke = { stroke(1.6, app.fillOf(classroot.list)) } ],
         field: TextInput [ flexes = true, height = 36, fontSize = 17, fontWeight = semibold, placeholder = "New task",
             fill = null, stroke = null,
-            text = { classroot.title },
-            onInput(v: string) { classroot.title = v },
+            value = { classroot.title },
+            commit(v: string) { classroot.title = v },
             onEnter() { classroot.submit() }
             ],
 
@@ -571,14 +571,14 @@ class AddForm [ width = 100%,
         ],
     TextInput [ width = 100%, height = 30, fontSize = { app.touchFirst ? 16 : 15 }, padding = [0, 0, 0, 32],
         placeholder = "Notes", textColor = { provided("theme").textMuted }, fill = null, stroke = null,
-        text = { classroot.notes },
-        onInput(v: string) { classroot.notes = v }
+        value = { classroot.notes },
+        commit(v: string) { classroot.notes = v }
         ],
     attrs: View [ width = 100%, padding = [0, 0, 0, 32],
         layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = center ],
         DatePicker [ width = 150, height = { app.touchFirst ? 44 : 28 }, placeholder = "Add date",
             value = { classroot.due },
-            input(v: string) { classroot.due = v }
+            commit(v: string) { classroot.due = v }
             ],
         Pill [ glyph = { classroot.list }, tone = { app.fillOf(classroot.list) },
             label = { app.tasks.listName(classroot.list) }, menu = { app.addListMenu } ],
@@ -966,8 +966,8 @@ App [ appName = "To-do", minWidth = 320,
             field: SearchField [ exists = { app.searchOpen }, width = 100%, height = 30,
                 padding = [0, 12, 0, 30], fontSize = { app.touchFirst ? 16 : 13 },
                 placeholder = { "Search " + app.viewName },
-                text = { app.query },
-                onInput(v: string) { app.query = v },
+                value = { app.query },
+                commit(v: string) { app.query = v },
                 onKeyDown(e: KeyEvent) {
                     if (e.key != "Escape") return
                     if (app.query == "") { app.closeSearch() } else { app.query = "" }
@@ -1017,8 +1017,8 @@ App [ appName = "To-do", minWidth = 320,
             field: SearchField [ exists = { app.searchOpen }, y = center, width = 100%, height = 36,
                 padding = [0, 12, 0, 38], fontSize = 16,
                 placeholder = { "Search " + app.viewName },
-                text = { app.query },
-                onInput(v: string) { app.query = v }
+                value = { app.query },
+                commit(v: string) { app.query = v }
                 ],
             IconButton [ shape = "search", tone = { provided("theme").accent }, accessibilityLabel = "Search",
                 press() { app.openSearch() }

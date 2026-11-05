@@ -79,7 +79,7 @@ await test("a plain key does not fire in a text field, a command chord does; a d
     field: TextInput [ width = 100 ],
     b: View [ x = 200, width = 50, height = 20, focusable = true ]
     ]`);
-  app.field.focusable = true; Focus.focus(app.field); settle();
+  Focus.focus(app.field); settle();
   press("?", { shift: true });
   assert.equal(app.got, "", "typing ? in a field is the field's");
   press("f", { meta: true });
@@ -101,7 +101,7 @@ await test("a text field keeps its own editing chords: ⌘A, ⌘C/X/V, ⌘Z go t
     field: TextInput [ width = 100 ],
     b: View [ x = 200, width = 50, height = 20, focusable = true ]
     ]`);
-  app.field.focusable = true; Focus.focus(app.field); settle();
+  Focus.focus(app.field); settle();
   assert.equal(press("a", { meta: true }), false, "⌘A in a field is the field's select-all");
   assert.equal(press("z", { meta: true }), false, "⌘Z in a field is the field's undo");
   assert.equal(app.got, "", "neither fired the program's shortcut");
@@ -133,7 +133,7 @@ await test("an open overlay's own shortcuts fire while it holds the keyboard; th
   press("n"); press("s", { meta: true });
   assert.equal(app.got, "run;save;", "the page's keys behind the sheet stand down");
   assert.deepEqual(Keys.shortcutsInForce().map((r) => r.id), ["run", "save"], "and the panel lists only the sheet's");
-  app.sheet.entry.field.focusable = true; Focus.focus(app.sheet.entry.field); settle();
+  Focus.focus(app.sheet.entry.field); settle();
   press("r");
   assert.equal(app.got, "run;save;", "a plain key typed in the sheet's field is the field's");
   app.open = false; settle();

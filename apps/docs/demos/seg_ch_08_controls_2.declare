@@ -1,12 +1,15 @@
 App [ width = 340, height = 120, theme = { SanFrancisco }, fill = { provided("theme").background },
     textColor = { provided("theme").text },
-    page: string = "list",
+    who: string = "",
     col: View [ x = 20, y = 20,
-        layout: SimpleLayout [ axis = y, spacing = 14 ],
-        Segmented [ width = 300, value = { app.page },
-            choices = { [ ({ id: "list", label: "List" }), ({ id: "grid", label: "Grid" }) ] },
-            input(v: string) { app.page = v }
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        row: View [
+            layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+            TextInput [ width = 200, placeholder = "Your name", value <-> app.who ],
+            Button [ label = "Clear",
+                onClick() { app.who = "" }
+                ]
             ],
-        Text [ text = { "showing: " + app.page } ]
+        Text [ text = { app.who == "" ? "Hello." : "Hello, " + app.who + "." } ]
         ]
     ]

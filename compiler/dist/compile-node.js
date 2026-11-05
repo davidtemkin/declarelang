@@ -31,7 +31,13 @@ provideLib((name) => {
 // Static extraction (docs/system-design/capabilities.md §4–5) — exported by BOTH entry
 // points (compile-browser.ts carries the same block): the browser compiler
 // does everything the Node one can, as architecture and as principle.
-export { extractStatic, extractFromProgram, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
+export { extractFromProgram, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
+import { extractStatic as extractStaticCore } from "./static-html.js";
+/** `extractStatic` with the library on hand, as this module's `compile` has it:
+ *  a program's library classes (a TextInput, a Button) resolve. */
+export function extractStatic(source, opts = {}) {
+    return extractStaticCore(source, { ...opts, host: opts.host ?? nodeIncludeHost(LIBRARY_ROOT) });
+}
 export { crawlLocations, crawlDocument, crawlExtract, fragmentHrefs, canonKey } from "./crawl.js";
 export { highlight, lineMetrics, programMetrics, programIndex } from "./highlight.js";
 export { settleHeadless, approximateMeasurer, DEFAULT_ENV } from "./headless.js";

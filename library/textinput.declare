@@ -1,0 +1,267 @@
+/*
+# TextInput
+
+An editable text field, realized as a **native** editable element (an input on the page, an
+overlay in canvas mode, a native field on the Mac), so the caret, selection, input methods,
+the clipboard, undo and accessibility are the platform's. It is a value control like any
+other: its value is `value`, a string, and what the person types is theirs until they stop.
+
+```declare
+App [ width = 340, height = 120,
+    who: string = "",
+    col: View [ x = 20, y = 20,
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        TextInput [ width = 220, placeholder = "Your name", value <-> app.who ],
+        Text [ text = { app.who == "" ? "Hello." : "Hello, " + app.who + "." } ]
+        ]
+    ]
+```
+
+**What happens, and when:**
+1. The person makes a change — types, pastes, deletes. Before anything appears, the field
+   asks `admit` with the text the change would produce: `null` refuses it (nothing changes,
+   the caret stays put), and otherwise the field shows what `admit` returned, usually the same
+   text, sometimes a tidied one.
+2. The field calls `commit` with the text now on screen; the built-in one keeps it in
+   `value`. Override it to put the text where your state lives, or write the shorthand
+   `value <-> app.name`.
+3. While the person is editing, the field keeps showing their text, whatever your value
+   becomes: a `commit` that clamps "4" to 8 still leaves "4" on screen, so "48" can be typed.
+4. When they stop — leave the field, press Return, press Escape — it shows your value.
+5. When nobody is editing and your value changes, it shows the new value at once.
+
+A change the platform can't describe beforehand (an input method's composition, autofill,
+undo) lands first and is judged by `admit` right after. Undo is the platform's own: a refused
+change never enters it, and a tidied one is one step.
+
+```declare
+App [ width = 340, height = 100,
+    size: number = 32,
+    TextInput [ x = 20, y = 20, width = 120, accessibilityLabel = "Font size",
+        value = { String(app.size) },
+        admit(t: string) -> string | null { return /^[0-9]{0,3}$/.test(t) ? t : null },
+        commit(t: string) { if (t != "") app.size = Math.max(8, Math.min(400, Number(t))) }
+        ]
+    ]
+```
+
+**What is wrong, and when to say so, are two facts.** `problem` is what is wrong with the
+text **now**: a service's refusal (`refused`), then `required`, then **`validate(v)`, a method
+you declare** — return `""` when the text is good, otherwise the sentence to show. `error` is
+`problem` once the field has been **judged** — left, `judge()`d, or submitted with its form —
+and is what the field shows and a screen reader hears. Judging never refuses a change or
+alters the text; only `admit` does.
+
+**A field in a `Form`** joins it by being inside it. Its `name` is the key a service names it
+by; the form ends its edit and judges it on submit, lays a service's refusal on it, and Return
+in it submits the form.
+
+## value
+**The field's value**, the text the program keeps. Standalone the field keeps its own;
+constrained (`value = { app.title }`) it needs a `commit` beside it, or write
+`value <-> app.title` (or `value <-> :title` for a field of a dataset record), which is both.
+A number or a date the program keeps is shown through a `{ }` (`value = { String(app.size) }`)
+and parsed back in `commit`.
+
+## fieldValue
+`value` — what `validate` judges, `required` checks and a service refuses.
+
+## text
+**Read-only.** The text on screen: the person's while they are editing, the value otherwise.
+For a character count or a live preview.
+
+## commit()
+`commit(t)`: the person's change, to put into your state. The built-in one writes `value`. Called
+after every change, or once when the edit ends with `commitOn = "end"`.
+
+## placeholder
+The grey prompt shown while the field is empty.
+
+## multiline
+Makes it a multi-line area rather than a single line — and then **Return inserts a newline**
+(unless `enterSubmits`). Left unsized, a multi-line field is as tall as its text; to let it
+grow only so far and then scroll, cap it as any box is capped —
+`height = { Math.min(contentHeight, 120) }` — since its `contentHeight` is its text's.
+
+## enterSubmits
+For a `multiline` field: **Return ends the edit and calls `onEnter`**, and **Shift-Return
+types the line break**, as in a chat composer. `false` by default (Return is a line break). A
+single-line field always does so on Return.
+
+## onEnter
+What Return does once it has ended the edit: on a single-line field, and on a `multiline` one
+that sets `enterSubmits`. By default, the field's form's Return — submit, or on to the next
+field under `enterMoves`. Override it to say what Return does instead (a chat composer sends);
+an override that wants the form's behaviour too calls `super.onEnter()`.
+
+## spellcheck
+Toggles the native spell-check underline. A field whose `purpose` is not prose (an
+email, a code, a card number) is never spell-checked, whatever this says.
+
+## purpose
+**What the field holds**, said once, so the platform can help with it: the browser's
+autofill and a password manager recognise the field and offer to fill it, a phone brings
+up the keyboard that suits it, and capitalization and autocorrection are left alone where
+they would get in the way. The tokens:
+
+| purpose | for | a phone's keyboard |
+|---|---|---|
+| `text` | anything else (the default) | text |
+| `name` | a person's full name | text, capitalized words |
+| `email` | an email address | email |
+| `username` | a sign-in name | text |
+| `password` | a password being entered | text, hidden |
+| `newPassword` | a password being chosen | text, hidden |
+| `oneTimeCode` | a code sent by text or email | digits |
+| `tel`, `url` | a phone number, a web address | phone, URL |
+| `digits`, `decimal` | a whole number, a number with a point | digits, decimal |
+| `cardNumber`, `cardName`, `cardExpiry`, `cardCode` | a payment card's number, name, expiry and security code | digits (text for the name) |
+| `addressLine1`, `addressLine2`, `city`, `region`, `postalCode`, `country` | a postal address; `region` is a state or province | text |
+
+The purpose says what the field is for, not what may be typed: a `cardNumber` field still
+takes whatever `admit` lets in. On a web page the field carries the standard autofill name
+for its purpose, as both its `autocomplete` and its `name`, and the keyboard hint as its
+`inputmode`. A browser offers saved payment cards only to a page served over HTTPS.
+
+## concealed
+**What is typed is hidden**, as a password is. It follows `purpose` — `password` and
+`newPassword` are concealed, every other purpose is not — until it is set, which is how a
+"show password" control works: the field keeps its purpose, so a password manager still
+knows it, and only what shows changes. A concealed field's text is never said by a screen
+reader.
+
+## wrap
+For a `multiline` field, whether long lines wrap (`true`) or scroll horizontally (`false`) —
+a code field wants `false`.
+
+## padding
+**Where the text sits inside the field** — the field's content box: one number insets all four
+sides; four are `[top, right, bottom, left]`. An auto-sized field (`height` unset) counts the
+top and bottom insets in its height. The theme's `fieldPadding` unless set.
+
+## numeralWidth
+The digits' advance, as on `Text`: `tabular` gives every digit the same width, so a card
+number or an amount lines up and does not shift as it is typed.
+
+## textAlign
+Where the text sits across the field, as on `Text`: `start` (the default), `center`, `end`,
+`left` or `right`. The text keeps its place as it is typed.
+
+## italic
+The text slants, as on `Text`, while it is typed and while it is shown.
+
+## select()
+`select(at, end?)` — place the caret or select a range: `select(7)`, `select(3, 9)`,
+`select("start")`, `select("end")`, `select("all")`. Applied at once while the field holds
+focus; otherwise held and applied at the next non-pointer focus (Tab, or a program's). A click
+into the field keeps the clicked caret.
+
+## selectionStart
+**Read-only.** Where the selection starts, as an index into `text`, reported as the person
+clicks, drags, types or moves the caret: `canBold = { field.selectionEnd > field.selectionStart }`.
+
+## selectionEnd
+**Read-only.** Where the selection ends; equal to `selectionStart` for a bare caret.
+
+## empty
+Whether the text is empty or only spaces: a field holding only spaces is left empty, for
+`required`.
+
+## accessibilityRole
+None of its own: the field is a text field to assistive technology, as the native element is.
+
+## accessibilityLabel
+The label of the `Field` it sits in, unless set. A field outside a `Field` names itself:
+`accessibilityLabel = "Search"`.
+
+## onKeyDown
+Escape while the field shows something not yet committed (under `commitOn = "end"`) cancels
+the edit: nothing is committed, and the field shows the value. Otherwise the key goes on as
+for any control, so Escape in a field inside a dialog closes the dialog. Space and Return
+are the text's (Return is `onEnter`'s), never a `press()`. An override handles its own
+keys and passes the rest on with `super.onKeyDown(e)`.
+
+## fill
+The theme's `surface`.
+
+## stroke
+The theme's `line`; its `accent` while the field has the focus, its `error` while it says
+what is wrong.
+
+## cornerRadius
+The theme's `fieldCornerRadius`, else its `controlCornerRadius`.
+
+## _typed()
+**Internal.** A change the native element has landed, already admitted: opens the edit if
+none is open and takes it; a change to a field nobody is in (autofill) ends at once.
+*/
+
+include [ "valuecontrol.declare" ]
+
+class TextInput extends ValueControl [
+    accessibilityRole = none,
+    accessibilityLabel = { provided("fieldLabel", "") },
+    value: string = "",
+    fieldValue = { value },
+    empty = { ("" + (this.shown ?? "")).trim() == "" },
+    commit(t: string) { value = t },
+    readonly text: string = { "" + (this.shown ?? "") },
+
+    placeholder: string = "",
+    multiline: boolean = false,
+    enterSubmits: boolean = false,
+    spellcheck: boolean = true,
+    purpose: InputPurpose = text,
+    concealed: boolean = { purpose == "password" || purpose == "newPassword" },
+    wrap: boolean = true,
+    numeralWidth: NumeralWidth = normal,
+    textAlign: TextAlign = start,
+    italic: boolean = false,
+    selectionStart: number = { this._native.selectionStart },
+    selectionEnd: number = { this._native.selectionEnd },
+
+    select(at: any, end?: any) { _native.select(at, end ?? undefined) },
+
+    // what Return does once the edit has ended: the form's, unless overridden
+
+    onEnter() {
+        const f = this.form as any
+        if (f == null) return
+        if (typeof f._enter == "function") f._enter(this)
+        else f.submit()
+        },
+
+    // Escape cancels an edit that has something uncommitted (a dialog around the
+    // field closes on the first press otherwise); Space and Enter are text here,
+    // never a press; the rest are any control's
+
+    onKeyDown(e: KeyEvent) {
+        if (e.key == "Escape" && editing && shown !== fieldValue) { cancelEdit(); return }
+        if (e.key == " " || e.key == "Enter") return
+        super.onKeyDown(e)
+        },
+
+    _typed(t: string) {
+        if (!editing) beginEdit()
+        _take(t)
+        if (!focused) endEdit()
+        },
+
+    fill = { provided("theme")?.surface ?? 0xFFFFFF },
+    stroke = { stroke(1, error != "" ? (provided("theme")?.error ?? 0xC93429) : focused ? (provided("theme")?.accent ?? 0x2E6FE0) : (provided("theme")?.line ?? 0xDBE1E9)) },
+    cornerRadius = { provided("theme")?.fieldCornerRadius ?? provided("theme")?.controlCornerRadius ?? 7 },
+    padding = { provided("theme")?.fieldPadding ?? 10 },
+
+    _native: NativeText [
+        text = { classroot.text },
+        placeholder = { classroot.placeholder },
+        multiline = { classroot.multiline },
+        enterSubmits = { classroot.enterSubmits },
+        spellcheck = { classroot.spellcheck },
+        purpose = { classroot.purpose },
+        concealed = { classroot.concealed },
+        wrap = { classroot.wrap },
+        numeralWidth = { classroot.numeralWidth },
+        textAlign = { classroot.textAlign },
+        italic = { classroot.italic } ]
+    ]

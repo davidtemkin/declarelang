@@ -11,12 +11,12 @@ constraint over the items array, so the live match count is free and no
 rendered row is ever scanned.
 
     Combobox [ width = 240, placeholder = "Assignee",
-        items = { app.people }, input(v: object) { app.assignee = v } ]
+        items = { app.people }, value <-> app.assignee ]
 
 - **Items are members** (the selection model's currency): records — shown by
   their `label` (or `id`) — or plain strings. `value` holds the chosen member;
-  `input(v)` is the delivery seam: the default writes `value`, a use-site
-  override redirects and the attribute stays untouched.
+  `commit(v)` is the delivery seam: the default writes `value`, a use-site
+  override redirects and the attribute stays untouched (`value <-> place` is both).
 - **Typing filters live** (case-insensitive substring); opening without typing
   shows the full list (the disclosure-button path). Picking echoes the label
   into the field and closes; editing again re-filters from the new text.
@@ -31,27 +31,25 @@ rendered row is ever scanned.
   `virtualize` applies to it the same way (via the Menu it composes).
 
 ```declare
-App [ width = 320, height = 160, picked: string = "",
+App [ width = 320, height = 160, picked: object = null,
     people: array = { ["Ada Lovelace", "Grace Hopper", "Alan Turing", "Barbara Liskov"] },
     Combobox [ x = 20, y = 20, width = 240, placeholder = "Assignee",
-        items = { app.people },
-        input(v: object) { app.picked = "" + v }
-        ],
-    Text [ x = 20, y = 80, text = { app.picked == "" ? "—" : app.picked } ]
+        items = { app.people }, value <-> app.picked ],
+    Text [ x = 20, y = 80, text = { app.picked == null ? "—" : "" + app.picked } ]
     ]
 ```
 
 ## items
 The options, as **members**: records — shown by their `label`, else `id` — or plain
 strings. The currency of the selection model, so whatever you put in is what comes back
-out of `input`.
+out of `commit`.
 
 ## value
 The **chosen member**, not the typed text — the whole record when you supplied records.
 `null` until something is picked. Standalone the combobox owns it; constrained, override
-`input` beside it.
+`commit` beside it, or bind it with `value <-> place`.
 
-## input()
+## commit()
 **Where the choice goes.** Receives the chosen member. The default writes `value`; an
 override redirects it and leaves the attribute untouched.
 
@@ -100,7 +98,7 @@ Closes the list without picking.
 
 ## pickIndex()
 Picks the *n*th current match: echoes its label into the entry, closes the list, and
-delivers the member through `input`. The index is into `matches`, never into `items`.
+delivers the member through `edit`, to `commit`. The index is into `matches`, never into `items`.
 
 ## list
 The option list — **a `Menu` created at the app layer on first open**, not a child of
@@ -138,7 +136,7 @@ answers to the name, with the list's state on it, and the view around it says no
 Follows `value`, the chosen member: what `required` and `validate` judge (see `ValueControl`).
 */
 
-include [ "valuecontrol.declare", "menu.declare" ]
+include [ "valuecontrol.declare", "menu.declare", "textinput.declare" ]
 
 use [ Menu ]
 
@@ -190,7 +188,7 @@ class Combobox extends ValueControl [
 
     // ── the delivery seam ─────────────────────────────────────────────────
 
-    input(v: object) { value = v },
+    commit(v: object) { value = v },
 
     // leaving with a query typed (not into the list): what was typed letter by
     // letter is settled as autofill's whole text is — naming exactly one item
@@ -201,8 +199,8 @@ class Combobox extends ValueControl [
         if (!filtering || entry.focused || this.listShown()) return
         const t = query.trim().toLowerCase()
         const exact = t == "" ? [] : (items ?? []).filter((m) => this.labelOf(m).toLowerCase() == t)
-        if (exact.length == 1) { filtering = false; input(exact[0]); return }
-        if (value != null) input(null)
+        if (exact.length == 1) { filtering = false; edit(exact[0]); return }
+        if (value != null) edit(null)
         },
     focusField() { Focus.focus(entry) },
 
@@ -211,7 +209,7 @@ class Combobox extends ValueControl [
         if (m === undefined) return
         filtering = false
         this.closeList()
-        input(m)
+        edit(m)
         },
 
     // ── the list is a Menu made beside the combobox, lazily at first open —
@@ -263,7 +261,7 @@ class Combobox extends ValueControl [
         // else the chosen member's label — so a value set from outside (a
         // saved address's country) shows as surely as one picked here
 
-        text = { classroot.filtering ? classroot.query : classroot.labelOf(classroot.value) },
+        value = { classroot.filtering ? classroot.query : classroot.labelOf(classroot.value) },
         height = { classroot.height },
         placeholder = { classroot.placeholder },
         purpose = { classroot.purpose },
@@ -284,7 +282,7 @@ class Combobox extends ValueControl [
             },
         accessibilityActiveItem = { classroot.list == null ? null : (classroot.list as any).accessibilityActiveItem },
         focusable = { !classroot.disabled },
-        onInput(t: string) {
+        commit(t: string) {
             // text that arrives whole (autofill, a paste) and names exactly one
             // item picks it; typing that passes through an item's name does not,
             // so "Ann" on the way to "Anna" stays a query
@@ -294,7 +292,7 @@ class Combobox extends ValueControl [
                 classroot.query = "" + t
                 classroot.filtering = false
                 classroot.closeList()
-                classroot.input(exact[0])
+                classroot.edit(exact[0])
                 return
                 }
             classroot.query = "" + t

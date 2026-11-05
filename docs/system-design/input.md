@@ -4,6 +4,8 @@
 
 **Progress:** all three layers **implemented + tested 2026-07-05**. Layer 1 (`src/keys.ts`, `Keys`) + Layer 2 (`src/focus.ts`, `Focus` + `deliverKeys`) wired into the runtime entry (`index.ts` `wireInput`: `Focus.setRoot` + `Keys.listen` + `deliverKeys`); Layer 3 (`src/text-input.ts`, `TextInput` + the `setEditable`/`activateEditable` Surface primitive on both backends). Full suite green (unit 298, perceptual 104, scaffold 11) + a two-backend browser smoke for the native element.
 
+**Superseded in part, 2026-11-05:** Layer 3 below is the record of the first `TextInput`. The field is now the library's `TextInput` (a `ValueControl`) over the runtime's `NativeText` node, with one edit model for every value control — `editing-values.md`. Layers 1 and 2 stand.
+
 ## The layering
 
 Bottom-up, each layer a client of the one below — and each useful on its own:

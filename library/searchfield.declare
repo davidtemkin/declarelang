@@ -6,12 +6,12 @@ as its placeholder until you give it your own. Its look is the theme's: a stadiu
 both ends, `searchFieldCornerRadius = "round"` — unless the theme gives that token a radius (a
 square-cornered house style gives it its `fieldCornerRadius`), with `searchFieldHeight`, `searchFieldPadding`, and
 `searchFieldFill` and `searchFieldStroke` (the theme's `surface` and `line` when unset).
-Everything else is `TextInput`'s: `text`, `onInput`, `onEnter`, the value pattern.
+Everything else is `TextInput`'s: `value`, `admit`, `commit`, `onEnter`.
 
 ```declare
 App [ width = 400, height = 100, q: string = "",
     find: SearchField [ x = 20, y = 20, width = 260, placeholder = "Search messages",
-        onInput(t: string) { app.q = "" + t } ],
+        value <-> app.q ],
     Text [ x = 20, y = 64, text = { app.q == "" ? "type to search" : "searching for " + app.q } ]
     ]
 ```
@@ -37,6 +37,8 @@ The theme's `searchFieldFill`, else its `surface`.
 The theme's `searchFieldStroke`, else its `line`, turning to its `accent` while the field has
 the focus.
 */
+
+include [ "textinput.declare" ]
 
 class SearchField extends TextInput [ height = { provided("theme").searchFieldHeight },
     // round at both ends (the theme's "round", the default), or the radius the theme gives

@@ -27,6 +27,7 @@
 // the rest — arrived with the compositing arc (2026-08: `invertPoint` below,
 // so the hit walk tells the truth about a turned or scaled surface).
 
+import { wireEditableInput, setEditableValue, applyEditableText } from "./editable-input.js";
 import { watchSelection } from "./edit-selection.js";
 import { profileHook } from "./reactive.js";
 import { platformTimeout, clearPlatformTimeout, type PlatformTimer } from "./platform-time.js";
@@ -2201,9 +2202,9 @@ class CanvasSurface implements Surface, SceneSurface {
     s.touchAction = "auto";
     (s as CSSStyleDeclaration & { resize: string }).resize = "none";
     const self = el;
-    // the selection the edit left comes first, so an input handler reads the
-    // caret after the keystroke, not before it
-    el.addEventListener("input", () => { this.edit?.onSelect?.(self.selectionStart ?? 0, self.selectionEnd ?? 0); this.edit?.onInput(self.value); });
+    // what the person does to the text: checked before it lands where the
+    // platform says beforehand, reported after it lands either way (editable-input.ts)
+    wireEditableInput(self, () => this.edit);
     el.addEventListener("focus", () => this.edit?.onFocus());
     el.addEventListener("blur", () => { this.edit?.onBlur(); if (this.editEl === self) this.hideEditable(); });
     watchSelection(el, (s, e) => this.edit?.onSelect?.(s, e));
@@ -2253,7 +2254,7 @@ class CanvasSurface implements Surface, SceneSurface {
 
   /** The editable's spec onto its element: value, inset, spellcheck, wrap, placeholder, style. */
   private styleEditable(el: HTMLInputElement | HTMLTextAreaElement, spec: EditableSpec): void {
-    if (el.value !== spec.value) el.value = spec.value; // guard the caret against an echo
+    setEditableValue(el, spec.value); // only when it differs, never mid-composition, the caret kept
     el.disabled = spec.disabled === true;
     // Parity with the DOM backend's editable: the field's inset, the
     // spellcheck election, and the wrap mode all come from the one spec —
@@ -2309,6 +2310,10 @@ class CanvasSurface implements Surface, SceneSurface {
       ctx.fillText(lines[i], x, top + m.ascent + i * lh);
     }
     ctx.restore();
+  }
+
+  applyEditableText(text: string): void {
+    if (this.editEl !== null) applyEditableText(this.editEl, text);
   }
 
   /** The caret/selection write half (TextInput.select, #22): land the range on

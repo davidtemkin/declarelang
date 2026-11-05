@@ -1,5 +1,5 @@
-// Forms (library form.declare, valuecontrol.declare, field.declare; runtime
-// text-input.ts): what a field says is wrong and when, how a form gathers its
+// Forms (library form.declare, valuecontrol.declare, field.declare,
+// textinput.declare): what a field says is wrong and when, how a form gathers its
 // fields, judges them on submit, sends, and lays a service's refusal back on
 // the fields it names.
 
@@ -9,7 +9,6 @@ import { test, summarize } from "./harness.mjs";
 import { compileProgram } from "../compiler/dist/declarec.js";
 import { instantiate } from "../runtime/dist/instantiate.js";
 import { settle, provideMeasurer } from "../runtime/dist/index.js";
-import { SCHEMAS } from "../runtime/dist/schema.js";
 import { approximateMeasurer } from "../compiler/dist/headless.js";
 
 provideMeasurer(approximateMeasurer());
@@ -34,16 +33,15 @@ const field = (form, name) => form._members.find((m) => m.name === name);
 
 // ── the shared vocabulary ────────────────────────────────────────────────────
 
-await test("TextInput and ValueControl share the form vocabulary", async () => {
+await test("TextInput is a ValueControl: the form vocabulary is defined once", async () => {
   const vc = readFileSync(new URL("../library/valuecontrol.declare", import.meta.url), "utf8");
-  const SHARED = { name: "string", judged: "boolean", refused: "string", problem: "string", error: "string", valid: "boolean" };
-  for (const [name, type] of Object.entries(SHARED)) {
+  const field = readFileSync(new URL("../library/textinput.declare", import.meta.url), "utf8");
+  for (const [name, type] of Object.entries({ name: "string", judged: "boolean", refused: "string", problem: "string", error: "string", valid: "boolean" })) {
     assert.match(vc, new RegExp(`^\\s*${name}: ${type} = `, "m"), `ValueControl declares ${name}: ${type}`);
-    assert.equal(SCHEMAS.TextInput.attrs[name]?.kind, type, `TextInput's schema declares ${name} as ${type}`);
   }
   assert.match(vc, /^\s*required: boolean \| string = false,/m);
-  assert.equal(SCHEMAS.TextInput.attrs.required?.written, "boolean | string");
   for (const m of ["refuse(message: string)", "judge()", "validate(v: any)"]) assert.ok(vc.includes(m), `ValueControl has ${m}`);
+  assert.match(field, /^class TextInput extends ValueControl \[/m, "and a field has it by being one");
 });
 
 // ── one field: what is wrong, and when it says so ────────────────────────────
@@ -57,17 +55,17 @@ await test("a TextInput: problem is now, error waits for judging (the field is l
   assert.equal(app.t.accessibilityRequired, true);
   app.t.judge(); settle();
   assert.equal(app.t.error, "Enter a name.");
-  app.t.text = "Ada"; settle();
-  assert.equal(app.t.error, "", "once judged it follows each edit");
+  app.t.value = "Ada"; settle();
+  assert.equal(app.t.error, "", "once judged it follows each change");
   assert.equal(app.t.valid, true);
-  app.t.judged = false; app.t.text = ""; settle();
+  app.t.judged = false; app.t.value = ""; settle();
   assert.equal(app.t.error, "", "un-judged by the program: quiet until left again");
 });
 
 await test("a TextInput: validate is reactive over what it reads", async () => {
   const app = await boot(`App [ width = 300, height = 100,
     country: string = "US",
-    zip: TextInput [ width = 100, text = "1234", judged = true,
+    zip: TextInput [ width = 100, value = "1234", judged = true,
       validate(v: string) -> string { return app.country == "US" && v.length != 5 ? "Enter a 5-digit ZIP code." : "" } ] ]`);
   assert.equal(app.zip.error, "Enter a 5-digit ZIP code.");
   app.country = "GB"; settle();
@@ -79,7 +77,7 @@ await test("a refusal on a field refusedWith empties is still said: the program'
     code: string = "123",
     f: Form [
         refusedWith(body: any) { app.code = ""; this.c.judged = false },
-        c: TextInput [ name = "cvc", text = { app.code }, onInput(v: string) { app.code = v } ] ] ]`);
+        c: TextInput [ name = "cvc", value <-> app.code ] ] ]`);
   app.f.c.judged = true; settle();
   app.f._refused({ field: "cvc", message: "The security code doesn't match this card." }); settle();
   assert.equal(app.f.c.text, "", "emptied by the program's reaction");
@@ -88,13 +86,13 @@ await test("a refusal on a field refusedWith empties is still said: the program'
 
 await test("a TextInput: a refusal counts while the text is the one refused", async () => {
   const app = await boot(`App [ width = 300, height = 100,
-    t: TextInput [ width = 200, text = "taken@x.io", judged = true ] ]`);
+    t: TextInput [ width = 200, value = "taken@x.io", judged = true ] ]`);
   app.t.refuse("That address already has an account."); settle();
   assert.equal(app.t.problem, "That address already has an account.");
   assert.equal(app.t.valid, false);
-  app.t.text = "new@x.io"; settle();
+  app.t.value = "new@x.io"; settle();
   assert.equal(app.t.problem, "", "changed: the refusal stops counting");
-  app.t.text = "taken@x.io"; settle();
+  app.t.value = "taken@x.io"; settle();
   assert.equal(app.t.problem, "That address already has an account.", "the refused value is refused again");
   app.t.refuse(""); settle();
   assert.equal(app.t.problem, "", "withdrawn");
@@ -110,9 +108,9 @@ const FORM = `App [ width = 500, height = 600,
   f: Form [ x = 0, y = 0, width = 480,
     layout: SimpleLayout [ axis = y, spacing = 8 ],
     Field [ label = "Email", TextInput [ width = 200, name = "email", required = "Enter your email address.",
-      text = { app.email }, onInput(v: string) { app.email = v } ] ],
+      value <-> app.email ] ],
     Field [ label = "Terms", Checkbox [ name = "agree", required = "Accept the terms.", label = "I agree",
-      checked = { app.agree }, input(v: boolean) { app.agree = v } ] ],
+      checked <-> app.agree ] ],
     Field [ label = "Country", Combobox [ name = "country", items = ["France", "Japan"] ] ],
     Field [ label = "Off", TextInput [ width = 200, name = "off", required = true, disabled = true ] ],
     View [ visible = { !app.hide }, TextInput [ width = 200, name = "hidden", required = true ] ],
@@ -181,7 +179,7 @@ await test("a step a handler defers with afterSettle belongs to its node: discar
 
 await test("a ValueControl with no form: its rules, facts and judging stand alone", async () => {
   const app = await boot(`App [ width = 300, height = 100, agree: boolean = false,
-    c: Checkbox [ label = "I agree", required = "Accept the terms.", checked = { app.agree }, input(v: boolean) { app.agree = v } ] ]`);
+    c: Checkbox [ label = "I agree", required = "Accept the terms.", checked <-> app.agree ] ]`);
   assert.equal(app.c.form, null, "no form above, and none needed");
   assert.equal(app.c.problem, "Accept the terms.");
   assert.equal(app.c.valid, false);

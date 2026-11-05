@@ -178,12 +178,6 @@ What the server said when it refused — parsed if it was JSON, the raw text oth
 the rate limit resets; a refusal reported as a status number alone throws it away.
 `value` is untouched by a failure, so the last good data is still there.
 
-## errorSchema
-The shape a refusal's body has, as `schema` is the value's: `errorSchema = [ message: string,
-field?: string ]`, or a named schema. `errorBody` is then typed — the compiler checks what you
-read of it — and a refusal whose body is not that shape is not handed over: `errorBody` stays
-`null` and `error` says what did not match.
-
 ## responseHeaders
 The headers of the last reply, as a record with lowercased names —
 `data.responseHeaders["etag"]`, `["link"]` for the next page, `["retry-after"]` on a refusal.

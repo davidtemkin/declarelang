@@ -102,5 +102,6 @@
   "MonthCalendarArrow": "datepicker.declare",
   "Form": "form.declare",
   "ValueControl": "valuecontrol.declare",
-  "FieldLayout": "field.declare"
+  "FieldLayout": "field.declare",
+  "TextInput": "textinput.declare"
 }

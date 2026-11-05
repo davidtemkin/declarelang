@@ -52,7 +52,9 @@ function run(file, touch) {
 }
 
 for (const [file, what] of [["hold.declare", "a drag picked up by a hold"], ["nohold.declare", "a drag claimed at touchdown"]]) {
-  for (const touch of [true, false]) {
+  // the finger is where this broke, so both drags are tried under one; a mouse's
+  // edge scrolling is the same code past the claim, tried once
+  for (const touch of file === "hold.declare" ? [true] : [true, false]) {
     await test(`${what}, by ${touch ? "a finger" : "a mouse"}: resting in the top band scrolls to the start; it is never the user's scroll, and a request mid-drag lands`, () => {
       const r = run(file, touch);
       assert.deepEqual(r.band, { y: 0, user: false }, "the edge scrolling reached the start, as the program's motion");

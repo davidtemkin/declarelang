@@ -103,6 +103,8 @@ export declare const Diag: {
     unknownHandler: (owner: string, name: string, known: readonly string[], pos: Pos, near?: string | null) => DeclareError;
     accessibilityContract: (message: string, pos: Pos) => DeclareError;
     accessibilityRoleComputed: (pos: Pos) => DeclareError;
+    versionNewer: (wrote: string, have: string, pos: Pos) => DeclareError;
+    versionOlder: (wrote: string, have: string, file: string, pos: Pos) => DeclareError;
     accessibilityNoName: (owner: string, role: string, pos: Pos, labelled?: boolean) => DeclareError;
     accessibilityControlInControl: (inner: string, innerRole: string, outer: string, outerRole: string, pos: Pos) => DeclareError;
     accessibilityCollapsedRead: (owner: string, axis: string, pos: Pos) => DeclareError;
@@ -117,7 +119,6 @@ export declare const Diag: {
     rangeWithoutEffect: (owner: string, range: string, size: string, pos: Pos, bound?: string | null) => DeclareError;
     scriptSearchesPage: (lookup: string, pos: Pos) => DeclareError;
     alphaAsFraction: (written: string, pos: Pos) => DeclareError;
-    commitOnOneWay: (owner: string, pos: Pos) => DeclareError;
     accessibilityLabelUnread: (owner: string, pos: Pos) => DeclareError;
     accessibilityRadioAlone: (owner: string, pos: Pos) => DeclareError;
     keyDownWithoutSuper: (owner: string, pos: Pos) => DeclareError;

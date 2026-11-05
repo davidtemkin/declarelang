@@ -339,6 +339,11 @@ const TABLE = {
     dom: true, canvas: true, mac: true,
     headless: NOT_APPLICABLE,
   },
+  // a change judged after it landed, corrected as one undoable edit (editing-values.md §7)
+  applyEditableText: {
+    dom: true, canvas: true, mac: true,
+    headless: NOT_APPLICABLE,
+  },
   watchVisibility: {
     dom: true,
     canvas: "NOT A GAP — deliberate division of labor (2026-08-19): the runtime computes the visibility facts itself off the ancestor walk (view.ts, the generic feed — exact for everything the language expresses) wherever the backend lacks PAGE context. The backend member exists for backends that can see what the app cannot (a host page's scroll/transform over an embedded box) — on canvas that composition (root-element IO ∩ the walk) is the recorded follow-on for the embedded-canvas case",
@@ -465,7 +470,8 @@ for (const member of members) {
 // interaction.ts's, shared, so input honesty never depends on this row.
 await test("the size of the silent-failure surface is stated, not drifting", () => {
   const total = [...src("backend.ts").matchAll(/^ {2}[a-zA-Z][a-zA-Z0-9]*\??\(/gm)].length;
-  assert.equal(members.length, 41,   // +setScrollbar (2026-10-25): hideScrollbars, a scroller that draws no bars
+  assert.equal(members.length, 42,   // +applyEditableText (2026-11-05): a correction admit made after a change landed — all three implement
+                                     // +setScrollbar (2026-10-25): hideScrollbars, a scroller that draws no bars
                                      // +setEndAnchor (2026-10-23): a page-pinned view at the window's end edge, held there by the browser
                                      // +setDirection (2026-10-23): the base direction of a view's text, `direction = rtl`
                                      // +setSemantics, +setLanguage (2026-10-18): a view's ARIA on its own element; an app's language (accessibility.md)

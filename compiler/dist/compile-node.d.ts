@@ -2,7 +2,11 @@ import { type CompileOptions, type Compiled } from "./compile.js";
 import type { Closure } from "./closure.js";
 import { type Flags } from "../../runtime/dist/parser.js";
 export type { CompileOptions, Compiled } from "./compile.js";
-export { extractStatic, extractFromProgram, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
+export { extractFromProgram, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
+import { type ExtractOptions as ExtractOpts, type Extracted as ExtractResult } from "./static-html.js";
+/** `extractStatic` with the library on hand, as this module's `compile` has it:
+ *  a program's library classes (a TextInput, a Button) resolve. */
+export declare function extractStatic(source: string, opts?: ExtractOpts): Promise<ExtractResult>;
 export { crawlLocations, crawlDocument, crawlExtract, fragmentHrefs, canonKey, type CrawlDoc, type CrawlOptions } from "./crawl.js";
 export { highlight, lineMetrics, programMetrics, programIndex, type LineMetrics, type ProgramMetrics, type ProgramIndex } from "./highlight.js";
 export type { ExtractOptions, Extracted } from "./static-html.js";

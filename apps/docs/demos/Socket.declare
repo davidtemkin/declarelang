@@ -13,7 +13,7 @@ App [ textColor = 0x172530, fontSize = 14,
         row: View [ height = 32, width = { this.contentWidth },
             layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
             Switch [ checked = { app.echo.active },
-                input(v: boolean) { app.echo.active = v }
+                commit(v: boolean) { app.echo.active = v }
                 ],
             Button [ label = "send ping", height = 32, disabled = { !app.echo.open },
                 onClick() { app.echo.send("ping"); app.log = app.log + "→ ping\n" }

@@ -101,7 +101,6 @@ import { coerce, coerceToken, isPercent, isAlign, nullablePrimitive, type AttrTy
 import { defineAttributes, noteUseSiteSet, recordDeclarations, setBound, provideWrite, declaredRules, isSet, ownerOf, type AttrSpec, type DeclRecord } from "./attributes.js";
 import { contractGaps, contractMessage } from "./a11y-roles.js";
 import { bindConstraint, bindDeclDefault, provideBind, bindPercent, bindAlign, percentRule, alignRule, bindData, bindDatapath, bindCursor, isTransformSlot } from "./bind.js";
-import { bindTwoWay, bindTwoWayDynamic } from "./editor.js";
 import { Replicator, type VirtualizePolicy } from "./replicate.js";
 import { classOfFor, KindedReplicator } from "./class-for.js";
 import { createWindowing } from "./virtualize.js";
@@ -299,8 +298,6 @@ type Pending =
   | { view: View; attr: Attr; percent: number; yielding?: true }
   | { view: View; attr: Attr; align: "center" | "end"; yielding?: true }
   | { view: View; attr: Attr; dataPath: string; type: AttrType; plan?: readonly PathSeg[] }
-  | { view: View; attr: Attr; twoWay: string | readonly string[]; type: AttrType }
-  | { view: View; attr: Attr; twoWayCode: string; type: AttrType; classroot: View | null }
   | { view: View; attr: Attr; cursorPath: string | readonly string[] }
   | { view: View; attr: Attr; cursorCode: string; classroot: View | null }
   | ProvisionPending
@@ -531,8 +528,6 @@ function installBatchNow(ordered: readonly Pending[], ctx: Ctx): void {
   if (transforming !== null) for (const p of ordered) if (!("align" in p) && "attr" in p && p.view instanceof View && isTransformSlot(p.attr.name)) transforming.add(p.view);
   for (const p of ordered) {
     if ("code" in p) bindConstraint(p.view, p.attr.name, p.code, p.attr.value.pos, p.classroot, p.attr.value.kind === "code" ? p.attr.value.deps : undefined, p.yielding === true, false, p.attr.value.kind === "code" ? p.attr.value.expr : undefined);
-    else if ("twoWay" in p) bindTwoWay(p.view, p.attr.name, p.twoWay, p.type);
-    else if ("twoWayCode" in p) bindTwoWayDynamic(p.view, p.attr.name, p.twoWayCode, p.attr.value.pos, p.classroot, p.type);
     else if ("dataPath" in p) bindData(p.view, p.attr.name, p.dataPath, p.type, p.plan);
     else if ("cursorPath" in p) bindDatapath(p.view, p.cursorPath);
     else if ("cursorCode" in p) bindCursor(p.view, p.cursorCode, p.attr.value.pos, p.classroot);
@@ -1290,11 +1285,7 @@ function constructNode(el: Element, outer: View | null, ctx: Ctx, parentEl: Elem
     if (!r.ok) throw r.error;
     if (applyProvision(r, view, attr, ctx, acroot)) continue;
     if ("binding" in r) {
-      if (attr.bind === "two") {
-        // `name <-> { expr }` — a DYNAMIC two-way binding: the expr names the
-        // field at runtime (a generic editor over `classroot.field`).
-        ctx.pending.push({ view, attr, twoWayCode: r.binding.src, type: slotTypeOf(attr, el.tag), classroot: acroot });
-      } else if (route === "cursor") {
+      if (route === "cursor") {
         ctx.pending.push({ view, attr, cursorCode: r.binding.src, classroot: acroot });
       } else if (!useSite && CLASS_DEFAULT_GEOMETRY.has(attr.name)) {
         // A CLASS'S OWN PLACE is a default, not a claim (TextLabel's optical
@@ -1327,19 +1318,6 @@ function constructNode(el: Element, outer: View | null, ctx: Ctx, parentEl: Elem
           );
         }
         ctx.pending.push({ view, attr, cursorPath: cSegs ?? r.datapath.path });
-      } else if (attr.bind === "two") {
-        // `name <-> :path` — a two-way binding on an editable leaf slot: read
-        // the datapath AND write edits back to it (editor.ts). check() has
-        // already confirmed the slot is eligible — and that the path is a
-        // SINGULAR, STATIC place; the unchecked-tree path enforces it here.
-        const wSegs = r.datapath.plan === undefined ? null : staticSegs(r.datapath.plan);
-        if (r.datapath.plan !== undefined && wSegs === null) {
-          throw new DeclareError(
-            `'${attr.name} <-> :${r.datapath.path}' — a two-way binding writes ONE place; a selective or data-resolved path cannot name it`,
-            r.datapath.pos
-          );
-        }
-        ctx.pending.push({ view, attr, twoWay: wSegs ?? r.datapath.path, type: slotTypeOf(attr, el.tag) });
       } else {
         ctx.pending.push({ view, attr, dataPath: r.datapath.path, type: slotTypeOf(attr, el.tag), plan: r.datapath.plan });
       }

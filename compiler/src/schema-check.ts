@@ -77,6 +77,19 @@ function walkPlan(start: Ctx, plan: readonly PathSeg[], spelled: string): { ctx:
 /** Check a program's path literals against its datasets' schemas. */
 export function schemaCheck(program: Program): DeclareError[] {
   const errors: DeclareError[] = [];
+  /** A control's declared value type, `string`, `number` or `boolean`, from its
+   *  class chain's declaration of `attr`; null when not one of those or unknown. */
+  const byName = new Map(program.classes.map((c) => [c.name, c]));
+  const slotType = (tag: string, attr: string): "string" | "number" | "boolean" | null => {
+    const seen = new Set<string>();
+    for (let t: string | undefined = tag; t !== undefined && !seen.has(t); t = byName.get(t)?.base) {
+      seen.add(t);
+      const d = byName.get(t)?.body.decls.find((x) => x.name === attr);
+      if (d !== undefined) return d.type === "string" || d.type === "number" || d.type === "boolean" ? d.type : null;
+    }
+    return null;
+  };
+  const article = (t: string): string => (t === "any" ? "any" : `a ${t}`);
   // A data node by its CHAIN: Dataset, DataSource, or a program class
   // extending either (`class Feed extends DataSource`).
   const bases = new Map(program.classes.map((c) => [c.name, c.base]));
@@ -157,19 +170,22 @@ export function schemaCheck(program: Program): DeclareError[] {
         const v = a.value;
         const r = walkPlan(here, v.plan ?? splitPath(v.path), v.path);
         if ("error" in r) { errors.push(new DeclareError(r.error, v.pos)); continue; }
-        // A `<->` edge's TYPE (typed data, 2026-09-02): a text editor's
-        // session can commit a string, a number, or a union member (the
-        // schema floor, editor.ts) — it cannot edit a boolean, a record, or
-        // an array. Refuse at compile, naming the right tool, instead of a
-        // session that can never validate.
-        if (a.bind === "two") {
+        // A `<->` edge's TYPE (typed data): the shorthand converts nothing, so
+        // the field the schema names must hold what the control's value is —
+        // a text field's `value` a string, a checkbox's `checked` a boolean —
+        // and a leaf, not a record or a list. A conversion is the long form.
+        if (a.shorthand === true) {
           const ctx = r.ctx;
-          if (ctx.kind === "scalar" && ctx.field.type === "boolean" && ctx.field.tokens === undefined) {
+          const want = slotType(el.tag, a.name);
+          if (ctx.kind === "record" || ctx.kind === "array") {
             errors.push(new DeclareError(
-              `'${a.name} <-> :${v.path}' — the schema says '${ctx.field.name}' is a boolean, and a text editor cannot edit one; a Checkbox writes immediately through the value pattern (guide: editing)`, v.pos));
-          } else if (ctx.kind === "record" || ctx.kind === "array") {
-            errors.push(new DeclareError(
-              `'${a.name} <-> :${v.path}' — the schema says this is ${ctx.kind === "array" ? "an array" : "a record"}; a two-way binding edits a LEAF value — bind a field inside it, or edit a working copy (guide: forms)`, v.pos));
+              `'${a.name} <-> :${v.path}' — the schema says this is ${ctx.kind === "array" ? "an array" : "a record"}; a control's value is a LEAF value — bind a field inside it, or edit a working copy (guide: forms)`, v.pos));
+          } else if (ctx.kind === "scalar" && want !== null) {
+            const have = ctx.field.tokens !== undefined ? (ctx.field.type ?? "string") : ctx.field.type;
+            if (have !== null && have !== "any" && have !== want) {
+              errors.push(new DeclareError(
+                `'${a.name} <-> :${v.path}' — the schema says '${ctx.field.name}' is ${article(have)}, and ${el.tag}'s ${a.name} is ${article(want)}: the shorthand converts nothing. Show it converted and convert back — '${a.name} = { … }' with a commit(v) that converts${want === "string" && have === "number" ? ` (${a.name} = { String(:${v.path}) }, and a commit that parses)` : ""}`, v.pos));
+            }
           }
         }
       }

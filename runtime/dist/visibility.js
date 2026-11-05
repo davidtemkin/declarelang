@@ -260,10 +260,17 @@ function installFeed(v, f) {
 function scheduleFlush(v, f) {
     if (f.flushTimer !== 0)
         return;
+    // a flush waits on the program, never keeps a host process alive for it (a
+    // headless run whose clock never rests would otherwise poll here forever)
+    const later = () => {
+        const t = setTimeout(tick, 120);
+        t.unref?.();
+        return t;
+    };
     const tick = () => {
         f.flushTimer = 0;
         if (sharedClock.settling) {
-            f.flushTimer = setTimeout(tick, 120);
+            f.flushTimer = later();
             return;
         }
         const p = f.pending;
@@ -284,7 +291,7 @@ function scheduleFlush(v, f) {
                 v.$surface?.setRasterScale?.(p.scale);
         }
     };
-    f.flushTimer = setTimeout(tick, 120);
+    f.flushTimer = later();
 }
 function deliverVisibility(v, f, on, rect, scale) {
     if (v.onScreen !== on)

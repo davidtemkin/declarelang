@@ -132,6 +132,8 @@ export interface ShellPort {
   edit(id: number, spec: unknown, box: FieldBox | null): void;
   editFocus(id: number, on: boolean): void;
   editSel(id: number, start: number, end: number): void;
+  /** A change the field judged once it had landed, corrected while the field still holds `from`. */
+  editApply(id: number, from: string | null, text: string): void;
   /** A DOMIsland's slot opened ("" closed it) — the page makes its element (shell.ts). */
   island(id: number, slot: string): void;
   /** Where a DOMIsland's element goes on the page. */
@@ -327,6 +329,7 @@ export class GpuHost {
         case "cursor": this.shell.cursor(r[1] as string); break;
         case "editFocus": this.shell.editFocus(id, r[2] === true); break;
         case "editSel": this.shell.editSel(id, r[2] as number, r[3] as number); break;
+        case "editApply": this.shell.editApply(id, r[2] as string | null, r[3] as string); break;
         case "edit": {
           const spec = r[2] as { style: { family: unknown }; families?: string } | null;
           if (spec != null) {

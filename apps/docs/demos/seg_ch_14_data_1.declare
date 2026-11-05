@@ -8,7 +8,7 @@ App [ width = 320, height = 170, fill = white, textColor = #172530,
         View [ datapath = :items[], width = 100%, height = 30,
             layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
             Checkbox [ checked = :done, accessibilityLabel = :title,
-                input(v: boolean) { :done = v }
+                commit(v: boolean) { :done = v }
                 ],
             Text [ width = 150, text = :title ],
             Button [ label = { "★ " + :stars }, height = 26,

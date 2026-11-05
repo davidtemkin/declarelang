@@ -10,8 +10,9 @@ section reads its source like any file, for the editor, and runs it in an
 host to recompile, which answers on `app.liveReport` when the edit does not
 compile.
 
-A `CodeField` is a native editable field seeded (uncontrolled, `initial`) from
-the demo’s source — it follows the source until you type, then holds the edit,
+A `CodeField` is a native editable field seeded from the demo’s source — its
+value follows the source until you type, and its `commit` then keeps the edit
+(setting `value` takes it over from the formula),
 publishing each keystroke on `app.liveSource`. A `SourcePanel` frames it
 (LIVE·EDITABLE chip, Revert, hairline); a `PreviewFrame` hosts the compiled app
 as an **embedded child app** — an `AppIsland`, no iframe — so the preview can’t
@@ -23,8 +24,8 @@ class CodeField extends TextInput [ multiline = true, spellcheck = false,
     fontFamily = ["ui-monospace", "monospace"], fontSize = 11, textColor = { provided("theme").lead },
     editName: string = "",
     src: string = "",
-    initial = { src },
-    onInput() { app.liveCard = editName; app.liveSource = text }
+    value = { src },
+    commit(t: string) { value = t; app.liveCard = editName; app.liveSource = t }
     ]
 
 
@@ -69,7 +70,7 @@ class SourcePanel [
         x = { parent.width - this.width - 10 },
         width = { this.contentWidth },
         fill = { hovered ? provided("theme").hover : null },
-        onClick() { classroot.field.text = classroot.src
+        onClick() { classroot.field.value = classroot.src
                     app.liveCard = classroot.editName
                     app.liveSource = classroot.src },
         rlbl: Text [ fontFamily = { app.uiFace }, fontSize = 11, fontWeight = semibold,

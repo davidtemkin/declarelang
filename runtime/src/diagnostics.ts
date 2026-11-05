@@ -109,7 +109,7 @@ export function phaseOfCode(code: string): DiagPhase {
 export type Category = "error" | "bugs" | "accessibility" | "devices" | "lint";
 export const CATEGORY_ORDER: readonly Category[] = ["error", "bugs", "accessibility", "devices", "lint"];
 const WARNING_CATEGORY: Readonly<Record<string, Exclude<Category, "error">>> = {
-  DECLARE1002: "lint", DECLARE4002: "lint", DECLARE4011: "lint", DECLARE4025: "lint",
+  DECLARE1002: "lint", DECLARE2009: "lint", DECLARE4002: "lint", DECLARE4011: "lint", DECLARE4025: "lint",
   DECLARE3005: "devices",
   DECLARE4016: "accessibility", DECLARE4017: "accessibility", DECLARE4018: "accessibility", DECLARE4020: "accessibility",
   DECLARE4021: "accessibility", DECLARE4022: "accessibility", DECLARE4026: "accessibility", DECLARE4027: "accessibility",
@@ -375,6 +375,13 @@ export const Diag = {
     err(code4(2006), message, pos),
   accessibilityRoleComputed: (pos: Pos): DeclareError =>
     err(code4(2007), `accessibilityRole is a word, fixed for the view's life — write it as one (accessibilityRole = button), not as a { } value. A view whose role would change is two views, or two classes picked by classFor`, pos),
+  // `declareVersion [ "…" ]` (migration.md §2.1): a program written for a release
+  // newer than this compiler can't be read by it; one written for an older release
+  // compiles, and is told where the list of what changed since lives.
+  versionNewer: (wrote: string, have: string, pos: Pos): DeclareError =>
+    err(code4(2008), `this program says it was written for Declare ${wrote}, and this is ${have} — use Declare ${wrote} or later`, pos),
+  versionOlder: (wrote: string, have: string, file: string, pos: Pos): DeclareError =>
+    err(code4(2009), `written for Declare ${wrote}; this is ${have} — npx declare-changes ${file} lists what changed since, and where it applies`, pos),
   // `labelled`: the class shows a `label` of its own, which is the first fix
   accessibilityNoName: (owner: string, role: string, pos: Pos, labelled = false): DeclareError =>
     err(code4(4017), `${owner} is ${/^[aeiou]/i.test(role) ? "an" : "a"} ${role} with no name: it sets no accessibilityLabel${["slider", "progress", "textField", "dialog", "alertDialog", "region"].includes(role) ? "" : ` and holds no text, tip or named mark to take one from${labelled ? " (its label is empty)" : ""}`}, so a screen reader announces only "${role}". ${labelled
@@ -432,10 +439,6 @@ export const Diag = {
   // 0.5 of 255 paints next to nothing, and nothing says so.
   alphaAsFraction: (written: string, pos: Pos): DeclareError =>
     err(code4(4034), `colorWithAlpha's alpha is a byte, 0 to 255, so ${written} is all but transparent — half is 128, or write the color as an 0xRRGGBBAA literal (0x00000080)`, pos),
-  // A WARNING: commitOn on a field whose text is one-way — it says when an edit
-  // commits into the field's datapath, and there is none to commit into.
-  commitOnOneWay: (owner: string, pos: Pos): DeclareError =>
-    err(code4(4036), `${owner}.commitOn has no effect: it says when an edit commits into the field's datapath, and this field's text is one-way (text = { … }). onInput runs on every edit, and the field shows only what onInput writes — a draft it declines to write is put back as the person types. To commit on Return, bind the text two-way (text <-> :field, commitOn = "enter"); to keep a one-way text, write every edit from onInput (into a draft attribute if the value itself must wait)`, pos),
   // A WARNING: a label on a view that has no role. A name belongs to a role —
   // ARIA forbids naming a plain group of nothing — so the label reaches no
   // screen reader and no locator, and nothing said so.
@@ -565,6 +568,8 @@ export const DIAGNOSTIC_CATALOG: ReadonlyArray<{ code: string; phase: DiagPhase;
   { code: code4(2005), phase: "structure", summary: "a Spring drives an attribute its view also binds — the target belongs in the Spring's to" },
   { code: code4(2006), phase: "structure", summary: "a class declares an accessibilityRole whose contract it does not meet" },
   { code: code4(2007), phase: "structure", summary: "accessibilityRole written as a { } value — a role is a word, fixed for the view's life" },
+  { code: code4(2008), phase: "structure", summary: "declareVersion names a release newer than this compiler" },
+  { code: code4(2009), phase: "structure", summary: "declareVersion names an earlier release — declare-changes lists what changed since (warning)" },
   { code: code4(3000), phase: "type", summary: "type/value error (unclassified)" },
   { code: code4(3001), phase: "type", summary: "a value does not fit its attribute's type" },
   { code: code4(3002), phase: "type", summary: "a percent with no axis to resolve against" },
@@ -600,7 +605,6 @@ export const DIAGNOSTIC_CATALOG: ReadonlyArray<{ code: string; phase: DiagPhase;
   { code: code4(4030), phase: "name", summary: "a size range beside a size the view states itself, where it bounds nothing (warning)" },
   { code: code4(4032), phase: "name", summary: "a radio whose parent is no RadioGroup — no group to be one of (warning)" },
   { code: code4(4033), phase: "name", summary: "a browser script that looks up elements in the page — the views belong to the runtime (warning)" },
-  { code: code4(4036), phase: "name", summary: "commitOn on a field whose text is one-way — nothing to commit into (warning)" },
   { code: code4(4035), phase: "name", summary: "an accessibilityLabel on a view with no role — nothing reads it (warning)" },
   { code: code4(4034), phase: "name", summary: "colorWithAlpha given an alpha between 0 and 1 — the alpha is a byte, 0 to 255 (warning)" },
   { code: code4(4031), phase: "name", summary: "an onKeyDown on a Control that never calls super.onKeyDown — Space, Enter and the arrows stop (warning)" },

@@ -462,7 +462,7 @@ export declare class View extends Node {
      *  auto-extent max — 0 for a plain view; Image overrides with the bitmap's
      *  natural size. Runs under tracking, so an override may read reactive
      *  state (Image reads `loaded`). */
-    protected $contentExtent(_size: "width" | "height"): number;
+    protected $contentExtent(size: "width" | "height"): number;
     /** A windowed block's whole logical extent when this view is the scroller
      *  its rows sit in directly (replicate.ts): the rows that exist are only the
      *  window, so `contentHeight` takes the block's extent as its floor — the
@@ -486,8 +486,9 @@ export declare class View extends Node {
     $drawingName(): string;
     $setVirtualExtent(h: number | null): void;
     /** Install auto-extent derives for whichever never-set, unowned size slots
-     *  qualify — only on views with View children (a childless view keeps its
-     *  zero-cost default; Dataset children are not geometry). Protected so the
+     *  qualify — only on views with View children or a native field's text (a
+     *  childless view keeps its zero-cost default; Dataset children are not
+     *  geometry). Protected so the
      *  App can retarget it from content to its host. */
     protected $bindExtent(): void;
     /** A State or a layout let go of this view's width or height. A size the
@@ -688,7 +689,10 @@ export declare class View extends Node {
      *  `onFocus`/`onBlur` handlers, so a built-in class (TextInput) can drive
      *  its native element without occupying the author's event slot. No-op on a
      *  plain view. */
-    $focusChanged(_focused: boolean): void;
+    $focusChanged(focused: boolean): void;
+    /** The native text element this view is made of, when a NativeText node rides
+     *  it (native-text.ts — the library TextInput). Found at attach; null when none. */
+    $native: NativeHostLike | null | undefined;
     /** What this view is to assistive technology when it declares no role: a
      *  runtime leaf says (a run of text, a field, a picture, a document) — the
      *  semantic tree asks rather than importing the classes, so a build that
@@ -742,6 +746,7 @@ export declare class View extends Node {
      *  attach, so a backend that keeps content in arrival order (the DOM) gets
      *  exactly the paint order the Canvas walk uses: content, then children. */
     protected $flush(s: Surface): void;
+    private $flushView;
     /** THE HIT TEST: the view under a root-space point, or null. The same walk
      *  the pointer is routed by (interaction.ts) — clip shapes, scale, pivot,
      *  `pointerEvents`, and `ignoreClip` all count exactly as they do for a real
@@ -971,6 +976,24 @@ export declare function withCursorDefining<T>(view: Node, fn: () => T): T;
  *  slot is a tracked read, so a cursor appearing, changing, or clearing
  *  ANYWHERE on the chain wakes exactly the reads below it. */
 export declare function inheritedCursor(node: Node | null): Cursor | null;
+/** Deliver `event` to `view`'s handler, if it has one — a method named
+ *  `on<Event>` (instantiate installs language members; a TS subclass may
+ *  simply define one). No propagation: the event belongs to exactly the view
+ *  it fires on (Decisions §R5). Handlers are the sanctioned home of writes —
+ *  whatever this call mutates rides the R4 scheduler: one settle, one frame. */
+/** The focus service's teardown hook, registered by focus.ts. Kept as a seam so
+ *  view.ts never imports focus.ts (one-directional import, no cycle); called at
+ *  the top of discard() so focus moves off a subtree before it is torn down
+ *  (docs/system-design/input.md §mutation during traversal). */
+/** bind.ts's answer to a `centerX`/`centerY` that changed (View.$centerMoved) —
+ *  a seam, so view.ts never imports bind.ts. */
+/** What a view asks of the native text element riding it (native-text.ts's NativeHost). */
+export interface NativeHostLike {
+    flushed(s: Surface): void;
+    focusChanged(focused: boolean): void;
+    contentExtent(size: "width" | "height"): number;
+}
+export declare function setNativeTextHook(fn: (view: View) => NativeHostLike | null): void;
 export declare function setCenterMovedHook(fn: (view: View, axis: "x" | "y") => void): void;
 export declare function setFocusDiscardHook(fn: (view: View) => void): void;
 export declare function setKeyDefaultHook(fn: (view: View, e: unknown) => void): void;

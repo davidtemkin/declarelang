@@ -129,14 +129,8 @@ await test("crawl: a network DataSource fails LOUDLY — never a silently partia
   );
 });
 
-await test("crawl: deterministic — byte-identical across runs (the browser↔Node oracle discipline)", async () => {
-  const r = await compileAt("apps/homepage/homepage.declare");
-  const opts = { data: diskDataResolver(path.join(ROOT, "apps/homepage")) };
-  const a = await crawlLocations(r.program, opts);
-  const b = await crawlLocations(r.program, opts);
-  const key = (docs) => JSON.stringify(docs.map((d) => [d.key, d.html]));
-  assert.equal(key(a), key(b), "the same source + fixtures crawl to the same document set, byte for byte");
-});
+// (that a crawl is deterministic is the warm-vs-cold test above: two crawls of
+// one program, compared byte for byte)
 
 // ISLANDS (CrawlOptions.islands): a page composed of programs is indexed as the
 // page a reader sees — a visible AppIsland's tenant is extracted where the

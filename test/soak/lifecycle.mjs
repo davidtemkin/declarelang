@@ -52,7 +52,7 @@ const CASES = {
   visibleRectRead: [`width = 40, height = 20, Text [ text = { "" + parent.visibleRect.width } ]`, null],
   markdown: [`Markdown [ width = 300, text = { "# Title " + app.seq + "\\n\\n- one\\n- two **bold** [link](https://example.com)\\n\\n| a | b |\\n|---|---|\\n| 1 | 2 |" } ]`, null],
   htmlText: [`HTMLText [ width = 300, html = { "<p>para <b>" + app.seq + "</b> <a href='https://example.com'>x</a></p><ul><li>a</li></ul>" } ]`, null],
-  textInput: [`ti: TextInput [ width = 100, text = "abc", onInput(v: string) { } ], grab() { Focus.focus(this.ti) }`, (v) => v.grab()],
+  textInput: [`ti: TextInput [ width = 100, value = "abc" ], grab() { Focus.focus(this.ti) }`, (v) => v.grab()],
   trackChanges: [`xx: number = { app.seq }, seen: number = 0, trackChanges = ["xx"], onChange() { seen = seen + 1 }`, null],
   createView: [`fill2() { for (let i = 0; i < 5; i++) this.createView("View", { width: 10, height: 10 }) }`, (v) => v.fill2()],
   longExpr: [`width = { ${Array.from({ length: 40 }, (_, i) => `app.seq * ${i + 2}`).join(" + ")} % 300 }`, null],

@@ -1,13 +1,15 @@
-class Counter extends Control [ width = 96, height = 28, cornerRadius = 7,
+class Counter extends ValueControl [ width = 96, height = 28, cornerRadius = 7,
+    accessibilityLabel = "Count",
     value: number = 0,
     step:  number = 1,
+    fieldValue = { value },
 
-    input(v: number) { value = v },
-    press() { input(value + step) },
+    commit(v: number) { value = v },
+    press() { edit(value + step) },
 
     fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
     t: Text [ x = center, y = center, fontSize = 13, textColor = { provided("theme").text },
-        text = { "" + classroot.value } ]
+        text = { "" + classroot.shown } ]
     ]
 
 
@@ -15,9 +17,7 @@ App [ width = 320, height = 130, theme = { SanFrancisco },
     n: number = 0,
     col: View [ x = 20, y = 20,
         layout: SimpleLayout [ axis = y, spacing = 12 ],
-        Counter [ value = { app.n },
-            input(v: number) { app.n = v }
-            ],
+        Counter [ value <-> app.n ],
         Text [ textColor = { provided("theme").text }, text = { `count: ${app.n}` } ]
         ]
     ]

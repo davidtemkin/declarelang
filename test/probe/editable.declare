@@ -13,7 +13,7 @@
 App [ width = 400, height = 250, fill = #14181C, textColor = #E7EEF2,
     filled: TextInput [ x = 20, y = 40, width = 360, height = 34,
         fill = #202932, cornerRadius = 6, fontSize = 16,
-        text = "typed content" ],
+        value = "typed content" ],
 
     empty: TextInput [ x = 20, y = 96, width = 360, height = 34,
         fill = #202932, cornerRadius = 6, fontSize = 16,

@@ -816,6 +816,8 @@ export class View extends Node {
   }
   private $attachSelf(backend: RenderBackend, parentSurface: Surface | null, before: Surface | null): void {
     this.$backend = backend;
+    // a native text element riding this view makes it a field (native-text.ts)
+    if (this.$native === undefined) this.$native = nativeTextHook !== null ? nativeTextHook(this) : null;
     // Auto-extent installs at attach, like every intrinsic sizing (Text's
     // measure derives — installed before super.attach — and an Image's
     // natural size already own or fill the slots they size, so a leaf's
@@ -953,8 +955,8 @@ export class View extends Node {
    *  auto-extent max — 0 for a plain view; Image overrides with the bitmap's
    *  natural size. Runs under tracking, so an override may read reactive
    *  state (Image reads `loaded`). */
-  protected $contentExtent(_size: "width" | "height"): number {
-    return 0;
+  protected $contentExtent(size: "width" | "height"): number {
+    return this.$native != null ? this.$native.contentExtent(size) : 0;
   }
 
   /** A windowed block's whole logical extent when this view is the scroller
@@ -1013,11 +1015,12 @@ export class View extends Node {
   }
 
   /** Install auto-extent derives for whichever never-set, unowned size slots
-   *  qualify — only on views with View children (a childless view keeps its
-   *  zero-cost default; Dataset children are not geometry). Protected so the
+   *  qualify — only on views with View children or a native field's text (a
+   *  childless view keeps its zero-cost default; Dataset children are not
+   *  geometry). Protected so the
    *  App can retarget it from content to its host. */
   protected $bindExtent(): void {
-    if (!this.children.some((c) => c instanceof View)) return;
+    if (this.$native == null && !this.children.some((c) => c instanceof View)) return;
     let derives = EXTENT.get(this);
     for (const size of ["width", "height"] as const) {
       if (isSet(this, size) || ownerOf(this, size) !== null) continue;
@@ -1053,7 +1056,7 @@ export class View extends Node {
     // adds it, as extentOf adds both insets.
     if (!kernelLoaded() || !viewLayoutReady()) return null;
     if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && (globalThis as { __declareNoKernelExtent?: boolean }).__declareNoKernelExtent === true) return null;   // the A/B switch (profiling builds only)
-    if (this.$contentExtent !== View.prototype.$contentExtent) return null;
+    if (this.$contentExtent !== View.prototype.$contentExtent || this.$native != null) return null;
     for (const c of this.children) if (c instanceof View && c.$is3D()) return null;
     const target = slotCellOf(this, size);
     if (target < 0) return null;
@@ -1356,7 +1359,10 @@ export class View extends Node {
    *  `onFocus`/`onBlur` handlers, so a built-in class (TextInput) can drive
    *  its native element without occupying the author's event slot. No-op on a
    *  plain view. */
-  $focusChanged(_focused: boolean): void {}
+  $focusChanged(focused: boolean): void { this.$native?.focusChanged(focused); }
+  /** The native text element this view is made of, when a NativeText node rides
+   *  it (native-text.ts — the library TextInput). Found at attach; null when none. */
+  declare $native: NativeHostLike | null | undefined;
   /** What this view is to assistive technology when it declares no role: a
    *  runtime leaf says (a run of text, a field, a picture, a document) — the
    *  semantic tree asks rather than importing the classes, so a build that
@@ -1449,7 +1455,7 @@ export class View extends Node {
 
   /** Does this view need its real surface even while hidden? A view the
    *  renderer measures or that holds live state in its element says yes. */
-  protected $eagerSurface(): boolean { return false; }
+  protected $eagerSurface(): boolean { return this.$native != null; }
 
   /** Is that need only to measure through the surface? Such a view (rich text)
    *  can hold it detached under a waiting ancestor instead of bringing the
@@ -1534,6 +1540,10 @@ export class View extends Node {
    *  attach, so a backend that keeps content in arrival order (the DOM) gets
    *  exactly the paint order the Canvas walk uses: content, then children. */
   protected $flush(s: Surface): void {
+    this.$flushView(s);
+    this.$native?.flushed(s);
+  }
+  private $flushView(s: Surface): void {
     // Pushers fire on CHANGE; the attach flush carries pre-attach state
     // across (the Image.stretches discipline). Text selection is realized by
     // the text leaves themselves (Text/TextInput's `selectable` push), which
@@ -2407,6 +2417,18 @@ export function inheritedCursor(node: Node | null): Cursor | null {
  *  (docs/system-design/input.md §mutation during traversal). */
 /** bind.ts's answer to a `centerX`/`centerY` that changed (View.$centerMoved) —
  *  a seam, so view.ts never imports bind.ts. */
+/** What a view asks of the native text element riding it (native-text.ts's NativeHost). */
+export interface NativeHostLike {
+  flushed(s: Surface): void;
+  focusChanged(focused: boolean): void;
+  contentExtent(size: "width" | "height"): number;
+}
+/** Finds the native text element a view carries, registered by native-text.ts — so a
+ *  build with no text field never carries it. */
+let nativeTextHook: ((view: View) => NativeHostLike | null) | null = null;
+export function setNativeTextHook(fn: (view: View) => NativeHostLike | null): void {
+  nativeTextHook = fn;
+}
 let centerMovedHook: ((view: View, axis: "x" | "y") => void) | null = null;
 export function setCenterMovedHook(fn: (view: View, axis: "x" | "y") => void): void {
   centerMovedHook = fn;

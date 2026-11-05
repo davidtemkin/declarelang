@@ -2,21 +2,21 @@
 # Switch
 
 A boolean control with a sliding thumb — same value contract as Checkbox (`checked`,
-`input` owns the destination), different body language: the thumb **springs**
+`commit` owns the destination), different body language: the thumb **springs**
 between its two rest points, so toggling moves rather than jumps.
 
 ## checked
-Whether the switch is on. Constrain it (`checked = { app.muted }`) and override `input`
-to own the destination, or leave it and read it back — a `Switch` works standalone
-with no wiring.
+Whether the switch is on. Constrain it (`checked = { app.muted }`) and override `commit`
+to own the destination — or write `checked <-> app.muted` — or leave it and read it back:
+a `Switch` works standalone with no wiring.
 
-## input()
+## commit()
 Where the value goes. The default writes `checked`; override it and the switch
 becomes a delivery mechanism for state you own. `press()` never writes `checked`
 directly, so a constrained switch never fights its constraint.
 
 ## press()
-Toggles, by delivering the flipped value through `input`. Called by a click and by
+Toggles, by reporting the flipped value with `edit`. Called by a click and by
 Space/Enter.
 
 ## claim
@@ -50,7 +50,7 @@ Marks the press a drag once the pointer has moved.
 An override calls `super.onPointerMove()`.
 
 ## onPointerUp
-Ends a drag on the nearer side, delivering through `input` when that changes the value.
+Ends a drag on the nearer side, reporting it with `edit` when that changes the value.
 An override calls `super.onPointerUp()`: it is what ends the drag.
 
 ## width
@@ -97,9 +97,9 @@ class Switch extends ValueControl [
     checked: boolean = false,
     fieldValue = { checked },
 
-    input(v: boolean) { checked = v },
+    commit(v: boolean) { checked = v },
 
-    press()   { input(!checked) },
+    press()   { edit(!checked) },
 
     // a finger can also slide the thumb across, as on a phone: the thumb
     // follows the pointer and the release settles on the nearer side; a tap
@@ -126,7 +126,7 @@ class Switch extends ValueControl [
     onPointerUp() {
         if (_dragged) {
             const on = _dragX() + _thumb.width / 2 > width / 2
-            if (on != checked) input(on)
+            if (on != checked) edit(on)
             }
         dragging = false
         _dragged = false

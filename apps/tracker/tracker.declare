@@ -597,7 +597,7 @@ class EditorCard [
         layout: SimpleLayout [ axis = y, spacing = 12 ],
 
         titleF: TextInput [ width = 100%, height = 36, fontSize = 16, fontWeight = semibold,
-            text <-> :it.title,
+            value <-> :it.title,
             placeholder = "Issue title" ],
 
         facets: View [ width = 100%, height = 28,
@@ -623,7 +623,7 @@ class EditorCard [
             ],
 
         descF: TextInput [ width = 100%, height = 84, fontSize = 16, multiline = true, wrap = true,
-            text <-> :it.description,
+            value <-> :it.description,
             placeholder = "Add a description…" ],
 
         // One row, one baseline: the buttons share a height and center their
@@ -1161,8 +1161,8 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         search: View [ height = 32, flexes = true,
             omni: TextInput [ height = 32, width = { Math.min(380, Math.max(110, parent.width)) },
                 placeholder = { app.compact ? "Search" : "Search issues…   ⌘K" },
-                text = { app.query },
-                onInput(t: string) { app.search(t) },
+                value = { app.query },
+                commit(t: string) { app.search(t) },
                 onEnter() { app.enterHit() },
                 onKeyDown(e: KeyEvent) {
                     if (e.key == "ArrowDown") app.stepHit(1)
@@ -1240,7 +1240,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                 label = "Grouped",
                 textColor = { provided("theme").textMuted },
                 checked = { app.groupBy == "status" },
-                input(v: object) { app.groupBy = v ? "status" : "none" }
+                commit(v: object) { app.groupBy = v ? "status" : "none" }
                 ],
             sorting: View [
                 layout: SimpleLayout [ axis = x, spacing = 4, align = center ],

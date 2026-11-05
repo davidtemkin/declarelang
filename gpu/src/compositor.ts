@@ -171,6 +171,7 @@ async function boot(m: Msg): Promise<void> {
     edit: (id, spec, box) => toPage({ t: "edit", id, spec, box }),
     editFocus: (id, on) => toPage({ t: "edit-focus", id, on }),
     editSel: (id, start, end) => toPage({ t: "edit-sel", id, start, end }),
+    editApply: (id, from, text) => toPage({ t: "edit-apply", id, from, text }),
     island: (id, slot) => toRuntime({ t: "island", id, slot }),
     appIsland: (id, slot) => toRuntime({ t: "app-island", id, slot }),
     islandBox: (id, box) => toPage({ t: "island-box", id, box }),

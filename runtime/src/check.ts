@@ -99,10 +99,6 @@ function tagCandidates(schemas: Record<string, unknown>): string[] {
   return [...new Set([...Object.keys(schemas), ...autoIncludableNames()])];
 }
 
-/** The field a misplaced `<->` named, as the one-way form spells it. */
-const twoWayField = (v: { kind: string; path?: string }): string =>
-  v.kind === "path" && typeof v.path === "string" ? (v.path.startsWith(":") ? v.path : ":" + v.path) : ":field";
-
 export function check(input: Element | Program): DeclareError[] {
   const program: Program =
     "root" in input ? input : { classes: [], themes: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], scripts: [], root: input };
@@ -1755,9 +1751,6 @@ export function checkAttr(schema: ClassSchema, attr: Attr): CheckedAttr {
     // An undeclared name that is NOT a built-in provided value falls through to
     // the near-miss error below: a new provided value is introduced with a type
     // (`density: number = 2`), so a bare unknown name is a typo, not a provision.
-    if (attr.bind === "two") {
-      return { ok: false, error: new DeclareError(`${schema.name}.${attr.name} <-> …: the two-way arrow edits an editor's value — '${attr.name}' is not an attribute of ${schema.name}`, attr.pos) };
-    }
     if (attr.value.kind === "code") {
       const e = validateExpr(attr.value.src, attr.name);
       if (e !== null) return { ok: false, error: new DeclareError(`${schema.name}.${attr.name} = { … } ${e}`, attr.value.pos) };
@@ -1812,31 +1805,6 @@ export function checkAttr(schema: ClassSchema, attr: Attr): CheckedAttr {
     return { ok: false, error: new DeclareError(
       `${schema.name}.clip = false: an App is clipped by definition — overflow along a declared scroll axis is the page's scroll range, and everything else is out of frame. Remove the attribute (a path clip is still legal).`,
       attr.pos) };
-  }
-  if (attr.bind === "two") {
-    // `name <-> :path` — a two-way binding (language §9, the leaf-input
-    // exception): only on a field's draft (a TextInput's `text`), and only to a single writable
-    // datapath. Caught here so misuse is a clear compile error, not a silent
-    // one-way (or literal) degrade.
-    if (!descendsFrom(schema, "TextInput")) {
-      return { ok: false, error: new DeclareError(
-        `${schema.name}.${attr.name} <-> …: the two-way arrow edits a dataset value through a field's draft ('TextInput.text') — ${schema.name} holds no draft. A control shows a value and hands its edits to input(v): write '${attr.name} = ${twoWayField(attr.value)}, input(v) { ${twoWayField(attr.value)} = v }'`,
-        attr.pos) };
-    }
-    // The bound field: a static datapath (`:field`) or a `{ }` that NAMES one at
-    // runtime (a generic editor over `classroot.field`). Not a literal.
-    if (attr.value.kind !== "path" && attr.value.kind !== "code") {
-      return { ok: false, error: new DeclareError(
-        `${schema.name}.${attr.name} <-> …: two-way binds a datapath — write '${attr.name} <-> :field' (or '<-> { expr }' for a runtime-named field)`,
-        attr.value.pos) };
-    }
-    if (attr.value.kind === "path" && attr.value.many) {
-      return { ok: false, error: new DeclareError(
-        `${schema.name}.${attr.name} <-> :${attr.value.path}[]: a two-way binding edits one field, not a many-path`,
-        attr.value.pos) };
-    }
-    // Valid — fall through to the ordinary :path handling, which returns the
-    // datapath; instantiate.ts routes a two-way attr to the editor wiring.
   }
   if (attr.value.kind === "code" && type.kind === "class" && type.of === "Layout") {
     // The ONE class slot that stays member-or-null: a layout ATTACHES
@@ -1898,15 +1866,6 @@ export function checkAttr(schema: ClassSchema, attr: Attr): CheckedAttr {
       const why = isSelective(attr.value.plan)
         ? "a selective path (slice/wildcard) matches many"
         : "a negative index resolves against the array's length — a live fact, not a place";
-      if (attr.bind === "two") {
-        return {
-          ok: false,
-          error: new DeclareError(
-            `'${attr.name} <-> :${attr.value.path}' — a two-way binding writes ONE place; ${why}. Bind the editor to a singular, static path`,
-            attr.value.pos
-          ),
-        };
-      }
       if (type.kind === "cursor" && !attr.value.many) {
         return {
           ok: false,
@@ -2000,50 +1959,43 @@ function checkMethodHere(schema: ClassSchema, m: Method): CheckedMethod {
 function checkControlledInput(program: Program): DeclareError[] {
   const errors: DeclareError[] = [];
   const byName = new Map(program.classes.map((c) => [c.name, c]));
-  const writes = new Map<string, string | null>();
-  const writtenByInput = (name: string): string | null => {
+  // the delivery method: `commit` on a value control (ValueControl's edit contract),
+  // `input` on everything else that hands a change back (an overlay's `shown`)
+  const writes = new Map<string, { attr: string; via: string } | null>();
+  const writtenByInput = (name: string): { attr: string; via: string } | null => {
     if (writes.has(name)) return writes.get(name)!;
     writes.set(name, null);
-    let out: string | null = null;
+    let out: { attr: string; via: string } | null = null;
     for (let c = byName.get(name), n = 0; c !== undefined && n < 32; c = byName.get(c.base), n++) {
-      const m = c.body.methods.find((x) => x.name === "input");
+      const m = c.body.methods.find((x) => x.name === "commit") ?? c.body.methods.find((x) => x.name === "input");
       if (m === undefined) continue;
       const p = m.params[0]?.name;
       const hit = p === undefined ? null : new RegExp(`^\\s*\\{?\\s*(?:this\\.)?(\\w+)\\s*=\\s*${p}\\s*;?\\s*\\}?\\s*$`).exec(m.body);
-      out = hit !== null ? hit[1] : null;
+      out = hit !== null ? { attr: hit[1], via: m.name } : null;
       break;
     }
     writes.set(name, out);
     return out;
   };
-  const builtinOf = (name: string): string => {
-    let n = name;
-    for (let c = byName.get(n), k = 0; c !== undefined && k < 32; c = byName.get(c.base), k++) n = c.base;
-    return n;
-  };
   const visit = (el: Element, tag: string): void => {
-    // a text field's typing is its own write of `text`: constrained, every
-    // keystroke is refused and reaches the program only as the input event
-    if (builtinOf(tag) === "TextInput" && !el.methods.some((m) => m.name === "onInput")) {
-      const a = el.attrs.find((x) => x.name === "text" && x.value.kind === "code" && x.bind === undefined);
+    const w = writtenByInput(tag);
+    if (w !== null && !el.methods.some((m) => m.name === w.via)) {
+      const attr = w.attr, via = w.via;
+      // a constraint, or a one-way datapath (`checked = :done`): either way the attribute isn't the control's to write
+      const a = el.attrs.find((x) => x.name === attr && (x.value.kind === "code" || x.value.kind === "path") && x.bind === undefined);
       if (a !== undefined) {
+        // the place to name: the one written (`:done`, `{ app.muted }`), else a plain attribute of the app's
+        const chain = a.value.kind === "code" ? /^\s*((?:app|classroot)(?:\.[A-Za-z_$][\w$]*)+)\s*$/.exec((a.value as { src: string }).src)?.[1] : undefined;
+        const state = a.value.kind === "path" ? `:${(a.value as { path: string }).path}` : chain ?? `app.${attr === "shown" ? "open" : attr}`;
+        const type = attr === "shown" || attr === "checked" ? "boolean" : "any";
         errors.push(new DeclareError(
-          `${tag}.text is constrained here, so the field cannot take what is typed — each keystroke is refused against ` +
-          `your constraint and nothing changes. Add 'onInput(v: string)' beside it that writes your state — ` +
-          `'text = { app.note }' with 'onInput(v: string) { app.note = v }' — or, for a field that starts from a value ` +
-          `and is then the user's, 'initial = { … }' in place of 'text'`,
-          a.pos));
-      }
-    }
-    if (!el.methods.some((m) => m.name === "input")) {
-      const attr = writtenByInput(tag);
-      const a = attr === null ? undefined : el.attrs.find((x) => x.name === attr && x.value.kind === "code" && x.bind === undefined);
-      if (a !== undefined) {
-        errors.push(new DeclareError(
-          `${tag}.${attr} is constrained here, but the ${tag} also changes it itself — its own 'input(…)' writes ${attr} ` +
+          `${tag}.${attr} is constrained here, but the ${tag} also changes it itself — its own '${via}(…)' writes ${attr} ` +
           `(whatever the user does to it — a press, a drag, Esc, a pick), and that write is refused against your constraint. ` +
-          `Add 'input(…)' beside it that writes your state instead — '${attr} = { app.${attr === "shown" ? "open" : attr} }' with ` +
-          `'input(v: ${attr === "shown" || attr === "checked" ? "boolean" : "any"}) { app.${attr === "shown" ? "open" : attr} = v }'`,
+          (via === "commit"
+            ? `Write '${attr} <-> ${state}' to bind it both ways, or add 'commit(…)' beside it that writes your state — ` +
+              `'${attr} = ${a.value.kind === "path" ? state : `{ ${state} }`}' with 'commit(v: ${type}) { ${state} = v }'`
+            : `Add '${via}(…)' beside it that writes your state instead — '${attr} = { ${state} }' with ` +
+              `'${via}(v: ${type}) { ${state} = v }'`),
           a.pos));
       }
     }

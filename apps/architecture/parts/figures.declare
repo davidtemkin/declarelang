@@ -6,60 +6,60 @@ script {
     const FIGURES = {
         "sizes": {
             "calDom": {
-                "app": 12.3,
-                "lib": 10.4,
-                "core": 39.1,
-                "view": 12.3,
+                "app": 12.6,
+                "lib": 12.3,
+                "core": 41,
+                "view": 12.5,
                 "backend": 15.2,
-                "input": 20.4,
+                "input": 17.6,
                 "draw": 16.1,
                 "anim": 3.2,
                 "text": 5,
-                "boot": 5.6,
+                "boot": 5.7,
                 "layout": 2.3,
                 "themes": 0.2,
                 "a11y": 3.4,
                 "ker": 15.2
             },
             "calCanvas": {
-                "app": 12.3,
-                "lib": 10.4,
-                "core": 38.5,
-                "view": 12.1,
+                "app": 12.6,
+                "lib": 12.3,
+                "core": 40.4,
+                "view": 12.2,
                 "backend": 35.3,
-                "input": 23.8,
-                "draw": 17.8,
+                "input": 21.1,
+                "draw": 17.9,
                 "anim": 3.9,
                 "text": 5,
                 "boot": 5.6,
                 "layout": 2.3,
                 "themes": 0.1,
-                "a11y": 3.3,
+                "a11y": 3.4,
                 "ker": 15.1
             },
             "calMac": {
-                "app": 12.3,
-                "lib": 10.4,
-                "core": 39.1,
-                "view": 12.3,
+                "app": 12.6,
+                "lib": 12.3,
+                "core": 41,
+                "view": 12.5,
                 "backend": 8.7,
-                "input": 20.4,
+                "input": 17.6,
                 "draw": 16.1,
                 "anim": 3.2,
                 "text": 5,
-                "boot": 5.6,
+                "boot": 5.7,
                 "layout": 2.3,
                 "themes": 0.2,
                 "a11y": 0.8,
                 "ker": 0
             },
             "totals": {
-                "calDom": 160.7,
-                "calCanvas": 185.6,
-                "calMac": 136.4
+                "calDom": 162.4,
+                "calCanvas": 187.2,
+                "calMac": 138.1
             }
         },
-        "runtimeKB": 122.8,
+        "runtimeKB": 122.3,
         "kernelKB": 15.2,
         "kernelWasmGzipKB": 12.6,
         "kernelWasmRawKB": 23,
@@ -67,6 +67,6 @@ script {
         "layoutKB": 2.3,
         "canvasCarriesDomBackendKB": 14.7,
         "kernelLines": "1,400",
-        "surfaceMethods": 69
+        "surfaceMethods": 70
     }
     }

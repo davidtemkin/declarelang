@@ -11,7 +11,7 @@ import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { checkRelease, isPublished, titleFor, bodyFor, stripStamps, headlineOf, scaffoldText, compareVersions, notesPath, tagOf }
+import { checkRelease, removedPublic, isPublished, titleFor, bodyFor, stripStamps, headlineOf, scaffoldText, compareVersions, notesPath, tagOf }
   from "../tools/internal/release.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -81,6 +81,21 @@ await test("versions order as semver, and the names are what the tree uses", () 
   assert.equal(compareVersions("0.4.3", "0.4.3"), 0);
   assert.equal(notesPath("0.4.3"), "releases/v0.4.3.md");
   assert.equal(tagOf("0.4.3"), "v0.4.3");
+});
+
+await test("a release that removes public surface needs its Changes to make", () => {
+  assert.deepEqual(removedPublic({ reference: { "A.x": {}, "A.y": {}, "A._z": { internal: true } } }, { reference: { "A.x": {} } }), ["A.y"]);
+  const base = { version: "0.6.0", tags: ["v0.5.3"], notes: ["releases/v0.6.0.md"], committed: ["releases/v0.6.0.md"], removed: ["TextInput.initial"] };
+  const without = checkRelease({ ...base, notesText: "# h\n\ntext\n" });
+  assert.equal(without.ok, false);
+  assert.match(without.problems[0], /Changes to make/);
+  assert.match(without.problems[0], /TextInput\.initial/);
+  assert.equal(checkRelease({ ...base, notesText: "# h\n\n## Changes to make\n\n### a → b\n" }).ok, true);
+});
+
+await test("the compiler knows the release it is: compiler/src/version.ts says package.json's version", () => {
+  const version = JSON.parse(readFileSync(resolve(ROOT, "package.json"), "utf8")).version;
+  assert.match(readFileSync(resolve(ROOT, "compiler/src/version.ts"), "utf8"), new RegExp(`DECLARE_VERSION = "${version.replace(/\./g, "\\.")}"`));
 });
 
 await test("the live tree: the current version's notes exist, are tracked, and --check passes", () => {

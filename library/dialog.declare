@@ -93,7 +93,8 @@ Picks whichever button record carries `default: true` — Return's action, the C
 
 ## _returnTaken()
 **Internal.** Whether the focused view takes Return itself — a control inside the dialog (it presses
-itself) or a multi-line field (a line break) — so Return does not also pick the default.
+itself) or a multi-line field (a line break) — so Return does not also pick the default. A
+single-line field doesn't: Return in it picks the default.
 
 ## pickCancel()
 Picks the `cancel: true` record when there is one, else just closes — Escape's action.
@@ -301,12 +302,13 @@ class Dialog extends Floating [
 
     // Return picks the default unless the focused view takes Return itself:
     // a focused control presses itself (Return on Cancel is Cancel), and a
-    // multi-line field types a line break
+    // multi-line field types a line break; a single-line field leaves it here
 
     _returnTaken() -> boolean {
         const f = Focus.getFocus() as any
         if (f == null || !Focus.holds(this)) return false
-        return f.multiline === true || typeof f.press == "function"
+        if (typeof f.multiline == "boolean") return f.multiline
+        return typeof f.press == "function"
         },
 
     _enterKeys: Keys [

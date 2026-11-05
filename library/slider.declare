@@ -2,8 +2,9 @@
 # Slider
 
 A bounded number by drag. Same value contract as every control — `value` is the
-attribute, **`input` owns the destination** (default: itself) — and the delivery
-is continuous during a drag. Pressing the track jumps to that position (local
+attribute, **`commit` owns the destination** (default: itself) — and a drag is one
+edit: the thumb is the person's until they let go, committed at every move by default,
+or once at the release with `commitOn = "end"`. Pressing the track jumps to that position (local
 coordinates); the drag then follows the pointer by root-space delta
 (`app.pointerX`), so it survives the pointer leaving the control. Arrow keys
 nudge by `step`.
@@ -18,8 +19,8 @@ col: View [ x = 20, y = 20,
 
 ## value
 Where the handle sits, in your own units. Standalone the slider owns it; constrained
-(`value = { app.volume }`) it needs an `input` override with it, or the drag's own
-delivery is refused against the constraint.
+(`value = { app.volume }`) it needs a `commit` override with it, or the drag's own
+delivery is refused against the constraint. `value <-> app.volume` is both.
 
 ## min
 The value at the left end.
@@ -32,11 +33,11 @@ The quantum every delivered value snaps to, and the distance one arrow key moves
 `step = 0.01` for a fine continuous control; **it is never zero** — the quantizer
 divides by it.
 
-## input()
-**Where the value goes**, and it fires **continuously through a drag**, not once at
-release: the owner decides what to do with the stream, and the data layer owns any
-coalescing. Override it to redirect the value (`input(v: number) { app.volume = v }`);
-the default writes `value`.
+## commit()
+**Where the value goes.** By default it is called **at every move of a drag**; with
+`commitOn = "end"`, once, at the release — a drag that is one change and one undo step.
+Override it to redirect the value (`commit(v: number) { app.volume = v }`); the default
+writes `value`.
 
 ## quant()
 Snaps a raw value to `step` and clamps it into `min`…`max`. Every delivery routes
@@ -44,7 +45,8 @@ through it, so an override changes what the slider can produce — logarithmic s
 detents, a magnetic centre.
 
 ## frac
-The handle's position as 0…1, derived from the value and the range. What the track,
+The handle's position as 0…1, derived from what the slider shows (`shown`: the drag
+while one is open, the value otherwise) and the range. What the track,
 fill, and thumb all position from; read it to hang your own decoration off the handle.
 
 ## dragging
@@ -88,7 +90,7 @@ Home and End go to `min` and `max`; Page Up and Page Down move a tenth of the ra
 less than a `step`. The arrows step, as `Control` gives every slider.
 
 ## accessibilityIncrement()
-One `step` up, through `quant` and `input` like any other change — what the Right and Up
+One `step` up, through `quant` and `edit` like any other change — what the Right and Up
 arrows run (Control's keys), and what a screen reader's increment calls.
 
 ## accessibilityDecrement()
@@ -126,7 +128,7 @@ class Slider extends ValueControl [
 
     accessibilityRole = slider,
     accessibilityLabel = { provided("fieldLabel", "") },
-    accessibilityValue = { value },
+    accessibilityValue = { shown },
     accessibilityMin = { min },
     accessibilityMax = { max },
     accessibilityStep = { step },
@@ -141,13 +143,13 @@ class Slider extends ValueControl [
     max:   number = 100,
     step:  number = 1,
 
-    input(v: number) { value = v },
+    commit(v: number) { value = v },
 
     // the fraction the visuals share; drag bookkeeping (root-space anchor)
 
     // (clamped: a value set past the range is drawn at its end, never past the track)
 
-    frac: number = { Math.max(0, Math.min(1, (value - min) / ((max - min) || 1))) },
+    frac: number = { Math.max(0, Math.min(1, (shown - min) / ((max - min) || 1))) },
     _x0: number = 0,
     _v0: number = 0,
 
@@ -168,13 +170,14 @@ class Slider extends ValueControl [
         focusVisible = false                     // a press clears the :focus-visible channel (Control's rule)
         Focus.focus(this)                        // a click claims focus (Control's rule — this override must keep it)
         _v0 = quant(min + (max - min) * ((e.x - 9) / (width - 18)))
-        input(_v0)
+        beginEdit()
+        edit(_v0)
         _x0 = app.pointerX
         },
-    onPointerUp()   { dragging = false },
-    onPointerMove() { if (dragging) input(quant(_v0 + (app.pointerX - _x0) / (width - 18) * (max - min))) },
-    accessibilityIncrement() { if (!disabled) input(quant(value + step)) },
-    accessibilityDecrement() { if (!disabled) input(quant(value - step)) },
+    onPointerUp()   { if (dragging) { dragging = false; endEdit() } },
+    onPointerMove() { if (dragging) edit(quant(_v0 + (app.pointerX - _x0) / (width - 18) * (max - min))) },
+    accessibilityIncrement() { if (!disabled) edit(quant(shown + step)) },
+    accessibilityDecrement() { if (!disabled) edit(quant(shown - step)) },
 
     // Home and End go to the ends; Page Up and Page Down move a tenth of the range
     // (never less than a step): the slider's keys on every platform
@@ -182,7 +185,7 @@ class Slider extends ValueControl [
     onKeyDown(e: KeyEvent) {
         const page = Math.max(step, (max - min) / 10)
         if (disabled || (e.key != "Home" && e.key != "End" && e.key != "PageUp" && e.key != "PageDown")) { super.onKeyDown(e); return }
-        input(quant(e.key == "Home" ? min : e.key == "End" ? max : value + (e.key == "PageUp" ? page : -page)))
+        edit(quant(e.key == "Home" ? min : e.key == "End" ? max : shown + (e.key == "PageUp" ? page : -page)))
         },
 
     opacity = { disabled ? (provided("theme").disabledOpacity) : 1 },

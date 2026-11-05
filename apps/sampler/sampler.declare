@@ -6,11 +6,11 @@ default), Mountain View, Cupertino, and Redmond. One machinery, four token
 records: the stylings are **data**, never code paths.
 
 The chrome is a fixed-height top bar: the brand at left (compacting to just
-"Declare" when narrow), the page switch in the center (Controls · Table ·
-DataGrid · Overlays · More), and at right a Styling button whose menu holds
+"Declare" when narrow), the page switch in the center (Controls · Forms ·
+Table · DataGrid · Overlays · More), and at right a Styling button whose menu holds
 the four stylings, the accent-tint dot row and the focus-animation toggle,
 beside the light/dark switch — the whole styling rig, off the page. The
-Controls and More pages read as cards, two columns wide, one below the
+Controls, Forms and More pages read as cards, two columns wide, one below the
 breakpoint the cards actually need.
 */
 
@@ -75,7 +75,7 @@ class Specimen extends Card [ width = 100%,
 class DoneCell [ width = 100%, height = 100%,
     Checkbox [ x = center, y = center, label = "", accessibilityLabel = "Done",
         checked = :done,
-        input(v: boolean) { :done = v }
+        commit(v: boolean) { :done = v }
         ]
     ]
 
@@ -101,6 +101,91 @@ class PickCell [ width = 100%, height = 100%,
     ]
 
 
+// ── The Forms page's form. Its values are its own attributes, each bound to its
+//    control with `<->`; the form judges every control inside it, and the
+//    pretend service refuses one address, which lands under the email field.
+
+class SignUp extends Form [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 14 ],
+    name: string = "",
+    email: string = "",
+    password: string = "",
+    confirm: string = "",
+    country: object = null,
+    start: string = "",
+    plan: string = "personal",
+    news: boolean = false,
+    terms: boolean = false,
+    done: string = "",
+
+    Field [ width = 100%, label = "Name", stacked = true,
+        TextInput [ width = 100%, name = "name", purpose = name, required = "Enter your name.",
+            value <-> classroot.name ]
+        ],
+    Field [ width = 100%, label = "Email", stacked = true,
+        TextInput [ width = 100%, name = "email", purpose = email, required = "Enter your email address.",
+            value <-> classroot.email,
+            validate(v: string) -> string { return v.includes("@") ? "" : "Enter an address like name@example.com." }
+            ]
+        ],
+    Field [ width = 100%, label = "Password", stacked = true,
+        TextInput [ width = 100%, name = "password", purpose = newPassword, required = "Choose a password.",
+            value <-> classroot.password,
+            validate(v: string) -> string { return v.length >= 8 ? "" : "Use at least 8 characters." }
+            ]
+        ],
+    Field [ width = 100%, label = "Confirm password", stacked = true,
+        TextInput [ width = 100%, name = "confirm", purpose = newPassword, required = "Type the password again.",
+            value <-> classroot.confirm,
+            validate(v: string) -> string { return v == classroot.password ? "" : "The passwords don't match." }
+            ]
+        ],
+    Field [ width = 100%, label = "Country", stacked = true,
+        Combobox [ width = 100%, name = "country", placeholder = "Search countries", required = "Choose a country.",
+            items = { ["Australia", "Brazil", "Canada", "France", "Germany", "India", "Japan", "Kenya", "Mexico", "Norway", "Spain", "United Kingdom", "United States"] },
+            value <-> classroot.country ]
+        ],
+    Field [ width = 100%, label = "Start date", stacked = true,
+        DatePicker [ width = 180, name = "start", value <-> classroot.start ]
+        ],
+    RadioGroup [ name = "plan", value <-> classroot.plan, accessibilityLabel = "Plan",
+        layout: SimpleLayout [ axis = x, spacing = 16 ],
+        Radio [ choice = "personal", label = "Personal" ],
+        Radio [ choice = "team", label = "Team" ]
+        ],
+    Checkbox [ label = "Send me product news", checked <-> classroot.news ],
+
+    // a checkbox says its own sentence, so its message goes under it here, not in a Field
+
+    termsBox: Checkbox [ name = "terms", label = "I agree to the terms", required = "Agree to the terms to continue.",
+        checked <-> classroot.terms ],
+    Text [ visible = { classroot.termsBox.error != "" }, width = 100%, fontSize = 13,
+        textColor = { provided("theme").error }, text = { classroot.termsBox.error } ],
+    Text [ visible = { classroot.error != "" }, width = 100%, wrap = true, fontSize = 13,
+        textColor = { provided("theme").error }, text = { classroot.error } ],
+    Button [ label = { classroot.pending ? "Creating…" : "Create account" }, primary = true,
+        disabled = { classroot.pending },
+        onClick() { classroot.submit() }
+        ],
+    Text [ visible = { classroot.done != "" }, width = 100%, wrap = true, fontSize = 13,
+        textColor = { provided("theme").textMuted }, text = { classroot.done } ],
+
+    // the pretend service: a moment's wait, then one address is taken
+
+    send() {
+        pending = true
+        afterDelay(700, () => {
+            this.pending = false
+            if (this.email.trim().toLowerCase() == "taken@example.com") {
+                this.refuse([({ name: "email", message: "That address already has an account." })])
+                return
+                }
+            this.done = "Welcome, " + this.name + " — " + this.plan + " plan" + (this.news ? ", with product news." : ".")
+            })
+        }
+    ]
+
+
 class StateCell extends PickCell [ field = "state", choices = { ["open", "triage", "done"] } ]
 
 class OwnerCell extends PickCell [ field = "owner", choices = { ["ada", "alan", "grace", "edsger"] } ]
@@ -119,7 +204,15 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
 
     barH: number = { app.compact ? 92 : 52 },    // fixed for a width — on a narrow one the page switch takes a second row
 
-    page: "controls" | "table" | "grid" | "overlays" | "more" = "controls",      // the center switch
+    page: "controls" | "forms" | "table" | "grid" | "overlays" | "more" = "controls",      // the center switch
+
+    // the Forms page's specimens of editing, one fact each
+
+    size: number = 32,
+    code: string = "",
+    note: string = "First draft",
+    level: number = 40,
+    commits: number = 0,
     style: "sanFrancisco" | "mountainView" | "cupertino" | "redmond" = "sanFrancisco",
     menuLocked: boolean = true,
     lastPick: string = "(none yet)",
@@ -293,14 +386,20 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
     sizer: Popover [
         Text [ fontWeight = semibold, textColor = { provided("theme").text }, text = { "Text size · " + app.textSize } ],
         Slider [ width = 200, min = 10, max = 32, value = { app.textSize }, accessibilityLabel = "Text size",
-            input(v: number) { app.textSize = Math.round(v) }
+            commit(v: number) { app.textSize = Math.round(v) }
             ]
         ],
 
     rename: Dialog [ title = "Rename document",
         buttons = { [ ({ id: "cancel", label: "Cancel", cancel: true }), ({ id: "ok", label: "Rename", default: true }) ] },
-        picked(id: string) { if (id == "ok" && this.nameField.text != "") app.docName = this.nameField.text; app.lastOverlay = "rename: " + id },
-        nameField: TextInput [ width = 100%, initial = { app.docName }, accessibilityLabel = "Document name" ]
+        picked(id: string) { if (id == "ok" && this.nameField.value != "") app.docName = this.nameField.value; app.lastOverlay = "rename: " + id },
+
+        // the document's name until the person edits it; then their draft
+
+        nameField: TextInput [ width = 100%, value = { app.docName },
+            commit(t: string) { value = t },
+            accessibilityLabel = "Document name"
+            ]
         ],
 
     viewer: Dialog [ presentation = "full",
@@ -374,10 +473,11 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
 
         pageSwitch: TabBar [ y = { app.compact ? 52 : 11 },
             x = { app.compact ? (app.width - this.width) / 2 : Math.max(200, (app.width - this.width) / 2) },
-            segMin = { app.compact ? Math.min(92, (app.width - 32) / 5) : 92 },
+            segMin = { app.compact ? Math.min(92, (app.width - 32) / 6) : 92 },
             value = { app.page },
-            input(v: object) { app.page = v as "controls" | "table" | "grid" | "overlays" | "more" },
+            input(v: object) { app.page = v as "controls" | "forms" | "table" | "grid" | "overlays" | "more" },
             choices = { [ ({ id: "controls", label: "Controls" }),
+                          ({ id: "forms",    label: "Forms" }),
                           ({ id: "table",    label: "Table" }),
                           ({ id: "grid",     label: "DataGrid" }),
                           ({ id: "overlays", label: "Overlays" }),
@@ -515,13 +615,13 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                                 purpose = name ],
                             SearchField [ width = { Math.min(280, parent.width) }, placeholder = "Search documents" ],
                             Field [ label = "Email", labelWidth = 72,
-                                TextInput [ width = 200, height = 30, text = "d@t.com", purpose = email, accessibilityLabel = "Email" ]
+                                TextInput [ width = 200, height = 30, value = "d@t.com", purpose = email, accessibilityLabel = "Email" ]
                                 ],
 
                             // `purpose = password` hides what is typed and lets a password manager fill it
 
                             Field [ label = "Password", labelWidth = 72,
-                                TextInput [ width = 200, height = 30, text = "hunter2", purpose = password, accessibilityLabel = "Password" ]
+                                TextInput [ width = 200, height = 30, value = "hunter2", purpose = password, accessibilityLabel = "Password" ]
                                 ]
                             ]
                         ],
@@ -628,6 +728,74 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                     ]
                 ],
 
+            // ── Forms page: a form, and editing one piece at a time ────────
+
+            formsPage: View [ visible = { app.page == "forms" }, width = 100%,
+                accessibilityRole = tabPanel, accessibilityLabel = "Forms",
+                layout: ResponsiveLayout [ plan = { [
+                    ({ from: 876, flow: "row",   gap: 32, share: ({ left: 50, right: 50 }) }),
+                    ({ from: 0, flow: "stack", gap: 20, share: ({ left: 100, right: 100 }) })] } ],
+
+                left: View [
+                    layout: SimpleLayout [ axis = y, spacing = 20 ],
+                    Specimen [ label = "Create an account",
+                        SignUp [ ],
+                        Text [ width = 100%, wrap = true, fontSize = 12, textColor = { provided("theme").textMuted },
+                            text = "Each field says what is wrong once you leave it; Create account judges them all. taken@example.com is refused by the pretend service, under its field." ]
+                        ]
+                    ],
+
+                right: View [
+                    layout: SimpleLayout [ axis = y, spacing = 20 ],
+
+                    // admit refuses before anything appears; commit clamps, and
+                    // what was typed stays on screen until the field is left
+
+                    Specimen [ label = "Refused, and clamped",
+                        row: View [ layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+                            TextInput [ width = 90, accessibilityLabel = "Font size", numeralWidth = tabular,
+                                value = { String(app.size) },
+                                admit(t: string) -> string | null { return /^[0-9]{0,3}$/.test(t) ? t : null },
+                                commit(t: string) { if (t != "") app.size = Math.max(8, Math.min(400, Number(t))) }
+                                ],
+                            Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = { "size " + app.size + " (8–400)" } ]
+                            ],
+                        Text [ width = 100%, wrap = true, fontSize = 12, textColor = { provided("theme").textMuted },
+                            text = "Letters never appear. Type 4: the size is 8, the field still says 4, so 48 can follow." ]
+                        ],
+
+                    // admit tidies: a pasted sentence keeps only its digits
+
+                    Specimen [ label = "Tidied as it arrives",
+                        TextInput [ width = 160, accessibilityLabel = "Code", purpose = oneTimeCode, numeralWidth = tabular,
+                            placeholder = "6-digit code", value <-> app.code,
+                            admit(t: string) -> string { return t.replace(/[^0-9]/g, "").slice(0, 6) }
+                            ],
+                        Text [ width = 100%, wrap = true, fontSize = 12, textColor = { provided("theme").textMuted },
+                            text = "Paste “Your code is 12 34 56” and the field holds 123456 — one step on Undo." ]
+                        ],
+
+                    // commitOn = "end": nothing is written until the field is left
+
+                    Specimen [ label = "Saved when you leave",
+                        TextInput [ width = 100%, accessibilityLabel = "Note", commitOn = "end", value <-> app.note ],
+                        Text [ width = 100%, wrap = true, fontSize = 12, textColor = { provided("theme").textMuted },
+                            text = { "Saved: “" + app.note + "” — Tab away to save, Escape to take it back." } ]
+                        ],
+
+                    // a drag is one edit: committed once, when it is let go
+
+                    Specimen [ label = "Committed at the release",
+                        Slider [ width = 100%, accessibilityLabel = "Level", commitOn = "end",
+                            value = { app.level },
+                            commit(v: number) { app.level = Math.round(v); app.commits = app.commits + 1 }
+                            ],
+                        Text [ width = 100%, wrap = true, fontSize = 12, textColor = { provided("theme").textMuted },
+                            text = { "Level " + app.level + ", committed " + app.commits + (app.commits == 1 ? " time" : " times") + " — a whole drag is one." } ]
+                        ]
+                    ]
+                ],
+
             // ── Table page: the ruled selection model, at real height ──────
 
             tablePage: View [ visible = { app.page == "table" }, width = 100%,
@@ -712,7 +880,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                         row: View [
                             layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
                             Stepper [ value = { parent.parent.copies }, min = 1, max = 99, accessibilityLabel = "Copies",
-                                input(v: number) { (parent.parent as any).copies = v }
+                                commit(v: number) { (parent.parent as any).copies = v }
                                 ],
                             Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = { parent.parent.copies + " copies" } ],
                             Stepper [ value = 12, min = 6, max = 72, accessibilityLabel = "Text size",
@@ -794,11 +962,11 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                             layout: SimpleLayout [ axis = y, spacing = 16 ],
                             Field [ label = "Due",
                                 DatePicker [ width = 150, value = { parent.parent.parent.day },
-                                    input(v: string) { (parent.parent.parent as any).day = v }
+                                    commit(v: string) { (parent.parent.parent as any).day = v }
                                     ]
                                 ],
                             MonthCalendar [ value = { parent.parent.day },
-                                input(v: string) { (parent.parent as any).day = v }
+                                commit(v: string) { (parent.parent as any).day = v }
                                 ]
                             ]
                         ],

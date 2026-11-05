@@ -63,7 +63,7 @@ row has no `label` of its own, and is named with that text:
 
 ```declare-fragment
 View [ datapath = :items[], layout: SimpleLayout [ axis = x, spacing = 8 ],
-    Checkbox [ checked = :done, accessibilityLabel = :title, input(v: boolean) { :done = v } ],
+    Checkbox [ checked = :done, accessibilityLabel = :title, commit(v: boolean) { :done = v } ],
     Text [ text = :title ]
     ]
 ```

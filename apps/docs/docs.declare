@@ -628,13 +628,11 @@ class DocField extends TextInput [ multiline = true, spellcheck = false, wrap = 
     editName: string = "",
     src: string = "",
 
-    // Seed the field from the demo source once the subtree exists. `initial`
-    // would seed before the datapath has resolved `src`; an `onInit` write lands
-    // after it, and — an author write, not a constraint — leaves the field
-    // freely editable.
+    // the demo's source (once the datapath has resolved it) until the person
+    // edits it; then their edit — setting `value` takes it over from the formula
 
-    onInit() { text = src },
-    onInput() { app.liveCard = editName; app.liveSource = text }
+    value = { src },
+    commit(t: string) { value = t; app.liveCard = editName; app.liveSource = t }
     ]
 
 
@@ -691,7 +689,7 @@ class Example [ width = 100%,
         rev: Control [ y = { app.touchFirst ? 3 : 5 }, height = { app.touchFirst ? 44 : 20 }, cornerRadius = 6,
             x = { parent.tag.x - this.width - 10 },
             width = { this.pill.width },
-            press() { classroot.panel.field.text = classroot.esrc
+            press() { classroot.panel.field.value = classroot.esrc
                       app.liveCard = classroot.demo
                       app.liveSource = classroot.esrc },
             pill: View [ y = center, height = 20, cornerRadius = 6, stroke = { stroke(1, provided("theme").line) },
@@ -799,7 +797,7 @@ class RunIsland [ width = 100%,
         rev: Control [ y = { app.touchFirst ? 1 : 5 }, height = { app.touchFirst ? 44 : 20 }, cornerRadius = 6,
             x = { parent.width - this.width - 10 },
             width = { this.pill.width },
-            press() { classroot.editor.field.text = classroot.rsrc
+            press() { classroot.editor.field.value = classroot.rsrc
                       app.liveCard = classroot.demo
                       app.liveSource = classroot.rsrc },
             pill: View [ y = center, height = 20, cornerRadius = 6, stroke = { stroke(1, provided("theme").line) },
@@ -1888,7 +1886,7 @@ App [ fill = { provided("theme").background }, appName = "Declare Docs",
         app.dismissSearch()
         },
 
-    dismissSearch() { app.searchQ = ""; app.searchSel = -1; app.searchOpen = false; app.bar.search.text = "" },
+    dismissSearch() { app.searchQ = ""; app.searchSel = -1; app.searchOpen = false },
 
     // The field is in the bar once it is open, so focus goes to it a turn later:
     // a finger's tap ends with the browser focusing what was pressed, after the
@@ -2071,7 +2069,8 @@ App [ fill = { provided("theme").background }, appName = "Declare Docs",
             padding = [0, 16, 0, 16],
             fontSize = 16, textColor = { provided("theme").text },   // 16: a field under it makes iOS zoom the page toward it
             placeholder = { app.docked ? "Search the docs…   ⌘K" : "Search the docs…" },
-            onInput(t: string) { app.searchQ = "" + t; app.searchSel = -1 },
+            value = { app.searchQ },
+            commit(t: string) { app.searchQ = "" + t; app.searchSel = -1 },
             onEnter() { if (app.searchHits.length > 0) app.openResult(app.searchHits[0].loc) },
             onKeyDown(e: KeyEvent) {
                 if (e.key == "Escape") app.dismissSearch()

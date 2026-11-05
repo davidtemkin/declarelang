@@ -22,6 +22,9 @@ place in the keyboard focus order?**
   Most of what you write.
 - **`extends Control`** — a control: it takes focus, answers Space and Enter, and has
   interaction states that respect `disabled`.
+- **`extends ValueControl`** — a control with a value the person changes: a count, a
+  rating, a choice. It is a `Control` that also takes `commit`, `<->`, `admit` and a form's
+  checks, as every library control with a value does.
 
 A member that is the class's own machinery rather than something a user of it sets or
 reads — where a drag started, a counter, a marker another class checks — is named with a
@@ -36,16 +39,18 @@ focus, keyboard activation: [`Control`](declare-docs:Control) owns all of it, so
 same floor `Button` does.
 
 ```declare
-class Counter extends Control [ width = 96, height = 28, cornerRadius = 7,
+class Counter extends ValueControl [ width = 96, height = 28, cornerRadius = 7,
+    accessibilityLabel = "Count",
     value: number = 0,
     step:  number = 1,
+    fieldValue = { value },
 
-    input(v: number) { value = v },
-    press() { input(value + step) },
+    commit(v: number) { value = v },
+    press() { edit(value + step) },
 
     fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
     t: Text [ x = center, y = center, fontSize = 13, textColor = { provided("theme").text },
-        text = { "" + classroot.value } ]
+        text = { "" + classroot.shown } ]
     ]
 
 
@@ -53,7 +58,7 @@ App [ width = 320, height = 130, theme = { SanFrancisco },
     n: number = 0,
     col: View [ x = 20, y = 20,
         layout: SimpleLayout [ axis = y, spacing = 12 ],
-        Counter [ value = { app.n }, input(v: number) { app.n = v } ],
+        Counter [ value <-> app.n ],
         Text [ textColor = { provided("theme").text }, text = { `count: ${app.n}` } ]
         ]
     ]
@@ -78,9 +83,11 @@ included. To keep the base's behavior as well, call it — `super.press()` — b
 work, after it, or only on some paths:
 
 ```declare
-class Counter extends Control [ width = 96, height = 28, value: number = 0,
-    input(v: number) { value = v },
-    press() { input(value + 1) }
+class Counter extends ValueControl [ width = 96, height = 28, accessibilityLabel = "Count",
+    value: number = 0,
+    fieldValue = { value },
+    commit(v: number) { value = v },
+    press() { edit(value + 1) }
     ]
 
 class BoundedCounter extends Counter [ max: number = 5,
@@ -165,16 +172,33 @@ sites after it.
 
 ## Delivering a control's value
 
-`press()` above calls `input()`; it does **not** write `value`. That is
-[the value pattern](declare-docs:guide:controls@the-value-pattern) from the other side. The use
-site constrained `value = { app.n }` and overrode `input`, so the control's edit lands in
-`app.n` and comes back down through the constraint. Had `press` written `value` directly,
-it would have been assigning to a constrained attribute, and the runtime would have refused it.
+`press()` above calls `edit()`; it does **not** write `value`. That is
+[the value pattern](declare-docs:guide:controls@the-value-pattern) from the other side. The
+control says what the person did — `edit(value + step)` — and `ValueControl` does the rest:
+it asks `admit`, shows the result, and calls `commit`. The class's own `commit` keeps the
+value; the use site's `value <-> app.n` replaces it with one that writes `app.n`, and the
+new count comes back down through the binding. Had `press` written `value` directly, it
+would have been assigning to a constrained attribute, and the runtime would have refused it.
 
-> **A control delivers; it never stores on behalf of its owner.**
+> **A control reports what the person did; it never stores on behalf of its owner.**
 
 Written that way, a control works both standalone and owned by the app, with no branch —
-which is why every library control does it.
+which is why every library control does it. The rest of the contract comes with the base:
+
+- **`fieldValue`** says which attribute is the value — what a form judges and `required`
+  checks.
+- **Draw from `shown`**, not from the value: `shown` is the person's edit while one is open,
+  the value otherwise.
+- **An edit that takes time** — a drag, a press-and-hold — opens with `beginEdit()`, reports
+  each step with `edit(v)`, and closes with `endEdit()`. Until it closes, what your `commit`
+  does to the value isn't shown, so a thumb follows the finger even when `commit` rounds.
+  `commitOn = "end"` then commits once, at `endEdit()`.
+
+A text field of your own — a code editor, a field that looks like nothing in the library —
+is a `ValueControl` with a [`NativeText`](declare-docs:NativeText) child: the child makes the
+view a native editable field, with the platform's caret, selection, input methods, undo and
+autofill, and puts each change to the view's `admit` and `commit`. `TextInput` is written
+that way, in `library/textinput.declare`.
 
 ## Custom drawing
 
@@ -206,7 +230,7 @@ App [ width = 340, height = 200, fill = white, textColor = black,
         text = { "" + Math.round(app.level) + "%" } ],
 
     Slider [ x = 20, y = 130, width = 300, value = { app.level },
-        input(v: number) { app.level = v } ]
+        commit(v: number) { app.level = v } ]
     ]
 ```
 

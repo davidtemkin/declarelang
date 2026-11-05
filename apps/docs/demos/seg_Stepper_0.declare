@@ -2,7 +2,7 @@ App [ width = 300, height = 100,
     copies: number = 2,
     Stepper [ x = 20, y = 20, value = { app.copies }, min = 1, max = 99,
         accessibilityLabel = "Copies",
-        input(v: number) { app.copies = v }
+        commit(v: number) { app.copies = v }
         ],
     Text [ x = 160, y = 26, text = { app.copies + " copies" } ]
     ]

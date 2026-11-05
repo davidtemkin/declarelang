@@ -1,0 +1,4 @@
+// the included half of the old program: its own file, followed by declare-changes
+
+class Notes [ TextInput [ accessibilityLabel = "Notes", multiline = true, commitOn = "blur", initial = { "" } ]
+    ]

@@ -66,7 +66,7 @@ App [ width = 960, height = 600, fill = #101820,
 
     master: Slider [ x = 62, y = 38, width = 300, min = 0, max = 360, step = 1, accessibilityLabel = "Hue",
         value = { app.masterHue },
-        input(v: number) { app.masterHue = v }
+        commit(v: number) { app.masterHue = v }
         ],
 
     masterOut: Text [ x = 374, y = 42, textColor = #E7EEF2, fontSize = 14,

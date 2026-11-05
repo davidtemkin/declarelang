@@ -45,6 +45,10 @@ If your context is summarized partway through a session, the summary keeps what 
 did but not what you read. Read items 1 and 2 again before you write or review any
 more Declare.
 
+When a program was written for an earlier release of Declare — it fails to compile with
+names the reference doesn't have, or the compiler says which release it was written for —
+run `npx declare-changes <file>` before changing anything else, and work through its list.
+
 ## Planning a program
 
 **A spec, a mockup, or a program in another stack** says what the result should be, not
@@ -186,7 +190,7 @@ build it: the guide section that teaches it, a program that does it, and names t
 | Images, video, audio | `13-media.md` | birds: `Plate`'s `pic: Image`; weather: `RowSky`'s `photo` | `Image`, `Video`, `Audio` |
 | Where records live; a dataset with its own logic; a list derived from it that edits still write through; a job with no view | `14-data.md` § A Node class on a record, § Data in a whole app | tracker: the App's derived `shown: Dataset`; calendar: the App's `cal: Dataset`; desktop: `WinManager extends Node` and its `list` of window records | `Dataset`, `Dataset.contents`, `Node` |
 | Data from a service: loading, failure, typed records | `14-data.md` § Where data comes from; `15-schemas.md` | tracker: `schema Issue` and `class Issues extends DataSource`; marketmap: `class Market extends DataSource` | `DataSource`, `schema` |
-| Records edited in place; forms; a draft saved or cancelled | `14-data.md` § Writing a record, § Editing text, and forms | tracker: `EditorCard` (`text <-> :it.title`); calendar: `DetailSection` | `<->`, `TextInput`, `TextInput.commitOn` |
+| Records edited in place; forms; a draft saved or cancelled; refusing or tidying what is typed | `08-controls.md` § While the person is editing; `14-data.md` § Writing a record, § Editing text, and forms | tracker: `EditorCard` (`value <-> :it.title`); calendar: `DetailSection` | `<->`, `TextInput`, `ValueControl.commit`, `ValueControl.admit`, `ValueControl.commitOn` |
 | A form that checks itself and sends: required fields and rules, every problem shown on submit, the first focused, a service's refusal shown on the field it names, sending once while pending; fields that start from the signed-in account; one of many chosen; money and dates written out | `14-data.md` § Editing text, and forms (§ A form, § A form with no service, § Errors shown your own way, § A form in a sheet); `08-controls.md` § Choosing one of many, § Keyboard focus; `12-text.md` (numbers, money and dates) | tracker: `EditorCard` | `Form`, `Field`, `TextInput.required`, `validate`, `Form.source`, `Form.method.refusedWith`, `ValueControl`, `RadioGroup`, `Combobox`, `globals` (for `Intl`) |
 | A long list: only the rows near the screen built, rows of different heights and kinds, a heading between records | `16-collections.md` | tracker: the App's `ListRow [ … virtualize = true, classFor = { … } ]` over `GroupRow` and `IssueRow`; desktop: the App's `wins` (a class per kind of window) | `virtualize`, `classFor`, `rowIndex`, `exists` |
 | Drawing what attributes can't express: a gauge, a chart, an icon | `17-your-own-views.md` § Custom drawing, § Icons | weather (`weather-art.declare`): `WindDial`, `PressureGauge`; marketmap: `StageTile`'s sparkline | `draw`, `DrawContext`, `Icon` |

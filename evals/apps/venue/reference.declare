@@ -206,9 +206,7 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").ink }, fo
                 text = { `${app.count.toLocaleString()} performance${app.count === 1 ? "" : "s"}` } ],
 
             search: TextInput [ x = { parent.width - 420 }, y = 40, width = 240, height = 30,
-                fontSize = 16, padding = 8, placeholder = "Search by title",
-                onInput(v: string) { app.query = v }
-                ],
+                fontSize = 16, padding = 8, placeholder = "Search by title", value <-> app.query ],
 
             halls: Segmented [ x = { parent.width - 168 }, y = 40, width = 160,
                 value = { app.hall },
@@ -278,13 +276,9 @@ App [ fill = { provided("theme").bg }, textColor = { provided("theme").ink }, fo
             text = { `${app.picked.length} seat${app.picked.length === 1 ? "" : "s"} · $${app.total}` } ],
 
         nameField: TextInput [ x = 20, y = 100, width = 320, height = 34, fontSize = 16, padding = 8,
-            placeholder = "Name",
-            onInput(v: string) { app.who = v }
-            ],
+            placeholder = "Name", value <-> app.who ],
         mailField: TextInput [ x = 20, y = 146, width = 320, height = 34, fontSize = 16, padding = 8,
-            placeholder = "Email",
-            onInput(v: string) { app.email = v }
-            ],
+            placeholder = "Email", value <-> app.email ],
 
         hint: Text [ x = 20, y = 194, width = 420, fontSize = 13, wrap = true,
             textColor = { provided("theme").muted }, text = { app.note } ],

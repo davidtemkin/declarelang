@@ -35,7 +35,13 @@ export type { CompileOptions, Compiled } from "./compile.js";
 // Static extraction (docs/system-design/capabilities.md §4–5) — exported by BOTH entry
 // points (compile-browser.ts carries the same block): the browser compiler
 // does everything the Node one can, as architecture and as principle.
-export { extractStatic, extractFromProgram, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
+export { extractFromProgram, staticHtml, blocksHtml, crawlerDocument } from "./static-html.js";
+import { extractStatic as extractStaticCore, type ExtractOptions as ExtractOpts, type Extracted as ExtractResult } from "./static-html.js";
+/** `extractStatic` with the library on hand, as this module's `compile` has it:
+ *  a program's library classes (a TextInput, a Button) resolve. */
+export function extractStatic(source: string, opts: ExtractOpts = {}): Promise<ExtractResult> {
+  return extractStaticCore(source, { ...opts, host: opts.host ?? nodeIncludeHost(LIBRARY_ROOT) });
+}
 export { crawlLocations, crawlDocument, crawlExtract, fragmentHrefs, canonKey, type CrawlDoc, type CrawlOptions } from "./crawl.js";
 export { highlight, lineMetrics, programMetrics, programIndex, type LineMetrics, type ProgramMetrics, type ProgramIndex } from "./highlight.js";
 export type { ExtractOptions, Extracted } from "./static-html.js";

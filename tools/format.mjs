@@ -431,7 +431,13 @@ function analyze(tokens) {
       }
       let kind;
       let end;
-      if (tok().kind === "eq" || tok().kind === "bindtwo") {
+      if (tok().kind === "bindtwo" && tok(1).kind === "ident") {
+        // `value <-> app.volume` — the place is an attribute chain, not a literal
+        p++;
+        end = nc[p++];
+        while (tok().kind === "dot" && tok(1).kind === "ident") { p++; end = nc[p++]; }
+        kind = "attr";
+      } else if (tok().kind === "eq" || tok().kind === "bindtwo") {
         p++;
         end = parseLiteral();
         kind = "attr";
@@ -552,6 +558,7 @@ function analyze(tokens) {
     for (;;) {
       if (at("include", "lb")) parseDirective("include");
       else if (at("use", "lb")) parseDirective("use");
+      else if (at("declareVersion", "lb")) parseDirective("declareVersion"); // `declareVersion [ "0.6" ]` — one quoted release
       else if (at("ship", "lb")) { p++; parseBody(true); } // `ship [ islands = [ … ], files = [ … ], compiler = true ]` — attr-shaped members
       else if (at("defaultFlags", "lb")) { p++; parseBody(true); } // `defaultFlags [ render = canvas ]` — attr-shaped members
       else if (at("class", "ident")) {

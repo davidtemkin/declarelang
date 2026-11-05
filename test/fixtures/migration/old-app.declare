@@ -1,0 +1,18 @@
+// A program written for 0.5.3, before value controls edited one way — the
+// fixture declare-changes is tried on (test/changes.test.mjs). It need not compile.
+
+include [ "old-parts.declare" ]
+
+App [ width = 320, height = 200,
+    muted: boolean = false,
+    title: string = "",
+    col: View [ layout: SimpleLayout [ axis = y, spacing = 8 ],
+        Checkbox [ label = "Mute", checked = { app.muted },
+            input(v: boolean) { app.muted = v }
+            ],
+        TextInput [ accessibilityLabel = "Title", text = { app.title },
+            onInput(v: string) { app.title = v }
+            ],
+        Notes [ ]
+        ]
+    ]

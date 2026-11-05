@@ -42,8 +42,8 @@ for (const [way, src] of Object.entries(CLASS_WAYS)) {
   });
 }
 await test("a class classFor picks is permitted", async () => {
-  const { used } = await facts(`App [ d: Dataset [ contents = { [{ k: true }] } ],\n View [ datapath = :d[], classFor = { :k ? TextInput : View } ] ]`);
-  assert.ok(used.has("TextInput"));
+  const { used } = await facts(`App [ d: Dataset [ contents = { [{ k: true }] } ],\n View [ datapath = :d[], classFor = { :k ? Image : View } ] ]`);
+  assert.ok(used.has("Image"));
 });
 await test("a built-in a literal rich text names as a tag is permitted", async () => {
   const { used } = await facts(`App [ Markdown [ text = "a <Image/> b" ] ]`);
@@ -84,7 +84,6 @@ await test("a direct eval keeps every global: effects, and the whole theme table
 // ── syntax: each construct carries its capability ─────────────────────────────
 const SYNTAX = [
   ["a replicating path", `App [ d: Dataset [ contents = { [1, 2] } ], View [ datapath = :d[] ] ]`, ["replication"]],
-  ["a two-way binding", `App [ d: Dataset [ contents = { ({ s: "" }) } ], TextInput [ datapath = :d, text <-> :s ] ]`, ["editor"]],
   ["virtualize written on a replicated child", `App [ d: Dataset [ contents = { [1, 2] } ], View [ datapath = :d[], virtualize = false ] ]`, ["virtualize", "replication"]],
   ["classFor written on a replicated child", `App [ d: Dataset [ contents = { [1] } ], View [ datapath = :d[], classFor = { View } ] ]`, ["class-for", "replication"]],
 ];
@@ -118,8 +117,8 @@ const CLASSIFIED = {
   "instantiate→animator": "class", "registry→animator": "class", "instantiate→animator-group": "class",
   "registry→animator-group": "class", "instantiate→spring": "class", "registry→spring": "class",
   "instantiate→state": "class", "registry→state": "class", "registry→tween-layout": "class",
-  "registry→islands": "class", "text-input→editor": "class (TextInput holds a draft)",
-  "instantiate→editor": "syntax (<->)", "instantiate→class-for": "slot (classFor)", "instantiate→virtualize": "slot (virtualize)",
+  "registry→islands": "class",
+  "instantiate→class-for": "slot (classFor)", "instantiate→virtualize": "slot (virtualize)",
   "instantiate→replication": "syntax ([])", "expr→effects": "global (the constructors are the body's names)",
   "rich-text→rich-doc": "build (dom)", "rich-text→rich-views": "class (rich text) or build (canvas)",
   "dom-backend→rich-dom": "class (rich text); the inert three proven: only rich text sets the slots they read",

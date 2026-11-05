@@ -87,7 +87,7 @@ await test("a radio of your own is a direct child with a choice: the group check
     accessibilityRole = radio, accessibilityLabel = { choice }, accessibilityChecked = { (parent as RadioGroup).value == choice },
     press() { (parent as RadioGroup).pick(choice) } ]
 App [ width = 300, height = 100, picked: string = "a",
-    g: RadioGroup [ x = 10, y = 10, value = { app.picked }, input(v: string) { app.picked = v },
+    g: RadioGroup [ x = 10, y = 10, value = { app.picked }, commit(v: string) { app.picked = v },
         layout: SimpleLayout [ axis = x, spacing = 6 ],
         a: Box [ choice = "a" ], b: Box [ choice = "b" ], c: Box [ choice = "c" ] ] ]`,
   `export default async ({ drive, expect }) => {
@@ -150,8 +150,8 @@ for (const touch of [false, true]) {
   await test(`an assert script's page finds by role, label and text, as Playwright's does, and acts through the driver${touch ? " (a finger)" : ""}`, () => {
     const out = verify("locators" + (touch ? "-touch" : ""), `App [ width = 400, height = 300, said: string = "", size: string = "m",
     col: View [ x = 20, y = 20, layout: SimpleLayout [ axis = y, spacing = 10 ],
-        Field [ label = "Email", TextInput [ width = 200, text = { app.said }, onInput(v: string) { app.said = v } ] ],
-        RadioGroup [ value = { app.size }, input(v: string) { app.size = v },
+        Field [ label = "Email", TextInput [ width = 200, value <-> app.said ] ],
+        RadioGroup [ value = { app.size }, commit(v: string) { app.size = v },
             Radio [ choice = "s", label = "Small" ], Radio [ choice = "m", label = "Medium" ] ],
         Button [ label = { "Send " + app.said }, onClick() { app.said = "sent" } ] ] ]`,
     `${touch ? "export const device = { width: 390, height: 844, touch: true };\n" : ""}export default async ({ page, expect }) => {
@@ -207,7 +207,7 @@ await test("a script's page and expect take Playwright as written: scoping, loca
   const out = verify("locators-pw", `App [ width = 500, height = 400, said: string = "", signedIn: boolean = false, open: boolean = true,
     col: View [ x = 20, y = 20, layout: SimpleLayout [ axis = y, spacing = 10 ],
         Button [ label = "Sign in", onClick() { app.open = true } ],
-        Field [ label = "Note", TextInput [ width = 200, text = { app.said }, onInput(v: string) { app.said = v } ] ],
+        Field [ label = "Note", TextInput [ width = 200, value <-> app.said ] ],
         box: View [ accessibilityRole = group, accessibilityLabel = "Account", layout: SimpleLayout [ axis = y ],
             Text [ text = "Your account" ],
             Button [ label = "Sign in", onClick() { app.signedIn = true } ] ] ] ]`,

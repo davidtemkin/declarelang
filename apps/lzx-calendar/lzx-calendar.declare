@@ -170,7 +170,7 @@ class AccordionSection [
     area: TextInput [ x = 2, y = 20, width = { parent.width - 4 }, height = 326,
         multiline = true, fill = #FFFFFF, fontSize = 10, textColor = #333333,
         accessibilityLabel = { classroot.label },
-        text <-> { classroot.field },
+        value <-> { :@[(classroot.field)] },
         visible = { app.openTab == classroot.idx } ]
     ]
 
@@ -1140,7 +1140,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
 
         titleF: TextInput [ x = 6, y = 24, width = 193, height = 17, fill = #FFFFFF,
             fontSize = 11, textColor = #333333, accessibilityLabel = "Title",
-            datapath = { app.draft.value }, text <-> :title ],
+            datapath = { app.draft.value }, value <-> :title ],
 
         dateStep:  Nudger [ x = 8, y = 47, width = 189, field = "date",
             label = { app.monthName(:m) + " " + :d + ", " + :y } ],

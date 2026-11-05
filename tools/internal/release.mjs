@@ -113,7 +113,7 @@ export function isPublished(version, { tags, pushed }) {
  *  version (isPublished); `notes` every releases/*.md path; `committed` the
  *  subset of those that are tracked AND clean in the working tree. Returns the
  *  problems, each with its fix. */
-export function checkRelease({ version, tags, pushed = null, notes, committed }) {
+export function checkRelease({ version, tags, pushed = null, notes, committed, removed = [], notesText = null }) {
   const problems = [];
   if (parseVersion(version) === null) {
     problems.push(`package.json version '${version}' is not semver-shaped (x.y.z)`);
@@ -130,6 +130,12 @@ export function checkRelease({ version, tags, pushed = null, notes, committed })
       problems.push(`${file} exists but is not committed clean — the push would publish a release without its notes.\n` +
         `    git add ${file} && git commit`);
     }
+    // a release that removes public surface changes how programs are written:
+    // its notes say what to change (migration.md §3), in the form declare-changes reads
+    if (removed.length > 0 && notesText !== null && !/^##\s+Changes to make\s*$/m.test(notesText)) {
+      problems.push(`${file} has no "## Changes to make", and this release removes ${removed.length} public member${removed.length == 1 ? "" : "s"} since the last tag (${removed.slice(0, 5).join(", ")}${removed.length > 5 ? ", …" : ""}).\n` +
+        `    add the section, one entry per change (RELEASING.md § Changes to make), so npx declare-changes can list them.`);
+    }
   }
   for (const n of notes) {
     const m = /^releases\/v(\d+\.\d+\.\d+)\.md$/.exec(n);
@@ -141,6 +147,16 @@ export function checkRelease({ version, tags, pushed = null, notes, committed })
     }
   }
   return { ok: problems.length === 0, pending: !tagged && problems.length === 0, problems };
+}
+
+// ── pure: the public surface a release removes ──────────────────────────────
+/** The public reference ids (`View.x`, `TextInput.text`) in `before` that `after`
+ *  no longer has — both docs/declare-model.json. A removal is how the reference
+ *  says a program must change (migration.md §3). */
+export function removedPublic(before, after) {
+  const pub = (m) => new Set(Object.entries(m?.reference ?? {}).filter(([, e]) => e?.internal !== true).map(([id]) => id));
+  const now = pub(after);
+  return [...pub(before)].filter((id) => !now.has(id)).sort();
 }
 
 // ── pure: the scaffold ──────────────────────────────────────────────────────
@@ -157,6 +173,13 @@ export function scaffoldText() {
     "",
     "The flagship calendar is <!--stat:calendar.wireKB1-->0<!--/stat--> KB gzipped at this tag.",
     "",
+    "<!-- A release that changes how programs must be written ends with a section",
+    "     \"## Changes to make\": one \"### old → new\" entry per change, each with a",
+    "     sentence of why, a Find: line, the before and after fragments, a Docs: line",
+    "     and a Watch for: line for what changes without an error (RELEASING.md).",
+    "     npx declare-changes reads it. The push refuses a release that removes public",
+    "     surface without it. -->",
+    "",
   ].join("\n");
 }
 
@@ -168,7 +191,14 @@ function state() {
   const notes = existsSync(dir) ? readdirSync(dir).filter((f) => f.endsWith(".md")).map((f) => `${RELEASES}/${f}`) : [];
   const tracked = new Set((tryRun(() => git("ls-files", "--", RELEASES)) ?? "").split("\n").filter(Boolean));
   const committed = notes.filter((n) => tracked.has(n) && (tryRun(() => git("status", "--porcelain", "--", n)) ?? "x") === "");
-  return { version: pkg.version, tags, pushed: pushedVersion(), notes, committed, pkg };
+  // what the reference lost since the last tag: read-only, from the tag's own model
+  const last = lastTag(tags);
+  const before = last === null ? null : tryRun(() => JSON.parse(git("show", `${last}:docs/declare-model.json`)));
+  const modelPath = join(ROOT, "docs", "declare-model.json");
+  const removed = before === null || !existsSync(modelPath) ? [] : removedPublic(before, JSON.parse(readFileSync(modelPath, "utf8")));
+  const own = join(ROOT, notesPath(pkg.version));
+  const notesText = existsSync(own) ? readFileSync(own, "utf8") : null;
+  return { version: pkg.version, tags, pushed: pushedVersion(), notes, committed, pkg, removed, notesText };
 }
 
 /** origin/main's package.json version — what the last push declared — or null
@@ -205,6 +235,9 @@ function scaffold(version) {
   const pkgPath = join(ROOT, "package.json");
   const raw = readFileSync(pkgPath, "utf8");
   writeFileSync(pkgPath, raw.replace(/"version":\s*"[^"]*"/, `"version": "${version}"`));
+  // the compiler's own word for the release it is (a program's declareVersion is compared with it)
+  const verPath = join(ROOT, "compiler", "src", "version.ts");
+  writeFileSync(verPath, readFileSync(verPath, "utf8").replace(/DECLARE_VERSION = "[^"]*"/, `DECLARE_VERSION = "${version}"`));
   mkdirSync(join(ROOT, RELEASES), { recursive: true });
   writeFileSync(join(ROOT, file), scaffoldText());
   console.log(`release: package.json → ${version}; wrote ${file}`);

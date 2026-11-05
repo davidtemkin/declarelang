@@ -14,7 +14,7 @@ App [ width = 360, height = 240, fill = white,
         layout: SimpleLayout [ axis = y, spacing = 12 ],
         Field [ label = "Email", stacked = true,
             TextInput [ width = 300, name = "email", purpose = email, required = "Enter your email address.",
-                text = { app.email }, onInput(v: string) { app.email = v },
+                value = { app.email }, commit(v: string) { app.email = v },
                 validate(v: string) -> string { return v.includes("@") ? "" : "Enter an email address like name@example.com." } ] ],
         Button [ label = "Sign in", primary = true, onClick() { parent.submit() } ],
         send() { app.email = "" }
@@ -44,7 +44,8 @@ runs.
   disabled does not count: it is not judged, and its problems hold nothing up.
 
 ## submit()
-Judges every member now, so every problem shows at once, each under its own field —
+Ends every member's open edit first, committing it, so what is sent is what is shown. Then
+judges every member, so every problem shows at once, each under its own field —
 fields the person never reached and fields autofill filled without focusing included.
 Withdraws the last refusals. If anything is wrong, `showProblems()`; otherwise `send()`.
 Does nothing while `pending`. Return in
@@ -279,6 +280,8 @@ class Form [
         if (pending) return
         submitted = true
         error = ""
+        // an edit still open is ended first, committing, so what is sent is what is shown
+        for (const c of _members) if (typeof c.endEdit == "function") c.endEdit()
         for (const c of _members) {
             if (c.refused != "") c.refuse("")
             if (this._counts(c)) c.judged = true

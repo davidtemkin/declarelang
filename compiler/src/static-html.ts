@@ -17,7 +17,7 @@
 // compile-node and compile-browser — the browser compiler does everything the
 // Node one can, as architecture and as principle.
 
-import { Image, Text, TextInput, View } from "../../runtime/dist/index.js";
+import { Image, Text, View } from "../../runtime/dist/index.js";
 import { Markdown } from "../../runtime/dist/markdown.js";
 import { HTMLText } from "../../runtime/dist/html-text.js";
 import { parse as parseMd, type Block, type Inline, type ListItem } from "../../runtime/dist/md.js";
@@ -152,7 +152,7 @@ function classifyHeadings(root: View): (t: Text) => number | null {
       if (words !== "") charsBySize.set(v.fontSize, (charsBySize.get(v.fontSize) ?? 0) + words.length);
       return;
     }
-    if (v instanceof TextInput || v instanceof Image) return;
+    if ((v as View & { $native?: unknown }).$native != null || v instanceof Image) return;
     if (v instanceof Text) {
       if (v.text !== "") {
         charsBySize.set(v.fontSize, (charsBySize.get(v.fontSize) ?? 0) + v.text.length);
@@ -269,7 +269,7 @@ function walk(v: View, out: string[], headingOf: (t: Text) => number | null, ten
 function emit(v: View, out: string[], headingOf: (t: Text) => number | null, tenants?: ReadonlyMap<unknown, string>): void {
   if (v instanceof Markdown) { if (v.text !== "") out.push(blocksHtml(parseMd(v.text))); return; }
   if (v instanceof HTMLText) { if (v.html !== "") out.push(blocksHtml(parseHtml(v.html, v.unsupported))); return; }
-  if (v instanceof TextInput) return; // draft UI state, not content
+  if ((v as View & { $native?: unknown }).$native != null) return; // a field: the person's edit, not content
   if (v instanceof Text) {
     if (v.text !== "") {
       const lvl = headingOf(v);   // inferred from the settled type (large + bold)

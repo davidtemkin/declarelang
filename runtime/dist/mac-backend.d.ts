@@ -66,6 +66,9 @@ export declare const OP: {
     readonly PERSPECTIVE: 49;
     /** How the node's subtree resamples its images and drawings: "smooth" or "pixelated" (case 50). */
     readonly SCALING: 50;
+    /** A change judged after it landed, corrected: (from, text) — applied as one
+     *  undoable edit while the field still holds `from` (case 51). */
+    readonly EDITAPPLY: 51;
 };
 type Glide = {
     duration?: number;
@@ -408,6 +411,8 @@ declare class MacSurface implements Surface, SceneSurface {
     activateEditable(active: boolean): void;
     /** TextInput.select's write half (#22) — the overlay clamps and applies. */
     setSelection(start: number, end: number): void;
+    /** A change the field judged once it had landed, corrected in the native field. */
+    applyEditableText(text: string, from?: string): void;
     insertChild(child: Surface, before: Surface | null): void;
     destroy(): void;
     /** Content extent for scrolling: the furthest child bottom. */
@@ -545,7 +550,12 @@ export declare function macWheel(x: number, y: number, dx: number, dy: number, p
 export declare function macScrollFacts(batch: unknown): void;
 export declare function macRichHeight(id: number, h: number): void;
 export declare function macRichLink(id: number, href: string): void;
-export declare function macEditInput(id: number, value: string): void;
+/** A change has landed in the native field: `checked` when the host asked
+ *  `admit` about it before it did (macEditAdmit), else the field judges it now. */
+export declare function macEditInput(id: number, value: string, checked?: boolean): void;
+/** The host asks, before a change lands, what the field makes of the text it
+ *  would produce: that text, a rewrite, or null to refuse it. */
+export declare function macEditAdmit(id: number, text: string): string | null;
 export declare function macEditFocus(id: number, focused: boolean): void;
 export declare function macEditEnter(id: number): void;
 export declare function macEditSelect(id: number, start: number, end: number): void;

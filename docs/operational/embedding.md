@@ -96,7 +96,7 @@ no build step on install.
 
 `npm install` pulls it into `node_modules/declarelang`; `npm run dev` starts the server.
 To hold a release rather than the newest commit, end the line with its tag, `#v` and the
-version; the current release is v<!--stat:version-->0.5.3<!--/stat-->.
+version; the current release is v<!--stat:version-->0.6.0<!--/stat-->.
 With pnpm, approve esbuild's install script when it asks (`pnpm approve-builds`).
 Either way the version is pinned per project, so updating Declare is a one-line bump and an install —
 your project decides when, and a teammate gets the same version from the lockfile. The

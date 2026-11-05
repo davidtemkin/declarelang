@@ -27,8 +27,8 @@ what the library ships, and what `extends Control` makes yours.
 | [`Segmented [ choices, value ]`](declare-docs:Segmented) | the chosen `id` | one of a few, shown at once; set its `width` — segments divide it evenly |
 | [`TabBar [ choices, value ]`](declare-docs:TabBar) | the chosen `id` | a `Segmented` that switches what is shown below it — pages, panes; a screen reader hears tabs |
 | [`Combobox [ items, value ]`](declare-docs:Combobox) | the chosen item | filter as you type |
-| [`TextInput [ text, placeholder ]`](declare-docs:TextInput) | `text: string` | the text field |
-| [`SearchField [ text, placeholder ]`](declare-docs:SearchField) | `text: string` | a text field for searching: round at both ends, and a search field to a screen reader |
+| [`TextInput [ value, placeholder ]`](declare-docs:TextInput) | `value: string` | the text field |
+| [`SearchField [ value, placeholder ]`](declare-docs:SearchField) | `value: string` | a text field for searching: round at both ends, and a search field to a screen reader |
 | [`AppearanceSwitch [ dark ]`](declare-docs:AppearanceSwitch) | `dark: boolean` | light or dark, as one icon |
 | [`TextSizeSwitch [ value ]`](declare-docs:TextSizeSwitch) | the scale, one of its `sizes` | the reading size: a small, a default and a large A |
 | [`Stepper [ value, min, max, step ]`](declare-docs:Stepper) | `value: number` | a number a step at a time, between − and +; a spin button to a screen reader |
@@ -67,8 +67,8 @@ A control's value is an ordinary attribute, and it is used in one of three ways.
 **The control owns it.** Read it back by name: `mute: Checkbox [ label = "Mute" ]`, and
 elsewhere `visible = { mute.checked }`.
 
-**Your state owns it.** Derive the control's value from your state, and take its edits
-back through `input`:
+**Your state owns it.** Derive the control's value from your state, and take the person's
+changes back through `commit`:
 
 ```declare
 App [ width = 360, height = 210, theme = { SanFrancisco }, fill = { provided("theme").background },
@@ -77,10 +77,10 @@ App [ width = 360, height = 210, theme = { SanFrancisco }, fill = { provided("th
     col: View [ x = 20, y = 20, width = 320,
         layout: SimpleLayout [ axis = y, spacing = 12 ],
         Checkbox [ label = "Mute", checked = { app.muted },
-            input(v: boolean) { app.muted = v }
+            commit(v: boolean) { app.muted = v }
             ],
         Slider [ width = 100%, value = { app.volume }, disabled = { app.muted },
-            input(v: number) { app.volume = v }
+            commit(v: number) { app.volume = v }
             ],
         ProgressBar [ width = 100%, value = { app.muted ? 0 : app.volume } ],
         Button [ label = "Reset", primary = true,
@@ -90,22 +90,57 @@ App [ width = 360, height = 210, theme = { SanFrancisco }, fill = { provided("th
     ]
 ```
 
-`checked = { app.muted }` shows the value; `input(v)` is where the control's own edits
-go. The two travel together. A control never writes its own value directly — it
-calls `input` — so a constrained control never fights its constraint. Without the
-`input` override the control's edit would be an assignment to a constrained attribute,
-and the runtime refuses it.
+`checked = { app.muted }` shows your value; `commit(v)` is where the person's change goes.
+The two travel together. A control never writes its own value — it calls `commit` — so a
+constrained control never fights its constraint. Leave the `commit` out and the change
+has nowhere to go; the compiler says so.
+
+When the change goes straight to the place the value comes from, say it once:
+`checked <-> app.muted` is exactly `checked = { app.muted }` with
+`commit(v) { app.muted = v }`. Write the two members when `commit` does more — rounds,
+clamps, saves.
 
 **A record owns it.** Inside a list built from data, the value is a field of the row's
-record, and the edit goes straight back to it:
-`Checkbox [ checked = :done, accessibilityLabel = :title, input(v: boolean) { :done = v } ]`.
+record, and the change goes straight back to it:
+`Checkbox [ checked <-> :done, accessibilityLabel = :title ]`.
 [Data](declare-docs:guide:data@writing-a-record) covers records.
+
+### While the person is editing
+
+Most changes are over at once: a click checks a box. Some take a while — typing a word,
+dragging a thumb — and for those a control keeps what the person is doing on screen until
+they stop, **whatever your value does meanwhile**. A `commit` that clamps a typed "4" to 8
+still leaves "4" in the field, so "48" can be typed; a slider whose `commit` rounds still
+follows the finger. When they stop — leave the field, release the thumb, press Return —
+the control shows your value again. A change to your value that comes from anywhere else
+(a Reset button, a service) ends the edit and shows at once.
+
+`commit` is called after every change by default. `commitOn = "end"` calls it once, when
+the edit ends — a drag that is one change, a field saved when it is left; Escape then
+cancels an edit without committing it.
+
+To refuse a change before it appears, or tidy it, override **`admit(v)`**: return the value
+to show — usually `v` itself — or `null` to refuse. A size field that takes only digits:
+
+```declare
+App [ width = 340, height = 100, theme = { SanFrancisco }, fill = { provided("theme").background },
+    size: number = 32,
+    TextInput [ x = 20, y = 20, width = 120, accessibilityLabel = "Font size",
+        value = { String(app.size) },
+        admit(t: string) -> string | null { return /^[0-9]{0,3}$/.test(t) ? t : null },
+        commit(t: string) { if (t != "") app.size = Math.max(8, Math.min(400, Number(t))) }
+        ]
+    ]
+```
+
+A letter never appears; a fourth digit never appears; the platform's Undo still works,
+because a refused change never entered it.
 
 ### Text fields
 
-`TextInput` follows the same idea with two differences worth knowing. First, it hands
-edits back through an **event**, `onInput(v)`, rather than an overridable `input`
-method. A field whose text your state owns — so that a reset button or a preset can
+A [`TextInput`](declare-docs:TextInput) is a value control like the others: its value is
+`value`, a string, and its `text` is what is on screen right now (the person's, while they
+type). A field whose text your state owns — so that a Clear button or a preset can
 change it — looks like this:
 
 ```declare
@@ -116,8 +151,7 @@ App [ width = 340, height = 120, theme = { SanFrancisco }, fill = { provided("th
         layout: SimpleLayout [ axis = y, spacing = 10 ],
         row: View [
             layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
-            TextInput [ width = 200, placeholder = "Your name",
-                text = { app.who }, onInput(v: string) { app.who = v } ],
+            TextInput [ width = 200, placeholder = "Your name", value <-> app.who ],
             Button [ label = "Clear", onClick() { app.who = "" } ]
             ],
         Text [ text = { app.who == "" ? "Hello." : "Hello, " + app.who + "." } ]
@@ -125,15 +159,15 @@ App [ width = 340, height = 120, theme = { SanFrancisco }, fill = { provided("th
     ]
 ```
 
-Second, a text field editing a record can bind to it both ways with `<->`
-(`text <-> :name`). That form runs a *draft*: the typed text is validated before it is
-written, and it can wait for Enter or a Save button before it lands.
-[Data](declare-docs:guide:data@editing-text-and-forms) covers drafts and forms. `<->` is for text fields only;
-the compiler refuses it on a checkbox or a slider and names the value pattern instead.
+A field that keeps its own text needs nothing: `TextInput [ placeholder = "Note" ]`, read
+back as `note.value`. A number or a date your state keeps is shown converted —
+`value = { String(app.size) }` — and parsed back in `commit`, as in the size field above.
 
 Every control that holds a value — the ones above, a `Combobox`, a `DatePicker`, and any
 of your own that extends [`ValueControl`](declare-docs:ValueControl) — can be **checked like a field**:
-`required` (`true` or the message), `validate(v)`, and a `name` a service refuses it by. A
+`required` (`true` or the message), `validate(v)`, and a `name` a service refuses it by.
+Judging never refuses a change or alters it — that is `admit`'s — and a control is judged
+when the person leaves it. A
 [`Form`](declare-docs:Form) around them judges them all on submit; a [`Field`](declare-docs:Field) around one shows
 what is wrong with it under it ([Data](declare-docs:guide:data@a-form)).
 
@@ -144,7 +178,7 @@ Say what a field holds with [`purpose`](declare-docs:TextInput.purpose) — `ema
 A multi-line field (`multiline = true`) left unsized is as tall as its text. Cap it as you
 cap any box — `height = { Math.min(contentHeight, 120) }` — and it grows as the user types,
 then scrolls. In a multi-line field Return types a line break; `enterSubmits = true` makes
-Return fire `onEnter` and Shift-Return the break.
+Return end the edit and call `onEnter`, and Shift-Return type the break.
 
 Where the user's caret or selection is, a field reports as two read-only facts,
 [`selectionStart`](declare-docs:TextInput.selectionStart) and `selectionEnd` — a constraint
@@ -246,12 +280,12 @@ When you need more:
 - Every view carries [`focused`](declare-docs:View.focused), true while it holds focus — a
   fact a constraint reads (`stroke = { focused ? stroke(2, provided("theme").accent) : null }`).
 - [`onFocus`](declare-docs:View.event.focus) and [`onBlur`](declare-docs:View.event.blur)
-  run when a view gains and loses focus. `onBlur` is the place to tidy a field once the
-  user leaves it, rather than on every keystroke:
+  run when a view gains and loses focus. `onBlur` is one place to tidy a field once the
+  person leaves it, rather than on every keystroke (`commitOn = "end"` is another):
 
   ```declare-fragment
-  TextInput [ placeholder = "Tag", text = { app.tag },
-      onInput(v: string) { app.tag = v },
+  TextInput [ placeholder = "Tag", value = { app.tag },
+      commit(v: string) { app.tag = v },
       onBlur() { app.tag = app.tag.trim().toLowerCase() } ]
   ```
 
@@ -280,7 +314,7 @@ a control behave like the ones you were given. [Your own views](declare-docs:gui
 ---
 
 **What you can now do:** wire any control to your state or to a record with the one
-value pattern, feed arranging classes data instead of children, and rely on focus and
+value pattern — `commit`, or `<->` when the change goes straight back — feed arranging classes data instead of children, and rely on focus and
 keyboard behavior you did not have to write.
 
 [Next: **Pointer and keyboard** →](declare-docs:guide:pointer-and-keyboard)

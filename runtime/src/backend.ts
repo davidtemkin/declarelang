@@ -224,8 +224,15 @@ export interface EditableSpec {
   padding: Inset;
   placeholder: string;
   style: TextStyle;
-  /** The user typed — carry the native element's value to the model. */
-  onInput: (value: string) => void;
+  /** Asked about a change BEFORE it lands, with the text it would produce: the text
+   *  to show (the same to let it land; another to apply instead, as one undoable
+   *  step), or null to refuse it. Absent: every change lands. A change the
+   *  platform can't describe beforehand (a composition, autofill, undo) lands and
+   *  is reported unchecked instead (editable-input.ts). */
+  admit?: (next: string) => string | null;
+  /** A change has landed: the element's value, and whether `admit` already saw it
+   *  (false: a composition, autofill, undo — the model judges it now). */
+  onInput: (value: string, checked?: boolean) => void;
   /** The native element gained / lost DOM focus (a click in, or focus moving
    *  away) — for syncing Declare focus with the platform. */
   onFocus: () => void;
@@ -598,6 +605,14 @@ export interface Surface {
    *  ordered by the caller; the backend clamps to its element's value. A no-op
    *  where no editable exists; optional like the scroll writes. */
   setSelection?(start: number, end: number): void;
+  /** Replace this surface's native editable text with `text` as the person's own
+   *  edit would: the differing range only, through the platform's editing command,
+   *  so it is one undoable step (editable-input.ts applyEditableText) — how a
+   *  change judged after it landed is corrected. `from` is the text the correction
+   *  is of: a host whose element may have changed again since (the Mac's, across
+   *  its thread) leaves a newer text alone, which is reported and judged in its
+   *  turn. A no-op where no editable exists. */
+  applyEditableText?(text: string, from?: string): void;
   /** Reveal a heading anchor INSIDE a native rich-text flow (location.md §6). A
    *  flow coalesces its headings into one element/region, so revealing one is not
    *  a whole-surface `scrollIntoView`. `slug` names the heading; `within` is its

@@ -45,9 +45,9 @@ App [ width = 470, height = 250, fill = black, textColor = whitesmoke,
             fill = darkslategray, placeholder = "Add a task" ],
         Button [ label = "Add", primary = true,
             onClick() {
-                if (parent.entry.text == "") return
-                app.board.add(parent.entry.text)
-                parent.entry.text = ""
+                if (parent.entry.value == "") return
+                app.board.add(parent.entry.value)
+                parent.entry.value = ""
                 }
             ]
         ]

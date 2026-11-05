@@ -166,7 +166,7 @@ block and used by name. The one place a type meets the member syntax is a `[` af
 glued and empty it is an array (`w: Window[]`); after a space it opens a named child
 (`w: Window [ … ]`).
 
-**A method's signature is typed, name-first**: `select() { … }`, `input(v: boolean) { … }`,
+**A method's signature is typed, name-first**: `select() { … }`, `commit(v: boolean) { … }`,
 `quant(v: number) -> number { … }`. Every parameter carries a written type — any type a
 declaration takes, an event payload among them (`onPointerUp(e: PointerUpEvent)`); `c?: Menu`,
 or Declare's `c: Menu?`, says the value may be absent, and the body must check. The return
@@ -245,7 +245,7 @@ conditionally:** `exists = { … }` builds it while true and discards it while f
 place (`visible` keeps a hidden view built — a focus sink, a definition read by its parent).
 
 Besides `class`, the top level holds `script`, `include`, `use`, `theme`, `style`, `schema`,
-`ship` and `defaultFlags` — the complete set, **in any order**, before or after the root instance;
+`ship`, `defaultFlags` and `declareVersion` — the complete set, **in any order**, before or after the root instance;
 `extends` may name a class declared later in the file. **`script { … }`** holds free TypeScript — helpers,
 parsers, whole libraries — and may **`import`** ES modules (a file, or an npm package by bare
 specifier; bundled at compile). **`script [ "file.ts" ]`** is the same block loaded from a
@@ -272,7 +272,9 @@ true`, it answers questions about itself in production ([Packaging](declare-docs
 literal `program = "name"` or `url = "path"` needs no entry, and hosts that carry sources and a compiler read none of it.
 **`defaultFlags [ … ]`** gives the program's own defaults for the platform's flags — `render = canvas`,
 `kernel = js`, `crawler = true`, `accessibility = false`, `lint = false`, `devices = desktop` (these two quiet warnings) — which a request's `?render=` or `declarec --render=` overrides; a
-program has at most one, in any of its files ([Renderers](declare-docs:guide:renderers), [defaultFlags](declare-docs:language:defaultFlags)). **`theme Name [ … ]`** and **`style Name [ … ]`** are named records of
+program has at most one, in any of its files ([Renderers](declare-docs:guide:renderers), [defaultFlags](declare-docs:language:defaultFlags)).
+**`declareVersion [ "0.6.0" ]`** says which release a file was written for; `npx declare-changes
+--done` writes it ([declare-changes](declare-docs:operational:changes)), and no program needs it. **`theme Name [ … ]`** and **`style Name [ … ]`** are named records of
 literal values — a token record, and the style of a run of text with no view (§9).
 
 ### `classroot`
@@ -373,8 +375,7 @@ the socket.
 
 A `{ }` can appear on either member kind from §3 — **setting** an existing attribute, or
 **declaring** a new one with a computed default — and one difference decides everything: who
-owns the value. That is why `TextInput` has both: `text = { … }`, which the program keeps and
-typing only proposes to through `onInput`, and `initial = { … }`, which the field takes over.
+owns the value.
 
 | you wrote | owned by its constraint? | reading it | assigning to it | reach for it when |
 |---|---|---|---|---|
@@ -584,14 +585,12 @@ compiler *and* enforced against live data; TypeScript's spellings of a field are
 field (`tags: string[]` is `tags[]: string`, `km: number | null` is `km?: number`). Extra
 keys always pass: a schema declares what the program relies on.
 
-**Two-way binding is opt-in, with `<->`, and for leaf editors only** — `TextInput [ text <-> :title ]`:
-the right-hand side names a *place in data*, either a datapath or a `{ }` yielding a field name,
-resolved against the nearest enclosing `datapath` — an editor with none is a compile error. To
-drive an ordinary attribute, constrain it and write your state back from what the user did. An
-editor reports typing as an event — `text = { app.note }` plus `onInput(v: string) { app.note = v }`
-— and a control delivers through its `input` method — `checked = { app.muted }` plus
-`input(v: boolean) { app.muted = v }`. A constrained `text` with no `onInput` is a compile error,
-since every keystroke would be refused. One-way `:path` everywhere else.
+**Two-way binding is opt-in, with `<->`, on a control's value** — `Checkbox [ checked <-> app.muted ]`
+is shorthand for `checked = { app.muted }` plus `commit(v) { app.muted = v }`. The place is a
+datapath (`:title`, against the nearest enclosing `datapath`), `{ :@[(name)] }` for a field
+chosen by name, or an attribute (`app.muted`, `classroot.size`). The types must match, and the
+element may not also declare `commit`: a conversion is the pair written out. A constrained value
+with no `commit` is a compile error, since every change would be refused.
 
 **Datasets are mutable from handlers** — `:done = v` writes the record under the cursor;
 `d.set(path, v)`, with `insert`, `removeAt` and `move` for collections, writes anywhere. A path is a segments array (`["rows", 0, "name"]`) or a JSON Pointer string
@@ -890,20 +889,28 @@ one you build **extends `Control`**, which makes it focusable and keyboard-activ
 
 Two contracts are worth learning because your own classes should obey them too.
 
-**The value pattern.** A control's value is a plain reactive attribute, in one of three forms:
-standalone, where the control owns its state and you read it by name; **app-owned, deriving down
-and delivering up**; or data-owned, `<->`, editors only. The second is a *pair*, and splitting it
-is the §5 rule biting. A control's default `input` writes its **own** attribute, so
-`checked = { app.muted }` with no `input` override makes the control's own edit an assignment to a
-constraint-owned attribute — refused (§5). Override `input` and the edit goes where the value actually
-lives.
+**The value pattern.** A control's value is a plain reactive attribute, in one of two forms:
+standalone, where the control owns its state and you read it by name; or **owned by your state
+or your data, deriving down and delivering up** — the pair, or `<->` for it. The pair is the
+§5 rule at work. A control's default `commit` writes its **own** attribute, so
+`checked = { app.muted }` with no `commit` override makes the person's change an assignment to a
+constraint-owned attribute — refused (§5). Override `commit` and the change goes where the value
+actually lives.
+
+**Editing**, the same for every value control (`ValueControl`): the person's change is put to
+`admit(v)` before it appears (return what to show, or `null` to refuse), then shown and handed
+to `commit` — after each change, or once at the end with `commitOn = "end"`. **While an edit is
+open, the control shows the person's change, not your value**, so a `commit` that clamps doesn't
+fight them; when it ends (they leave, release, press Return; Escape cancels) it shows your value.
+Any other change to your value ends the edit. `validate` and `required` only judge. A control of
+your own reports with `edit(v)` and draws from `shown`.
 
 ```declare-fragment
 Checkbox [ label = "Mute", checked = { app.muted },
-    input(v: boolean) { app.muted = v }
+    commit(v: boolean) { app.muted = v }
     ],
 Slider   [ value = { app.volume },
-    input(v: number) { app.volume = v },
+    commit(v: number) { app.volume = v },
     disabled = { app.muted }
     ]
 ```

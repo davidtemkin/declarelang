@@ -8,7 +8,7 @@ schema Task [ id: number, title: string, done: boolean ]
 
 class TaskRow [ width = 100%, height = 32,
     layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
-    Checkbox [ checked = :done, accessibilityLabel = :title, input(v: boolean) { :done = v } ],
+    Checkbox [ checked = :done, accessibilityLabel = :title, commit(v: boolean) { :done = v } ],
     Text [ text = :title, textColor = { :done ? 0x66727D : 0x172530 } ]
     ]
 

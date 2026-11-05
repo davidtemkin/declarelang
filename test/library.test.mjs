@@ -39,7 +39,7 @@ const COMBO = `App [ width = 400, height = 300,
 
 await test("Combobox: a value set from outside shows in the field (the text derives from the choice)", async () => {
   const app = await boot(`App [ width = 400, height = 300, country: object = null,
-    c: Combobox [ x = 20, y = 20, items = ["France", "Japan"], value = { app.country }, input(v: object) { app.country = v } ] ]`);
+    c: Combobox [ x = 20, y = 20, items = ["France", "Japan"], value = { app.country }, commit(v: object) { app.country = v } ] ]`);
   assert.equal(app.c.entry.text, "", "no choice: empty");
   app.country = "Japan"; settle();
   assert.equal(app.c.entry.text, "Japan", "a saved choice shows as surely as a picked one");
@@ -119,11 +119,11 @@ await test("Combobox: last in a form, Enter with the list down and a choice made
   }
 });
 
-await test("Combobox: a use-site input() owns the value (press-never-writes)", async () => {
+await test("Combobox: a use-site commit() owns the value (press-never-writes)", async () => {
   const app = await boot(`App [ width = 400, height = 300,
     chosen: object = null,
     c: Combobox [ x = 20, y = 20, items = { [({ id: "a", label: "Alpha" })] },
-      input(v: object) { app.chosen = v },
+      commit(v: object) { app.chosen = v },
     ],
   ]`);
   app.c.pickIndex(0);
@@ -387,7 +387,7 @@ await test("DataGrid: a column's cell is a class of the app's own, bound to its 
   const app = await boot(`
   class DoneCell extends View [ width = 100%, height = 100%,
     box: Checkbox [ label = "", accessibilityLabel = "Done", x = center, y = center,
-      checked = :done, input(v: boolean) { :done = v } ] ]
+      checked = :done, commit(v: boolean) { :done = v } ] ]
   App [ width = 700, height = 400,
     d: Dataset { { "rows": [ { "id": 1, "title": "One", "done": false }, { "id": 2, "title": "Two", "done": true } ] } },
     g: DataGrid [ x = 10, y = 10, width = 650, height = 300, items = { app.d.value.rows },
@@ -401,14 +401,14 @@ await test("DataGrid: a column's cell is a class of the app's own, bound to its 
   assert.equal(done1._drawn().constructor.name, "DoneCell", "the column's class is what the cell draws");
   assert.deepEqual([done1._drawn().box.checked, done2._drawn().box.checked], [false, true],
     "each copy reads its own row's record");
-  done1._drawn().box.input(true);
+  done1._drawn().box.edit(true);
   settle();
   assert.equal(app.d.value.rows[0].done, true, "the app's class writes its row's record — the dataset's own");
   assert.equal(app.d.value.rows[1].done, true, "…and no other");
   // an edit column writes as you type, and Esc puts back where the edit began
   const ed = title1._editor();
   ed.onFocus();
-  ed.onInput("Renamed");
+  ed._typed("Renamed");   // what the native element reports as the person types
   settle();
   assert.equal(app.d.value.rows[0].title, "Renamed", "typing writes the record live");
   ed.onKeyDown({ key: "Escape", shift: false, ctrl: false, alt: false, meta: false, repeat: false, code: "Escape" });
@@ -478,7 +478,7 @@ await test("DataGrid: a FOCUSED cell's row is never recycled — focus is touch 
   const same = (a, b, msg) => assert.ok(a === b, msg);
   const app = await boot(`
   class DoneCell extends View [ width = 100%, height = 100%,
-    box: Checkbox [ label = "", accessibilityLabel = "Done", checked = :done, input(v: boolean) { :done = v } ] ]
+    box: Checkbox [ label = "", accessibilityLabel = "Done", checked = :done, commit(v: boolean) { :done = v } ] ]
   App [ width = 700, height = 400,
     d: Dataset { { "rows": [] } },
     g: DataGrid [ x = 10, y = 10, width = 650, height = 300, items = { app.d.value.rows },

@@ -29,7 +29,7 @@ export { View, App, withHostProvides, inheritedCursor, onDiscard, deferralStats,
 export { Island, DOMIsland, linkIslandTenant, islandProvisions, islandNavigation } from "./island.js";
 export { Text } from "./text.js";
 export { Image } from "./image.js";
-export { TextInput } from "./text-input.js";
+export { NativeText } from "./native-text.js";
 export { Layout } from "./layout.js";
 export { Dataset, DataSource, toCursor, provideTransport, setAppDataBase } from "./data.js";
 export { provideAssetBase, setAppAssetBase } from "./asset-base.js";

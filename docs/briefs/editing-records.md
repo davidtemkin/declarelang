@@ -5,7 +5,7 @@
 
 ```declare
 class TaskRow [ width = 100%, height = 32,
-    box: Checkbox [ x = 8, y = 6, checked = :done, accessibilityLabel = :title, input(v: boolean) { :done = v } ],
+    box: Checkbox [ x = 8, y = 6, checked = :done, accessibilityLabel = :title, commit(v: boolean) { :done = v } ],
     t: Text [ x = 36, y = 8, text = :title ],
     onClick() { app.pick = :id }
     ]
@@ -19,7 +19,7 @@ App [ width = 360, height = 260, fill = white,
         TaskRow [ datapath = :rows[] ]
         ],
     editor: View [ y = 90, x = 8, width = 340, height = 80, datapath = { app.draft.value },
-        field: TextInput [ width = 240, height = 30, text <-> :title, accessibilityLabel = "Title" ],
+        field: TextInput [ width = 240, height = 30, value <-> :title, accessibilityLabel = "Title" ],
         save: Button [ x = 250, label = "Save", onClick() { app.save() } ]
         ],
     edit() {

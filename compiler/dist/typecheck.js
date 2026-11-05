@@ -437,6 +437,11 @@ function explainTs(d, u, synthTags) {
         // The SEAM error — the body's value doesn't fit the slot's declared type.
         case 2322:
             m = msg.match(/Type '(.+?)' is not assignable to type '(.+?)'/s);
+            // `value <-> app.size` with `size` a number: the place holds another type
+            // than the control shows, and the shorthand has no conversion to write
+            if (m !== null && u.shorthand !== null && u.slot !== null) {
+                return `'${u.slot} <-> ${u.shorthand}' binds ${article(m[1])} place, but '${u.slot}' is ${article(u.slotTs ?? m[2])} — the shorthand converts nothing. Bind ${article(u.slotTs ?? m[2])} place, or show it converted and convert back: '${u.slot} = { … }' with a commit(v) that writes ${u.shorthand}`;
+            }
             // A mismatch INSIDE the value (a record's field, an array's item) is not
             // the slot's own type: name the slot's type, and keep TypeScript's detail.
             if (m !== null && u.slot !== null && u.slotTs !== null && m[2] !== u.slotTs && !u.slotTs.startsWith(m[2] + " |")) {
@@ -1055,7 +1060,7 @@ class CaseEmitter {
                 // `any` does; a typed signature — `buildCols() -> Board` — closes
                 // the chain end to end.)
                 const slotType = a.name === "contents" ? (this.docTypeOf(el) ?? tsSlotType(this.schemas, el.tag, a.name)) : tsSlotType(this.schemas, el.tag, a.name);
-                this.emit(a.value.src, a.value.pos, a.name, slotType, levels, true, [], classBody, a.value);
+                this.emit(a.value.src, a.value.pos, a.name, slotType, levels, true, [], classBody, a.value, a.shorthand === true ? a.place ?? null : null);
             }
         }
         for (const d of el.decls) {
@@ -1078,7 +1083,7 @@ class CaseEmitter {
      *  written types), so a handler body's `e.x` resolves instead of failing as
      *  an unknown name. `brace` is the `{` position; the body starts on its
      *  line. */
-    emit(src, brace, slot, slotTs, levels, expression, params, classBody, owner) {
+    emit(src, brace, slot, slotTs, levels, expression, params, classBody, owner, shorthand = null) {
         // A body that still embeds a datapath island is not TypeScript — compile()
         // lowers islands before this phase, so this only guards a caller handing
         // in un-resolved source; skipped, never misparsed.
@@ -1161,6 +1166,7 @@ class CaseEmitter {
             tag: levels[0].tag,
             slot,
             slotTs,
+            shorthand,
         });
     }
     /** Synthesized type name (`_E<n>`) → the tag it widens — so a diagnostic can

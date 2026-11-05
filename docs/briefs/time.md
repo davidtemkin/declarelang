@@ -19,7 +19,7 @@ App [ width = 320, height = 180, fill = white,
     query: string = "",
     searched: string = "",
     field: TextInput [ x = 20, y = 70, width = 240, placeholder = "Search",
-        onInput(v: string) {
+        commit(v: string) {
             app.query = v
             afterDelay(300, () => { if (app.query == v) app.searched = v })
             } ],

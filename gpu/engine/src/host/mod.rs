@@ -68,7 +68,7 @@ pub(crate) mod op {
     pub const TINT: u32 = 37; pub const ROTATE: u32 = 38; pub const MEDIA: u32 = 39; pub const EDITSEL: u32 = 41;
     pub const WHEELCLAIM: u32 = 42; pub const SCROLLGLIDE: u32 = 43; pub const FILTER: u32 = 44; pub const MASK: u32 = 45;
     pub const TRANSFORM: u32 = 46; pub const IMAGEALIGN: u32 = 47; pub const TRANSFORM3D: u32 = 48; pub const PERSPECTIVE: u32 = 49;
-    pub const SCALING: u32 = 50;
+    pub const SCALING: u32 = 50; pub const EDITAPPLY: u32 = 51;
 }
 
 /// Kinds of change, as census bits.
@@ -108,12 +108,12 @@ fn keep_op(code: u32) -> bool {
 /// Ops that only move a scroller's content or touch nothing drawn.
 fn scroll_only(code: u32) -> bool {
     use op::*;
-    matches!(code, SCROLLPOS | SCROLLXPOS | SCROLLGLIDE | WHEELCLAIM | CURSOR | EDITFOCUS | EDITSEL)
+    matches!(code, SCROLLPOS | SCROLLXPOS | SCROLLGLIDE | WHEELCLAIM | CURSOR | EDITFOCUS | EDITSEL | EDITAPPLY)
 }
 /// Ops that change nothing drawn: what only the page acts on, and bookkeeping.
 fn undrawn(code: u32) -> bool {
     use op::*;
-    matches!(code, CREATE | CURSOR | EDITFOCUS | EDITSEL | WHEELCLAIM | EMBED | RICHSCROLL | SCROLLGLIDE)
+    matches!(code, CREATE | CURSOR | EDITFOCUS | EDITSEL | EDITAPPLY | WHEELCLAIM | EMBED | RICHSCROLL | SCROLLGLIDE)
 }
 
 /// The engine image key of a video's frames (media.ts MEDIA_KEY).
@@ -780,6 +780,7 @@ impl Host {
             op::CURSOR => { self.shell.push(json!(["cursor", rstr_or(a(0), "")])); return; }
             op::EDITFOCUS => { self.shell.push(json!(["editFocus", id, num(0) != 0.0])); return; }
             op::EDITSEL => { self.shell.push(json!(["editSel", id, num(0), num(1)])); return; }
+            op::EDITAPPLY => { self.shell.push(json!(["editApply", id, rval(a(0)), rstr_or(a(1), "")])); return; }
             op::PERSPECTIVE => return,      // the children's TRANSFORM3D carry it
             _ => {}
         }

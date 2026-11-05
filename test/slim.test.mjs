@@ -265,8 +265,8 @@ if (!CHROME) {
     assert.ok(m["keys.js"] > STUBBED, `keys.js should ride, was ${m["keys.js"]}`);
   });
 
-  await test("…and STAY for a TextInput, whose runtime class makes itself a tab stop", async () => {
-    const b = await buildProduction(`App [ width = 200, TextInput [ width = 100, text = "x" ] ]`, {});
+  await test("…and STAY for a TextInput, a control and so a tab stop", async () => {
+    const b = await buildProduction(`App [ width = 200, TextInput [ width = 100, accessibilityLabel = "x", value = "x" ] ]`, {});
     const m = modsOf(b);
     assert.ok(m["focus.js"] > STUBBED, "a text field needs the real focus service");
     assert.ok(m["keys.js"] > STUBBED, "…and the keyboard that drives Tab");

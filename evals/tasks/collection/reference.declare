@@ -51,9 +51,7 @@ App [ theme = SanFrancisco, width = 440, height = 520, fill = { provided("theme"
     entry: View [ x = 24, y = 58, width = 392, height = 34,
         field: TextInput [ x = 0, y = 0, width = 300, height = 34, fill = { provided("theme").surface },
             stroke = { stroke(1, provided("theme").line) }, textColor = { provided("theme").text }, padding = 8,
-            placeholder = "Add a task…",
-            onInput() { app.draft = text }
-            ],
+            placeholder = "Add a task…", value <-> app.draft ],
         Button [ x = 312, y = 0, label = "Add", primary = true,
             onClick() { app.add() }
             ]

@@ -97,6 +97,11 @@ export interface Attr {
    *  the leaf-input exception): the slot both READS the datapath and WRITES
    *  edits back to it. Absent = an ordinary one-way `name = value`. */
   bind?: "two";
+  /** Written as the `<->` shorthand and lowered at parse (lowerTwoWay) to this one-way
+   *  attribute plus a `commit` — kept so a check can name the shorthand it came from. */
+  shorthand?: true;
+  /** The `<->` place as written (`app.size`, `:title`), for a message about it. */
+  place?: string;
   /** HOW THE ATTRIBUTE IS WIRED, where its slot's type decides it (route.ts):
    *  absent for the ordinary case — a `{ }` is a constraint, a `:path` a data
    *  read, a literal a value. Set on a routed program (Program.routed). */
@@ -381,6 +386,10 @@ export interface Program {
    *  program must carry beyond what its source names (hosting.md, model 1).
    *  Absent when the program declares nothing; merged across `include`s. */
   ship?: Ship;
+  /** `declareVersion [ "0.6" ]`: the release this program was written for
+   *  (migration.md §2.1) — written by `declare-changes --done`, never required.
+   *  The main file's is the program's. */
+  declareVersion?: DeclareVersion;
   /** Top-level `script { … }` blocks, in source order. */
   scripts: ScriptBlock[];
   /** `script [ "file.ts" ]` directives — script from a FILE, spelled like
@@ -1040,24 +1049,44 @@ class Parser {
         this.next();
         el.attrs.push({ name: name.text, value: this.parseLiteral(), pos: name.pos });
       } else if (this.peek().kind === "bindtwo") {
-        // `name <-> :path` — two-way: the slot reads the datapath AND writes
-        // edits back to it. The value is a `:path` (or a `{ }` expression
-        // yielding a FIELD NAME — the generic-editor form, evaluated for a
-        // string and resolved against the enclosing datapath, NOT a reference
-        // to the slot it names); anything else gets the rule
-        // named HERE (E-7: `text <-> classroot.field` otherwise dies
-        // downstream as an opaque "expected ']', got '.'").
+        // `value <-> place` — the shorthand for a control bound both ways: it shows
+        // the place (`value = { place }`) and commits the person's change to it
+        // (`commit(v) { place = v }`), lowered at parse (lowerTwoWay) so every reader
+        // sees the two members. The place is a datapath (`:title`, or `{ :@[(name)] }`
+        // for a field chosen by name) or a writable attribute (`app.volume`, `classroot.size`).
         this.next();
-        const bv = this.parseLiteral();
-        if (bv.kind !== "path" && bv.kind !== "code") {
-          this.errors.push(new DeclareError(
-            `'${name.text} <-> …' binds a DATAPATH — write a :path (${name.text} <-> :field), or a { } expression yielding a field NAME. To wire an attribute to another attribute, derive down with a { } constraint and deliver up in an onInput() handler`,
-            bv.pos
-          ));
-          // consume a stray dotted chain (`<-> classroot.field`), drop the member
-          while (this.peek().kind === "dot") { this.next(); if (this.peek().kind === "ident") this.next(); }
+        if (this.peek().kind === "ident") {
+          const start = this.peek().pos;
+          let chain = this.next().text;
+          while (this.peek().kind === "dot") {
+            this.next();
+            if (this.peek().kind !== "ident") break;
+            chain += "." + this.next().text;
+          }
+          el.attrs.push({ name: name.text, value: { kind: "code", src: chain, pos: start }, pos: name.pos, bind: "two" });
+        } else if (this.peek().kind === "code") {
+          // a field chosen by name is a computed key — TypeScript, so in braces
+          // like any computed path: `value <-> { :@[(classroot.field)] }`
+          const t = this.next();
+          const src = t.str!.trim();
+          if (!/^:@\[\(.*\)\]$/s.test(src)) {
+            this.errors.push(new DeclareError(
+              `'${name.text} <-> { … }' takes only a field chosen by name, { :@[(name)] } — anything else in braces is a value, not a place; write '${name.text} = { … }' with a commit(v)`,
+              t.pos
+            ));
+          } else {
+            el.attrs.push({ name: name.text, value: { kind: "code", src: t.str!, pos: t.pos }, pos: name.pos, bind: "two" });
+          }
         } else {
-          el.attrs.push({ name: name.text, value: bv, pos: name.pos, bind: "two" });
+          const bv = this.parseLiteral();
+          if (bv.kind !== "path") {
+            this.errors.push(new DeclareError(
+              `'${name.text} <-> …' binds a PLACE — a datapath (${name.text} <-> :field, or { :@[(name)] } for a field chosen by name) or a writable attribute (${name.text} <-> app.${name.text})`,
+              bv.pos
+            ));
+          } else {
+            el.attrs.push({ name: name.text, value: bv, pos: name.pos, bind: "two" });
+          }
         }
       } else if (this.peek().kind === "colon") {
         // `name: Type …` — a declaration (R6): with `[ ]` it is a named child
@@ -1694,6 +1723,26 @@ class Parser {
     return names;
   }
 
+  /** `declareVersion [` — the release a file was written for (migration.md
+   *  §2.1). Contextual, as `ship` and `use` are. */
+  atDeclareVersion(): boolean {
+    const t = this.tokens[this.i];
+    const u = this.tokens[this.i + 1];
+    return t.kind === "ident" && t.text === "declareVersion" && u.kind === "lbracket";
+  }
+
+  /** `'declareVersion' '[' STRING ']'` — one release, `"0.6"` or `"0.6.1"`. */
+  parseDeclareVersion(): DeclareVersion {
+    const at = this.expect("ident", "'declareVersion'").pos;
+    this.expect("lbracket", "'['");
+    const v = this.parseLiteral();
+    if (v.kind !== "string" || !/^\d+\.\d+(\.\d+)?$/.test(v.value)) {
+      throw new DeclareError(`declareVersion names a release in quotes — declareVersion [ "0.6" ]`, v.pos);
+    }
+    this.expect("rbracket", "']'");
+    return { version: v.value, pos: at };
+  }
+
   /** `ship [` at the current position — the ship declaration (see Ship).
    *  `ship` followed by anything else is an ordinary name. */
   atShip(): boolean {
@@ -1829,6 +1878,7 @@ export function parse(source: string): Element {
   p.expect("eof", "end of input");
   if (p.errors.length > 0) throw new DeclareErrors(p.errors);
   lowerExists(root);
+  lowerTwoWay(root);
   return root;
 }
 
@@ -1848,6 +1898,7 @@ function parseTopDecls(p: Parser): {
   ship: Ship | undefined;
   flags?: Flags;
   flagsPos?: Pos;
+  declareVersion?: DeclareVersion;
   scripts: ScriptBlock[];
   scriptFiles: IncludeRef[];
   scriptFileSpans: Span[];
@@ -1863,6 +1914,7 @@ function parseTopDecls(p: Parser): {
   let ship: Ship | undefined;
   let flags: Flags | undefined;
   let flagsPos: Pos | undefined;
+  let declareVersion: DeclareVersion | undefined;
   const scripts: ScriptBlock[] = [];
   const scriptFiles: IncludeRef[] = [];
   const scriptFileSpans: Span[] = [];
@@ -1873,6 +1925,11 @@ function parseTopDecls(p: Parser): {
       includeSpans.push(span);
     }
     else if (p.atUse()) uses.push(...p.parseUseDirective());
+    else if (p.atDeclareVersion()) {
+      const v = p.parseDeclareVersion();
+      if (declareVersion !== undefined) throw new DeclareError(ONE_DECLARE_VERSION, v.pos);
+      declareVersion = v;
+    }
     else if (p.atShip()) ship = mergeShip(ship, p.parseShip());
     else if (p.atFlags()) {
       const at = p.peek().pos;
@@ -1896,8 +1953,12 @@ function parseTopDecls(p: Parser): {
     else if (p.atTop("font")) fonts.push(p.parseTopDecl("font"));
     else break;
   }
-  return { classes, shapes, themes, styles, fonts, includes, includeSpans, uses, ship, ...(flags === undefined ? {} : { flags, flagsPos }), scripts, scriptFiles, scriptFileSpans };
+  return { classes, shapes, themes, styles, fonts, includes, includeSpans, uses, ship, ...(flags === undefined ? {} : { flags, flagsPos }), ...(declareVersion === undefined ? {} : { declareVersion }), scripts, scriptFiles, scriptFileSpans };
 }
+
+/** The release a file says it was written for, as written, and where. */
+export interface DeclareVersion { version: string; pos: Pos }
+export const ONE_DECLARE_VERSION = "a file says once which release it was written for, and this is a second declareVersion";
 
 /** A program states its flags once, in whichever of its files. */
 export const ONE_FLAGS = "a program has one defaultFlags block, and this is a second";
@@ -1960,11 +2021,37 @@ export function parseProgram(source: string): Program {
   const scriptFiles = [...(before.scriptFiles ?? []), ...(after.scriptFiles ?? [])];
   const scriptFileSpans = [...(before.scriptFileSpans ?? []), ...(after.scriptFileSpans ?? [])];
   const shapes = [...before.shapes, ...after.shapes];
+  if (before.declareVersion !== undefined && after.declareVersion !== undefined) throw new DeclareError(ONE_DECLARE_VERSION, after.declareVersion.pos);
+  const declareVersion = before.declareVersion ?? after.declareVersion;
   p.expect("eof", "end of input");
   if (p.errors.length > 0) throw new DeclareErrors(p.errors);
-  for (const c of classes) lowerExists(c.body);
+  for (const c of classes) { lowerExists(c.body); lowerTwoWay(c.body); }
   lowerExists(root);
-  return { classes, shapes, themes, styles, fonts, includes, includeSpans, uses, ...(ship === undefined ? {} : { ship }), ...(flags === undefined ? {} : { flags }), scripts, scriptFiles, scriptFileSpans, root };
+  lowerTwoWay(root);
+  return { classes, shapes, themes, styles, fonts, includes, includeSpans, uses, ...(ship === undefined ? {} : { ship }), ...(flags === undefined ? {} : { flags }), ...(declareVersion === undefined ? {} : { declareVersion }), scripts, scriptFiles, scriptFileSpans, root };
+}
+
+/** `value <-> place` on a control: the shorthand for showing the place and committing
+ *  the person's change to it — `value = { place }` (a datapath: the one-way `value =
+ *  :field`) plus `commit(v) { place = v }`. Lowered at parse, as `exists` is, so the
+ *  checker, the typechecker and the runtime see the two ordinary members. One place
+ *  decides where a change goes: `<->` beside a `commit` of the element's own is refused. */
+function lowerTwoWay(el: Element): void {
+  for (const c of el.children) lowerTwoWay(c);
+  const two = el.attrs.filter((a) => a.bind === "two");
+  if (two.length === 0) return;
+  if (two.length > 1) throw new DeclareError(`one control binds one value both ways — '${two[1].name} <-> …' is a second`, two[1].pos);
+  const a = two[0];
+  if (el.methods.some((m) => m.name === "commit")) {
+    throw new DeclareError(`'${a.name} <-> …' already says where the person's change goes, and this element also declares commit(…) — keep one: the shorthand, or '${a.name} = { … }' with your own commit`, a.pos);
+  }
+  const v = a.value as { kind: string; path?: string; src?: string; many?: boolean };
+  if (v.kind === "path" && v.many === true) throw new DeclareError(`'${a.name} <-> :${v.path}[]' — a control binds one place, not a many-path`, a.pos);
+  const place = v.kind === "path" ? ":" + v.path : String(v.src);
+  const written = v.kind === "path" ? place : place.trim();
+  el.attrs = el.attrs.map((x) => (x === a ? { name: a.name, value: a.value, pos: a.pos, shorthand: true as const, place: written.startsWith(":@[") ? `{ ${written} }` : written } : x));
+  const body = ` ${place} = v `;
+  el.methods.push({ name: "commit", params: [{ name: "v", type: "any" }], body, pos: a.pos, bodyPos: a.pos, ...superOf(body) });
 }
 
 /** `exists = { … }` on a child: the child is built while the value is true
@@ -2002,6 +2089,6 @@ export function parseLibrary(source: string): Library {
     );
   }
   if (p.errors.length > 0) throw new DeclareErrors(p.errors);
-  for (const c of decls.classes) lowerExists(c.body);
+  for (const c of decls.classes) { lowerExists(c.body); lowerTwoWay(c.body); }
   return decls;
 }

@@ -1,10 +1,8 @@
-App [ fill = white, textColor = black,
-    contact: Dataset { { "email": "ada@example.com" } },
-    form: View [ x = 20, y = 20, datapath = { app.contact.value },
-        email: TextInput [ width = 240, height = 30, padding = 6, cornerRadius = 6,
-            fill = gainsboro,
-            text <-> :email, accessibilityLabel = "Email",
-            validate(v: string) -> string { return v.includes("@") ? "" : "That is not an address" }
-            ]
+App [ width = 340, height = 120,
+    who: string = "",
+    col: View [ x = 20, y = 20,
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        TextInput [ width = 220, placeholder = "Your name", value <-> app.who ],
+        Text [ text = { app.who == "" ? "Hello." : "Hello, " + app.who + "." } ]
         ]
     ]

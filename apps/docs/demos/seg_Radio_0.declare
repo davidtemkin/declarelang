@@ -1,7 +1,7 @@
 App [ width = 300, height = 120, fill = white, textColor = black,
     size: string = "m",
     RadioGroup [ x = 20, y = 20, value = { app.size },
-        input(v: string) { app.size = v },
+        commit(v: string) { app.size = v },
         Radio [ choice = "s", label = "Small" ],
         Radio [ choice = "m", label = "Medium" ]
         ],

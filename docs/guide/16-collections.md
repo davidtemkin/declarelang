@@ -354,7 +354,7 @@ row's `done`:
 ```declare-fragment
 class DoneCell [ width = 100%, height = 100%,
     Checkbox [ x = center, y = center, label = "", accessibilityLabel = "Done",
-        checked = :done, input(v: boolean) { :done = v } ] ]
+        checked = :done, commit(v: boolean) { :done = v } ] ]
 
 DataGrid [ columns = { [ { id: "title", title: "Title", width: 240, edit: true },
                         { id: "done",  title: "Done",  width: 70,  cell: "DoneCell" } ] } ]

@@ -16,7 +16,9 @@ name the same thing, the one here is the one the platform means.
   the runtime keeps true." Not a separate mechanism.
 - **derive** — the verb for writing a constraint: a value *derives from* what it reads.
 - **binding** — reserved for data: **data binding** is pointing views at data with
-  [`datapath`](declare-docs:Node.datapath) and `:path`; **two-way binding** is `<->`, a text field editing a record.
+  [`datapath`](declare-docs:Node.datapath) and `:path`; **two-way binding** is `<->`, a control's value
+  and a place — a record's field or an attribute — kept together: shorthand for
+  `value = { place }` with a `commit` that writes the place.
   A one-way `{ }` is a constraint, not a binding. → [Data](declare-docs:guide:data)
 - **attribute** — a named value on a node, set (`width = 300`) or declared
   (`count: number = 0`). **Declared** attributes are how state enters a program.
@@ -96,8 +98,11 @@ name the same thing, the one here is the one the platform means.
 - **schema** — a top-level `schema Name [ … ]`: the shape of data a program relies on, a
   real type, checked by the compiler where it can see and by the runtime at every
   boundary. → [Typed data](declare-docs:guide:schemas)
-- **edit session** — a text field's draft under `<->`: [`commitOn`](declare-docs:TextInput.commitOn), `validate`, and the
-  facts [`valid`](declare-docs:TextInput.valid), `error` and [`dirty`](declare-docs:TextInput.dirty).
+- **edit** — what a person is doing to a control's value, from the first change until they
+  stop (leave it, release it, press Return or Escape): while it is open the control shows
+  their change, whatever your value does. [`admit`](declare-docs:ValueControl.method.admit) may refuse or tidy each
+  change; [`commit`](declare-docs:ValueControl.method.commit) puts it into your state, after each change or, with
+  [`commitOn`](declare-docs:ValueControl.commitOn) `"end"`, once.
 - **stream** — [`EventStream`](declare-docs:EventStream) or [`Socket`](declare-docs:Socket): a source of messages over a live connection,
   connected while `active` is true.
 - **virtualize** — build only the instances near the viewport and leave the rest logical.

@@ -128,8 +128,6 @@ export const CAPABILITIES = [
         hostsKeep: true, refusal: "unused", when: [{ slots: ["classFor"] }] },
     { id: "state", describe: "State: a named set of overrides", modules: ["state"], hostsKeep: true, refusal: "unused",
         when: [{ classes: ["State"] }] },
-    { id: "editor", describe: "editing: TextInput's draft and two-way binding", modules: ["editor"], hostsKeep: true, refusal: "unused",
-        when: [{ classes: ["TextInput"] }, { syntax: ["two-way"] }] },
     { id: "islands", describe: "islands: DOMIsland, AppIsland, the tenant link, and the page's island mounting",
         modules: ["island", "browser/host-islands"], hostsKeep: true, refusal: "unused",
         when: [{ classes: ["DOMIsland"] }],

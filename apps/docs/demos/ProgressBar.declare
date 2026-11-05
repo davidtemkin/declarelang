@@ -10,7 +10,7 @@ App [ textColor = 0x172530, fontSize = 14,
         row: View [ height = 28, width = { this.contentWidth },
             layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
             Slider [ width = 220, min = 0, max = 100, value = { app.done },
-                input(v: number) { app.done = v }
+                commit(v: number) { app.done = v }
                 ],
             Text [ text = { Math.round(app.done) + "% done" } ]
             ]

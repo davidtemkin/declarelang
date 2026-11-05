@@ -114,7 +114,7 @@ App [ width = 360, height = 220, theme = { SanFrancisco }, size: number = 14,
     Text [ x = 20, y = 80, fontSize = { app.size }, textColor = { provided("theme").text }, text = "Sample" ],
     sizes: Popover [
         Text [ textColor = { provided("theme").text }, text = { "Size " + app.size } ],
-        Slider [ width = 180, min = 10, max = 32, value = { app.size }, input(v: number) { app.size = Math.round(v) } ]
+        Slider [ width = 180, min = 10, max = 32, value = { app.size }, commit(v: number) { app.size = Math.round(v) } ]
         ]
     ]
 ```
@@ -275,14 +275,12 @@ inside always ([A Declare app inside a Declare app](declare-docs:guide:embedding
 and a dismissable list that owns a **choice**.
 
 ```declare
-App [ width = 340, height = 160, theme = { SanFrancisco }, picked: string = "",
+App [ width = 340, height = 160, theme = { SanFrancisco }, picked: object = null,
     people: array = { ["Ada Lovelace", "Grace Hopper", "Alan Turing", "Barbara Liskov"] },
     Combobox [ x = 20, y = 20, width = 260, placeholder = "Assignee",
-        items = { app.people },
-        input(v: string) { app.picked = v }
-        ],
+        items = { app.people }, value <-> app.picked ],
     Text [ x = 20, y = 84, textColor = { provided("theme").text },
-        text = { app.picked == "" ? "—" : app.picked } ]
+        text = { app.picked == null ? "—" : "" + app.picked } ]
     ]
 ```
 

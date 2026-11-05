@@ -19,6 +19,7 @@
 // (input.ts), so both backends decide clicks identically.
 import { sharedClock } from "./animate.js";
 import { watchSelection } from "./edit-selection.js";
+import { wireEditableInput, setEditableValue, applyEditableText } from "./editable-input.js";
 import { allowedRef, notifyIslandSlot } from "./backend.js";
 import { domTransform3D, unproject } from "./projective.js";
 import { IDENTITY as IDENTITY_AFFINE, apply as applyAffine, cssMatrix, fromParts as affineFromParts, invert as invertAffine, isIdentity as affineIsIdentity, rotationOf as affineRotationOf, scaleOf as affineScaleOf } from "./affine.js";
@@ -2447,7 +2448,8 @@ export class DomSurface {
         }
         const tag = spec.multiline ? "textarea" : "input";
         let el = this.editEl;
-        if (el === null || el.tagName.toLowerCase() !== tag) {
+        const fresh = el === null || el.tagName.toLowerCase() !== tag;
+        if (fresh) {
             el?.remove();
             el = document.createElement(tag);
             const s = el.style;
@@ -2473,9 +2475,9 @@ export class DomSurface {
             s.pointerEvents = "auto";
             // Native scrollbar for a scrolling code field (the platform's own).
             const self = el;
-            // the selection the edit left comes first, so an input handler reads the
-            // caret after the keystroke, not before it
-            el.addEventListener("input", () => { this.edit?.onSelect?.(self.selectionStart ?? 0, self.selectionEnd ?? 0); this.edit?.onInput(self.value); });
+            // what the person does to the text: checked before it lands where the
+            // platform says beforehand, reported after it lands either way (editable-input.ts)
+            wireEditableInput(self, () => this.edit);
             el.addEventListener("focus", () => this.edit?.onFocus());
             el.addEventListener("blur", () => { if (!MOVING_FOCUS)
                 this.edit?.onBlur(); });
@@ -2498,10 +2500,13 @@ export class DomSurface {
             this.element.appendChild(el);
             this.editEl = el;
         }
-        const prev = this.edit;
+        if (el === null)
+            return;
+        // a new element (first, or an input swapped for a textarea) has none of the
+        // previous spec's properties: everything is applied to it
+        const prev = fresh ? null : this.edit;
         this.edit = spec;
-        if (el.value !== spec.value)
-            el.value = spec.value; // guard: don't reset the caret on an echo
+        setEditableValue(el, spec.value); // only when it differs, never mid-composition, the caret kept
         // Dirty-guarded against the previous spec: syncEditable pushes the WHOLE
         // spec on any model change, and re-applying an unchanged style is not
         // free — applyEditStyle runs a fontMetrics MEASURE per call, and every
@@ -2525,6 +2530,10 @@ export class DomSurface {
         if (prev === null || !editStyleEq(prev.style, spec.style))
             applyEditStyle(el, spec.style);
         applyEditScheme(el, this.fillV);
+    }
+    applyEditableText(text) {
+        if (this.editEl !== null)
+            applyEditableText(this.editEl, text);
     }
     /** The caret/selection write half (TextInput.select, #22): land the range on
      *  the native element. For a collapsed range at either extreme, bring the

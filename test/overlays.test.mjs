@@ -368,7 +368,7 @@ const turns = async (n = 3) => { for (let i = 0; i < n; i++) { await new Promise
 await test("a control inside an open popover keeps its keys: the arrows move its slider", async () => {
   const app = await boot(`App [ width = 400, height = 300, size: number = 14,
     b: Button [ x = 20, y = 20, label = "Size" ],
-    pop: Popover [ sl: Slider [ width = 180, min = 10, max = 32, value = { app.size }, input(v: number) { app.size = Math.round(v) } ] ] ]`);
+    pop: Popover [ sl: Slider [ width = 180, min = 10, max = 32, value = { app.size }, commit(v: number) { app.size = Math.round(v) } ] ] ]`);
   deliverKeys(Keys, Focus);
   app.pop.showFor(app.b); settle(); await turns();
   Focus.focus(app.pop.sl); settle();

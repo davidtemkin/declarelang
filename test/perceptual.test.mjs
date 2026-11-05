@@ -374,9 +374,9 @@ const C1_SOURCE = `App [ width=240, height=160, fill=#20242C,
 // two backends must agree strictly once the overlay honors the ancestor clip.
 const C2_SOURCE = `App [ width=240, height=160, fill=#20242C,
   View [ x=20, y=20, width=200, height=30, clip=true, fill=#264653,
-    TextInput [ x=8, y=54, width=180, height=22, fontSize=15, fontFamily="Arial", textColor=#FFFFFF, text="leaked below the clip" ] ],
+    TextInput [ x=8, y=54, width=180, height=22, fontSize=15, fontFamily="Arial", textColor=#FFFFFF, value="leaked below the clip" ] ],
   View [ x=20, y=90, width=200, height=50, clip=true, fill=#264653,
-    TextInput [ x=8, y=10, width=180, height=22, fontSize=15, fontFamily="Arial", textColor=#FFFFFF, text="inside the clip" ] ] ]`;
+    TextInput [ x=8, y=10, width=180, height=22, fontSize=15, fontFamily="Arial", textColor=#FFFFFF, value="inside the clip" ] ] ]`;
 
 // The view-compositing scene (compositing.md §6): `blend` where its absence —
 // or a wrong isolation model — shows. Four cases over a two-tone sibling

@@ -21,6 +21,6 @@ App [ width = 340, height = 200, fill = white, textColor = black,
         text = { "" + Math.round(app.level) + "%" } ],
 
     Slider [ x = 20, y = 130, width = 300, value = { app.level },
-        input(v: number) { app.level = v }
+        commit(v: number) { app.level = v }
         ]
     ]

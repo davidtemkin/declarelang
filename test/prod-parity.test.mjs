@@ -7,10 +7,10 @@
 //                                     instantiate (renderProgram, no parser)
 //
 // Same server, same browser, same viewport; the settled first paint of each
-// must be BYTE-IDENTICAL. Each app first proves it renders deterministically
-// (two dev loads, identical bytes) so a parity failure can never be blamed on
-// animation or timing — a diff then means the production pipeline changed what
-// a program IS, which is exactly the regression this exists to catch.
+// must be BYTE-IDENTICAL. When they differ, a second dev load tells the two
+// causes apart: if the dev page differs from itself the app is unstable (animation,
+// timing) and parity is unprovable; if not, the production pipeline changed what a
+// program IS, which is exactly the regression this exists to catch.
 //
 // Apps chosen for stillness at settle (no clocks, no continuous motion):
 // calendar's "today" is time-derived but constant within a run.
@@ -90,19 +90,13 @@ try {
     const devUrl = `${B}/${dir}/${main}`;
     const buildUrl = `${B}/build/${dir}/`;
 
-    let dev = null;
-    await test(`${app}: renders deterministically (two dev loads, identical bytes)`, async () => {
-      const a = await shot(devUrl);
-      const b = await shot(devUrl);
-      dev = a;
-      assert.ok(a.equals(b), "two loads of the same dev page must not differ — unstable app, parity unprovable");
-    });
-
     await test(`${app}: production build renders byte-identically to the dev compile`, async () => {
-      dev ??= await shot(devUrl);
+      const dev = await shot(devUrl);
       const built = await shot(buildUrl);
-      assert.ok(dev.equals(built),
-        `dev and /build first paints differ (${dev.length} vs ${built.length} bytes) — the production pipeline changed the program`);
+      if (dev.equals(built)) return;
+      const again = await shot(devUrl);
+      assert.ok(dev.equals(again), "two loads of the same dev page differ — the app is unstable, so parity is unprovable");
+      assert.fail(`dev and /build first paints differ (${dev.length} vs ${built.length} bytes) — the production pipeline changed the program`);
     });
   }
 } finally {

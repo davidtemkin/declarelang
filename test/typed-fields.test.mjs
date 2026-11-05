@@ -24,7 +24,7 @@ await test("a Combobox picks what was typed letter by letter on leaving, and tak
   const r = verify("combo", `App [ width = 400, height = 300,
     col: View [ x = 20, y = 20, layout: SimpleLayout [ axis = y, spacing = 12 ],
         c: Combobox [ width = 240, accessibilityLabel = "Country", items = ["United States", "Canada", "United Kingdom"] ],
-        next: TextInput [ width = 240, accessibilityLabel = "Postal code", text = "", onInput(v: string) { } ]
+        next: TextInput [ width = 240, accessibilityLabel = "Postal code", value = "" ]
         ]
     ]`, `export default async ({ drive, expect, page }) => {
     await drive.click("app.col.c.entry");
@@ -47,8 +47,8 @@ await test("Return under enterMoves walks the fields typed into: a checkbox betw
     f: Form [ x = 20, y = 20, width = 300, enterMoves = true,
         layout: SimpleLayout [ axis = y, spacing = 10 ],
         send() { app.sent = app.sent + 1 },
-        email: TextInput [ name = "email", width = 240, accessibilityLabel = "Email", text = "a@b.co", onInput(v: string) { } ],
-        password: TextInput [ name = "password", width = 240, accessibilityLabel = "Password", text = "pw", onInput(v: string) { } ],
+        email: TextInput [ name = "email", width = 240, accessibilityLabel = "Email", value = "a@b.co" ],
+        password: TextInput [ name = "password", width = 240, accessibilityLabel = "Password", value = "pw" ],
         show: Checkbox [ label = "Show password" ]
         ]
     ]`, `export default async ({ drive, expect, page }) => {

@@ -78,7 +78,7 @@ App [ width = 320, height = 170, fill = white, textColor = #172530,
         Text [ fontWeight = semibold, text = { app.left + " left to do" } ],
         View [ datapath = :items[], width = 100%, height = 30,
             layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
-            Checkbox [ checked = :done, accessibilityLabel = :title, input(v: boolean) { :done = v } ],
+            Checkbox [ checked = :done, accessibilityLabel = :title, commit(v: boolean) { :done = v } ],
             Text [ width = 150, text = :title ],
             Button [ label = { "★ " + :stars }, height = 26, onClick() { :stars += 1 } ]
             ]
@@ -91,7 +91,8 @@ know where in the list it sits. `:stars += 1` reads and writes the same field. T
 write lands in the dataset, so everything reading that data follows in the same step:
 the count at the top, the checkbox, any other screen showing the same record. The value
 pattern of [Controls](declare-docs:guide:controls@the-value-pattern) applies unchanged: the checkbox shows
-`:done` and delivers its edit through `input`.
+`:done` and hands the person's change to `commit`, which writes it — or, said once,
+`checked <-> :done`.
 
 A write names one place — a field, a nested field, or a non-negative index. Changes to
 the *shape* of a collection go through the dataset's verbs:
@@ -139,8 +140,7 @@ you write the code — a grid cell whose column names the field it shows:
 
 ```declare-fragment
 Text [ text = { "" + :@[(classroot.field)] } ],                // the field this column shows
-TextInput [ text = { "" + :@[(classroot.field)] },
-    onInput(v: string) { :@[(classroot.field)] = v } ]         // and writes it back
+TextInput [ value <-> { :@[(classroot.field)] } ]              // and edits it, both ways
 ```
 
 It works anywhere in a path — `:rows[(app.pick)].title` is the title of the record
@@ -299,7 +299,7 @@ create: DataSource [ url = "/api/tasks", method = "POST",
     body = { { title: app.draft, done: false } },
     onLoad() { app.draft = ""; app.tasks.fetch() }
     ],
-TextInput [ width = 220, text = { app.draft }, onInput(v: string) { app.draft = v } ],
+TextInput [ width = 220, value = { app.draft }, commit(v: string) { app.draft = v } ],
 Button [ label = { app.create.loading ? "Saving…" : "Add" },
     disabled = { app.create.loading || app.draft == "" },
     onClick() { app.create.fetch() }
@@ -442,16 +442,32 @@ own order — one request per file, chained in `onLoad`, or a list of files in o
 
 ## Editing text, and forms
 
-A text field can edit a record directly, both ways, with `<->`:
-[`TextInput [ text <-> :name ]`](declare-docs:TextInput). Type and the record follows; change the record and the
-field follows. Under a schema, a number field commits the parsed number, and a draft that
-cannot be read as the field's type never reaches the data. **[`commitOn`](declare-docs:TextInput.commitOn)** decides when a
-draft lands: `"input"` (live, the default), `"blur"`, `"enter"`, or `"manual"` — only on
-[`commit()`](declare-docs:TextInput.method.commit). Drafts belong to text fields because an in-progress value can be unrepresentable
-in the data (`"12/3"` is not a date); a checkbox or a slider writes at once.
+A field edits a record directly, both ways, with `<->` —
+[`TextInput [ value <-> :name ]`](declare-docs:TextInput), as `Checkbox [ checked <-> :done ]`
+does for a flag. Type and the record follows; change the record and the field follows.
 
-When *nothing* should be written until the person says so, point the form at a **working
-copy** — a plain `draft: Dataset { { } }`, filled when editing starts with
+**What is on screen is the person's; what is committed is yours.** While the person types,
+the field shows their text, whatever the record does, and the record gets each change as
+`commit` makes it. That is what lets a field hold text the data can't: a quantity kept as a
+number is shown converted and parsed back, and text that isn't a number yet — `""`, `"-"`
+— stays on screen without reaching the record:
+
+```declare-fragment
+TextInput [ accessibilityLabel = "Quantity", value = { String(:qty) },
+    admit(t: string) -> string | null { return /^[0-9]*$/.test(t) ? t : null },
+    commit(t: string) { if (t != "") :qty = Number(t) } ]
+```
+
+`admit` keeps anything but digits from appearing; `commit` writes only a number. When the
+person leaves, the field shows the record again.
+
+**When the record hears it** is [`commitOn`](declare-docs:ValueControl.commitOn): `"each"` (every
+change, the default) or `"end"` — once, when the person leaves the field or presses Return,
+and not at all if they press Escape.
+
+When *nothing* should be written until the person says so — a whole record edited and then
+saved or cancelled — point the form at a **working copy** — a plain
+`draft: Dataset { { } }`, filled when editing starts with
 `app.draft.set([], structuredClone(app.record.value))` — let every control write to it, and
 copy it across when it is saved. The copy is what makes it a draft: a derived dataset would
 hold the record itself, and its writes would land at once. Values can just as well live on
@@ -477,11 +493,11 @@ signIn: Form [ source = { app.session },
     layout: SimpleLayout [ axis = y, spacing = 14 ],
     Field [ label = "Email", stacked = true,
         TextInput [ width = 280, name = "email", purpose = email, required = "Enter your email address.",
-            text = { app.email }, onInput(v: string) { app.email = v },
+            value = { app.email }, commit(v: string) { app.email = v },
             validate(v: string) -> string { return v.includes("@") ? "" : "Enter an email address like name@example.com." } ] ],
     Field [ label = "Password", stacked = true,
         TextInput [ width = 280, name = "password", purpose = password, required = "Enter your password.",
-            text = { app.password }, onInput(v: string) { app.password = v } ] ],
+            value = { app.password }, commit(v: string) { app.password = v } ] ],
     Text [ visible = { parent.error != "" }, text = { parent.error } ],
     Button [ label = { parent.pending ? "Signing in…" : "Sign in" }, primary = true,
         onClick() { parent.submit() } ]
@@ -491,7 +507,8 @@ signIn: Form [ source = { app.session },
 There is no flag to keep and no handler for failure:
 
 - **A field says what is wrong once it has been left**, and from then on at every edit, so the
-  message goes the moment the value is right. Nothing is marked wrong while it is first typed.
+  message goes the moment the value is right. Nothing is marked wrong while it is first typed,
+  and judging never stops a change — refusing one is `admit`'s.
 - **[`submit()`](declare-docs:Form.method.submit) judges every field at once** — the ones the person
   never reached and the ones autofill filled included — so every problem shows together,
   each under its own field, and the focus goes to the first. Nothing is sent while anything
@@ -526,7 +543,7 @@ App [ width = 380, height = 220, fill = white, textColor = black,
         layout: SimpleLayout [ axis = y, spacing = 12 ],
         Field [ label = "Name", stacked = true,
             entry: TextInput [ width = 240, name = "name", required = "Enter a name.",
-                text = { app.draft }, onInput(v: string) { app.draft = v } ] ],
+                value = { app.draft }, commit(v: string) { app.draft = v } ] ],
         Button [ label = "Add", primary = true, onClick() { parent.submit() } ],
         send() {
             const taken = (app.names.value?.rows ?? []).some((r) => r.name == app.draft.trim())
@@ -564,8 +581,7 @@ boundary for forms: the `Form` goes inside it.
 A value the form suggests until the person sets it is a **computed default**: the
 address below follows the title, character by character, until the person writes an
 address of their own; their write replaces the formula, and from then on it is theirs.
-No flag says whether it was edited. The field shows it with `initial`, the editable twin of
-`text`, which follows the suggestion until the person types.
+No flag says whether it was edited. The field binds it like any value, `value <-> classroot.slug`.
 
 ```declare
 // the page being written: built when the sheet opens and gone when it closes,
@@ -576,9 +592,9 @@ class NewPage extends Form [ width = 300,
     slug: string = { classroot.title.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") },
     layout: SimpleLayout [ axis = y, spacing = 10 ],
     TextInput [ width = 300, placeholder = "Title", name = "title", required = "Give the page a title.",
-        accessibilityLabel = "Title", onInput(t: string) { classroot.title = t } ],
-    TextInput [ width = 300, placeholder = "Address", name = "slug", initial = { classroot.slug },
-        accessibilityLabel = "Address", onInput(t: string) { classroot.slug = t } ],
+        accessibilityLabel = "Title", value <-> classroot.title ],
+    TextInput [ width = 300, placeholder = "Address", name = "slug",
+        accessibilityLabel = "Address", value <-> classroot.slug ],
     Button [ label = "Create", primary = true, onClick() { classroot.submit() } ],
     send() { app.create(this) }
     ]
@@ -659,9 +675,9 @@ App [ width = 470, height = 250, fill = black, textColor = whitesmoke,
             fill = darkslategray, placeholder = "Add a task" ],
         Button [ label = "Add", primary = true,
             onClick() {
-                if (parent.entry.text == "") return
-                app.board.add(parent.entry.text)
-                parent.entry.text = ""
+                if (parent.entry.value == "") return
+                app.board.add(parent.entry.value)
+                parent.entry.value = ""
                 }
             ]
         ]
@@ -722,7 +738,7 @@ assignments.
 
 **What you can now do:** point views at data and repeat over it, write records from
 handlers, stand a model on a record, derive screens from a source's lifecycle, follow a
-stream, build forms with drafts and validation, and structure an app as truth, derivation
-and writes.
+stream, edit records in place and build forms with validation and drafts, and structure an
+app as truth, derivation and writes.
 
 [Next: **Typed data: schemas** →](declare-docs:guide:schemas)

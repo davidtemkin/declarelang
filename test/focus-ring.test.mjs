@@ -254,7 +254,7 @@ await test("in a stop the arrows move among the members by default; a member's o
         c: View [ width = 30, height = 20, focusable = true ],
         d: Button [ label = "D", hits: number = 0,
             onKeyDown(e: KeyEvent) { if (e.key == "ArrowLeft") this.hits = this.hits + 1; else super.onKeyDown(e) } ] ],
-    radios: RadioGroup [ y = 60, value = { app.sel }, input(v: any) { app.sel = v },
+    radios: RadioGroup [ y = 60, value = { app.sel }, commit(v: any) { app.sel = v },
         Radio [ choice = "a", label = "A" ], Radio [ choice = "b", label = "B" ], Radio [ choice = "c", label = "C" ] ],
     field: View [ y = 160, focusScope = stop, t: TextInput [ width = 100, focusable = true ], u: Button [ x = 120, label = "U" ] ] ]`);
   const key = (k, mods = {}) => ({ code: k, key: k, shift: false, ctrl: false, alt: false, meta: false, repeat: false, ...mods });

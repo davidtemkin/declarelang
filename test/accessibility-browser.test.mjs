@@ -54,7 +54,7 @@ App [ width = 500, height = 500, presses: number = 0, open: boolean = false, pla
         Text [ text = "Plain text" ],
         deco: Text [ text = "Decor text", accessibilityHidden = { !app.plain } ],
         find: SearchField [ width = 200, placeholder = "Search messages" ],
-        pw: TextInput [ width = 200, purpose = password, accessibilityLabel = "Password", initial = "hunter2" ],
+        pw: TextInput [ width = 200, purpose = password, accessibilityLabel = "Password", value = "hunter2" ],
         card: TextInput [ width = 200, purpose = cardNumber, accessibilityLabel = "Card number" ] ],
     dlg: View [ x = 250, y = 10, width = 200, height = 120, visible = { app.open }, focusScope = modal,
         accessibilityRole = dialog, accessibilityLabel = "Confirm",
@@ -176,7 +176,7 @@ await test("Chrome's accessibility tree says what the runtime's semantic tree sa
 await test("a state change reaches the element: the checkbox unchecked, the slider stepped", async () => {
   const a = await page.evaluate(async () => {
     const { app, el, ready } = window.__t;
-    app.col.wifi.input(true);
+    app.col.wifi.edit(true);
     app.col.wave.accessibilityIncrement();
     await ready();
     return { wifi: el(app.col.wifi).getAttribute("aria-checked"), wave: el(app.col.wave).getAttribute("aria-valuenow") };

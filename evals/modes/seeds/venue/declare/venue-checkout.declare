@@ -101,8 +101,8 @@ class PaymentForm extends Form [ width = 100%,
         FormHeading [ text = "Where to send the tickets" ],
         Field [ label = "Email", stacked = true, width = 100%,
             TextInput [ width = 100%, name = "email", purpose = email, required = "Enter the email address for your tickets.",
-                text = { app.email },
-                onInput(v: string) { app.email = v },
+                value = { app.email },
+                commit(v: string) { app.email = v },
                 validate(v: string) -> string { return emailOk(v) ? "" : "Enter an email address like name@example.com." }
                 ]
             ]
@@ -115,7 +115,7 @@ class PaymentForm extends Form [ width = 100%,
         accessibilityLabel = "Pay with",
         datapath = { app.cardsSet.value },
         value = { app.payMode },
-        input(v: string) { app.payWith = v },
+        commit(v: string) { app.payWith = v },
         layout: SimpleLayout [ axis = y, spacing = 4 ],
         Radio [ datapath = :cards[], choice = { :id ?? "" }, label = { :label ?? "" },
             disabled = { :expired ?? false } ],
@@ -128,8 +128,8 @@ class PaymentForm extends Form [ width = 100%,
             text = { "Tickets go to " + (app.me.value?.email ?? "") + "." } ],
         codeField: Field [ label = "Security code", stacked = true,
             entry: TextInput [ width = 140, name = "cvc", purpose = cardCode, required = "Enter the card's security code.",
-                text = { app.savedCvc },
-                onInput(v: string) { app.savedCvc = digitsOf(v).slice(0, codeLength(app.savedBrand)) },
+                value = { app.savedCvc },
+                commit(v: string) { app.savedCvc = digitsOf(v).slice(0, codeLength(app.savedBrand)) },
                 validate(v: string) -> string { return app.codeProblem(v, app.savedBrand) }
                 ]
             ]
@@ -139,16 +139,16 @@ class PaymentForm extends Form [ width = 100%,
         layout: SimpleLayout [ axis = y, spacing = 14 ],
         Field [ label = "Name on card", stacked = true, width = 100%,
             TextInput [ width = 100%, name = "name", purpose = cardName, required = "Enter the name as it's printed on the card.",
-                text = { app.cardName },
-                onInput(v: string) { app.cardName = v }
+                value = { app.cardName },
+                commit(v: string) { app.cardName = v }
                 ]
             ],
         Field [ label = "Card number", stacked = true, width = 100%,
             number: View [ width = 100%,
                 TextInput [ width = 100%, name = "number", purpose = cardNumber, padding = [0, 110, 0, 12],
                     numeralWidth = tabular, required = "Enter the card number.", height = 38,
-                    text = { app.cardNumber },
-                    onInput(v: string) {
+                    value = { app.cardNumber },
+                    commit(v: string) {
                         const typed = digitsOf(v.slice(0, this.selectionStart)).length
                         const d = digitsOf(v).slice(0, 19)
                         app.cardNumber = groupCard(d.slice(0, brandOf(d) == "" ? 19 : cardLength(brandOf(d))))
@@ -166,8 +166,8 @@ class PaymentForm extends Form [ width = 100%,
             Field [ label = "Expiry (MM / YY)", stacked = true, flexes = true,
                 TextInput [ width = 100%, name = "expiry", purpose = cardExpiry, numeralWidth = tabular,
                     required = "Enter the expiry date.",
-                    text = { app.expiry },
-                    onInput(v: string) {
+                    value = { app.expiry },
+                    commit(v: string) {
                         const typed = digitsOf(v.slice(0, this.selectionStart)).length
                         app.expiry = groupExpiry(v)
                         this.select(caretAfterDigits(app.expiry, typed + (digitsOf(v).length == 1 && Number(digitsOf(v)) > 1 ? 1 : 0)))
@@ -178,8 +178,8 @@ class PaymentForm extends Form [ width = 100%,
             codeField: Field [ label = "Security code", stacked = true, flexes = true,
                 entry: TextInput [ width = 100%, name = "cvc", purpose = cardCode, numeralWidth = tabular,
                     required = "Enter the security code.",
-                    text = { app.cvc },
-                    onInput(v: string) { app.cvc = digitsOf(v).slice(0, 4) },
+                    value = { app.cvc },
+                    commit(v: string) { app.cvc = digitsOf(v).slice(0, 4) },
                     validate(v: string) -> string { return app.codeProblem(v, app.cardBrand) }
                     ]
                 ]
@@ -188,27 +188,27 @@ class PaymentForm extends Form [ width = 100%,
         FormHeading [ text = "Billing address" ],
         Field [ label = "Street address", stacked = true, width = 100%,
             TextInput [ width = 100%, name = "line1", purpose = addressLine1, required = "Enter the street address.",
-                text = { app.line1 },
-                onInput(v: string) { app.line1 = v }
+                value = { app.line1 },
+                commit(v: string) { app.line1 = v }
                 ]
             ],
         Field [ label = "Address line 2 (optional)", stacked = true, width = 100%,
             TextInput [ width = 100%, name = "line2", purpose = addressLine2,
-                text = { app.line2 },
-                onInput(v: string) { app.line2 = v }
+                value = { app.line2 },
+                commit(v: string) { app.line2 = v }
                 ]
             ],
         Field [ label = "City", stacked = true, width = 100%,
             TextInput [ width = 100%, name = "city", purpose = city, required = "Enter the city.",
-                text = { app.city },
-                onInput(v: string) { app.city = v }
+                value = { app.city },
+                commit(v: string) { app.city = v }
                 ]
             ],
         Field [ label = "Postal code", stacked = true, width = 100%,
             TextInput [ width = { app.wide ? 200 : parent.width }, name = "postalCode", purpose = postalCode,
                 required = "Enter the postal code.",
-                text = { app.postalCode },
-                onInput(v: string) { app.postalCode = v },
+                value = { app.postalCode },
+                commit(v: string) { app.postalCode = v },
                 validate(v: string) -> string {
                     // no country pressed yet: it must at least be a code one of the three countries uses
                     if (app.country == "" && countryOfPostalCode(v) == "")
@@ -226,7 +226,7 @@ class PaymentForm extends Form [ width = 100%,
             RadioGroup [ width = 100%, name = "country", required = "Choose the country.",
                 accessibilityLabel = "Country",
                 value = { app.country },
-                input(v: string) { app.country = v },
+                commit(v: string) { app.country = v },
                 layout: WrappingLayout [ spacing = 18, rowSpacing = 4 ],
                 Radio [ choice = "US", label = "United States" ],
                 Radio [ choice = "CA", label = "Canada" ],
@@ -293,19 +293,19 @@ class SignInForm extends Form [ width = 100%,
         text = "Use your saved cards and address. Your seats and anything you've typed stay as they are." ],
     Field [ label = "Email", stacked = true, width = 100%,
         TextInput [ width = 100%, name = "email", purpose = email, required = "Enter your email address.",
-            text = { app.signInEmail },
-            onInput(v: string) { app.signInEmail = v }
+            value = { app.signInEmail },
+            commit(v: string) { app.signInEmail = v }
             ]
         ],
     Field [ label = "Password", stacked = true, width = 100%,
         TextInput [ width = 100%, name = "password", purpose = password, required = "Enter your password.",
             concealed = { !app.showPassword },
-            text = { app.signInPassword },
-            onInput(v: string) { app.signInPassword = v }
+            value = { app.signInPassword },
+            commit(v: string) { app.signInPassword = v }
             ]
         ],
     Checkbox [ label = "Show password", checked = { app.showPassword },
-        input(v: boolean) { app.showPassword = v }
+        commit(v: boolean) { app.showPassword = v }
         ],
     Text [ width = 100%, wrap = true, visible = { parent.error != "" }, fontSize = 14, fontWeight = medium,
         textColor = { provided("theme").error }, accessibilityRole = status, text = { parent.error } ],

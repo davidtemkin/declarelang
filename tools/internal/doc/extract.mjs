@@ -41,7 +41,7 @@ const DOC_SCHEMAS = { ...SCHEMAS, RichText: RichTextSchema };
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const TARGETS = [                                        // the documented class surface
-  "View", "App", "Text", "Font", "FontFace", "Image", "Media", "Video", "Audio", "RichText", "Markdown", "HTMLText", "DOMIsland", "TextInput",
+  "View", "App", "Text", "Font", "FontFace", "Image", "Media", "Video", "Audio", "RichText", "Markdown", "HTMLText", "DOMIsland", "NativeText",
   "Layout", "TweenLayout",
   "Dataset", "DataSource",
   "Animator", "AnimatorGroup", "Spring", "Time", "Keys", "Focus", "Tooltips",
@@ -441,9 +441,6 @@ for (const [cls, lines] of Object.entries(LANGUAGE_STATICS)) {
 // View page carries it (`## draw()` prose, View.md) and `declare-help View.draw`
 // answers. The DrawContext interface itself is on the Types page.
 (CALLABLE.View ??= new Map()).set("draw", { signature: "draw(d: DrawContext): void", isStatic: false });
-// `validate(v)` likewise: a reserved method a field may define, called by its edit
-// session (editor.ts runValidate) — so `declare-help TextInput.validate` answers.
-(CALLABLE.TextInput ??= new Map()).set("validate", { signature: "validate(v): string | boolean", isStatic: false });
 
 const RUNTIME_NAME = {};                                // doc id → runtime class name (no mismatches since the DOMIsland rename)
 
@@ -999,7 +996,7 @@ const CLASS_GROUPS = [
   ["Text",          ["Text", "TextLabel", "Font", "FontFace", "RichText", "Markdown", "HTMLText"]],
   ["Media",         ["Image", "Media", "Video", "Audio"]],
   ["Layout",        ["Layout", "SimpleLayout", "WrappingLayout", "ResponsiveLayout", "TweenLayout", "Spacer"]],
-  ["Controls",      ["Control", "Button", "Checkbox", "Switch", "Slider", "RadioGroup", "Radio", "Field", "FieldLayout", "Form", "ValueControl", "TextInput", "SearchField", "Combobox", "Segmented", "SegmentedItem", "TabBar", "TabBarTab", "Stepper", "DatePicker", "MonthCalendar", "MonthCalendarDay", "MonthCalendarArrow", "Toolbar", "ToolButton", "ToolbarDivider", "Splitter", "ProgressBar", "FocusRing", "AppearanceSwitch", "TextSizeSwitch"]],
+  ["Controls",      ["Control", "Button", "Checkbox", "Switch", "Slider", "RadioGroup", "Radio", "Field", "FieldLayout", "Form", "ValueControl", "TextInput", "NativeText", "SearchField", "Combobox", "Segmented", "SegmentedItem", "TabBar", "TabBarTab", "Stepper", "DatePicker", "MonthCalendar", "MonthCalendarDay", "MonthCalendarArrow", "Toolbar", "ToolButton", "ToolbarDivider", "Splitter", "ProgressBar", "FocusRing", "AppearanceSwitch", "TextSizeSwitch"]],
   // "Structure", not "Chrome": the word is the browser the gates drive, and the
   // reference is read by agents as often as by people, so the collision was one
   // we would have been adding on purpose. It is also the word the language file's

@@ -7,7 +7,7 @@ App [ width = 360, height = 220, theme = { SanFrancisco },
     sizes: Popover [
         Text [ textColor = { provided("theme").text }, text = { "Size " + app.size } ],
         Slider [ width = 180, min = 10, max = 32, value = { app.size },
-            input(v: number) { app.size = Math.round(v) }
+            commit(v: number) { app.size = Math.round(v) }
             ]
         ]
     ]

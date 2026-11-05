@@ -32,7 +32,7 @@ await test("a Form with its own trackChanges and onChange still hears its slow l
   const app = await boot(`App [ width = 500, height = 300, heard: number = 0, name: string = "",
     f: Form [ width = 400, note: string = "",
       trackChanges = ["note"], onChange() { app.heard = app.heard + 1 },
-      TextInput [ width = 200, name = "name", required = "Enter a name.", text = { app.name }, onInput(v: string) { app.name = v } ],
+      TextInput [ width = 200, name = "name", required = "Enter a name.", value <-> app.name ],
       send() { pending = true } ] ]`, true);
   app.name = "Ada"; settle();
   app.f.submit(); settle(); await turn(); settle();

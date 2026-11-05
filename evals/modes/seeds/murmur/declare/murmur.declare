@@ -373,8 +373,8 @@ class Composer [ width = 100%, padding = { [8, provided("gutter"), 10, provided(
         fontSize = { app.touchFirst ? 16 : 15 },
         placeholder = { "Message " + app.convos.titleOf(classroot.thread) },
         accessibilityLabel = "Message",
-        text = { classroot.draft },
-        onInput(v: string) { app.setDraft(classroot.tid, v) },
+        value = { classroot.draft },
+        commit(v: string) { app.setDraft(classroot.tid, v) },
         onEnter() { app.sendText(classroot.tid) }
         ],
     send: RoundButton [ shape = "send", filled = true, accessibilityLabel = "Send",

@@ -9,13 +9,9 @@ class NewPage extends Form [ width = 300,
     slug: string = { classroot.title.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") },
     layout: SimpleLayout [ axis = y, spacing = 10 ],
     TextInput [ width = 300, placeholder = "Title", name = "title", required = "Give the page a title.",
-        accessibilityLabel = "Title",
-        onInput(t: string) { classroot.title = t }
-        ],
-    TextInput [ width = 300, placeholder = "Address", name = "slug", initial = { classroot.slug },
-        accessibilityLabel = "Address",
-        onInput(t: string) { classroot.slug = t }
-        ],
+        accessibilityLabel = "Title", value <-> classroot.title ],
+    TextInput [ width = 300, placeholder = "Address", name = "slug",
+        accessibilityLabel = "Address", value <-> classroot.slug ],
     Button [ label = "Create", primary = true,
         onClick() { classroot.submit() }
         ],

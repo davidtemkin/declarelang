@@ -51,11 +51,14 @@ await test("warned: a write to a computed dataset, and rowIndex on a view that i
   assert.match(r.out, /tag reads rowIndex, but tag is not replicated/);
 });
 
-await test("a two-way arrow on a control that is not an editor names the form that works", () => {
+await test("a two-way arrow on what is not a control's value names the form that works", () => {
+  // a <-> lowers to a commit only a value control calls: on a View's width it
+  // would be a one-way constraint that never writes back, in silence
   const f = join(DIR, "box.declare");
-  writeFileSync(f, `App [ width = 200, height = 100, Checkbox [ checked <-> :done ] ]`);
+  writeFileSync(f, `App [ width = 200, height = 100, w: number = 40, View [ height = 10, width <-> app.w ] ]`);
   const r = run("verify.mjs", f);
-  assert.match(r.out, /write 'checked = :done, input\(v\) \{ :done = v \}'/);
+  assert.match(r.out, /View is not a value control/);
+  assert.match(r.out, /Constrain it one way, 'width = \{ … \}'/);
 });
 
 await test("textAlign: start and end follow the run's direction; left and right are the page's sides", () => {
@@ -81,8 +84,8 @@ await test("--semantics prints the whole tree, and direction reaches the page", 
 await test("a field the program owns is judged by validate(), when typed and when the program sets it", () => {
   const f = join(DIR, "card.declare");
   writeFileSync(f, `App [ width = 400, height = 200, card: string = "",
-    f: TextInput [ width = 300, accessibilityLabel = "Card", text = { app.card }, judged = true,
-        onInput(t: string) { app.card = t.replace(/\\D/g, "") },
+    f: TextInput [ width = 300, accessibilityLabel = "Card", value = { app.card }, judged = true,
+        commit(t: string) { app.card = t.replace(/\\D/g, "") },
         validate(v: string) -> string { return v.length == 4 ? "" : "4 digits" } ],
     set: Button [ y = 100, label = "set", onClick() { app.card = "1234" } ] ]`);
   const r = run("look.mjs", f, "--click", "app.f", "--type", "1a2", "--read", "app.f.error", "--click", "app.set", "--read", "app.f.valid");
@@ -95,7 +98,7 @@ await test("a combobox carries its purpose, and text that arrives whole and name
   const f = join(DIR, "country.declare");
   writeFileSync(f, `App [ width = 400, height = 200, picked: string = "",
     c: Combobox [ width = 240, purpose = country, accessibilityLabel = "Country",
-        items = { ["Ann", "Anna", "France"] }, input(v: object) { app.picked = "" + v } ] ]`);
+        items = { ["Ann", "Anna", "France"] }, commit(v: object) { app.picked = "" + v } ] ]`);
   const r = run("look.mjs", f, "--click", "app.c.entry", "--type", "Ann", "--read", "app.picked",
     "--js", "(() => { const el = document.querySelector('input'); el.value = 'France'; el.dispatchEvent(new Event('input', { bubbles: true })); return el.autocomplete })()",
     "--read", "app.picked");
@@ -105,18 +108,23 @@ await test("a combobox carries its purpose, and text that arrives whole and name
   assert.match(r.out, /app\.picked = "France"/);
 });
 
-await test("an input handler reads the caret after the keystroke; a regrouping field keeps it", () => {
+await test("commit reads the caret after the keystroke; a field regrouped by admit keeps it", () => {
   const f = join(DIR, "keys.declare");
   writeFileSync(f, `App [ width = 400, height = 200, seen: number = -1, digits: string = "",
     group(d: string) -> string { return d.replace(/(\\d{4})(?=\\d)/g, "$1 ") },
-    f: TextInput [ width = 300, accessibilityLabel = "Plain", onInput(t: string) { app.seen = this.selectionStart } ],
-    card: TextInput [ y = 60, width = 300, accessibilityLabel = "Card", text = { app.group(app.digits) },
-        onInput(t: string) {
-            const before = t.slice(0, this.selectionStart).replace(/\\D/g, "").length
-            app.digits = t.replace(/\\D/g, "")
-            const shown = app.group(app.digits)
+    f: TextInput [ width = 300, accessibilityLabel = "Plain", commit(t: string) { value = t; app.seen = this.selectionStart } ],
+    card: TextInput [ y = 60, width = 300, accessibilityLabel = "Card", value = { app.group(app.digits) },
+        admit(t: string) -> string { return app.group(t.replace(/\\D/g, "")) },
+        commit(t: string) {
+            // where the person typed, in digits: past what the old and new digits
+            // share, plus what was added — the caret goes back there, regrouped
+            const d = t.replace(/\\D/g, "")
+            let p = 0
+            while (p < d.length && p < app.digits.length && d[p] == app.digits[p]) p++
+            const before = p + Math.max(0, d.length - app.digits.length)
+            app.digits = d
             let i = 0, n = 0
-            while (i < shown.length && n < before) { if (/\\d/.test(shown[i])) n++; i++ }
+            while (i < t.length && n < before) { if (/\\d/.test(t[i])) n++; i++ }
             this.select(i, i)
             } ] ]`);
   const r = run("look.mjs", f, "--click", "app.f", "--type", "abcd", "--key", "ArrowLeft", "--key", "ArrowLeft", "--type", "x", "--read", "app.seen",
@@ -149,9 +157,9 @@ await test("the focus ring takes the theme of the control it rings, not the App'
 await test("a path by name reaches the field a person means: shown before hidden, a field before its label; select-all chords select", () => {
   const f = join(DIR, "names.declare");
   writeFileSync(f, `App [ width = 400, height = 300, pw: string = "correct horse battery", code: string = "123",
-    savedBox: View [ visible = false, Field [ label = "Security code", TextInput [ width = 100, text = "999" ] ] ],
-    f: Field [ x = 10, y = 10, label = "Password", TextInput [ width = 300, purpose = password, text = { app.pw }, onInput(v: string) { app.pw = v } ] ],
-    g: Field [ x = 10, y = 80, label = "Security code", TextInput [ width = 100, text = { app.code }, onInput(v: string) { app.code = v } ] ] ]`);
+    savedBox: View [ visible = false, Field [ label = "Security code", TextInput [ width = 100, value = "999" ] ] ],
+    f: Field [ x = 10, y = 10, label = "Password", TextInput [ width = 300, purpose = password, value <-> app.pw ] ],
+    g: Field [ x = 10, y = 80, label = "Security code", TextInput [ width = 100, value <-> app.code ] ] ]`);
   const r = run("verify.mjs", f, "--assert", script("names.mjs", `  await drive.selectAll('app."Password"');
   await drive.type("wrong");
   await expect.attr("app", "pw", "wrong");

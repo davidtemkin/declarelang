@@ -62,6 +62,6 @@ App [ width = 340, height = 220, fill = #14181D,
     dial: Slider [ x = center, y = 172, width = 260, accessibilityLabel = "Hue",
         min = 0, max = 360, step = 1,
         value = { app.hue },
-        input(v: number) { app.hue = v }
+        commit(v: number) { app.hue = v }
         ]
     ]

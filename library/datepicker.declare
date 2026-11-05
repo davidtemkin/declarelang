@@ -8,12 +8,12 @@ month. Today wears a ring; the chosen day is filled.
 
 Its value is a date as an ISO string, `"YYYY-MM-DD"`, or `""` for none — the value
 pattern, as every control has it: standalone it keeps its own, constrained it delivers
-through `input`.
+through `commit`.
 
 ```declare
 App [ width = 300, height = 340, day: string = "2026-10-18",
     MonthCalendar [ x = 20, y = 20, value = { app.day }, min = "2026-10-05",
-        input(v: string) { app.day = v } ],
+        commit(v: string) { app.day = v } ],
     Text [ x = 20, y = 310, text = { app.day } ]
     ]
 ```
@@ -29,9 +29,9 @@ initials, and each day's full date, which is what a screen reader says on it.
 
 ## value
 The chosen day, `"YYYY-MM-DD"`, or `""` for none. Constrain it to your own state and
-override `input` beside it, or leave it and read it back.
+override `commit` beside it, or leave it and read it back.
 
-## input()
+## commit()
 **Where a pick goes**, receiving the day. The default writes `value`.
 
 ## min
@@ -92,7 +92,7 @@ text and the name of the grid.
 **Internal.** Shows the month *n* months on.
 
 ## pick()
-Picks a day: shows its month and delivers it through `input`.
+Picks a day: shows its month and delivers it through `commit`.
 
 ## _entryDay()
 **Internal.** The day Tab lands on in the shown month: the chosen day, else today, else the 1st.
@@ -214,7 +214,7 @@ the field. Esc, or a press past it, closes without picking.
 ```declare
 App [ width = 340, height = 380, due: string = "",
     DatePicker [ x = 20, y = 20, value = { app.due },
-        input(v: string) { app.due = v } ],
+        commit(v: string) { app.due = v } ],
     Text [ x = 20, y = 70, text = { app.due == "" ? "no date" : "due " + app.due } ]
     ]
 ```
@@ -225,9 +225,9 @@ corners, a chevron at the end. The date shows in the program's language
 
 ## value
 The chosen day, `"YYYY-MM-DD"`, or `""` for none. Constrain it to your own state and
-override `input` beside it, or leave it and read it back.
+override `commit` beside it, or leave it and read it back.
 
-## input()
+## commit()
 **Where a pick goes**, receiving the day. The default writes `value`.
 
 ## min
@@ -252,7 +252,7 @@ The date as the field shows it, or `""` with none.
 Opens the calendar on the chosen day's month (else today's), unless it is open.
 
 ## _choose()
-**Internal.** Closes the calendar and delivers the day through `input`.
+**Internal.** Closes the calendar and reports the day with `edit`, to `commit`.
 
 ## press()
 Opens the calendar, or closes it if it is open.
@@ -304,7 +304,7 @@ class MonthCalendar [
     weekStart: number = 0,
     daySize: number = 32,
 
-    input(v: string) { value = v },
+    commit(v: string) { value = v },
 
     _clock: Time [ tick = day ],
     today: string = { this._isoOf(this._clock.year, this._clock.month, this._clock.day) },
@@ -374,7 +374,7 @@ class MonthCalendar [
         const moved = iso.slice(0, 7) != shownMonth
         shownMonth = iso.slice(0, 7)
         if (moved && Focus.holds(this._grid)) afterSettle(() => { const c = this._cellFor(iso); if (c != null) Focus.focus(c) })
-        input(iso)
+        commit(iso)
         },
 
     _entryDay() -> string {
@@ -525,7 +525,7 @@ class DatePicker extends ValueControl [
     placeholder: string = "Select a date",
     fieldValue = { value },
 
-    input(v: string) { value = v },
+    commit(v: string) { value = v },
 
     display: string = { this._formatted(value, app.language) },
 
@@ -553,7 +553,7 @@ class DatePicker extends ValueControl [
 
     _choose(v: string) {
         this._pop.close()
-        input(v)
+        edit(v)
         },
 
     // a press on the field while the calendar is open closes it as a press
@@ -586,7 +586,7 @@ class DatePicker extends ValueControl [
             },
         cal: MonthCalendar [ value = { classroot.value }, min = { classroot.min }, max = { classroot.max },
             weekStart = { classroot.weekStart },
-            input(v: string) { classroot._choose(v) }
+            commit(v: string) { classroot._choose(v) }
             ]
         ]
     ]

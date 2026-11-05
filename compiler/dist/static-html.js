@@ -16,7 +16,7 @@
 // Browser-safe (runtime graph + compile.ts only) and exported by BOTH
 // compile-node and compile-browser — the browser compiler does everything the
 // Node one can, as architecture and as principle.
-import { Image, Text, TextInput, View } from "../../runtime/dist/index.js";
+import { Image, Text, View } from "../../runtime/dist/index.js";
 import { Markdown } from "../../runtime/dist/markdown.js";
 import { HTMLText } from "../../runtime/dist/html-text.js";
 import { parse as parseMd } from "../../runtime/dist/md.js";
@@ -168,7 +168,7 @@ function classifyHeadings(root) {
                 charsBySize.set(v.fontSize, (charsBySize.get(v.fontSize) ?? 0) + words.length);
             return;
         }
-        if (v instanceof TextInput || v instanceof Image)
+        if (v.$native != null || v instanceof Image)
             return;
         if (v instanceof Text) {
             if (v.text !== "") {
@@ -311,8 +311,8 @@ function emit(v, out, headingOf, tenants) {
             out.push(blocksHtml(parseHtml(v.html, v.unsupported)));
         return;
     }
-    if (v instanceof TextInput)
-        return; // draft UI state, not content
+    if (v.$native != null)
+        return; // a field: the person's edit, not content
     if (v instanceof Text) {
         if (v.text !== "") {
             const lvl = headingOf(v); // inferred from the settled type (large + bold)

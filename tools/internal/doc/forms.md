@@ -718,39 +718,53 @@ name: <->
 group: Values
 family: operator
 spec: §7 Data
-terms: <->, two way, two-way binding, bidirectional, double arrow, live commit
+terms: <->, two way, two-way binding, bidirectional, double arrow, bind both ways, v-model, bind:value
 syntax:
-    TextInput [ text <-> :title ]
-    TextInput [ text <-> { fieldName } ]       // a { } yielding a field name
+    TextInput [ value <-> :title ]
+    Checkbox [ checked <-> app.muted ]
+    TextInput [ value <-> { :@[(classroot.field)] } ]       // a field chosen by name
 usage: form-twoway
 
-Two-way binding, opt-in and for leaf editors only. The left side is an editor's value;
-the right names a **place in data** — a `:path`, or a `{ }` yielding a field name — resolved
-against the nearest enclosing `datapath`. Edits in the field write back through the cursor,
-and a change in the data shows in the field. It is the only arrow in the language that
-writes.
+A control's value and a place, kept together: shorthand, lowered at parse, for the pair
+`value = { place }` plus `commit(v) { place = v }` — the control shows the place, and the
+person's change is written back to it. It works on any control with a value, on whichever
+attribute is its value (`checked` on a checkbox, `value` on a field or a slider), and while
+the person is editing the control shows their change, as with the pair written out.
 
-Deliberately narrow: to drive an ordinary attribute from a control, use the value pattern —
-derive down with `text = { app.note }`, deliver up with `input(v: string) { app.note = v }` —
-so data flow stays traceable. One-way `:path` everywhere else.
+The right side is a **place**: a `:path`, resolved against the nearest enclosing `datapath`;
+`{ :@[(name)] }` for a field chosen by name; or an attribute, `app.muted` or `classroot.size`.
+When the change needs work before it lands — a conversion, a clamp, a save — write the pair
+yourself, with that work in `commit`.
 
 ### rules
 
-- The left side is an editor's value; a Text is not an editor.
-  > says: the two-way arrow edits a dataset value through a field's draft ('TextInput.text') — Text holds no draft
-  > probe: App [ d: Dataset { { "title": "x" } }, datapath = { d.value }, t: Text [ text <-> :title ] ]
-- There must be data to edit: a `datapath` above the editor.
-  > says: has no data to edit — a two-way binding writes into a dataset through the nearest enclosing 'datapath', and nothing above this declares one
-  > probe: App [ TextInput [ text <-> :title ] ]
-- The right side is a place, not a value: a `:path`, or a `{ }` yielding a field name.
-  > says: binds a DATAPATH — write a :path (text <-> :field), or a { } expression yielding a field NAME. To wire an attribute to another attribute, derive down with a { } constraint and deliver up in an onInput() handler
-  > probe: App [ d: Dataset { { "title": "x" } }, datapath = { d.value }, TextInput [ text <-> 3 ] ]
+- The right side is a place, not a value.
+  > says: binds a PLACE
+  > probe: App [ TextInput [ accessibilityLabel = "T", value <-> 3 ] ]
+- In braces, only a field chosen by name.
+  > says: takes only a field chosen by name
+  > probe: App [ s: string = "", TextInput [ accessibilityLabel = "T", value <-> { app.s } ] ]
+- There must be data to edit: a `datapath` above the control.
+  > says: has no data to edit
+  > probe: App [ TextInput [ accessibilityLabel = "T", value <-> :title ] ]
+- One place decides where the change goes: the shorthand, or a `commit` of your own.
+  > says: already says where the person's change goes
+  > probe: App [ s: string = "", TextInput [ accessibilityLabel = "T", value <-> app.s, commit(v: string) { app.s = v } ] ]
+- It binds a value control's value, and nothing else.
+  > says: is not a value control
+  > probe: App [ d: Dataset { { "w": 3 } }, View [ datapath = { app.d.value }, width <-> :w ] ]
+- On a value control, it binds the attribute that is its value.
+  > says: TextInput's value is 'value'
+  > probe: App [ p: string = "", TextInput [ accessibilityLabel = "T", placeholder <-> app.p ] ]
+- The place holds what the control shows: the shorthand converts nothing.
+  > says: the shorthand converts nothing
+  > probe: App [ n: number = 1, TextInput [ accessibilityLabel = "T", value <-> app.n ] ]
 
 ### related
 
 forms: datapath, set
-classes: TextInput, Dataset
-guide: 14-data · Data, 08-controls · Controls
+classes: ValueControl, TextInput, Checkbox, Dataset
+guide: 08-controls · Controls, 14-data · Data
 
 ## constructors
 
@@ -1078,6 +1092,39 @@ the root.
 forms: ship
 classes: AppIsland
 guide: 24-renderers · Renderers and hosts, 26-packaging · Packaging for production
+
+## declareVersion
+
+name: declareVersion
+group: Top level
+family: declaration
+spec: §4 Composition
+terms: declareVersion, version, release, written for, migrate, migration, declare-changes
+syntax:
+    declareVersion [ "0.6.0" ]
+usage: none
+
+The release of Declare a file was written for. No program needs it: `npx declare-changes
+--done` writes it, first in the file, once a program has been moved to a release, so the next
+release's list of changes starts from there. The main file's line is the program's.
+
+The compiler reads it. A program written for a release newer than the compiler is an error; one
+written for an older release compiles, with a one-line note naming `npx declare-changes`. A
+release is compared as far as it is written: `"0.6"` is current under any 0.6 release.
+
+### rules
+
+- The release is written in quotes.
+  > says: declareVersion names a release in quotes
+  > probe: declareVersion [ 0.6 ]\nApp [ ]
+- A file says it once.
+  > says: a file says once which release it was written for
+  > probe: declareVersion [ "0.6" ]\ndeclareVersion [ "0.6" ]\nApp [ ]
+
+### related
+
+forms: include, defaultFlags
+guide: 04-structure · Program structure
 
 ## script
 

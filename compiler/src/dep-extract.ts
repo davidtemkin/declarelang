@@ -1276,6 +1276,22 @@ function buildMethodSummaries(): Summaries {
       overridesOf(d, name, into);
     }
   };
+  // A CLASS BODY's own constraint runs on every instance of the class and its
+  // descendants, so a `this.name(…)` there reaches whichever body each instance
+  // has: the class's, a subclass's, or one an instance declares itself
+  // (`TextInput [ validate(v) { … } ]` under ValueControl's `problem`).
+  const classOfEl = new Map<unknown, string>([...CLASS_EL].map(([c, el]) => [el, c]));
+  const familyOf = (cls: string, into = new Set<string>([cls])): Set<string> => {
+    for (const d of subclasses.get(cls) ?? []) if (!into.has(d)) { into.add(d); familyOf(d, into); }
+    return into;
+  };
+  const instanceOverridesOf = (cls: string, name: string, into: Set<string>): void => {
+    const family = familyOf(cls);
+    for (const [el, mm] of METHODS_OF) {
+      if (classOfEl.has(el) || !mm.has(name)) continue;
+      if (family.has((el as { tag?: string }).tag ?? "")) into.add(METHOD_EL_ID.get(el) + ":" + name);
+    }
+  };
 
   // Computed `{ }` defaults join the same callable graph — a default's body is an
   // EXPRESSION (parseBody expr-mode), summarized per DECLARING ELEMENT, so a read
@@ -1452,6 +1468,24 @@ function buildMethodSummaries(): Summaries {
           const home = methodHome(el, c.name);
           if (home === undefined) return { reads: new Set(), errors: unresolvedCall(c) };
           homeKey = METHOD_EL_ID.get(home) + ":" + c.name;
+          const cls = classOfEl.get(el);
+          if (cls !== undefined) {
+            const keys = new Set<string>([homeKey]);
+            overridesOf(cls, c.name, keys);
+            instanceOverridesOf(cls, c.name, keys);
+            if (keys.size > 1) {
+              const reads = new Set<string>();
+              const errors: DepError[] = [];
+              for (const k of keys) {
+                const s2 = ownEl.get(k);
+                if (s2 === undefined) continue;
+                const sub = followSummary(s2, k, c, stack, ctx);
+                for (const r of sub.reads) reads.add(r);
+                errors.push(...sub.errors);
+              }
+              return { reads, errors };
+            }
+          }
         }
       }
       if (homeKey !== undefined) { o = ownEl.get(homeKey); tag = homeKey; }
