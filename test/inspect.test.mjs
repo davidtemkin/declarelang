@@ -6,8 +6,12 @@ import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
 import { compile } from "../compiler/dist/compile-node.js";
 import { parseProgram } from "../runtime/dist/parser.js";
-import { instantiate, settle, inspect, find, explain, stats, clock, pickAt, bridgeFor } from "../runtime/dist/index.js";
+import { instantiate, settle, inspect, find, explain, stats, clock, pickAt, bridgeFor, provideMeasurer } from "../runtime/dist/index.js";
+import { approximateMeasurer } from "../compiler/dist/headless.js";
 import { applyDeps } from "../runtime/dist/deps.js";
+
+// a host with no page measures text with the stand-in, as every DOM-less host must
+provideMeasurer(approximateMeasurer());
 
 async function boot(src) {
   const r = await compile(src, {});

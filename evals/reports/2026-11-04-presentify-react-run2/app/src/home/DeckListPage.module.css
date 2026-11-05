@@ -1,0 +1,362 @@
+.page {
+  height: 100%;
+  overflow-y: auto;
+  background:
+    radial-gradient(900px 400px at 85% -10%, rgb(255 106 77 / 0.1), transparent 60%),
+    radial-gradient(800px 480px at 0% 0%, rgb(91 61 245 / 0.12), transparent 60%),
+    var(--surface-app);
+}
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 68px;
+  padding: 0 40px;
+  background: rgb(241 239 246 / 0.8);
+  backdrop-filter: blur(12px);
+}
+
+.main {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 24px 40px 64px;
+}
+
+.intro {
+  margin-bottom: 28px;
+}
+
+.heading {
+  margin: 0;
+  font-family: var(--font-brand);
+  font-weight: 750;
+  font-size: 40px;
+  letter-spacing: -0.035em;
+  line-height: 1.1;
+}
+
+.lede {
+  margin: 8px 0 0;
+  color: var(--ink-500);
+  font-size: 14px;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 28px 24px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.cardOpen {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  border-radius: var(--radius-lg);
+  text-align: left;
+}
+
+.thumb {
+  position: relative;
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  background: var(--white);
+  box-shadow: 0 0 0 1px var(--border), var(--shadow-sm);
+  transition:
+    transform 220ms var(--ease-out),
+    box-shadow 220ms var(--ease-out);
+}
+
+.cardOpen:hover .thumb,
+.cardOpen:focus-visible .thumb {
+  transform: translateY(-3px);
+  box-shadow: 0 0 0 1px var(--violet-200), var(--shadow-lg);
+}
+
+.cardOpen:focus-visible {
+  box-shadow: none;
+}
+
+.cardOpen:focus-visible .thumb {
+  box-shadow: 0 0 0 2px var(--surface-app), 0 0 0 4px var(--violet-500), var(--shadow-lg);
+}
+
+.thumbLoading {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, var(--ink-100) 0%, var(--ink-50) 40%, var(--ink-100) 80%);
+  background-size: 300% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+.thumbPlay {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  height: 26px;
+  padding: 0 10px 0 8px;
+  border-radius: 13px;
+  background: var(--violet-600);
+  color: var(--white);
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0;
+  transform: translateY(4px);
+  transition:
+    opacity 180ms var(--ease-out),
+    transform 180ms var(--ease-out);
+  box-shadow: 0 4px 12px rgb(91 61 245 / 0.4);
+}
+
+.cardOpen:hover .thumbPlay,
+.cardOpen:focus-visible .thumbPlay {
+  opacity: 1;
+  transform: none;
+}
+
+.footer {
+  display: flex;
+  align-items: flex-start;
+  gap: 4px;
+  padding-top: 12px;
+}
+
+.meta {
+  flex: 1;
+  min-width: 0;
+  padding-left: 2px;
+}
+
+.cardTitle {
+  margin: 0;
+  font-family: var(--font-brand);
+  font-weight: 700;
+  font-size: 15.5px;
+  letter-spacing: -0.01em;
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+}
+
+.cardInfo {
+  display: flex;
+  gap: 6px;
+  margin: 4px 0 0;
+  color: var(--ink-500);
+  font-size: 12.5px;
+}
+
+.cardError {
+  margin: 4px 0 0;
+  color: var(--red-600);
+  font-size: 12px;
+}
+
+.cardMenu {
+  flex: none;
+  margin-top: -4px;
+}
+
+.renameInput {
+  width: 100%;
+  height: 30px;
+  padding: 0 8px;
+  margin: -4px 0 0 -8px;
+  border: 1px solid var(--violet-500);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-brand);
+  font-weight: 700;
+  font-size: 15.5px;
+  outline: none;
+  box-shadow: 0 0 0 3px var(--violet-100);
+  background: var(--white);
+}
+
+.newCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border: 2px dashed var(--violet-200);
+  border-radius: var(--radius-lg);
+  background: rgb(255 255 255 / 0.5);
+  color: var(--violet-700);
+  transition:
+    background 200ms var(--ease-out),
+    border-color 200ms var(--ease-out),
+    transform 200ms var(--ease-out);
+}
+
+.newCard:hover:not(:disabled) {
+  background: var(--violet-50);
+  border-color: var(--violet-400);
+  transform: translateY(-3px);
+}
+
+.newIcon {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin-bottom: 6px;
+  border-radius: 14px;
+  background: var(--violet-600);
+  color: var(--white);
+  box-shadow: 0 6px 16px rgb(91 61 245 / 0.35);
+  transition: transform 220ms var(--ease-spring);
+}
+
+.newCard:hover .newIcon {
+  transform: rotate(90deg) scale(1.05);
+}
+
+.newLabel {
+  font-family: var(--font-brand);
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.newHint {
+  font-size: 12px;
+  color: var(--ink-500);
+}
+
+.cardSkeleton {
+  aspect-ratio: 16 / 9;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(90deg, var(--ink-150) 0%, var(--ink-50) 40%, var(--ink-150) 80%);
+  background-size: 300% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 48px 24px;
+  text-align: center;
+}
+
+.empty h2 {
+  margin: 16px 0 6px;
+  font-family: var(--font-brand);
+  font-size: 24px;
+  letter-spacing: -0.02em;
+}
+
+.empty p {
+  max-width: 420px;
+  margin: 0 0 20px;
+  color: var(--ink-500);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.inlineError {
+  padding: 10px 14px;
+  margin: 0 0 20px;
+  border-radius: var(--radius-md);
+  background: #fdecec;
+  color: #8f2020;
+}
+
+.inlineError button {
+  border: 0;
+  background: none;
+  color: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgb(23 21 31 / 0.4);
+  backdrop-filter: blur(2px);
+  z-index: 1000;
+  animation: fade 160ms var(--ease-out);
+}
+
+.dialog {
+  position: fixed;
+  left: 50%;
+  top: 50%;
+  translate: -50% -50%;
+  width: min(440px, calc(100vw - 32px));
+  padding: 24px;
+  border-radius: var(--radius-xl);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-lg);
+  z-index: 1001;
+  animation: dialogIn 200ms var(--ease-out);
+}
+
+.dialogTitle {
+  margin: 0 0 8px;
+  font-family: var(--font-brand);
+  font-size: 20px;
+  letter-spacing: -0.015em;
+}
+
+.dialogText {
+  margin: 0 0 22px;
+  color: var(--ink-700);
+  line-height: 1.55;
+  font-size: 14px;
+}
+
+.dialogName {
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.dialogActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes dialogIn {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(6px);
+  }
+}

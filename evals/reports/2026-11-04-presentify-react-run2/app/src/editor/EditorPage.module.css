@@ -1,0 +1,133 @@
+.page {
+  position: fixed;
+  inset: 0;
+  background: var(--surface-app);
+}
+
+.editor {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.panel {
+  display: flex;
+  min-height: 0;
+}
+
+.stageArea {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+/* Loading */
+.skeletonBar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: var(--topbar-height);
+  padding: 0 18px;
+  background: var(--surface-panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.skeletonSide {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: var(--sidebar-width);
+  padding: 48px 12px 12px 30px;
+  background: var(--surface-panel);
+  border-right: 1px solid var(--border);
+}
+
+.skeletonStage {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 56px;
+  background: var(--surface-stage);
+}
+
+.skeletonSlide {
+  position: relative;
+  width: min(100%, calc((100vh - var(--topbar-height) - 112px) * 16 / 9));
+  aspect-ratio: 16 / 9;
+  box-shadow: var(--shadow-slide);
+  background: var(--white);
+  overflow: hidden;
+}
+
+.skeletonInspector {
+  width: var(--inspector-width);
+  background: var(--surface-panel);
+  border-left: 1px solid var(--border);
+}
+
+.shimmer {
+  display: block;
+  border-radius: 8px;
+  background: linear-gradient(90deg, var(--ink-100) 0%, var(--ink-50) 40%, var(--ink-100) 80%);
+  background-size: 300% 100%;
+  animation: shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  from {
+    background-position: 100% 0;
+  }
+  to {
+    background-position: -100% 0;
+  }
+}
+
+/* Problems */
+.problem {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  padding: 32px;
+  text-align: center;
+}
+
+.problem h1 {
+  margin: 20px 0 6px;
+  font-family: var(--font-brand);
+  font-size: 26px;
+  letter-spacing: -0.02em;
+}
+
+.problem p {
+  max-width: 440px;
+  margin: 0 0 20px;
+  color: var(--ink-500);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.problemActions {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.problemLink {
+  color: var(--violet-700);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.problemLink:hover {
+  text-decoration: underline;
+}

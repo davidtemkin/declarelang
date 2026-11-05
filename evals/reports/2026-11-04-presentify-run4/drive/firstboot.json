@@ -1,0 +1,262 @@
+[
+  {
+    "name": "list_and_open",
+    "pass": false,
+    "error": "not found: the slide labelled Slide, with a size on screen",
+    "ms": 17976,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "GET /api/decks/d1",
+      "GET /api/decks/d1/slides"
+    ]
+  },
+  {
+    "name": "new_presentation",
+    "pass": false,
+    "error": "not found: the slide labelled Slide, with a size on screen",
+    "ms": 16495,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "draw_each_kind",
+    "pass": false,
+    "error": "not found: the slide labelled Slide, with a size on screen",
+    "ms": 16498,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "shift_draws_square_and_circle",
+    "pass": false,
+    "error": "not found: the slide labelled Slide, with a size on screen",
+    "ms": 16488,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "rounded_corners_hold",
+    "pass": false,
+    "error": "not found: the slide labelled Slide, with a size on screen",
+    "ms": 16455,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "keep_proportions",
+    "pass": false,
+    "error": "not found: the slide labelled Slide, with a size on screen",
+    "ms": 16459,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "box_select_and_delete",
+    "pass": false,
+    "error": "not found: the slide labelled Slide, with a size on screen",
+    "ms": 16381,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "move_and_nudge",
+    "pass": false,
+    "error": "not found: the slide labelled Slide, with a size on screen",
+    "ms": 16409,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "inspector_mixed_and_applied",
+    "pass": false,
+    "error": "not found: the slide labelled Slide, with a size on screen",
+    "ms": 16362,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "group_and_ungroup",
+    "pass": false,
+    "error": "not found: the slide labelled Slide, with a size on screen",
+    "ms": 16361,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "align_and_distribute",
+    "pass": false,
+    "error": "not found: the slide labelled Slide, with a size on screen",
+    "ms": 16280,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "bring_to_front",
+    "pass": false,
+    "error": "not found: the slide labelled Slide, with a size on screen",
+    "ms": 16484,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "undo_is_one_step",
+    "pass": false,
+    "error": "not found: the slide labelled Slide, with a size on screen",
+    "ms": 16294,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "slides_add_duplicate_delete",
+    "pass": false,
+    "error": "not found: the slide labelled Slide, with a size on screen",
+    "ms": 16404,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "slides_reorder_by_drag",
+    "pass": false,
+    "error": "not found: the slide labelled Slide, with a size on screen",
+    "ms": 16783,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "GET /api/decks/d2",
+      "GET /api/decks/d2/slides"
+    ]
+  },
+  {
+    "name": "saving_and_retry",
+    "pass": false,
+    "error": "not found: the slide labelled Slide, with a size on screen",
+    "ms": 16363,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "POST /api/decks"
+    ]
+  },
+  {
+    "name": "conflict_is_offered",
+    "pass": false,
+    "error": "not found: the slide labelled Slide, with a size on screen",
+    "ms": 16713,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "GET /api/decks/d1",
+      "GET /api/decks/d1/slides"
+    ]
+  },
+  {
+    "name": "present_and_return",
+    "pass": false,
+    "error": "not found: the slide labelled Slide, with a size on screen",
+    "ms": 16882,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "GET /api/decks/d1",
+      "GET /api/decks/d1/slides"
+    ]
+  },
+  {
+    "name": "rename_and_delete_presentation",
+    "pass": true,
+    "error": null,
+    "ms": 7398,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1?at=2026-11-02T09%3A00%3A03.000Z",
+      "GET /api/slides/s9?at=2026-11-02T09%3A00%3A02.000Z",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A01.000Z",
+      "GET /api/decks/d3",
+      "PATCH /api/decks/d3",
+      "GET /api/decks",
+      "GET /api/slides/s12?at=2026-11-02T09%3A00%3A04.000Z",
+      "DELETE /api/decks/d3",
+      "GET /api/decks"
+    ]
+  }
+]

@@ -1,0 +1,464 @@
+/*
+# Presentify: slides and the stage
+
+How a slide is drawn, and how the person works on one.
+
+- **`SlideArt` draws a slide** at its true size, 1280 × 720, from a slide
+  record: the background and every element, back to front. The editor, each
+  thumbnail, each presentation card and the presenter all use it, scaled, so
+  a slide looks the same everywhere by construction.
+- **`Stage` is the slide being edited**: a `SlideArt` scaled to fit, with the
+  selection, its handles, the guides and the marquee drawn over it, and the
+  text field that edits a text box in place.
+- **`Gesture` is a press on the stage**, from down to up: a move, a resize,
+  a corner radius, a line's end, a drawing or a marquee. It is a class with
+  no view; the stage hands it the pointer, and it writes the document.
+*/
+
+// ── Elements ────────────────────────────────────────────────────────────────
+//
+// Each kind is its own class, picked by `classFor` where the slide replicates
+// its leaves. Every one reads its own record; a group has no view of its own,
+// since its children keep their own slide coordinates.
+
+class ElView [
+    // In the editor, what can be moved shows that it can.
+
+    cursor = { provided("live") && app.tool == "select" ? "move" : "" }
+    ]
+
+
+class RectEl extends ElView [
+    x = { :x ?? 0 }, y = { :y ?? 0 }, width = { :width ?? 0 }, height = { :height ?? 0 },
+    fill = { app.paint(:fill) },
+    stroke = { app.strokeOf(:stroke) },
+    cornerRadius = { Math.min(:cornerRadius ?? 0, this.width / 2, this.height / 2) }
+    ]
+
+
+class EllipseEl extends ElView [
+    x = { :x ?? 0 }, y = { :y ?? 0 }, width = { :width ?? 0 }, height = { :height ?? 0 },
+    ink: Color = { app.paint(:fill) },
+    edge: ElStroke? = { :stroke },
+    draw(d: DrawContext) {
+        const sw = edge?.width ?? 0
+        d.beginPath()
+        d.ellipse(d.w / 2, d.h / 2, Math.max(0, d.w / 2), Math.max(0, d.h / 2), 0, 0, Math.PI * 2)
+        if (ink != null) { d.fillStyle = ink; d.fill() }
+        if (edge != null && sw > 0) {
+            d.beginPath()
+            d.ellipse(d.w / 2, d.h / 2, Math.max(0, d.w / 2 - sw / 2), Math.max(0, d.h / 2 - sw / 2), 0, 0, Math.PI * 2)
+            d.lineWidth = sw
+            d.strokeStyle = app.paint(edge.color)
+            d.stroke()
+        }
+        }
+    ]
+
+
+// A line's view is its box with room for the stroke; it draws the line
+// from its own corner.
+
+class LineEl extends ElView [
+    pad: number = { ((:stroke?.width ?? 2) / 2) + 2 },
+    x1: number = { :x1 ?? 0 },
+    y1: number = { :y1 ?? 0 },
+    x2: number = { :x2 ?? 0 },
+    y2: number = { :y2 ?? 0 },
+    x = { Math.min(this.x1, this.x2) - this.pad }, y = { Math.min(this.y1, this.y2) - this.pad },
+    width = { Math.abs(this.x2 - this.x1) + this.pad * 2 }, height = { Math.abs(this.y2 - this.y1) + this.pad * 2 },
+    edge: ElStroke? = { :stroke },
+    draw(d: DrawContext) {
+        if (edge == null) return
+        const ox = Math.min(x1, x2) - pad, oy = Math.min(y1, y2) - pad
+        d.beginPath()
+        d.moveTo(x1 - ox, y1 - oy)
+        d.lineTo(x2 - ox, y2 - oy)
+        d.lineWidth = edge.width
+        d.lineCap = "round"
+        d.strokeStyle = app.paint(edge.color)
+        d.stroke()
+        }
+    ]
+
+
+// A text box: one block in one style, wrapping within its width and as tall
+// as its lines. In the editor, while it is being typed in, the field over it
+// shows instead; and when its height changes under the person's hand, the
+// record learns its new height (the service keeps it "as last laid out").
+
+class TextEl extends ElView [
+    x = { :x ?? 0 }, y = { :y ?? 0 },
+    TextBody [ width = { :width ?? 0 }, style = { :text },
+        visible = { !(provided("live") && app.editingId == :id) },
+
+        // in the editor, a selected box's record keeps up with its lines
+
+        fit: string = { provided("live") && app.sel.includes(:id ?? "") ? "" + this.height : "" },
+        trackChanges = ["fit"],
+        onChange() { if (this.fit != "") app.fitText(:id ?? "", this.height) }
+        ]
+    ]
+
+
+// The words of a text box, set as the service describes them. The field that
+// edits them in place is set the same way (`Stage.editor`).
+
+class TextBody extends Text [
+    style: ElText? = null,
+    text = { this.style?.content ?? "" },
+    fontFamily = { app.faceFor(this.style?.font ?? "Helvetica Neue") },
+    fontSize = { this.style?.size ?? 32 },
+    fontWeight = { this.style?.weight ?? 400 },
+    italic = { this.style?.italic ?? false },
+    textColor = { app.paint(this.style?.color ?? "#1F2328") },
+    textAlign = { this.style?.align ?? "left" },
+    lineHeight = 1.2
+    ]
+
+
+// ── A slide ─────────────────────────────────────────────────────────────────
+//
+// Bound to a slide record (`:background`, `:elements`), from the document or
+// straight from the service. Scale it from outside; `live` marks the one the
+// person is editing.
+
+class SlideArt [ width = 1280, height = 720, clip = true, pivotX = 0, pivotY = 0,
+    live: boolean = false,
+    fill = { app.paint(:background ?? "#FFFFFF") },
+    leaves: Dataset [ schema = [ items[]: El ], contents = { ({ items: flatten(:elements ?? []) }) } ],
+    layer: View [ width = 1280, height = 720, datapath = { classroot.leaves.value },
+        ElView [ datapath = :items[],
+            classFor = { :kind == "rect" ? RectEl : :kind == "ellipse" ? EllipseEl : :kind == "line" ? LineEl : TextEl } ]
+        ]
+    ]
+
+
+// A slide at a given width, in a box exactly its size.
+
+class SlidePicture [ clip = true,
+    span: number = 160,
+    width = { this.span }, height = { this.span * 720 / 1280 },
+    art: SlideArt [ scale = { classroot.span / 1280 } ]
+    ]
+
+
+// ── A press on the stage ────────────────────────────────────────────────────
+//
+// Points are slide points. `tol` is how near counts, in slide points: a few
+// pixels on screen, whatever the zoom.
+
+schema Guide [ id: string, x: number, y: number, w: number, h: number ]
+
+class Gesture extends Node [
+    mode: "" | "pending" | "move" | "resize" | "radius" | "end1" | "end2" | "draw" | "marquee" = "",
+    handle: string = "",
+    x0: number = 0,
+    y0: number = 0,      // where the press began
+    px: number = 0,
+    py: number = 0,      // where the pointer is now
+    shift: boolean = false,
+    tol: number = 6,
+    startEls: El[] = [],
+    startBox: Box = { ({ x: 0, y: 0, w: 0, h: 0 }) },
+    startR: number = 0,
+    baseSel: string[] = [],
+    targets: number[][] = [],
+    gx: number[] = [],                   // guides showing, while a drag snaps
+    gy: number[] = [],
+
+    dragging: boolean = { this.mode != "" && this.mode != "pending" },
+    preview: Box = { normBox(this.x0, this.y0, this.px, this.py) },
+    drawBox: Box = { this.shift && app.tool != "line" ? squareFrom(this.x0, this.y0, this.px, this.py) : this.preview },
+    lineTo: Pt = { lineEnd(this.x0, this.y0, this.px, this.py, this.shift) },
+
+    down(x: number, y: number, shift: boolean, tol: number) {
+        this.tol = tol
+        x0 = x; y0 = y; px = x; py = y
+        this.shift = shift
+        gx = []; gy = []
+        if (app.editingId != "") app.endTextEdit()
+        const els = app.els
+        if (app.tool != "select") { mode = "draw"; return }
+
+        const h = app.handleAt(x, y, tol)
+        if (h != "") {
+            startEls = els
+            startBox = app.selBox
+            handle = h
+            mode = h == "radius" ? "radius" : h == "p1" ? "end1" : h == "p2" ? "end2" : "resize"
+            startR = app.selOne?.cornerRadius ?? 0
+            targets = snapTargets(els, app.sel)
+            app.history.begin(app.snapshot())
+            return
+        }
+
+        const leaf = hitLeaf(els, ({ x: x, y: y }), tol)
+        if (leaf != null) {
+            let target = pickTarget(els, leaf.id, app.scope)
+            if (app.scope != "" && !pathTo(els, leaf.id).includes(app.scope)) { app.scope = ""; target = pickTarget(els, leaf.id, "") }
+            if (shift) {
+                app.sel = app.sel.includes(target) ? app.sel.filter((i) => i != target) : [...app.sel, target]
+                mode = app.sel.includes(target) ? "pending" : ""
+            } else {
+                if (!app.sel.includes(target)) app.sel = [target]
+                mode = "pending"
+            }
+            startEls = els
+            startBox = boxOfIds(els, app.sel)
+            targets = snapTargets(els, app.sel)
+            return
+        }
+
+        if (!shift) { app.sel = []; app.scope = "" }
+        baseSel = shift ? app.sel : []
+        mode = "marquee"
+        },
+
+    move(x: number, y: number, shift: boolean) {
+        if (mode == "") return
+        px = x; py = y
+        this.shift = shift
+        const dx = x - x0, dy = y - y0
+        if (mode == "pending") {
+            if (Math.hypot(dx, dy) < tol * 0.6) return
+            mode = "move"
+            app.history.begin(app.snapshot())
+        }
+        if (mode == "move") {
+            const s = snapMove(startBox, dx, dy, targets, tol)
+            gx = s.gx; gy = s.gy
+            app.doc.setEls(app.current, mapEls(startEls, app.sel, (e) => translate(e, s.dx, s.dy)))
+        } else if (mode == "resize") {
+            const keep = app.keepsProportions != shift
+            let b = resizeBox(startBox, handle, dx, dy, keep)
+            if (!keep) {
+                const s = snapResize(b, handle, targets, tol)
+                gx = s.gx; gy = s.gy
+                b = resizeBox(startBox, handle, dx + s.dx, dy + s.dy, false)
+            } else { gx = []; gy = [] }
+            app.doc.setEls(app.current, mapEls(startEls, app.sel, (e) => remap(e, startBox, b)))
+        } else if (mode == "radius") {
+            const r = Math.max(0, Math.min(Math.min(startBox.w, startBox.h) / 2, startR + (dx + dy) / 2))
+            app.doc.setEls(app.current, mapEls(startEls, app.sel, (e) => ({ ...e, cornerRadius: Math.round(r) })))
+        } else if (mode == "end1" || mode == "end2") {
+            const one = startEls.length > 0 ? findEl(startEls, app.sel[0]) : null
+            if (one == null) return
+            const first = mode == "end1"
+            const fx = first ? one.x2 ?? 0 : one.x1 ?? 0, fy = first ? one.y2 ?? 0 : one.y1 ?? 0
+            const p = lineEnd(fx, fy, (first ? one.x1 ?? 0 : one.x2 ?? 0) + dx, (first ? one.y1 ?? 0 : one.y2 ?? 0) + dy, shift)
+            app.doc.setEls(app.current, mapEls(startEls, app.sel, (e) => first ? ({ ...e, x1: p.x, y1: p.y }) : ({ ...e, x2: p.x, y2: p.y })))
+        } else if (mode == "marquee") {
+            const hit = inMarquee(app.els, normBox(x0, y0, x, y))
+            app.sel = [...baseSel, ...hit.filter((i) => !baseSel.includes(i))]
+        }
+        },
+
+    up(canceled: boolean) {
+        const was = mode
+        mode = ""
+        gx = []; gy = []
+        if (was == "move" || was == "resize" || was == "radius" || was == "end1" || was == "end2") {
+            if (canceled) app.doc.setEls(app.current, startEls)
+            app.history.end(app.snapshot())
+        } else if (was == "draw" && !canceled) {
+            app.drawn(x0, y0, px, py, shift)
+        }
+        },
+
+    // A double-click: into a group, or into a text box's words.
+
+    twice(x: number, y: number, tol: number) {
+        if (app.tool != "select") return
+        const els = app.els
+        const leaf = hitLeaf(els, ({ x: x, y: y }), tol)
+        if (leaf == null) return
+        const cur = app.sel.length == 1 ? app.sel[0] : ""
+        const deeper = cur == "" ? pickTarget(els, leaf.id, app.scope) : pickDeeper(els, leaf.id, cur)
+        const el = findEl(els, deeper)
+        if (el == null) return
+        if (deeper != cur) {
+            const path = pathTo(els, deeper)
+            app.scope = path.length >= 2 ? path[path.length - 2] : ""
+            app.sel = [deeper]
+        }
+        if (el.kind == "text" && (deeper == cur || deeper == leaf.id)) app.editText(el.id)
+        }
+    ]
+
+
+// ── The stage ───────────────────────────────────────────────────────────────
+//
+// The slide being edited, fitted to the room it is given and centred, with
+// everything that is about editing drawn over it. Sizes on the overlay are
+// screen pixels divided by the zoom (`k`), so a handle is the same size at
+// every zoom.
+
+class Handle [
+    hx: number = 0,
+    hy: number = 0,
+    round: boolean = false,
+    k: number = 1,
+    side: number = { 10 / this.k },
+    x = { this.hx - this.side / 2 }, y = { this.hy - this.side / 2 },
+    width = { this.side }, height = { this.side },
+    cornerRadius = { this.round ? this.side / 2 : 2.5 / this.k },
+    fill = { provided("theme").handleFill },
+    stroke = { stroke(1.5 / this.k, provided("theme").selection) },
+    shadow = { shadow(0, 1 / this.k, 3 / this.k, 0x00000059) }
+    ]
+
+
+// A selection outline that reads on any colour: a light halo under the
+// brand line.
+
+class Outline [
+    box: Box = { ({ x: 0, y: 0, w: 0, h: 0 }) },
+    k: number = 1,
+    strong: boolean = true,
+    x = { this.box.x }, y = { this.box.y }, width = { this.box.w }, height = { this.box.h },
+    pointerEvents = "none",
+    halo: View [ x = { -1 / classroot.k }, y = { -1 / classroot.k },
+        width = { parent.width + 2 / classroot.k }, height = { parent.height + 2 / classroot.k },
+        stroke = { stroke(3 / classroot.k, 0xFFFFFFB3) } ],
+    View [ x = { -0.5 / classroot.k }, y = { -0.5 / classroot.k },
+        width = { parent.width + 1 / classroot.k }, height = { parent.height + 1 / classroot.k },
+        stroke = { stroke((classroot.strong ? 1.5 : 1) / classroot.k, provided("theme").selection) } ]
+    ]
+
+
+class Stage [ pivotX = 0, pivotY = 0, width = 1280, height = 720,
+    accessibilityLabel = "Slide", accessibilityRole = group,
+    k: number = { this.scale },
+    art: SlideArt [ live = true, datapath = { app.slideRec },
+        // the empty slide says how to begin
+
+        hint: View [ x = center, y = center, visible = { app.els.length == 0 && app.editingId == "" },
+            opacity = 0.9, pointerEvents = "none",
+            layout: SimpleLayout [ axis = y, spacing = 14, align = center ],
+            EmptySlideArt [ ink = { app.isDarkSlide ? 0xFFFFFF : provided("theme").brand } ],
+            Text [ fontFamily = { app.displayFace }, fontSize = 34, fontWeight = 650,
+                textColor = { app.isDarkSlide ? 0xFFFFFFCC : 0x1E1B2ECC }, text = "An empty slide" ],
+            Text [ fontSize = 22, textColor = { app.isDarkSlide ? 0xFFFFFF99 : 0x1E1B2E8C },
+                text = "Pick a shape or Text above, then drag on the slide." ]
+            ]
+        ],
+
+    // what the pointer is over, faintly
+
+    hover: Outline [ k = { classroot.k }, strong = false, box = { app.hoverBox },
+        visible = { app.hoverBox.w + app.hoverBox.h > 0 } ],
+
+    // each selected thing, and around a group of them, the box with handles
+
+    picks: View [ width = 1280, height = 720, pointerEvents = "none", datapath = { app.selBoxes.value },
+        Outline [ datapath = :items[], k = { classroot.k }, strong = false,
+            box = { ({ x: :x ?? 0, y: :y ?? 0, w: :w ?? 0, h: :h ?? 0 }) } ]
+        ],
+    frame: Outline [ k = { classroot.k }, box = { app.selBox },
+        visible = { app.sel.length > 0 && !app.oneLine } ],
+
+    // guides, while a drag lines something up
+
+    guides: View [ width = 1280, height = 720, pointerEvents = "none", datapath = { app.guides.value },
+        View [ datapath = :items[], x = { :x ?? 0 }, y = { :y ?? 0 }, width = { :w ?? 0 }, height = { :h ?? 0 },
+            fill = { provided("theme").guide } ]
+        ],
+
+    // what is being drawn
+
+    ghost: View [ visible = { app.gesture.mode == "draw" && app.tool != "line" }, pointerEvents = "none",
+        x = { app.gesture.drawBox.x }, y = { app.gesture.drawBox.y },
+        width = { app.gesture.drawBox.w }, height = { app.gesture.drawBox.h },
+        cornerRadius = { app.tool == "ellipse" ? Math.min(this.width, this.height) / 2 : 0 },
+        fill = { app.tool == "text" ? null : provided("theme").ghostFill },
+        stroke = { stroke(1.5 / classroot.k, provided("theme").selection) } ],
+    ghostLine: View [ visible = { app.gesture.mode == "draw" && app.tool == "line" }, pointerEvents = "none",
+        width = 1280, height = 720,
+        draw(d: DrawContext) {
+            const g = app.gesture
+            d.beginPath()
+            d.moveTo(g.x0, g.y0)
+            d.lineTo(g.lineTo.x, g.lineTo.y)
+            d.lineWidth = 4
+            d.lineCap = "round"
+            d.strokeStyle = provided("theme").selection
+            d.stroke()
+            }
+        ],
+
+    // the marquee
+
+    marquee: View [ visible = { app.gesture.mode == "marquee" }, pointerEvents = "none",
+        x = { app.gesture.preview.x }, y = { app.gesture.preview.y },
+        width = { app.gesture.preview.w }, height = { app.gesture.preview.h },
+        fill = { provided("theme").marqueeFill }, stroke = { stroke(1 / classroot.k, provided("theme").selection) } ],
+
+    // handles: the box's eight, a rounded rectangle's radius, a line's two ends
+
+    handles: View [ width = 1280, height = 720, visible = { app.showHandles },
+        b: Box = { app.selBox },
+        Handle [ k = { classroot.k }, hx = { parent.b.x }, hy = { parent.b.y }, cursor = "nwse-resize" ],
+        Handle [ k = { classroot.k }, hx = { parent.b.x + parent.b.w / 2 }, hy = { parent.b.y }, cursor = "ns-resize", visible = { app.sideHandles } ],
+        Handle [ k = { classroot.k }, hx = { parent.b.x + parent.b.w }, hy = { parent.b.y }, cursor = "nesw-resize" ],
+        Handle [ k = { classroot.k }, hx = { parent.b.x + parent.b.w }, hy = { parent.b.y + parent.b.h / 2 }, cursor = "ew-resize", visible = { app.sideHandles } ],
+        Handle [ k = { classroot.k }, hx = { parent.b.x + parent.b.w }, hy = { parent.b.y + parent.b.h }, cursor = "nwse-resize" ],
+        Handle [ k = { classroot.k }, hx = { parent.b.x + parent.b.w / 2 }, hy = { parent.b.y + parent.b.h }, cursor = "ns-resize", visible = { app.sideHandles } ],
+        Handle [ k = { classroot.k }, hx = { parent.b.x }, hy = { parent.b.y + parent.b.h }, cursor = "nesw-resize" ],
+        Handle [ k = { classroot.k }, hx = { parent.b.x }, hy = { parent.b.y + parent.b.h / 2 }, cursor = "ew-resize", visible = { app.sideHandles } ],
+        radius: Handle [ k = { classroot.k }, round = true, visible = { app.radiusHandle },
+            hx = { app.radiusAt.x }, hy = { app.radiusAt.y }, cursor = "pointer",
+            fill = { provided("theme").brand }, stroke = { stroke(1.5 / classroot.k, 0xFFFFFF) } ]
+        ],
+    ends: View [ width = 1280, height = 720, visible = { app.oneLine && app.editingId == "" },
+        Handle [ k = { classroot.k }, round = true, hx = { app.selOne?.x1 ?? 0 }, hy = { app.selOne?.y1 ?? 0 }, cursor = "crosshair" ],
+        Handle [ k = { classroot.k }, round = true, hx = { app.selOne?.x2 ?? 0 }, hy = { app.selOne?.y2 ?? 0 }, cursor = "crosshair" ]
+        ],
+
+    // the words of a text box, edited where they are
+
+    editor: TextInput [ exists = { app.editingId != "" }, multiline = true, wrap = true,
+        accessibilityLabel = "Text",
+        rec: El? = { app.editingEl },
+        style: ElText? = { this.rec?.text ?? null },
+        x = { this.rec?.x ?? 0 }, y = { this.rec?.y ?? 0 }, width = { this.rec?.width ?? 0 },
+        padding = 0, fill = null, stroke = null,
+        fontFamily = { app.faceFor(this.style?.font ?? "Helvetica Neue") },
+        fontSize = { this.style?.size ?? 32 },
+        fontWeight = { this.style?.weight ?? 400 },
+        italic = { this.style?.italic ?? false },
+        textColor = { app.paint(this.style?.color ?? "#1F2328") },
+        textAlign = { this.style?.align ?? "left" },
+        text = { this.style?.content ?? "" },
+        onInput(v: string) { app.typed(v) },
+        onKeyDown(e: KeyEvent) { if (e.key == "Escape") app.endTextEdit() },
+        onBlur() { if (app.editingId != "") app.endTextEdit() }
+        ]
+    ]
+
+
+// An empty slide's little picture: a slide with a shape being drawn on it.
+
+class EmptySlideArt [ width = 132, height = 84,
+    ink: Color = 0x6C4CF1,
+    draw(d: DrawContext) {
+        d.lineWidth = 3
+        d.lineJoin = "round"
+        d.lineCap = "round"
+        d.strokeStyle = ink
+        d.beginPath(); d.roundRect(4, 6, 112, 70, 8); d.stroke()
+        d.globalAlpha = 0.18
+        d.fillStyle = ink
+        d.beginPath(); d.roundRect(20, 22, 44, 30, 6); d.fill()
+        d.globalAlpha = 1
+        d.setLineDash([5, 5])
+        d.beginPath(); d.roundRect(20, 22, 44, 30, 6); d.stroke()
+        d.setLineDash([])
+        d.beginPath(); d.arc(86, 46, 13, 0, Math.PI * 2); d.stroke()
+        // the pointer, drawing
+        d.fillStyle = ink
+        d.beginPath()
+        d.moveTo(64, 52); d.lineTo(64, 76); d.lineTo(70, 70); d.lineTo(75, 80); d.lineTo(79, 78); d.lineTo(74, 68); d.lineTo(82, 68)
+        d.closePath(); d.fill()
+        }
+    ]

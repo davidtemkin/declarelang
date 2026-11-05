@@ -1,0 +1,211 @@
+.bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 16px;
+  height: var(--topbar-height);
+  padding: 0 12px 0 10px;
+  flex: none;
+  background: var(--surface-panel);
+  border-bottom: 1px solid var(--border);
+  position: relative;
+  z-index: 5;
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
+.home {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  height: 38px;
+  padding: 0 6px 0 2px;
+  border-radius: var(--radius-md);
+  color: var(--ink-500);
+  flex: none;
+  transition: background var(--dur-fast);
+}
+
+.home:hover {
+  background: var(--ink-100);
+  color: var(--ink-900);
+}
+
+.titleWrap {
+  position: relative;
+  display: inline-grid;
+  min-width: 60px;
+  max-width: 100%;
+  flex: 0 1 auto;
+}
+
+/* The hidden copy sizes the field to its text, so the title never jumps or clips mid-word. */
+.titleWrap::after {
+  content: attr(data-value) ' ';
+  visibility: hidden;
+  white-space: pre;
+  grid-area: 1 / 1;
+  font-family: var(--font-brand);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+  padding: 0 8px;
+  overflow: hidden;
+}
+
+.title {
+  grid-area: 1 / 1;
+  min-width: 0;
+  width: 100%;
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  font-family: var(--font-brand);
+  font-weight: 700;
+  font-size: 16px;
+  letter-spacing: -0.01em;
+  text-overflow: ellipsis;
+  outline: none;
+  transition:
+    background var(--dur-fast),
+    border-color var(--dur-fast);
+}
+
+.title:hover {
+  background: var(--ink-100);
+}
+
+.title:focus {
+  background: var(--surface-raised);
+  border-color: var(--violet-500);
+  box-shadow: 0 0 0 3px var(--violet-100);
+  text-overflow: clip;
+}
+
+.saveArea {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: none;
+}
+
+.saveStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px 0 8px;
+  border: 0;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--ink-500);
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  transition:
+    background var(--dur-fast),
+    color var(--dur-fast);
+}
+
+.saveStatus:hover {
+  background: var(--ink-100);
+}
+
+.saveStatus[data-state='saved'] .saveIcon {
+  color: var(--mint-500);
+}
+
+.saveStatus[data-state='offline'] {
+  background: #fff1ec;
+  color: #b8401f;
+}
+
+.saveIcon {
+  display: inline-grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+}
+
+.saveText {
+  display: inline-block;
+}
+
+.spinner {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 2px solid var(--violet-200);
+  border-top-color: var(--violet-600);
+  animation: spin 700ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.conflictChip {
+  display: inline-flex;
+  align-items: center;
+  height: 24px;
+  padding: 0 10px;
+  border-radius: 12px;
+  background: #fff6db;
+  color: #7a5200;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.menus {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.menuButton {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 32px;
+  padding: 0 8px 0 12px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-700);
+  font-weight: 550;
+  transition: background var(--dur-fast);
+}
+
+.menuButton:hover,
+.menuButton[data-state='open'] {
+  background: var(--ink-100);
+  color: var(--ink-900);
+}
+
+.menuButton svg {
+  color: var(--ink-400);
+}
+
+.sep {
+  width: 1px;
+  height: 22px;
+  margin: 0 6px;
+  background: var(--border);
+}

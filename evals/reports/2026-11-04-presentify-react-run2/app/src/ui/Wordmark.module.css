@@ -1,0 +1,15 @@
+.wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.36em;
+  color: var(--ink-900);
+  text-decoration: none;
+}
+
+.text {
+  font-family: var(--font-brand);
+  font-weight: 750;
+  letter-spacing: -0.035em;
+  line-height: 1;
+  font-variation-settings: 'wdth' 90;
+}

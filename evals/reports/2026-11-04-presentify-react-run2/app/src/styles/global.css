@@ -1,0 +1,132 @@
+/*
+ * Presentify's design tokens. The chrome is a soft lilac-grey so the slide is always the brightest
+ * thing on screen; Presentify violet marks what is chosen, coral and sun are for delight.
+ */
+:root {
+  --font-brand: 'Bricolage Grotesque Variable', 'Bricolage Grotesque', system-ui, sans-serif;
+  --font-ui: 'Inter Variable', 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, monospace;
+
+  --violet-50: #f3f0ff;
+  --violet-100: #e7e1ff;
+  --violet-200: #cfc4ff;
+  --violet-400: #8e7bff;
+  --violet-500: #6d55fa;
+  --violet-600: #5b3df5;
+  --violet-700: #4a2fd6;
+  --violet-900: #23166b;
+  --coral-400: #ff8a70;
+  --coral-500: #ff6a4d;
+  --sun-400: #ffc23d;
+  --mint-500: #20c49a;
+  --red-600: #d93a3a;
+
+  --ink-900: #17151f;
+  --ink-700: #3a3646;
+  --ink-500: #6b6679;
+  --ink-400: #8b8698;
+  --ink-300: #b4afc0;
+  --ink-200: #d9d5e2;
+  --ink-150: #e5e2ec;
+  --ink-100: #eeebf3;
+  --ink-50: #f7f6fa;
+  --white: #ffffff;
+
+  --surface-app: #f1eff6;
+  --surface-stage: #e4e1eb;
+  --surface-panel: #fbfafd;
+  --surface-raised: #ffffff;
+  --border: #e2dfe9;
+  --border-strong: #cfcad9;
+
+  --accent: var(--violet-600);
+  --accent-hover: var(--violet-700);
+  --accent-soft: var(--violet-50);
+  --focus-ring: 0 0 0 2px var(--surface-raised), 0 0 0 4px var(--violet-500);
+
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+
+  --shadow-sm: 0 1px 2px rgb(23 21 31 / 0.06), 0 1px 1px rgb(23 21 31 / 0.04);
+  --shadow-md: 0 4px 14px rgb(23 21 31 / 0.08), 0 1px 3px rgb(23 21 31 / 0.06);
+  --shadow-lg: 0 18px 48px rgb(35 22 107 / 0.16), 0 4px 12px rgb(23 21 31 / 0.08);
+  --shadow-slide: 0 1px 2px rgb(23 21 31 / 0.08), 0 8px 30px rgb(23 21 31 / 0.1);
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --dur-fast: 120ms;
+  --dur-med: 220ms;
+
+  --topbar-height: 56px;
+  --sidebar-width: 216px;
+  --inspector-width: 276px;
+
+  color-scheme: light;
+  font-family: var(--font-ui);
+  font-size: 13px;
+  line-height: 1.4;
+  color: var(--ink-900);
+  background: var(--surface-app);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: 'cv11', 'ss01';
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  overflow: hidden;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+::selection {
+  background: var(--violet-200);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}

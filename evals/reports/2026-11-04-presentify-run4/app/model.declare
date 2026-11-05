@@ -1,0 +1,446 @@
+/*
+# Presentify: the model
+
+What a presentation is, and what keeps it: the shapes of the service's
+records, the open presentation as one dataset (`Document`), the undo history
+(`History`), and the machinery that carries every change to the service and
+notices someone else's (`Sync`).
+
+- **The document is the truth on screen.** Every edit is one write to
+  `Document`, through its verbs; every view of a slide (the editor, the
+  thumbnails, the presenter) derives from it.
+- **History holds whole snapshots.** Before a change the App hands History
+  the slides as they were; undo hands them back. One gesture is one step.
+- **Sync compares, it is never told.** It holds what the service last
+  accepted for each slide and, a moment after the document changes, sends
+  whatever differs, one request at a time: new slides, changed slides,
+  deleted slides, then the order and the title. Someone else's change comes
+  back as a conflict for the person to settle.
+*/
+
+// ── The service's shapes ────────────────────────────────────────────────────
+
+schema ElStroke [ color: string, width: number ]
+
+schema ElText [ content: string, font: string, size: number, weight: number, italic: boolean,
+    color: string, align: "left" | "center" | "right" ]
+
+// One element. Which fields it has depends on its kind (API.md): a box for
+// rect, ellipse and text; two ends for a line; children for a group.
+
+schema El [ id: string, kind: "rect" | "ellipse" | "line" | "text" | "group",
+    x?: number, y?: number, width?: number, height?: number,
+    x1?: number, y1?: number, x2?: number, y2?: number,
+    fill?: string, stroke?: ElStroke, cornerRadius?: number, keepProportions?: boolean,
+    text?: ElText, children[]?: El ]
+
+schema ServerSlide [ id: string, deckId: string, version: number, background: string, elements[]: El ]
+
+schema Deck [ id: string, title: string, version: number, updatedAt: string, slideOrder[]: string,
+    thumbnailSlideId: string ]
+
+schema DeckSummary [ id: string, title: string, updatedAt: string, slideCount: number, thumbnailSlideId: string ]
+
+// The open presentation, as the editor holds it. A slide's `id` is its key
+// here: the service's id once it has one (Sync keeps the mapping, since a
+// slide brought back by undo gets a new id from the service).
+
+schema Slide [ id: string, background: string, elements[]: El ]
+
+schema Doc [ deckId: string, title: string, slides[]: Slide ]
+
+// One undo step: the slides as they were, and where the person was.
+
+schema Snapshot [ slides[]: Slide, current: string, sel[]: string ]
+
+// What Sync knows of a slide on the service: its id there, its version, and
+// the content it last agreed to, as JSON.
+
+schema Remote [ sid: string, version: number, json: string ]
+
+// Someone else's version of a slide this window was editing.
+
+schema Conflict [ key: string, current: ServerSlide ]
+
+
+// ── The open presentation ───────────────────────────────────────────────────
+//
+// Every write goes through one of these verbs and bumps `rev`, which is how
+// Sync hears that something changed.
+
+class Document extends Dataset [ schema = Doc,
+    rev: number = 0,
+
+    slides() -> Slide[] { return this.value?.slides ?? [] },
+    at(key: string) -> number { return this.slides().findIndex((s) => s.id == key) },
+    slide(key: string) -> Slide? { return this.slides().find((s) => s.id == key) ?? null },
+    els(key: string) -> El[] { return this.slide(key)?.elements ?? [] },
+    keys() -> string[] { return this.slides().map((s) => s.id) },
+
+    load(deck: Deck, slides: ServerSlide[]) {
+        this.set([], ({ deckId: deck.id, title: deck.title,
+            slides: slides.map((s) => ({ id: s.id, background: s.background, elements: s.elements })) }))
+        rev = 0
+        },
+    clearAll() { this.set([], ({ deckId: "", title: "", slides: [] })) },
+    touched() { rev = rev + 1 },
+
+    setTitle(t: string) { this.set(["title"], t); this.touched() },
+    setEls(key: string, els: El[]) {
+        const i = this.at(key)
+        if (i < 0) return
+        this.set(["slides", i, "elements"], els)
+        this.touched()
+        },
+    setBackground(key: string, c: string) {
+        const i = this.at(key)
+        if (i < 0) return
+        this.set(["slides", i, "background"], c)
+        this.touched()
+        },
+    setSlide(key: string, background: string, els: El[]) {
+        const i = this.at(key)
+        if (i < 0) return
+        this.set(["slides", i], ({ id: key, background: background, elements: els }))
+        this.touched()
+        },
+    setSlides(slides: Slide[]) { this.set(["slides"], slides); this.touched() },
+
+    // A slide after `after` (or first, when there is none): empty and white,
+    // or the content it is given, as a duplicate is.
+
+    insertAfter(after: string, s: Slide) {
+        this.insert(["slides"], this.at(after) + 1, s)
+        this.touched()
+        },
+    remove(key: string) {
+        const i = this.at(key)
+        if (i < 0 || this.slides().length <= 1) return
+        this.removeAt(["slides"], i)
+        this.touched()
+        },
+    moveTo(key: string, to: number) {
+        const i = this.at(key)
+        if (i < 0 || i == to) return
+        this.move(["slides"], i, to)
+        this.touched()
+        },
+
+    // ── Making things. Each kind's record has exactly the service's fields.
+
+    shape(kind: "rect" | "ellipse", id: string, b: Box, keep: boolean, fill: string) -> El {
+        if (kind == "rect") return ({ id: id, kind: "rect", x: b.x, y: b.y, width: b.w, height: b.h,
+            fill: fill, stroke: null, cornerRadius: 0, keepProportions: keep })
+        return ({ id: id, kind: "ellipse", x: b.x, y: b.y, width: b.w, height: b.h,
+            fill: fill, stroke: null, keepProportions: keep })
+        },
+    line(id: string, x1: number, y1: number, x2: number, y2: number, color: string) -> El {
+        return ({ id: id, kind: "line", x1: x1, y1: y1, x2: x2, y2: y2, stroke: ({ color: color, width: 4 }) })
+        },
+    textBox(id: string, b: Box, keep: boolean, color: string) -> El {
+        return ({ id: id, kind: "text", x: b.x, y: b.y, width: b.w, height: b.h, keepProportions: keep,
+            text: ({ content: "", font: "Helvetica Neue", size: 32, weight: 400, italic: false, color: color, align: "left" }) })
+        }
+    ]
+
+
+// ── Undo ────────────────────────────────────────────────────────────────────
+//
+// A stack of snapshots. A change made in one go is `push`ed just before it
+// happens; a gesture (a drag, a run of typing) `begin`s with the snapshot
+// from its start and `end`s with the one at its end, and counts only if
+// something changed.
+
+class History extends Node [
+    past: Snapshot[] = [],
+    future: Snapshot[] = [],
+    pending: Snapshot? = null,
+    limit: number = 200,
+
+    canUndo: boolean = { this.past.length > 0 },
+    canRedo: boolean = { this.future.length > 0 },
+
+    same(a: Snapshot, b: Snapshot) -> boolean { return JSON.stringify(a.slides) == JSON.stringify(b.slides) },
+    push(s: Snapshot) {
+        past = [...past.slice(-limit + 1), s]
+        future = []
+        },
+    begin(s: Snapshot) { if (pending == null) pending = s },
+    open: boolean = { this.pending != null },
+    end(now: Snapshot) {
+        const p = pending
+        pending = null
+        if (p != null && !this.same(p, now)) this.push(p)
+        },
+    undo(now: Snapshot) -> Snapshot? {
+        if (past.length == 0) return null
+        const s = past[past.length - 1]
+        past = past.slice(0, -1)
+        future = [...future, now]
+        return s
+        },
+    redo(now: Snapshot) -> Snapshot? {
+        if (future.length == 0) return null
+        const s = future[future.length - 1]
+        future = future.slice(0, -1)
+        past = [...past, now]
+        return s
+        },
+    clear() { past = []; future = []; pending = null }
+    ]
+
+
+// ── Saving ──────────────────────────────────────────────────────────────────
+//
+// `doc` is the document it keeps; `rev` follows the document's, and a change
+// to it schedules a save a moment later. One request is in flight at a time,
+// through `req`; when it lands, the next difference goes. A refusal the
+// service may not repeat (it was down, or unreachable) is tried again after
+// a pause that grows; a conflict waits for the person.
+
+class Sync extends Node [
+    api: string = "",
+    doc: Document? = null,
+
+    deckId: string = "",
+    deckVersion: number = 0,
+    deckOrder: string[] = [],
+    deckTitle: string = "",
+    remote: Record<string, Remote> = { ({}) },
+    conflicts: Conflict[] = [],
+    checkKey: string = "",          // a slide to look at again, once the writes are done
+
+    dirty: boolean = false,         // something may differ from the service
+    busy: boolean = false,          // a request is in flight
+    offline: boolean = false,       // the last attempt could not reach the service
+    tries: number = 0,
+    timer: DelayHandle? = null,
+
+    // What the window says, exactly one of three.
+
+    status: "saved" | "saving" | "offline" = { this.offline ? "offline" : (this.dirty || this.busy) ? "saving" : "saved" },
+    idle: boolean = { !this.dirty && !this.busy },
+
+    // ── starting
+
+    start(deck: Deck, slides: ServerSlide[]) {
+        timer?.cancel()
+        deckId = deck.id
+        deckVersion = deck.version
+        deckOrder = [...deck.slideOrder]
+        deckTitle = deck.title
+        const r: Record<string, Remote> = {}
+        for (const s of slides) r[s.id] = ({ sid: s.id, version: s.version, json: this.jsonOf(s.background, s.elements) })
+        remote = r
+        conflicts = []
+        checkKey = ""
+        dirty = false
+        offline = false
+        tries = 0
+        },
+    stop() { timer?.cancel(); deckId = ""; conflicts = []; dirty = false; offline = false },
+
+    jsonOf(background: string, els: El[]) -> string { return JSON.stringify(({ background: background, elements: els })) },
+    conflictOf(key: string) -> Conflict? { return conflicts.find((c) => c.key == key) ?? null },
+
+    // ── hearing the document
+
+    rev: number = { this.doc?.rev ?? 0 },
+    trackChanges = ["rev"],
+    onChange() { if (deckId != "") this.schedule(700) },
+
+    schedule(ms: number) {
+        dirty = true
+        timer?.cancel()
+        timer = afterDelay(ms, () => this.flush())
+        },
+    saveNow() { if (deckId == "") return; timer?.cancel(); dirty = true; this.flush() },
+
+    // A slide the person has come to: ask the service whether it changed
+    // somewhere else since this window last saw it.
+
+    check(key: string) {
+        if (deckId == "" || remote[key] == null) return
+        checkKey = key
+        if (!busy) { timer?.cancel(); timer = afterDelay(dirty ? 700 : 0, () => this.flush()) }
+        },
+
+    // ── one request at a time
+
+    op: string = "",
+    opKey: string = "",
+    sentJson: string = "",
+    reqUrl: string = "",
+    reqMethod: "GET" | "POST" | "PUT" | "PATCH" | "DELETE" = "GET",
+    reqBody: object? = null,
+
+    send(op: string, key: string, method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE", url: string, body: object?) {
+        this.op = op
+        this.opKey = key
+        reqMethod = method
+        reqUrl = api + url
+        reqBody = body
+        busy = true
+        req.fetch()
+        },
+
+    flush() {
+        timer?.cancel()
+        if (busy || deckId == "" || doc == null) return
+        const slides = doc.slides()
+
+        // new slides, in order, so each can follow the one before it
+        for (let i = 0; i < slides.length; i++) {
+            const s = slides[i]
+            if (remote[s.id] != null) continue
+            const prev = i > 0 ? remote[slides[i - 1].id]?.sid ?? null : null
+            sentJson = this.jsonOf(s.background, s.elements)
+            this.send("create", s.id, "POST", "/decks/" + deckId + "/slides",
+                ({ after: prev, background: s.background, elements: s.elements }))
+            return
+        }
+
+        // changed slides, unless someone else's change is waiting on the person
+        for (const s of slides) {
+            const r = remote[s.id]
+            const json = this.jsonOf(s.background, s.elements)
+            if (r == null || r.json == json || this.conflictOf(s.id) != null) continue
+            sentJson = json
+            this.send("update", s.id, "PUT", "/slides/" + r.sid, ({ version: r.version, background: s.background, elements: s.elements }))
+            return
+        }
+
+        // slides gone from the document
+        for (const key of Object.keys(remote)) {
+            if (slides.some((s) => s.id == key)) continue
+            this.send("delete", key, "DELETE", "/slides/" + remote[key].sid, null)
+            return
+        }
+
+        // the order and the title
+        const order = slides.map((s) => remote[s.id]?.sid ?? "")
+        const extra = deckOrder.filter((sid) => !order.includes(sid))      // slides only the service knows
+        const want = [...order, ...extra]
+        const title = doc.value?.title ?? ""
+        if (want.join() != deckOrder.join() || title != deckTitle) {
+            this.send("deck", "", "PATCH", "/decks/" + deckId, ({ version: deckVersion, title: title, slideOrder: want }))
+            return
+        }
+
+        dirty = false
+        offline = false
+        tries = 0
+
+        // nothing left to write: look at a slide again, if asked
+        if (checkKey != "" && remote[checkKey] != null) {
+            const key = checkKey
+            checkKey = ""
+            this.send("check", key, "GET", "/slides/" + remote[key].sid, null)
+        }
+        },
+
+    landed(body: string) {
+        busy = false
+        offline = false
+        tries = 0
+        const reply = body == "" ? null : JSON.parse(body)
+        const key = this.opKey
+        const r = ({ ...remote })
+        if (this.op == "create") {
+            const s = reply.slide as ServerSlide
+            r[key] = ({ sid: s.id, version: s.version, json: sentJson })
+            this.takeDeck(reply.deck as Deck)
+        } else if (this.op == "update") {
+            const s = reply as ServerSlide
+            r[key] = ({ sid: s.id, version: s.version, json: sentJson })
+        } else if (this.op == "delete") {
+            delete r[key]
+            this.takeDeck(reply.deck as Deck)
+        } else if (this.op == "deck") {
+            this.takeDeck(reply as Deck)
+        } else if (this.op == "check") {
+            const s = reply as ServerSlide
+            const known = r[key]
+            if (known != null && s.version > known.version && this.conflictOf(key) == null)
+                conflicts = [...conflicts, ({ key: key, current: s })]
+        }
+        remote = r
+        this.op = ""
+        this.flush()
+        },
+
+    takeDeck(d: Deck) {
+        deckVersion = d.version
+        deckOrder = [...d.slideOrder]
+        deckTitle = d.title
+        },
+
+    refused(code: number, body: object?) {
+        busy = false
+        const key = this.opKey
+        const op = this.op
+        this.op = ""
+        const err = (body as Record<string, any>)?.error ?? ""
+        if (err == "conflict" && op == "update") {
+            // someone else saved this slide: keep ours, and ask the person
+            const cur = (body as Record<string, any>).current as ServerSlide
+            if (this.conflictOf(key) == null) conflicts = [...conflicts, ({ key: key, current: cur })]
+            this.flush()
+        } else if (err == "conflict" && op == "deck") {
+            // the order or title changed elsewhere: take its version, keep ours
+            this.takeDeck((body as Record<string, any>).current as Deck)
+            this.flush()
+        } else if (err == "not_found" && (op == "update" || op == "check")) {
+            // the slide was deleted elsewhere: ours will be added back as new
+            const r = ({ ...remote })
+            delete r[key]
+            remote = r
+            this.flush()
+        } else if (err == "not_found" && op == "delete") {
+            const r = ({ ...remote })
+            delete r[key]
+            remote = r
+            this.flush()
+        } else if (op == "check") {
+            this.flush()
+        } else {
+            // unreachable, unavailable, or refused: keep everything, try again
+            offline = true
+            if (err == "invalid") console.warn("Presentify: the service refused a save", body)
+            tries = tries + 1
+            timer?.cancel()
+            timer = afterDelay(Math.min(10000, 1000 * Math.pow(1.6, tries)), () => this.flush())
+        }
+        },
+
+    // ── settling a conflict
+
+    // Take the service's version: the caller replaces the slide's content.
+
+    accept(key: string) {
+        const c = this.conflictOf(key)
+        if (c == null) return
+        const r = ({ ...remote })
+        r[key] = ({ sid: c.current.id, version: c.current.version, json: this.jsonOf(c.current.background, c.current.elements) })
+        remote = r
+        conflicts = conflicts.filter((k) => k.key != key)
+        },
+
+    // Keep ours: write it over theirs, knowingly.
+
+    overrule(key: string) {
+        const c = this.conflictOf(key)
+        if (c == null) return
+        const r = ({ ...remote })
+        r[key] = ({ sid: c.current.id, version: c.current.version, json: "" })
+        remote = r
+        conflicts = conflicts.filter((k) => k.key != key)
+        this.saveNow()
+        },
+
+    req: DataSource [ format = "text", url = { classroot.reqUrl }, method = { classroot.reqMethod },
+        body = { classroot.reqBody },
+        onLoad() { classroot.landed(this.value as string) },
+        onError() { classroot.refused(this.statusCode, this.errorBody) }
+        ]
+    ]

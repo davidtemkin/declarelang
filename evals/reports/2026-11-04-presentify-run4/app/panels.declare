@@ -1,0 +1,641 @@
+/*
+# Presentify: the panels
+
+The screens around the slide: the presentations (`Gallery`, each a
+`DeckCard`), the slides down the side (`SlideList`, each a `SlideRow`), the
+inspector beside the slide (`Inspector`), the palette it opens
+(`PaletteBody`), the banner that says a slide changed elsewhere
+(`ConflictBanner`), and the presenter (`Presenter`).
+
+None of them holds the presentation: they read the App's document and its
+place (`current`, `sel`), and every change they make is a call to the App.
+*/
+
+// ── The presentations ───────────────────────────────────────────────────────
+
+// One presentation: a picture of its first slide, its title, and when it
+// was last changed. The picture is fetched for the card; its address carries
+// the deck's `updatedAt`, so a presentation changed since is fetched again.
+
+class DeckCard [ width = 288,
+    deckId: string = { :id ?? "" },
+    title: string = { :title ?? "" },
+    lift: number = 0,
+    Spring [ attribute = lift, to = { classroot.face.hovered || classroot.face.focused || classroot.more.hovered ? 1 : 0 },
+        stiffness = 380, damping = 30 ],
+    thumb: DataSource [ schema = ServerSlide, autoFetch = true,
+        url = { app.api + "/slides/" + (:thumbnailSlideId ?? "") + "?at=" + encodeURIComponent(:updatedAt ?? "") } ],
+
+    // the card itself opens the presentation
+
+    face: Control [ width = 100%, cornerRadius = 16, padding = [10, 10, 14, 10],
+        accessibilityLabel = { "Open " + (classroot.title == "" ? "Untitled" : classroot.title) },
+        y = { -3 * classroot.lift },
+        fill = { provided("theme").surface },
+        stroke = { stroke(1, provided("theme").line) },
+        shadow = { shadow(0, 2 + 10 * classroot.lift, 6 + 22 * classroot.lift, colorWithAlpha(0x1E1B2E, Math.round(18 + 22 * classroot.lift))) },
+        press() { app.openDeck(classroot.deckId, this) },
+        onContextMenu(e: PointerEvent) { app.menuDeck = classroot.deckId; app.deckMenu.open(this, e) },
+        layout: SimpleLayout [ axis = y, spacing = 12 ],
+        frame: View [ width = 268, height = 150.75, cornerRadius = 9, clip = true, fill = { provided("theme").well },
+            pic: SlidePicture [ span = 268, visible = { classroot.thumb.loaded }, datapath = { classroot.thumb.value } ],
+            View [ width = 100%, height = 100%, cornerRadius = 9, stroke = { stroke(1, 0x1E1B2E14) } ]
+            ],
+        words: View [ width = 228, height = 62, padding = [0, 4, 0, 4],
+            layout: SimpleLayout [ axis = y, spacing = 4 ],
+            Text [ width = 100%, fontSize = 15, fontWeight = semibold, maxLines = 2,
+                textColor = { provided("theme").text }, text = { classroot.title == "" ? "Untitled" : classroot.title } ],
+            Text [ width = 100%, fontSize = 12.5, maxLines = 1, textColor = { provided("theme").textMuted },
+                text = { ago(:updatedAt ?? "", app.clock.now) + " · " + (:slideCount ?? 0) + ((:slideCount ?? 0) == 1 ? " slide" : " slides") } ]
+            ]
+        ],
+
+    // beside it, its menu
+
+    more: IconButton [ x = 248, y = { 171 - 3 * classroot.lift }, shape = "more", label = "More", width = 30, height = 30,
+        press() { app.menuDeck = classroot.deckId; app.deckMenu.openFor(this) }
+        ]
+    ]
+
+
+// A card while the presentations load.
+
+class CardSkeleton [ width = 288, height = 236, cornerRadius = 16, fill = { provided("theme").surface },
+    stroke = { stroke(1, provided("theme").line) },
+    glow: number = 0,
+    Animator [ attribute = glow, from = 0, to = 1, duration = 1100, motion = linear, repeat = { Infinity }, started = true ],
+    View [ x = 10, y = 10, width = 268, height = 150.75, cornerRadius = 9,
+        fill = { colorWithAlpha(0xE9E6DF, 140 + 115 * Math.abs(Math.sin(classroot.glow * Math.PI))) } ],
+    View [ x = 14, y = 176, width = 180, height = 14, cornerRadius = 7, fill = { provided("theme").well } ],
+    View [ x = 14, y = 200, width = 120, height = 10, cornerRadius = 5, fill = { provided("theme").well } ]
+    ]
+
+
+// A picture for an empty shelf: three slides, fanned, with the brand's shapes.
+
+class ShelfArt [ width = 240, height = 150,
+    draw(d: DrawContext) {
+        const t = provided("theme")
+        const card = (cx: number, cy: number, a: number, fill: Color) => {
+            d.save(); d.translate(cx, cy); d.rotate(a)
+            d.shadowColor = 0x1E1B2E26; d.shadowBlur = 18; d.shadowOffsetY = 6
+            d.fillStyle = fill; d.beginPath(); d.roundRect(-70, -42, 140, 84, 10); d.fill()
+            d.restore()
+            }
+        card(78, 82, -0.16, t.brandTint)
+        card(166, 80, 0.14, 0xFFF3DC)
+        card(120, 70, 0, 0xFFFFFF)
+        d.fillStyle = t.brand; d.beginPath(); d.roundRect(66, 44, 66, 9, 4.5); d.fill()
+        d.fillStyle = t.textFaint; d.globalAlpha = 0.5
+        d.beginPath(); d.roundRect(66, 60, 44, 6, 3); d.fill()
+        d.globalAlpha = 1
+        d.fillStyle = t.sun; d.beginPath(); d.arc(158, 70, 12, 0, Math.PI * 2); d.fill()
+        d.fillStyle = t.coral; d.beginPath(); d.moveTo(70, 98); d.lineTo(96, 76); d.lineTo(116, 98); d.closePath(); d.fill()
+        d.fillStyle = t.mint; d.beginPath(); d.roundRect(130, 86, 34, 12, 6); d.fill()
+        }
+    ]
+
+
+class Gallery [ width = 100%, height = 100%, scrolls = y,
+    fill = { provided("theme").background },
+    page: View [ x = center, width = { Math.min(parent.width - 64, 1240) }, padding = [0, 0, 64, 0],
+        layout: SimpleLayout [ axis = y, spacing = 0 ],
+        top: View [ width = 100%, height = 76,
+            layout: SimpleLayout [ axis = x, align = center ],
+            Wordmark [ size = 22 ],
+            Spacer [ ],
+            PillButton [ primary = true, shape = "plus", label = "New presentation", hint = "⌘N",
+                disabled = { app.creating.loading },
+                press() { app.newDeck() }
+                ]
+            ],
+        hero: View [ width = 100%, padding = [28, 0, 26, 0],
+            layout: SimpleLayout [ axis = y, spacing = 6 ],
+            Text [ fontFamily = { app.displayFace }, fontSize = 40, fontWeight = 760, letterSpacing = -1,
+                textColor = { provided("theme").text }, text = "Your presentations" ],
+            Text [ fontSize = 15, textColor = { provided("theme").textMuted },
+                text = { app.deckCount == 0 ? "Nothing here yet." : app.deckCount == 1 ? "1 presentation, newest first." : app.deckCount + " presentations, newest first." } ]
+            ],
+
+        // the cards, once they have come; skeletons until then
+
+        grid: View [ width = 100%, visible = { app.decks.loaded }, datapath = { app.decks.value },
+            layout: WrappingLayout [ spacing = 24, rowSpacing = 24 ],
+            DeckCard [ datapath = :decks[] ]
+            ],
+        waiting: View [ width = 100%, visible = { !app.decks.loaded && !app.decks.failed },
+            layout: WrappingLayout [ spacing = 24, rowSpacing = 24 ],
+            CardSkeleton [ ],
+            CardSkeleton [ ],
+            CardSkeleton [ ]
+            ],
+
+        // nothing yet
+
+        empty: View [ width = 100%, visible = { app.decks.loaded && app.deckCount == 0 }, padding = [48, 0, 0, 0],
+            layout: SimpleLayout [ axis = y, spacing = 14, align = center ],
+            ShelfArt [ ],
+            Text [ fontFamily = { app.displayFace }, fontSize = 24, fontWeight = 700, textColor = { provided("theme").text },
+                text = "Make your first presentation" ],
+            Text [ width = 360, textAlign = center, fontSize = 15, textColor = { provided("theme").textMuted },
+                text = "Start with one slide. Add shapes and words, then present it full screen." ],
+            PillButton [ primary = true, shape = "plus", label = "New presentation",
+                press() { app.newDeck() }
+                ]
+            ],
+
+        // the service is not answering
+
+        down: View [ width = 100%, visible = { app.decks.failed && !app.decks.loaded }, padding = [48, 0, 0, 0],
+            layout: SimpleLayout [ axis = y, spacing = 12, align = center ],
+            Glyph [ iconSize = 40, weight = 1.6, shape = "cloud-off", ink = { provided("theme").textFaint } ],
+            Text [ fontFamily = { app.displayFace }, fontSize = 22, fontWeight = 700, textColor = { provided("theme").text },
+                text = "Can't reach the service" ],
+            Text [ width = 380, textAlign = center, fontSize = 15, textColor = { provided("theme").textMuted },
+                text = "Presentify keeps your presentations in a local service, and it isn't answering. Check that it is running, then try again." ],
+            PillButton [ label = "Try again",
+                press() { app.decks.fetch() }
+                ]
+            ]
+        ]
+    ]
+
+
+// ── The slides down the side ────────────────────────────────────────────────
+//
+// A row per slide, in the document's order. While a row is dragged, the
+// others glide apart to show where it will land (`slot`, the place each row
+// would have if dropped now), and a lifted copy follows the pointer. The drop
+// is one move of one record.
+
+class ListGlide extends TweenLayout [ duration = 260,
+    rowH: number = 108,
+    place() {
+        const w = this.contentExtent("width")
+        return this.laid().map((c) => ({ x: 0, y: (c as SlideRow).slot * this.rowH, w: w, h: this.rowH, vis: true }))
+        }
+    ]
+
+
+class SlideRow extends Control [ height = 108,
+    slideKey: string = { :id ?? "" },
+    index: number = { rowIndex },
+    slot: number = { app.slotOf(classroot.slideKey, classroot.index) },
+    here: boolean = { app.current == classroot.slideKey },
+    lifted: boolean = { app.rowDrag.dragKey == classroot.slideKey && app.rowDrag.active },
+    conflicted: boolean = { app.sync.conflictOf(classroot.slideKey) != null },
+    accessibilityLabel = { "Slide " + (classroot.index + 1) },
+    accessibilityRole = tab,
+    accessibilitySelected = { classroot.here },
+    press() { app.goTo(classroot.slideKey) },
+    onContextMenu(e: PointerEvent) { app.goTo(classroot.slideKey); app.slideMenu.open(this, e) },
+
+    // the drag: past a few pixels it is a reorder, not a click
+
+    onPointerDown(e: PointerEvent) { super.onPointerDown(); app.rowDrag.down(classroot.slideKey, classroot.index, e.rootY) },
+    onPointerMove(e: PointerEvent) { app.rowDrag.move(e.rootY, e.deltaY) },
+    onPointerUp(e: PointerUpEvent) { app.rowDrag.up(e.canceled) },
+
+    // a row that becomes the current one comes into view
+
+    trackChanges = ["here"],
+    onChange() { if (classroot.here && !app.rowDrag.active) this.scrollIntoView("nearest", true, 12) },
+
+    opacity = { classroot.lifted ? 0.35 : 1 },
+    num: Text [ x = 10, y = 14, width = 22, textAlign = right, fontSize = 12, fontWeight = semibold,
+        numeralWidth = tabular,
+        textColor = { classroot.here ? provided("theme").brand : provided("theme").textFaint },
+        text = { "" + (classroot.slot + 1) } ],
+    card: View [ x = 38, y = 8, width = 164, height = 92.25, cornerRadius = 8,
+        shadow = { shadow(0, 1, 3, 0x1E1B2E1F) },
+        fill = { provided("theme").surface },
+        pic: View [ width = 100%, height = 100%, cornerRadius = 8, clip = true,
+            SlidePicture [ span = 164, datapath = :@ ]
+            ],
+        ring: View [ x = -3, y = -3, width = { parent.width + 6 }, height = { parent.height + 6 }, cornerRadius = 11,
+            stroke = { classroot.here ? stroke(2.5, provided("theme").brand)
+                : classroot.hovered ? stroke(2, provided("theme").controlPressed) : null } ],
+        flag: View [ x = { parent.width - 26 }, y = 6, width = 20, height = 20, cornerRadius = 10, visible = { classroot.conflicted },
+            fill = { provided("theme").warn }, tooltipLabel = "Changed in another window",
+            Glyph [ x = center, y = center, iconSize = 12, weight = 2, shape = "warning", ink = white ]
+            ]
+        ]
+    ]
+
+
+class SlideList [ scrolls = y, padding = [8, 0, 8, 0],
+    fill = { provided("theme").chrome },
+    accessibilityLabel = "Slides",
+
+    // ↑ and ↓ move between slides while the list has the keyboard
+
+    keys: Shortcuts [ title = "Slides",
+        items = { [ ({ id: "prev", key: "↑", label: "Previous slide" }), ({ id: "next", key: "↓", label: "Next slide" }),
+                    ({ id: "first", key: "Home", label: "First slide" }), ({ id: "last", key: "End", label: "Last slide" }),
+                    ({ id: "delete", key: "⌫", label: "Delete slide" }) ] },
+        picked(id: string) {
+            if (id == "prev") app.step(-1)
+            else if (id == "next") app.step(1)
+            else if (id == "first") app.goTo(app.doc.keys()[0] ?? "")
+            else if (id == "last") app.goTo(app.doc.keys()[app.doc.keys().length - 1] ?? "")
+            else if (id == "delete") app.run("delSlide")
+            }
+        ],
+
+    rows: View [ width = 100%, datapath = { app.doc.value },
+        layout: ListGlide [ ],
+        trackChanges = ["sig"],
+        sig: string = { app.rowDrag.active ? app.rowDrag.dragKey + ":" + app.rowDrag.drop : "" },
+        onChange() { (this.layout as ListGlide).retarget(true) },
+        SlideRow [ datapath = :slides[] ]
+        ],
+
+    add: Control [ x = 38, width = 164, height = 44, cornerRadius = 10,
+        accessibilityLabel = "New slide", tooltipLabel = "New slide  ⇧⌘N",
+        stroke = { stroke(1.5, hovered ? provided("theme").brand : provided("theme").controlPressed) },
+        fill = { pressed ? provided("theme").brandTint : null },
+        press() { app.run("newSlide") },
+        row: View [ x = center, y = center,
+            layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+            Glyph [ iconSize = 14, weight = 1.9, shape = "plus", ink = { provided("theme").brand } ],
+            TextLabel [ fontSize = 13, fontWeight = semibold, textColor = { provided("theme").brand }, text = "New slide" ]
+            ]
+        ],
+
+    layout: SimpleLayout [ axis = y, spacing = 6 ],
+
+    // the lifted copy, following the pointer
+
+    lifted: View [ ignoreLayout = true, exists = { app.rowDrag.active }, x = 32,
+        y = { app.rowDrag.ghostY },
+        width = 176, height = 99, cornerRadius = 9, clip = true,
+        rotation = -2, scale = 1.04, pivotX = 88, pivotY = 50, pointerEvents = "none",
+        shadow = { shadow(0, 10, 24, 0x1E1B2E40) },
+        SlidePicture [ x = 6, y = 3.4, span = 164, datapath = { app.doc.slide(app.rowDrag.dragKey) } ]
+        ]
+    ]
+
+
+// Dragging a row: where it began, and the slot under the pointer.
+
+class RowDrag extends Node [
+    dragKey: string = "",
+    from: number = 0,
+    drop: number = 0,
+    active: boolean = false,
+    y0: number = 0,
+    grabY: number = 0,       // the row's top, in the list, when pressed
+    ghostY: number = 0,
+    rowH: number = 108,
+    count: number = { app.doc.slides().length },
+    down(key: string, index: number, rootY: number) {
+        dragKey = key
+        from = index
+        drop = index
+        y0 = rootY
+        grabY = 8 + index * rowH
+        active = false
+        },
+    move(rootY: number, dy: number) {
+        if (dragKey == "") return
+        if (!active && Math.abs(dy) < 6) return
+        active = true
+        ghostY = grabY + dy
+        drop = Math.max(0, Math.min(count - 1, Math.round((grabY + dy - 8) / rowH)))
+        },
+    up(canceled: boolean) {
+        const was = active
+        active = false
+        if (was && !canceled && drop != from) app.moveSlide(dragKey, drop)
+        dragKey = ""
+        }
+    ]
+
+
+// ── The inspector ───────────────────────────────────────────────────────────
+//
+// Always the same sections in the same places, so it never changes shape:
+// what does not apply to the selection is shown, quietly, as not applying.
+// Where the selected things differ, a control says "Mixed" rather than
+// showing one of them; a change applies to all of them, as one step.
+
+class NumberField extends TextInput [ width = 64, height = 30, cornerRadius = 7, padding = [0, 8, 0, 8],
+    value: number = 0,
+    mixed: boolean = false,
+    draft: string = "",
+    typing: boolean = false,                 // the person's digits show until they are taken
+    shown: string = { classroot.mixed ? "" : "" + Math.round(classroot.value * 10) / 10 },
+    fontSize = 13, numeralWidth = tabular,
+    fill = { provided("theme").control },
+    stroke = { focused ? stroke(1.5, provided("theme").brand) : null },
+    text = { classroot.typing ? classroot.draft : classroot.shown },
+    placeholder = { classroot.mixed ? "Mixed" : "" },
+    onInput(v: string) { draft = v; typing = true },
+    commitValue(v: number) { },
+    take() {
+        if (!typing) return
+        typing = false
+        const n = parseFloat(draft)
+        if (!isNaN(n) && (classroot.mixed || Math.abs(n - classroot.value) > 0.001)) classroot.commitValue(n)
+        },
+    onEnter() { this.take() },
+    onBlur() { this.take() },
+    onKeyDown(e: KeyEvent) { if (e.key == "Escape") typing = false }
+    ]
+
+
+class Inspector [ width = 280, scrolls = y,
+    fill = { provided("theme").chrome },
+    stroke = { [null, null, null, stroke(1, provided("theme").chromeEdge)] },
+    accessibilityLabel = "Inspector",
+    layout: SimpleLayout [ axis = y ],
+
+    // what is selected, in a word
+
+    head: View [ width = 100%, height = 56, padding = [0, 16, 0, 16],
+        stroke = { [null, null, stroke(1, provided("theme").line), null] },
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Glyph [ iconSize = 18, weight = 1.7, shape = { app.selIcon }, ink = { provided("theme").brand } ],
+        Text [ flexes = true, maxLines = 1, fontFamily = { app.displayFace }, fontSize = 17, fontWeight = 700,
+            textColor = { provided("theme").text }, text = { app.selName } ]
+        ],
+
+    // fill: the slide's background, when nothing is selected
+
+    fillSec: Section [ heading = { app.sel.length == 0 ? "Background" : "Fill" },
+        Row [ label = "Colour",
+            ColorButton [ flexes = true, label = { app.sel.length == 0 ? "Background colour" : "Fill colour" },
+                disabled = { app.sel.length > 0 && !app.st.hasFill },
+                color = { app.sel.length == 0 ? app.slideBackground : app.st.fill },
+                mixed = { app.sel.length > 0 && app.st.fillMixed },
+                press() { app.pickColor(app.sel.length == 0 ? "background" : "fill", this) }
+                ]
+            ]
+        ],
+
+    strokeSec: Section [ heading = "Outline", opacity = { app.st.hasStroke ? 1 : 0.45 },
+        Row [ label = "Colour",
+            ColorButton [ flexes = true, label = "Outline colour", disabled = { !app.st.hasStroke },
+                color = { app.st.strokeColor }, mixed = { app.st.strokeColorMixed },
+                press() { app.pickColor("stroke", this) }
+                ]
+            ],
+        Row [ label = "Width",
+            NumberField [ disabled = { !app.st.hasStroke || app.st.strokeColor == "" && !app.st.strokeColorMixed },
+                accessibilityLabel = "Outline width",
+                value = { app.st.strokeWidth }, mixed = { app.st.strokeWidthMixed },
+                commitValue(v: number) { app.setStrokeWidth(v) }
+                ],
+            TextLabel [ fontSize = 13, textColor = { provided("theme").textFaint }, text = "pt" ]
+            ]
+        ],
+
+    cornerSec: Section [ heading = "Corners", opacity = { app.st.hasRadius ? 1 : 0.45 },
+        Row [ label = "Radius",
+            Slider [ flexes = true, min = 0, max = { Math.max(1, app.st.radiusMax) }, step = 1,
+                accessibilityLabel = "Corner radius", disabled = { !app.st.hasRadius },
+                value = { app.st.radius },
+
+                // a drag of the slider is one step
+
+                trackChanges = ["dragging"],
+                onChange() { if (this.dragging) app.history.begin(app.snapshot()); else app.history.end(app.snapshot()) },
+                input(v: number) { app.setRadius(v) }
+                ],
+            NumberField [ width = 52, disabled = { !app.st.hasRadius }, accessibilityLabel = "Corner radius in points",
+                value = { app.st.radius }, mixed = { app.st.radiusMixed },
+                commitValue(v: number) { app.change((els: El[]) => app.withRadius(els, v)) }
+                ]
+            ]
+        ],
+
+    textSec: Section [ heading = "Text", opacity = { app.st.hasText ? 1 : 0.45 },
+        Row [ label = "Font",
+            MenuButton [ flexes = true, disabled = { !app.st.hasText }, accessibilityLabel = "Font",
+                label = { !app.st.hasText ? "" : app.st.fontMixed ? "Mixed" : app.st.font }, menu = { app.fontMenu } ]
+            ],
+        Row [ label = "Size",
+            NumberField [ flexes = true, disabled = { !app.st.hasText }, accessibilityLabel = "Font size",
+                value = { app.st.size }, mixed = { app.st.sizeMixed },
+                commitValue(v: number) { app.setTextField("size", Math.max(4, Math.min(400, v))) }
+                ],
+            IconButton [ shape = "minus", label = "Smaller", width = 30, height = 30, size = 14, disabled = { !app.st.hasText },
+                press() { app.bumpSize(-1) }
+                ],
+            IconButton [ shape = "plus", label = "Larger", width = 30, height = 30, size = 14, disabled = { !app.st.hasText },
+                press() { app.bumpSize(1) }
+                ]
+            ],
+        Row [ label = "Weight",
+            MenuButton [ flexes = true, disabled = { !app.st.hasText }, accessibilityLabel = "Weight",
+                label = { !app.st.hasText ? "" : app.st.weightMixed ? "Mixed" : app.weightName(app.st.weight) }, menu = { app.weightMenu } ]
+            ],
+        Row [ label = "Style",
+            IconButton [ shape = "italic", label = "Italic", hint = "⌘I", disabled = { !app.st.hasText },
+                on = { app.st.italic && !app.st.italicMixed },
+                press() { app.setTextField("italic", !(app.st.italic && !app.st.italicMixed)) }
+                ],
+            Rule [ ],
+            IconButton [ shape = "talign-left", label = "Align left", disabled = { !app.st.hasText },
+                on = { app.st.align == "left" && !app.st.alignMixed },
+                press() { app.setTextField("align", "left") }
+                ],
+            IconButton [ shape = "talign-center", label = "Centre", disabled = { !app.st.hasText },
+                on = { app.st.align == "center" && !app.st.alignMixed },
+                press() { app.setTextField("align", "center") }
+                ],
+            IconButton [ shape = "talign-right", label = "Align right", disabled = { !app.st.hasText },
+                on = { app.st.align == "right" && !app.st.alignMixed },
+                press() { app.setTextField("align", "right") }
+                ]
+            ],
+        Row [ label = "Colour",
+            ColorButton [ flexes = true, label = "Text colour", disabled = { !app.st.hasText },
+                color = { app.st.textColor }, mixed = { app.st.textColorMixed },
+                press() { app.pickColor("text", this) }
+                ]
+            ]
+        ],
+
+    sizeSec: Section [ heading = "Position and size", opacity = { app.sel.length > 0 ? 1 : 0.45 },
+        Row [ label = "Position",
+            NumberField [ flexes = true, accessibilityLabel = "X", disabled = { app.sel.length == 0 },
+                value = { app.selBox.x },
+                commitValue(v: number) { app.setBox(v, app.selBox.y, app.selBox.w, app.selBox.h) }
+                ],
+            NumberField [ flexes = true, accessibilityLabel = "Y", disabled = { app.sel.length == 0 },
+                value = { app.selBox.y },
+                commitValue(v: number) { app.setBox(app.selBox.x, v, app.selBox.w, app.selBox.h) }
+                ]
+            ],
+        Row [ label = "Size",
+            NumberField [ flexes = true, accessibilityLabel = "Width", disabled = { app.sel.length == 0 },
+                value = { app.selBox.w },
+                commitValue(v: number) { app.setSize(v, -1) }
+                ],
+            NumberField [ flexes = true, accessibilityLabel = "Height", disabled = { app.sel.length == 0 || app.st.allText },
+                value = { app.selBox.h },
+                commitValue(v: number) { app.setSize(-1, v) }
+                ]
+            ],
+        Checkbox [ label = "Keep proportions", fontSize = 13, disabled = { !app.st.canKeep },
+            checked = { app.st.keep },
+            input(v: boolean) { app.setKeep(v) }
+            ]
+        ],
+
+    arrangeSec: Section [ heading = "Arrange", opacity = { app.sel.length > 0 ? 1 : 0.45 },
+        View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 2, align = center ],
+            IconButton [ shape = "align-left", label = "Align left edges", disabled = { app.sel.length < 2 },
+                press() { app.run("align-left") }
+                ],
+            IconButton [ shape = "align-center", label = "Align centres", disabled = { app.sel.length < 2 },
+                press() { app.run("align-center") }
+                ],
+            IconButton [ shape = "align-right", label = "Align right edges", disabled = { app.sel.length < 2 },
+                press() { app.run("align-right") }
+                ],
+            IconButton [ shape = "align-top", label = "Align tops", disabled = { app.sel.length < 2 },
+                press() { app.run("align-top") }
+                ],
+            IconButton [ shape = "align-middle", label = "Align middles", disabled = { app.sel.length < 2 },
+                press() { app.run("align-middle") }
+                ],
+            IconButton [ shape = "align-bottom", label = "Align bottoms", disabled = { app.sel.length < 2 },
+                press() { app.run("align-bottom") }
+                ]
+            ],
+        View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 2, align = center ],
+            IconButton [ shape = "dist-x", label = "Distribute across", disabled = { app.sel.length < 3 },
+                press() { app.run("dist-x") }
+                ],
+            IconButton [ shape = "dist-y", label = "Distribute down", disabled = { app.sel.length < 3 },
+                press() { app.run("dist-y") }
+                ],
+            Rule [ ],
+            IconButton [ shape = "group", label = "Group", hint = "⌘G", disabled = { !app.canGroup },
+                press() { app.run("group") }
+                ],
+            IconButton [ shape = "ungroup", label = "Ungroup", hint = "⇧⌘G", disabled = { !app.canUngroup },
+                press() { app.run("ungroup") }
+                ]
+            ],
+        View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 2, align = center ],
+            IconButton [ shape = "front", label = "Bring to front", hint = "⌥⌘]", disabled = { app.sel.length == 0 },
+                press() { app.run("front") }
+                ],
+            IconButton [ shape = "forward", label = "Bring forward", hint = "⌘]", disabled = { app.sel.length == 0 },
+                press() { app.run("forward") }
+                ],
+            IconButton [ shape = "backward", label = "Send backward", hint = "⌘[", disabled = { app.sel.length == 0 },
+                press() { app.run("backward") }
+                ],
+            IconButton [ shape = "back-order", label = "Send to back", hint = "⌥⌘[", disabled = { app.sel.length == 0 },
+                press() { app.run("back") }
+                ]
+            ]
+        ]
+    ]
+
+
+// The palette: the brand's swatches, none (where none is allowed), and any
+// colour by its hex.
+
+class PaletteBody [ width = 252,
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    Text [ fontSize = 12, fontWeight = bold, textColor = { provided("theme").textMuted }, text = { app.paletteTitle } ],
+    grid: View [ width = 100%, datapath = { app.swatchData.value },
+        layout: WrappingLayout [ columns = 8, spacing = 5, rowSpacing = 5 ],
+        Swatch [ datapath = :items[], color = :c, chosen = { :c == app.paletteNow },
+            press() { app.applyColor(:c) }
+            ]
+        ],
+    View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        hex: TextInput [ flexes = true, height = 30, cornerRadius = 7, padding = [0, 8, 0, 8], fontSize = 13,
+            accessibilityLabel = "Colour as hex", placeholder = "#RRGGBB",
+            fill = { provided("theme").control },
+            text = { app.paletteDraft },
+            onInput(v: string) { app.paletteDraft = v },
+            onEnter() { const c = normalHex(app.paletteDraft); if (c != "") app.applyColor(c) }
+            ],
+        PillButton [ label = "None", shape = "none", visible = { app.paletteNone },
+            press() { app.applyColor("") }
+            ]
+        ]
+    ]
+
+
+// ── A slide changed elsewhere ───────────────────────────────────────────────
+
+class ConflictBanner [ width = 100%, padding = [10, 12, 10, 12], cornerRadius = 12,
+    fill = { provided("theme").warnTint }, stroke = { stroke(1, 0xB5720B40) },
+    accessibilityRole = status, accessibilityLive = assertive,
+    layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+
+    // their version, as it is now
+
+    theirs: Dataset [ contents = { app.conflictHere?.current ?? ({ background: "#FFFFFF", elements: [] }) } ],
+    View [ width = 96, height = 54, cornerRadius = 5, clip = true, shadow = { shadow(0, 1, 3, 0x0000002A) },
+        SlidePicture [ span = 96, datapath = { classroot.theirs.value } ]
+        ],
+    words: View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ width = 100%, fontSize = 14, fontWeight = semibold, textColor = { provided("theme").text },
+            text = { "Slide " + (app.curIndex + 1) + " was changed in another window." } ],
+        Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted },
+            text = "Use the version saved there (shown here), or keep yours and save it over theirs." ]
+        ],
+    PillButton [ label = "Keep mine",
+        press() { app.keepMine() }
+        ],
+    PillButton [ primary = true, label = "Use their version",
+        press() { app.useTheirs() }
+        ]
+    ]
+
+
+// ── Presenting ──────────────────────────────────────────────────────────────
+//
+// The whole screen, one slide at a time, as large as fits. The arrows, space
+// and a click go on; Escape ends it on the slide reached. After the last
+// slide, a quiet end card.
+
+class Presenter extends Dialog [ presentation = "full", fill = black, accessibilityLabel = "Presentation",
+    at: number = 0,
+    count: number = { app.doc.slides().length },
+    slide: Slide? = { app.doc.slides()[this.at] ?? null },
+    go(d: number) {
+        const n = Math.max(0, Math.min(count, at + d))
+        if (n == count && at == count) { this.close(); return }
+        at = n
+        },
+    closed() { app.endPresenting(Math.min(at, count - 1)) },
+    keys: Shortcuts [ title = "Presenting",
+        items = { [ ({ id: "next", key: "→", label: "Next" }), ({ id: "next2", key: "↓", label: "Next" }),
+                    ({ id: "next3", key: "Space", label: "Next" }), ({ id: "next4", key: "PageDown", label: "Next" }),
+                    ({ id: "prev", key: "←", label: "Previous" }), ({ id: "prev2", key: "↑", label: "Previous" }),
+                    ({ id: "prev3", key: "PageUp", label: "Previous" }), ({ id: "prev4", key: "⇧Space", label: "Previous" }),
+                    ({ id: "first", key: "Home", label: "First" }), ({ id: "last", key: "End", label: "Last" }) ] },
+        picked(id: string) {
+            if (id.startsWith("next")) classroot.go(1)
+            else if (id.startsWith("prev")) classroot.go(-1)
+            else if (id == "first") classroot.at = 0
+            else if (id == "last") classroot.at = classroot.count - 1
+            }
+        ],
+    screen: View [ width = { app.width }, height = { app.height }, fill = black, cursor = "none",
+        onClick() { classroot.go(1) },
+        span: number = { Math.min(this.width, this.height * 1280 / 720) },
+        SlidePicture [ x = center, y = center, span = { parent.span }, visible = { classroot.slide != null },
+            datapath = { classroot.slide } ],
+        View [ x = center, y = center, visible = { classroot.slide == null },
+            layout: SimpleLayout [ axis = y, spacing = 10, align = center ],
+            PresentifyMark [ width = 40, height = 40, opacity = 0.8 ],
+            Text [ fontSize = 18, textColor = 0xFFFFFF99, text = "End of presentation. Click or press Escape to exit." ]
+            ]
+        ]
+    ]

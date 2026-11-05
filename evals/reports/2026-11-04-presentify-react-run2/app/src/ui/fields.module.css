@@ -1,0 +1,456 @@
+.disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+/* Numbers */
+.numberField {
+  display: flex;
+  align-items: center;
+  height: 30px;
+  min-width: 0;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  background: var(--ink-100);
+  border: 1px solid transparent;
+  transition:
+    border-color var(--dur-fast),
+    background var(--dur-fast);
+  cursor: text;
+}
+
+.numberField:hover {
+  border-color: var(--border-strong);
+}
+
+.numberField:focus-within {
+  background: var(--surface-raised);
+  border-color: var(--violet-500);
+  box-shadow: 0 0 0 3px var(--violet-100);
+}
+
+.glyph {
+  flex: none;
+  margin-right: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-400);
+  display: inline-flex;
+}
+
+.numberInput {
+  flex: 1;
+  min-width: 0;
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-variant-numeric: tabular-nums;
+  font-size: 12.5px;
+  padding: 0;
+}
+
+.numberInput::placeholder {
+  color: var(--ink-400);
+  font-style: italic;
+}
+
+.numberInput:focus-visible {
+  box-shadow: none;
+}
+
+.unit {
+  flex: none;
+  margin-left: 4px;
+  font-size: 11px;
+  color: var(--ink-400);
+}
+
+/* Colours */
+.colorButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  height: 30px;
+  padding: 0 6px 0 4px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: var(--ink-100);
+  text-align: left;
+  transition: border-color var(--dur-fast);
+}
+
+.colorButton:hover {
+  border-color: var(--border-strong);
+}
+
+.colorButton[data-state='open'] {
+  border-color: var(--violet-500);
+  background: var(--surface-raised);
+}
+
+.colorText {
+  flex: 1;
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-ui);
+  color: var(--ink-700);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chevron {
+  flex: none;
+  color: var(--ink-400);
+}
+
+.swatch {
+  position: relative;
+  flex: none;
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgb(23 21 31 / 0.12);
+  background-image:
+    linear-gradient(45deg, #ddd 25%, transparent 25%),
+    linear-gradient(-45deg, #ddd 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #ddd 75%),
+    linear-gradient(-45deg, transparent 75%, #ddd 75%);
+  background-size: 8px 8px;
+  background-position: 0 0, 0 4px, 4px -4px, -4px 0;
+  background-color: #fff;
+}
+
+.swatch > span {
+  position: absolute;
+  inset: 0;
+  box-shadow: inset 0 0 0 1px rgb(23 21 31 / 0.12);
+  border-radius: inherit;
+}
+
+.swatchNone {
+  background: linear-gradient(to top right, transparent calc(50% - 1px), var(--red-600) calc(50% - 1px), var(--red-600) calc(50% + 1px), transparent calc(50% + 1px)), #fff;
+}
+
+.swatchMixed {
+  background: conic-gradient(var(--coral-500) 0 25%, var(--sun-400) 0 50%, var(--mint-500) 0 75%, var(--violet-500) 0);
+}
+
+.popover {
+  width: 240px;
+  padding: 12px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  z-index: 800;
+  animation: popIn 160ms var(--ease-out);
+}
+
+@keyframes popIn {
+  from {
+    opacity: 0;
+    transform: translateX(6px) scale(0.98);
+  }
+}
+
+.popoverTitle {
+  font-weight: 600;
+  margin-bottom: 10px;
+}
+
+.picker :global(.react-colorful) {
+  width: 100%;
+  height: 160px;
+}
+
+.picker :global(.react-colorful__saturation) {
+  border-radius: 8px 8px 0 0;
+}
+
+.picker :global(.react-colorful__last-control) {
+  border-radius: 0 0 8px 8px;
+}
+
+.picker :global(.react-colorful__hue),
+.picker :global(.react-colorful__alpha) {
+  height: 14px;
+}
+
+.picker :global(.react-colorful__pointer) {
+  width: 18px;
+  height: 18px;
+}
+
+.hexRow {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin: 10px 0;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  background: var(--ink-100);
+}
+
+.hexRow:focus-within {
+  background: var(--surface-raised);
+  box-shadow: 0 0 0 1px var(--violet-500), 0 0 0 4px var(--violet-100);
+}
+
+.hexHash {
+  color: var(--ink-400);
+}
+
+.hexInput {
+  flex: 1;
+  min-width: 0;
+  border: 0;
+  outline: none;
+  background: transparent;
+  text-transform: uppercase;
+  font-variant-numeric: tabular-nums;
+}
+
+.hexInput:focus-visible {
+  box-shadow: none;
+}
+
+.alpha {
+  color: var(--ink-400);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.swatches {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 5px;
+}
+
+.swatchButton {
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: var(--swatch, var(--white));
+  box-shadow: inset 0 0 0 1px rgb(23 21 31 / 0.14);
+  color: var(--red-600);
+  transition: transform var(--dur-fast) var(--ease-spring);
+}
+
+.swatchButton:hover {
+  transform: scale(1.12);
+}
+
+.swatchChosen {
+  box-shadow: 0 0 0 2px var(--white), 0 0 0 4px var(--violet-600);
+}
+
+/* Segmented */
+.segmented {
+  display: flex;
+  padding: 2px;
+  gap: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--ink-100);
+}
+
+.segment {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  height: 26px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--ink-500);
+  transition:
+    background var(--dur-fast),
+    color var(--dur-fast);
+}
+
+.segment:hover:not(:disabled) {
+  color: var(--ink-900);
+}
+
+.segmentOn,
+.segmentOn:hover {
+  background: var(--surface-raised);
+  color: var(--violet-700);
+  box-shadow: var(--shadow-sm);
+}
+
+/* Selects */
+.select {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  height: 30px;
+  padding: 0 6px 0 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  background: var(--ink-100);
+  text-align: left;
+  transition: border-color var(--dur-fast);
+}
+
+.select:hover {
+  border-color: var(--border-strong);
+}
+
+.select[data-state='open'] {
+  border-color: var(--violet-500);
+  background: var(--surface-raised);
+}
+
+.selectValue {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12.5px;
+}
+
+.mixedText {
+  color: var(--ink-400);
+  font-style: italic;
+}
+
+.selectContent {
+  min-width: var(--radix-select-trigger-width);
+  max-height: min(360px, var(--radix-select-content-available-height));
+  padding: 4px;
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-lg);
+  z-index: 800;
+  animation: popIn 140ms var(--ease-out);
+}
+
+.selectViewport {
+  padding: 0;
+}
+
+.selectItem {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 30px;
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  font-size: 13.5px;
+  outline: none;
+  user-select: none;
+}
+
+.selectItem[data-highlighted] {
+  background: var(--violet-50);
+  color: var(--violet-700);
+}
+
+.selectCheck {
+  color: var(--violet-600);
+  display: inline-flex;
+}
+
+/* Toggles */
+.toggle {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  flex: none;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: var(--ink-100);
+  color: var(--ink-500);
+  transition:
+    background var(--dur-fast),
+    color var(--dur-fast);
+}
+
+.toggle:hover:not(:disabled) {
+  color: var(--ink-900);
+}
+
+.toggle:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.toggleOn,
+.toggleOn:hover:not(:disabled) {
+  background: var(--violet-100);
+  color: var(--violet-700);
+}
+
+.toggleMixed {
+  background: repeating-linear-gradient(-45deg, var(--ink-100) 0 4px, var(--violet-50) 4px 8px);
+}
+
+/* Checkbox */
+.checkbox {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  font-size: 12.5px;
+  color: var(--ink-700);
+  cursor: pointer;
+  user-select: none;
+}
+
+.checkbox input {
+  position: absolute;
+  opacity: 0;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+}
+
+.checkboxBox {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  flex: none;
+  border-radius: 4px;
+  border: 1.5px solid var(--border-strong);
+  background: var(--surface-raised);
+  color: transparent;
+  transition:
+    background var(--dur-fast),
+    border-color var(--dur-fast);
+}
+
+.checkbox input:checked + .checkboxBox {
+  background: var(--violet-600);
+  border-color: var(--violet-600);
+  color: var(--white);
+}
+
+.checkbox input:indeterminate + .checkboxBox {
+  background: var(--violet-200);
+  border-color: var(--violet-400);
+}
+
+.checkbox input:focus-visible + .checkboxBox {
+  box-shadow: var(--focus-ring);
+}
+
+.mixedNote {
+  font-size: 11px;
+  color: var(--ink-400);
+  font-style: italic;
+}

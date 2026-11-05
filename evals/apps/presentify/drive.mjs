@@ -446,12 +446,30 @@ const SCENARIOS = {
     await stored(async () => (await deck("new")).slides.length === 2, "a second slide");
     await press(page, await thumb(page, 1));
     const dup = await maybe(control(page, /duplicate slide|^duplicate$/i, { timeout: 1500 }));
-    if (dup) await press(page, dup); else await chord(page, "d");
+    // no control in view: the chord a slide's duplicate takes — ⇧⌘D, where ⌘D is the
+    // selection's (as Keynote and runs 2, 4 and React 2 have it) — then ⌘D
+    if (dup) await press(page, dup);
+    else {
+      await chord(page, "d", { shift: true });
+      if (!(await maybe(stored(async () => (await deck("new")).slides.length === 3, "a duplicate by ⇧⌘D", 2500)))) {
+        await press(page, await thumb(page, 1));
+        await chord(page, "d");
+      }
+    }
     const d3 = await stored(async () => { const d = await deck("new"); return d.slides.length === 3 && d; }, "a third slide, a duplicate");
     if (d3.slides[1].elements.length !== 1 || d3.slides[1].elements[0].kind !== "ellipse") throw new Error("the duplicate isn't a copy placed after slide 1");
     await press(page, await thumb(page, 3));
     const del = await maybe(control(page, /delete slide|remove slide/i, { timeout: 1500 }));
-    if (del) await press(page, del); else await page.keyboard.press("Delete");
+    // no control in view: the key a person presses — a Mac's delete key is ⌫
+    // (Backspace); forward delete (⌦) after it
+    if (del) await press(page, del);
+    else {
+      await page.keyboard.press("Backspace");
+      if (!(await maybe(stored(async () => (await deck("new")).slides.length === 2, "a delete by ⌫", 2500)))) {
+        await press(page, await thumb(page, 3));
+        await page.keyboard.press("Delete");
+      }
+    }
     await stored(async () => (await deck("new")).slides.length === 2, "two slides after a delete");
   },
   async slides_reorder_by_drag(page) {

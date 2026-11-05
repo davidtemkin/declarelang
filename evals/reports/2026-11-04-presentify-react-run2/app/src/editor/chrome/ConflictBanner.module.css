@@ -1,0 +1,71 @@
+.banner {
+  position: absolute;
+  top: 68px;
+  left: 50%;
+  translate: -50% 0;
+  display: flex;
+  gap: 16px;
+  width: min(620px, calc(100% - 32px));
+  padding: 14px;
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  border: 1px solid #f3d27a;
+  box-shadow: var(--shadow-lg), 0 0 0 4px rgb(255 194 61 / 0.18);
+  z-index: 6;
+}
+
+.preview {
+  position: relative;
+  flex: none;
+  width: 176px;
+  aspect-ratio: 16 / 9;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 0 0 1px var(--border-strong);
+  align-self: center;
+}
+
+.previewLabel {
+  position: absolute;
+  left: 6px;
+  bottom: 6px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgb(23 21 31 / 0.75);
+  color: var(--white);
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.body {
+  min-width: 0;
+  flex: 1;
+}
+
+.heading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 4px;
+  font-family: var(--font-brand);
+  font-weight: 700;
+  font-size: 15px;
+  color: var(--ink-900);
+}
+
+.heading svg {
+  color: #c98a00;
+  flex: none;
+}
+
+.text {
+  margin: 0 0 12px;
+  color: var(--ink-700);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
+}
