@@ -30,7 +30,7 @@ what dissolves most of the left-hand columns below.
 |---|---|
 | `useState` | a declared attribute, on the node it belongs to: `count: number = 0` |
 | `useMemo`, derived state | a `{ }` constraint: `total = { count * price }` — no dependency array, and no staleness to reason about |
-| controlled input (`value` + `onChange`) | `text <-> :title` on a leaf editor — the one arrow in the language that writes |
+| controlled input (`value` + `onChange`) | `text = { app.title }` with `onInput(v: string) { app.title = v }` — the field shows what your state says, and typing reaches it through the event; for a field of a dataset record, `text <-> :title` |
 | `useContext` / a provider | `provided("name")`; *providing* is just holding the value on an ancestor |
 | `items.map(…)` | `datapath = :items[]` on the node — one instance per record, reconciled for you |
 | `key={…}` | the record's `id`, by default and with nothing declared; `key = :field` when identity lives under another name |
@@ -222,7 +222,7 @@ several views read. → [Paint and themes](declare-docs:guide:paint-and-themes)
 | `{#each items as item (item.id)}` | `datapath = :items[]` on the node — one instance per record, keyed by `id`, or `key = :field` |
 | `{#if …}` | `visible = { … }` — the subtree stays constructed and keeps its state |
 | `{#await promise}` | a [`DataSource`](declare-docs:DataSource) and its own facts: `loaded`, [`loading`](declare-docs:DataSource.loading), `failed` |
-| `bind:value` | `<->`, on a leaf editor only: [`TextInput [ text <-> :title ]`](declare-docs:TextInput) |
+| `bind:value` | for a field of a dataset record, `<->`: [`TextInput [ text <-> :title ]`](declare-docs:TextInput) (text fields only); for your own state, `text = { app.title }` with `onInput(v: string) { app.title = v }` |
 | `on:click` | an `onClick()` handler on the view. Nothing bubbles and there is no dispatcher: a child tells its owner by calling a method on it |
 | `transition:fade`, `in:` / `out:` | a `Spring` on `opacity` — the view persists rather than being removed, so there is no outro to coordinate; `Animator` for a timed run, `State` for a bundle of overrides that snaps on and off together |
 | `class:` and `style:` directives | the attributes themselves — `fill`, `textColor`, `cornerRadius`, `opacity` |
@@ -265,7 +265,7 @@ winning. → [Constraints](declare-docs:guide:constraints)
 |---|---|
 | `ref()`, `reactive()`, `data()` | a declared attribute: `count: number = 0`. There is no `.value` to unwrap and no deep-vs-shallow question |
 | `computed` | a `{ }` constraint |
-| `v-model` | `<->`, on a leaf editor only: `TextInput [ text <-> :title ]` |
+| `v-model` | for a field of a dataset record, `<->`: `TextInput [ text <-> :title ]` (text fields only); for your own state, `text = { app.title }` with `onInput(v: string) { app.title = v }`; for other controls, a constraint plus an `input` override (`checked = { app.muted }`, `input(v: boolean) { app.muted = v }`) |
 | `provide` / `inject` | `provided("name")` and, to provide, simply setting the value on an ancestor |
 | `v-for` | `datapath = :items[]` |
 | `:key` | the record's `id`; `key = :field` to name a different one |
@@ -297,7 +297,7 @@ ask. → [Notation](declare-docs:guide:notation)
 | `StatelessWidget` | there is no distinction — every view's kind is a `class`, and holding state costs nothing |
 | a `build()` method | there is none: the tree is written once, in `[ ]`, and its values change |
 | `ValueListenableBuilder`, a derived value | a `{ }` constraint |
-| `TextEditingController` | `text <-> :path`, or the editor's own value with an `input` override |
+| `TextEditingController` | `text = { … }` with an `onInput` handler that writes your state, or `text <-> :path` for a field of a dataset record |
 | `InheritedWidget`, Provider | `provided("name")` |
 | `ListView.builder` | `datapath = :items[]`, plus `virtualize` when the collection is large |
 | `Visibility` / a conditional in `build` | `visible = { … }` |
