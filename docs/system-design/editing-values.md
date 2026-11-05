@@ -236,8 +236,8 @@ above: nothing to admit, judge or submit. They're unchanged by this proposal.
 
 ### 4.12 Moving existing programs over
 
-This lands as a release: with "Changes to make" in its release notes, `declare-changes` to list them, and a version
-line a program can carry. `migration.md` has the design. These are the changes the notes must carry, the quiet ones
+This lands as a release: with "Changes to make" in its release notes, and `declare-changes` to list what applies to
+a program (and, once it's migrated, to write its `declareVersion` line). `migration.md` has the design. These are the changes the notes must carry, the quiet ones
 included:
 
 | old | new | behaviour that changes silently |
@@ -396,4 +396,4 @@ class Rating extends ValueControl [ value: number = 0,
   - the §4.12 table;
   - judging on leaving.
 
-  The author decided against teaching errors, in favour of release notes, `declare-changes` and a version line.
+  The author decided against teaching errors, in favour of release notes, `declare-changes` and a tool-written `declareVersion` line.

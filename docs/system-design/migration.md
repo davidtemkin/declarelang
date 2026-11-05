@@ -19,26 +19,31 @@ Today it has only the compiler's errors on the old spellings, and the prose of e
 
 ## 2. The design: three pieces and a line in the skill
 
-### 2.1 A program says which release it was written for
+### 2.1 A program can say which release it was written for
 
 One optional line, at the top of a file:
 
 ```declare
-declare [ "0.6" ]
+declareVersion [ "0.6" ]
 ```
 
-- **Its shape** is the top-level form every file-level declaration already has (`include [ … ]`, `script [ … ]`,
-  `use [ … ]`, `ship [ … ]`). The keyword names the language, as Go's `go 1.21` and Swift's language version do,
-  so it can't be mistaken for the app's own version.
+- **No program needs it.** Without it, `declare-changes` works out what applies from the old spellings themselves
+  (§2.3). The line only makes the next migration exact.
+- **The tool writes it, not people or agents.** When a migration is finished and `declare-verify` is clean,
+  `declare-changes --done app.declare` writes the line at the top. It appears only in programs that have actually been
+  migrated.
+- **The corpus doesn't carry it,** and the guide's examples never show it. Those are the files agents learn from,
+  and a declaration at the top of every one would be noise. It's documented in `declare.md`'s list of top-level forms
+  and on `declare-changes`'s own page.
+- **Its shape** is the top-level form every file-level declaration has (`include [ … ]`, `script [ … ]`, `use [ … ]`,
+  `ship [ … ]`). The name says exactly what it is.
 - **What the compiler does with it:**
-  - a release **newer** than the compiler: an error, "written for Declare 0.7; this is 0.6".
-  - a release **older**: one line of output, "written for Declare 0.5.3; `npx declare-changes app.declare` lists what
-    changed since". It's a single note, not an error per old spelling.
+  - a release newer than the compiler: an error, "written for Declare 0.7; this is 0.6".
+  - an older one: one line of output, "written for Declare 0.5.3; `npx declare-changes app.declare` lists what
+    changed since".
   - the same release, or no line: nothing.
-- **Per file.** An included file may carry its own line. The main file's is the program's.
-- **New programs carry it.** The skill tells agents to write it. The formatter keeps it first.
-- **Versions are release versions** (`releases/v<version>.md`, `package.json`), compared as `major.minor.patch`. A
-  line may name `"0.6"` or `"0.6.0"`.
+- **Per file.** The main file's line is the program's. Versions are release versions (`releases/v<version>.md`),
+  compared as `major.minor.patch`.
 
 ### 2.2 Release notes say what to change, in a set form
 
@@ -81,18 +86,21 @@ There is one source. It's the same file people read, and the GitHub Release is i
 ### 2.3 `declare-changes` lists what to do
 
 ```
-npx declare-changes app.declare           # from the program's own `declare [ … ]` line
-npx declare-changes app.declare --since 0.5.3
-npx declare-changes --since 0.5.3         # every change since, with no program
+npx declare-changes app.declare                # what applies to this program
+npx declare-changes app.declare --since 0.5.3  # only changes after 0.5.3
+npx declare-changes --since 0.5.3              # every change since, with no program
+npx declare-changes --done app.declare         # after a clean migration: write its declareVersion line
 ```
 
-- **It reads "Changes to make"** from every release after the program's version, up to this one, in order.
+- **It reads "Changes to make"** from every release after the program's version, up to this one, in order. With no
+  `declareVersion` line and no `--since`, it reads every release's entries and lets each `Find:` decide whether it
+  applies.
 - **For a program,** it runs each entry's `Find:` over the program's files, its includes among them. It prints the
   entries that match, each with its file and line numbers, its before and after, its `Docs:` links resolved to files
   in the distribution, and its `Watch for:`. Then it lists every `Watch for:` from entries that didn't match, under
   "check these too", because a quiet change may not leave a findable spelling.
-- **It ends with a next step:** "make these changes, then `npx declare-verify app.declare`; when it's clean, set
-  `declare [ "0.6" ]`."
+- **It ends with a next step:** "make these changes, then `npx declare-verify app.declare`; when it's clean, run
+  `npx declare-changes --done app.declare`."
 - **`--json`** gives the same output for tools.
 - **It changes nothing.** The agent makes the changes, reading the docs it's pointed to.
 
@@ -100,8 +108,9 @@ npx declare-changes --since 0.5.3         # every change since, with no program
 
 One instruction, early in `skill/SKILL.md`:
 
-> If a program carries a `declare [ … ]` line older than this release, or the compiler says it was written for an
-> earlier one, run `npx declare-changes <file>` before changing anything else, and work through its list.
+> When you update a program to a new release of Declare (it fails to compile with names the reference doesn't have,
+> or it says it was written for an earlier release), run `npx declare-changes <file>` before changing anything else,
+> and work through its list.
 
 ## 3. Keeping it honest
 
@@ -129,7 +138,7 @@ One instruction, early in `skill/SKILL.md`:
 
 ## 5. Scope
 
-- **The parser and checker:** `declare [ "…" ]` at top level; the newer and older checks; one per file; the
+- **The parser and checker:** `declareVersion [ "…" ]` at top level; the newer and older checks; one per file; the
   formatter keeps it first.
 - **`tools/declare-changes.mjs`,** plus its `npx` entry.
 - **The release notes format:** `RELEASING.md` and the scaffold in `tools/release.mjs`.
@@ -137,5 +146,4 @@ One instruction, early in `skill/SKILL.md`:
   program.
 - **Documentation:** `declare.md` (the top-level forms), guide chapter 04 (structure), `docs/operational/` (a page
   for `declare-changes`), and the skill.
-- **The corpus:** add `declare [ "0.6" ]` to every app. Whether the corpus should carry the line, or only programs
-  outside the repo, is a question for the author.
+- **The corpus:** unchanged. It doesn't carry the line (§2.1).
