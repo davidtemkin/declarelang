@@ -292,6 +292,25 @@ await test("the page host writes none of a program's attributes on Escape (it se
   assert.equal(r.status, 0, r.out);
 });
 
+await test("R4: geometry that is not a number is a layout finding, said where it starts", () => {
+  // Murmur run 13: rows NaN×NaN and their titles invisible, with R4 clean
+  const f = join(DIR, "nan-box.declare");
+  writeFileSync(f, `App [ width = 300, height = 200, k: number = 0,
+    box: View [ width = { 100 / app.k * 0 }, height = 40, Text [ text = "hidden" ] ] ]`);
+  const r = run("verify.mjs", f);
+  assert.match(r.out, /app\.box \(View\) has width NaN \(line 2, col \d+\) — it is not a number/, r.out);
+  assert.equal((r.out.match(/is not a number, so it/g) ?? []).length, 1, "once, at the view where it starts");
+});
+
+await test("R4: a view that is only its padding is named by its address, not its class alone", () => {
+  const f = join(DIR, "badge.declare");
+  writeFileSync(f, `App [ width = 300, height = 200,
+    row: View [ layout: SimpleLayout [ axis = x ],
+        View [ padding = 6, TextLabel [ x = center, text = "3" ] ] ] ]`);
+  const r = run("verify.mjs", f);
+  assert.match(r.out, /View\.width \(app\.row\.0\) is only its padding/, r.out);
+});
+
 await test("warnings of one kind, collapsed, name where the others are", () => {
   // a count alone sent an agent back to verify once per site (Cadence run 23)
   const f = join(DIR, "unnamed.declare");

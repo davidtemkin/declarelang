@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "10b7ce284d01",
+  "buildId": "6dfe02d3b151",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -4430,7 +4430,7 @@
    },
    "E5CAF1A": {
     "message": "[Declare] onLoad on … threw: …",
-    "at": "boot-check.ts:392"
+    "at": "boot-check.ts:405"
    },
    "EE5117B": {
     "message": "[Declare] deferred boot work failed:",
@@ -4984,12 +4984,12 @@
     "message": "….… is …… — it is sized from its parent (…), which takes its … from its content…; a child sized from its parent does not count toward that content, so on this axis the parent has no size to give. Give … a …, or use its padding instead of arithmetic.",
     "at": "errors.ts:200"
    },
-   "E71AC1F": {
-    "message": "….… is 0 — it takes its … from its children, and every one of them (…) takes its … from it, so nothing decides it. To make them …, remove their own … and use align = stretch on …'s layout; or give … a ….",
+   "E379C53": {
+    "message": "….……)`} is 0 — it takes its … from its children, and every one of them (…) takes its … from it, so nothing decides it. To make them …, remove their own … and use align = stretch on …'s layout; or give … a ….",
     "at": "errors.ts:207"
    },
-   "E8D214C": {
-    "message": "….… is only its padding — it takes its … from its children, and … places itself in it (… = center or end), which counts it out, so it hangs outside …. Give … a …, or let its layout place … (a Spacer on each side centers it in a row).",
+   "E47B40D": {
+    "message": "….……)`} is only its padding — it takes its … from its children, and … places itself in it (… = center or end), which counts it out, so it hangs outside …. Give … a …, or let its layout place … (a Spacer on each side centers it in a row).",
     "at": "errors.ts:211"
    },
    "EDAB9DB": {

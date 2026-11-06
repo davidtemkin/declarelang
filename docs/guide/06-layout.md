@@ -214,7 +214,7 @@ The tempting mistake is to leave the list's width out, as if it could take the w
 widest row while each row takes the width of the list. Each size would wait on the other,
 and the program says so when it starts:
 
-> View.width is 0 — it takes its width from its children, and every one of them (NoteRow)
+> View.width (app.list) is 0 — it takes its width from its children, and every one of them (NoteRow)
 > takes its width from it, so nothing decides it. To make them as wide as the widest, remove
 > their own width and use align = stretch on View's layout; or give View a width.
 

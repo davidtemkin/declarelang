@@ -202,13 +202,13 @@ export function negativeSizeMessage(
 
 /** A view that takes its size from its children, every one of which takes its
  *  size from the view: each waits for the other, and nothing decides it. */
-export function emptyContainerMessage(parentClass: string, size: "width" | "height", childClass: string): string {
+export function emptyContainerMessage(parentClass: string, size: "width" | "height", childClass: string, path = ""): string {
   const most = size === "height" ? "as tall as the tallest" : "as wide as the widest";
-  return diag`${parentClass}.${size} is 0 — it takes its ${size} from its children, and every one of them (${childClass}) takes its ${size} from it, so nothing decides it. To make them ${most}, remove their own ${size} and use align = stretch on ${parentClass}'s layout; or give ${parentClass} a ${size}.`;
+  return diag`${parentClass}.${size}${path === "" ? "" : ` (${path})`} is 0 — it takes its ${size} from its children, and every one of them (${childClass}) takes its ${size} from it, so nothing decides it. To make them ${most}, remove their own ${size} and use align = stretch on ${parentClass}'s layout; or give ${parentClass} a ${size}.`;
 }
 
-export function placedFromParentMessage(parentClass: string, size: "width" | "height", childClass: string, pos: "x" | "y"): string {
-  return diag`${parentClass}.${size} is only its padding — it takes its ${size} from its children, and ${childClass} places itself in it (${pos} = center or end), which counts it out, so it hangs outside ${parentClass}. Give ${parentClass} a ${size}, or let its layout place ${childClass} (a Spacer on each side centers it in a row).`;
+export function placedFromParentMessage(parentClass: string, size: "width" | "height", childClass: string, pos: "x" | "y", path = ""): string {
+  return diag`${parentClass}.${size}${path === "" ? "" : ` (${path})`} is only its padding — it takes its ${size} from its children, and ${childClass} places itself in it (${pos} = center or end), which counts it out, so it hangs outside ${parentClass}. Give ${parentClass} a ${size}, or let its layout place ${childClass} (a Spacer on each side centers it in a row).`;
 }
 
 /** The checker's form: what the layout places is known from the source, so the

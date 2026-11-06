@@ -10,6 +10,7 @@ import { afterSettle } from "./reactive.js";
 import { cellIdsOf, isSet, ownerOf, percentOwned } from "./attributes.js";
 import { emptyContainerMessage, negativeSizeMessage, placedFromParentMessage } from "./errors.js";
 import { declareName } from "./declare-name.js";
+import { pathOf } from "./node-path.js";
 
 /** A CHILD SIZED FROM A PARENT THAT HAS NO SIZE TO GIVE is reported
  *  (docs/system-design/layout-ownership.md §4). A child whose size is derived
@@ -76,6 +77,9 @@ export function judgeNegativeSizes(): void {
  *  "as tall as the tallest", which is what the message offers. */
 export function judgeEmptyContainers(root: View): void {
   const said = new Set<string>();
+  // which one: a class name alone ("View") sent an agent grepping for the view it
+  // meant (Murmur run 13) — its address says, as every layout finding's does
+  const where = (v: View): string => pathOf(root, v);
   const walk = (v: View): void => {
     if (!v.visible) return;
     const kids = v.children.filter((c): c is View => c instanceof View && c.visible && !c.ignoreLayout);
@@ -98,8 +102,8 @@ export function judgeEmptyContainers(root: View): void {
       said.add(key);
       const placed = kids.find((c) => !percentOwned(c, axis));
       console.error("[Declare] " + (placed === undefined
-        ? emptyContainerMessage(declareName(v), axis, declareName(kids[0]))
-        : placedFromParentMessage(declareName(v), axis, declareName(placed), pos)));
+        ? emptyContainerMessage(declareName(v), axis, declareName(kids[0]), where(v))
+        : placedFromParentMessage(declareName(v), axis, declareName(placed), pos, where(v))));
     }
     for (const c of kids) walk(c);
   };

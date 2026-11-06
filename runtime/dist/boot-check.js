@@ -9,6 +9,7 @@
 import { View } from "./view.js";
 import { rootFrameBox, pressAt } from "./interaction.js";
 import { findPath as find, pathOf } from "./node-path.js";
+import { at } from "./errors.js";
 import { isSet, ownerOf, percentOwned, setBound } from "./attributes.js";
 import { semanticTree, formatSemantics } from "./semantics.js";
 import { DataSource } from "./data.js";
@@ -123,6 +124,18 @@ function layoutChecks(app, { touch = false, realText = false, skip = [] }, flagg
     const visit = (v, scrollsAcross) => {
         if (!v.visible)
             return;
+        // GEOMETRY THAT IS NOT A NUMBER: a box at NaN draws nothing, and nothing in it
+        // draws either, while every other check passes (Murmur run 13: rows NaN×NaN,
+        // their titles invisible, R4 clean). Said once, where it starts, with what the
+        // attribute is constrained to; the subtree under it is not looked at further.
+        const bad = ["width", "height", "x", "y"].find((k) => !Number.isFinite(v[k]));
+        if (bad !== undefined) {
+            if (fresh("nan", pathOf(app, v))) {
+                const where = ownerOf(v, bad)?.sourcePos ?? null;
+                out.push(`${pathOf(app, v)} (${declareName(v)}) has ${bad} ${v[bad]}${at(where)} — it is not a number, so it and everything in it draw nothing. Something it reads is undefined or not a number: a layout's parameter left unset, a field read before it arrives, a division by zero.`);
+            }
+            return;
+        }
         // A CHILD THE CONTENT SIZE SKIPS: its size is taken from the parent's, so
         // the parent's content size does not count it — and a parent sized by its
         // content is then smaller than the child it holds.

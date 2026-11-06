@@ -134,7 +134,7 @@ await test("a padded view whose only child centres itself in it is said to be it
   const pill = verify("pill", `class Pill extends Control [ height = 40, padding = [0, 14, 0, 14],
     TextLabel [ x = center, y = center, text = "2 weeks" ] ]
 App [ width = 300, height = 100, Pill [ x = 10, y = 10 ] ]`);
-  assert.match(pill, /Pill\.width is only its padding/, pill);
+  assert.match(pill, /Pill\.width \([^)]*\) is only its padding/, pill);
   const pin = verify("pin", `App [ width = 300, height = 100, View [ x = 100, y = 50, Text [ x = center, y = center, text = "pin" ] ] ]`);
   assert.match(pin, /R4 ✓/, pin);
 });

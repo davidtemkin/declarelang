@@ -199,7 +199,7 @@ await test("a size taken from the content in one branch only still names its col
     sheet: View [ width = 300, height = { app.phone ? this.contentHeight : 400 },
         body: View [ width = 100%, height = 100% ] ] ]`);
   const p = spawnSync("node", [join(ROOT, "tools/verify.mjs"), file], { cwd: ROOT, encoding: "utf8" });
-  assert.match((p.stdout ?? "") + (p.stderr ?? ""), /View\.height is 0 — it takes its height from its children/);
+  assert.match((p.stdout ?? "") + (p.stderr ?? ""), /View\.height \(app\.sheet\) is 0 — it takes its height from its children/);
 });
 
 await test("a Text that stops flexing is as wide as its words again, not the width it had when the run first took it", () => {
