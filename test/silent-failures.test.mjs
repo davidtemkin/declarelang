@@ -283,6 +283,15 @@ await test("a run that fails after talking to a service earlier runs wrote to is
   } finally { svc.kill(); }
 });
 
+await test("the page host writes none of a program's attributes on Escape (it set app.editing = false)", () => {
+  const f = join(DIR, "own-editing.declare");
+  writeFileSync(f, `App [ width = 200, height = 100, editing: string = "mine", Button [ label = "Go" ] ]`);
+  const esc = script("esc.mjs", `  await drive.key("Escape");
+  await expect.attr("app", "editing", "mine");`);
+  const r = run("verify.mjs", f, "--assert", esc, "--rung=5", "--no-boot");
+  assert.equal(r.status, 0, r.out);
+});
+
 await test("warnings of one kind, collapsed, name where the others are", () => {
   // a count alone sent an agent back to verify once per site (Cadence run 23)
   const f = join(DIR, "unnamed.declare");

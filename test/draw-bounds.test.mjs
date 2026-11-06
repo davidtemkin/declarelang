@@ -87,6 +87,16 @@ await test("with no measurer at all, text falls back to its anchor rather than t
   assert.equal(l.exact, false);
 });
 
+await test("a lineWidth that is not a positive finite number is ignored, as a canvas ignores it", () => {
+  // an icon at zero size sets weight / unit = Infinity (Cadence run 25's ChevronIcon note)
+  const d = new DrawContext();
+  d.lineWidth = 2; d.lineWidth = Infinity; d.lineWidth = 0; d.lineWidth = NaN;
+  d.strokeStyle = "#000"; d.strokeRect(10, 10, 20, 20);
+  const l = d.list();
+  assert.deepEqual(l.bounds, { x: 9, y: 9, w: 22, h: 22 }, "stroked at the width it kept, 2");
+  assert.equal(l.ops.filter((o) => o.op === "set" && o.k === "lineWidth").length, 1);
+});
+
 await test("a mark at a coordinate that is not finite leaves the bounds alone, and is said once", () => {
   // one NaN in the ink box made the DOM raster impossible and the whole drawing
   // went with it, silently (Cadence run 22's year strip). A canvas skips the call;

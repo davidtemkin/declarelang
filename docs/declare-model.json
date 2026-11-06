@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "2b9bd7e1a25d",
+  "buildId": "4ab21007b88e",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -4339,11 +4339,11 @@
    },
    "EB6699B": {
     "message": "[Declare] waypoint exceeds 64KB — a waypoint is coordinates in the session, not the session's data; derive the data from it instead (guide: URLs, links and history)",
-    "at": "host-client.js:240"
+    "at": "host-client.js:238"
    },
    "E8F1E80": {
     "message": "[Declare] Inspector:",
-    "at": "host-client.js:431"
+    "at": "host-client.js:429"
    },
    "E32C681": {
     "message": "[Declare] …: …",
@@ -4931,11 +4931,11 @@
    },
    "E51F2A6": {
     "message": "the draw context is write-only — … cannot be read back; inputs come in through attributes (rendering model)",
-    "at": "draw.ts:545"
+    "at": "draw.ts:547"
    },
    "E510B0E": {
     "message": "[Declare] …draw(): … was given a coordinate that is not a finite number (NaN or Infinity) — that mark is skipped, as a canvas skips it; the rest of the drawing stands",
-    "at": "draw.ts:565"
+    "at": "draw.ts:567"
    },
    "E90B644": {
     "message": "a gradient stop is a color or colorStop(offset, color)",

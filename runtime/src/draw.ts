@@ -255,7 +255,9 @@ export class DrawContext {
   }
   get strokeStyle(): string { return this.readOnly("strokeStyle"); }
 
-  set lineWidth(v: number) { this.strokeHalf = v / 2; this.push({ op: "set", k: "lineWidth", v }); }
+  // A canvas ignores a width that is not a positive finite number and keeps the one it
+  // had; so does the recorder (an icon at zero size divides its weight by a zero unit)
+  set lineWidth(v: number) { if (!(Number.isFinite(v) && v > 0)) return; this.strokeHalf = v / 2; this.push({ op: "set", k: "lineWidth", v }); }
   get lineWidth(): number { return this.readOnly("lineWidth"); }
 
   set lineCap(v: string) { this.push({ op: "set", k: "lineCap", v }); }

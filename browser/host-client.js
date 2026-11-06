@@ -205,11 +205,9 @@ export async function bootHost(cfg) {
   // every page's lifetime are gone; the runtime notifies instead).
   let stopped = false;
   const undo = [];
-  if (!embedded) {
-    const onKey = (e) => { if (e.key === "Escape") app.editing = false; };
-    addEventListener("keydown", onKey);
-    undo.push(() => removeEventListener("keydown", onKey));
-  }
+  // (The host writes none of a program's attributes on a key: an early convention set
+  // `app.editing = false` on every Escape, and a program's own `editing` — a record
+  // being corrected — went false under it, silently; Cadence run 25.)
 
   // (app.location, app.waypoint) ⟷ the browser's history — PAGE-scoped wiring,
   // installed for the top-level tenant only: an embedded app's location is its
