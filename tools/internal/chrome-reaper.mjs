@@ -12,6 +12,17 @@ const [state, pidText, idleText, slotDir] = process.argv.slice(2);
 const pid = Number(pidText), idle = Number(idleText);
 const alive = (p) => { try { process.kill(p, 0); return true; } catch { return false; } };
 
+// Stopped itself (a kill by PID, a closed terminal): its Chrome goes with it. A
+// reaper that just exited left a headless Chrome running for good — and on a Mac
+// one running from the person's own Chrome.app takes their Dock click, so their
+// Chrome would not open a window.
+for (const sig of ["SIGTERM", "SIGINT", "SIGHUP"]) process.on(sig, () => {
+  let mine = false;
+  try { mine = JSON.parse(readFileSync(state, "utf8")).pid === pid; } catch { /* gone */ }
+  if (mine) { try { process.kill(pid); } catch { /* gone */ } setTimeout(() => { removeSlot(); process.exit(0); }, 3000); }
+  else process.exit(0);
+});
+
 const timer = setInterval(() => {
   let mine = false;
   try { mine = JSON.parse(readFileSync(state, "utf8")).pid === pid; } catch { /* gone */ }
