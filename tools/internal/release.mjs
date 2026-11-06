@@ -34,7 +34,9 @@
 //                          version is untagged (HEAD must already be on
 //                          origin/main — never inside pre-push, which may not
 //                          write), push the tag, then create the release or
-//                          CORRECT its body to equal the file's projection. A
+//                          CORRECT its body to equal the file's projection —
+//                          and every earlier published release's too, so an
+//                          amended older file reaches its page. A
 //                          hand edit on GitHub is overwritten on the next run,
 //                          as an edit inside a stamp marker would be: the file
 //                          is the source, the page follows it.
@@ -304,17 +306,34 @@ function publish() {
     console.log(`release: tagged ${tag} at ${git("rev-parse", "--short", "HEAD")}`);
   }
   git("push", "origin", tag);
+  project(s.version, true);
+  // an earlier release's notes can be amended too (RELEASING.md, "To amend"): every
+  // published page follows its file, not only the newest
+  for (const n of s.notes) {
+    const v = /^releases\/v(\d+\.\d+\.\d+)\.md$/.exec(n)?.[1];
+    if (v !== undefined && v !== s.version && s.tags.includes(tagOf(v))) project(v, false);
+  }
+}
+
+/** Make release `version`'s page equal its file's projection; `create` when it may not exist yet. */
+function project(version, create) {
+  const tag = tagOf(version), file = notesPath(version);
   const text = readFileSync(join(ROOT, file), "utf8");
-  const title = titleFor(s.version, text);
+  const title = titleFor(version, text);
   const body = bodyFor(text);
-  const existing = tryRun(() => run("gh", ["release", "view", tag, "--json", "body", "-q", ".body"]));
+  const existing = tryRun(() => run("gh", ["release", "view", tag, "--json", "body,name", "-q", ".name + \"\\n\" + .body"]));
   if (existing === null) {
+    if (!create) return;
     run("gh", ["release", "create", tag, "--title", title, "--notes-file", "-"], { input: body });
     console.log(`release: created ${title}`);
-  } else if (existing.trim() !== body.trim()) {
+    return;
+  }
+  const nl = existing.indexOf("\n");
+  const [name, current] = [existing.slice(0, nl), existing.slice(nl + 1)];
+  if (name !== title || current.trim() !== body.trim()) {
     run("gh", ["release", "edit", tag, "--title", title, "--notes-file", "-"], { input: body });
-    console.log(`release: corrected ${tag}'s body to match ${file}`);
-  } else {
+    console.log(`release: corrected ${tag}'s page to match ${file}`);
+  } else if (create) {
     console.log(`release: ${tag} is published and current`);
   }
 }
