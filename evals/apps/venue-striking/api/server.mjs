@@ -8,7 +8,7 @@
 // repo's own real-transport tests (test/network-browser.test.mjs, the /__sse
 // and /__ws fixtures): a real socket, no internet, no randomness.
 //
-//   node evals/apps/venue/api/server.mjs [--port 8300]
+//   node evals/apps/venue-first/api/server.mjs [--port 8300]
 //
 // Everything it serves is a pure function of the seed below. Same request,
 // same bytes, run to run, machine to machine — including which seats are sold

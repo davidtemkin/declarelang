@@ -5,7 +5,7 @@ write or modify this server** — it is given, it is running, and it is the only
 backend that exists. Start it (or check it is up) with:
 
 ```
-node evals/apps/venue/api/server.mjs        # http://127.0.0.1:8310
+node evals/apps/venue-first/api/server.mjs        # http://127.0.0.1:8310
 ```
 
 Everything it returns is deterministic: the same request gives the same bytes on

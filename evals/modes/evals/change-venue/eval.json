@@ -1,8 +1,8 @@
 {
   "kind": "change",
   "seed": "venue",
-  "service": "venue-checkout",
-  "accept": "evals/apps/venue-checkout/drive.mjs",
+  "service": "venue",
+  "accept": "evals/apps/venue/drive.mjs",
   "persona": "Morgan, who runs the box office's web shop. Tries changes on a laptop first, then on their phone, because most buyers use phones. An account for trying it: a@a.co, password pass (its saved card's security code is 123).",
   "device": "a laptop",
   "intents": [

@@ -1,4 +1,7 @@
-# The Venue — an app-scale eval
+# The first Venue — an app-scale eval (retired)
+
+*Kept for its history; not run. The Venue eval is `evals/apps/venue/` (the box office with
+checkout, `venue-checkout` until 2026-11-05).*
 
 The previous eval generation asked whether a model could *learn* Declare from a
 packaged artifact. Runs 0–8 answered that: yes, decisively, at the scale of
@@ -46,13 +49,13 @@ authored after the fact grades on a curve.
 ## Running a session
 
 ```
-node evals/apps/venue/api/selftest.mjs        # the instrument, 36 checks
-node evals/apps/venue/api/server.mjs          # leave running, port 8310
+node evals/apps/venue-first/api/selftest.mjs        # the instrument, 36 checks
+node evals/apps/venue-first/api/server.mjs          # leave running, port 8310
 npm start                                      # the dev server, port 8200
 
 # … the agent works, writing my-apps/venue.declare …
 
-node tools/verify.mjs my-apps/venue.declare --assert evals/apps/venue/accept.mjs
+node tools/verify.mjs my-apps/venue.declare --assert evals/apps/venue-first/accept.mjs
 ```
 
 The fixture API is a real socket over real HTTP, which is a deliberate
@@ -137,7 +140,7 @@ Two checks, both of which should run before a round and after any language
 change:
 
 ```
-node evals/apps/venue/api/selftest.mjs           # the fixture keeps its promises
+node evals/apps/venue-first/api/selftest.mjs           # the fixture keeps its promises
 node tools/internal/checks/readable-surface.mjs  # everything readable still compiles
 ```
 

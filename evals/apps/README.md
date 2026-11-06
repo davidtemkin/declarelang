@@ -5,7 +5,10 @@ technology**, a deterministic fixture service the solving agent is given rather 
 writes, and — where one exists — a hidden acceptance plus a reference solution.
 
 ```
-venue/     seat booking. brief · api/ · accept.mjs (12 phases) · reference.declare
+venue/     box office: a drawn seat map, seats selling live, sign-in and checkout.
+           brief · api/ · fixtures/ · drive.mjs (the hidden acceptance)
+venue-first/  the first Venue (seat booking, no checkout), kept for its history and not
+           run. brief · api/ · accept.mjs (12 phases) · reference.declare
 cadence/   training log, design-led. brief · api/          (no acceptance yet)
 murmur/    conversation app, craft eval — design unspecified. brief · api/ · fixtures/ (shipped) · run-arm.mjs
 ```
@@ -51,8 +54,7 @@ the finished program into it, and run the acceptance there — from a tree the a
 never touched.
 
 ```
-node evals/apps/venue/api/selftest.mjs      # 36 checks — the fixture keeps its promises
-node tools/verify.mjs <app>.declare --assert evals/apps/venue/accept.mjs
+node evals/apps/venue/drive.mjs <app-url>    # the box office's acceptance, against its service
 ```
 
 The acceptance addresses a program by what is on screen and what happens when you click

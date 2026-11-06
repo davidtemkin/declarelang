@@ -2,7 +2,7 @@
 // instrument that rots silently is how a round of measurement gets thrown away
 // — so every promise API.md makes to the solving agent is asserted here.
 //
-//   node evals/apps/venue/api/selftest.mjs        (starts its own server)
+//   node evals/apps/venue-first/api/selftest.mjs        (starts its own server)
 //
 // Exits non-zero on the first broken promise.
 

@@ -76,7 +76,7 @@ For each turn: the message, wall time until the agent's reply, the agent's tool 
 and tokens (fresh input, cached input re-read, output), the user's verdict and picture.
 For the whole run: the totals; for **change** and **tweak**, the diff against the seed
 (files and lines touched, and how many lie outside what the request needed) and, for
-Venue, the brief's own acceptance (`evals/apps/venue-checkout/drive.mjs`) run again — the
+Venue, the brief's own acceptance (`evals/apps/venue/drive.mjs`) run again — the
 enhancement must not cost what already worked. A Declare run also gets the idiom read and
 names ledger of a craft report, over the program as it stands at the end.
 

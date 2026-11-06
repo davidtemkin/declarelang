@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// drive.mjs — the hidden acceptance for venue-checkout. It drives a built app the way a
+// drive.mjs — the hidden acceptance for venue (the box office; it was venue-checkout until 2026-11-05). It drives a built app the way a
 // screen reader finds things — by role and accessible name, from the browser's own
 // accessibility tree — and judges by what the service was asked (its request log) and
 // what the page then says. It knows nothing about how the app is built.
 //
-//   node evals/apps/venue-checkout/drive.mjs <app-url> [--service=http://127.0.0.1:8350]
+//   node evals/apps/venue/drive.mjs <app-url> [--service=http://127.0.0.1:8350]
 //        [--only=a,b] [--out=dir] [--headful]
 //
 // The service must be this app's (api/server.mjs, with the _reset/_take/_log endpoints).

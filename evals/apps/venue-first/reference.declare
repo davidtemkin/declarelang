@@ -2,10 +2,10 @@
 # The Venue — the reference solution
 
 Not the eval's answer key: the eval's *instrument check*. Its job is to prove
-`evals/apps/venue/accept.mjs` measures what it claims and that the brief is
+`evals/apps/venue-first/accept.mjs` measures what it claims and that the brief is
 buildable at all. The solving agent never sees it.
 
-Written from `evals/apps/venue/brief.md`, data → states → views.
+Written from `evals/apps/venue-first/brief.md`, data → states → views.
 */
 
 script {

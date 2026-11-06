@@ -7,7 +7,7 @@ Start the app's data service first, from the repo root:
 
 | app | service | port |
 |---|---|---|
-| venue | `node evals/apps/venue-checkout/api/server.mjs --port=8350 --seed=1` | 8350 (Declare), **8351** (React) |
+| venue | `node evals/apps/venue/api/server.mjs --port=8350 --seed=1` | 8350 (Declare), **8351** (React) |
 | cadence | `node evals/apps/cadence/api/server.mjs --port=8320` | 8320 |
 | murmur | `node evals/apps/murmur/api/server.mjs --port=8330 --seed=1 --scale=100` | 8330 |
 
