@@ -2,3 +2,17 @@
 
 class Notes [ TextInput [ accessibilityLabel = "Notes", multiline = true, commitOn = "blur", initial = { "" } ]
     ]
+
+
+class Field extends TextInput [ width = 100%,
+    value: string = "",
+    editing: boolean = false
+    ]
+
+
+class Tick extends Checkbox [ size = 16 ]
+
+class Settings [ on: boolean = false,
+    Field [ accessibilityLabel = "Name", text = { classroot.value } ],
+    Tick [ label = "On", checked = { classroot.on } ]
+    ]

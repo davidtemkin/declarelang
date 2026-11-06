@@ -133,7 +133,9 @@ Watch for: a change in behaviour that produces no error.
 
 - **The heading** is the change, as "old → new"; then one sentence of why.
 - **`Find:`** is a literal, or a regular expression in `/…/`, that marks where a program needs
-  the change. It may span lines. Leave it out when no spelling is honest; the entry is then
+  the change. It may span lines. In a regular expression, `{TextInput}` is that class or any
+  class extending it, the library's and the program's own: a program's subclass of a changed
+  class needs the change where the class does. Leave it out when no spelling is honest; the entry is then
   listed for every program under "check these too".
 - **The two fragments** are the before and the after; both must parse (the docs test).
 - **`Docs:`** links the reference and guide pages for the new form.

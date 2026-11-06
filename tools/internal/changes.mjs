@@ -7,7 +7,8 @@
 //   ### `onInput` → `commit`            the change, as "old → new"
 //   One sentence of why.
 //
-//   Find: `onInput(`                     a literal, or /a regular expression/ — optional
+//   Find: `onInput(`                     a literal, or /a regular expression/ — optional;
+//                                        in one, {Class} is the class or any subclass
 //
 //   ```declare-fragment                  before
 //   ```declare-fragment                  after
@@ -46,14 +47,18 @@ function readEntry(heading, text) {
 
 /** A `Find:` as a matcher over a file's text: `/re/flags` is a regular expression
  *  (always global and multi-line; it may span lines), anything else a literal.
- *  Returns the 1-based lines where it matches. */
-export function findLines(find, text) {
+ *  In a regular expression, `{Class}` is that class or any class that extends it —
+ *  the library's and the program's own — as `family(Class)` names them, so a change
+ *  to a class reaches the program's subclasses of it. Returns the 1-based lines
+ *  where it matches. */
+export function findLines(find, text, family = (c) => [c]) {
   const lineAt = (offset) => text.slice(0, offset).split("\n").length;
   const out = new Set();
   const re = /^\/(.+)\/([a-z]*)$/s.exec(find);
   if (re !== null) {
     const flags = [...new Set((re[2] + "gm").split(""))].join("");
-    for (const m of text.matchAll(new RegExp(re[1], flags))) out.add(lineAt(m.index));
+    const source = re[1].replace(/(?<!\\)\{([A-Z]\w*)\}/g, (_, c) => `(?:${family(c).join("|")})`);
+    for (const m of text.matchAll(new RegExp(source, flags))) out.add(lineAt(m.index));
   } else {
     for (let at = text.indexOf(find); at !== -1; at = text.indexOf(find, at + 1)) out.add(lineAt(at));
   }

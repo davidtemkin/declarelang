@@ -57,16 +57,19 @@ await test("the corpus moved with the language: no release's Find matches the ap
   assert.deepEqual(hits, [], "the corpus still spells an old form");
 });
 
-await test("declare-changes on an old program: what applies, in its own files and its includes, and nothing from the library", () => {
+await test("declare-changes on an old program: what applies, in its own files and its includes, its own subclasses too, and nothing from the library", () => {
   const main = join(ROOT, "test/fixtures/migration/old-app.declare");
   const out = execFileSync("node", ["tools/declare-changes.mjs", main, "--since", "0.5.3", "--json"], { cwd: ROOT, encoding: "utf8" });
   const r = JSON.parse(out);
   const applies = Object.fromEntries(r.entries.filter((e) => e.hits.length > 0).map((e) => [e.heading, e.hits.map((h) => `${h.file.split("/").pop()}:${h.line}`)]));
   assert.deepEqual(applies["`onInput` → `commit`"], ["old-app.declare:14"]);
   assert.deepEqual(applies["`input(v)` → `commit(v)` on a control with a value"], ["old-app.declare:10"]);
-  assert.deepEqual(applies["A field's `text` → `value`"], ["old-app.declare:13"]);
   assert.deepEqual(applies["`initial` → `value` with a `commit` that keeps the text"], ["old-parts.declare:3"]);
   assert.deepEqual(applies["`commitOn` → `\"each\"` or `\"end\"`"], ["old-parts.declare:3"]);
+  // the program's own subclasses are found where the classes they extend are
+  assert.deepEqual(applies["A field's `text` → `value`"], ["old-app.declare:13", "old-parts.declare:16"]);
+  assert.deepEqual(applies["A control's value from your state → `<->`, or a `commit` beside it"], ["old-app.declare:10", "old-parts.declare:17"]);
+  assert.deepEqual(applies["Names a value control now has, declared by your own class"], ["old-parts.declare:7"]);
   assert.equal(r.entries.some((e) => e.hits.some((h) => h.file.includes("/library/"))), false);
 });
 

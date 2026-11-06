@@ -74,15 +74,30 @@ function resolveDoc(href) {
   return href;
 }
 
+/** `{Class}` in a Find: the class and every class extending it, the library's (from
+ *  the reference) and those declared in `files` — so the program's own subclass of
+ *  a changed class is found where the class is. */
+export function families(files, root = ROOT) {
+  const parent = new Map();
+  const model = join(root, "docs", "declare-model.json");
+  if (existsSync(model)) {
+    for (const [id, e] of Object.entries(JSON.parse(readFileSync(model, "utf8")).reference ?? {})) if (!id.includes(".") && typeof e.extends === "string") parent.set(id, e.extends);
+  }
+  for (const f of files) for (const m of f.text.matchAll(/\bclass\s+([A-Za-z_]\w*)\s+extends\s+([A-Za-z_]\w*)/g)) parent.set(m[1], m[2]);
+  const extendsFrom = (c, base) => { for (let k = 0; c !== undefined && k < 64; c = parent.get(c), k++) if (c === base) return true; return false; };
+  return (base) => [base, ...[...parent.keys()].filter((c) => c !== base && extendsFrom(c, base))];
+}
+
 /** What applies: every entry from releases after `since` (all, when null), with
  *  where its `Find:` matches in `files` ({ path, text }). */
 export function plan({ since, files, all = releases() }) {
+  const family = families(files);
   const out = [];
   for (const rel of all) {
     if (since !== null && cmp(rel.version, since) <= 0) continue;
     if (cmp(rel.version, VERSION) > 0) continue;
     for (const e of rel.entries) {
-      const hits = e.find === null ? [] : files.flatMap((f) => findLines(e.find, f.text).map((line) => ({ file: f.path, line })));
+      const hits = e.find === null ? [] : files.flatMap((f) => findLines(e.find, f.text, family).map((line) => ({ file: f.path, line })));
       out.push({ release: rel.version, ...e, hits });
     }
   }

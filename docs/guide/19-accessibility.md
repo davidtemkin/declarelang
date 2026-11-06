@@ -53,7 +53,7 @@ on screen is the name, so give one.
 
 ```declare-fragment
 Button [ accessibilityLabel = "Close", CloseIcon [ ] ],
-Switch [ accessibilityLabel = "Wi-Fi", checked = { app.wifi } ]
+Switch [ accessibilityLabel = "Wi-Fi", checked <-> app.wifi ]
 ```
 
 The compiler warns, with a fix, when a control has no name to give. A field inside a

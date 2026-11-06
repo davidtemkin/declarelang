@@ -1,6 +1,6 @@
 # Moving a program to a new release
 
-*Proposal, 2026-11-05. **Not built.** It's first needed by the editing-values change (`editing-values.md` §4.12), the
+*Proposal, 2026-11-05; built in 0.6.0, except the release check's "Changes to make" requirement (§3). It's first needed by the editing-values change (`editing-values.md` §4.12), the
 first release that changes how programs already in use must be written. It builds on the release process that
 already exists (`open-items.md`, "The release process, regularized"; `RELEASING.md`; `tools/release.mjs`).*
 
@@ -75,7 +75,10 @@ field stops keeping its text.
 - **The heading is the change,** as "old → new".
 - **One sentence of why.**
 - **`Find:`** gives the literal text, or a regular expression in `/…/`, that marks a line needing this change. It
-  needn't be exact; it points the agent at candidates.
+  needn't be exact; it points the agent at candidates. In a regular expression, `{TextInput}` stands for that class
+  and every class extending it — the library's, and the program's own, read from its files — because a program's
+  subclass of a changed class needs the change wherever the class does. (The first program tried, written against
+  0.5.3, had most of its fields as its own subclasses of `TextInput`; a list of library names found none of them.)
 - **Two fragments,** before and after. The docs test already compiles fragments in `releases/`, so the "after" is
   checked against the release.
 - **`Docs:`** links to the reference and guide pages for the new form.
