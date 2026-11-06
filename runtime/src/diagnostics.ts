@@ -359,12 +359,15 @@ export const Diag = {
     err(code4(4013), `press() on ${owner} replaces Button's activation path — every other control routes the pointer through press(), and Button inverts that: its own press() delivers to onClick, which is the use site's action slot. An override here answers Space and Enter, and a click still runs the untouched onClick — so the action never fires from the pointer. Put the action in onClick()`, pos),
   // A WARNING: a method named like a handler that answers no event of its
   // class. The prefix is a convention, so the method works; a misspelt
-  // handler (onPointerdown) never fires, which is what this catches.
+  // handler (onPointerdown) never fires, which is what this catches. A name
+  // the hint table knows is answered from it before any near spelling: the
+  // table knows what the author meant, and a letter-string two edits away
+  // (onInput → onInit) names an unrelated event.
   unknownHandler: (owner: string, name: string, known: readonly string[], pos: Pos, near = known.find((h) => h.toLowerCase() === name.toLowerCase() || editDistance(h, name) <= 2) ?? null): DeclareError =>
-    err(code4(4019), near !== null
-      ? `${owner} has no '${name}' event — '${near}' is the handler, so '${name}' never fires; as written it is an ordinary method`
-      : memberHint(name) !== ""
-        ? `${owner} has no '${name}' event, so '${name}' never runs as one — ${memberHint(name)}`
+    err(code4(4019), memberHint(name) !== ""
+      ? `${owner} has no '${name}' event, so '${name}' never runs as one — ${memberHint(name)}`
+      : near !== null
+        ? `${owner} has no '${name}' event — '${near}' is the handler, so '${name}' never fires; as written it is an ordinary method`
         : `${owner} has no '${name}' event, so '${name}' is an ordinary method; a method that answers no event reads best without the 'on' prefix`, pos),
   // Accessibility (docs/system-design/accessibility.md §3.7). A role is a
   // contract: the class that declares it must set what the role reads and have

@@ -37,7 +37,7 @@ export const CSS_ATTRIBUTE_HINTS = {
     // (`onChange` left this table 2026-09-15: it IS a Declare event now — the
     // values a node names in `trackChanges`. The DOM instinct that arrives at it
     // meaning an input's edits is answered by the event's own prose, which names
-    // `onInput`, rather than by a table that would deny the name exists.)
+    // `commit`, rather than by a table that would deny the name exists.)
     // CSS names for capabilities Declare HAS, reached through the wrong door:
     // These earn their place by the table's own rule — one true equivalent each
     // — and they matter because "no such attribute" ends the search at exactly
@@ -88,6 +88,7 @@ export const MEMBER_HINTS = {
     removeChild: "a view leaves with discard(); a replicated one leaves when its record does",
     root: "the top of the tree is 'app', which every body can read; a class's own top is 'classroot'",
     // form instincts (React Hook Form, Formik, HTML)
+    onInput: "the person's change to a field, or to any control with a value, reaches 'commit(v)'; when it goes straight back to where the value came from, 'value <-> place' says it once ('checked <-> place' on a Checkbox or Switch)",
     onSubmit: "a Form's submit hook is send(): submit() runs it when nothing is wrong, and by default it sends the form's source",
     handleSubmit: "a Form submits with submit(): it judges every field, shows what is wrong, and calls send() when nothing is",
     setError: "a field takes an outside message with refuse(message); a Form lays a service's problems on its fields with refuse(problems)",

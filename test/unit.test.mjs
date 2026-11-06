@@ -1532,6 +1532,15 @@ await test("compile: an on… method that answers no event warns, naming the han
   assert.ok(w.some((m) => /'onDay' is an ordinary method/.test(m)), w.join("\n"));
 });
 
+await test("compile: an on… name the hint table knows is answered from it, before any handler a slip away", async () => {
+  // onInput is two edits from onInit; what its author meant is a value control's commit
+  const r = await compile(`App [ width = 100, height = 100, s: string = "", TextInput [ accessibilityLabel = "Name", onInput(v: string) { app.s = v } ] ]`, {});
+  const w = r.warnings.map((e) => e.message).filter((m) => /'onInput'/.test(m));
+  assert.equal(w.length, 1, w.join("\n"));
+  assert.match(w[0], /commit\(v\)/);
+  assert.doesNotMatch(w[0], /onInit/);
+});
+
 await test("check(): plain methods take any free name; attribute names are taken", () => {
   assert.deepEqual(check(parse("View [ nudge(dx: number) { this.x = this.x + dx } ]")), []);
   assert.deepEqual(check(parse("View [ once() { } ]")), [], "'once' is not handler-shaped");

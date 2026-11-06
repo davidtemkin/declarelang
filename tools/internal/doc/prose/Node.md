@@ -56,8 +56,9 @@ cause a change; a handler may not assign a value it was told about, and a ring o
 ends on its own, because a value is delivered at most once per settle chain.
 
 Not to be confused with an input's edits, which is the instinct the name carries in from
-HTML and React: a field reports what the reader typed through `onInput`, and a control
-reports its own value through `input()`. This event is about a value the *program* holds.
+HTML and React: a field, like every control with a value, hands the person's change to
+`commit(v)`, or straight back to its place with `value <-> …`. This event is about a value
+the *program* holds.
 
 **Use it only for a genuine state change** — something happened and the program must act
 once: record that the terms were read when the reader reaches their end, open a pane when the data
