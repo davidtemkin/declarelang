@@ -1541,6 +1541,13 @@ await test("compile: an on… name the hint table knows is answered from it, bef
   assert.doesNotMatch(w[0], /onInit/);
 });
 
+await test("compile: a library control's own onKeyDown (Table's) is no warning of the program's; the program's own still is", async () => {
+  const lib = await compile(`App [ width = 300, height = 200, Table [ accessibilityLabel = "Rows" ] ]`, {});
+  assert.equal(lib.warnings.some((e) => e.code === "DECLARE4031"), false, lib.warnings.map((e) => e.message).join("\n"));
+  const own = await compile(`App [ width = 300, height = 200, Button [ label = "Go", onKeyDown(e: KeyEvent) { } ] ]`, {});
+  assert.ok(own.warnings.some((e) => e.code === "DECLARE4031"), own.warnings.map((e) => e.message).join("\n"));
+});
+
 await test("check(): plain methods take any free name; attribute names are taken", () => {
   assert.deepEqual(check(parse("View [ nudge(dx: number) { this.x = this.x + dx } ]")), []);
   assert.deepEqual(check(parse("View [ once() { } ]")), [], "'once' is not handler-shaped");

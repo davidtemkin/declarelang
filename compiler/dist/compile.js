@@ -1301,6 +1301,10 @@ async function compileUnquieted(source, opts, seen) {
         // a library hook named on… (TextInput's onEnter) is declared on purpose, for programs to override
         else if (w.code === "DECLARE4019" && w.pos != null && libraryAt(w.pos.offset))
             r.warnings.splice(i, 1);
+        // a library control that takes the keys itself (Table, a listbox: its own arrow travel,
+        // Space and Enter) replaces Control's on purpose, and its code is not the author's to change
+        else if (w.code === "DECLARE4031" && w.pos != null && libraryAt(w.pos.offset))
+            r.warnings.splice(i, 1);
     }
     const a11y = accessibilityDiagnostics(program, r.schemas, { inLibrary: libraryAt, warnings: accessible });
     r.errors.push(...a11y.errors);
