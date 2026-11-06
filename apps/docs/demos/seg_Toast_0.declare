@@ -1,6 +1,6 @@
 App [ width = 520, height = 260,
     toast: Toast [ ],
     Button [ x = 20, y = 20, label = "Save",
-        onClick() { app.toast.say("Saved", null) }
+        onClick() { app.toast.say("Saved") }
         ]
     ]

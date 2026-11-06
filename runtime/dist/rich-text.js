@@ -24,7 +24,7 @@ import { coerce, isAlign, isAuthoredUnion } from "./value.js";
 import { fontMetrics, fontString } from "./measure.js";
 import { featureFamily, featureTags } from "./font-features.js";
 import { faceGeneration, familiesGeneration, collectFamilies } from "./face-table.js";
-import { heldFamily } from "./font-value.js";
+import { familyCss, heldFamily, isFontValue } from "./font-value.js";
 import { headingSlug } from "./slug.js";
 import { resolveAsset } from "./asset-base.js";
 import { percentAxis } from "./bind.js";
@@ -57,6 +57,11 @@ export let C = { headingColor: 0, bodyColor: 0, code: 0, codeFg: 0, codeBg: 0, r
 let SCALE = 1; // font-size multiplier (the `fontScale` attr), set per rebuild
 let STYLES = {}; // named styles (HTMLText local `textStyles`), set per rebuild
 const bundleCache = new WeakMap();
+/** A palette record as a key: a Font in it stands for its family, since a font is
+ *  a live object (circular — it holds its faces) and no part of a style's identity. */
+export function textStylesKey(styles) {
+    return JSON.stringify(styles ?? {}, (_k, v) => (isFontValue(v) ? familyCss(v) : v));
+}
 /** Set one RunStyle field from a runtime value (shared by static + dynamic). */
 function assignRunField(rs, name, val) {
     switch (name) {
@@ -68,10 +73,13 @@ function assignRunField(rs, name, val) {
             if (typeof val === "number")
                 rs.letterSpacing = val;
             break;
-        case "fontFamily":
-            if (typeof val === "string")
-                rs.fontFamily = val;
+        // a family as a view takes one: a name, a Font, or a list of either (familyCss)
+        case "fontFamily": {
+            const f = familyCss(val);
+            if (f !== "")
+                rs.fontFamily = f;
             break;
+        }
         case "fontWeight":
             if (typeof val === "string" || typeof val === "number")
                 rs.fontWeight = val;
@@ -504,8 +512,13 @@ function applyStyle(style, rs) {
     const s = { ...style };
     if (rs.fontSize !== undefined)
         s.size = sz(rs.fontSize);
-    if (rs.fontFamily !== undefined)
-        s.family = rs.fontFamily;
+    // a style record's family may be a Font or a list, as a view's is (`textStyles`
+    // reaches here unread): its CSS family, which also asks the font to load
+    if (rs.fontFamily !== undefined) {
+        const f = familyCss(rs.fontFamily);
+        if (f !== "")
+            s.family = f;
+    }
     if (rs.fontWeight !== undefined)
         s.weight = rs.fontWeight;
     if (rs.italic !== undefined)

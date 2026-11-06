@@ -10,7 +10,7 @@ action record (`{ id, label }`) adds one button; its id arrives at `picked`.
 ```declare
 App [ width = 520, height = 260,
     toast: Toast [ ],
-    Button [ x = 20, y = 20, label = "Save", onClick() { app.toast.say("Saved", null) } ]
+    Button [ x = 20, y = 20, label = "Save", onClick() { app.toast.say("Saved") } ]
     ]
 ```
 
@@ -42,8 +42,8 @@ person reaching for "Undo" is never cut off.
 **Internal.** A toast let go after its time ran out goes a moment later.
 
 ## say()
-Shows a message, and the action record or `null` for none — both are passed:
-`toast.say("Saved", null)`, `toast.say("Message deleted", ({ id: "undo", label: "Undo" }))`.
+Shows a message, with an action record when it offers one: `toast.say("Saved")`,
+`toast.say("Message deleted", ({ id: "undo", label: "Undo" }))`.
 A toast already showing takes the new message and starts its time again.
 
 ## picked()
@@ -104,9 +104,9 @@ class Toast extends Floating [
     stroke = { provided("theme").tooltipStrokeColor != null ? stroke(1, provided("theme").tooltipStrokeColor) : null },
     shadow = { provided("theme").toastShadow },
 
-    say(m: string, a: object) {
+    say(m: string, a?: object) {
         message = m
-        action = a
+        action = a ?? null
         _round = _round + 1
         const mine = _round
         this.show()

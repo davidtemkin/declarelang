@@ -191,6 +191,20 @@ await test("a Text in a Font measures in that font, and re-measures when its fac
   assert.equal(app.t.width, 64, "re-measured in the face that landed");
 });
 
+await test("a Font in a rich text's textStyles is its family there, as on a view (it crashed the render key)", async () => {
+  // Cadence run 23: `textStyles = { { Fig: { fontFamily: app.display } } }` passed every
+  // check and then failed at boot — the record was JSON-keyed (a Font is circular) and
+  // its family copied raw. Now it is read as a view's fontFamily is: the font is reached.
+  const before = loads.length;
+  const app = await boot(`fig: Font [ FontFace [ src = "fig.woff2" ] ],
+    h: HTMLText [ width = 400, html = "<span class='Fig'>12</span> sessions",
+      textStyles = { { Fig: { fontFamily: app.fig, fontSize: 40 } } } ]`);
+  await turn();
+  settle();
+  assert.equal(loads.slice(before).filter((l) => l.src.includes("fig.woff2")).length, 1, "the span's font is reached, so fetched");
+  assert.ok(app.h.height > 0);
+});
+
 await test("a font loads only when text reaches it: a present family before it keeps it unfetched", async () => {
   // `[-apple-system, BlinkMacSystemFont, app.inter, …]`: on a machine with the
   // system face Inter is never downloaded; elsewhere it is. Presence is measured —

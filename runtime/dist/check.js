@@ -173,6 +173,30 @@ export function check(input) {
                         : `If ${owner} is yours and the views belong INSIDE its ${child.name}, write 'defaultPlacement = ${child.name}' in ${owner}'s body; to vary it, make what varies an attribute of ${owner} that the child reads, or a method the subclass overrides`), child.pos));
             }
         }
+        // …nor take the name of a method its base declares: the child would be
+        // the member of that name, and the instance cannot hold both (instantiate.ts
+        // refuses it only when the class is first built — a sheet's form, opened
+        // after boot, passes every check before it). A use site gets the same rule
+        // in checkElement.
+        const methodOwner = (name, method, seen = new Set()) => {
+            const decl = byName.get(name);
+            if (decl === undefined || seen.has(name))
+                return null;
+            seen.add(name);
+            if (decl.body.methods.some((m) => m.name === method))
+                return name;
+            return methodOwner(decl.base, method, seen);
+        };
+        for (const c of program.classes) {
+            for (const child of c.body.children) {
+                if (child.name === null || child.name === "layout")
+                    continue;
+                const owner = methodOwner(c.base, child.name);
+                if (owner === null)
+                    continue;
+                errors.push(new DeclareError(`'${child.name}' is a method of ${owner}, which ${c.name} extends — a child cannot take its name; choose another (or, to change what ${child.name}() does, override the method)`, child.pos));
+            }
+        }
         const sets = new Map();
         const setsOf = (name, seen = new Set()) => {
             const hit = sets.get(name);

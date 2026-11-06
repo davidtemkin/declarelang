@@ -55,6 +55,9 @@ export interface RunStyle {
     underline?: boolean;
     strike?: boolean;
 }
+/** A palette record as a key: a Font in it stands for its family, since a font is
+ *  a live object (circular — it holds its faces) and no part of a style's identity. */
+export declare function textStylesKey(styles: unknown): string;
 export declare let BODY: {
     size: number;
     weight: FontWeight;

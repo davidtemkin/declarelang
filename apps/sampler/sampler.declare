@@ -424,7 +424,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         Text [ width = 100%, wrap = true, textColor = { provided("theme").textMuted },
             text = "A sheet whose edge is the bottom floats as a card on a wide screen and rises from the bottom on a phone." ],
         Button [ label = "Copy link",
-            onClick() { app.share.close(); app.toast.say("Link copied", null) }
+            onClick() { app.share.close(); app.toast.say("Link copied") }
             ]
         ],
 
@@ -1049,7 +1049,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                 Specimen [ label = "Toast",
                     View [ layout: SimpleLayout [ axis = x, spacing = 12 ],
                         Button [ label = "Copy",
-                            onClick() { app.toast.say("Copied", null) }
+                            onClick() { app.toast.say("Copied") }
                             ],
                         Button [ label = "Delete",
                             onClick() { app.toast.say("Item deleted", ({ id: "undo", label: "Undo" })) }

@@ -178,6 +178,28 @@ export function check(input: Element | Program): DeclareError[] {
           child.pos));
       }
     }
+    // …nor take the name of a method its base declares: the child would be
+    // the member of that name, and the instance cannot hold both (instantiate.ts
+    // refuses it only when the class is first built — a sheet's form, opened
+    // after boot, passes every check before it). A use site gets the same rule
+    // in checkElement.
+    const methodOwner = (name: string, method: string, seen = new Set<string>()): string | null => {
+      const decl = byName.get(name);
+      if (decl === undefined || seen.has(name)) return null;
+      seen.add(name);
+      if (decl.body.methods.some((m) => m.name === method)) return name;
+      return methodOwner(decl.base, method, seen);
+    };
+    for (const c of program.classes) {
+      for (const child of c.body.children) {
+        if (child.name === null || child.name === "layout") continue;
+        const owner = methodOwner(c.base, child.name);
+        if (owner === null) continue;
+        errors.push(new DeclareError(
+          `'${child.name}' is a method of ${owner}, which ${c.name} extends — a child cannot take its name; choose another (or, to change what ${child.name}() does, override the method)`,
+          child.pos));
+      }
+    }
     const sets = new Map<string, Set<string>>();
     const setsOf = (name: string, seen = new Set<string>()): Set<string> => {
       const hit = sets.get(name);

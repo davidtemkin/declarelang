@@ -3,7 +3,7 @@
 // and rendered by the RichText engine (rich-text.ts). Its own module so a
 // program that names only Markdown carries no HTML reader.
 import { defineAttributes } from "./attributes.js";
-import { RichText } from "./rich-text.js";
+import { RichText, textStylesKey } from "./rich-text.js";
 import { parseHtml } from "./html.js";
 /** Rich content authored in a WHITELISTED HTML subset (`html`), validated at
  *  render time. `unsupported` decides what a tag outside the set does — `strip`
@@ -11,7 +11,7 @@ import { parseHtml } from "./html.js";
  *  behaviour, never silent corruption. Same flow engine as Markdown. */
 export class HTMLText extends RichText {
     // folded into the key (as a signature) so a re-themed style re-renders.
-    $sourceKey() { return this.html + " " + this.unsupported + " " + JSON.stringify(this.textStyles ?? {}); }
+    $sourceKey() { return this.html + " " + this.unsupported + " " + textStylesKey(this.textStyles); }
     $parseSource(opts) { return parseHtml(this.html, this.unsupported, opts); }
     $policy() { return this.unsupported; }
 }

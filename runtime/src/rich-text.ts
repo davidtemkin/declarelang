@@ -25,7 +25,7 @@ import { coerce, isAlign, isAuthoredUnion, type AttrType } from "./value.js";
 import { fontMetrics, fontString, type FontWeight, type TextTransform } from "./measure.js";
 import { featureFamily, featureTags, type Numerals, type NumeralWidth } from "./font-features.js";
 import { faceGeneration, familiesGeneration, collectFamilies } from "./face-table.js";
-import { heldFamily, type FamilyValue } from "./font-value.js";
+import { familyCss, heldFamily, isFontValue, type FamilyValue } from "./font-value.js";
 import type { Block, Inline, ReadOptions } from "./md.js";
 import { headingSlug } from "./slug.js";
 import type { Unsupported } from "./html.js";
@@ -104,12 +104,19 @@ let STYLES: Record<string, RunStyle> = {};       // named styles (HTMLText local
 type BundleEl = { attrs: readonly { name: string; value: Literal }[] };
 const bundleCache = new WeakMap<object, RunStyle>();
 
+/** A palette record as a key: a Font in it stands for its family, since a font is
+ *  a live object (circular — it holds its faces) and no part of a style's identity. */
+export function textStylesKey(styles: unknown): string {
+  return JSON.stringify(styles ?? {}, (_k, v) => (isFontValue(v) ? familyCss(v) : v));
+}
+
 /** Set one RunStyle field from a runtime value (shared by static + dynamic). */
 function assignRunField(rs: RunStyle, name: string, val: unknown): void {
   switch (name) {
     case "fontSize": if (typeof val === "number") rs.fontSize = val; break;
     case "letterSpacing": if (typeof val === "number") rs.letterSpacing = val; break;
-    case "fontFamily": if (typeof val === "string") rs.fontFamily = val; break;
+    // a family as a view takes one: a name, a Font, or a list of either (familyCss)
+    case "fontFamily": { const f = familyCss(val); if (f !== "") rs.fontFamily = f; break; }
     case "fontWeight": if (typeof val === "string" || typeof val === "number") rs.fontWeight = val as FontWeight; break;
     case "italic": rs.italic = val === true; break;
     case "smallCaps": rs.smallCaps = val === true; break;
@@ -543,7 +550,9 @@ export function base(size: number, weight: FontWeight, color: number, tracking =
 function applyStyle(style: Style, rs: RunStyle): Style {
   const s: Style = { ...style };
   if (rs.fontSize !== undefined) s.size = sz(rs.fontSize);
-  if (rs.fontFamily !== undefined) s.family = rs.fontFamily;
+  // a style record's family may be a Font or a list, as a view's is (`textStyles`
+  // reaches here unread): its CSS family, which also asks the font to load
+  if (rs.fontFamily !== undefined) { const f = familyCss(rs.fontFamily); if (f !== "") s.family = f; }
   if (rs.fontWeight !== undefined) s.weight = rs.fontWeight;
   if (rs.italic !== undefined) s.italic = rs.italic;
   if (rs.textColor !== undefined) s.color = rs.textColor;

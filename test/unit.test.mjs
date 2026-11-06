@@ -1541,6 +1541,15 @@ await test("compile: an on… name the hint table knows is answered from it, bef
   assert.doesNotMatch(w[0], /onInit/);
 });
 
+await test("compile: a class's child named like a method of its base is refused, as at a use site", async () => {
+  // Cadence run 23: a Form subclass's DataSource named 'send' passed every check and
+  // failed only when its sheet first built the form (instantiate's backstop)
+  const bad = await compile(`class Entry extends Form [ send: DataSource [ url = "/x" ] ]\nApp [ width = 100, height = 100, Entry [ ] ]`, {});
+  assert.ok(bad.errors.some((e) => /'send' is a method of Form, which Entry extends/.test(e.message)), bad.errors.map((e) => e.message).join("\n"));
+  const ok = await compile(`class Entry extends Form [ request: DataSource [ url = "/x" ] ]\nApp [ width = 100, height = 100, Entry [ ] ]`, {});
+  assert.equal(ok.errors.some((e) => /is a method of/.test(e.message)), false, ok.errors.map((e) => e.message).join("\n"));
+});
+
 await test("compile: one message at sites in two files names the other file with its line", async () => {
   const { mkdtempSync, writeFileSync } = await import("node:fs");
   const { tmpdir } = await import("node:os");

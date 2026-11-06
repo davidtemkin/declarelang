@@ -4,7 +4,7 @@
 // program that names only Markdown carries no HTML reader.
 
 import { defineAttributes } from "./attributes.js";
-import { RichText } from "./rich-text.js";
+import { RichText, textStylesKey } from "./rich-text.js";
 import type { Block, ReadOptions } from "./md.js";
 import { parseHtml, type Unsupported } from "./html.js";
 
@@ -16,7 +16,7 @@ export class HTMLText extends RichText {
   declare html: string;
   declare unsupported: Unsupported;
   // folded into the key (as a signature) so a re-themed style re-renders.
-  protected $sourceKey(): string { return this.html + " " + this.unsupported + " " + JSON.stringify(this.textStyles ?? {}); }
+  protected $sourceKey(): string { return this.html + " " + this.unsupported + " " + textStylesKey(this.textStyles); }
   protected $parseSource(opts: ReadOptions): Block[] { return parseHtml(this.html, this.unsupported, opts); }
   protected override $policy(): Unsupported { return this.unsupported; }
 }
