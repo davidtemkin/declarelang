@@ -10,8 +10,9 @@
 // HONESTY OF SCOPE: this is best-effort by construction. A cursor derived
 // through arbitrary code (`datapath = { cond ? a.value : b.value }`) is
 // statically unknowable and its subtree is simply UNCHECKED (never refused);
-// `{ }`-body islands are unchecked in v1 (the attribute surface is where
-// paths concentrate). What IS checked fails loudly with the fields named —
+// a `:path` island inside an attribute's `{ }` is checked as the bare form is
+// (its deps name it), so `{ :reactions ?? "" }` dies where `:reactions` would;
+// methods' bodies are not walked. What IS checked fails loudly with the fields named —
 // the typo'd `:labell` dies at compile time, which is the promise.
 
 import type { Program, Element, ShapeField } from "../../runtime/dist/parser.js";
@@ -166,6 +167,16 @@ export function schemaCheck(program: Program): DeclareError[] {
       // — `key = :field` included: after the many branch, `here` IS the
       // element shape, so a typo'd key field dies here too.
       for (const a of el.attrs) {
+        // a `{ }` reading `:field` — resolved to `this.$data(["field", …])` by now, a
+        // literal segment list — gets the same check, in the same words
+        if (a !== dp && a.value.kind === "code" && here.kind !== "open") {
+          for (const m of a.value.src.matchAll(/this\.\$data\(\[((?:\s*"(?:[^"\\]|\\.)*"\s*,?)*)\]\)/g)) {
+            const segs = [...m[1].matchAll(/"((?:[^"\\]|\\.)*)"/g)].map((x) => JSON.parse(`"${x[1]}"`));
+            if (segs.length === 0) continue;
+            const r = walkPlan(here, segs, segs.join("."));
+            if ("error" in r) errors.push(new DeclareError(r.error, a.value.pos));
+          }
+        }
         if (a === dp || a.value.kind !== "path") continue;
         const v = a.value;
         const r = walkPlan(here, v.plan ?? splitPath(v.path), v.path);

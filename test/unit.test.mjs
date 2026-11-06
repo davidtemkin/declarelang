@@ -1550,6 +1550,18 @@ await test("compile: a class's child named like a method of its base is refused,
   assert.equal(ok.errors.some((e) => /is a method of/.test(e.message)), false, ok.errors.map((e) => e.message).join("\n"));
 });
 
+await test("compile: a :path inside { } is checked against the schema, as the bare form is", async () => {
+  // Murmur run 13: { :reactions ?? "" } on a record whose schema has no reactions read
+  // nothing, silently, where the bare :reactions was refused
+  const src = (read) => `schema T [ id: string, count: number ]
+App [ width = 10, height = 10, d: Dataset [ schema = [ rows[]: T ] ] { { "rows": [] } },
+  l: View [ datapath = { app.d.value }, View [ datapath = :rows[], Text [ text = { ${read} } ] ] ] ]`;
+  const bad = await compile(src(`"" + (:reactions ?? "none")`), {});
+  assert.ok(bad.errors.some((e) => /':reactions' — 'reactions' is not in the schema here; fields: id, count/.test(e.message)), bad.errors.map((e) => e.message).join("\n"));
+  const ok = await compile(src(`"" + :count`), {});
+  assert.equal(ok.errors.length, 0, ok.errors.map((e) => e.message).join("\n"));
+});
+
 await test("compile: one message at sites in two files names the other file with its line", async () => {
   const { mkdtempSync, writeFileSync } = await import("node:fs");
   const { tmpdir } = await import("node:os");
