@@ -4,7 +4,7 @@
     "code": 596,
     "comment": 572,
     "blank": 359,
-    "wireGzip": 228491,
+    "wireGzip": 228521,
     "programGzip": 15599
   },
   "calendar": {
@@ -12,7 +12,7 @@
     "code": 540,
     "comment": 214,
     "blank": 176,
-    "wireGzip": 166451,
+    "wireGzip": 166479,
     "programGzip": 12702
   },
   "tracker": {
@@ -20,7 +20,7 @@
     "code": 982,
     "comment": 251,
     "blank": 274,
-    "wireGzip": 184364,
+    "wireGzip": 184396,
     "programGzip": 18354
   },
   "desktop": {
@@ -28,7 +28,7 @@
     "code": 1994,
     "comment": 932,
     "blank": 573,
-    "wireGzip": 253094,
+    "wireGzip": 253121,
     "programGzip": 22502
   },
   "todo": {
@@ -36,7 +36,7 @@
     "code": 662,
     "comment": 236,
     "blank": 177,
-    "wireGzip": 186159,
+    "wireGzip": 186187,
     "programGzip": 20879,
     "codeWithParts": 847
   },
@@ -64,7 +64,7 @@
       "view": 12.2,
       "backend": 35.4,
       "input": 21.1,
-      "draw": 18,
+      "draw": 18.1,
       "anim": 3.9,
       "text": 5,
       "boot": 5.6,
@@ -90,11 +90,11 @@
       "ker": 0
     },
     "totals": {
-      "calDom": 162.5,
-      "calCanvas": 187.4,
-      "calMac": 138.2
+      "calDom": 162.6,
+      "calCanvas": 187.5,
+      "calMac": 138.3
     },
-    "runtimeKB": 122.4,
+    "runtimeKB": 122.5,
     "kernelWasmGzipKB": 12.6,
     "kernelWasmRawKB": 23,
     "kernelLoaderKB": 2.6,

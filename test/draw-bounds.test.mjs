@@ -105,6 +105,12 @@ await test("a mark at a coordinate that is not finite leaves the bounds alone, a
     }
   } finally { console.warn = was; }
   assert.equal(warned.filter((m) => /fillRect was given a coordinate that is not a finite number/.test(m)).length, 1, warned.join("\n"));
+  // and it names the view whose draw() it is, when the recorder knows (Cadence run 24)
+  const named = [];
+  console.warn = (m) => named.push(String(m));
+  try { const d = new DrawContext(undefined, undefined, () => "app.chart"); d.fillRect(NaN, 0, 1, 1); }
+  finally { console.warn = was; }
+  assert.match(named.join("\n"), /\[Declare\] app\.chart\.draw\(\): fillRect was given/);
 });
 
 // ── the rendered half ────────────────────────────────────────────────────

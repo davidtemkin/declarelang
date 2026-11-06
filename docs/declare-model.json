@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "07463f4263e5",
+  "buildId": "59b850b37ab5",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -4931,7 +4931,7 @@
    },
    "E51F2A6": {
     "message": "the draw context is write-only — … cannot be read back; inputs come in through attributes (rendering model)",
-    "at": "draw.ts:541"
+    "at": "draw.ts:545"
    },
    "E90B644": {
     "message": "a gradient stop is a color or colorStop(offset, color)",

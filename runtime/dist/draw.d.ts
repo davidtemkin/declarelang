@@ -266,7 +266,9 @@ export declare class DrawContext {
     private readonly boxH;
     get w(): number;
     get h(): number;
-    constructor(boxW?: () => number, boxH?: () => number);
+    /** Who is drawing, for a warning to name: asked only when one is said. */
+    private readonly who;
+    constructor(boxW?: () => number, boxH?: () => number, who?: () => string);
     /** Everything painted so far; null until the first paint op. */
     private ink;
     /** Extent of the current path; reset by beginPath, kept by fill/stroke
@@ -404,7 +406,7 @@ export declare class DrawContext {
     private mark;
 }
 /** Run a draw method against a fresh recorder and return its display list. */
-export declare function record(fn: (d: DrawContext) => void, boxW?: () => number, boxH?: () => number): DisplayList;
+export declare function record(fn: (d: DrawContext) => void, boxW?: () => number, boxH?: () => number, who?: () => string): DisplayList;
 /** Replay a recording into a real 2D context — the one interpreter both
  *  backends share, so a recording renders identically wherever it lands.
  *  Style state is saved/restored; the path is cleared on both sides (save/

@@ -204,10 +204,15 @@ const step = (x) => {
           if (v == null || typeof v !== "object" || !(name in v)) return { missing: "'" + segs.slice(0, k).join(".") + "' has no '" + name + "'" + (v == null ? " (what came before it is " + v + ")" : "") };
           v = v[name];
         }
-        return { v: v === undefined ? null : typeof v === "object" && v !== null && v.constructor?.name && "children" in v ? "(a " + v.constructor.name + ")" : v };
+        if (v === undefined) return { v: null };
+        if (typeof v === "object" && v !== null && v.constructor?.name && "children" in v) return { v: "(a " + v.constructor.name + ")" };
+        // a value the page cannot hand back as data (a live object, a cycle) is
+        // described, not lost: puppeteer returns undefined for the whole answer
+        try { return { v: JSON.parse(JSON.stringify(v)) }; }
+        catch { return { v: "(" + (v?.constructor?.name ?? typeof v) + ", not plain data)" }; }
       }
       return { missing: "no view at '" + full + "'" };
-    }, ${JSON.stringify(x.label)}).then((r) => { if (r.missing !== undefined) expect.fail("--read " + ${JSON.stringify(x.label)} + ": " + r.missing); return r.v; })));`;
+    }, ${JSON.stringify(x.label)}).then((r) => { if (r == null) expect.fail("--read " + ${JSON.stringify(x.label)} + ": the page answered nothing"); if (r.missing !== undefined) expect.fail("--read " + ${JSON.stringify(x.label)} + ": " + r.missing); return r.v; })));`;
     case "call": return `{ const r = await page.evaluate((p, m, a) => { const n = window.__declare.find(p); if (n == null) return "(no view at " + p + ")"; if (typeof n[m] !== "function") return "(" + p + " has no method " + m + ")"; const v = n[m](...a); return v === undefined ? null : v; }, ${p}, ${JSON.stringify(x.method)}, ${JSON.stringify(x.args)}); if (typeof r === "string" && r.startsWith("(")) expect.fail(r); }${rest}`;
     case "set": return `{ const r = await page.evaluate((p, a, v) => { const n = window.__declare.find(p); if (n == null) return "(no view at " + p + ")"; n[a] = v; return null; }, ${p}, ${JSON.stringify(x.attr)}, ${JSON.stringify(x.value)}); if (r !== null) expect.fail(r); }${rest}`;
     case "semantics": return `console.log(await page.evaluate(() => window.__declare.semantics()));`;

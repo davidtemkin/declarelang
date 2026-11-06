@@ -28,7 +28,7 @@ script {
                 "view": 12.2,
                 "backend": 35.4,
                 "input": 21.1,
-                "draw": 18,
+                "draw": 18.1,
                 "anim": 3.9,
                 "text": 5,
                 "boot": 5.6,
@@ -54,12 +54,12 @@ script {
                 "ker": 0
             },
             "totals": {
-                "calDom": 162.5,
-                "calCanvas": 187.4,
-                "calMac": 138.2
+                "calDom": 162.6,
+                "calCanvas": 187.5,
+                "calMac": 138.3
             }
         },
-        "runtimeKB": 122.4,
+        "runtimeKB": 122.5,
         "kernelKB": 15.2,
         "kernelWasmGzipKB": 12.6,
         "kernelWasmRawKB": 23,

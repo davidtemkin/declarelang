@@ -81,9 +81,12 @@ export class DrawContext {
     boxH;
     get w() { return this.boxW(); }
     get h() { return this.boxH(); }
-    constructor(boxW = () => 0, boxH = () => 0) {
+    /** Who is drawing, for a warning to name: asked only when one is said. */
+    who;
+    constructor(boxW = () => 0, boxH = () => 0, who = () => "") {
         this.boxW = boxW;
         this.boxH = boxH;
+        this.who = who;
     }
     // ── bounds bookkeeping (recording-internal, never exposed) ──
     /** Everything painted so far; null until the first paint op. */
@@ -425,7 +428,8 @@ export class DrawContext {
      *  drawing is otherwise silently missing a mark. */
     nonFinite() {
         const op = this.ops[this.ops.length - 1]?.op ?? "a path";
-        const said = `[Declare] draw(): ${op} was given a coordinate that is not a finite number (NaN or Infinity) — that mark is skipped, as a canvas skips it; the rest of the drawing stands`;
+        const who = this.who();
+        const said = `[Declare] ${who === "" ? "" : who + "."}draw(): ${op} was given a coordinate that is not a finite number (NaN or Infinity) — that mark is skipped, as a canvas skips it; the rest of the drawing stands`;
         if (NON_FINITE_SAID.has(said))
             return;
         NON_FINITE_SAID.add(said);
@@ -481,8 +485,8 @@ function union(b, x0, y0, x1, y1) {
     return b;
 }
 /** Run a draw method against a fresh recorder and return its display list. */
-export function record(fn, boxW, boxH) {
-    const d = new DrawContext(boxW, boxH);
+export function record(fn, boxW, boxH, who) {
+    const d = new DrawContext(boxW, boxH, who);
     fn(d);
     return d.list();
 }

@@ -2028,7 +2028,7 @@ export class View extends Node {
       // not re-record when what it reads changes — it reads only whether it is
       // shown, and records once when it is. A mask's stencil is the exception:
       // the renderer reads its drawing while it is hidden.
-      () => this.$drawingQuiet() ? QUIET_DRAWING : record((d) => this.draw!(d), () => this.width, () => this.height),
+      () => this.$drawingQuiet() ? QUIET_DRAWING : record((d) => this.draw!(d), () => this.width, () => this.height, () => declareName(this)),
       // Constraint is deliberately untyped across compute→apply (reactive.ts);
       // this apply's input is exactly its compute's output.
       (list) => { if (list !== QUIET_DRAWING) { this.$surface?.setDrawing(list as DisplayList, this); noteEffect(); } },
