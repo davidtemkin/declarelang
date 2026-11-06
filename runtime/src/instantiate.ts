@@ -63,7 +63,7 @@ import { buildStylesheet, ensureApplier, registerStylesheets, type Stylesheet, t
 import { buildFonts, collectFaces, registerFontFaces, type Font } from "./font.js";
 import { compileBody, compileExpr } from "./expr.js";
 import { isPercent, isAlign, type AttrType, type Theme } from "./value.js";
-import { defineAttributes, setBound, type AttrSpec } from "./attributes.js";
+import { defineAttributes, extendAttributes, setBound, type AttrSpec } from "./attributes.js";
 import { bindConstraint, bindPercent, bindAlign, bindData, bindDatapath, bindCursor } from "./bind.js";
 import { bindTwoWay, bindTwoWayDynamic } from "./editor.js";
 import { Replicator } from "./replicate.js";
@@ -126,10 +126,22 @@ type Pending =
 
 /** Build a Node/View tree from a parsed Program or Element fragment (no
  *  rendering). */
+/** Built-in components a plugin may register attributes on. View covers CSS —
+ *  App/Text/Image/TextInput extend View, so the prototype accessor reaches them. */
+const BUILTIN_CTORS: Record<string, Function> = { View };
+
 export function instantiate(input: Element | Program, plugins: readonly Plugin[] = []): View {
   const program: Program =
     "root" in input ? input : { classes: [], stylesheets: [], styles: [], fonts: [], includes: [], includeSpans: [], uses: [], blocks: [], root: input };
-  const { infos, schemas, errors } = programSchemas(program.classes);
+  // Plugin attribute registration (seam 4): install runtime accessors before any
+  // view is constructed, and augment the schemas so construct coerces the author
+  // literal against the registered (string) type.
+  const extraAttrs = plugins.flatMap((p) => (p.attrs ?? []).map((a) => ({ on: a.on, name: a.name })));
+  for (const p of plugins) for (const a of p.attrs ?? []) {
+    const ctor = BUILTIN_CTORS[a.on];
+    if (ctor !== undefined) extendAttributes(ctor, { [a.name]: { def: a.def } });
+  }
+  const { infos, schemas, errors } = programSchemas(program.classes, extraAttrs);
   if (errors.length > 0) throw errors[0];
   const tags: Record<string, ViewCtor> = { ...TAGS };
   const layoutCtors: Record<string, abstract new () => Layout> = { ...LAYOUT_BASES };
