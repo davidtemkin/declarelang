@@ -98,7 +98,7 @@ import { handlerName } from "./handlers.js";
 import { splitPath, type PathSeg } from "./path-plan.js";
 import { selectValue } from "./select.js";
 import type { Attr, LinkTarget } from "./parser.js";
-import { rowPlace, type Cursor } from "./data.js";
+import { rowPlace, standOnPlace, type Cursor } from "./data.js";
 import { noteOverlay } from "./outside.js";
 import { DeferredSurface, isDeferred } from "./deferred-surface.js";
 import { declareName } from "./declare-name.js";
@@ -3386,6 +3386,7 @@ provideCursorRead((node, path) => {
     }
     return v === undefined ? null : v;
   }
+  standOnPlace(owner, cursor);
   if (plan.every((sg) => typeof sg === "string")) {
     const v = cursor.data.read([...at.path, ...(plan as string[])]);
     return v === undefined ? null : v;

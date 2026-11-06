@@ -60,6 +60,7 @@ import { setBound, bindDerived, isSet, ownerOf, release } from "./attributes.js"
 import { arriveSubtree } from "./spring.js";
 import { heldAtEnd, readsAtEnd } from "./scroll-anchor.js";
 import { insetLead } from "./value.js";
+import { markPresented } from "./data.js";
 import { armTree, focusedWithin, reportInstanceThrow, subtreeDiverged } from "./replicate.js";
 const DEFAULT_UNIT = 24; // pre-measurement row-extent estimate (corrected by the first real row)
 const POOL_SCREENS = 2; // parked rows kept for re-pointing, in screens of rows: a jump needs a screen
@@ -734,6 +735,7 @@ export class Windowing {
             for (const r of this.rows.values()) {
                 const cursor = data.$cursorAt([...path, String(r.index)]);
                 if (r.view.datapath !== cursor) {
+                    markPresented(r.view);
                     setBound(r.view, "datapath", cursor);
                     setRowIndex(r.view, r.index);
                     pointed.add(r.view);
@@ -836,8 +838,10 @@ export class Windowing {
         // cursors only once every row is built: building runs rules, and a row
         // cursored early would answer them unlinked
         for (const a of arriving) {
-            if (data !== null)
+            if (data !== null) {
+                markPresented(a.view);
                 setBound(a.view, "datapath", data.$cursorAt(a.path));
+            }
             setRowIndex(a.view, a.index);
         }
         // link, provide and attach the new rows, in that order — the order every

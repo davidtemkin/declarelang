@@ -53,6 +53,11 @@ the data and the rows *move* rather than being rebuilt, and any state a row hold
 travels with its record. When identity lives under another name, `key = :field` on the
 replicated view says which.
 
+A view that isn't replicated points at a *place*, not a record. `datapath = :rows[0]`,
+or `datapath = { app.newest }`, shows whatever is there now: insert a record at the
+front and the view shows the new one. A replicated row presents its record, and moves
+with it.
+
 > **From React:** this retires `rows.map((r) => <Row key={r.id}/>)`. Identity is the
 > data's, not a render hint you remember to pass, and never an array index.
 

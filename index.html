@@ -634,7 +634,7 @@ npm start</code></pre>
 <p>components, a store, re-rendering</p>
 <p>Button, Slider, SimpleLayout: the same kind of code as yours</p>
 <p>Runtime</p>
-<p>decides everything below: ~123 KB gz</p>
+<p>decides everything below: ~122 KB gz</p>
 <p>Kernel — C, as WebAssembly or linked natively</p>
 <p>the settle and the geometry rules: 15 KB gzipped, as shipped</p>
 <p>render seam · one interface, 70 methods</p>
@@ -739,7 +739,7 @@ npm start</code></pre>
 <p>Library classes it uses</p>
 <p>12.3 KB</p>
 <p>Reactive core, instantiation &amp; data</p>
-<p>41.0 KB</p>
+<p>41.1 KB</p>
 <p>DOM backend</p>
 <p>15.2 KB</p>
 <p>View</p>
@@ -763,7 +763,7 @@ npm start</code></pre>
 <p>Library</p>
 <p>12.3 KB</p>
 <p>Runtime</p>
-<p>122.4 KB</p>
+<p>122.5 KB</p>
 <p>Kernel</p>
 <p>15.2 KB</p>
 <img loading="lazy" src="apps/homepage/../architecture/resources/desktop-dom.webp">
@@ -808,7 +808,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=59b850b37ab5";
+  import boot from "./bundles/declare-boot.js?v=2b9bd7e1a25d";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().

@@ -61,7 +61,7 @@ import { setBound, bindDerived, isSet, ownerOf, release } from "./attributes.js"
 import { arriveSubtree } from "./spring.js";
 import { heldAtEnd, readsAtEnd } from "./scroll-anchor.js";
 import { insetLead } from "./value.js";
-import type { Dataset } from "./data.js";
+import { markPresented, type Dataset } from "./data.js";
 import type { PathNode } from "./select.js";
 import type { Surface } from "./backend.js";
 import { armTree, focusedWithin, reportInstanceThrow, subtreeDiverged, type Match, type Materialize, type MaterializationDiag } from "./replicate.js";
@@ -677,7 +677,7 @@ export class Windowing {
     if (m.dataChanged && data !== null) {
       for (const r of this.rows.values()) {
         const cursor = data.$cursorAt([...path, String(r.index)]);
-        if (r.view.datapath !== cursor) { setBound(r.view, "datapath", cursor); setRowIndex(r.view, r.index); pointed.add(r.view); }
+        if (r.view.datapath !== cursor) { markPresented(r.view); setBound(r.view, "datapath", cursor); setRowIndex(r.view, r.index); pointed.add(r.view); }
       }
     }
     if (this.hidden) {
@@ -760,7 +760,7 @@ export class Windowing {
     // cursors only once every row is built: building runs rules, and a row
     // cursored early would answer them unlinked
     for (const a of arriving) {
-      if (data !== null) setBound(a.view, "datapath", data.$cursorAt(a.path));
+      if (data !== null) { markPresented(a.view); setBound(a.view, "datapath", data.$cursorAt(a.path)); }
       setRowIndex(a.view, a.index);
     }
     // link, provide and attach the new rows, in that order — the order every

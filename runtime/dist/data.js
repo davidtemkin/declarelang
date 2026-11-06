@@ -1189,8 +1189,26 @@ function homeOf(data, container, segs, verb) {
  *  record or none — the second of two rows removed in one frame read its own
  *  id as empty, and removed nothing. */
 const ROW_RECORDS = new WeakMap();
+/** Views a replicator presents (a row, plain or windowed): each stands for a
+ *  RECORD, and its replicator re-points it when that record moves. Every other
+ *  view with a cursor stands for a PLACE — standOnPlace. */
+const PRESENTED = new WeakSet();
+export function markPresented(row) { PRESENTED.add(row); }
+/** A read through a view's cursor depends on the place the cursor names, not
+ *  only on the record it found there. The deepest-slot rule tracks the record's
+ *  field, which an insert, removal or move ahead of it never touches — so a lone
+ *  view on `:rows[0]`, or on `{ app.latest }` (whose cursor for "rows.0" compares
+ *  equal after a new record lands there), went on showing the record that had
+ *  left (Cadence run 24: its flow deleted the wrong session). Its reads also stand
+ *  on the cursor's whole path, as a cursor itself does (toCursor); a presented
+ *  row does not, since its replicator moves it with its record. */
+export function standOnPlace(owner, cursor) {
+    if (!PRESENTED.has(owner) && isTracking())
+        resolveTracked(cursor.data, cursor.path);
+}
 /** The replicator's half: `row` presents the record at `path` (or nothing). */
 export function noteRowRecord(row, data, path) {
+    PRESENTED.add(row);
     const rec = resolveRaw(data, path);
     if (rec !== null && typeof rec === "object")
         ROW_RECORDS.set(row, { rec, shape: data.$shape });

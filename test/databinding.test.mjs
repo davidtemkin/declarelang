@@ -305,5 +305,43 @@ App [ width=1, height=1,
   assert.strictEqual(app.d.read(["tasks", 0, "born"]), 42, "text that isn't a number never reaches the data");
 });
 
+// A LONE VIEW'S CURSOR NAMES A PLACE. Its reads stood only on the field of the record
+// they first found, so an insert, removal or move ahead of it left the view showing a
+// record that had moved away (Cadence run 24: a "last session" card kept an old id, and
+// its flow deleted that session from the service). A replicated row still follows its
+// record: its replicator moves it.
+const PLACE = `schema Item [ id: string, name: string ]
+App [ width = 400, height = 300,
+  d: Dataset [ schema = [ rows[]: Item ] ] { { "rows": [ { "id": "a", "name": "first" }, { "id": "z", "name": "last" } ] } },
+  latest: Item? = { app.d.value?.rows[0] ?? null },
+  box: View [ datapath = { app.d.value }, card: View [ datapath = :rows[0], t: Text [ text = { :name ?? "none" } ] ] ],
+  lone: View [ datapath = { app.latest }, t: Text [ text = { :name ?? "none" } ] ],
+  list: View [ datapath = { app.d.value }, View [ datapath = :rows[], Text [ text = { :name ?? "" } ] ] ]
+]`;
+const shown = (app) => [app.box.card.t.text, app.lone.t.text];
+await test("a lone view on :rows[0] or { a record } shows what is there after an insert ahead of it", async () => {
+  const app = await build(PLACE);
+  assert.deepEqual(shown(app), ["first", "first"]);
+  app.d.insert(["rows"], 0, { id: "b", name: "second" }); settle();
+  assert.deepEqual(shown(app), ["second", "second"], "the new record at the place");
+  app.d.set(["rows", 0, "name"], "renamed"); settle();
+  assert.deepEqual(shown(app), ["renamed", "renamed"], "and it hears the new record's own changes");
+});
+await test("…and after a removal and a move", async () => {
+  const app = await build(PLACE);
+  app.d.removeAt(["rows"], 0); settle();
+  assert.deepEqual(shown(app), ["last", "last"], "removed: the next record is at the place");
+  app.d.insert(["rows"], 1, { id: "c", name: "third" }); settle();
+  app.d.move(["rows"], 1, 0); settle();
+  assert.deepEqual(shown(app), ["third", "third"], "moved to the front: it is what is there");
+});
+await test("a replicated row still presents its own record through an insert", async () => {
+  const app = await build(PLACE);
+  const rows = () => app.list.children.filter((c) => c.datapath != null).map((c) => c.children[0].text);
+  assert.deepEqual(rows(), ["first", "last"]);
+  app.d.insert(["rows"], 0, { id: "b", name: "second" }); settle();
+  assert.deepEqual(rows(), ["second", "first", "last"]);
+});
+
 console.log(`\ndatabinding: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

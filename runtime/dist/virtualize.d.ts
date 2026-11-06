@@ -1,6 +1,6 @@
 import { View } from "./view.js";
 import { Cell } from "./reactive.js";
-import type { Dataset } from "./data.js";
+import { type Dataset } from "./data.js";
 import { type Match, type Materialize, type MaterializationDiag } from "./replicate.js";
 /** What a windowed block needs from its Replicator. */
 export interface WindowHost {

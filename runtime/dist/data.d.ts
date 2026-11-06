@@ -218,6 +218,16 @@ export declare class DataSource extends Dataset {
  *  underneath the tag. null/undefined mean "no cursor yet" (a source that
  *  has not loaded). */
 export declare function toCursor(v: unknown, context: string): Cursor | null;
+export declare function markPresented(row: object): void;
+/** A read through a view's cursor depends on the place the cursor names, not
+ *  only on the record it found there. The deepest-slot rule tracks the record's
+ *  field, which an insert, removal or move ahead of it never touches — so a lone
+ *  view on `:rows[0]`, or on `{ app.latest }` (whose cursor for "rows.0" compares
+ *  equal after a new record lands there), went on showing the record that had
+ *  left (Cadence run 24: its flow deleted the wrong session). Its reads also stand
+ *  on the cursor's whole path, as a cursor itself does (toCursor); a presented
+ *  row does not, since its replicator moves it with its record. */
+export declare function standOnPlace(owner: object, cursor: Cursor): void;
 /** The replicator's half: `row` presents the record at `path` (or nothing). */
 export declare function noteRowRecord(row: object, data: Dataset, path: readonly string[]): void;
 /** Where a row's reads go: its cursor's path while that still holds its

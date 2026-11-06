@@ -559,10 +559,10 @@ export class DrawContext {
   private nonFinite(): void {
     const op = this.ops[this.ops.length - 1]?.op ?? "a path";
     const who = this.who();
-    const said = `[Declare] ${who === "" ? "" : who + "."}draw(): ${op} was given a coordinate that is not a finite number (NaN or Infinity) — that mark is skipped, as a canvas skips it; the rest of the drawing stands`;
-    if (NON_FINITE_SAID.has(said)) return;
-    NON_FINITE_SAID.add(said);
-    console.warn(said);
+    const key = `${who} ${op}`;
+    if (NON_FINITE_SAID.has(key)) return;
+    NON_FINITE_SAID.add(key);
+    console.warn(`[Declare] ${who === "" ? "" : who + "."}draw(): ${op} was given a coordinate that is not a finite number (NaN or Infinity) — that mark is skipped, as a canvas skips it; the rest of the drawing stands`);
   }
 
   /** Grow the ink box by a painted extent, mapping its four corners through
