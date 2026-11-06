@@ -1716,6 +1716,16 @@ export class DomSurface {
                 PAGE_WATCH?.program();
                 page.scrollTo({ top: t, left: page.scrollX, behavior });
             }
+            // the box's rule, below, for the window: a page with no room to go there
+            // clamps the request and sends no scroll event, and the model kept an
+            // offset the page never took (hits landed that far off). Once the update
+            // is over, so the page's height is current, report what it took.
+            if (!glide)
+                queueMicrotask(() => {
+                    const w = want(el).y;
+                    if (w !== undefined && Math.abs(page.scrollY - w) > 0.5)
+                        this.scrollReport?.(page.scrollY);
+                });
             return;
         }
         if (Math.abs(el.scrollTop - t) > 0.5) {

@@ -10,7 +10,7 @@ script {
                 "lib": 12.5,
                 "core": 41.1,
                 "view": 12.5,
-                "backend": 15.2,
+                "backend": 15.3,
                 "input": 17.6,
                 "draw": 16.5,
                 "anim": 3.2,

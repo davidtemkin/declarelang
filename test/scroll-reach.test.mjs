@@ -104,4 +104,17 @@ await test("a view no swipe can bring in is said with what the swipes did", () =
   assert.match(r.out, /swip/, r.out);
 });
 
+await test("a page with no room to scroll takes no offset: the model keeps the one the window took", () => {
+  const fits = join(DIR, "fits.declare");
+  writeFileSync(fits, `App [ Button [ label = "Top", x = 20, y = 20 ] ]`);
+  const script = join(DIR, "fits.mjs");
+  writeFileSync(script, `export default async ({ drive, expect, page }) => {
+  await page.evaluate(() => window.__declare.find("app").scrollTo(28));
+  await drive.wait(50);
+  await expect.attr("app", "scrollY", 0);
+};`);
+  const r = spawnSync("node", [join(ROOT, "tools/verify.mjs"), fits, "--assert", script, "--rung=5", "--no-boot"], { cwd: ROOT, encoding: "utf8" });
+  assert.ok(r.status === 0, (r.stdout ?? "") + (r.stderr ?? ""));
+});
+
 summarize("scroll-reach");

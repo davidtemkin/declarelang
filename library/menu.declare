@@ -260,7 +260,7 @@ height, past which the panel scrolls its rows and the rover keeps the landing ro
 view.
 
 ## pressPolicy
-`dismiss` for the root — an outside press closes the chain and goes no further; `dismissAndDeliver` for a submenu, so a press on its parent menu goes on to it.
+`dismiss` for the root — an outside press closes the chain and goes no further; `dismissAndDeliver` for a submenu, so a press on its parent menu goes on to it, and for a `listbox` (a combobox's suggestions, beside a field), so a press elsewhere goes on to what was pressed.
 */
 
 include [ "control.declare" ]
@@ -300,7 +300,7 @@ class Menu extends Floating [
     // appears and goes at once — no motion. An outside press closes the chain
     // and goes no further; a submenu lets a press on its parent menu through.
 
-    pressPolicy = { this.isRoot ? "dismiss" : "dismissAndDeliver" },
+    pressPolicy = { this.isRoot && accessibilityRole != "listbox" ? "dismiss" : "dismissAndDeliver" },
     scrollPolicy = "block",
     visible = { shown },
     height = { this._panel.height },

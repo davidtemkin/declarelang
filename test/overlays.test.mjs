@@ -69,6 +69,16 @@ await test("a press outside: a popover closes and the press goes on; a dialog ho
   app.toast.close(); settle();
 });
 
+await test("a combobox's open list is suggestions, not a menu: a press elsewhere closes it and goes on", async () => {
+  const app = await boot(`App [ width = 600, height = 400,
+    c: Combobox [ x = 20, y = 20, width = 200, items = { ["Canada", "Cambodia"] } ] ]`);
+  app.c.open(); settle();
+  assert.equal(app.c.listShown(), true);
+  assert.equal(pressOutside(app, 520, 360), false, "the press goes on to what was pressed");
+  settle();
+  assert.equal(app.c.listShown(), false, "…and the list closes");
+});
+
 await test("an overlay's open and close work is its own: a use site's trackChanges, onChange and onInit, written for its own ends, leave it opening, closing, and open from the start", async () => {
   const app = await boot(`App [ width = 600, height = 400, seen: number = 0, inits: number = 0, startOpen: boolean = true,
     opener1: Button [ x = 20, y = 20, label = "Anchor" ],
