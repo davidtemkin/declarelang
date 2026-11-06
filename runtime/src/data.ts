@@ -952,7 +952,6 @@ export class DataSource extends Dataset {
 
   /** The request itself. */
   private async $request(): Promise<void> {
-    const seq = ++this.seq;
     // Settle FIRST (P1-2, field report 2026-08-05, three independent runs):
     // constraint settle is a microtask, and a handler that writes a slot this
     // source's `url`/`body` derives from and then calls fetch() in the same
@@ -960,6 +959,12 @@ export class DataSource extends Dataset {
     // silently. One synchronous settle makes "set, then fetch" mean what it
     // says; idempotent when nothing is pending.
     settle();
+    // …and only then take this request's number: the settle can start a request of
+    // its own (autoFetch, on the address the write changed), and the one taken
+    // before it would make THAT the newest, which this one then aborts — both lost,
+    // the source failed with an abort (Venue run 21). Numbered after, this request
+    // is the newest, and the one it aborts is the older.
+    const seq = ++this.seq;
     // The address is read ONCE and carried: `url` is a slot like any other, so a
     // constraint may re-settle it while this request is in flight, and a message
     // that re-read `this.url` after the await named an address that was never
@@ -1046,6 +1051,7 @@ export class DataSource extends Dataset {
       }
     } catch (e) {
       if (seq !== this.seq) return; // superseded (or stopped by clear()): nothing to report
+      if (ctl !== null && ctl.signal.aborted) return; // stopped by a newer request: not a failure
       if (this.inFlight === ctl) this.inFlight = null;
       noteOrigin(`${sourceLabel(this)} failed`, this);
       setBound(this, "error", e instanceof Error ? e.message : String(e));

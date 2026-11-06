@@ -82,6 +82,19 @@ await test('DataSource: format = "bytes" reads the body as bytes', async () => {
   assert.deepEqual([...app.d.value], [0, 1, 2, 250, 255]);
 });
 
+await test("DataSource: a fetch() beside autoFetch, after a write that moves the address, loads — it does not abort both", async () => {
+  // Venue run 21: a handler wrote the id the url reads, then called fetch(); the settle
+  // inside fetch() started autoFetch's request, which fetch() then aborted as older —
+  // and the source failed with an abort while its own reply was discarded
+  const app = await boot(`App [ width = 10, height = 10, id: string = "",
+    d: DataSource [ url = { app.id == "" ? "" : "${B}/echo" }, autoFetch = true ] ]`);
+  app.id = "p01";
+  await app.d.fetch();
+  await until(() => !app.d.loading);
+  assert.equal(app.d.failed, false, `failed: ${app.d.error}`);
+  assert.equal(app.d.value?.method, "GET");
+});
+
 await test("DataSource: a newer fetch, or clear(), stops the request in flight", async () => {
   const app = await boot(`App [ width = 10, height = 10,
     d: DataSource [ url = { app.u } ],

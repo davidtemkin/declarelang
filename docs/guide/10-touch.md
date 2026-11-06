@@ -41,6 +41,18 @@ layout from the live pointer type: targets that resize as the user alternates tr
 and finger are worse than either size. And a hit region need not match a visual one, so
 a hybrid can keep compact chrome and generous touch targets at the same time.
 
+**Many small targets close together belong in a scroller, at a finger's size.** A dense
+grid of choices — a palette of a hundred swatches, a month of day cells, a board of tiles —
+is not fitted to a phone's width and zoomed by a first tap. Each target is laid out at least
+a finger wide (44 points), and the grid sits in a pane that scrolls (`scrolls = both`).
+Two things depend on it. A finger that lands near two targets is taken by the nearer, so
+targets a few points apart cannot be told apart by anyone: `declare-verify` refuses a press
+that lands within 6 px of another control, for the same reason. And a person, a screen
+reader and an assert script all reach a target by scrolling it into view, which a pane
+that scrolls gives them and a surface you pan by hand does not. A small overview of the
+whole grid can sit beside it, as a map. The pan-and-zoom surface below is for something
+read — a timeline, a chart — not for a grid of things to press.
+
 ## Gesture claims
 
 The same handlers hear mouse and finger, but the browser does not compete for

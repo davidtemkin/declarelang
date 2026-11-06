@@ -262,7 +262,9 @@ export function withLocators(page, { act, settle, advance, pause = async () => {
     if (o.force !== true) {
       const cover = await on(i, (el, p) => {
         const t = document.elementFromPoint(p.x, p.y);
-        if (t === null) return "nothing — the point is outside the window";
+        // a view sliding in (a sheet opening) holds still where its motion paused,
+        // since time is the script's: said, or it reads as a view laid out off-screen
+        if (t === null) return "nothing — the point is outside the window (a view still opening or sliding in stays where its motion paused until the script lets time pass: drive.settleMotion() first)";
         if (el === t || el.contains(t)) return null;
         const v = window.__declare?.profile?.viewOf?.(t)?.view;
         const label = t.getAttribute("aria-label") || (t.textContent ?? "").trim().slice(0, 40);
@@ -499,6 +501,10 @@ export function withLocators(page, { act, settle, advance, pause = async () => {
   const top = chainers([]);
   // Playwright's page-level selector actions are the same locators
   const shortcuts = {};
+  // Playwright's waitForFunction(fn, arg, options), the form this page speaks; the
+  // browser driver underneath takes (fn, options, …args), and read Playwright's
+  // `null` arg as its options (Venue run 21: "reading 'polling'")
+  shortcuts.waitForFunction = (fn, arg, options) => page.waitForFunction(fn, options ?? {}, ...(arg === undefined ? [] : [arg]));
   for (const k of ["click", "dblclick", "tap", "hover", "fill", "check", "uncheck", "focus", "press", "type", "selectOption", "textContent", "innerText", "inputValue", "getAttribute", "isVisible", "isHidden", "isChecked", "isEnabled", "isDisabled"]) {
     shortcuts[k] = (sel, ...rest) => locator(parseSelector(sel))[k](...rest);
   }

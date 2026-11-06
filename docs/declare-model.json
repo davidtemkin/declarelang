@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "3d221bc72264",
+  "buildId": "f353411d7d1e",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -4906,31 +4906,31 @@
    },
    "ECACACC": {
     "message": "[Declare] onLoad on ……'` : \"\"} threw: …",
-    "at": "data.ts:1044"
+    "at": "data.ts:1049"
    },
    "E780C61": {
     "message": "[Declare] onError on ……'` : \"\"} threw: …",
-    "at": "data.ts:1062"
+    "at": "data.ts:1068"
    },
    "E359942": {
     "message": "…: a datapath is a place in a dataset — got … (point at an object or array; read leaf fields with :path)",
-    "at": "data.ts:1130"
+    "at": "data.ts:1136"
    },
    "E06FC67": {
     "message": "…: this value belongs to no Dataset/DataSource — a cursor can only point into declared data. For records you compute, derive a Dataset beside the view — 'items: Dataset [ contents = { … } ]' — and point at it: 'datapath = { this.items.value }'",
-    "at": "data.ts:1136"
+    "at": "data.ts:1142"
    },
    "EFD2DDD": {
     "message": "…: this value is no longer anywhere in its dataset",
-    "at": "data.ts:1143"
+    "at": "data.ts:1149"
    },
    "E6BE3C0": {
     "message": "'…' refuses this … — … computes its value with contents, and this part was made by that computation, not taken from a source; the next recompute would replace it. Write the source dataset instead (what a row needs beyond its record, compute in the row)",
-    "at": "data.ts:1173"
+    "at": "data.ts:1179"
    },
    "E4BEB70": {
     "message": "'…' refuses this … — the record … holds is no longer in …",
-    "at": "data.ts:1180"
+    "at": "data.ts:1186"
    },
    "E3F233B": {
     "message": "[Declare] a mask stencil on the DOM renderer must be an Image or a view with draw() — its alpha is what CSS mask-image can take; other stencils mask on the canvas and Mac renderers only.",
@@ -28774,7 +28774,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/data.ts",
-    "line": 1070
+    "line": 1076
    },
    "parent": "DataSource",
    "seeAlso": [],
@@ -77824,7 +77824,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/data.ts",
-      "line": 1070
+      "line": 1076
      },
      "parent": "DataSource",
      "seeAlso": [],
