@@ -98,8 +98,18 @@ no build step on install.
 To hold a release rather than the newest commit, end the line with its tag, `#v` and the
 version; the current release is v<!--stat:version-->0.6.1<!--/stat-->.
 With pnpm, approve esbuild's install script when it asks (`pnpm approve-builds`).
-Either way the version is pinned per project, so updating Declare is a one-line bump and an install —
-your project decides when, and a teammate gets the same version from the lockfile. The
+Either way the version is pinned per project: your project decides when to update, and a
+teammate gets the same version from the lockfile. To update, name the new release in one
+command, which moves the line and the lockfile together (`<version>` is the release, such as
+the current one above):
+
+```bash
+npm install -D "declarelang@github:davidtemkin/declarelang#v<version>"
+```
+
+Editing the line by hand and running `npm install` is not enough: the lockfile still holds the
+old commit, so the old release stays installed, with no warning. After an update, `npx
+declare-changes` lists what to change in a program written for the release before. The
 installed copy is never edited; treat it exactly like any other dependency.
 
 The package installs one command per job: `declare-dev` runs the dev server, `declarec`

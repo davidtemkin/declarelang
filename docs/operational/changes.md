@@ -22,6 +22,10 @@ under **Check these too**. It ends with the next step: make the changes, run
 [`declare-verify`](declare-docs:operational:verify), and when it is clean,
 `declare-changes --done`.
 
+**First, install the new release** with `npm install -D "declarelang@github:davidtemkin/declarelang#v<version>"`.
+Changing the version in `package.json` by hand and running `npm install` leaves the lockfile,
+and so the installed copy, on the old release.
+
 **Which release a program was written for** is its `declareVersion` line, when it has one:
 
 ```declare
