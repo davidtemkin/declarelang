@@ -311,6 +311,22 @@ await test("R4: a view that is only its padding is named by its address, not its
   assert.match(r.out, /View\.width \(app\.row\.0\) is only its padding/, r.out);
 });
 
+await test("timing on (as an eval run has it), a behavior run still passes: drive's synchronous calls stay synchronous", () => {
+  // Venue run 22: timing.wrap made drive.requests() return a promise, and every rung 5
+  // failed with "requests(...).filter is not a function"
+  const f = join(DIR, "timed.declare");
+  writeFileSync(f, `App [ width = 200, height = 100, Button [ label = "Go" ] ]`);
+  const sc = script("timed.mjs", `  if (!Array.isArray(drive.requests())) throw new Error("requests() is not an array");
+  await drive.click("app.0");
+  await drive.settleData();`);
+  const log = join(DIR, "timing.jsonl");
+  const r = spawnSync("node", [join(ROOT, "tools", "verify.mjs"), f, "--assert", sc, "--rung=5", "--no-boot"],
+    { cwd: ROOT, encoding: "utf8", env: { ...process.env, DECLARE_TIMING_FILE: log } });
+  const out = (r.stdout ?? "") + (r.stderr ?? "");
+  assert.equal(r.status, 0, out);
+  assert.match(readFileSync(log, "utf8"), /"drive\.click"/, "and the stages were timed");
+});
+
 await test("warnings of one kind, collapsed, name where the others are", () => {
   // a count alone sent an agent back to verify once per site (Cadence run 23)
   const f = join(DIR, "unnamed.declare");

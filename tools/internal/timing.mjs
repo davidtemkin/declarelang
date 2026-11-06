@@ -28,11 +28,26 @@ export const timing = {
     const s = performance.now();
     try { return await fn(); } finally { add(label, performance.now() - s); }
   },
-  /** Every function member of `obj`, each counted under `prefix.name`. */
+  /** Every function member of `obj`, each counted under `prefix.name` — and each
+   *  keeping its own shape: a synchronous one stays synchronous (its value, not a
+   *  promise of it — drive.requests() made async broke every behavior run, Venue 22),
+   *  and only a returned promise is timed to its settling. */
   wrap(prefix, obj) {
     if (!ON) return obj;
     for (const [k, f] of Object.entries(obj)) {
-      if (typeof f === "function") obj[k] = (...a) => timing.time(`${prefix}.${k}`, () => f.apply(obj, a));
+      if (typeof f !== "function") continue;
+      const label = `${prefix}.${k}`;
+      obj[k] = (...a) => {
+        const s = performance.now();
+        let r;
+        try { r = f.apply(obj, a); }
+        catch (e) { add(label, performance.now() - s); throw e; }
+        if (r !== null && typeof r === "object" && typeof r.then === "function") {
+          return r.then((v) => { add(label, performance.now() - s); return v; }, (e) => { add(label, performance.now() - s); throw e; });
+        }
+        add(label, performance.now() - s);
+        return r;
+      };
     }
     return obj;
   },
