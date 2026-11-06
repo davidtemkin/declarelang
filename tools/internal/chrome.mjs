@@ -126,6 +126,13 @@ async function withLock(lock, fn) {
   try { return await fn(); } finally { rmSync(lock, { recursive: true, force: true }); }
 }
 
+/** The kept Chrome's state, with the reaper that ends it once it sits idle. */
+function startReaper(slot, s) {
+  const reaper = spawn(process.execPath, [join(HERE, "chrome-reaper.mjs"), slot.state, String(s.pid), String(IDLE_MS), slot.dir], { detached: true, stdio: "ignore" });
+  reaper.unref();
+  writeFileSync(slot.state, JSON.stringify({ pid: s.pid, ws: s.ws, reaper: reaper.pid }));
+}
+
 async function launchKept(slot, args, scrollbars) {
   rmSync(join(slot.profile, "DevToolsActivePort"), { force: true });
   const proc = spawn(findChrome(), [
@@ -147,9 +154,7 @@ async function launchKept(slot, args, scrollbars) {
       const [port, path] = readFileSync(join(slot.profile, "DevToolsActivePort"), "utf8").split("\n");
       if (port && path) {
         const ws = `ws://127.0.0.1:${port}${path}`;
-        writeFileSync(slot.state, JSON.stringify({ pid: proc.pid, ws }));
-        const reaper = spawn(process.execPath, [join(HERE, "chrome-reaper.mjs"), slot.state, String(proc.pid), String(IDLE_MS), slot.dir], { detached: true, stdio: "ignore" });
-        reaper.unref();
+        startReaper(slot, { pid: proc.pid, ws });
         return ws;
       }
     } catch { /* not yet */ }
@@ -176,7 +181,12 @@ export async function sharedChrome({ args = [], ignoreDefaultArgs = [] } = {}) {
   const ws = await withLock(slot.lock, async () => {
     try {
       const s = JSON.parse(readFileSync(slot.state, "utf8"));
-      if (alive(s.pid)) return s.ws;
+      if (alive(s.pid)) {
+        // a reaper that died (killed by PID, crashed) left its Chrome with no
+        // end: the call that finds it so gives it a new one
+        if (!(s.reaper > 0 && alive(s.reaper))) startReaper(slot, s);
+        return s.ws;
+      }
     } catch { /* none yet */ }
     return launchKept(slot, flags, scrollbars);
   });
