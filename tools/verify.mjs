@@ -338,24 +338,29 @@ if (failedRung === null && flags.rung >= 5 && flags.assert !== null) {
     // time. Each run's writes are kept by service and time (in the system's temp
     // folder); a run that fails after talking to a service earlier runs wrote to
     // is told so, since its failure may be the service's state, not the program.
+    // Earlier runs of THIS program only: the record is the machine's, and another
+    // program's writes to the same port (another project, a service since
+    // restarted) are no news about this one (Cadence run 23 was told of writes
+    // it never made).
     try {
       const { tmpdir } = await import("node:os");
       const { readFileSync: rd, writeFileSync: wr, mkdirSync: mk } = await import("node:fs");
-      const { join: jn } = await import("node:path");
+      const { join: jn, resolve: rs } = await import("node:path");
+      const program = rs(file);
       const dir = jn(tmpdir(), "declare-verify"), rec = jn(dir, "writes.json");
       let past = [];
       try { past = JSON.parse(rd(rec, "utf8")); } catch { /* none yet */ }
       const now = Date.now(), hour = 3600_000;
       past = past.filter((w) => now - w.at < hour);
       if (!r.ok) {
-        const before = past.filter((w) => (r.talked ?? []).includes(w.origin));
+        const before = past.filter((w) => (r.talked ?? []).includes(w.origin) && w.program === program);
         if (before.length > 0) {
           const n = before.reduce((a, w) => a + w.count, 0), last = Math.max(...before.map((w) => w.at));
           const mins = Math.max(1, Math.round((now - last) / 60_000));
-          behave.serviceNote = `this run failed after talking to ${[...new Set(before.map((w) => w.origin))].join(", ")}, which earlier runs wrote to (${n} write${n === 1 ? "" : "s"} in the last hour, the last ${mins} min ago): what they made is still there, so the failure may be the service's state rather than the program — write the script to take what is available now (a free seat, not a fixed one), reset the service if it has a way, or answer from files with --fixtures <dir>`;
+          behave.serviceNote = `this run failed after talking to ${[...new Set(before.map((w) => w.origin))].join(", ")}, which earlier runs of this program wrote to (${n} write${n === 1 ? "" : "s"} in the last hour, the last ${mins} min ago): what they made is still there, so the failure may be the service's state rather than the program — write the script to take what is available now (a free seat, not a fixed one), reset the service if it has a way, or answer from files with --fixtures <dir>`;
         }
       }
-      const mine = (r.wrote ?? []).map((origin) => ({ origin, count: (r.writes ?? []).length, at: now }));
+      const mine = (r.wrote ?? []).map((origin) => ({ origin, program, count: (r.writes ?? []).length, at: now }));
       if (mine.length > 0) { mk(dir, { recursive: true }); wr(rec, JSON.stringify([...past, ...mine])); }
     } catch { /* the record is a courtesy: never the run's failure */ }
     if (!r.ok) failedRung = 5;
@@ -485,7 +490,14 @@ if (flags.json) {
   for (const ds of byCode.values()) {
     const tag = ds[0].severity === "hint" ? "hint" : "warn";
     if (flags.all || ds.length === 1) for (const d of ds) console.log(`  ${tag} ${kindOf(d)}: ${show(d)}`);
-    else console.log(`  ${tag} ${kindOf(ds[0])}, ${ds.length} like this (--all lists them): ${show(ds[0])}`);
+    else {
+      // the rest named by place, so one pass can fix them all: a count alone sent
+      // an agent back to verify once per site (Cadence run 23)
+      const at = (d) => d.pos == null ? null : `${d.pos.file != null && d.pos.file !== ds[0].pos?.file ? d.pos.file + ":" : ""}${d.pos.line}`;
+      const rest = [...new Set(ds.slice(1).map(at).filter((x) => x !== null))];
+      const where = rest.length === 0 ? "" : `; the others at line${rest.length === 1 ? "" : "s"} ${rest.slice(0, 8).join(", ")}${rest.length > 8 ? `, and ${rest.length - 8} more` : ""}`;
+      console.log(`  ${tag} ${kindOf(ds[0])}, ${ds.length} like this (--all lists them${where}): ${show(ds[0])}`);
+    }
   }
   if (out.quieted?.length) console.log(`  note ${out.quieted.map((q) => `${q.count} finding${q.count === 1 ? "" : "s"} quieted by ${q.by}`).join(", ")} (the program's defaultFlags, or this run's --lint/--devices)`);
   for (const n of boot.notes) console.log(`  note ${n}`);

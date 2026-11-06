@@ -13,7 +13,7 @@
 // R4 counts the layout findings it prints; `--rung 4` is read either way.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { writeFileSync, readFileSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, summarize, tempDir } from "./harness.mjs";
@@ -273,8 +273,25 @@ await test("a run that fails after talking to a service earlier runs wrote to is
   await expect.attr("app", "width", 999);`);
     const r = run("verify.mjs", f, "--assert", again, "--rung=5", "--no-boot");
     assert.notEqual(r.status, 0, r.out);
-    assert.match(r.out, /note this run failed after talking to http:\/\/127\.0\.0\.1:8398, which earlier runs wrote to/, r.out);
+    assert.match(r.out, /note this run failed after talking to http:\/\/127\.0\.0\.1:8398, which earlier runs of this program wrote to/, r.out);
+    // another program on the same service is not told of this one's writes
+    const g = join(DIR, "stranger.declare");
+    writeFileSync(g, readFileSync(f, "utf8"));
+    const s2 = run("verify.mjs", g, "--assert", again, "--rung=5", "--no-boot");
+    assert.notEqual(s2.status, 0, s2.out);
+    assert.doesNotMatch(s2.out, /which earlier runs/, s2.out);
   } finally { svc.kill(); }
+});
+
+await test("warnings of one kind, collapsed, name where the others are", () => {
+  // a count alone sent an agent back to verify once per site (Cadence run 23)
+  const f = join(DIR, "unnamed.declare");
+  writeFileSync(f, `App [ width = 400, height = 300,
+    Switch [ checked = true ],
+    Switch [ y = 40, checked = true ],
+    Slider [ y = 120 ] ]`);
+  const r = run("verify.mjs", f, "--rung=4");
+  assert.match(r.out, /2 like this \(--all lists them; the others at line 4\)/, r.out);
 });
 
 await test("R4: a control another view takes the presses of is said, with the view that takes them", () => {
