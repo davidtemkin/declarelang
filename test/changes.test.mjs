@@ -21,7 +21,7 @@ const all = releases(ROOT);
 
 await test("the reader: an entry's heading, why, Find, before and after, docs and watch-for", () => {
   const [e] = readChanges([
-    "# x", "", "## Changes to make", "", "### `a` → `b`", "Why it changed.", "", "Find: `/\\ba\\(/`", "",
+    "# x", "", "## Breaking changes", "", "### `a` → `b`", "Why it changed.", "", "Find: `/\\ba\\(/`", "",
     "```declare-fragment", "A [ a() { } ]", "```", "", "```declare-fragment", "A [ b() { } ]", "```", "",
     "Docs: [One](declare-docs:guide:controls@x) · [`A.b`](declare-docs:A.method.b)", "",
     "Watch for: something quiet.", "", "## After", "", "text",

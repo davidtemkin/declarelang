@@ -1,6 +1,7 @@
 # Moving a program to a new release
 
-*Proposal, 2026-11-05; built in 0.6.0, except the release check's "Changes to make" requirement (§3). It's first needed by the editing-values change (`editing-values.md` §4.12), the
+*Proposal, 2026-11-05; built in 0.6.0. The section was first named "Changes to make"; since 0.6.1 it is
+"Breaking changes", placed first in the notes (RELEASING.md, "The notes' shape"). It's first needed by the editing-values change (`editing-values.md` §4.12), the
 first release that changes how programs already in use must be written. It builds on the release process that
 already exists (`open-items.md`, "The release process, regularized"; `RELEASING.md`; `tools/release.mjs`).*
 
@@ -47,11 +48,11 @@ declareVersion [ "0.6" ]
 
 ### 2.2 Release notes say what to change, in a set form
 
-A release that changes how programs must be written adds a section to its notes, **"Changes to make"**, with one
+A release that changes how programs must be written adds a section to its notes, **"Breaking changes"**, with one
 entry per change in this form:
 
 ````markdown
-## Changes to make
+## Breaking changes
 
 ### `onInput` → `commit`
 A field hands the person's change to you through `commit(v)`, as every value control does.
@@ -95,7 +96,7 @@ npx declare-changes --since 0.5.3              # every change since, with no pro
 npx declare-changes --done app.declare         # after a clean migration: write its declareVersion line
 ```
 
-- **It reads "Changes to make"** from every release after the program's version, up to this one, in order. With no
+- **It reads "Breaking changes"** from every release after the program's version, up to this one, in order. With no
   `declareVersion` line and no `--since`, it reads every release's entries and lets each `Find:` decide whether it
   applies.
 - **For a program,** it runs each entry's `Find:` over the program's files, its includes among them. It prints the
@@ -121,7 +122,7 @@ One instruction, early in `skill/SKILL.md`:
   release over `apps/`, `library/` and the docs. Any hit fails the test. That proves both that the corpus is up to
   date and that each `Find:` pattern finds what it should (§3, item 3).
 - **A release that changes the language needs its entries.** The release check (`pre-push`, `test/release.test.mjs`)
-  already pairs a version bump with its notes. It also requires a "Changes to make" section whenever a removed name
+  already pairs a version bump with its notes. It also requires a "Breaking changes" section whenever a removed name
   is listed in the derived reference's change log. In practice that means whenever `declare-model.json` lost a
   public member since the last tag.
 - **Each `Find:` is tried on real old code** before the release, to show it finds what it should.

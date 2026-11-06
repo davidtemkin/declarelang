@@ -1,8 +1,8 @@
-// changes — the "Changes to make" section of a release's notes, read (migration.md
+// changes — the "Breaking changes" section of a release's notes, read (migration.md
 // §2.2). One source: the notes people read are what declare-changes reads, so the
 // two can't drift. Pure; no file access.
 //
-//   ## Changes to make
+//   ## Breaking changes
 //
 //   ### `onInput` → `commit`            the change, as "old → new"
 //   One sentence of why.
@@ -17,10 +17,11 @@
 //
 //   Watch for: a change in behaviour that produces no error — optional.
 
-/** Every entry of a notes file's "Changes to make" section, in order; [] when it has none. */
+/** Every entry of a notes file's "Breaking changes" section, in order; [] when it has none —
+ *  a release without the section breaks nothing. */
 export function readChanges(markdown) {
   const lines = markdown.split("\n");
-  const start = lines.findIndex((l) => /^##\s+Changes to make\s*$/.test(l));
+  const start = lines.findIndex((l) => /^##\s+Breaking changes\s*$/.test(l));
   if (start === -1) return [];
   let end = lines.findIndex((l, i) => i > start && /^##\s/.test(l) && !/^###/.test(l));
   if (end === -1) end = lines.length;

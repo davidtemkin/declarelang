@@ -1,7 +1,8 @@
 # `declare-changes` — moving a program to a new release
 
 When a release of Declare changes how programs are written, its notes say what to change, in a
-set form: a section **Changes to make**, one entry per change. `declare-changes` reads those
+set form: a section **Breaking changes**, first in the notes, one entry per change. A release
+without it breaks nothing. `declare-changes` reads those
 entries from every release after the one a program was written for, finds where each applies
 in the program, and lists them. It changes nothing; you make the changes, reading the docs it
 names.

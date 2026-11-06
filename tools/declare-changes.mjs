@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // declare-changes — what to change in a program written for an earlier release of
-// Declare (docs/system-design/migration.md §2.3). It reads the "Changes to make" of
+// Declare (docs/system-design/migration.md §2.3). It reads the "Breaking changes" of
 // every release after the one the program was written for, runs each change's
 // `Find:` over the program's own files, and lists what applies, where, with the
 // before and after, the docs to read, and what changes without an error. It

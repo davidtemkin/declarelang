@@ -244,7 +244,7 @@ above: nothing to admit, judge or submit. They're unchanged by this proposal.
 
 ### 4.12 Moving existing programs over
 
-This lands as a release: with "Changes to make" in its release notes, and `declare-changes` to list what applies to
+This lands as a release: with "Breaking changes" in its release notes, and `declare-changes` to list what applies to
 a program (and, once it's migrated, to write its `declareVersion` line). `migration.md` has the design. These are the changes the notes must carry, the quiet ones
 included:
 
@@ -391,7 +391,7 @@ Not tested: Firefox composition, password managers, dictation, and autofill in S
 1. The workout and the scope (§8).
 2. Build it, with a **Forms page in the sampler**, written against the new model: the first real use of the
    library's `Form` in the corpus.
-3. The migration system (`migration.md`), and this release's "Changes to make" (§4.12).
+3. The migration system (`migration.md`), and this release's "Breaking changes" (§4.12).
 4. Before pushing, run the full gate: `npm test`, the ladder corpus, the eval references, the Mac shell's
    conformance, and the grid and virtualization benchmarks.
 5. Push as one revertable series, as a release.

@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "6e98241d1360",
+  "buildId": "b6614b6c0c28",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -120117,7 +120117,7 @@
      "kind": "doc",
      "label": "Markdown file",
      "path": "docs/operational/changes.md",
-     "preview": "When a release of Declare changes how programs are written, its notes say what to change, in a set form: a section Changes to make, one entry per change. declare-changes reads those entries from every release after the one a program was wri…"
+     "preview": "When a release of Declare changes how programs are written, its notes say what to change, in a set form: a section Breaking changes, first in the notes, one entry per change. A release without it breaks nothing. declare-changes reads those…"
     },
     {
      "name": "Derived artifacts and the gates",

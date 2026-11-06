@@ -106,11 +106,27 @@ release body is corrected to match — it is a projection, and a hand edit on
 GitHub is overwritten on the next run, as an edit inside a stamp marker would
 be. The file is the source; the page follows it.
 
-## Changes to make
+## The notes' shape
+
+Every release's notes have the same order, so a reader upgrading finds what they must do
+first, and what is merely new is never mistaken for it:
+
+1. **The headline** (the H1) and an introduction.
+2. **`## Breaking changes`**, only when the release has any. On the Release page a line
+   before it counts them and names `npx declare-changes`; the count is made when the page is,
+   from the entries below it.
+3. **`## New`**: what was added, taught. Nothing in it requires a program to change.
+4. **`## Smaller changes`**: fixes and polish.
+
+A release without a `## Breaking changes` section breaks nothing. A release with one takes
+the next minor version (from 1.0, the next major); the push refuses breaking changes in a
+patch.
+
+## Breaking changes
 
 A release that changes how programs must be written — a name removed or renamed, a form
-replaced, a behaviour that changes without an error — ends its notes with a section
-`## Changes to make`, one entry per change, in this form:
+replaced, a behaviour that changes without an error — has a section `## Breaking changes`,
+right after its introduction, one entry per change, in this form:
 
 ````markdown
 ### `onInput` → `commit`
@@ -150,7 +166,8 @@ are its source. Three things keep them honest:
 - The same test runs `declare-changes` on an old program (`test/fixtures/migration/`), so each
   `Find:` is also shown to find what it should.
 - The push gate refuses a pending release whose reference lost a public member since the last
-  tag (`docs/declare-model.json`) and whose notes have no `## Changes to make`.
+  tag (`docs/declare-model.json`) and whose notes have no `## Breaking changes`, and a
+  release with breaking changes whose version is a patch.
 
 ## What holds it together
 

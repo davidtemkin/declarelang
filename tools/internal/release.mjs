@@ -52,6 +52,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, readdirSync, mkdirSync } from "node:fs";
 import { resolve, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import { readChanges } from "./changes.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 const RELEASES = "releases";
@@ -88,11 +89,19 @@ export function titleFor(version, text) {
 export function stripStamps(text) {
   return text.replace(/<!--stat:[a-zA-Z0-9.]+-->([^<]*)<!--\/stat-->/g, "$1");
 }
-/** The body: everything after the H1 (the title carries it), markers reduced. */
+/** The body: everything after the H1 (the title carries it), markers reduced. A
+ *  release with breaking changes says so before its first section, with their count
+ *  — counted here, so it can't disagree with the list below it. */
 export function bodyFor(text) {
   const lines = text.split("\n");
   const i = lines.findIndex((l) => /^#\s+/.test(l));
   const rest = i === -1 ? lines : lines.slice(i + 1);
+  const n = readChanges(text).length;
+  if (n > 0) {
+    const at = rest.findIndex((l) => /^##\s/.test(l));
+    const line = `**Breaking:** ${n} change${n === 1 ? "" : "s"} to make — \`npx declare-changes app.declare\` lists the ones in your program.`;
+    rest.splice(at === -1 ? rest.length : at, 0, line, "");
+  }
   return stripStamps(rest.join("\n")).trim() + "\n";
 }
 
@@ -130,11 +139,22 @@ export function checkRelease({ version, tags, pushed = null, notes, committed, r
       problems.push(`${file} exists but is not committed clean — the push would publish a release without its notes.\n` +
         `    git add ${file} && git commit`);
     }
-    // a release that removes public surface changes how programs are written:
-    // its notes say what to change (migration.md §3), in the form declare-changes reads
-    if (removed.length > 0 && notesText !== null && !/^##\s+Changes to make\s*$/m.test(notesText)) {
-      problems.push(`${file} has no "## Changes to make", and this release removes ${removed.length} public member${removed.length == 1 ? "" : "s"} since the last tag (${removed.slice(0, 5).join(", ")}${removed.length > 5 ? ", …" : ""}).\n` +
-        `    add the section, one entry per change (RELEASING.md § Changes to make), so npx declare-changes can list them.`);
+    // notes without "## Breaking changes" say the release breaks nothing. A release
+    // that removes public surface does break something: its notes say what to change
+    // (migration.md §3), in the form declare-changes reads
+    const breaking = notesText !== null && /^##\s+Breaking changes\s*$/m.test(notesText);
+    if (removed.length > 0 && notesText !== null && !breaking) {
+      problems.push(`${file} has no "## Breaking changes", and this release removes ${removed.length} public member${removed.length == 1 ? "" : "s"} since the last tag (${removed.slice(0, 5).join(", ")}${removed.length > 5 ? ", …" : ""}).\n` +
+        `    add the section, one entry per change (RELEASING.md § Breaking changes), so npx declare-changes can list them.`);
+    }
+    // a breaking release is a minor one (major, from 1.0): a patch promises nothing to change
+    const last = lastTag(tags);
+    if (breaking && last !== null) {
+      const [ma, mi, pa] = parseVersion(version), [lma, lmi] = parseVersion(last.slice(1));
+      if (pa !== 0 || (ma === lma && mi <= lmi)) {
+        problems.push(`${file} has breaking changes, and ${version} is a patch after ${last}: a release that changes how programs are written takes the next minor version.\n` +
+          `    bump package.json (and compiler/src/version.ts) to ${lma}.${lmi + 1}.0, and rename the notes.`);
+      }
     }
   }
   for (const n of notes) {
@@ -173,12 +193,15 @@ export function scaffoldText() {
     "",
     "The flagship calendar is <!--stat:calendar.wireKB1-->0<!--/stat--> KB gzipped at this tag.",
     "",
-    "<!-- A release that changes how programs must be written ends with a section",
-    "     \"## Changes to make\": one \"### old → new\" entry per change, each with a",
-    "     sentence of why, a Find: line, the before and after fragments, a Docs: line",
-    "     and a Watch for: line for what changes without an error (RELEASING.md).",
-    "     npx declare-changes reads it. The push refuses a release that removes public",
-    "     surface without it. -->",
+    "<!-- A release that changes how programs must be written puts, right after this",
+    "     introduction, a section \"## Breaking changes\": one \"### old → new\" entry per",
+    "     change, each with a sentence of why, a Find: line, the before and after",
+    "     fragments, a Docs: line and a Watch for: line for what changes without an",
+    "     error (RELEASING.md). npx declare-changes reads it. Without the section, the",
+    "     release breaks nothing; the push refuses that when public surface was removed.",
+    "     Then \"## New\" (what was added, taught) and \"## Smaller changes\". -->",
+    "",
+    "## New",
     "",
   ].join("\n");
 }

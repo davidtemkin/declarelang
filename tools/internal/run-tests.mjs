@@ -39,7 +39,7 @@ const SUITE = [
   "test/locations.test.mjs",
   "test/error-codes.test.mjs",
   "test/release.test.mjs",         // a release is a projection of the tree: the check, the scaffold, the projection
-  "test/changes.test.mjs",         // moving a program to a new release: Changes to make, declare-changes, declareVersion
+  "test/changes.test.mjs",         // moving a program to a new release: Breaking changes, declare-changes, declareVersion
   "test/databinding.test.mjs",
   "test/dataset-merge.test.mjs",
   "test/change-event.test.mjs",

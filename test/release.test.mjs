@@ -63,6 +63,9 @@ await test("the projection: title from the H1, body without it, stamps reduced t
   assert.equal(headlineOf(text), "headers, unions, coded errors");
   assert.equal(titleFor("0.4.3", text), "v0.4.3 — headers, unions, coded errors");
   assert.equal(bodyFor(text), "The calendar is 85.0 KB.\n", "no H1 (the title carries it), no markers");
+  const breaking = "# h\n\nIntro.\n\n## Breaking changes\n\n### `a` → `b`\nWhy.\n\n### `c` → `d`\nWhy.\n\n## New\n";
+  assert.match(bodyFor(breaking), /^Intro\.\n\n\*\*Breaking:\*\* 2 changes to make — .*\n\n## Breaking changes/, "the count of breaking changes, before the first section");
+  assert.doesNotMatch(bodyFor("# h\n\nIntro.\n\n## New\n"), /Breaking/, "no section, no line");
   assert.equal(stripStamps("a <!--stat:x.y-->7<!--/stat--> b"), "a 7 b");
   assert.equal(titleFor("0.4.3", "no heading here"), "v0.4.3", "a file without an H1 still has a title");
 });
@@ -83,14 +86,20 @@ await test("versions order as semver, and the names are what the tree uses", () 
   assert.equal(tagOf("0.4.3"), "v0.4.3");
 });
 
-await test("a release that removes public surface needs its Changes to make", () => {
+await test("a release that removes public surface needs its Breaking changes; a breaking release is a minor one", () => {
   assert.deepEqual(removedPublic({ reference: { "A.x": {}, "A.y": {}, "A._z": { internal: true } } }, { reference: { "A.x": {} } }), ["A.y"]);
   const base = { version: "0.6.0", tags: ["v0.5.3"], notes: ["releases/v0.6.0.md"], committed: ["releases/v0.6.0.md"], removed: ["TextInput.initial"] };
   const without = checkRelease({ ...base, notesText: "# h\n\ntext\n" });
   assert.equal(without.ok, false);
-  assert.match(without.problems[0], /Changes to make/);
+  assert.match(without.problems[0], /Breaking changes/);
   assert.match(without.problems[0], /TextInput\.initial/);
-  assert.equal(checkRelease({ ...base, notesText: "# h\n\n## Changes to make\n\n### a → b\n" }).ok, true);
+  assert.equal(checkRelease({ ...base, notesText: "# h\n\n## Breaking changes\n\n### a → b\n" }).ok, true);
+  // no section: nothing breaks, and a patch is fine
+  assert.equal(checkRelease({ ...base, version: "0.6.1", tags: ["v0.6.0"], notes: ["releases/v0.6.1.md"], committed: ["releases/v0.6.1.md"], removed: [], notesText: "# h\n\n## New\n" }).ok, true);
+  // breaking changes in a patch: refused, with the minor named
+  const patch = checkRelease({ ...base, version: "0.6.1", tags: ["v0.6.0"], notes: ["releases/v0.6.1.md"], committed: ["releases/v0.6.1.md"], notesText: "# h\n\n## Breaking changes\n\n### a → b\n" });
+  assert.equal(patch.ok, false);
+  assert.match(patch.problems.join("\n"), /0\.7\.0/);
 });
 
 await test("the compiler knows the release it is: compiler/src/version.ts says package.json's version", () => {
