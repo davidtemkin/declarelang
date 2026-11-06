@@ -23,6 +23,8 @@
 // expect(page) toHaveURL / toHaveTitle; expect(value) the plain matchers. Waits and
 // retries run on the driven clock, 5 s by default, as Playwright's expect does.
 
+import { timing } from "./timing.mjs";
+
 const LOCATOR = Symbol("locator");
 const PAGE = Symbol("page");
 
@@ -91,6 +93,7 @@ function resolveInPage(steps) {
   // leaves (below): a page of 650 seats cannot pay that on every query.
   const roleOf = IMPLICIT;
   const text = (el) => norm(el.innerText ?? el.textContent);
+  const squash = (x) => String(x ?? "").replace(/\s+/g, "").toLowerCase();
   const labelOf = (el) => {
     const a = el.getAttribute("aria-label");
     if (a) return a;
@@ -100,8 +103,20 @@ function resolveInPage(steps) {
     const wrap = el.closest("label");
     return wrap ? text(wrap) : "";
   };
-  const nameOf = (el) => typeof el.computedName === "string" ? el.computedName
-    : labelOf(el) || (IMPLICIT(el) === "textbox" ? el.getAttribute("placeholder") || "" : text(el));
+  // an aria-label is the name unless aria-labelledby is given (the name algorithm's
+  // order), so Chrome is asked only otherwise — and once an element per query: a
+  // seat map's 650 labelled buttons cost ~1.3 s a query asked each time
+  const names = new Map();
+  const nameOf = (el) => {
+    let n = names.get(el);
+    if (n !== undefined) return n;
+    const a = el.getAttribute("aria-label");
+    n = a && a.trim() !== "" && !el.hasAttribute("aria-labelledby") ? a
+      : typeof el.computedName === "string" ? el.computedName
+      : labelOf(el) || (IMPLICIT(el) === "textbox" ? el.getAttribute("placeholder") || "" : text(el));
+    names.set(el, n);
+    return n;
+  };
   // every source an accessible name is made from, cheaply: a name that fits none of
   // them, nor all of them together, cannot be the element's name
   const mayBeNamed = (el, want, exact) => {
@@ -140,16 +155,22 @@ function resolveInPage(steps) {
     let cur = roots;
     for (const s of chain) {
       if (s.by === "role") {
-        cur = below(cur, (el) => roleOf(el) === s.role && (s.opts.includeHidden || !hidden(el))
+        // cheapest first: role, state, the name's sources; only then whether it is
+        // shown (a style read) and its computed name (Chrome's, ~3 ms an element)
+        cur = below(cur, (el) => roleOf(el) === s.role
           && ["checked", "pressed", "expanded", "selected", "disabled"].every((k) => s.opts[k] === undefined || roleState[k](el) === s.opts[k])
           && (s.opts.level === undefined || roleState.level(el) === s.opts.level)
-          && mayBeNamed(el, s.name, s.exact) && fits(s.name == null ? "" : nameOf(el), s.name, s.exact));
+          && mayBeNamed(el, s.name, s.exact) && (s.opts.includeHidden || !hidden(el)) && fits(s.name == null ? "" : nameOf(el), s.name, s.exact));
       } else if (s.by === "label") {
         cur = below(cur, (el) => !hidden(el) && (IMPLICIT(el) !== null || el.isContentEditable) && labelOf(el) !== "" && fits(labelOf(el), s.name, s.exact));
       } else if (s.by === "placeholder") {
         cur = below(cur, (el) => !hidden(el) && el.hasAttribute("placeholder") && fits(el.getAttribute("placeholder"), s.name, s.exact));
       } else if (s.by === "text") {
-        cur = below(cur, (el) => !hidden(el) && fits(text(el), s.name, s.exact) && ![...el.children].some((c) => fits(text(c), s.name, s.exact)));
+        // innerText lays the page out; an element whose textContent cannot hold the
+        // words (spacing aside) cannot either, so it is never asked — a page of 650
+        // seats paid innerText for every element and its children on each query
+        const could = (el) => s.name == null || s.name.re !== undefined || squash(el.textContent).includes(squash(s.name.s));
+        cur = below(cur, (el) => could(el) && fits(text(el), s.name, s.exact) && !hidden(el) && ![...el.children].some((c) => could(c) && fits(text(c), s.name, s.exact)));
       } else if (s.by === "altText") {
         cur = below(cur, (el) => !hidden(el) && el.hasAttribute("alt") && fits(el.getAttribute("alt"), s.name, s.exact));
       } else if (s.by === "title") {
@@ -215,10 +236,10 @@ export async function pressChord(page, name) {
 const CLICK_OPTIONS = new Set(["button", "clickCount", "force", "modifiers", "noWaitAfter", "position", "timeout", "trial"]);
 
 export function withLocators(page, { act, settle, advance, pause = async () => {}, fail = (m) => { throw new Error(m); }, judged = () => {} }) {
-  const find = (steps) => page.evaluate(resolveInPage, steps);
+  const find = (steps) => timing.time("locator: query the page", () => page.evaluate(resolveInPage, steps));
   const on = (i, fn, arg) => page.evaluate((i, fn, arg) => new Function("el", "arg", `return (${fn})(el, arg)`)(window.__locHits[i], arg), i, fn.toString(), arg);
   const onAll = (fn, arg) => page.evaluate((fn, arg) => new Function("els", "arg", `return (${fn})(els, arg)`)(window.__locHits, arg), fn.toString(), arg);
-  const tick = async () => { await advance(50); await new Promise((r) => setTimeout(r, 30)); };
+  const tick = async () => timing.time("locator: wait a tick for it", async () => { await advance(50); await new Promise((r) => setTimeout(r, 30)); });
 
   const say = (n) => n == null ? "" : n.re !== undefined ? `/${n.re}/${n.flags}` : JSON.stringify(n.s);
   const describe = (steps) => "page." + steps.map((s) => {
@@ -397,6 +418,7 @@ export function withLocators(page, { act, settle, advance, pause = async () => {
         }
       },
     };
+    timing.wrap("locator", api);
     return new Proxy(api, {
       get(t, k) {
         if (k in t || typeof k === "symbol" || k === "then") return t[k];
@@ -407,7 +429,8 @@ export function withLocators(page, { act, settle, advance, pause = async () => {
   }
 
   // ── expect ─────────────────────────────────────────────────────────────
-  const retry = async (label, check, timeout = 5000) => {
+  const retry = async (label, check, timeout = 5000) => timing.time("expect(locator), in all", () => retryOnce(label, check, timeout));
+  const retryOnce = async (label, check, timeout) => {
     const until = Date.now() + timeout;
     let last = null;
     for (;;) {
