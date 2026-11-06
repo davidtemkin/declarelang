@@ -87,6 +87,26 @@ await test("with no measurer at all, text falls back to its anchor rather than t
   assert.equal(l.exact, false);
 });
 
+await test("a mark at a coordinate that is not finite leaves the bounds alone, and is said once", () => {
+  // one NaN in the ink box made the DOM raster impossible and the whole drawing
+  // went with it, silently (Cadence run 22's year strip). A canvas skips the call;
+  // the recorder keeps it out of the bounds the same way.
+  const warned = [];
+  const was = console.warn;
+  console.warn = (m) => warned.push(String(m));
+  try {
+    for (const bad of [NaN, Infinity, -Infinity]) {
+      const d = new DrawContext();
+      d.fillStyle = "#fff";
+      d.fillRect(10, 10, 100, 50);
+      d.fillRect(bad, 10, 2, 8);
+      d.beginPath(); d.moveTo(0, bad); d.lineTo(20, 20); d.stroke();
+      assert.deepEqual(d.list().bounds, { x: 10, y: 10, w: 100, h: 50 }, String(bad));
+    }
+  } finally { console.warn = was; }
+  assert.equal(warned.filter((m) => /fillRect was given a coordinate that is not a finite number/.test(m)).length, 1, warned.join("\n"));
+});
+
 // ── the rendered half ────────────────────────────────────────────────────
 
 const server = createDeclareServer({
@@ -335,6 +355,15 @@ await test("a moving box shadow leaves no trail on the canvas backend", async ()
   })()`);
   await pg.close();
   assert.deepEqual(r, { off: 0, worst: 0 }, "where the card's shadow had been is the ground again");
+});
+
+await test("ink too far out to raster stops at the box: the rest of the drawing still shows", async () => {
+  const pg = await open("test/probe/draw-far.declare?render=dom");
+  const px = await pg.evaluate(`(() => { const c = document.querySelector("canvas"); if (c === null) return null;
+    const r = c.getBoundingClientRect(), k = c.width / r.width;
+    return Array.from(c.getContext("2d").getImageData((60 - r.left) * k, (35 - r.top) * k, 1, 1).data).slice(0, 3); })()`);
+  await pg.close();
+  assert.deepEqual(px, [51, 102, 255], "the rectangle inside the box is drawn");
 });
 
 await browser.close();

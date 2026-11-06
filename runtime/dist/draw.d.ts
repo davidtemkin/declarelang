@@ -390,6 +390,12 @@ export declare class DrawContext {
     list(): DisplayList;
     private readOnly;
     private extend;
+    /** A coordinate that is not a finite number. A canvas skips the call that
+     *  carries one, so the op replays as nothing; it must not reach the ink box
+     *  either, where one NaN (or ±Infinity) makes the whole drawing's raster
+     *  impossible and every mark in it vanishes with it. Said once, since the
+     *  drawing is otherwise silently missing a mark. */
+    private nonFinite;
     /** Grow the ink box by a painted extent, mapping its four corners through
      *  the live transform first (a rotate makes the axis-aligned span of the
      *  mapped corners the tight local box). Callers pass authoring coordinates;

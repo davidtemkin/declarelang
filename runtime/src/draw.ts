@@ -543,7 +543,21 @@ export class DrawContext {
   }
 
   private extend(x0: number, y0: number, x1: number, y1: number): void {
+    if (!finite4(x0, y0, x1, y1)) { this.nonFinite(); return; }
     this.path = union(this.path, x0, y0, x1, y1);
+  }
+
+  /** A coordinate that is not a finite number. A canvas skips the call that
+   *  carries one, so the op replays as nothing; it must not reach the ink box
+   *  either, where one NaN (or ±Infinity) makes the whole drawing's raster
+   *  impossible and every mark in it vanishes with it. Said once, since the
+   *  drawing is otherwise silently missing a mark. */
+  private nonFinite(): void {
+    const op = this.ops[this.ops.length - 1]?.op ?? "a path";
+    const said = `[Declare] draw(): ${op} was given a coordinate that is not a finite number (NaN or Infinity) — that mark is skipped, as a canvas skips it; the rest of the drawing stands`;
+    if (NON_FINITE_SAID.has(said)) return;
+    NON_FINITE_SAID.add(said);
+    console.warn(said);
   }
 
   /** Grow the ink box by a painted extent, mapping its four corners through
@@ -552,6 +566,7 @@ export class DrawContext {
    *  `extend` keeps the current PATH in those same coordinates, and the
    *  transform is applied here, once, when the path/rect is committed to ink. */
   private mark(x0: number, y0: number, x1: number, y1: number): void {
+    if (!finite4(x0, y0, x1, y1)) { this.nonFinite(); return; }
     const [a, b, c, d, e, f] = this.ctm;
     let mx0 = x0, my0 = y0, mx1 = x1, my1 = y1;
     if (!(a === 1 && b === 0 && c === 0 && d === 1 && e === 0 && f === 0)) {
@@ -575,6 +590,10 @@ function matMul(m: readonly number[], n: readonly number[]): [number, number, nu
   const [a2, b2, c2, d2, e2, f2] = n;
   return [a * a2 + c * b2, b * a2 + d * b2, a * c2 + c * d2, b * c2 + d * d2, a * e2 + c * f2 + e, b * e2 + d * f2 + f];
 }
+
+const NON_FINITE_SAID = new Set<string>();
+const finite4 = (a: number, b: number, c: number, d: number): boolean =>
+  Number.isFinite(a) && Number.isFinite(b) && Number.isFinite(c) && Number.isFinite(d);
 
 /** Grow `b` to take in a box, in place (recording-internal boxes only: a
  *  path's, the ink's, an op's extent): a new object only for the first. */

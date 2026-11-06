@@ -2919,8 +2919,11 @@ export class DomSurface {
         // its raster stops at the box: a chart drawn from a scroll position that
         // lands later — or a long series panned mostly off-screen — would otherwise
         // ask the browser for a canvas thousands of times the view's size.
-        const bp = this.boxClipped ? clipToBox(ink, this.frameW, this.frameH) : ink;
         const dpr = window.devicePixelRatio || 1;
+        // …and ink too far out to raster at all (a mark at 1e9) stops at the box too: the
+        // browser refuses a canvas past RASTER_MAX_DIM, and the whole drawing would go with it
+        const tooFar = ink.w * dpr > RASTER_MAX_DIM || ink.h * dpr > RASTER_MAX_DIM;
+        const bp = this.boxClipped || tooFar ? clipToBox(ink, this.frameW, this.frameH) : ink;
         // pixelated (setScaling): one pixel per unit, whatever the scale it is seen at
         let kk = this.pixelated() ? 1 : k ?? this.composedScale * dpr;
         const cap = rasterEntryCap(Math.max(1, window.innerWidth * dpr) * Math.max(1, window.innerHeight * dpr) * 4);

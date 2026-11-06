@@ -1,0 +1,12 @@
+// A drawing with one mark far past its box (test/draw-bounds.test.mjs): its other
+// marks still show — the raster stops at the box rather than failing whole.
+
+App [ width = 600, height = 400,
+    View [ width = 400, height = 100,
+        draw(d: DrawContext) {
+            d.fillStyle = "#3366ff"
+            d.fillRect(10, 10, 100, 50)
+            d.fillRect(1e9, 10, 2, 8)
+            }
+        ]
+    ]
