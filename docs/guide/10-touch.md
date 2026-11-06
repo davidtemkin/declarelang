@@ -71,7 +71,7 @@ takes exactly what the handler needs in order to fire, and not one gesture more:
 | `onWheel` | — | the wheel over this view, trackpad pinch included |
 | the `onPinch*` family | the **two-finger** gesture — one finger still pans the page | — |
 | the `onTouch*` family | **every finger** | — |
-| `claim = x` (or `y`, `both`) | *narrows* a claim to one axis — the page keeps the other | — |
+| `claim = x` (or `y`, `both`) | *narrows* a claim to one axis — the page keeps the other | narrows `onWheel` the same way — a wheel along the other axis goes on to the page |
 
 **`onPinchStart` / `onPinch` / `onPinchEnd` is the recognized two-finger gesture** —
 declare any of them and two fingers over that subtree are yours, delivered as a

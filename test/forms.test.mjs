@@ -187,6 +187,21 @@ await test("a node its handler has already discarded asks for no step: a fetch s
   assert.equal(app.n, 0, "the step did not run on the node that was gone");
 });
 
+await test("every value control in a Field is named by its caption, unless it says its own", async () => {
+  const src = `App [ width = 300, height = 300,
+    Field [ label = "Seats", n: Stepper [ value = 2, min = 1, max = 9 ] ],
+    Field [ label = "Delivery", g: RadioGroup [ value = "m",
+        Radio [ choice = "m", label = "Mail" ], Radio [ choice = "e", label = "Email" ] ] ],
+    Field [ label = "Copies", own: Stepper [ value = 1, accessibilityLabel = "Number of copies" ] ],
+    loose: Stepper [ value = 1 ] ]`;
+  const app = await boot(src);
+  const at = (i, k) => app.children.filter((c) => c.constructor.name === "Field")[i][k];
+  assert.equal(at(0, "n").accessibilityLabel, "Seats");
+  assert.equal(at(1, "g").accessibilityLabel, "Delivery");
+  assert.equal(at(2, "own").accessibilityLabel, "Number of copies", "its own name wins");
+  assert.equal(app.loose.accessibilityLabel, "", "outside a Field: no caption to take");
+});
+
 await test("a ValueControl with no form: its rules, facts and judging stand alone", async () => {
   const app = await boot(`App [ width = 300, height = 100, agree: boolean = false,
     c: Checkbox [ label = "I agree", required = "Accept the terms.", checked <-> app.agree ] ]`);

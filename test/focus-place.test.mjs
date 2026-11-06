@@ -158,4 +158,21 @@ await test("focus given back on close shows its ring only if it showed it on ope
   assert.equal(await run(true, false), false, "opened from the keyboard, closed by a press: no ring");
 });
 
+await test("a quiet view a tabOrder() lists sits where it lists it: Tab goes on from there, not from its place in the tree", async () => {
+  const app = await boot(`App [ width = 800, height = 400,
+    bar: Button [ label = "Performances" ],
+    screen: View [ y = 50, width = 700, height = 300,
+      tabOrder() -> View[] { return [this.panel.night, this.map, this.panel.go] },
+      map: View [ width = 300, height = 200, seat: Button [ label = "Seat A1" ] ],
+      panel: View [ x = 320, width = 300, height = 200,
+        night: Text [ text = "Sat 28 Nov", focusable = quiet ],
+        go: Button [ y = 40, label = "Continue", disabled = true ] ] ] ]`);
+  Focus.focus(app.screen.panel.night); settle();
+  Focus.next(); settle();
+  same(Focus.getFocus(), app.screen.map.seat, "Tab: the stop the tabOrder() puts after it");
+  Focus.focus(app.screen.panel.night); settle();
+  Focus.prev(); settle();
+  same(Focus.getFocus(), app.bar, "Shift-Tab: the stop before where it is listed");
+});
+
 summarize("focus-place");

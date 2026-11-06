@@ -1168,7 +1168,9 @@ slugs, preorder-first.
 The axis a declared drag claims (`claim = x | y | both`, default `both`): `x` keeps
 vertical pan with the enclosing scroll regime while the drag owns horizontal — a grid
 column's header drag or edge-resize on touch. Scopes an existing drag declaration
-(`onPointerMove`); it never creates one. The guide's Gestures chapter has the arbitration.
+(`onPointerMove`) or a declared `onWheel` — a wheel mostly along the other axis goes on to
+the scroller outside; a pinch stays the view's. It never creates either. The guide's
+Gestures chapter has the arbitration.
 
 ## onRetire
 The departure hook — fires once when this view's **presence** ends (its record leaves the

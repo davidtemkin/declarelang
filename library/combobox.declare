@@ -67,7 +67,8 @@ the list. Leaving the field settles it: a query that names exactly one item pick
 however it was typed, and one that names none clears the choice it no longer says.
 
 ## _left()
-**Internal.** Settles the query when the person leaves the field, not into the list.
+**Internal.** Settles the query when the person leaves the field, not into the list, and text
+that arrives in the field while nobody is in it.
 
 ## matches
 The filtered options, as a **derived collection**: a constraint over `items`, so the
@@ -196,6 +197,10 @@ class Combobox extends ValueControl [
     // never sends a value under other text
 
     _left() {
+        // focus gone on to another view, not into the list (a field focused from
+        // code): the list closes with it, and the query is settled
+        const f = Focus.getFocus() as View | null
+        if (this.listShown() && f != null && f !== entry && !Focus.holds(this.list as View)) this.closeList()
         if (!filtering || entry.focused || this.listShown()) return
         const t = query.trim().toLowerCase()
         const exact = t == "" ? [] : (items ?? []).filter((m) => this.labelOf(m).toLowerCase() == t)
@@ -297,6 +302,10 @@ class Combobox extends ValueControl [
                 }
             classroot.query = "" + t
             classroot.filtering = true
+            // text that lands in a field nobody is in (autofill filling another
+            // field's form) is settled as leaving settles it; the list is the
+            // person's, opened only for one in the field
+            if (!this.focused) { classroot._left(); return }
             classroot.syncList()
             if (!classroot.listShown()) (classroot.list as any).openFor(classroot)
             },

@@ -1,0 +1,41 @@
+# eval-venue-27
+total 28.9 min · 109 turns · output 144729 tokens (thinking 72398)
+phases: reading 10.7 · writing 4.7 · checking 13.6 min
+tool time 5.2 min · model time 23.7 min
+tools:
+  verify    31×   4.39 min  (median 4.4 s)
+  help      10×   0.37 min  (median 1.9 s)
+  look       3×   0.27 min  (median 5.6 s)
+  bash      26×   0.17 min  (median 0.0 s)
+model turns, by what came before:
+  after help     10×   6.02 min  (median 5.2 s)
+  after verify   30×   5.23 min  (median 8.0 s)
+  after write     9×   4.75 min  (median 16.6 s)
+  after bash     26×   3.82 min  (median 3.2 s)
+  after read     18×   2.33 min  (median 0.5 s)
+  after image    10×   1.13 min  (median 3.5 s)
+  after look      3×   0.10 min  (median 2.1 s)
+  after edit      1×   0.02 min  (median 1.1 s)
+inside the agent's verify and look calls:
+   3.31 min    35×  R5 behavior, in all
+   2.59 min    35×  script: the assert script, in all
+   1.08 min   122×  locator.click
+   0.65 min    48×  compile (R1–R3)
+   0.57 min    40×  page: load, compile in the page and boot
+   0.34 min    48×  locator.tap
+   0.30 min    93×  drive.settleData
+   0.24 min    91×  drive.settleMotion
+   0.21 min   113×  locator.fill
+   0.15 min   280×  locator: wait a tick for it
+   0.15 min   109×  drive.key
+   0.14 min     7×  drive.waitReal
+   0.10 min   161×  expect(locator), in all
+   0.09 min     3×  locator.dblclick
+   0.07 min     3×  R4 boot, in all
+   0.07 min    40×  page: a new page
+   0.05 min   712×  locator: query the page
+   0.04 min     8×  drive.click
+   0.03 min    15×  drive.wait
+   0.03 min    16×  locator.pressSequentially
+
+machine load (uptime, 1/5/15 min, 12 cores), at scoring: 5.87 5.05 5.70; a researcher's search loop held one core at 100% through most of the build

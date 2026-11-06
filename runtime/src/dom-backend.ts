@@ -1665,6 +1665,16 @@ export class DomSurface implements Surface {
       });
     }
   }
+  reassertScroll(): void {
+    if (!SCROLL_WANT_ANY) return;
+    reassertScroll(this.element);
+    // the page root's offset is the window's: its scrollTop is inert
+    const w = SCROLL_WANT.get(this.element);
+    if (w !== undefined && this.pageScroller() !== null) {
+      if (w.y !== undefined) this.scrollToY(w.y);
+      if (w.x !== undefined) this.scrollToX(w.x);
+    }
+  }
   scrollToX(v: number, glide?: { duration?: number; motion?: string }): void {
     const el = this.element;
     want(el).x = v;

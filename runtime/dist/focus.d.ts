@@ -150,8 +150,11 @@ export declare class FocusService {
      *  starts from the pressed spot. A press on something focusable, or inside
      *  it, leaves focus to that view (a control focuses itself on press). */
     pressAt(leaf: View | null): void;
-    next(): void;
-    prev(): void;
+    /** Tab and Shift-Tab. `past`: an overlay just closed, still on screen while it
+     *  animates away — its views are no stop to move to. */
+    next(past?: View): void;
+    prev(past?: View): void;
+    private moveSkipping;
     /** The ordered focus stops of the cycle a view's Tab moves in (planes.md
      *  §13.7) — the views Tab lands on, a scope's entry standing for the scope.
      *  Exposed for tooling/tests. */

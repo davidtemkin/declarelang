@@ -261,6 +261,7 @@ export declare class DomSurface implements Surface {
         duration?: number;
         motion?: string;
     }): void;
+    reassertScroll(): void;
     scrollToX(v: number, glide?: {
         duration?: number;
         motion?: string;

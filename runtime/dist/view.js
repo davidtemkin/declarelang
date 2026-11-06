@@ -1327,6 +1327,15 @@ export class View extends Node {
             this.$surface?.scrollToY?.(this.scrollStartY);
         if (this.scrollStartX !== 0)
             this.$surface?.scrollToX?.(this.scrollStartX);
+        // a request the program made before there was a surface comes after the start
+        const held = this.$heldScroll;
+        if (held !== null) {
+            this.$heldScroll = null;
+            if (held.y !== undefined)
+                this.$surface?.scrollToY?.(held.y);
+            if (held.x !== undefined)
+                this.$surface?.scrollToX?.(held.x);
+        }
         const sink = this.$inputSink();
         if (sink !== null)
             s.setInput(sink, this.$inputWants());
@@ -1584,8 +1593,16 @@ export class View extends Node {
         noteScrollRequest(this, y);
         if (Number.isFinite(y) && glide === undefined)
             this.scrollY = y; // a glide arrives through the mirror as it moves
-        this.$surface?.scrollToY?.(y, glide);
+        // asked before the view has a surface (an onInit): held, and asked of the
+        // surface once it has one — the model alone never stands for the offset
+        if (this.$surface === null) {
+            (this.$heldScroll ??= {}).y = y;
+            return;
+        }
+        this.$surface.scrollToY?.(y, glide);
     }
+    /** A request made before this view had a surface, put to it once it has one. */
+    $heldScroll = null;
     /** The horizontal twin of `scrollTo` — same request/clamp/hold contract,
      *  for a `scrolls = x` (or `both`) view. */
     scrollToX(x, glide) {
@@ -1595,7 +1612,11 @@ export class View extends Node {
         }
         if (Number.isFinite(x) && glide === undefined)
             this.scrollX = x;
-        this.$surface?.scrollToX?.(x, glide);
+        if (this.$surface === null) {
+            (this.$heldScroll ??= {}).x = x;
+            return;
+        }
+        this.$surface.scrollToX?.(x, glide);
     }
     /** A RELATIVE request — `scrollBy(dx, dy[, glide])`: the same contract as
      *  `scrollTo`/`scrollToX`, measured from the current facts. The optional

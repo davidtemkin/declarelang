@@ -50,10 +50,9 @@ Null for anything else.
 What the field shows under its control: the control's `error`, empty when it says nothing.
 
 ## fieldLabel
-The caption, provided to what the field holds: a `TextInput`, `Switch`, `Checkbox`, `Slider` or
-`Combobox` inside takes it as its name to a screen reader unless it has its own
-(`accessibilityLabel`). A control of your own reads it the same way —
-`accessibilityLabel = { provided("fieldLabel", "") }`.
+The caption, provided to what the field holds: every value control inside (a `TextInput`,
+`Stepper`, `RadioGroup`, `Combobox`, one of your own) takes it as its name to a screen reader
+unless it has its own (`accessibilityLabel`).
 
 ## _field
 **Internal.** what a control inside reads to report itself to this field.

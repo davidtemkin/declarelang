@@ -600,6 +600,10 @@ export interface Surface {
    *  host/mock omits them, so callers optional-call. */
   scrollToY?(v: number, glide?: ScrollGlide): void;
   scrollToX?(v: number, glide?: ScrollGlide): void;
+  /** Put back the scroll requests this subtree's scrollers could not take yet
+   *  (asked while the tree was still detached, at boot): called once the tree
+   *  is in the document. The browser still answers each one. Optional. */
+  reassertScroll?(): void;
   /** Place the caret / select a range in this surface's native editable — the
    *  write half of TextInput.select (#22). Both ends are already resolved and
    *  ordered by the caller; the backend clamps to its element's value. A no-op

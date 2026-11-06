@@ -326,6 +326,12 @@ const TABLE = {
     dom: true, canvas: true, mac: true,
     headless: NOT_APPLICABLE,
   },
+  reassertScroll: {
+    dom: true,
+    canvas: "deliberate — the canvas keeps its own offset and needs no layout to take a request, so one asked of a detached tree already landed",
+    mac: "deliberate — the Mac host keeps its own offset as the canvas does; a request asked before the window is up already holds",
+    headless: NOT_APPLICABLE,
+  },
   scrollToX: {
     dom: true,
     canvas: true,   // built 2026-08-29 — the Files browser's column strip found the gap live (see canvas-backend setScrollX)
@@ -470,7 +476,8 @@ for (const member of members) {
 // interaction.ts's, shared, so input honesty never depends on this row.
 await test("the size of the silent-failure surface is stated, not drifting", () => {
   const total = [...src("backend.ts").matchAll(/^ {2}[a-zA-Z][a-zA-Z0-9]*\??\(/gm)].length;
-  assert.equal(members.length, 42,   // +applyEditableText (2026-11-05): a correction admit made after a change landed — all three implement
+  assert.equal(members.length, 43,   // +reassertScroll (2026-11-06): requests a detached tree's scrollers could not take, put back once it is in the document — dom only
+                                     // +applyEditableText (2026-11-05): a correction admit made after a change landed — all three implement
                                      // +setScrollbar (2026-10-25): hideScrollbars, a scroller that draws no bars
                                      // +setEndAnchor (2026-10-23): a page-pinned view at the window's end edge, held there by the browser
                                      // +setDirection (2026-10-23): the base direction of a view's text, `direction = rtl`

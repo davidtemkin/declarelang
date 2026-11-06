@@ -53,6 +53,12 @@ the data and the rows *move* rather than being rebuilt, and any state a row hold
 travels with its record. When identity lives under another name, `key = :field` on the
 replicated view says which.
 
+When code needs the row that shows one record, to focus it or bring it into view, it looks
+among the replicating parent's children for the row whose own member says so: a row class
+that declares `id: string = { :id ?? "" }`, found by that member and cast to its class. In a
+virtualized list only the rows near the screen are built, so the one asked for may not exist
+yet.
+
 A view that isn't replicated points at a *place*, not a record. `datapath = :rows[0]`,
 or `datapath = { app.newest }`, shows whatever is there now: insert a record at the
 front and the view shows the new one. A replicated row presents its record, and moves

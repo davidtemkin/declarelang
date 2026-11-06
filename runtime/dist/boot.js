@@ -491,6 +491,9 @@ export function mountApp(app, host, backend, opts = {}) {
         catch { /* none */ }
     }
     applyDeclaredScroll(app);
+    // a request made while the tree was detached (an onInit, an afterSettle at boot)
+    // reached no layout: put it back now, as a pane just shown takes its own
+    app.$surface?.reassertScroll?.();
     wireInput(app, host, opts.chrome === true);
     // The cold-arrival reveal seed: a location carrying `@name` may have been
     // written BEFORE mount (the host seeds the fragment pre-settle), when its

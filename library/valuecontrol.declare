@@ -155,6 +155,10 @@ A control that goes leaves its form and its `Field`. An override calls `super.on
 Puts the focus where a person fixes this control's value — the control itself, or its
 entry field when it has one. A form calls it to take the person to a problem.
 
+## accessibilityLabel
+The caption of the `Field` it is in, so a screen reader names the control by it; empty outside
+one. A control that says its own name sets it.
+
 ## accessibilityError
 Follows `error`: the control is invalid to a screen reader while it says something.
 
@@ -288,6 +292,7 @@ class ValueControl extends Control [
     _field: any = null,
     _inField: any = { provided("_field", null) },
 
+    accessibilityLabel = { provided("fieldLabel", "") },
     accessibilityError = { this.error },
     accessibilityRequired = { this.required !== false && this.required !== "" },
 

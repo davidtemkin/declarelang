@@ -878,6 +878,8 @@ export declare class View extends Node {
         duration?: number;
         motion?: string;
     }): void;
+    /** A request made before this view had a surface, put to it once it has one. */
+    private $heldScroll;
     /** The horizontal twin of `scrollTo` — same request/clamp/hold contract,
      *  for a `scrolls = x` (or `both`) view. */
     scrollToX(x: number, glide?: {

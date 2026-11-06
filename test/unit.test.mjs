@@ -1562,6 +1562,18 @@ App [ width = 10, height = 10, d: Dataset [ schema = [ rows[]: T ] ] { { "rows":
   assert.equal(ok.errors.length, 0, ok.errors.map((e) => e.message).join("\n"));
 });
 
+await test("compile: a :path a method reads or writes is checked against the schema, as one in { } is", async () => {
+  const src = (body) => `schema T [ id: string, count: number ]
+App [ width = 10, height = 10, d: Dataset [ schema = [ rows[]: T ] ] { { "rows": [] } },
+  l: View [ datapath = { app.d.value }, View [ datapath = :rows[], Text [ text = "", ${body} ] ] ] ]`;
+  const read = await compile(src(`label() -> string { return "" + (:reactions ?? "") }`), {});
+  assert.ok(read.errors.some((e) => /':reactions' — 'reactions' is not in the schema here; fields: id, count/.test(e.message)), read.errors.map((e) => e.message).join("\n"));
+  const write = await compile(src(`onClick(e: PointerEvent) { :cuont = 2 }`), {});
+  assert.ok(write.errors.some((e) => /':cuont' — 'cuont' is not in the schema here/.test(e.message)), write.errors.map((e) => e.message).join("\n"));
+  const ok = await compile(src(`onClick(e: PointerEvent) { :count = :count + 1 }`), {});
+  assert.equal(ok.errors.length, 0, ok.errors.map((e) => e.message).join("\n"));
+});
+
 await test("compile: one message at sites in two files names the other file with its line", async () => {
   const { mkdtempSync, writeFileSync } = await import("node:fs");
   const { tmpdir } = await import("node:os");

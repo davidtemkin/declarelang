@@ -300,6 +300,13 @@ export function withLocators(page, { act, settle, advance, pause = async () => {
         if (t === null) return "nothing — the point is outside the window (a view still opening or sliding in stays where its motion paused until the script lets time pass: drive.settleMotion() first)";
         if (el === t || el.contains(t)) return null;
         const v = window.__declare?.profile?.viewOf?.(t)?.view;
+        // the hit is a view that holds the target's own (a list row around the
+        // option it names, the option transparent to input): a view is drawn
+        // over what holds it, never under, so nothing covers it — the press
+        // goes where a person's would
+        const at = (x) => (x ?? "").replace(/ \(.*\)$/, "");
+        const mine = window.__declare?.profile?.viewOf?.(el)?.view;
+        if (v && mine && at(mine).startsWith(at(v) + ".")) return null;
         const label = t.getAttribute("aria-label") || (t.textContent ?? "").trim().slice(0, 40);
         return `${v ?? "<" + t.tagName.toLowerCase() + ">"}${label ? ` ("${label}")` : ""}`;
       }, c);

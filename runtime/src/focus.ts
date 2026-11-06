@@ -388,11 +388,17 @@ export class FocusService {
     this.startPoint = leaf;
   }
 
-  next(): void {
-    this.move(1);
+  /** Tab and Shift-Tab. `past`: an overlay just closed, still on screen while it
+   *  animates away — its views are no stop to move to. */
+  next(past?: View): void {
+    this.moveSkipping(1, past);
   }
-  prev(): void {
-    this.move(-1);
+  prev(past?: View): void {
+    this.moveSkipping(-1, past);
+  }
+  private moveSkipping(dir: 1 | -1, past: View | undefined): void {
+    SKIP.view = past ?? null;
+    try { this.move(dir); } finally { SKIP.view = null; }
   }
 
   /** The ordered focus stops of the cycle a view's Tab moves in (planes.md
@@ -424,9 +430,12 @@ export class FocusService {
       if (first >= 0) idx = dir === 1 ? first - 1 : first;
     }
     // focus on a view that is not a stop (a quiet heading, a control disabled
-    // while focused): Tab goes on from its place, as from a pressed spot
+    // while focused): Tab goes on from its place — where the Tab walk meets it,
+    // so a tabOrder() that lists it puts it there; one the walk never meets is
+    // placed by the tree, as a pressed spot is
     else if (this.current !== null && idx < 0) {
-      const f = this.current, after = seq.findIndex((e) => afterSpot(f, e.view));
+      const f = this.current, met = meetingOf(cyc, f);
+      const after = met >= 0 ? met : seq.findIndex((e) => afterSpot(f, e.view));
       idx = after < 0 ? (dir === 1 ? seq.length - 1 : seq.length) : (dir === 1 ? after - 1 : after);
     }
     const nidx = (((idx + dir) % seq.length) + seq.length) % seq.length; // cyclic
@@ -735,7 +744,8 @@ function reachable(v: View): boolean {
     if (!p.visible) return false;
     if (c.parent !== p) continue;                // crossed an island: its tenant is its whole content
     const own = (p as unknown as { tabOrder?: unknown }).tabOrder;
-    // a quiet view is never a stop, so no tabOrder() lists it: shown is enough
+    // a quiet view is never a stop: a tabOrder() that lists it places it in
+    // the Tab walk (meetingOf), but does not gate it — shown is enough
     if (typeof own === "function" && v.focusable !== "quiet") {               // a view has one only where a program gates its members
       if (!tabOrderOf(p).includes(c) && !gatedBelow(p, c)) return false;
     }
@@ -880,16 +890,32 @@ interface Entry { view: View; scope: View | null }
 /** The entries of `root`'s cycle: preorder over each view's `tabOrder()`; a
  *  `stop` or `region` is one entry; a `modal` is reached only from inside; an
  *  island's tenant splices its own entries in, or stands as one stop. */
-function sequence(root: View): Entry[] {
-  const out: Entry[] = [];
+function sequence(root: View, out: Entry[] = []): Entry[] {
   for (const m of tabOrderOf(root)) visit(m, out);
   const t = tenantOf(root);
   if (t !== null) visit(t, out);
   return out;
 }
 
+/** Where the walk into `MEET.out` meets `MEET.view`: the number of entries before
+ *  it (a walk nested inside it, a stop's own entry, counts nothing). */
+const MEET: { view: View | null; out: Entry[] | null; at: number } = { view: null, out: null, at: -1 };
+
+/** The index in `root`'s cycle at which the Tab walk meets `v` (a view that is
+ *  not a stop itself): the entries from there on come after it. -1 when the
+ *  walk never meets it (a tabOrder() leaves it out, a stop or region holds it). */
+function meetingOf(root: View, v: View): number {
+  const out: Entry[] = [];
+  MEET.view = v; MEET.out = out; MEET.at = -1;
+  try { sequence(root, out); return MEET.at; } finally { MEET.view = null; MEET.out = null; }
+}
+
+/** An overlay the Tab walk leaves out (Focus.next's `past`). */
+const SKIP: { view: View | null } = { view: null };
+
 function visit(m: View, out: Entry[]): void {
-  if (!m.visible) return;
+  if (!m.visible || m === SKIP.view) return;
+  if (m === MEET.view && out === MEET.out && MEET.at < 0) MEET.at = out.length;
   const k = scopeOf(m);
   if (k === "modal") return;
   if (k === "region") { out.push({ view: m, scope: m }); return; }
@@ -1118,6 +1144,10 @@ export function deliverKeys(keys: KeysService, focus: FocusService): () => void 
         if (back !== null) held._savedFocus = null;   // it goes back now, not after the close
         if (typeof held.escape === "function") held.escape.call(c);
         if (back !== null) focus.focus(back);
+        // it is still on screen as it animates away: not where Tab goes
+        if (e.shift) focus.prev(c);
+        else focus.next(c);
+        return;
       }
       if (e.shift) focus.prev();
       else focus.next();

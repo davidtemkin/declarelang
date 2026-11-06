@@ -108,6 +108,20 @@ await test("a combobox carries its purpose, and text that arrives whole and name
   assert.match(r.out, /app\.picked = "France"/);
 });
 
+await test("autofill into a combobox nobody is in, naming no item: no list opens, and the old choice goes", () => {
+  const f = join(DIR, "country-away.declare");
+  writeFileSync(f, `App [ width = 400, height = 300, picked: string = "France",
+    name: TextInput [ width = 240, accessibilityLabel = "Name" ],
+    c: Combobox [ y = 60, width = 240, purpose = country, accessibilityLabel = "Country",
+        items = { ["France", "Germany"] }, value = { "France" }, commit(v: object) { app.picked = "" + v } ] ]`);
+  const r = run("look.mjs", f, "--click", "app.name",
+    "--js", "(() => { const el = document.querySelectorAll('input')[1]; el.value = 'Atlantis'; el.dispatchEvent(new Event('input', { bubbles: true })); return 'filled' })()",
+    "--read", "app.picked", "--js", "window.__declare.find('app.c').listShown()");
+  assert.equal(r.status, 0, r.out);
+  assert.match(r.out, /app\.picked = "null"/, "the choice it no longer says is cleared");
+  assert.match(r.out, /js: false/, "no list under a field nobody is in");
+});
+
 await test("commit reads the caret after the keystroke; a field regrouped by admit keeps it", () => {
   const f = join(DIR, "keys.declare");
   writeFileSync(f, `App [ width = 400, height = 200, seen: number = -1, digits: string = "",
@@ -142,6 +156,40 @@ writeFileSync(SHOWN, `App [ width = 400, height = 300,
     open: View [ y = 120, width = 50, height = 50, fill = #888888 ]
     ]`);
 const script = (name, body) => { const f = join(DIR, name); writeFileSync(f, `export default async ({ drive, expect, page }) => {\n${body}\n};\n`); return f; };
+
+await test("a combobox with its list open: Tab goes on to the next stop, focus moved away settles it, a row is pressed through its option", () => {
+  // Venue run 27: Tab with the list open left focus on the page (the closing
+  // list's rows were Tab stops as it animated away); a field focused from code
+  // left the list open and the text unsettled; the option a row names read as
+  // covered by its own row
+  const f = join(DIR, "country-tab.declare");
+  writeFileSync(f, `App [ width = 500, height = 400, country: string? = null,
+    View [ x = 20, y = 20, width = 300,
+        layout: SimpleLayout [ axis = y, spacing = 16 ],
+        Field [ label = "Postal code", stacked = true, TextInput [ width = 240 ] ],
+        Field [ label = "Country", stacked = true,
+            cb: Combobox [ width = 240, items = ["Canada", "United States", "United Kingdom"], value <-> app.country ] ],
+        Button [ label = "Pay" ] ] ]`);
+  const sc = script("country-tab.mjs", `  const box = page.getByRole("combobox", { name: "Country" });
+  await box.fill("Uni");
+  await drive.settleMotion();
+  await drive.key("Tab");
+  await drive.settleMotion();
+  await expect(page.getByRole("button", { name: "Pay" })).toBeFocused();
+  await box.fill("Uni");
+  await drive.settleMotion();
+  await page.getByRole("textbox", { name: "Postal code" }).focus();
+  await drive.settleMotion();
+  if (await page.evaluate(() => window.__declare.find("app.0.1.cb").listShown())) await expect.fail("the list stayed open under a field nobody is in");
+  await box.fill("Uni");
+  await drive.settleMotion();
+  await page.getByRole("option", { name: "United States" }).click();
+  await drive.settleMotion();
+  await expect.attr("app", "country", "United States");`);
+  const r = run("verify.mjs", f, "--assert", sc, "--rung=5", "--no-boot");
+  assert.equal(r.status, 0, r.out);
+});
+
 
 await test("the focus ring takes the theme of the control it rings, not the App's", () => {
   const f = join(DIR, "ring.declare");
@@ -335,9 +383,13 @@ await test("scrollTo({ x, y }) from onInit keeps both axes (the anchor let go of
     pane: View [ width = 390, height = 600, scrolls = both,
         onInit() { afterSettle(() => this.scrollTo({ x: 600, y: 900 })) },
         View [ width = 2000, height = 3000 ] ] ]`);
+  // the pane's own offset too: the request is made while the tree is still
+  // detached, and the model alone once read 900 over a pane the browser had at 0
   const sc = script("scroll-init.mjs", `  await drive.settleMotion();
   await expect.attr("app.pane", "scrollY", 900);
-  await expect.attr("app.pane", "scrollX", 600);`);
+  await expect.attr("app.pane", "scrollX", 600);
+  const shown = await page.evaluate(() => { const e = [...document.querySelectorAll("*")].find((x) => x.scrollTop > 0); return e ? [e.scrollTop, e.scrollLeft] : null; });
+  if (JSON.stringify(shown) !== "[900,600]") await expect.fail("the pane shows " + JSON.stringify(shown) + ", not [900,600]");`);
   const r = run("verify.mjs", f, "--assert", sc, "--rung=5", "--no-boot");
   assert.equal(r.status, 0, r.out);
 });
