@@ -191,6 +191,23 @@ await test("a Text in a Font measures in that font, and re-measures when its fac
   assert.equal(app.t.width, 64, "re-measured in the face that landed");
 });
 
+await test("a Segmented's selected label takes the pill's own text colour, else the theme's text", async () => {
+  // Cadence run 26: a theme with an ink pill (segmentedSelectedFill) left its label in
+  // ink too, unreadable; the pair is segmentedSelectedTextColor, as accent / accentTextColor
+  const seg = (theme) => `theme = { { ...SanFrancisco, ${theme} } },
+    s: Segmented [ accessibilityLabel = "Pick", value = { "a" }, input(v: any) { }, choices = { [ ({ id: "a", label: "A" }), ({ id: "b", label: "B" }) ] } ]`;
+  const inks = (app) => {
+    const out = [];
+    const walk = (v) => { for (const c of v.children ?? []) { if (typeof c.on === "boolean" && c.ink !== undefined) out.push([c.on, c.ink]); walk(c); } };
+    walk(app.s);
+    return out;
+  };
+  const paired = await boot(seg(`segmentedSelectedFill: 0x141412, segmentedSelectedTextColor: 0xFFFFFF`));
+  assert.deepEqual(inks(paired).find(([on]) => on)?.[1], 0xFFFFFF, "the selected label is the pill's text colour");
+  const plain = await boot(seg(`segmentedSelectedFill: 0xEEEEEE`));
+  assert.deepEqual(inks(plain).find(([on]) => on)?.[1], 0x1B2733, "with none, the theme's text (SanFrancisco's)");
+});
+
 await test("a Font in a rich text's textStyles is its family there, as on a view (it crashed the render key)", async () => {
   // Cadence run 23: `textStyles = { { Fig: { fontFamily: app.display } } }` passed every
   // check and then failed at boot — the record was JSON-keyed (a Font is circular) and

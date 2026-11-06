@@ -112,6 +112,11 @@ Then check every need in the plan against
     write; the list is a dataset derived from it, virtualized, with headings as a second
     row class; editing through a draft; menus, shortcuts, undo. It is
     <!--stat:tracker.code-->982<!--/stat--> lines of code, and worth reading whole.
+  - **A form people fill in and send** — a sign-up, a checkout, settings that are judged
+    before they are saved. → the `SignUp` class in `apps/sampler/sampler.declare` (its
+    Forms page): the form's values as its own attributes, each bound with `<->`; `required`
+    and `validate` on every kind of control, a field judged against another, and a
+    service's refusal landing under its field. `docs/guide/14-data.md` § A form explains it.
   - **A surface over time, or things dragged between places** — a schedule, a timeline, a
     board, a grid you zoom from years to a day (to pan and zoom a surface about the
     fingers — drag, pinch, trackpad, wheel — see `10-touch.md` § Pan and zoom about the
@@ -152,8 +157,8 @@ Then check every need in the plan against
     commands cross with `post`. (`dial.declare` and `pulse.declare` are the other
     direction: Declare programs inside an HTML page.)
 
-  Two programs are references rather than models: `apps/sampler` shows every library
-  control under four themes, and `apps/swatchbook` shows everything a view can look like,
+  Two programs are references rather than models (the sampler's `SignUp` aside, above):
+  `apps/sampler` shows every library control under four themes, and `apps/swatchbook` shows everything a view can look like,
   one case per card: look a control or an appearance up there to see it rendered and how
   it is spelled.
 

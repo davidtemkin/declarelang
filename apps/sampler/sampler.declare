@@ -125,7 +125,7 @@ class SignUp extends Form [ width = 100%,
     Field [ width = 100%, label = "Email", stacked = true,
         TextInput [ width = 100%, name = "email", purpose = email, required = "Enter your email address.",
             value <-> classroot.email,
-            validate(v: string) -> string { return v.includes("@") ? "" : "Enter an address like name@example.com." }
+            validate(v: string) -> string { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) ? "" : "Enter an address like name@example.com." }
             ]
         ],
     Field [ width = 100%, label = "Password", stacked = true,

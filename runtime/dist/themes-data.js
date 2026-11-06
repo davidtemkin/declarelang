@@ -164,6 +164,7 @@ export const ThemeDefaults = /* @__PURE__ */ Object.freeze({
     segmentedCornerRadius: 8,
     segmentedFontSize: 13,
     segmentedHeight: 30,
+    segmentedSelectedTextColor: null,
     sheetCornerRadius: 16,
     sheetShadow: { "fn": "shadow", "dx": 0, "dy": 8, "blur": 40, "color": 4294967360 },
     sliderTrackHeight: 4,

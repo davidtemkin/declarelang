@@ -67,6 +67,7 @@ theme ThemeDefaults [
     segmentedCornerRadius = 8,
     segmentedFontSize = 13,
     segmentedHeight = 30,
+    segmentedSelectedTextColor = null,
     sheetCornerRadius = 16,
     sheetShadow = shadow(0, 8, 40, #00000040),
     sliderTrackHeight = 4,

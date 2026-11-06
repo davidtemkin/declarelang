@@ -128,7 +128,8 @@ The segment Tab lands on: the selected one, else the first.
 
 ## fill
 The track: the theme's `trackFill`, else `control`. The pill is `segmentedSelectedFill`, else
-`surface`. Where the theme gives `segmentDividerColor` (none by default), a divider stands
+`surface`, and the label on it `segmentedSelectedTextColor`, else `text` — a theme that makes the
+pill dark gives it a light label beside it. Where the theme gives `segmentDividerColor` (none by default), a divider stands
 between segments; one beside the pill fades as the pill reaches it, so they part around the
 selection as it slides.
 
@@ -355,7 +356,11 @@ class SegmentedItem extends Control [
     // switches are labelled, appearance switches are the sun/half-disc/moon —
     // never both. The record shape is `Menu`'s.
 
-    ink: Color = { this.on || this.hovered ? provided("theme").text : provided("theme").textMuted },
+    // on the pill, the pill's own text colour (a dark pill takes a light label), as
+    // accent / accentTextColor pair; else the theme's text
+
+    ink: Color = { this.on ? provided("theme").segmentedSelectedTextColor ?? provided("theme").text
+        : this.hovered ? provided("theme").text : provided("theme").textMuted },
 
     _t: TextLabel [ wrap = false, fontSize = { provided("theme").segmentedFontSize }, fontWeight = medium, x = center,
         visible = { :label != null && :icon == null },

@@ -15,7 +15,7 @@ App [ width = 360, height = 240, fill = white,
         Field [ label = "Email", stacked = true,
             TextInput [ width = 300, name = "email", purpose = email, required = "Enter your email address.",
                 value = { app.email }, commit(v: string) { app.email = v },
-                validate(v: string) -> string { return v.includes("@") ? "" : "Enter an email address like name@example.com." } ] ],
+                validate(v: string) -> string { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) ? "" : "Enter an email address like name@example.com." } ] ],
         Button [ label = "Sign in", primary = true, onClick() { parent.submit() } ],
         send() { app.email = "" }
         ]
