@@ -1,7 +1,8 @@
 /*
 # RadioGroup
 
-One-of-N. Radios are written as the group's **direct children** — the group's
+One of several, chosen by the group's **direct children**: a `Radio` each, or any child of
+your own drawing that has a `choice` (a card, a tile, a row with a picture). Radios are written as the group's direct children — the group's
 layout arranges them, and each radio reaches its group as `parent`. A radio replicated
 from data (`Radio [ datapath = :plans[], choice = { :id }, label = { :name } ]`) is one
 too: each copy is a direct child of the group. A radio of your own, drawn as you like, is

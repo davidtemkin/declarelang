@@ -237,6 +237,33 @@ The button shows the current choice and a chevron; pressing it opens the menu un
 with a check beside the current row. [Menus, dialogs and overlays](declare-docs:guide:overlays)
 covers menus in full.
 
+**A choice of your own shape** — a tile with a title and a price, a card with two lines —
+is still a `RadioGroup`: any direct child with a `choice` is one of its items, drawn as you
+like. It is a `Control` that says it is a radio, is `on` when the group's value is its
+choice, and picks it when pressed; the group gives it one Tab stop and the arrow keys.
+
+```declare-fragment
+class PlanTile extends Control [ width = 140, height = 72, cornerRadius = 10, padding = 10,
+    choice: string = "",
+    title: string = "",
+    price: string = "",
+    accessibilityRole = radio,
+    accessibilityLabel = { classroot.title + ", " + classroot.price },
+    on: boolean = { (parent as RadioGroup).value == classroot.choice },
+    press() { (parent as RadioGroup).pick(classroot.choice) },
+    stroke = { stroke(classroot.on ? 2 : 1, classroot.on ? provided("theme").accent : provided("theme").line) },
+    layout: SimpleLayout [ axis = y, spacing = 4 ],
+    Text [ fontWeight = semibold, text = { classroot.title } ],
+    Text [ textColor = { provided("theme").textMuted }, text = { classroot.price } ]
+    ]
+
+RadioGroup [ accessibilityLabel = "Plan", value <-> app.plan,
+    layout: SimpleLayout [ axis = x, spacing = 10 ],
+    PlanTile [ choice = "basic", title = "Basic", price = "$4 a month" ],
+    PlanTile [ choice = "team", title = "Team", price = "$12 a month" ]
+    ]
+```
+
 You cannot nest rows inside a `Menu` — there is nowhere to put them. That is the
 contract, not a gap: a class that owns its arrangement owns how it draws, and can
 change either without any use site noticing. A list of cards that *you* position and

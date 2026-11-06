@@ -9,7 +9,10 @@ control **what is wrong with it** — its `error`, once it has been judged:
 The label sits in a column beside the control (`labelWidth` is the shared-column knob), or
 above it with `stacked = true`. The control reports itself to the field it is in, so the
 field shows its message without being told which control it holds; a control of your own
-that extends `ValueControl` does the same.
+that extends `ValueControl` does the same. It may sit at any depth inside the field — in a
+row of its own beside a button, say — and a field holds **one** value control: the label
+names it to a screen reader, and the message under it is its error. Two controls under one
+caption are two fields (or a field each, side by side).
 
 ```declare
 form: View [ x = 20, y = 20,

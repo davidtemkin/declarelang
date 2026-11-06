@@ -159,7 +159,10 @@ a locator as Playwright's does:
   `locator(css)` — on the page or on a locator, to look inside it
   (`page.getByRole("dialog").getByRole("button", { name: "Sign in" })`); `filter({ hasText,
   has })`, `first()`, `last()`, `nth(i)`, `count()`, `all()`. Roles and names are Chrome's
-  own, as a screen reader is given them; strict when two match.
+  own, as a screen reader is given them; strict when two match. `getByLabel` finds a field by what labels
+  it — a `Field`'s caption, an `accessibilityLabel`; a control whose own `label` is its words
+  (a `Checkbox`, a `Switch`, a `Radio`, a `Button`) is named by them, and found by role:
+  `getByRole("checkbox", { name: "Show password" })`.
 - **acting:** `click`, `dblclick`, `tap`, `hover`, `fill`, `clear`, `pressSequentially`
   (`type`), `press`, `check`, `uncheck`, `setChecked`, `focus`, `blur`, `selectOption` (a
   `<select>`), `scrollIntoViewIfNeeded` — through the driver: a real press (a finger on a
