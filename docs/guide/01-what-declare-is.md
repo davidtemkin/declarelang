@@ -244,6 +244,10 @@ code; a `{ }` body that names `fetch` or `setTimeout` is refused, with the membe
 It also reaches past the browser tab. The same program renders as DOM elements, as
 pixels on a canvas, or in a native Mac application with no web view, held to the same
 picture by a conformance suite ([Renderers and hosts](declare-docs:guide:renderers)).
+Whatever a host's own features ask for, the platform provides. In a browser, the
+renderer makes the tree a screen reader reads and the fields autofill fills, from the
+roles, names and purposes the program declares. The elements it makes are the
+renderer's, not the program's: they are not an interface, and they change.
 The build runs the program headlessly and bakes what it renders into the page, so
 crawlers read real content from a static host with no server-side rendering
 ([Packaging for production](declare-docs:guide:packaging)).

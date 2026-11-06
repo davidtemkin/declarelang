@@ -157,6 +157,10 @@ motion to stand still, or its theme to raise its contrast, reads it where it dec
 
 ## Where it applies
 
+**You never build any of this yourself.** The renderer makes the tree from what the program
+declares, a control with nothing to be called by is a warning at compile, and
+`declare-verify --semantics` prints the tree as a screen reader gets it.
+
 All of this is realized on the DOM renderer, the default: the browser's accessibility tree
 is what this chapter describes, and VoiceOver, NVDA and the rest read it. The canvas
 renderer draws one opaque element, and does not yet carry the tree; ship the DOM renderer

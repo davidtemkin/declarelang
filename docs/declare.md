@@ -57,16 +57,17 @@ applied to structure, space, data, style, and time.
 4. **Children come from data, not from code.** The `[ ]` tree never generates children from an
    expression, so React's `{items.map(…)}` and `{cond && …}` have no equivalent there: a
    collection comes from *replication* over a datapath, and conditional presence is `visible`.
-   (Both are ordinary TypeScript inside a `{ }` value, and a handler can build views with
-   `createView`; the tree is not where either happens.) (§7)
+   (Both are ordinary TypeScript inside `{ }`, and a handler can build views with `createView`,
+   just not in the tree.) (§7)
 5. **There is no CSS, and no DOM to program.** No selectors, cascade, specificity, media queries, z-index,
    flexbox, or grid. Style is attributes, stacking is declaration order, and responsiveness is
-   constraints on `app.width`. (§6, §9)
+   constraints on `app.width`. The renderer makes what the browser's own features need (the
+   tree a screen reader reads, the fields autofill fills) from what you declare: a role, a name,
+   a `purpose`. Its elements are not an interface. (§6, §9)
 6. **Events do not bubble.** A handler fires on the node that declares it, and a child reports
    to its owner by calling a method. (§8)
 7. **Nothing waits.** A program never polls: readiness is a value to constrain on, completion
-   an event to take (`onLoad`, `onArrive`, `afterSettle`). A loop or timer that checks whether
-   something has happened is a constraint or an event written by hand. Time is only ever an input — a duration to animate over, a frame step to
+   an event to take (`onLoad`, `onArrive`, `afterSettle`). Time is only ever an input — a duration to animate over, a frame step to
    integrate by. (§5, §10)
 
 ## 2. Two delimiters
@@ -743,8 +744,7 @@ describes. Like `contentWidth`, they are computed for you.
 
 ## 9. Style
 
-There is no CSS, no stylesheet file, no selector, no cascade, and no specificity — which is also
-what makes a non-DOM renderer possible. Your CSS *knowledge* transfers: colors, font stacks, and
+Having no CSS (§1) is also what makes a non-DOM renderer possible. Your CSS *knowledge* transfers: colors, font stacks, and
 shadows read the same. The names do not. A border is a **stroke**, rounding is **`cornerRadius`**
 (one number, or `[topLeft, topRight, bottomRight, bottomLeft]` to round only some corners),
 and `borderWidth`, `boxShadow`, and `outline` do not exist.

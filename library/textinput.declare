@@ -196,6 +196,13 @@ The theme's `fieldCornerRadius`, else its `controlCornerRadius`.
 ## _typed()
 **Internal.** A change the native element has landed, already admitted: opens the edit if
 none is open and takes it; a change to a field nobody is in (autofill) ends at once.
+
+## _pad
+**Internal.** The inset `padding` starts from: the theme's `fieldPadding`.
+
+## _tall
+**Internal.** The top and bottom inset a one-line field takes on a touch-first device, so it
+is 44 tall.
 */
 
 include [ "valuecontrol.declare" ]
