@@ -17096,11 +17096,6 @@
     "title": "Dragging on a scrolling surface",
     "kind": "guide-section"
    },
-   "guide:touch@gesture-claims": {
-    "path": "docs/guide/10-touch.md",
-    "title": "Gesture claims",
-    "kind": "guide-section"
-   },
    "guide:touch@mouse-and-touch-differences": {
     "path": "docs/guide/10-touch.md",
     "title": "Mouse and touch differences",
@@ -18201,19 +18196,11 @@
     "App.hasTouch",
     "App.lastPointerType",
     "App.touchFirst",
-    "Carousel",
-    "DataGrid",
     "Spring",
-    "View.claim",
     "View.hovered",
     "View.pressed",
-    "View.rotation",
-    "View.scale",
     "guide:motion@springs",
     "guide:paint-and-themes",
-    "guide:pointer-and-keyboard@dragging",
-    "guide:pointer-and-keyboard@raw-and-resolved-events",
-    "guide:scrolling",
     "operational:verify"
    ],
    "docs/guide/11-paint-and-themes.md": [
@@ -107608,7 +107595,7 @@
     "Checkbox": 5,
     "Combobox": 5,
     "ContextMenu": 2,
-    "Control": 5,
+    "Control": 3,
     "DataGrid": 3,
     "DatePicker": 3,
     "Dialog": 4,
@@ -107624,17 +107611,17 @@
     "MonthCalendar": 2,
     "ProgressBar": 3,
     "Radio": 2,
-    "RadioGroup": 8,
+    "RadioGroup": 7,
     "SearchField": 2,
     "Segmented": 7,
-    "SimpleLayout": 6,
+    "SimpleLayout": 4,
     "Slider": 4,
     "Splitter": 2,
     "Stepper": 2,
     "Switch": 2,
     "TabBar": 2,
     "Table": 2,
-    "Text": 5,
+    "Text": 3,
     "TextInput": 11,
     "TextSizeSwitch": 2,
     "ToolButton": 2,
@@ -107676,14 +107663,8 @@
    "part": "Building",
    "teaches": {
     "App": 7,
-    "Button": 1,
-    "Carousel": 2,
-    "DataGrid": 2,
-    "Image": 1,
-    "Slider": 1,
     "Spring": 2,
-    "Text": 1,
-    "View": 7
+    "View": 4
    }
   },
   {
