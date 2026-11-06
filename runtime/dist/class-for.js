@@ -5,6 +5,7 @@
 // (compiler/src/capabilities.ts, "class-for"): a program that never writes
 // `classFor` builds every record as its template's class and carries none of
 // this.
+import { markPresented } from "./data.js";
 import { Node } from "./node.js";
 import { compileExpr } from "./expr.js";
 import { DeclareError } from "./errors.js";
@@ -21,7 +22,12 @@ export function classOfFor(el, parentView, croot) {
         throw new DeclareError(`classFor = { … } ${c.error}`, a.value.pos);
     const fn = c.fn;
     return (cursor) => {
-        const name = fn.call({ datapath: cursor, parent: null, $data: Node.prototype.$data }, parentView, croot);
+        // the stand-in asks what the RECORD is, not what sits at its place: an
+        // insert or removal ahead of it must not re-ask every record's class
+        // (rebuilding every window of a desktop as one closed) — presented, as a row is
+        const stand = { datapath: cursor, parent: null, $data: Node.prototype.$data };
+        markPresented(stand);
+        const name = fn.call(stand, parentView, croot);
         return typeof name === "string" && name !== "" ? name : el.tag;
     };
 }

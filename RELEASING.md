@@ -14,22 +14,30 @@ the way the doc model is, and edited only by editing that file.
 
 ## When to cut a release
 
-A release marks a change to the **language surface** — something a program's
-author can see:
+**A release is a decision, not a consequence.** Nothing in the tree makes one due: not a
+bug fix, not a new feature, not a number of commits.
 
-- a new form, keyword, or declaration modifier (`external`, …);
-- a new verb or event on a built-in (`post`/`onPost`, …);
-- new facts (`pageVisible`, `onScreen`, …) or methods on views;
-- changed semantics of any of the above;
-- a new embedding or host contract (the boot API, the sanctioned handles).
+**A breaking change is always a release.** A change is breaking when it changes what a
+feature of the language means or removes one; whether it brings a bug has nothing to do
+with it. The language surface it touches is:
 
-Internal work — renderer fixes, host performance, tooling — ships in whatever
-release comes next; it may get a line, not a headline. So do changes to the
-docs alone: prose rewritten, an example corrected, a chapter reordered, with
-no change in what the product does. The test is **what a program can do or
-must say differently**, not whether a page changed: the guide and the
-reference change with every release, but changing them is not a release. A
-stretch of pushes with no such change needs no release at all.
+- a form, keyword, or declaration modifier (`external`, …);
+- a verb or event on a built-in (`post`/`onPost`, …);
+- a fact (`pageVisible`, `onScreen`, …) or a method on views;
+- an embedding or host contract (the boot API, the sanctioned handles).
+
+It ships in a release because a program moving across it needs the notes:
+`npx declare-changes` reads its entries from them.
+
+**A new feature is a judgment.** Cut a release when there is something worth telling the
+people who write programs, such as a coherent addition they should learn. Many features
+aren't that on their own, and wait for the next release.
+
+**A bug fix is never a release by itself,** and neither is tooling, performance, or a
+change to the docs alone (prose rewritten, an example corrected, a chapter reordered).
+They ship in whichever release comes next, a line each in its notes. A stretch of pushes
+with nothing worth announcing needs no release at all. When unsure, wait: the next release
+carries it.
 
 ## The increment is a judgment
 

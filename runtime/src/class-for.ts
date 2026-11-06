@@ -7,7 +7,7 @@
 // this.
 
 import type { Element } from "./parser.js";
-import type { Cursor } from "./data.js";
+import { markPresented, type Cursor } from "./data.js";
 import type { View } from "./view.js";
 import { Node } from "./node.js";
 import { compileExpr } from "./expr.js";
@@ -27,7 +27,12 @@ export function classOfFor(el: Element, parentView: View, croot: View): ClassOf 
   if ("error" in c) throw new DeclareError(`classFor = { … } ${c.error}`, a.value.pos);
   const fn = c.fn;
   return (cursor) => {
-    const name = fn.call({ datapath: cursor, parent: null, $data: Node.prototype.$data }, parentView, croot);
+    // the stand-in asks what the RECORD is, not what sits at its place: an
+    // insert or removal ahead of it must not re-ask every record's class
+    // (rebuilding every window of a desktop as one closed) — presented, as a row is
+    const stand = { datapath: cursor, parent: null, $data: Node.prototype.$data };
+    markPresented(stand);
+    const name = fn.call(stand, parentView, croot);
     return typeof name === "string" && name !== "" ? name : el.tag;
   };
 }

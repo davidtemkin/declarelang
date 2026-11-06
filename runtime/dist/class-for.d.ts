@@ -1,5 +1,5 @@
 import type { Element } from "./parser.js";
-import type { Cursor } from "./data.js";
+import { type Cursor } from "./data.js";
 import type { View } from "./view.js";
 import { Replicator, type Match, type Materialize } from "./replicate.js";
 /** The class a record is built as, read from the record at its cursor. */
