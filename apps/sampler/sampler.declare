@@ -102,6 +102,39 @@ class PickCell [ width = 100%, height = 100%,
     ]
 
 
+// ── A one-time code drawn as cells. It is ONE text field — the platform's
+//    autofill, paste, Undo and its single name to a screen reader all hold — whose
+//    own text and caret are hidden (a transparent text color hides both), drawn by
+//    a row of cells that read what it shows; the next cell is ringed while it has
+//    the focus.
+
+class CodeCell [ width = { (parent.width - 5 * 8) / 6 }, height = 48, cornerRadius = 8,
+    at: number = 0,
+    field: TextInput? = { parent.parent as TextInput },
+    next: boolean = { classroot.field != null && classroot.field.focused && Math.min(5, (classroot.field.shown as string).length) == classroot.at },
+    fill = { provided("theme").surface },
+    stroke = { stroke(classroot.next ? 2 : 1, classroot.next ? provided("theme").accent : provided("theme").line) },
+    TextLabel [ x = center, y = center, fontSize = 20, fontWeight = semibold, numeralWidth = tabular,
+        textColor = { provided("theme").text },
+        text = { ((classroot.field?.shown ?? "") as string).charAt(classroot.at) } ]
+    ]
+
+
+class CodeField extends TextInput [ height = 48, purpose = oneTimeCode, padding = 0,
+    textColor = #00000000, fill = #00000000, stroke = null,
+    admit(t: string) -> string { return t.replace(/[^0-9]/g, "").slice(0, 6) },
+    cells: View [ width = 100%, height = 100%, pointerEvents = "none",
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        CodeCell [ at = 0 ],
+        CodeCell [ at = 1 ],
+        CodeCell [ at = 2 ],
+        CodeCell [ at = 3 ],
+        CodeCell [ at = 4 ],
+        CodeCell [ at = 5 ]
+        ]
+    ]
+
+
 // ── The Forms page's form. Its values are its own attributes, each bound to its
 //    control with `<->`; the form judges every control inside it, and the
 //    pretend service refuses one address, which lands under the email field.
@@ -110,6 +143,7 @@ class SignUp extends Form [ width = 100%,
     layout: SimpleLayout [ axis = y, spacing = 14 ],
     name: string = "",
     email: string = "",
+    phone: string = "",
     password: string = "",
     confirm: string = "",
     country: object = null,
@@ -127,6 +161,12 @@ class SignUp extends Form [ width = 100%,
         TextInput [ width = 100%, name = "email", purpose = email, required = "Enter your email address.",
             value <-> classroot.email,
             validate(v: string) -> string { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) ? "" : "Enter an address like name@example.com." }
+            ]
+        ],
+    Field [ width = 100%, label = "Phone (optional)", stacked = true,
+        TextInput [ width = 100%, name = "phone", purpose = tel,
+            value <-> classroot.phone,
+            admit(t: string) -> string | null { return /^[0-9 +()-]{0,20}$/.test(t) ? t : null }
             ]
         ],
     Field [ width = 100%, label = "Password", stacked = true,
@@ -774,6 +814,15 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                             ],
                         Text [ width = 100%, wrap = true, fontSize = 12, textColor = { provided("theme").textMuted },
                             text = "Paste “Your code is 12 34 56” and the field holds 123456 — one step on Undo." ]
+                        ],
+
+                    // the same code as six cells: still one native field — autofill,
+                    // paste, Undo, one name to a screen reader — drawn by its own cells
+
+                    Specimen [ label = "A code, in cells",
+                        CodeField [ width = 300, accessibilityLabel = "One-time code", value <-> app.code ],
+                        Text [ width = 100%, wrap = true, fontSize = 12, textColor = { provided("theme").textMuted },
+                            text = "One field, so a pasted or autofilled code fills every cell at once." ]
                         ],
 
                     // commitOn = "end": nothing is written until the field is left

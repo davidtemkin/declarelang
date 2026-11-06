@@ -16,6 +16,10 @@ export default async ({ drive, expect, page }) => {
   // filled in; the confirmation is judged against the password
   await page.getByLabel("Name", { exact: true }).fill("Ada Lovelace");
   await page.getByLabel("Email").fill("taken@example.com");
+  // the phone field admits a phone number's characters only: the letters never appear
+  const phone = page.getByLabel("Phone (optional)");
+  await phone.pressSequentially("+1 (555) abc 0100");
+  await expect(phone).toHaveValue("+1 (555)  0100");
   await page.getByLabel("Password", { exact: true }).fill("analytical");
   const confirm = page.getByLabel("Confirm password");
   await confirm.fill("analytica");
@@ -49,9 +53,15 @@ export default async ({ drive, expect, page }) => {
   await expect(size).toHaveValue("48");
 
   // tidied as it arrives
-  const code = page.getByLabel("Code");
+  const code = page.getByLabel("Code", { exact: true });
   await code.fill("Your code is 12 34 56");
   await expect.attr("app", "code", "123456");
+  // the cells are one field over the same code: it holds it, and typing into it is tidied too
+  const cells = page.getByLabel("One-time code");
+  await expect(cells).toHaveValue("123456");
+  await cells.fill("");
+  await cells.pressSequentially("9 8x7");
+  await expect.attr("app", "code", "987");
 
   // saved when left; Escape takes it back
   const note = page.getByLabel("Note");
