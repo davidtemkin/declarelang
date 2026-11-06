@@ -87,6 +87,21 @@ await test("with no measurer at all, text falls back to its anchor rather than t
   assert.equal(l.exact, false);
 });
 
+await test("a mark a canvas would throw on (a negative radius) is skipped and said, never recorded", () => {
+  // Venue run 21: an arc's negative radius threw inside replay and the whole app failed to boot
+  const warned = [];
+  const was = console.warn;
+  console.warn = (m) => warned.push(String(m));
+  try {
+    const d = new DrawContext(undefined, undefined, () => "app.seat");
+    d.fillStyle = "#000"; d.fillRect(0, 0, 10, 10);
+    d.beginPath(); d.arc(5, 5, -3, 0, 6.3); d.ellipse(5, 5, 2, -1, 0, 0, 6.3); d.roundRect(0, 0, 4, 4, [-1, 2]); d.arcTo(0, 0, 4, 4, -1); d.fill();
+    const ops = d.list().ops.map((o) => o.op);
+    for (const op of ["arc", "ellipse", "roundRect", "arcTo"]) assert.equal(ops.includes(op), false, `${op} not recorded`);
+  } finally { console.warn = was; }
+  for (const op of ["arc", "ellipse", "roundRect", "arcTo"]) assert.ok(warned.some((m) => m.includes(`app.seat.draw(): ${op} was given a negative radius`)), warned.join("\n"));
+});
+
 await test("a lineWidth that is not a positive finite number is ignored, as a canvas ignores it", () => {
   // an icon at zero size sets weight / unit = Infinity (Cadence run 25's ChevronIcon note)
   const d = new DrawContext();

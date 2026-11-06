@@ -204,6 +204,10 @@ export class DrawContext {
      *  extremes the sweep passes — a shallow arc of a large circle is a thin
      *  box, not the circle's (a row of seats on a 900-unit radius). */
     arc(x, y, r, a0, a1, ccw = false) {
+        if (r < 0) {
+            this.refused("arc", `a negative radius (${r})`);
+            return;
+        }
         this.push({ op: "arc", x, y, r, a0, a1, ccw });
         const TAU = Math.PI * 2;
         // the sweep as the canvas draws it: from `from`, increasing, by `sweep`
@@ -224,11 +228,19 @@ export class DrawContext {
     /** The tangent arc's box is bounded by its two guide points (conservative:
      *  the curve stays within their span plus the corner it rounds). */
     arcTo(x1, y1, x2, y2, r) {
+        if (r < 0) {
+            this.refused("arcTo", `a negative radius (${r})`);
+            return;
+        }
         this.push({ op: "arcTo", x1, y1, x2, y2, r });
         this.extend(x1, y1, x1, y1);
         this.extend(x2, y2, x2, y2);
     }
     ellipse(x, y, rx, ry, rot, a0, a1, ccw = false) {
+        if (rx < 0 || ry < 0) {
+            this.refused("ellipse", `a negative radius (${rx < 0 ? rx : ry})`);
+            return;
+        }
         this.push({ op: "ellipse", x, y, rx, ry, rot, a0, a1, ccw });
         // conservative: the rotated ellipse fits in a circle of its larger radius
         const r = Math.max(Math.abs(rx), Math.abs(ry));
@@ -239,6 +251,11 @@ export class DrawContext {
         this.extend(x, y, x + w, y + h);
     }
     roundRect(x, y, w, h, radii = 0) {
+        const neg = (Array.isArray(radii) ? radii : [radii]).find((q) => q < 0);
+        if (neg !== undefined) {
+            this.refused("roundRect", `a negative radius (${neg})`);
+            return;
+        }
         this.push({ op: "roundRect", x, y, w, h, radii: Array.isArray(radii) ? radii.slice() : radii });
         this.extend(x, y, x + w, y + h);
     }
@@ -424,6 +441,17 @@ export class DrawContext {
         }
         this.path = union(this.path, x0, y0, x1, y1);
     }
+    /** A mark the canvas would refuse with an exception (a negative radius): it is
+     *  not recorded — a canvas throws on it, and the throw would end the drawing, or the
+     *  program booting it — and is said once, naming the view. */
+    refused(op, what) {
+        const who = this.who();
+        const key = `${who} ${op} refused`;
+        if (NON_FINITE_SAID.has(key))
+            return;
+        NON_FINITE_SAID.add(key);
+        console.warn(`[Declare] ${who === "" ? "" : who + "."}draw(): ${op} was given ${what} — a canvas refuses it, so that mark is skipped; the rest of the drawing stands`);
+    }
     /** A coordinate that is not a finite number. A canvas skips the call that
      *  carries one, so the op replays as nothing; it must not reach the ink box
      *  either, where one NaN (or ±Infinity) makes the whole drawing's raster
@@ -474,6 +502,14 @@ function matMul(m, n) {
     return [a * a2 + c * b2, b * a2 + d * b2, a * c2 + c * d2, b * c2 + d * d2, a * e2 + c * f2 + e, b * e2 + d * f2 + f];
 }
 const NON_FINITE_SAID = new Set();
+/** A mark the canvas threw on at replay: skipped, said once per kind. */
+function refusedAtReplay(op, e) {
+    const key = `replay ${op}`;
+    if (NON_FINITE_SAID.has(key))
+        return;
+    NON_FINITE_SAID.add(key);
+    console.warn(`[Declare] draw(): the canvas refused a ${op} (${e instanceof Error ? e.message : String(e)}) — that mark is skipped; the rest of the drawing stands`);
+}
 const finite4 = (a, b, c, d) => Number.isFinite(a) && Number.isFinite(b) && Number.isFinite(c) && Number.isFinite(d);
 /** Grow `b` to take in a box, in place (recording-internal boxes only: a
  *  path's, the ink's, an op's extent): a new object only for the first. */
@@ -888,123 +924,130 @@ function replayDirect(ctx, list, cull) {
         const o = list.ops[i];
         if (culled(list, i, cull))
             continue;
-        switch (o.op) {
-            case "fillStyle":
-                ctx.fillStyle = o.grad ? buildGradient(ctx, o.grad) : o.v;
-                break;
-            case "strokeStyle":
-                ctx.strokeStyle = o.grad ? buildGradient(ctx, o.grad) : o.v;
-                break;
-            case "set":
-                if (!lengths.set(o.k, o.v))
-                    ctx[o.k] = o.v;
-                break;
-            case "setLineDash":
-                ctx.setLineDash(o.segments);
-                break;
-            case "fillRect":
-                lengths.apply();
-                ctx.fillRect(o.x, o.y, o.w, o.h);
-                break;
-            case "strokeRect":
-                lengths.apply();
-                ctx.strokeRect(o.x, o.y, o.w, o.h);
-                break;
-            case "clearRect":
-                ctx.clearRect(o.x, o.y, o.w, o.h);
-                break;
-            case "drawImage": {
-                const im = drawImageBitmap(o.h);
-                if (im !== undefined) {
+        // A mark the canvas throws on is that mark lost, never the drawing (and with it
+        // the program: an arc's negative radius took Venue run 21's whole app down at boot)
+        try {
+            switch (o.op) {
+                case "fillStyle":
+                    ctx.fillStyle = o.grad ? buildGradient(ctx, o.grad) : o.v;
+                    break;
+                case "strokeStyle":
+                    ctx.strokeStyle = o.grad ? buildGradient(ctx, o.grad) : o.v;
+                    break;
+                case "set":
+                    if (!lengths.set(o.k, o.v))
+                        ctx[o.k] = o.v;
+                    break;
+                case "setLineDash":
+                    ctx.setLineDash(o.segments);
+                    break;
+                case "fillRect":
                     lengths.apply();
-                    ctx.drawImage(im, o.sx, o.sy, o.sw, o.sh, o.dx, o.dy, o.dw, o.dh);
+                    ctx.fillRect(o.x, o.y, o.w, o.h);
+                    break;
+                case "strokeRect":
+                    lengths.apply();
+                    ctx.strokeRect(o.x, o.y, o.w, o.h);
+                    break;
+                case "clearRect":
+                    ctx.clearRect(o.x, o.y, o.w, o.h);
+                    break;
+                case "drawImage": {
+                    const im = drawImageBitmap(o.h);
+                    if (im !== undefined) {
+                        lengths.apply();
+                        ctx.drawImage(im, o.sx, o.sy, o.sw, o.sh, o.dx, o.dy, o.dw, o.dh);
+                    }
+                    break;
                 }
-                break;
+                case "beginPath":
+                    ctx.beginPath();
+                    break;
+                case "moveTo":
+                    ctx.moveTo(o.x, o.y);
+                    break;
+                case "lineTo":
+                    ctx.lineTo(o.x, o.y);
+                    break;
+                case "arc":
+                    ctx.arc(o.x, o.y, o.r, o.a0, o.a1, o.ccw);
+                    break;
+                case "arcTo":
+                    ctx.arcTo(o.x1, o.y1, o.x2, o.y2, o.r);
+                    break;
+                case "ellipse":
+                    ctx.ellipse(o.x, o.y, o.rx, o.ry, o.rot, o.a0, o.a1, o.ccw);
+                    break;
+                case "rect":
+                    ctx.rect(o.x, o.y, o.w, o.h);
+                    break;
+                case "roundRect":
+                    ctx.roundRect(o.x, o.y, o.w, o.h, o.radii);
+                    break;
+                case "quadraticCurveTo":
+                    ctx.quadraticCurveTo(o.cpx, o.cpy, o.x, o.y);
+                    break;
+                case "bezierCurveTo":
+                    ctx.bezierCurveTo(o.cp1x, o.cp1y, o.cp2x, o.cp2y, o.x, o.y);
+                    break;
+                case "closePath":
+                    ctx.closePath();
+                    break;
+                case "fill":
+                    lengths.apply();
+                    o.rule ? ctx.fill(o.rule) : ctx.fill();
+                    break;
+                case "stroke":
+                    lengths.apply();
+                    ctx.stroke();
+                    break;
+                case "clip":
+                    o.rule ? ctx.clip(o.rule) : ctx.clip();
+                    break;
+                case "fillText":
+                    lengths.apply();
+                    ctx.fillText(o.text, o.x, o.y, o.maxWidth);
+                    break;
+                case "strokeText":
+                    lengths.apply();
+                    ctx.strokeText(o.text, o.x, o.y, o.maxWidth);
+                    break;
+                case "save":
+                    ctx.save();
+                    lengths.save();
+                    break;
+                case "restore":
+                    ctx.restore();
+                    lengths.restore();
+                    break;
+                case "translate":
+                    ctx.translate(o.x, o.y);
+                    lengths.moved();
+                    break;
+                case "rotate":
+                    ctx.rotate(o.angle);
+                    lengths.moved();
+                    break;
+                case "scale":
+                    ctx.scale(o.x, o.y);
+                    lengths.moved();
+                    break;
+                case "transform":
+                    ctx.transform(o.m[0], o.m[1], o.m[2], o.m[3], o.m[4], o.m[5]);
+                    lengths.moved();
+                    break;
+                case "setTransform":
+                    setRelative(ctx, base, o.m);
+                    lengths.moved();
+                    break;
+                case "resetTransform":
+                    ctx.setTransform(base);
+                    lengths.moved();
+                    break;
             }
-            case "beginPath":
-                ctx.beginPath();
-                break;
-            case "moveTo":
-                ctx.moveTo(o.x, o.y);
-                break;
-            case "lineTo":
-                ctx.lineTo(o.x, o.y);
-                break;
-            case "arc":
-                ctx.arc(o.x, o.y, o.r, o.a0, o.a1, o.ccw);
-                break;
-            case "arcTo":
-                ctx.arcTo(o.x1, o.y1, o.x2, o.y2, o.r);
-                break;
-            case "ellipse":
-                ctx.ellipse(o.x, o.y, o.rx, o.ry, o.rot, o.a0, o.a1, o.ccw);
-                break;
-            case "rect":
-                ctx.rect(o.x, o.y, o.w, o.h);
-                break;
-            case "roundRect":
-                ctx.roundRect(o.x, o.y, o.w, o.h, o.radii);
-                break;
-            case "quadraticCurveTo":
-                ctx.quadraticCurveTo(o.cpx, o.cpy, o.x, o.y);
-                break;
-            case "bezierCurveTo":
-                ctx.bezierCurveTo(o.cp1x, o.cp1y, o.cp2x, o.cp2y, o.x, o.y);
-                break;
-            case "closePath":
-                ctx.closePath();
-                break;
-            case "fill":
-                lengths.apply();
-                o.rule ? ctx.fill(o.rule) : ctx.fill();
-                break;
-            case "stroke":
-                lengths.apply();
-                ctx.stroke();
-                break;
-            case "clip":
-                o.rule ? ctx.clip(o.rule) : ctx.clip();
-                break;
-            case "fillText":
-                lengths.apply();
-                ctx.fillText(o.text, o.x, o.y, o.maxWidth);
-                break;
-            case "strokeText":
-                lengths.apply();
-                ctx.strokeText(o.text, o.x, o.y, o.maxWidth);
-                break;
-            case "save":
-                ctx.save();
-                lengths.save();
-                break;
-            case "restore":
-                ctx.restore();
-                lengths.restore();
-                break;
-            case "translate":
-                ctx.translate(o.x, o.y);
-                lengths.moved();
-                break;
-            case "rotate":
-                ctx.rotate(o.angle);
-                lengths.moved();
-                break;
-            case "scale":
-                ctx.scale(o.x, o.y);
-                lengths.moved();
-                break;
-            case "transform":
-                ctx.transform(o.m[0], o.m[1], o.m[2], o.m[3], o.m[4], o.m[5]);
-                lengths.moved();
-                break;
-            case "setTransform":
-                setRelative(ctx, base, o.m);
-                lengths.moved();
-                break;
-            case "resetTransform":
-                ctx.setTransform(base);
-                lengths.moved();
-                break;
+        }
+        catch (e) {
+            refusedAtReplay(o.op, e);
         }
     }
     ctx.beginPath();
@@ -1155,132 +1198,137 @@ function replayFiltered(ctx, list, cull) {
         if (culled(list, i, cull))
             continue;
         opIndex = i;
-        switch (o.op) {
-            case "fillStyle":
-                both((c) => { c.fillStyle = o.grad ? buildGradient(c, o.grad) : o.v; });
-                break;
-            case "strokeStyle":
-                both((c) => { c.strokeStyle = o.grad ? buildGradient(c, o.grad) : o.v; });
-                break;
-            case "set":
-                if (o.k === "filter") {
-                    const css = String(o.v);
-                    const f = css === "none" || css === "" ? null : parseFilter(css);
-                    spec = f !== null && !isIdentity(f) ? f : null;
-                    filterCss = spec === null ? "none" : css;
+        try {
+            switch (o.op) {
+                case "fillStyle":
+                    both((c) => { c.fillStyle = o.grad ? buildGradient(c, o.grad) : o.v; });
+                    break;
+                case "strokeStyle":
+                    both((c) => { c.strokeStyle = o.grad ? buildGradient(c, o.grad) : o.v; });
+                    break;
+                case "set":
+                    if (o.k === "filter") {
+                        const css = String(o.v);
+                        const f = css === "none" || css === "" ? null : parseFilter(css);
+                        spec = f !== null && !isIdentity(f) ? f : null;
+                        filterCss = spec === null ? "none" : css;
+                    }
+                    else if (lengths.set(o.k, o.v)) {
+                        // a shadow length: written per mark, in device pixels
+                    }
+                    else if (o.k === "globalAlpha" || o.k === "globalCompositeOperation") {
+                        ctx[o.k] = o.v; // composite-time, target only
+                    }
+                    else {
+                        both((c) => { c[o.k] = o.v; });
+                    }
+                    break;
+                case "setLineDash":
+                    both((c) => c.setLineDash(o.segments));
+                    break;
+                case "fillRect":
+                    paint((c) => c.fillRect(o.x, o.y, o.w, o.h));
+                    break;
+                case "strokeRect":
+                    paint((c) => c.strokeRect(o.x, o.y, o.w, o.h));
+                    break;
+                case "clearRect":
+                    ctx.clearRect(o.x, o.y, o.w, o.h);
+                    break; // not a drawing op — never filtered
+                case "drawImage": {
+                    const im = drawImageBitmap(o.h);
+                    if (im !== undefined)
+                        paint((c) => c.drawImage(im, o.sx, o.sy, o.sw, o.sh, o.dx, o.dy, o.dw, o.dh));
+                    break;
                 }
-                else if (lengths.set(o.k, o.v)) {
-                    // a shadow length: written per mark, in device pixels
-                }
-                else if (o.k === "globalAlpha" || o.k === "globalCompositeOperation") {
-                    ctx[o.k] = o.v; // composite-time, target only
-                }
-                else {
-                    both((c) => { c[o.k] = o.v; });
-                }
-                break;
-            case "setLineDash":
-                both((c) => c.setLineDash(o.segments));
-                break;
-            case "fillRect":
-                paint((c) => c.fillRect(o.x, o.y, o.w, o.h));
-                break;
-            case "strokeRect":
-                paint((c) => c.strokeRect(o.x, o.y, o.w, o.h));
-                break;
-            case "clearRect":
-                ctx.clearRect(o.x, o.y, o.w, o.h);
-                break; // not a drawing op — never filtered
-            case "drawImage": {
-                const im = drawImageBitmap(o.h);
-                if (im !== undefined)
-                    paint((c) => c.drawImage(im, o.sx, o.sy, o.sw, o.sh, o.dx, o.dy, o.dw, o.dh));
-                break;
+                case "beginPath":
+                    both((c) => c.beginPath());
+                    break;
+                case "moveTo":
+                    both((c) => c.moveTo(o.x, o.y));
+                    break;
+                case "lineTo":
+                    both((c) => c.lineTo(o.x, o.y));
+                    break;
+                case "arc":
+                    both((c) => c.arc(o.x, o.y, o.r, o.a0, o.a1, o.ccw));
+                    break;
+                case "arcTo":
+                    both((c) => c.arcTo(o.x1, o.y1, o.x2, o.y2, o.r));
+                    break;
+                case "ellipse":
+                    both((c) => c.ellipse(o.x, o.y, o.rx, o.ry, o.rot, o.a0, o.a1, o.ccw));
+                    break;
+                case "rect":
+                    both((c) => c.rect(o.x, o.y, o.w, o.h));
+                    break;
+                case "roundRect":
+                    both((c) => c.roundRect(o.x, o.y, o.w, o.h, o.radii));
+                    break;
+                case "quadraticCurveTo":
+                    both((c) => c.quadraticCurveTo(o.cpx, o.cpy, o.x, o.y));
+                    break;
+                case "bezierCurveTo":
+                    both((c) => c.bezierCurveTo(o.cp1x, o.cp1y, o.cp2x, o.cp2y, o.x, o.y));
+                    break;
+                case "closePath":
+                    both((c) => c.closePath());
+                    break;
+                case "fill":
+                    paint((c) => (o.rule ? c.fill(o.rule) : c.fill()));
+                    break;
+                case "stroke":
+                    paint((c) => c.stroke());
+                    break;
+                case "clip":
+                    o.rule ? ctx.clip(o.rule) : ctx.clip();
+                    break; // applies AFTER the filter
+                case "fillText":
+                    paint((c) => c.fillText(o.text, o.x, o.y, o.maxWidth));
+                    break;
+                case "strokeText":
+                    paint((c) => c.strokeText(o.text, o.x, o.y, o.maxWidth));
+                    break;
+                case "save":
+                    saved.push([spec, filterCss]);
+                    lengths.save();
+                    both((c) => c.save());
+                    break;
+                case "restore":
+                    [spec, filterCss] = saved.length ? saved.pop() : [null, "none"];
+                    lengths.restore();
+                    both((c) => c.restore());
+                    break;
+                case "translate":
+                    both((c) => c.translate(o.x, o.y));
+                    lengths.moved();
+                    break;
+                case "rotate":
+                    both((c) => c.rotate(o.angle));
+                    lengths.moved();
+                    break;
+                case "scale":
+                    both((c) => c.scale(o.x, o.y));
+                    lengths.moved();
+                    break;
+                case "transform":
+                    both((c) => c.transform(o.m[0], o.m[1], o.m[2], o.m[3], o.m[4], o.m[5]));
+                    lengths.moved();
+                    break;
+                case "setTransform":
+                    setRelative(ctx, base, o.m);
+                    setRelative(sx, base, o.m);
+                    lengths.moved();
+                    break;
+                case "resetTransform":
+                    ctx.setTransform(base);
+                    sx.setTransform(base);
+                    lengths.moved();
+                    break;
             }
-            case "beginPath":
-                both((c) => c.beginPath());
-                break;
-            case "moveTo":
-                both((c) => c.moveTo(o.x, o.y));
-                break;
-            case "lineTo":
-                both((c) => c.lineTo(o.x, o.y));
-                break;
-            case "arc":
-                both((c) => c.arc(o.x, o.y, o.r, o.a0, o.a1, o.ccw));
-                break;
-            case "arcTo":
-                both((c) => c.arcTo(o.x1, o.y1, o.x2, o.y2, o.r));
-                break;
-            case "ellipse":
-                both((c) => c.ellipse(o.x, o.y, o.rx, o.ry, o.rot, o.a0, o.a1, o.ccw));
-                break;
-            case "rect":
-                both((c) => c.rect(o.x, o.y, o.w, o.h));
-                break;
-            case "roundRect":
-                both((c) => c.roundRect(o.x, o.y, o.w, o.h, o.radii));
-                break;
-            case "quadraticCurveTo":
-                both((c) => c.quadraticCurveTo(o.cpx, o.cpy, o.x, o.y));
-                break;
-            case "bezierCurveTo":
-                both((c) => c.bezierCurveTo(o.cp1x, o.cp1y, o.cp2x, o.cp2y, o.x, o.y));
-                break;
-            case "closePath":
-                both((c) => c.closePath());
-                break;
-            case "fill":
-                paint((c) => (o.rule ? c.fill(o.rule) : c.fill()));
-                break;
-            case "stroke":
-                paint((c) => c.stroke());
-                break;
-            case "clip":
-                o.rule ? ctx.clip(o.rule) : ctx.clip();
-                break; // applies AFTER the filter
-            case "fillText":
-                paint((c) => c.fillText(o.text, o.x, o.y, o.maxWidth));
-                break;
-            case "strokeText":
-                paint((c) => c.strokeText(o.text, o.x, o.y, o.maxWidth));
-                break;
-            case "save":
-                saved.push([spec, filterCss]);
-                lengths.save();
-                both((c) => c.save());
-                break;
-            case "restore":
-                [spec, filterCss] = saved.length ? saved.pop() : [null, "none"];
-                lengths.restore();
-                both((c) => c.restore());
-                break;
-            case "translate":
-                both((c) => c.translate(o.x, o.y));
-                lengths.moved();
-                break;
-            case "rotate":
-                both((c) => c.rotate(o.angle));
-                lengths.moved();
-                break;
-            case "scale":
-                both((c) => c.scale(o.x, o.y));
-                lengths.moved();
-                break;
-            case "transform":
-                both((c) => c.transform(o.m[0], o.m[1], o.m[2], o.m[3], o.m[4], o.m[5]));
-                lengths.moved();
-                break;
-            case "setTransform":
-                setRelative(ctx, base, o.m);
-                setRelative(sx, base, o.m);
-                lengths.moved();
-                break;
-            case "resetTransform":
-                ctx.setTransform(base);
-                sx.setTransform(base);
-                lengths.moved();
-                break;
+        }
+        catch (e) {
+            refusedAtReplay(o.op, e);
         }
     }
     ctx.beginPath();

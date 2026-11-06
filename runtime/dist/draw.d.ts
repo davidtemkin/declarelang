@@ -392,6 +392,10 @@ export declare class DrawContext {
     list(): DisplayList;
     private readOnly;
     private extend;
+    /** A mark the canvas would refuse with an exception (a negative radius): it is
+     *  not recorded — a canvas throws on it, and the throw would end the drawing, or the
+     *  program booting it — and is said once, naming the view. */
+    private refused;
     /** A coordinate that is not a finite number. A canvas skips the call that
      *  carries one, so the op replays as nothing; it must not reach the ink box
      *  either, where one NaN (or ±Infinity) makes the whole drawing's raster

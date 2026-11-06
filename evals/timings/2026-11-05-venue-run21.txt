@@ -1,0 +1,18 @@
+# eval-venue-21
+total 31.5 min · 132 turns · output 141357 tokens (thinking 63007)
+phases: reading 6.8 · writing 5.2 · checking 19.6 min
+tool time 7.2 min · model time 24.3 min
+tools:
+  verify    43×   5.66 min  (median 7.7 s)
+  look      12×   1.16 min  (median 4.1 s)
+  help      12×   0.33 min  (median 1.3 s)
+  bash      22×   0.04 min  (median 0.0 s)
+  read      14×   0.02 min  (median 0.0 s)
+model turns, by what came before:
+  after help     12×   6.45 min  (median 5.0 s)
+  after verify   42×   5.71 min  (median 7.5 s)
+  after write     6×   3.78 min  (median 33.7 s)
+  after bash     22×   3.33 min  (median 4.3 s)
+  after image    22×   2.50 min  (median 7.3 s)
+  after look     12×   1.47 min  (median 2.1 s)
+  after read     14×   1.02 min  (median 2.0 s)

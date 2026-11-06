@@ -350,6 +350,7 @@ export class DrawContext {
    *  extremes the sweep passes — a shallow arc of a large circle is a thin
    *  box, not the circle's (a row of seats on a 900-unit radius). */
   arc(x: number, y: number, r: number, a0: number, a1: number, ccw = false): void {
+    if (r < 0) { this.refused("arc", `a negative radius (${r})`); return; }
     this.push({ op: "arc", x, y, r, a0, a1, ccw });
     const TAU = Math.PI * 2;
     // the sweep as the canvas draws it: from `from`, increasing, by `sweep`
@@ -367,12 +368,14 @@ export class DrawContext {
   /** The tangent arc's box is bounded by its two guide points (conservative:
    *  the curve stays within their span plus the corner it rounds). */
   arcTo(x1: number, y1: number, x2: number, y2: number, r: number): void {
+    if (r < 0) { this.refused("arcTo", `a negative radius (${r})`); return; }
     this.push({ op: "arcTo", x1, y1, x2, y2, r });
     this.extend(x1, y1, x1, y1);
     this.extend(x2, y2, x2, y2);
   }
 
   ellipse(x: number, y: number, rx: number, ry: number, rot: number, a0: number, a1: number, ccw = false): void {
+    if (rx < 0 || ry < 0) { this.refused("ellipse", `a negative radius (${rx < 0 ? rx : ry})`); return; }
     this.push({ op: "ellipse", x, y, rx, ry, rot, a0, a1, ccw });
     // conservative: the rotated ellipse fits in a circle of its larger radius
     const r = Math.max(Math.abs(rx), Math.abs(ry));
@@ -385,6 +388,8 @@ export class DrawContext {
   }
 
   roundRect(x: number, y: number, w: number, h: number, radii: number | number[] = 0): void {
+    const neg = (Array.isArray(radii) ? radii : [radii]).find((q) => q < 0);
+    if (neg !== undefined) { this.refused("roundRect", `a negative radius (${neg})`); return; }
     this.push({ op: "roundRect", x, y, w, h, radii: Array.isArray(radii) ? radii.slice() : radii });
     this.extend(x, y, x + w, y + h);
   }
@@ -553,6 +558,17 @@ export class DrawContext {
     this.path = union(this.path, x0, y0, x1, y1);
   }
 
+  /** A mark the canvas would refuse with an exception (a negative radius): it is
+   *  not recorded — a canvas throws on it, and the throw would end the drawing, or the
+   *  program booting it — and is said once, naming the view. */
+  private refused(op: string, what: string): void {
+    const who = this.who();
+    const key = `${who} ${op} refused`;
+    if (NON_FINITE_SAID.has(key)) return;
+    NON_FINITE_SAID.add(key);
+    console.warn(`[Declare] ${who === "" ? "" : who + "."}draw(): ${op} was given ${what} — a canvas refuses it, so that mark is skipped; the rest of the drawing stands`);
+  }
+
   /** A coordinate that is not a finite number. A canvas skips the call that
    *  carries one, so the op replays as nothing; it must not reach the ink box
    *  either, where one NaN (or ±Infinity) makes the whole drawing's raster
@@ -599,6 +615,13 @@ function matMul(m: readonly number[], n: readonly number[]): [number, number, nu
 }
 
 const NON_FINITE_SAID = new Set<string>();
+/** A mark the canvas threw on at replay: skipped, said once per kind. */
+function refusedAtReplay(op: string, e: unknown): void {
+  const key = `replay ${op}`;
+  if (NON_FINITE_SAID.has(key)) return;
+  NON_FINITE_SAID.add(key);
+  console.warn(`[Declare] draw(): the canvas refused a ${op} (${e instanceof Error ? e.message : String(e)}) — that mark is skipped; the rest of the drawing stands`);
+}
 const finite4 = (a: number, b: number, c: number, d: number): boolean =>
   Number.isFinite(a) && Number.isFinite(b) && Number.isFinite(c) && Number.isFinite(d);
 
@@ -961,6 +984,9 @@ function replayDirect(ctx: CanvasRenderingContext2D, list: DisplayList, cull: Bo
   for (let i = 0; i < list.ops.length; i++) {
     const o = list.ops[i];
     if (culled(list, i, cull)) continue;
+    // A mark the canvas throws on is that mark lost, never the drawing (and with it
+    // the program: an arc's negative radius took Venue run 21's whole app down at boot)
+    try {
     switch (o.op) {
       case "fillStyle": ctx.fillStyle = o.grad ? buildGradient(ctx, o.grad) : o.v!; break;
       case "strokeStyle": ctx.strokeStyle = o.grad ? buildGradient(ctx, o.grad) : o.v!; break;
@@ -995,6 +1021,7 @@ function replayDirect(ctx: CanvasRenderingContext2D, list: DisplayList, cull: Bo
       case "setTransform": setRelative(ctx, base, o.m); lengths.moved(); break;
       case "resetTransform": ctx.setTransform(base); lengths.moved(); break;
     }
+    } catch (e) { refusedAtReplay(o.op, e); }
   }
   ctx.beginPath();
   ctx.restore();
@@ -1125,6 +1152,7 @@ function replayFiltered(ctx: CanvasRenderingContext2D, list: DisplayList, cull: 
     const o = list.ops[i];
     if (culled(list, i, cull)) continue;
     opIndex = i;
+    try {
     switch (o.op) {
       case "fillStyle": both((c) => { c.fillStyle = o.grad ? buildGradient(c, o.grad) : o.v!; }); break;
       case "strokeStyle": both((c) => { c.strokeStyle = o.grad ? buildGradient(c, o.grad) : o.v!; }); break;
@@ -1172,6 +1200,7 @@ function replayFiltered(ctx: CanvasRenderingContext2D, list: DisplayList, cull: 
       case "setTransform": setRelative(ctx, base, o.m); setRelative(sx, base, o.m); lengths.moved(); break;
       case "resetTransform": ctx.setTransform(base); sx.setTransform(base); lengths.moved(); break;
     }
+    } catch (e) { refusedAtReplay(o.op, e); }
   }
   ctx.beginPath();
   ctx.restore();
