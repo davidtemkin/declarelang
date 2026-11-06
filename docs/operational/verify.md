@@ -193,7 +193,7 @@ it sent, and a run that fails after earlier runs wrote to the same service says 
 A script runs on a laptop-sized window by default. To run it on another device, export one:
 `export const device = { width: 390, height: 844, touch: true }` — the app loads once, on it.
 `drive` and `expect` drive the app by **view path**, never by DOM selector. A path names
-members (`app.toolbar.add`), a replicated row by its index among the views (`app.list.3`: the fourth view, whatever else the list holds), or a view by what
+members (`app.toolbar.add`), a replicated row by its index among the views (`app.list.3`: the fourth view, whatever else the list holds; in a virtualized list only the rows on screen are built, in no data order, so `.0` is not record 0 — name such a row by what it says), or a view by what
 it says — its label, accessible name or text (`app.tabs.Settings`, quoted when it holds a dot
 or a space: `app.menu."Save As…"`). A press is a person's: a view below the fold is scrolled
 into sight first, and a press on a view something else covers fails, naming what it would

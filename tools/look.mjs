@@ -75,7 +75,9 @@ actions, run in the order written (each may repeat)
 
 PATH names a view by where it sits in the program: the App is "app", and each
 named child adds its name — app.sidebar.list, app.toolbar.save. A replicated
-row is its index: app.list.3. A view can also be named by what it says — its label,
+row is its index among the views built now: app.list.3 (in a virtualized list, only
+the rows on screen are built, in no data order — name a row by what it says instead).
+A view can also be named by what it says — its label,
 its accessible name or its text: app.tabs.Settings, app.menu."Save As…". (declare-verify's introspection, find() and
 inspect(), takes the same paths.)
 

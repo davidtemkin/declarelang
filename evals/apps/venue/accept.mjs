@@ -38,6 +38,9 @@ export default async ({ drive, expect, page }) => {
     const walk = (n) => {
       out.push({
         path: n.path, kind: n.kind, text: n.text ?? "",
+        // a text field is what the platform reports as one — a TextInput, a SearchField,
+        // or a field of the program's own — not one class name (Venue run 21's SearchField)
+        field: window.__declare.find(n.path)?.$leafRole?.() === "textField",
         x: n.rootX, y: n.rootY, w: n.width, h: n.height,
         own: n.visible !== false,
         kids: n.children.length,
@@ -135,7 +138,7 @@ export default async ({ drive, expect, page }) => {
   // still report visible:true, and counting those would have us typing a name
   // into the season's search box.
   const visibleFields = async () =>
-    onScreen(await survey()).filter((n) => n.kind === "TextInput").sort((a, b) => a.y - b.y);
+    onScreen(await survey()).filter((n) => n.field).sort((a, b) => a.y - b.y);
 
   // The biggest cluster of similarly-sized siblings on screen — the list of
   // performances. Structure, not names.
