@@ -86,7 +86,7 @@ await test("versions order as semver, and the names are what the tree uses", () 
   assert.equal(tagOf("0.4.3"), "v0.4.3");
 });
 
-await test("a release that removes public surface needs its Breaking changes; a breaking release is a minor one", () => {
+await test("a release that removes public surface needs its Breaking changes; without the section, nothing breaks", () => {
   assert.deepEqual(removedPublic({ reference: { "A.x": {}, "A.y": {}, "A._z": { internal: true } } }, { reference: { "A.x": {} } }), ["A.y"]);
   const base = { version: "0.6.0", tags: ["v0.5.3"], notes: ["releases/v0.6.0.md"], committed: ["releases/v0.6.0.md"], removed: ["TextInput.initial"] };
   const without = checkRelease({ ...base, notesText: "# h\n\ntext\n" });
@@ -96,10 +96,8 @@ await test("a release that removes public surface needs its Breaking changes; a 
   assert.equal(checkRelease({ ...base, notesText: "# h\n\n## Breaking changes\n\n### a → b\n" }).ok, true);
   // no section: nothing breaks, and a patch is fine
   assert.equal(checkRelease({ ...base, version: "0.6.1", tags: ["v0.6.0"], notes: ["releases/v0.6.1.md"], committed: ["releases/v0.6.1.md"], removed: [], notesText: "# h\n\n## New\n" }).ok, true);
-  // breaking changes in a patch: refused, with the minor named
-  const patch = checkRelease({ ...base, version: "0.6.1", tags: ["v0.6.0"], notes: ["releases/v0.6.1.md"], committed: ["releases/v0.6.1.md"], notesText: "# h\n\n## Breaking changes\n\n### a → b\n" });
-  assert.equal(patch.ok, false);
-  assert.match(patch.problems.join("\n"), /0\.7\.0/);
+  // breaking changes in a patch are fine: the increment is a judgment (RELEASING.md)
+  assert.equal(checkRelease({ ...base, version: "0.6.1", tags: ["v0.6.0"], notes: ["releases/v0.6.1.md"], committed: ["releases/v0.6.1.md"], notesText: "# h\n\n## Breaking changes\n\n### a → b\n" }).ok, true);
 });
 
 await test("the compiler knows the release it is: compiler/src/version.ts says package.json's version", () => {

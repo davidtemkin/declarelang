@@ -149,15 +149,6 @@ export function checkRelease({ version, tags, pushed = null, notes, committed, r
       problems.push(`${file} has no "## Breaking changes", and this release removes ${removed.length} public member${removed.length == 1 ? "" : "s"} since the last tag (${removed.slice(0, 5).join(", ")}${removed.length > 5 ? ", …" : ""}).\n` +
         `    add the section, one entry per change (RELEASING.md § Breaking changes), so npx declare-changes can list them.`);
     }
-    // a breaking release is a minor one (major, from 1.0): a patch promises nothing to change
-    const last = lastTag(tags);
-    if (breaking && last !== null) {
-      const [ma, mi, pa] = parseVersion(version), [lma, lmi] = parseVersion(last.slice(1));
-      if (pa !== 0 || (ma === lma && mi <= lmi)) {
-        problems.push(`${file} has breaking changes, and ${version} is a patch after ${last}: a release that changes how programs are written takes the next minor version.\n` +
-          `    bump package.json (and compiler/src/version.ts) to ${lma}.${lmi + 1}.0, and rename the notes.`);
-      }
-    }
   }
   for (const n of notes) {
     const m = /^releases\/v(\d+\.\d+\.\d+)\.md$/.exec(n);

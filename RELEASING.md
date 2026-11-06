@@ -24,9 +24,12 @@ author can see:
 - a new embedding or host contract (the boot API, the sanctioned handles).
 
 Internal work — renderer fixes, host performance, tooling — ships in whatever
-release comes next; it may get a line, not a headline. The structural test:
-**if the guide or the reference changed, it's notable.** A stretch of purely
-internal pushes needs no release at all.
+release comes next; it may get a line, not a headline. So do changes to the
+docs alone: prose rewritten, an example corrected, a chapter reordered, with
+no change in what the product does. The test is **what a program can do or
+must say differently**, not whether a page changed: the guide and the
+reference change with every release, but changing them is not a release. A
+stretch of pushes with no such change needs no release at all.
 
 ## The increment is a judgment
 
@@ -118,9 +121,8 @@ first, and what is merely new is never mistaken for it:
 3. **`## New`**: what was added, taught. Nothing in it requires a program to change.
 4. **`## Smaller changes`**: fixes and polish.
 
-A release without a `## Breaking changes` section breaks nothing. A release with one takes
-the next minor version (from 1.0, the next major); the push refuses breaking changes in a
-patch.
+A release without a `## Breaking changes` section breaks nothing. Breaking changes don't
+change the increment: a patch can carry them (below).
 
 ## Breaking changes
 
@@ -166,8 +168,7 @@ are its source. Three things keep them honest:
 - The same test runs `declare-changes` on an old program (`test/fixtures/migration/`), so each
   `Find:` is also shown to find what it should.
 - The push gate refuses a pending release whose reference lost a public member since the last
-  tag (`docs/declare-model.json`) and whose notes have no `## Breaking changes`, and a
-  release with breaking changes whose version is a patch.
+  tag (`docs/declare-model.json`) and whose notes have no `## Breaking changes`.
 
 ## What holds it together
 
