@@ -137,7 +137,9 @@ of its own.
 
 ## fieldValue
 The value the rules judge: `validate(v)` receives it, `required` asks whether it is
-`empty`, and a refusal is said of it. Each concrete control sets it from its own value.
+`empty`, and a refusal is said of it. Each concrete control sets it from its own value, and
+a control of your own does too (`fieldValue = { value }`): it is what `shown` shows while the
+person edits, so without it the control shows nothing of its value.
 
 ## empty
 Whether `fieldValue` counts as empty for `required`: `blank(fieldValue)` by default. A

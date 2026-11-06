@@ -571,9 +571,7 @@ attribute falls back to its default. The request's own parts — method, body, c
 headers — are ordinary reactive attributes, so a write is a `DataSource` too: `method = "POST"`,
 a `body`, `.fetch()` from the handler, `onLoad()` for what follows the reply, `onError()` for what follows a refusal.
 
-**A schema is a named type — declare it once, at the top level, and use it in any type position.**
-Its name shares one namespace with every class, the program's and the library's: a schema can
-be called neither `Card` (a library class) nor the name of a view class of your own.
+**A schema is a named type, in the classes' namespace — declared once at top level, used in any type position.**
 `schema Task [ id: string, done: boolean, status: "open" | "closed", note?: string ]` is then
 a type like any other (`sel: Task? = null`,
 `advance(t: Task) -> Task`, a field of another schema — `owner: Person`) — and there, as for a
@@ -676,10 +674,9 @@ attribute.
 **Handlers are methods named with an `on` prefix**, answering this node's own events: `onClick`,
 the pointer and touch families, `onKeyDown` and `onKeyUp` on the focused view, and `onInit` after
 construction. **`onChange`** answers the values a node names in `trackChanges = [ … ]`: it fires at the
-close of a settle in which one of them ended different from where it started, once, with a
-`ChangeEvent`: `onChange(e: ChangeEvent)`, whose `e.changed` lists a `ValueChange` per name
-that moved (`name`, `previousValue`, `currentValue`) — `if (e.changed.some((c) => c.name == "step"))`.
-It is for a state change the program must act on, never to
+close of a settle in which one of them ended different from where it started, once —
+`onChange(e: ChangeEvent)`, `e.changed` one `ValueChange` (`name`, `previousValue`,
+`currentValue`) each: for a state change the program must act on, never to
 follow a value (a constraint) or to move one (a Spring).
 
 **Pointer input has two layers.** The **raw** layer — `onPointerDown`/`Move`/`Up`, the multi-finger

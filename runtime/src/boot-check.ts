@@ -313,8 +313,10 @@ function layoutChecks(app: Node, { touch = false, realText = false, skip = [] }:
       }
     }
     // A TARGET TOO SMALL FOR A FINGER, on a touch screen
-    // — at the size it is on screen, through any scale it sits under
-    if (touch && isA(v, "Control") && shown !== null && !passes && inView && v.width > 0 && v.height > 0
+    // — at the size it is on screen, through any scale it sits under; a disabled
+    // control is no target (nothing presses it), so it is not one too small
+    if (touch && isA(v, "Control") && (v as unknown as { disabled?: unknown }).disabled !== true
+        && shown !== null && !passes && inView && v.width > 0 && v.height > 0
         && (shown.width < 44 || shown.height < 44) && fresh("small", pathOf(app, v))) touchSmall.push(`${pathOf(app, v)} ${size1(shown.width)}×${size1(shown.height)}`);
     const across = scrollsAcross || v.scrolls === "x" || v.scrolls === "both";
     for (const c of v.children) if (c instanceof View) visit(c, across);

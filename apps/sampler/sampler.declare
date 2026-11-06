@@ -20,18 +20,19 @@ use [ TintRow ]   // the styling menu names its tint row in data
 // creates it by name (hence the `use` above). Each dot handles its own click:
 // it applies the accent and closes the menu itself.
 
-class TintDot [ width = 16, height = 16, cornerRadius = 8,
+class TintDot [ width = 16, height = 16,
     c: Color = #2E6FE0,
+    onClick() { app.accentPick = app.accentPick == c ? 0 : c || 0; app.stylingMenu.close() },
 
-    // the hovered dot enlarges in place — scale is painted-only (no layout
-    // shift, neighbors stay put, hit-testing follows)
+    // the hovered dot enlarges in place: a scaled view takes the room it is drawn
+    // at, so the box the row lays out stays 16 and the dot inside it grows
 
-    scale = { hovered ? 1.4 : 1 },
-    pivotX = 8,
-    pivotY = 8,
-    fill = { c },
-    stroke = { hovered ? stroke(2, provided("theme").text) : app.accentPick == c ? stroke(2, provided("theme").textMuted) : null },
-    onClick() { app.accentPick = app.accentPick == c ? 0 : c || 0; app.stylingMenu.close() }
+    dot: View [ width = 16, height = 16, cornerRadius = 8,
+        scale = { classroot.hovered ? 1.4 : 1 },
+        pivotX = 8,
+        pivotY = 8,
+        fill = { classroot.c },
+        stroke = { classroot.hovered ? stroke(2, provided("theme").text) : app.accentPick == classroot.c ? stroke(2, provided("theme").textMuted) : null } ]
     ]
 
 

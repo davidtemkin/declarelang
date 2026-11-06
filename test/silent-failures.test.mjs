@@ -327,6 +327,31 @@ await test("timing on (as an eval run has it), a behavior run still passes: driv
   assert.match(readFileSync(log, "utf8"), /"drive\.click"/, "and the stages were timed");
 });
 
+await test("scrollTo({ x, y }) from onInit keeps both axes (the anchor let go of the top it was keeping)", () => {
+  // Venue run 21: y landed at 0 — the scroll anchor kept the view it had picked at the
+  // top and put the pane back there as the content settled
+  const f = join(DIR, "scroll-init.declare");
+  writeFileSync(f, `App [ width = 390, height = 600,
+    pane: View [ width = 390, height = 600, scrolls = both,
+        onInit() { afterSettle(() => this.scrollTo({ x: 600, y: 900 })) },
+        View [ width = 2000, height = 3000 ] ] ]`);
+  const sc = script("scroll-init.mjs", `  await drive.settleMotion();
+  await expect.attr("app.pane", "scrollY", 900);
+  await expect.attr("app.pane", "scrollX", 600);`);
+  const r = run("verify.mjs", f, "--assert", sc, "--rung=5", "--no-boot");
+  assert.equal(r.status, 0, r.out);
+});
+
+await test("R4 on a phone: a disabled control is no target too small for a finger", () => {
+  const f = join(DIR, "disabled-small.declare");
+  writeFileSync(f, `App [ width = 390, height = 300,
+    on: Button [ x = 20, y = 20, width = 30, height = 30, label = "A" ],
+    off: Button [ x = 20, y = 100, width = 30, height = 30, label = "B", disabled = true ] ]`);
+  const r = run("verify.mjs", f, "--phone");
+  assert.match(r.out, /smaller than 44 × 44[^\n]*app\.on/, r.out);
+  assert.doesNotMatch(r.out, /smaller than 44 × 44[^\n]*app\.off/, r.out);
+});
+
 await test("warnings of one kind, collapsed, name where the others are", () => {
   // a count alone sent an agent back to verify once per site (Cadence run 23)
   const f = join(DIR, "unnamed.declare");

@@ -264,6 +264,11 @@ export function noteScrollRequest(s, y) {
         return;
     const toEnd = y === Infinity;
     st.wantY = null;
+    // the program has chosen a new place: the view kept from before it is let go,
+    // or the next change in the content puts the pane back where that view was
+    // (scrollTo from onInit undone to the top as the pane's content settled — Venue
+    // run 21); the place is re-picked where the request lands
+    st.view = null;
     if (!toEnd) {
         st.wantEnd = false;
         if (Number.isFinite(y) && y > s.contentHeight - s.height + 0.5)
