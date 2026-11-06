@@ -228,7 +228,7 @@ const step = (x) => {
       }, 5000).unref?.()),
     ]).catch((e) => expect.fail(e.message))));`;
     case "requests": return `for (const q of drive.requests()) console.log("request " + q.method + " " + q.path + (q.body !== null ? " " + JSON.stringify(q.body) : "") + (q.status !== null ? " → " + q.status : ""));`;
-    case "shot": return `await page.screenshot({ path: ${JSON.stringify(x.file)} }); console.log(${JSON.stringify("shot: " + x.file)});`;
+    case "shot": return `{ const t0 = performance.now(); await page.screenshot({ path: ${JSON.stringify(x.file)} }); globalThis.__declareTiming?.add("screenshot: capture and write", performance.now() - t0); } console.log(${JSON.stringify("shot: " + x.file)});`;
     // a view below the fold is swiped into sight first, as a press on it is
     case "shotOf": return `{ const box = () => page.evaluate((p) => { const n = window.__declare.inspect(p); return n === null ? null : { x: n.rootX, y: n.rootY, width: n.rootWidth, height: n.rootHeight }; }, ${p});
     let b = await box();

@@ -108,7 +108,9 @@ TOOLS="Read,Glob,Grep,Bash,Write,Edit,WebSearch,WebFetch,Agent"
 # the agent: headless, the full event stream, exactly these tools — and no
 # auto-memory: a run's notes to itself (Murmur run 11 wrote one) must not reach
 # a later run that reuses a directory, nor sit outside the run's own record
-CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 nohup claude -p --model "$MODEL" \
+# the agent's verify and look calls time their stages into logs/ (tools/internal/timing.mjs),
+# outside its sight: a check prints nothing more than it would
+DECLARE_TIMING_FILE="$LOGS/timing.jsonl" CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 nohup claude -p --model "$MODEL" \
   --output-format stream-json --verbose \
   --tools "$TOOLS" --allowedTools "$TOOLS" \
   --permission-mode acceptEdits --permission-prompts none \

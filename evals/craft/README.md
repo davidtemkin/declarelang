@@ -141,6 +141,13 @@ A Declare run's report has, in order:
    Its tokens are counted separately from the build's.
 6. **The names ledger:** `names.py`'s whole output, in a code block, after the account.
 
+**The timing record is kept.** Before a run directory is deleted — filed or not — run
+`python3 evals/craft/timing.py <run-dir> > evals/timings/<date>-<app>-run<N>.txt`: the
+phases, tool time by kind, the model's turns by what came before them (a screenshot, a
+command), and the stages inside the agent's own `verify` and `look` calls, which
+`launch.sh` has them write to `logs/timing.jsonl` (`DECLARE_TIMING_FILE`; the agent sees
+nothing of it). `DECLARE_TIMING=1` prints the same stage table for one call by hand.
+
 **Filing ends the logs.** Every analysis the logs feed — the figures, the time breakdown,
 the checkers' ledger, the names ledger — is run when the report is filed and goes into the
 report. The logs are not kept: once the report is filed, the run directory, logs and all,

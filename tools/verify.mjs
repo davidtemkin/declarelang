@@ -14,6 +14,7 @@
 //
 // Exit code: 0 = every requested rung passed; 1 = a rung failed; 2 =
 // usage/toolchain error.
+import { timing } from "./internal/timing.mjs";
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 // The compiler, loaded behind a preflight: on a fresh checkout without
@@ -187,8 +188,8 @@ if (flags.wrap && !hasApp) {
 // the program.
 if (flags.lint !== null && flags.lint !== "true" && flags.lint !== "false") { console.error(`declare-verify: --lint is true or false, not '${flags.lint}'`); process.exit(2); }
 if (flags.devices !== null && !["all", "desktop", "mobile"].includes(flags.devices)) { console.error(`declare-verify: --devices is all, desktop or mobile, not '${flags.devices}'`); process.exit(2); }
-const out = await compileTracked(source, { originDir: dirname(resolve(file)), mainId: resolve(file),
-  ...(flags.lint !== null ? { lint: flags.lint === "true" } : {}), ...(flags.devices !== null ? { devices: flags.devices } : {}) });
+const out = await timing.time("compile (R1–R3)", () => compileTracked(source, { originDir: dirname(resolve(file)), mainId: resolve(file),
+  ...(flags.lint !== null ? { lint: flags.lint === "true" } : {}), ...(flags.devices !== null ? { devices: flags.devices } : {}) }));
 // --only: keep the diagnostics positioned in the named file. Matched by path
 // suffix so `--only rooms/pulse.declare` and `--only pulse.declare` both work;
 // the main file itself is `--only <the program file>`. The others are counted,
@@ -271,7 +272,7 @@ if (failedRung === null && flags.rung >= 4 && !flags.noBoot) {
     if (inChrome) {
       const { runBootInBrowser } = await import("./internal/verify-behave.mjs");
       const { dirname: dirOf, resolve: resolvePath } = await import("node:path");
-      results = await runBootInBrowser({ compiled: { program }, appDir: dirOf(resolvePath(file)), windows, queries, classes: own, budgetMs: flags.bootBudget });
+      results = await timing.time("R4 boot, in all", () => runBootInBrowser({ compiled: { program }, appDir: dirOf(resolvePath(file)), windows, queries, classes: own, budgetMs: flags.bootBudget }));
     } else {
       const { bootInWorker } = await import("./internal/verify-boot.mjs");
       results = [];
@@ -314,7 +315,7 @@ if (failedRung === null && flags.rung >= 5 && flags.assert !== null) {
   const { runBehavior } = await import("./internal/verify-behave.mjs");
   const { dirname: dirOf, resolve: resolvePath } = await import("node:path");
   try {
-    const r = await runBehavior({
+    const r = await timing.time("R5 behavior, in all", async () => runBehavior({
       compiled: { program: await compiledProgram() },
       appDir: dirOf(resolvePath(file)),
       assertPath: flags.assert,
@@ -323,7 +324,7 @@ if (failedRung === null && flags.rung >= 5 && flags.assert !== null) {
       url: flags.url ?? null,
       classes: await ownClasses(),
       skip: [...boot.flagged ?? [], ...driven.checks.flatMap((c) => c.flagged ?? [])],
-    });
+    }));
     driven.checks.push(...(r.checks ?? []));
     behave.ok = r.ok;
     behave.failures = r.failures;

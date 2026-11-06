@@ -14,6 +14,7 @@ import { readFileSync, writeFileSync, existsSync, statSync, mkdirSync } from "no
 import { join, resolve, dirname, extname, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { sharedChrome } from "./chrome.mjs";
+import { timing } from "./timing.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "../..");
 
@@ -133,7 +134,7 @@ bootHost(cfg);
     res.writeHead(404, { "content-type": "text/plain" });
     res.end("not found: " + pathname);
   });
-  await new Promise((r) => server.listen(0, "127.0.0.1", r));
+  await timing.time("serve: start the program's server", () => new Promise((r) => server.listen(0, "127.0.0.1", r)));
   const port = server.address().port;
 
   // by package name, as Node resolves it: installed as a project's dependency,
@@ -146,15 +147,15 @@ bootHost(cfg);
   // hidden, as its baselines were drawn.
   // a Chrome kept running between calls (chrome.mjs): each run works in a
   // browser context of its own, so nothing carries from one run to the next
-  const { context: browser, release } = await sharedChrome({
+  const { context: browser, release } = await timing.time("chrome: a browser (shared between calls)", () => sharedChrome({
     // Chrome's own role and accessible name, read by the script's locators
     // (verify-locators.mjs) as a screen reader is given them
     args: ["--no-sandbox", "--enable-blink-features=ComputedAccessibilityInfo", ...(scrollbars ? ["--disable-features=OverlayScrollbar,OverlayScrollbars"] : [])],
-    ...(scrollbars ? { ignoreDefaultArgs: ["--hide-scrollbars"] } : {}) });
+    ...(scrollbars ? { ignoreDefaultArgs: ["--hide-scrollbars"] } : {}) }));
   try {
     /** A fresh page with the app booted and the language-altitude API bound. */
     const openApp = async ({ width = 1024, height = 768, clock = null, scheme = "light", dpr = 1, touch = false, hideScrollbars = false, echoConsole = false, onPage = null, budgetMs = 15000, check = null } = {}) => {
-      const page = await browser.newPage();
+      const page = await timing.time("page: a new page", () => browser.newPage());
       // watched from before the program's first line: a program that stops
       // answering — while it boots, or later, under a click — is paused where it
       // is and its lines quoted, rather than holding the run until a timeout
@@ -469,7 +470,7 @@ bootHost(cfg);
       };
       // --url: the app where it is served (a dev server, its own address), not the
       // verify host's copy — what a person opening it gets, its origin included
-      await arrive(() => page.goto(url ?? `http://127.0.0.1:${port}${built !== null ? baseHref + "index.html" : "/__verify__/"}`, { waitUntil: "load", timeout: 30000 }));
+      await timing.time("page: load, compile in the page and boot", () => arrive(() => page.goto(url ?? `http://127.0.0.1:${port}${built !== null ? baseHref + "index.html" : "/__verify__/"}`, { waitUntil: "load", timeout: 30000 })));
 
       const log = [];
       const step = (s) => log.push(s);
@@ -1330,6 +1331,7 @@ bootHost(cfg);
         },
         page,
       };
+      timing.wrap("drive", drive);
 
       const fail = (msg) => { throw new VerifyAssertion(msg); };
       // An attribute written with a dot — expect.attr("app", "weekCount.shown") — when
@@ -1811,7 +1813,7 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
       return { ok: false, failures: e.lines, log: [] };
     }
     try {
-      await app.watched(() => mod.default({ drive: app.drive, expect: app.expect, page: app.scriptPage }));
+      await timing.time("script: the assert script, in all", () => app.watched(() => mod.default({ drive: app.drive, expect: app.expect, page: app.scriptPage })));
     } catch (e) {
       if (e?.lines !== undefined) { failures.push(...e.lines); return { ok: false, failures, log: app.log, writes: writesOf(app), intercepted: interceptedOf(app), talked: originsOf(app, false), wrote: originsOf(app, true), warned: app.warned, waited: app.waited }; }
       const where = app.log.length > 0 ? ` (after: ${app.log.slice(-3).join(" → ")})` : "";

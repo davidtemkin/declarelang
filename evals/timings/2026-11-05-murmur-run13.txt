@@ -1,0 +1,18 @@
+# eval-murmur-13
+total 20.5 min · 96 turns · output 88320 tokens (thinking 36812)
+phases: reading 5.7 · writing 5.2 · checking 9.6 min
+tool time 5.8 min · model time 14.7 min
+tools:
+  verify    19×   4.83 min  (median 8.1 s)
+  look       7×   0.48 min  (median 3.5 s)
+  help       9×   0.41 min  (median 1.3 s)
+  bash      16×   0.02 min  (median 0.0 s)
+model turns, by what came before:
+  after help      9×   4.26 min  (median 9.4 s)
+  after edit      4×   2.86 min  (median 1.2 s)
+  after image    22×   2.19 min  (median 5.7 s)
+  after bash     16×   1.93 min  (median 3.4 s)
+  after write     4×   1.40 min  (median 6.3 s)
+  after verify   18×   1.05 min  (median 3.5 s)
+  after read     14×   0.53 min  (median 0.9 s)
+  after look      7×   0.24 min  (median 1.2 s)
