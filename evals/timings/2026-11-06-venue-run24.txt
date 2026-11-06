@@ -1,0 +1,35 @@
+# eval-venue-24
+total 27.1 min · 96 turns · output 114768 tokens (thinking 48848)
+phases: reading 6.9 · writing 4.8 · checking 15.5 min
+tool time 9.0 min · model time 18.1 min
+tools:
+  verify    28×   8.45 min  (median 4.0 s)
+  help       8×   0.32 min  (median 2.4 s)
+  look       4×   0.24 min  (median 2.8 s)
+model turns, by what came before:
+  after help      8×   4.57 min  (median 6.7 s)
+  after bash     14×   3.19 min  (median 3.0 s)
+  after image    19×   2.82 min  (median 8.7 s)
+  after verify   27×   2.58 min  (median 3.4 s)
+  after edit      3×   2.32 min  (median 5.4 s)
+  after read     15×   2.01 min  (median 2.1 s)
+  after write     4×   0.23 min  (median 2.8 s)
+  after look      4×   0.08 min  (median 1.2 s)
+inside the agent's verify and look calls:
+   7.36 min    24×  R5 behavior, in all
+   6.93 min    21×  script: the assert script, in all
+   0.49 min    51×  page: load, compile in the page and boot
+   0.44 min    39×  compile (R1–R3)
+   0.22 min    26×  R4 boot, in all
+   0.22 min     8×  drive.waitReal
+   0.21 min   106×  drive.key
+   0.18 min    57×  drive.settleData
+   0.12 min    47×  drive.settleMotion
+   0.07 min    51×  page: a new page
+   0.04 min    26×  drive.wait
+   0.03 min    32×  drive.type
+   0.03 min    26×  drive.tab
+   0.01 min    50×  chrome: a browser (shared between calls)
+   0.00 min     5×  screenshot: capture and write
+   0.00 min    50×  serve: start the program's server
+   0.00 min    87×  drive.requests

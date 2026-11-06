@@ -7,7 +7,8 @@ went past a third of the width or was a quick flick, otherwise back where it sta
 Assigning `page` from anywhere springs the row there the same way.
 
 A carousel's children are its pages: each is laid out as wide and as tall as the
-carousel's content box, in order. A drag that goes up or down rather than sideways is
+carousel's content box, in order — so a carousel is sized where it is used, never by its
+pages. A drag that goes up or down rather than sideways is
 left to the page around it (`claim = x`), and a press that never travels still reaches
 the page's own controls.
 

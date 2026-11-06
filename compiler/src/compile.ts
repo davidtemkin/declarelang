@@ -2640,6 +2640,9 @@ class Resolver {
     for (const m of el.methods) { all.add(m.name); declared.add(m.name); methods.add(m.name); }
     for (const c of el.children) {
       if (c.name !== null) { all.add(c.name); declared.add(c.name); }
+      // a State's children are built INTO this node (an `exists` child is one,
+      // lowered at parse), so their names are this node's, as `this.name` says
+      if (this.isState(c)) for (const g of c.children) if (g.name !== null) { all.add(g.name); declared.add(g.name); }
     }
     s = { all, declared, methods };
     this.surfaces.set(el, s);

@@ -177,6 +177,16 @@ await test("a step a handler defers with afterSettle belongs to its node: discar
   assert.equal(app.n, 10, "a node that stays runs its step at the settle's close");
 });
 
+await test("a node its handler has already discarded asks for no step: a fetch settled the write before it (a refusal handler that leaves the screen, then fetches)", async () => {
+  const app = await boot(`App [ width = 300, height = 100, n: number = 0, m: number = 0, show: boolean = true,
+    d: DataSource [ url = "http://127.0.0.1:9/x" ],
+    box: View [ exists = { app.show },
+      go() { const a = app; a.show = false; a.d.fetch(); afterSettle(() => { a.n = 1 }) } ] ]`);
+  app.box.go(); app.m = 1; settle();
+  assert.ok(app.box == null, "gone");
+  assert.equal(app.n, 0, "the step did not run on the node that was gone");
+});
+
 await test("a ValueControl with no form: its rules, facts and judging stand alone", async () => {
   const app = await boot(`App [ width = 300, height = 100, agree: boolean = false,
     c: Checkbox [ label = "I agree", required = "Accept the terms.", checked <-> app.agree ] ]`);

@@ -128,4 +128,14 @@ App [ width = 200, height = 100, Card [ ] ]`);
   assert.ok(!m.some((x) => /did you mean 'Card'/.test(x)), m.join("\n"));
 });
 
+await test("a named child under exists, or in a State, is its owner's member to a bare name, as to this.", async () => {
+  const r = await build(`App [ width = 200, height = 100, on: boolean = true,
+    pick() { if (gated != null) gated.visible = false; if (shown != null) shown.visible = false },
+    gated: View [ exists = { app.on }, width = 10, height = 10 ],
+    big: State [ applied = { app.on }, shown: View [ width = 5, height = 5 ] ],
+    box: View [ width = 10, height = 10, g2: View [ exists = { app.on } ], hide() { if (g2 != null) g2.visible = false } ] ]`);
+  clean(r);
+  assert.match(JSON.stringify(r), /this\.gated\.visible = false/);
+});
+
 summarize("name-scope");

@@ -75,7 +75,9 @@ export declare class Node {
      *  as `afterDelay`'s wait does: a node discarded before the settle closes
      *  drops it, and its step never reads a node that is gone (a form leaving
      *  the screen inside its own refusal handler threw from its deferred
-     *  `showProblems()`). */
+     *  `showProblems()`). A node discarded before it asks — its handler discarded
+     *  it and went on, as a refusal handler that leaves the screen does — has no
+     *  step to take. */
     $afterSettle(fn: () => void): void;
     /** The read behind `hostProvided("name", default)` — a value this program's
      *  HOST makes available: an island's `provides` name, a page's

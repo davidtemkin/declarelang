@@ -137,7 +137,9 @@ a code field wants `false`.
 ## padding
 **Where the text sits inside the field** — the field's content box: one number insets all four
 sides; four are `[top, right, bottom, left]`. An auto-sized field (`height` unset) counts the
-top and bottom insets in its height. The theme's `fieldPadding` unless set.
+top and bottom insets in its height. The theme's `fieldPadding` unless set — on a touch-first
+device a one-line field's top and bottom grow past it, until the field is 44 tall, a finger's
+target.
 
 ## numeralWidth
 The digits' advance, as on `Text`: `tabular` gives every digit the same width, so a card
@@ -250,7 +252,13 @@ class TextInput extends ValueControl [
     fill = { provided("theme")?.surface ?? 0xFFFFFF },
     stroke = { stroke(1, error != "" ? (provided("theme")?.error ?? 0xC93429) : focused ? (provided("theme")?.accent ?? 0x2E6FE0) : (provided("theme")?.line ?? 0xDBE1E9)) },
     cornerRadius = { provided("theme")?.fieldCornerRadius ?? provided("theme")?.controlCornerRadius ?? 7 },
-    padding = { provided("theme")?.fieldPadding ?? 10 },
+
+    // on a touch-first device a one-line field is a finger's target, 44 tall, as
+    // every control is there: its top and bottom insets grow to make it so
+
+    padding = { app.touchFirst && !multiline ? [_tall, _pad, _tall, _pad] : _pad },
+    _pad: number = { provided("theme")?.fieldPadding ?? 10 },
+    _tall: number = { Math.max(_pad, (44 - _native.textHeight) / 2) },
 
     _native: NativeText [
         text = { classroot.text },

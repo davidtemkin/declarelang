@@ -72,6 +72,10 @@ export class Node {
      *  frame" — and it reads the wall clock through the one test seam
      *  (wallclock.ts), so a driver that advances Time advances this too. */
     $afterDelay(ms, fn) {
+        // asked by a node already discarded (its handler went on after discarding
+        // it): nothing is left to run it on
+        if (this.$tornDown)
+            return { cancel: () => { } };
         const host = timeHost();
         const due = host.now() + Math.max(0, Number(ms) || 0);
         let frame = null, timer = null, done = false;
@@ -121,8 +125,12 @@ export class Node {
      *  as `afterDelay`'s wait does: a node discarded before the settle closes
      *  drops it, and its step never reads a node that is gone (a form leaving
      *  the screen inside its own refusal handler threw from its deferred
-     *  `showProblems()`). */
+     *  `showProblems()`). A node discarded before it asks — its handler discarded
+     *  it and went on, as a refusal handler that leaves the screen does — has no
+     *  step to take. */
     $afterSettle(fn) {
+        if (this.$tornDown)
+            return;
         let done = false;
         const cancel = () => { if (!done) {
             done = true;

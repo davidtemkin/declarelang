@@ -1575,12 +1575,16 @@ export async function runBootInBrowser({ compiled, appDir, windows, queries = nu
 
 /** The program's own frames in a page error's stack: compiled bodies carry
  *  their owner, member and place (runtime expr.ts bodyLabel), so the error is
- *  said as " — in Form.showProblems (library/form.declare:295), from
- *  Venue.leave (venue.declare:212)", rather than as minified frames. */
+ *  said as " — in PayForm.showProblems (the library's), from Venue.leave
+ *  (venue.declare:212)", rather than as minified frames. The shipped library
+ *  carries no places, so its bodies are named by class and method alone. */
 function programFrames(stack) {
   const seen = [];
-  for (const m of String(stack ?? "").matchAll(/declare\/([A-Za-z0-9_$.]+)@([^\s)]+?):(\d+):\d+:\d+/g)) {
-    const at = `${m[1]} (${m[2] === "main" ? `line ${m[3]}` : `${m[2]}:${m[3]}`})`;
+  // a body of the program's is `declare/Class.method@file:line:col:…`; one the
+  // library wrote, inherited or called, is `declare/Class.method:line:col` —
+  // named by its class and method, its line being the library's own
+  for (const m of String(stack ?? "").matchAll(/declare\/([A-Za-z0-9_$.]+)(?:@([^\s)]+?):(\d+):\d+:\d+|:\d+:\d+)/g)) {
+    const at = m[2] === undefined ? `${m[1]} (the library's)` : `${m[1]} (${m[2] === "main" ? `line ${m[3]}` : `${m[2]}:${m[3]}`})`;
     if (!seen.includes(at)) seen.push(at);
     if (seen.length === 2) break;
   }

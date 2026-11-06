@@ -235,7 +235,19 @@ export async function pressChord(page, name) {
 }
 const CLICK_OPTIONS = new Set(["button", "clickCount", "force", "modifiers", "noWaitAfter", "position", "timeout", "trial"]);
 
-export function withLocators(page, { act, settle, advance, pause = async () => {}, fail = (m) => { throw new Error(m); }, judged = () => {} }) {
+export function withLocators(page, { act, settle, advance, pause = async () => {}, fail: refuse = (m) => { throw new Error(m); }, judged = () => {} }) {
+  // the script's line that reached the locator or expect last: a failure names it,
+  // so "found nothing within 5 s" says which of a script's lookups it was
+  let site = null;
+  const here = () => {
+    for (const l of String(new Error().stack).split("\n").slice(2)) {
+      const m = /(?:file:\/\/)?([^\s()]+\.m?js):(\d+):\d+/.exec(l);
+      if (m === null || /\/tools\/internal\/|node_modules|^node:/.test(m[1])) continue;
+      return `${m[1].split("/").slice(-2).join("/")}:${m[2]}`;
+    }
+    return null;
+  };
+  const fail = (m) => refuse(site !== null ? `${m} — at ${site}` : m);
   const find = (steps) => timing.time("locator: query the page", () => page.evaluate(resolveInPage, steps));
   const on = (i, fn, arg) => page.evaluate((i, fn, arg) => new Function("el", "arg", `return (${fn})(el, arg)`)(window.__locHits[i], arg), i, fn.toString(), arg);
   const onAll = (fn, arg) => page.evaluate((fn, arg) => new Function("els", "arg", `return (${fn})(els, arg)`)(window.__locHits, arg), fn.toString(), arg);
@@ -421,7 +433,8 @@ export function withLocators(page, { act, settle, advance, pause = async () => {
     timing.wrap("locator", api);
     return new Proxy(api, {
       get(t, k) {
-        if (k in t || typeof k === "symbol" || k === "then") return t[k];
+        if (typeof k === "symbol" || k === "then") return t[k];
+        if (k in t) { const at = here(); if (at !== null) site = at; return t[k]; }
         const hint = LOCATOR_HINTS[k];
         return () => fail(`${describe(steps)}.${String(k)}() — ${hint ? `not on this page's locators: ${hint}` : `a locator here has ${Object.keys(api).filter((x) => typeof x === "string").join(", ")}`} (verify.md § Assert scripts)`);
       },
@@ -515,6 +528,7 @@ export function withLocators(page, { act, settle, advance, pause = async () => {
     },
   });
   const expectOf = (target) => {
+    const at = here(); if (at !== null) site = at;
     const ms = matchersFor(target, false);
     ms.not = guarded(matchersFor(target, true), target);
     return guarded(ms, target);
