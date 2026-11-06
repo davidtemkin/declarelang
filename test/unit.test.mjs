@@ -1541,6 +1541,19 @@ await test("compile: an on… name the hint table knows is answered from it, bef
   assert.doesNotMatch(w[0], /onInit/);
 });
 
+await test("compile: one message at sites in two files names the other file with its line", async () => {
+  const { mkdtempSync, writeFileSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const dir = mkdtempSync(join(tmpdir(), "declare-collapse-"));
+  writeFileSync(join(dir, "a.declare"), `class A [ Checkbox [ label = "A", checked = { app.m } ] ]\n`);
+  writeFileSync(join(dir, "b.declare"), `\n\nclass B [ Checkbox [ label = "B", checked = { app.m } ] ]\n`);
+  const r = await compile(`include [ "a.declare", "b.declare" ]\nApp [ width = 100, height = 100, m: boolean = false, A [ ], B [ ] ]`, { originDir: dir, mainId: "app.declare" });
+  const m = (r.diagnostics ?? []).map((d) => d.message).find((x) => /2 sites/.test(x));
+  assert.ok(m !== undefined, (r.diagnostics ?? []).map((d) => d.message).join("\n"));
+  assert.match(m, /also on line b\.declare:3/);
+});
+
 await test("compile: a library control's own onKeyDown (Table's) is no warning of the program's; the program's own still is", async () => {
   const lib = await compile(`App [ width = 300, height = 200, Table [ accessibilityLabel = "Rows" ] ]`, {});
   assert.equal(lib.warnings.some((e) => e.code === "DECLARE4031"), false, lib.warnings.map((e) => e.message).join("\n"));

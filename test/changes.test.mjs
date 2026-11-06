@@ -6,7 +6,7 @@
 
 import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
-import { readFileSync, readdirSync, statSync, writeFileSync, mkdtempSync, copyFileSync } from "node:fs";
+import { readFileSync, readdirSync, statSync, writeFileSync, mkdtempSync, copyFileSync, symlinkSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { resolve, dirname, join } from "node:path";
 import { tmpdir } from "node:os";
@@ -71,6 +71,13 @@ await test("declare-changes on an old program: what applies, in its own files an
   assert.deepEqual(applies["A control's value from your state → `<->`, or a `commit` beside it"], ["old-app.declare:10", "old-parts.declare:17"]);
   assert.deepEqual(applies["Names a value control now has, declared by your own class"], ["old-parts.declare:7"]);
   assert.equal(r.entries.some((e) => e.hits.some((h) => h.file.includes("/library/"))), false);
+});
+
+await test("declare-changes runs through a symlink, as npx runs it from node_modules/.bin", () => {
+  const dir = mkdtempSync(join(tmpdir(), "declare-changes-bin-"));
+  symlinkSync(join(ROOT, "tools/declare-changes.mjs"), join(dir, "declare-changes"));
+  const out = execFileSync("node", [join(dir, "declare-changes"), "--since", "0.5.3", "--json"], { encoding: "utf8" });
+  assert.ok(JSON.parse(out).entries.length > 0, "the list, not silence");
 });
 
 await test("--done writes the declareVersion line, once; a migrated program's list starts after it", () => {

@@ -12,7 +12,7 @@
 //   npx declare-changes --done app.declare         # after a clean migration: write its declareVersion line
 //   …and --json for the same, as data.
 
-import { readFileSync, writeFileSync, readdirSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, readdirSync, existsSync, realpathSync } from "node:fs";
 import { join, resolve, dirname, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { readChanges, findLines } from "./internal/changes.mjs";
@@ -124,7 +124,8 @@ function done(file) {
   console.log(`declare-changes: ${relative(process.cwd(), file)} is written for Declare ${VERSION}`);
 }
 
-const isMain = process.argv[1] !== undefined && resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+// through npm's .bin symlink argv[1] is the link, so both sides are compared resolved
+const isMain = process.argv[1] !== undefined && realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
 if (isMain) {
   const args = process.argv.slice(2);
   const opt = (n) => { const i = args.indexOf(n); return i >= 0 ? args[i + 1] : undefined; };

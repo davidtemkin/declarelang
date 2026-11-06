@@ -342,12 +342,16 @@ function collapse(list: readonly Diagnostic[]): Diagnostic[] {
   for (const { first, sites } of groups.values()) {
     if (sites.length === 1) { out.push(first); continue; }
     // Name the LINES, deduped — several sites on one line is common (a row of
-    // sibling views) and "line 2, line 2, line 2" helps nobody.
-    const lines = [...new Set(sites.slice(1).map((x) => x.pos?.line).filter((n): n is number => n !== undefined))];
+    // sibling views) and "line 2, line 2, line 2" helps nobody. A site in
+    // another file than the first is named with its file: a bare line number
+    // would be read as this file's.
+    const fileOf = (x: Diagnostic): string | undefined => x.pos?.file;
+    const lines = [...new Set(sites.slice(1).filter((x) => x.pos?.line !== undefined)
+      .map((x) => fileOf(x) !== fileOf(first) && fileOf(x) !== undefined ? `${fileOf(x)}:${x.pos!.line}` : String(x.pos!.line)))];
     const named = lines.slice(0, 4).join(", ");
     const more = lines.length > 4 ? `, and ${lines.length - 4} more` : "";
     const also = lines.length === 0 ? ` — ${sites.length} sites`
-      : lines.length === 1 && lines[0] === first.pos?.line ? ` — ${sites.length} sites on this line`
+      : lines.length === 1 && lines[0] === String(first.pos?.line) ? ` — ${sites.length} sites on this line`
       : ` — ${sites.length} sites, also on ${lines.length === 1 ? "line" : "lines"} ${named}${more}`;
     const merged = { ...first, message: first.message + also };
     out.push({ ...merged, rendered: formatDiagnostic(merged) });
