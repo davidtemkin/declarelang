@@ -144,6 +144,51 @@ if (!CHROME) {
     assert.ok(pre.probe.colors >= 2, "expected ≥2 span colors, got " + pre.probe.colors);
   });
 
+  // TAG STYLES: each element rich text styles wears the named style `tagStyles`
+  // gives it, over its own effect, nesting outside in — in HTML and Markdown alike,
+  // a `style` declaration as good as a palette entry, and a link's underline its style's.
+  const tagDoc = `style Aside [ textColor = #C0392B ]
+App [ width = 520, height = 420,
+    textStyles = { { Figure: ({ fontSize: 40, fontWeight: "black" }), Ref: ({ textColor: 0x1A7F37, underline: false }), Mono: ({ fontFamily: "Georgia" }), Big: ({ fontSize: 30 }), Quiet: ({ textColor: 0x888888 }) } },
+    tagStyles = { { strong: "Figure", em: "Aside", link: "Ref", code: "Mono", h2: "Big", quote: "Quiet" } },
+    HTMLText [ x = 10, y = 10, width = 500,
+        html = "<p><b>four</b> <b><i>both</i></b> <i>aside</i> <a href='#x'>ref</a> <code>mono</code></p><h2>Head</h2><blockquote><p>quoted</p></blockquote>" ],
+    Markdown [ x = 10, y = 260, width = 500, text = "**seven** and *note*" ] ]`;
+  const tags = await (async () => {
+    const b = await buildProduction(tagDoc, {});
+    assert.ok(b.ok, "tagStyles build failed: " + (b.errors || []).map((e) => e.message).join("; "));
+    const { page, errs } = await mount(b);
+    try {
+      return { errs, probe: await page.evaluate(() => {
+        const of = (t) => { const w = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT); let n;
+          while ((n = w.nextNode())) if (n.nodeValue.trim() === t) { const c = getComputedStyle(n.parentElement);
+            return { size: c.fontSize, weight: c.fontWeight, italic: c.fontStyle, color: c.color, family: c.fontFamily, deco: c.textDecorationLine }; }
+          return null; };
+        return Object.fromEntries(["four", "both", "aside", "ref", "mono", "Head", "quoted", "seven", "note"].map((t) => [t, of(t)]));
+      }) };
+    } finally { await page.close(); }
+  })();
+  await test("tagStyles: each element wears its named style, over its own effect, nested outside in", () => {
+    const p = tags.probe;
+    assert.equal(tags.errs.length, 0, tags.errs.slice(0, 2).join(" | "));
+    assert.deepEqual([p.four.size, p.four.weight], ["40px", "900"]);
+    assert.deepEqual([p.both.size, p.both.weight, p.both.italic, p.both.color], ["40px", "900", "italic", "rgb(192, 57, 43)"]);
+    assert.deepEqual([p.aside.italic, p.aside.color], ["italic", "rgb(192, 57, 43)"]);
+    assert.deepEqual([p.ref.color, p.ref.deco], ["rgb(26, 127, 55)", "none"]);
+    assert.match(p.mono.family, /Georgia/);
+    assert.equal(p.Head.size, "30px");
+    assert.equal(p.quoted.color, "rgb(136, 136, 136)");
+    assert.deepEqual([p.seven.size, p.note.italic, p.note.color], ["40px", "italic", "rgb(192, 57, 43)"]);
+  });
+  await test("tagStyles: a name no palette or style defines is refused at its line", async () => {
+    const b = await buildProduction(`App [ width = 300, height = 100,
+    textStyles = { { Figure: ({ fontSize: 40 }) } },
+    tagStyles = { { strong: "figure" } },
+    HTMLText [ html = "<b>4</b>" ] ]`, {});
+    assert.ok(!b.ok, "expected a refusal");
+    assert.match((b.errors || []).map((e) => e.message).join("\n"), /tagStyles\.strong names 'figure'[^\n]*did you mean 'Figure'/);
+  });
+
   // A HIDDEN FLOW STILL HAS A HEIGHT. A Markdown inside a hidden pane is a
   // whole view, so its height is its content's — measured offscreen while it
   // has no box, never the 0 a display:none subtree reads. Two panes: one hidden

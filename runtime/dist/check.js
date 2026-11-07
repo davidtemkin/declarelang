@@ -95,7 +95,7 @@ export function check(input) {
     // the built-in. (A LIBRARY name is refused by the include pass, which knows
     // the manifest.)
     REFUSED_TAGS = new Set(program.classes.filter((c) => Object.hasOwn(SCHEMAS, c.name)).map((c) => c.name));
-    const placementErrors = [...checkPlacements(program), ...checkControlledInput(program)];
+    const placementErrors = [...checkPlacements(program), ...checkControlledInput(program), ...checkTagStyleNames(program)];
     const { infos, schemas, errors } = programSchemas(program.classes, CHECK_SHAPES);
     errors.push(...placementErrors);
     // A class body declaring one of the runtime's own members (the instantiate
@@ -1901,6 +1901,42 @@ function checkPlacements(program) {
     elsewhere(program.root);
     for (const c of program.classes)
         elsewhere(c.body);
+    return errors;
+}
+/** A `tagStyles` entry names a style: one a `textStyles` palette or a `style`
+ *  declaration defines. A name that appears in neither is a misspelling, said at
+ *  its line — but only where every palette in the program is written out, so a
+ *  palette built in code (whose names this cannot read) never draws a false report. */
+function checkTagStyleNames(program) {
+    const all = [];
+    const gather = (el) => { all.push(el); for (const c of el.children)
+        gather(c); };
+    gather(program.root);
+    for (const c of program.classes)
+        gather(c.body);
+    const attrsNamed = (name) => all.flatMap((el) => el.attrs.filter((a) => a.name === name));
+    const tags = attrsNamed("tagStyles");
+    if (tags.length === 0)
+        return [];
+    const defined = new Set((program.styles ?? []).map((st) => st.name));
+    for (const a of attrsNamed("textStyles")) {
+        // a palette written out is `{ { Name: …, … } }`; anything else is built in code
+        if (a.value.kind !== "code" || !/^\s*\{/.test(a.value.src))
+            return [];
+        for (const m of a.value.src.matchAll(/["']?([A-Za-z_$][\w$-]*)["']?\s*:/g))
+            defined.add(m[1]);
+    }
+    const errors = [];
+    for (const a of tags) {
+        if (a.value.kind !== "code")
+            continue;
+        for (const m of a.value.src.matchAll(/\b(\w+)\s*:\s*["']([^"']*)["']/g)) {
+            if (m[2] === "" || defined.has(m[2]))
+                continue;
+            const near = [...defined].find((d) => d.toLowerCase() === m[2].toLowerCase());
+            errors.push(new DeclareError(`tagStyles.${m[1]} names '${m[2]}', which no textStyles entry or style declaration defines${near !== undefined ? ` — did you mean '${near}'?` : ""}; name one of the program's styles`, a.value.pos));
+        }
+    }
     return errors;
 }
 /** Every name the author's own code calls, for checkMethodHere, keyed by the

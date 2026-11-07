@@ -1292,7 +1292,7 @@ final class LayerTree {
     /// default, and weather's 34px city temperatures were measured as
     /// UltraLight (advance 50.7) but drawn as Regular (55.0) — so the degree
     /// sign lost 4pt off its right edge in every row of the list.
-    private static let cssWeights: [String: String] = [
+    static let cssWeights: [String: String] = [
         "thin": "100", "extralight": "200", "light": "300",
         "regular": "400", "normal": "400", "medium": "500",
         "semibold": "600", "bold": "700", "extrabold": "800", "black": "900",

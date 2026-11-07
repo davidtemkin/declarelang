@@ -12,7 +12,7 @@ import { Constraint } from "./reactive.js";
 import { isGradient } from "./value.js";
 import { breakBetween, breakUnits, ellipsize, fontMetrics, fontString, textWidth, transformText } from "./measure.js";
 import { sliceGradient } from "./boxpaint.js";
-import { BODY, C, CODEBG, CODEFAM, CODERULE, CODESIZE, FALLBACK_FAMILY, PROSE, HEADINGC, HEADINGW, REWIDTH, TextFlow, base, codeBlock, codeChrome, contentWidth, flowView, geoEqual, geoFor, listMarker, placeX, proseBlock, relayoutEntries, richRunsOf, setRewidth, sz, tableCells, yStack, } from "./rich-text.js";
+import { BODY, C, CODEBG, CODEFAM, CODERULE, CODESIZE, FALLBACK_FAMILY, PROSE, HEADINGC, HEADINGW, REWIDTH, TextFlow, base, codeBlock, codeChrome, contentWidth, enterQuote, flowView, geoEqual, geoFor, listMarker, placeX, proseBlock, tagged, relayoutEntries, richRunsOf, setRewidth, sz, tableCells, yStack, } from "./rich-text.js";
 // THE LINE BUDGET for one build (`RichText.maxLines`). Lines are counted across
 // the WHOLE document, in order, and spent while it is BUILT (layoutBlocks and
 // the structural builders) — never while a flow renders, because a flow renders
@@ -872,7 +872,7 @@ function buildBlocks(blocks, width, bodyColor, ctx) {
  *  their fill on top. BARE until code chrome is set; then boxed like a fenced
  *  block, so the two render coherently. */
 function buildPre(b, width, bodyColor, ctx) {
-    const block = codeBlock(richRunsOf(b.inline, base(CODESIZE, BODY.weight, bodyColor, BODY.tracking), CODEFAM));
+    const block = codeBlock(richRunsOf(b.inline, tagged("code", base(CODESIZE, BODY.weight, bodyColor, BODY.tracking)), CODEFAM));
     if (CODEBG === null && CODERULE === null)
         return spendLines(flowView([block], width, ctx), width);
     return buildCodeBox(block, width, ctx, true);
@@ -889,7 +889,7 @@ function buildCode(b, width, ctx) {
         }
         BUDGET -= all.length;
     }
-    return buildCodeBox(codeBlock(richRunsOf([{ t: "text", value: codeText }], base(CODESIZE, "normal", C.codeFg), CODEFAM)), width, ctx, false);
+    return buildCodeBox(codeBlock(richRunsOf([{ t: "text", value: codeText }], tagged("code", base(CODESIZE, "normal", C.codeFg)), CODEFAM)), width, ctx, false);
 }
 /** A code flow spends its lines of the budget, and stops at its share. */
 function spendLines(flow, width) {
@@ -1065,7 +1065,9 @@ function buildTable(b, width, bodyColor, ctx) {
 function buildQuote(b, width, ctx) {
     const outer = new View();
     outer.width = width;
+    enterQuote(1);
     const body = buildBlocks(b.blocks, width - PROSE.quoteIndent, C.quoteColor, ctx);
+    enterQuote(-1);
     body.x = PROSE.quoteIndent;
     body.y = 0;
     const rule = rectView(3, 1, C.quoteRule);

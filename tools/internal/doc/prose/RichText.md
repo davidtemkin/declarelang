@@ -110,6 +110,27 @@ A style may set any of those attributes. A `fontSize` larger than the surroundin
 that line's box while the run stays on the shared baseline — the line box is content-derived,
 like CSS. A fill is simply the `textFill` field, one attribute among many, not a special case.
 
+## tagStyles
+**Which named style each kind of element wears**: a map from an element to the name of a
+style the palette above (or a top-level `style`) defines. The keys are the elements rich text
+gives a look — `strong` (`<b>`, `<strong>`, `**…**`), `em` (`<i>`, `<em>`, `*…*`), `strike`
+(`<s>`, `<del>`, `~~…~~`), `code` (inline and blocks), `link` (`<a>`, `[…](…)`), `quote` (what
+a block quote holds) and `h1`…`h6` — and the names are yours, so no class name is taken: plain
+`<b>` in loaded HTML wears your style with nothing rewritten.
+
+```declare
+App [ width = 400, height = 120,
+    textStyles = { { Figure: ({ fontSize: 44, fontWeight: "black" }), Ref: ({ textColor: 0x1A7F37, underline: false }) } },
+    tagStyles = { { strong: "Figure", link: "Ref" } },
+    HTMLText [ width = { parent.width }, html = "<b>4</b> sessions this week · <a href='#log'>the log</a>" ]
+    ]
+```
+
+The named style is laid over what the element already does — bold, italic, the link color —
+so it adds to it, and nesting composes outside in: `<b><i>…</i></b>` is the strong style,
+then the em style over it, the inner winning only where both set the same field. A name no
+palette or `style` defines is refused at its line. Inherited, like the palette it names.
+
 ## lineHeight
 Leading multiplier on the natural line height — `1` (the default) is tight, `1.5` airy.
 Tune prose density without touching the font size.

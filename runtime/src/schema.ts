@@ -707,6 +707,10 @@ const RICH_ATTRS: Readonly<Record<string, AttrType>> = {
   // element, which is what made a look that follows the theme cost a line at
   // every use site.
   textStyles: { kind: "record", name: "TextStyles" },
+  // Which named style each kind of element wears — `strong: "Figure"` — by a name
+  // the palette above (or a `style` declaration) defines. Keys are the elements
+  // rich text styles, never a class, so no class name is taken; inherited too.
+  tagStyles: { kind: "record", name: "TagStyles" },
 };
 
 /** The BUILT-IN provided values — the names a container may set BARE (no type)

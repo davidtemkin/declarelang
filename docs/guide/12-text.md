@@ -238,6 +238,10 @@ HTMLText [ html = "<span class='Keyword'>class</span> Board [ ]",
 `textStyles` is provided like the text face, so a palette set high reaches every rich
 text below.
 
+Content you did not write — loaded HTML, Markdown — marks its words with tags, not classes.
+[`tagStyles`](declare-docs:RichText.tagStyles) says which of your styles each element wears,
+so `tagStyles = { { strong: "Figure" } }` sets every `<b>` and `**…**` in `Figure`.
+
 ## Views inside text
 
 Prose sometimes carries small pieces of interface — a status chip, an avatar, a keycap.

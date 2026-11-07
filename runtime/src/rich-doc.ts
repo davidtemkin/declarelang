@@ -7,7 +7,7 @@ import type { RichBox, RichNode } from "./backend.js";
 import type { Block } from "./md.js";
 import {
   BODY, C, CODEBG, CODEFAM, CODERULE, CODESIZE, PROSE, HEADINGC, HEADINGW,
-  base, codeBlock, codeChrome, geoEqual, geoFor, listMarker, proseBlock, richRunsOf, sz, tableCells, type Ctx,
+  base, codeBlock, codeChrome, enterQuote, geoEqual, geoFor, listMarker, proseBlock, richRunsOf, sz, tableCells, tagged, type Ctx,
 } from "./rich-text.js";
 
 
@@ -52,16 +52,19 @@ export function docNodes(blocks: Block[], bodyColor: number, ctx: Ctx): RichNode
         break;
       }
       case "blockquote":
-        out.push({ tag: "quote", gapBefore, box, indent: PROSE.quoteIndent, ruleWidth: 3, ruleColor: C.quoteRule, blocks: docNodes(b.blocks, C.quoteColor, ctx) });
+        enterQuote(1);
+        const inner = docNodes(b.blocks, C.quoteColor, ctx);
+        enterQuote(-1);
+        out.push({ tag: "quote", gapBefore, box, indent: PROSE.quoteIndent, ruleWidth: 3, ruleColor: C.quoteRule, blocks: inner });
         break;
       case "rule":
         out.push({ tag: "rule", gapBefore, box, color: C.rule });
         break;
       case "code":
-        out.push({ ...codeChrome(), tag: "code", gapBefore, box, block: codeBlock(richRunsOf([{ t: "text", value: b.text }], base(CODESIZE, "normal", C.codeFg), CODEFAM)) });
+        out.push({ ...codeChrome(), tag: "code", gapBefore, box, block: codeBlock(richRunsOf([{ t: "text", value: b.text }], tagged("code", base(CODESIZE, "normal", C.codeFg)), CODEFAM)) });
         break;
       case "pre": {
-        const pre = codeBlock(richRunsOf(b.inline, base(CODESIZE, BODY.weight, bodyColor, BODY.tracking), CODEFAM));
+        const pre = codeBlock(richRunsOf(b.inline, tagged("code", base(CODESIZE, BODY.weight, bodyColor, BODY.tracking)), CODEFAM));
         if (CODEBG !== null || CODERULE !== null) out.push({ ...codeChrome(), tag: "code", gapBefore, box, block: pre });
         else out.push({ ...pre, gapBefore, box });
         break;

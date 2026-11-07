@@ -768,7 +768,7 @@ const TYPE_GROUPS = [
              "OutsidePress", "AnimatorOrder", "InputPurpose", "ImageRendering", "ScrollAnchor", "ScrollBelow", "Scrolls", "StreamStatus", "ImageFit", "TextAlign", "TextTransform", "UnsupportedTags", "ClockTick"]],
   ["Values", ["Color", "Fill", "Gradient", "Length", "Percent", "Radius", "Inset", "ClipPath", "Stroke", "BoxStroke", "GlyphOutline",
               "Shadow", "ImageFilter", "FilterList", "Theme", "MotionCurve", "DataCursor", "TextMetrics", "IslandMessage", "IslandNavigation", "DelayHandle", "AccessibilitySettings"]],
-  ["Text", ["TextStyle", "TextStyles", "BlockGeometry", "RichTextLayout"]],
+  ["Text", ["TextStyle", "TextStyles", "TagStyles", "BlockGeometry", "RichTextLayout"]],
   ["Event payloads", ["PointerEvent", "PointerUpEvent", "TouchEvent", "Touch", "WheelEvent", "PinchEvent",
                       "KeyEvent", "FocusGeometry", "TooltipEvent", "StreamMessage", "ChangeEvent", "ValueChange",
                       "FilesOverEvent", "FilesDropEvent"]],

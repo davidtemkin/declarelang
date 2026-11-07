@@ -55,6 +55,11 @@ export interface RunStyle {
     underline?: boolean;
     strike?: boolean;
 }
+/** The kinds of element rich text styles, each of which may wear a named style (`tagStyles`). */
+export type TagKind = "strong" | "em" | "strike" | "code" | "link" | "quote" | "h1" | "h2" | "h3" | "h4" | "h5" | "h6";
+/** How many quotes enclose the block being built: what is inside one wears `tagStyles.quote`. */
+export declare let QUOTED: number;
+export declare const enterQuote: (d: 1 | -1) => void;
 /** A palette record as a key: a Font in it stands for its family, since a font is
  *  a live object (circular — it holds its faces) and no part of a style's identity. */
 export declare function textStylesKey(styles: unknown): string;
@@ -110,6 +115,11 @@ export interface Style {
     underline?: boolean;
 }
 export declare function base(size: number, weight: FontWeight, color: number, tracking?: number): Style;
+/** An element's style with the named style its kind wears (`tagStyles`) laid
+ *  over it — after the element's own effect (bold, italic, the link colour), so a
+ *  named style adds to what the element does, and nesting composes outside in:
+ *  `<b><i>…</i></b>` is the strong style, then the em style over it. */
+export declare function tagged(kind: TagKind, style: Style): Style;
 /** Flatten an inline tree to fully-resolved runs for the seam — the effective
  *  font, color, and (for `code`) chip are baked in so a backend just realizes
  *  what it is told. Mirrors `flatten`, then bakes the per-run family. */
@@ -377,6 +387,7 @@ export declare abstract class RichText extends View {
     /** The named-style palette for this render: the `textStyles` map, which
      *  defaults to the nearest provided one (defineAttributes below). */
     textStyles: Record<string, RunStyle>;
+    tagStyles: Partial<Record<TagKind, string>>;
     protected $stylesOf(): Record<string, RunStyle>;
     /** A rich text's type size is `fontScale`, its own attribute, and it never
      *  touches the geometry `scale` every other view means by that name. The

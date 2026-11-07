@@ -416,7 +416,7 @@ final class RichOverlay: NSObject, NSTextViewDelegate, NSLayoutManagerDelegate {
             var strut: [NSNumber]? = nil
             if mult > 0, let fam = b["family"] as? String {
                 let w: String = { if let n = b["weight"] as? NSNumber { return String(n.intValue) }
-                                  if let t = b["weight"] as? String { return Int(t) != nil ? t : (t == "bold" ? "700" : t == "semibold" ? "600" : t == "medium" ? "500" : t == "light" ? "300" : "400") }
+                                  if let t = b["weight"] as? String { return Int(t) != nil ? t : (LayerTree.cssWeights[t.lowercased()] ?? "400") }
                                   return "400" }()
                 let bf = TextEngine.nsFont(TextEngine.parse("\(w) \(fontSize)px \(fam)"))
                 let box = (fontSize * mult).rounded()
@@ -477,7 +477,7 @@ final class RichOverlay: NSObject, NSTextViewDelegate, NSLayoutManagerDelegate {
                     if let n = weight as? NSNumber { return String(n.intValue) }
                     if let w = weight as? String {
                         if let n = Int(w) { return String(n) }               // `fontWeight = 350`
-                        return w == "bold" ? "700" : w == "semibold" ? "600" : w == "medium" ? "500" : w == "light" ? "300" : "400"
+                        return LayerTree.cssWeights[w.lowercased()] ?? "400"   // every keyword the runtime has (measure.ts cssWeight)
                     }
                     return "400"
                 }()

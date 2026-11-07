@@ -18,7 +18,7 @@ import type { Block, Inline } from "./md.js";
 import { sliceGradient } from "./boxpaint.js";
 import {
   BODY, C, CODEBG, CODEFAM, CODERULE, CODESIZE, FALLBACK_FAMILY, PROSE, HEADINGC, HEADINGW, REWIDTH, TextFlow,
-  base, codeBlock, codeChrome, contentWidth, flowView, geoEqual, geoFor, listMarker, placeX, proseBlock,
+  base, codeBlock, codeChrome, contentWidth, enterQuote, flowView, geoEqual, geoFor, listMarker, placeX, proseBlock, tagged,
   relayoutEntries, richRunsOf, setRewidth, sz, tableCells, yStack, type Ctx, type Laid,
 } from "./rich-text.js";
 
@@ -696,7 +696,7 @@ function buildBlocks(blocks: Block[], width: number, bodyColor: number, ctx: Ctx
  *  their fill on top. BARE until code chrome is set; then boxed like a fenced
  *  block, so the two render coherently. */
 function buildPre(b: Extract<Block, { t: "pre" }>, width: number, bodyColor: number, ctx: Ctx): View {
-  const block = codeBlock(richRunsOf(b.inline, base(CODESIZE, BODY.weight, bodyColor, BODY.tracking), CODEFAM));
+  const block = codeBlock(richRunsOf(b.inline, tagged("code", base(CODESIZE, BODY.weight, bodyColor, BODY.tracking)), CODEFAM));
   if (CODEBG === null && CODERULE === null) return spendLines(flowView([block], width, ctx), width);
   return buildCodeBox(block, width, ctx, true);
 }
@@ -710,7 +710,7 @@ function buildCode(b: Extract<Block, { t: "code" }>, width: number, ctx: Ctx): V
     if (k < all.length) { codeText = all.slice(0, k).join("\n"); TRUNCATED = true; }
     BUDGET -= all.length;
   }
-  return buildCodeBox(codeBlock(richRunsOf([{ t: "text", value: codeText }], base(CODESIZE, "normal", C.codeFg), CODEFAM)), width, ctx, false);
+  return buildCodeBox(codeBlock(richRunsOf([{ t: "text", value: codeText }], tagged("code", base(CODESIZE, "normal", C.codeFg)), CODEFAM)), width, ctx, false);
 }
 
 /** A code flow spends its lines of the budget, and stops at its share. */
@@ -861,7 +861,9 @@ function buildTable(b: Extract<Block, { t: "table" }>, width: number, bodyColor:
 function buildQuote(b: Extract<Block, { t: "blockquote" }>, width: number, ctx: Ctx): View {
   const outer = new View();
   outer.width = width;
+  enterQuote(1);
   const body = buildBlocks(b.blocks, width - PROSE.quoteIndent, C.quoteColor, ctx);
+  enterQuote(-1);
   body.x = PROSE.quoteIndent; body.y = 0;
   const rule = rectView(3, 1, C.quoteRule);
   rule.x = 0; rule.y = 0;

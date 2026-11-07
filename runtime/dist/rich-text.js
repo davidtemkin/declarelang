@@ -56,6 +56,10 @@ export const PROSE = {
 export let C = { headingColor: 0, bodyColor: 0, code: 0, codeFg: 0, codeBg: 0, rule: 0, link: 0, quoteRule: 0, quoteColor: 0 }; // set at the top of each rebuild
 let SCALE = 1; // font-size multiplier (the `fontScale` attr), set per rebuild
 let STYLES = {}; // named styles (HTMLText local `textStyles`), set per rebuild
+let TAGS = {}; // `tagStyles` for this render, set per rebuild
+/** How many quotes enclose the block being built: what is inside one wears `tagStyles.quote`. */
+export let QUOTED = 0;
+export const enterQuote = (d) => { QUOTED += d; };
 const bundleCache = new WeakMap();
 /** A palette record as a key: a Font in it stands for its family, since a font is
  *  a live object (circular — it holds its faces) and no part of a style's identity. */
@@ -510,6 +514,9 @@ export function base(size, weight, color, tracking = 0) {
  *  like every prose size so the `fontScale` attr still governs. */
 function applyStyle(style, rs) {
     const s = { ...style };
+    // a family named for code replaces the code face
+    if (rs.fontFamily !== undefined)
+        s.mono = false;
     if (rs.fontSize !== undefined)
         s.size = sz(rs.fontSize);
     // a style record's family may be a Font or a list, as a view's is (`textStyles`
@@ -549,6 +556,17 @@ function applyStyle(style, rs) {
         s.strike = rs.strike;
     return s;
 }
+/** An element's style with the named style its kind wears (`tagStyles`) laid
+ *  over it — after the element's own effect (bold, italic, the link colour), so a
+ *  named style adds to what the element does, and nesting composes outside in:
+ *  `<b><i>…</i></b>` is the strong style, then the em style over it. */
+export function tagged(kind, style) {
+    const name = TAGS[kind];
+    if (name === undefined || name === "")
+        return style;
+    const rs = resolveStyle(name);
+    return rs !== undefined ? applyStyle(style, rs) : style;
+}
 /** Walk the inline tree, resolving each leaf's effective style. */
 function flatten(ns, style, out, family) {
     for (const n of ns) {
@@ -557,22 +575,22 @@ function flatten(ns, style, out, family) {
                 out.push({ text: n.value, style });
                 break;
             case "code":
-                out.push({ text: n.value, style: { ...style, mono: true, color: CODEC } });
+                out.push({ text: n.value, style: tagged("code", { ...style, mono: true, color: CODEC }) });
                 break;
             case "br":
                 out.push({ br: true });
                 break;
             case "strong":
-                flatten(n.inline, { ...style, weight: "bold" }, out, family);
+                flatten(n.inline, tagged("strong", { ...style, weight: "bold" }), out, family);
                 break;
             case "em":
-                flatten(n.inline, { ...style, italic: true }, out, family);
+                flatten(n.inline, tagged("em", { ...style, italic: true }), out, family);
                 break;
             case "strike":
-                flatten(n.inline, { ...style, strike: true }, out, family);
+                flatten(n.inline, tagged("strike", { ...style, strike: true }), out, family);
                 break;
             case "link":
-                flatten(n.inline, { ...style, color: LINKC, link: n.href }, out, family);
+                flatten(n.inline, tagged("link", { ...style, color: LINKC, link: n.href }), out, family);
                 break;
             // An inline image is an atomic box, not styled text; it carries the ambient
             // link (an image that is a link's content) so the box is clickable.
@@ -630,9 +648,10 @@ export function richRunsOf(inline, style, family) {
             strike: s.strike, color: s.color, tracking: s.tracking,
         };
         // inline code reads as a colored mono word, not a filled chip/button
+        // a link's underline is `linkUnderline`'s unless its named style says otherwise
         if (s.link !== undefined) {
             run.href = s.link;
-            if (LINKU)
+            if (LINKU && s.underline !== false)
                 run.underline = true;
         }
         if (s.fill !== undefined)
@@ -1153,9 +1172,10 @@ function inlineText(inline) {
 export function proseBlock(b, gapBefore, bodyColor, ctx) {
     if (b.t === "heading") {
         const size = PROSE.heading[b.level - 1];
-        return { tag: `h${b.level}`, runs: richRunsOf(b.inline, base(size, HEADINGW, HEADINGC), ctx.family), gapBefore, lineHeight: 1.2, fontSize: sz(size), family: ctx.family, weight: HEADINGW, anchor: headingSlug(inlineText(b.inline)) || undefined };
+        return { tag: `h${b.level}`, runs: richRunsOf(b.inline, tagged(`h${b.level}`, base(size, HEADINGW, HEADINGC)), ctx.family), gapBefore, lineHeight: 1.2, fontSize: sz(size), family: ctx.family, weight: HEADINGW, anchor: headingSlug(inlineText(b.inline)) || undefined };
     }
-    return { tag: "p", runs: richRunsOf(b.inline, base(BODY.size, BODY.weight, bodyColor, BODY.tracking), ctx.family), gapBefore, lineHeight: ctx.lead, fontSize: sz(BODY.size), family: ctx.family, weight: BODY.weight };
+    const body = base(BODY.size, BODY.weight, bodyColor, BODY.tracking);
+    return { tag: "p", runs: richRunsOf(b.inline, QUOTED > 0 ? tagged("quote", body) : body, ctx.family), gapBefore, lineHeight: ctx.lead, fontSize: sz(BODY.size), family: ctx.family, weight: BODY.weight };
 }
 /** Apply a new container width to a laid-out set of blocks, in place.
  *  Returns false if any block has no re-width — the caller then rebuilds. */
@@ -1255,7 +1275,7 @@ export class RichText extends View {
         // first build it knows none, so it keys on every face until then.
         // Every slot $rebuild reads is in the key: a size or weight that settles after
         // the first build (a `{ }` on the window's width) otherwise kept the first one.
-        const c = new Constraint(`${declareName(this)}.render`, () => `${this.$sourceKey()} ${this.lineHeight} ${this.maxLines} ${this.bodyColor} ${this.$paletteKey()} ${this.fontScale} ${this.codeBackground} ${this.codeRule} ${this.fontSize} ${this.fontWeight} ${this.letterSpacing} ${this.headingWeight} ${this.headingColor} ${this.linkColor} ${this.linkUnderline} ${this.codeColor} ${this.codeSize} ${JSON.stringify(this.richTextLayout ?? null)} ${this.$families === null ? `*${faceGeneration()}` : familiesGeneration(this.$families)} ${heldFamily(this, "fontFamily", this.fontFamily)} ${heldFamily(this, "codeFamily", this.codeFamily)}`, () => { this.$families = collectFamilies(() => this.$rebuild()); }, 0);
+        const c = new Constraint(`${declareName(this)}.render`, () => `${this.$sourceKey()} ${this.lineHeight} ${this.maxLines} ${this.bodyColor} ${this.$paletteKey()} ${this.fontScale} ${this.codeBackground} ${this.codeRule} ${this.fontSize} ${this.fontWeight} ${this.letterSpacing} ${this.headingWeight} ${this.headingColor} ${this.linkColor} ${this.linkUnderline} ${this.codeColor} ${this.codeSize} ${JSON.stringify(this.richTextLayout ?? null)} ${textStylesKey(this.textStyles)} ${JSON.stringify(this.tagStyles ?? null)} ${this.$families === null ? `*${faceGeneration()}` : familiesGeneration(this.$families)} ${heldFamily(this, "fontFamily", this.fontFamily)} ${heldFamily(this, "codeFamily", this.codeFamily)}`, () => { this.$families = collectFamilies(() => this.$rebuild()); }, 0);
         c.run();
         onDiscard(this, () => c.dispose());
         // WIDTH — nothing structural depends on it, so re-width in place. Separate
@@ -1419,6 +1439,8 @@ export class RichText extends View {
             startBudget(this.maxLines);
         SCALE = this.fontScale || 1; // font-size multiplier for this render
         STYLES = this.$stylesOf(); // named styles for this render
+        TAGS = this.tagStyles ?? EMPTY_TAGS; // which named style each element wears
+        QUOTED = 0;
         for (const v of this.built) {
             this.$removeChild(v);
             v.discard();
@@ -1523,11 +1545,14 @@ const READING_MEASURE = 640;
 /** One frozen empty palette, so a rich text with no styles never churns its
  *  source key (stylesOf rides sourceKey's signature). */
 const EMPTY_STYLES = Object.freeze({});
+const EMPTY_TAGS = Object.freeze({});
 defineAttributes(RichText, {
     // The named-style palette — inherited, like the face slots below it. `styles`
     // is taken (View.styles = the skin class list), so the map the CONTENT
     // references is `textStyles`; the `text` earns its place disambiguating them.
     textStyles: { def: EMPTY_STYLES, defBinding: providedDefault("textStyles", EMPTY_STYLES) },
+    // which named style each element wears — inherited with the palette it names
+    tagStyles: { def: EMPTY_TAGS, defBinding: providedDefault("tagStyles", EMPTY_TAGS) },
     // the line length a rich text with no width wraps at; it then takes its widest line
     wrapWidth: { def: READING_MEASURE },
     // FACE slots, off View: each defaults to the nearest provided value.
