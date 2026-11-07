@@ -1,0 +1,457 @@
+/*
+# Presentify: the editor
+
+The editor's frame around the canvas: the top bar (the title, the menus,
+the tools, undo, the save state and Present), the slide list down the left
+side, and the inspector down the right. The canvas itself is in
+`canvas.declare`; what every command does is a method on the App.
+*/
+
+// ── The editor ──────────────────────────────────────────────────────────────
+
+class Editor [ fill = { provided("theme").background },
+    layout: SimpleLayout [ axis = y ],
+    top: TopBar [ width = 100%, height = 64 ],
+    body: View [ width = 100%, flexes = true,
+        layout: SimpleLayout [ axis = x, align = stretch ],
+        rail: SlideRail [ width = 216 ],
+        canvas: Canvas [ flexes = true ],
+        inspector: Inspector [ width = 292 ]
+        ],
+
+    // Opening a presentation takes a moment: the frame is there at once,
+    // and the slide arrives into it.
+
+    loading: View [ ignoreLayout = true, visible = { app.inEditor && !app.ready }, x = 216, y = 64,
+        width = { parent.width - 216 - 292 }, height = { parent.height - 64 },
+        fill = { provided("theme").well },
+        Text [ x = center, y = center, fontSize = 14, textColor = { provided("theme").textMuted },
+            text = { app.deckSrc.failed || app.slidesSrc.failed ? "Can’t reach the service. Presentify will keep trying." : "Opening…" } ]
+        ]
+    ]
+
+
+// ── The top bar ─────────────────────────────────────────────────────────────
+
+class TopBar [ fill = { provided("theme").surface }, padding = [0, 14, 0, 10],
+    stroke = { [null, null, stroke(1, provided("theme").line), null] },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+
+    home: IconButton [ shape = "grid", label = "All presentations",
+        press() { app.goHome() }
+        ],
+    Mark [ width = 28, height = 28 ],
+
+    // the title, edited in place, and beneath it the menus and the save state
+
+    left: View [ flexes = true, minWidth = 250,
+        layout: SimpleLayout [ axis = y, spacing = 0 ],
+        title: TextInput [ width = { Math.min(420, parent.width) }, height = 28, padding = [0, 6, 0, 6],
+            fontFamily = { app.brandFace }, fontSize = 17, fontWeight = 700,
+            fill = { this.focused || this.hovered ? provided("theme").control : null }, stroke = null,
+            accessibilityLabel = "Presentation title", placeholder = "Untitled presentation",
+            commitOn = "end",
+            value = { app.doc.title() },
+            commit(v: string) { app.rename(v) }
+            ],
+        row: View [ layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+            menus: MenuBar [ menus = { app.menus },
+                picked(id: string) { app.command(id) }
+                ],
+            status: SaveStatus [ ]
+            ]
+        ],
+
+    tools: View [ layout: SimpleLayout [ axis = x, spacing = 2, align = center ],
+        accessibilityLabel = "Tools", accessibilityRole = toolbar,
+        ToolChip [ tool = "select", shape = "select", label = "Select", shortcut = "V" ],
+        ToolChip [ tool = "rect", shape = "rect", label = "Rectangle", shortcut = "R" ],
+        ToolChip [ tool = "ellipse", shape = "ellipse", label = "Ellipse", shortcut = "O" ],
+        ToolChip [ tool = "line", shape = "line", label = "Line", shortcut = "L" ],
+        ToolChip [ tool = "text", shape = "text", label = "Text", shortcut = "T" ]
+        ],
+
+    View [ width = 1, height = 30, fill = { provided("theme").line } ],
+    IconButton [ shape = "undo", label = "Undo", disabled = { !app.history.canUndo },
+        press() { app.undo() }
+        ],
+    IconButton [ shape = "redo", label = "Redo", disabled = { !app.history.canRedo },
+        press() { app.redo() }
+        ],
+    View [ width = 1, height = 30, fill = { provided("theme").line } ],
+
+    present: Control [ height = 38, padding = [0, 16, 0, 13], cornerRadius = 19,
+        accessibilityLabel = "Present", tooltipLabel = "Present from this slide  (⌘↩)",
+        fill = { pressed ? provided("theme").accentPressed : hovered ? provided("theme").accentHovered : provided("theme").accent },
+        shadow = { shadow(0, 4, 12, 0x6A4DFF55) },
+        press() { app.present(app.index) },
+        layout: SimpleLayout [ axis = x, spacing = 7, align = center ],
+        Glyph [ shape = "play", iconSize = 14, ink = white ],
+        TextLabel [ fontSize = 14, fontWeight = 650, textColor = white, text = "Present" ]
+        ]
+    ]
+
+
+// The save state: always one of three sentences, exactly.
+
+class SaveStatus [ height = 24, padding = [0, 8, 0, 6], cornerRadius = 12,
+    s: string = { app.sync.status },
+    bad: boolean = { app.sync.offline },
+    fill = { classroot.bad ? provided("theme").dangerTint : null },
+    accessibilityRole = status, accessibilityLabel = { classroot.s },
+    layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+    Glyph [ iconSize = 14, shape = { classroot.bad ? "offline" : app.sync.pending ? "sync" : "cloud" },
+        ink = { classroot.bad ? provided("theme").danger : app.sync.pending ? provided("theme").textMuted : provided("theme").okInk } ],
+    TextLabel [ fontSize = 12, fontWeight = { classroot.bad ? 600 : 500 }, wrap = false,
+        textColor = { classroot.bad ? provided("theme").danger : provided("theme").textMuted }, text = { classroot.s } ]
+    ]
+
+
+// ── The slide list ──────────────────────────────────────────────────────────
+//
+// The slides in order, each a small live picture of itself. Reordering is a
+// drag: while it lasts the list holds still and a gap-line shows where the
+// slide will land; on release the slide moves in the data and the list's
+// layout glides every thumbnail to its new place.
+
+class RailLayout extends TweenLayout [ duration = 260,
+    pitch: number = 112,
+    place() {
+        const w = this.contentExtent("width")
+        return this.laid().map((c, i) => ({ x: 0, y: i * this.pitch, w: w, h: this.pitch - 8 }))
+        }
+    ]
+
+
+class SlideRail [ fill = { provided("theme").panel },
+    stroke = { [null, stroke(1, provided("theme").line), null, null] },
+    layout: SimpleLayout [ axis = y ],
+    head: View [ width = 100%, height = 48, padding = [0, 10, 0, 16],
+        layout: SimpleLayout [ axis = x, align = center ],
+        Heading [ text = { "Slides · " + app.doc.slides().length } ],
+        Spacer [ ],
+        IconButton [ shape = "slide", label = "New slide",
+            press() { app.addSlide() }
+            ]
+        ],
+    list: View [ width = 100%, flexes = true, scrolls = y, padding = [2, 12, 24, 8],
+        accessibilityLabel = "Slides",
+
+        // the drag: which slide, where the pointer is, and the slot it would land in
+
+        dragKey: string = "",
+        dragY: number = 0,
+        grabDy: number = 0,
+        slot: number = -1,
+        pitch: number = 112,
+        content: View [ width = 100%, datapath = { app.doc.value },
+            layout: RailLayout [ pitch = { classroot.list.pitch } ],
+            SlideThumb [ datapath = :slides[], key = :key ]
+            ],
+
+        // where the slide will land
+
+        gap: View [ ignoreLayout = true, visible = { parent.dragKey != "" && parent.slot >= 0 },
+            x = 26, y = { 2 + parent.slot * parent.pitch - 5 }, width = { parent.width - 40 }, height = 3, cornerRadius = 2,
+            fill = { provided("theme").accent } ],
+
+        // the slide in the hand
+
+        ghost: View [ ignoreLayout = true, visible = { parent.dragKey != "" }, ignoreScroll = false,
+            x = 34, y = { parent.dragY - parent.grabDy }, width = 160, height = 90, cornerRadius = 6, clip = true,
+            opacity = 0.92, shadow = { shadow(0, 10, 24, 0x1A183040) }, scale = 1.04,
+            datapath = { app.doc.slide(parent.dragKey) },
+            SlideView [ scale = { 160 / 1280 } ]
+            ]
+        ]
+    ]
+
+
+class SlideThumb extends Control [ width = 100%,
+    slideKey: string = { :key ?? "" },
+    n: number = { rowIndex + 1 },
+    here: boolean = { app.currentKey == classroot.slideKey },
+    dragged: boolean = { app.rail.list.dragKey == classroot.slideKey },
+    conflicted: boolean = { app.sync.conflictOf(classroot.slideKey) != null },
+    accessibilityLabel = { "Slide " + classroot.n },
+    tooltipLabel = { "Slide " + classroot.n },
+    accessibilityRole = button,
+    accessibilityPressed = { classroot.here },
+    press() { app.goTo(classroot.slideKey); app.focusArea = "rail" },
+    onKeyDown(e: KeyEvent) {
+        if (e.key == "ArrowDown" || e.key == "ArrowRight") app.step(1, true)
+        else if (e.key == "ArrowUp" || e.key == "ArrowLeft") app.step(-1, true)
+        else super.onKeyDown(e)
+        },
+    onContextMenu(e: PointerEvent) { app.goTo(classroot.slideKey); app.slideMenu.open(this, e) },
+
+    // dragging to reorder: a few points of slack, so a click is a click
+
+    _y0: number = 0,
+    onPointerDown(e: PointerEvent) {
+        super.onPointerDown()
+        _y0 = e.y
+        },
+    onPointerMove(e: PointerEvent) {
+        const list = app.rail.list
+        if (list.dragKey == "" && Math.abs(e.deltaY) < 5) return
+        if (list.dragKey == "") { list.dragKey = classroot.slideKey; list.grabDy = _y0 - 4 }
+        const top = list.rootOrigin().y
+        list.dragY = e.rootY - top + list.scrollY
+        const n = app.doc.slides().length
+        list.slot = Math.max(0, Math.min(n, Math.round((list.dragY - list.grabDy) / list.pitch)))
+        },
+    onPointerUp(e: PointerUpEvent) {
+        const list = app.rail.list
+        if (list.dragKey == "") return
+        const slot = list.slot
+        list.dragKey = ""
+        list.slot = -1
+        if (!e.canceled) app.moveSlideTo(classroot.slideKey, slot)
+        },
+
+    trackChanges = ["here"],
+    onChange() { if (this.here) this.scrollIntoView() },
+
+    opacity = { classroot.dragged ? 0.35 : 1 },
+    num: Text [ x = 4, y = 4, width = 20, textAlign = right, fontSize = 12, fontWeight = { classroot.here ? 700 : 500 },
+        numeralWidth = tabular,
+        textColor = { classroot.here ? provided("theme").accent : provided("theme").textFaint }, text = { "" + classroot.n } ],
+    frame: View [ x = 30, y = 2, width = 160, height = 90, cornerRadius = 6, clip = true,
+        shadow = { classroot.here ? shadow(0, 4, 12, 0x6A4DFF33) : shadow(0, 1, 3, 0x1A18301F) },
+        SlideView [ scale = { 160 / 1280 } ]
+        ],
+    ring: View [ x = 27, y = -1, width = 166, height = 96, cornerRadius = 8,
+        stroke = { classroot.here ? stroke(2.5, provided("theme").accent) : classroot.hovered ? stroke(1.5, provided("theme").lineStrong) : stroke(1, provided("theme").line) } ],
+    flag: View [ visible = { classroot.conflicted }, x = 166, y = 8, width = 20, height = 20, cornerRadius = 10,
+        fill = { provided("theme").sun }, tooltipLabel = "Changed in another window",
+        Glyph [ x = center, y = center, iconSize = 12, shape = "warn", ink = { provided("theme").ink } ]
+        ]
+    ]
+
+
+// ── The inspector ───────────────────────────────────────────────────────────
+//
+// One panel, one shape: every section is always there, in the same place.
+// What doesn't apply to the selection is dimmed, never removed, so nothing
+// moves under the pointer as the selection changes. Where the selection's
+// things differ, a row says "Mixed" instead of showing one of them; a change
+// made there applies to all of them.
+
+class Inspector [ fill = { provided("theme").panel }, scrolls = y,
+    stroke = { [null, null, null, stroke(1, provided("theme").line)] },
+    padding = [14, 18, 28, 18],
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    st: Styles = { app.styles },
+
+    // what is selected, in a word
+
+    head: View [ width = 100%, height = 44,
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ fontFamily = { app.brandFace }, fontSize = 17, fontWeight = 700, text = { app.selectionName } ],
+        Text [ fontSize = 12, textColor = { provided("theme").textMuted }, maxLines = 1, width = 100%,
+            text = { app.sel.length == 0 ? "Slide " + (app.index + 1) + " of " + app.doc.slides().length : app.selectionNote } ]
+        ],
+
+    Divider [ ],
+    Heading [ padding = [12, 0, 2, 0], text = { app.sel.length == 0 ? "Slide" : "Fill" } ],
+    fillRow: Row [ caption = { app.sel.length == 0 ? "Background" : "Fill" }, dim = { app.sel.length > 0 && !classroot.st.hasFill },
+        ColorWell [ label = { app.sel.length == 0 ? "Background colour" : "Fill colour" },
+            disabled = { app.sel.length > 0 && !classroot.st.hasFill },
+            hex = { app.sel.length == 0 ? app.slideBackground : classroot.st.fill }, mixed = { app.sel.length > 0 && classroot.st.fillMixed },
+            press() { app.pickColor(this, app.sel.length == 0 ? "background" : "fill") }
+            ],
+        HexField [ which = { app.sel.length == 0 ? "background" : "fill" }, disabled = { app.sel.length > 0 && !classroot.st.hasFill },
+            hex = { app.sel.length == 0 ? app.slideBackground : classroot.st.fill },
+            mixed = { app.sel.length > 0 && classroot.st.fillMixed }, noneAllowed = { app.sel.length > 0 } ]
+        ],
+
+    Heading [ padding = [14, 0, 2, 0], text = "Outline" ],
+    Row [ caption = "Colour", dim = { !classroot.st.hasLine },
+        ColorWell [ label = "Outline colour", disabled = { !classroot.st.hasLine },
+            hex = { classroot.st.line }, mixed = { classroot.st.lineMixed },
+            press() { app.pickColor(this, "stroke") }
+            ],
+        HexField [ which = "stroke", disabled = { !classroot.st.hasLine }, hex = { classroot.st.line },
+            mixed = { classroot.st.lineMixed }, noneAllowed = { !classroot.st.onlyLines } ]
+        ],
+    Row [ caption = "Width", dim = { !classroot.st.hasLine },
+        NumberField [ label = "Outline width", unit = "pt", min = 0, max = 200, disabled = { !classroot.st.hasLine },
+            num = { classroot.st.lineW }, mixed = { classroot.st.lineWMixed },
+            deliver(v: number) { app.setStrokeWidth(v) }
+            ]
+        ],
+
+    Heading [ padding = [14, 0, 2, 0], text = "Shape" ],
+    Row [ caption = "Corner radius", dim = { !classroot.st.hasRadius },
+        NumberField [ label = "Corner radius", unit = "pt", min = 0, max = 2000, disabled = { !classroot.st.hasRadius },
+            num = { classroot.st.radius }, mixed = { classroot.st.radiusMixed },
+            deliver(v: number) { app.setRadius(v) }
+            ]
+        ],
+    Row [ caption = "Keep proportions", dim = { !classroot.st.hasKeep },
+        MixedNote [ visible = { classroot.st.keepMixed } ],
+        Switch [ accessibilityLabel = "Keep proportions", disabled = { !classroot.st.hasKeep },
+            checked = { classroot.st.keep },
+            commit(v: boolean) { app.setKeep(v) }
+            ]
+        ],
+
+    Heading [ padding = [14, 0, 2, 0], text = "Text" ],
+    Row [ caption = "Font", dim = { !classroot.st.hasText },
+        Button [ width = 150, height = 28, fontSize = 12.5, disabled = { !classroot.st.hasText }, menu = { app.fontMenu },
+            accessibilityLabel = "Font",
+            label = { !classroot.st.hasText ? "—" : classroot.st.fontMixed ? "Mixed" : classroot.st.font } ]
+        ],
+    Row [ caption = "Size", dim = { !classroot.st.hasText },
+        NumberField [ label = "Text size", unit = "pt", min = 6, max = 400, disabled = { !classroot.st.hasText },
+            num = { classroot.st.size }, mixed = { classroot.st.sizeMixed },
+            deliver(v: number) { app.setText("size", v) }
+            ],
+        Button [ width = 92, height = 28, fontSize = 12.5, disabled = { !classroot.st.hasText }, menu = { app.weightMenu },
+            accessibilityLabel = "Weight",
+            label = { !classroot.st.hasText ? "—" : classroot.st.weightMixed ? "Mixed" : app.weightName(classroot.st.weight) } ]
+        ],
+    Row [ caption = "Style", dim = { !classroot.st.hasText },
+        IconButton [ shape = "italic", label = "Italic", width = 30, height = 28, disabled = { !classroot.st.hasText },
+            on = { classroot.st.italic && !classroot.st.italicMixed },
+            press() { app.setText("italic", !(classroot.st.italic && !classroot.st.italicMixed)) }
+            ],
+        View [ width = 6 ],
+        IconButton [ shape = "textLeft", label = "Align left", width = 30, height = 28, disabled = { !classroot.st.hasText },
+            on = { classroot.st.align == "left" },
+            press() { app.setText("align", "left") }
+            ],
+        IconButton [ shape = "textCenter", label = "Align centre", width = 30, height = 28, disabled = { !classroot.st.hasText },
+            on = { classroot.st.align == "center" },
+            press() { app.setText("align", "center") }
+            ],
+        IconButton [ shape = "textRight", label = "Align right", width = 30, height = 28, disabled = { !classroot.st.hasText },
+            on = { classroot.st.align == "right" },
+            press() { app.setText("align", "right") }
+            ]
+        ],
+    Row [ caption = "Colour", dim = { !classroot.st.hasText },
+        ColorWell [ label = "Text colour", disabled = { !classroot.st.hasText },
+            hex = { classroot.st.ink }, mixed = { classroot.st.inkMixed },
+            press() { app.pickColor(this, "text") }
+            ],
+        HexField [ which = "text", disabled = { !classroot.st.hasText }, hex = { classroot.st.ink },
+            mixed = { classroot.st.inkMixed }, noneAllowed = false ]
+        ],
+
+    Heading [ padding = [14, 0, 6, 0], text = "Arrange" ],
+    alignRow: View [ width = 100%, height = 36,
+        layout: SimpleLayout [ axis = x, spacing = 2, align = center ],
+        IconButton [ shape = "alignLeft", label = "Align left edges", disabled = { app.sel.length < 2 },
+            press() { app.align("left") }
+            ],
+        IconButton [ shape = "alignCenter", label = "Align centres", disabled = { app.sel.length < 2 },
+            press() { app.align("center") }
+            ],
+        IconButton [ shape = "alignRight", label = "Align right edges", disabled = { app.sel.length < 2 },
+            press() { app.align("right") }
+            ],
+        View [ width = 8 ],
+        IconButton [ shape = "alignTop", label = "Align tops", disabled = { app.sel.length < 2 },
+            press() { app.align("top") }
+            ],
+        IconButton [ shape = "alignMiddle", label = "Align middles", disabled = { app.sel.length < 2 },
+            press() { app.align("middle") }
+            ],
+        IconButton [ shape = "alignBottom", label = "Align bottoms", disabled = { app.sel.length < 2 },
+            press() { app.align("bottom") }
+            ]
+        ],
+    orderRow: View [ width = 100%, height = 36,
+        layout: SimpleLayout [ axis = x, spacing = 2, align = center ],
+        IconButton [ shape = "distH", label = "Distribute across", disabled = { app.sel.length < 3 },
+            press() { app.distribute("x") }
+            ],
+        IconButton [ shape = "distV", label = "Distribute down", disabled = { app.sel.length < 3 },
+            press() { app.distribute("y") }
+            ],
+        View [ width = 8 ],
+        IconButton [ shape = "front", label = "Bring to front", disabled = { app.sel.length == 0 },
+            press() { app.restack("front") }
+            ],
+        IconButton [ shape = "forward", label = "Bring forward", disabled = { app.sel.length == 0 },
+            press() { app.restack("forward") }
+            ],
+        IconButton [ shape = "backward", label = "Send backward", disabled = { app.sel.length == 0 },
+            press() { app.restack("backward") }
+            ],
+        IconButton [ shape = "back2", label = "Send to back", disabled = { app.sel.length == 0 },
+            press() { app.restack("back") }
+            ]
+        ],
+    groupRow: View [ width = 100%, padding = [6, 0, 0, 0],
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        Button [ flexes = true, height = 30, fontSize = 13, label = "Group", iconLeft = "GroupIcon", disabled = { !app.canGroup },
+            onClick() { app.group() }
+            ],
+        Button [ flexes = true, height = 30, fontSize = 13, label = "Ungroup", iconLeft = "UngroupIcon", disabled = { !app.canUngroup },
+            onClick() { app.ungroup() }
+            ]
+        ]
+    ]
+
+
+// The icons a library Button names by class.
+
+class GroupIcon extends Glyph [ shape = "group" ]
+
+class UngroupIcon extends Glyph [ shape = "ungroup" ]
+
+use [ GroupIcon, UngroupIcon ]
+
+// A hex value, typed: what the well shows, as text, for a person who knows
+// the colour they want. "none" (or an empty field) clears it, where allowed.
+
+class HexField extends TextInput [ width = 96, height = 28, fontSize = 12.5, padding = [0, 8, 0, 8],
+    numeralWidth = tabular,
+    which: string = "",
+    hex: string = "",
+    mixed: boolean = false,
+    noneAllowed: boolean = true,
+    accessibilityLabel = { (classroot.which == "background" ? "Background" : classroot.which == "stroke" ? "Outline" : classroot.which == "text" ? "Text colour" : "Fill") + " hex value" },
+    commitOn = "end",
+    placeholder = { classroot.disabled ? "" : classroot.mixed ? "Mixed" : "None" },
+    value = { classroot.disabled || classroot.mixed ? "" : classroot.hex },
+    commit(v: string) {
+        const t = v.trim()
+        if (t == "" || t.toLowerCase() == "none") { if (noneAllowed && !mixed) app.applyColor(which, null); return }
+        const h = normalizeHex(t)
+        if (h != null) app.applyColor(which, h)
+        }
+    ]
+
+
+// A number with its unit, typed or stepped with the arrow keys (shift for
+// ten). Empty with "Mixed" when the selection's values differ.
+
+class NumberField extends TextInput [ width = 72, height = 28, fontSize = 12.5, padding = [0, 8, 0, 8],
+    numeralWidth = tabular, textAlign = right,
+    label: string = "",
+    unit: string = "",
+    num: number = 0,
+    mixed: boolean = false,
+    min: number = 0,
+    max: number = 1000,
+    accessibilityLabel = { classroot.label },
+    commitOn = "end",
+    placeholder = { classroot.disabled ? "" : classroot.mixed ? "Mixed" : "" },
+    value = { classroot.disabled || classroot.mixed ? "" : "" + Math.round(classroot.num * 10) / 10 },
+    admit(t: string) -> string | null { return /^[0-9]*\.?[0-9]*$/.test(t) ? t : null },
+    onKeyDown(e: KeyEvent) {
+        if (e.key != "ArrowUp" && e.key != "ArrowDown") { super.onKeyDown(e); return }
+        const step = (e.key == "ArrowUp" ? 1 : -1) * (e.shift ? 10 : 1)
+        this.deliver(Math.max(min, Math.min(max, (mixed ? 0 : num) + step)))
+        },
+    deliver(v: number) { },
+    commit(v: string) {
+        if (v.trim() == "") return
+        const n = Number(v)
+        if (!isNaN(n)) this.deliver(Math.max(min, Math.min(max, n)))
+        }
+    ]

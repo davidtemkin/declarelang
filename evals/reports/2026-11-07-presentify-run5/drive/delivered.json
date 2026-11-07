@@ -1,0 +1,30 @@
+[
+  {
+    "name": "slides_add_duplicate_delete",
+    "pass": true,
+    "error": null,
+    "ms": 20524,
+    "requests": [
+      "GET /api/decks",
+      "GET /api/slides/s1",
+      "GET /api/slides/s9",
+      "GET /api/slides/s12",
+      "POST /api/decks",
+      "GET /api/decks",
+      "GET /api/decks/d101",
+      "GET /api/decks/d101/slides",
+      "GET /api/slides/s102",
+      "PUT /api/slides/s102",
+      "POST /api/decks/d101/slides",
+      "GET /api/slides/s102",
+      "GET /api/slides/s102",
+      "GET /api/slides/s102",
+      "POST /api/decks/d101/slides",
+      "GET /api/slides/s103",
+      "GET /api/slides/s103",
+      "GET /api/slides/s103",
+      "GET /api/slides/s104",
+      "DELETE /api/slides/s103"
+    ]
+  }
+]

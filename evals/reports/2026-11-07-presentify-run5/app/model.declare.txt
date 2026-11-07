@@ -1,0 +1,437 @@
+/*
+# Presentify: the model
+
+Where every presentation lives, and the rules its writes keep. Four parts,
+each a class with no view:
+
+- **`Library`** — the list of presentations, from the service, and the writes
+  made from that list: create, rename, delete.
+- **`Doc`** — the presentation that is open, as a working copy in the
+  service's own format. Every edit in the editor is one write here; the
+  screen, the slide list and the save all follow from it.
+- **`Sync`** — keeps the service in step with the `Doc`. It does not track
+  edits: it compares what the `Doc` holds with what the service last
+  accepted and sends the first difference it finds, one request at a time,
+  until there are none. Undo, a failed request and a retry all need no code
+  of their own, because the next comparison simply finds what is still
+  different. It also notices when another window changed a slide.
+- **`History`** — undo and redo, as snapshots of the `Doc` and of where the
+  person was.
+*/
+
+// ── The shape of the data ───────────────────────────────────────────────────
+//
+// The service's format (task/api/API.md), as schemas. A field a kind of
+// element doesn't have is left out of that element entirely, never sent as
+// null, since the service refuses a field the format doesn't define.
+
+schema Outline [ color: string, width: number ]
+schema TextSpec [ content: string, font: string, size: number, weight: number,
+    italic: boolean, color: string, align: string ]
+schema Shape [ id: string, kind: string,
+    x?: number, y?: number, width?: number, height?: number,
+    x1?: number, y1?: number, x2?: number, y2?: number,
+    fill?: string, stroke?: Outline, cornerRadius?: number, keepProportions?: boolean,
+    text?: TextSpec, children[]?: Shape ]
+schema SlideRec [ id: string, deckId: string, version: number, background: string, elements[]: Shape ]
+schema Deck [ id: string, title: string, version: number, updatedAt: string,
+    slideOrder[]: string, thumbnailSlideId: string ]
+schema DeckSummary [ id: string, title: string, updatedAt: string, slideCount: number, thumbnailSlideId: string ]
+schema Created [ deck: Deck, slides[]: SlideRec ]
+schema SlideAdded [ slide: SlideRec, deck: Deck ]
+schema DeckOnly [ deck: Deck ]
+
+// The open presentation, as the editor holds it. A slide's `key` is its
+// identity here: a slide that came from the service has its id as its key;
+// one made here has a key of its own until the service gives it an id
+// (`Sync.known` pairs them).
+
+schema Slide [ key: string, background: string, elements[]: Shape ]
+schema DocData [ id: string, title: string, slides[]: Slide ]
+
+// What Sync knows of the service, slide by slide, and what it is sending.
+
+schema Known [ key: string, id: string, version: number, saved: string ]
+schema Conflict [ key: string, slide: SlideRec ]
+schema Job [ kind: string, key: string, url: string, body?: any, sent: string ]
+
+// One step of undo: the document and where the person was in it.
+
+schema Snapshot [ title: string, slides[]: Slide, selection[]: string, current: string ]
+
+
+// ── The presentations ───────────────────────────────────────────────────────
+
+class Library extends DataSource [ url = { app.api + "/api/decks" }, schema = [ decks[]: DeckSummary ],
+    decks() -> DeckSummary[] { return this.value?.decks ?? [] },
+    byId(id: string) -> DeckSummary? { return this.decks().find((d) => d.id == id) ?? null },
+
+    // Create: the service makes the deck and its one empty slide, and the
+    // new presentation opens at once.
+
+    newTitle: string = "Untitled presentation",
+    creating: boolean = { this.creator.loading },
+    create(title: string) { newTitle = title; creator.fetch() },
+    creator: DataSource [ url = { app.api + "/api/decks" }, method = "POST", schema = Created,
+        body = { { title: classroot.newTitle } },
+        onLoad() { const c = this.value; if (c != null) { classroot.fetch(); app.openNew(c.deck.id) } },
+        onError() { app.toast.say("Couldn’t create the presentation — the service didn’t answer.") }
+        ],
+
+    // Rename: a PATCH needs the deck's current version, so it reads the deck
+    // first. The list shows the new title at once.
+
+    renameId: string = "",
+    renameTitle: string = "",
+    renameVersion: number = 0,
+    rename(id: string, title: string) {
+        const i = decks().findIndex((d) => d.id == id)
+        if (i >= 0) this.set(["decks", i, "title"], title)
+        renameId = id
+        renameTitle = title
+        renameRead.fetch()
+        },
+    renameRead: DataSource [ url = { app.api + "/api/decks/" + classroot.renameId }, schema = Deck,
+        onLoad() { classroot.renameVersion = this.value?.version ?? 0; classroot.renameWrite.fetch() }
+        ],
+    renameWrite: DataSource [ url = { app.api + "/api/decks/" + classroot.renameId }, method = "PATCH", schema = Deck,
+        body = { { version: classroot.renameVersion, title: classroot.renameTitle } },
+        onLoad() { classroot.fetch() },
+        onError() { app.toast.say("Couldn’t rename it — the service didn’t answer."); classroot.fetch() }
+        ],
+
+    // Delete, once the person has said so (the App asks).
+
+    removeId: string = "",
+    remove(id: string) {
+        const i = decks().findIndex((d) => d.id == id)
+        if (i >= 0) this.removeAt(["decks"], i)
+        removeId = id
+        remover.fetch()
+        },
+    remover: DataSource [ url = { app.api + "/api/decks/" + classroot.removeId }, method = "DELETE",
+        onLoad() { classroot.fetch() },
+        onError() { app.toast.say("Couldn’t delete it — the service didn’t answer."); classroot.fetch() }
+        ]
+    ]
+
+
+// ── The open presentation ───────────────────────────────────────────────────
+//
+// Every write the editor makes is one of these verbs. `rev` counts them, so
+// Sync can wait for the edits to pause before it compares.
+
+class Doc extends Dataset [ schema = DocData,
+    rev: number = 0,
+    deckId: string = { this.value?.id ?? "" },
+
+    slides() -> Slide[] { return this.value?.slides ?? [] },
+    title() -> string { return this.value?.title ?? "" },
+    at(key: string) -> number { return this.slides().findIndex((s) => s.key == key) },
+    slide(key: string) -> Slide? { return this.slides().find((s) => s.key == key) ?? null },
+    els(key: string) -> Shape[] { return this.slide(key)?.elements ?? [] },
+
+    load(d: Deck, list: SlideRec[]) {
+        this.set([], ({ id: d.id, title: d.title,
+            slides: list.map((s) => ({ key: s.id, background: s.background, elements: s.elements })) }))
+        },
+    unload() { this.set([], ({ id: "", title: "", slides: [] })) },
+
+    changed() { rev = rev + 1 },
+    setEls(key: string, els: Shape[]) {
+        const i = this.at(key)
+        if (i < 0) return
+        this.set(["slides", i, "elements"], els)
+        this.changed()
+        },
+    setBackground(key: string, hex: string) {
+        const i = this.at(key)
+        if (i < 0) return
+        this.set(["slides", i, "background"], hex)
+        this.changed()
+        },
+    setTitle(t: string) { this.set(["title"], t); this.changed() },
+    insertSlide(index: number, s: Slide) { this.insert(["slides"], index, s); this.changed() },
+    removeSlide(key: string) {
+        const i = this.at(key)
+        if (i >= 0 && this.slides().length > 1) { this.removeAt(["slides"], i); this.changed() }
+        },
+    moveSlide(from: number, to: number) { if (from != to) { this.move(["slides"], from, to); this.changed() } },
+    restore(title: string, list: Slide[]) {
+        this.set(["title"], title)
+        this.set(["slides"], structuredClone(list))
+        this.changed()
+        }
+    ]
+
+
+// ── Saving ──────────────────────────────────────────────────────────────────
+//
+// `known` is the service's side: for each slide it has, its id, its version
+// and what it last accepted. `nextJob()` compares that with the Doc and
+// returns the first request that would close the gap: slides to create, then
+// slides to delete, then slides to save, then the deck's order and title. A
+// reply updates `known`, and the loop asks again. A refusal that means "try
+// later" leaves `known` as it was, so the same request comes up next time.
+
+class Sync extends Node [
+    deckId: string = "",
+    deckVersion: number = 0,
+    serverOrder: string[] = [],
+    savedTitle: string = "",
+    known: Known[] = [],
+    conflicts: Conflict[] = [],
+
+    busy: boolean = false,            // a request is out
+    offline: boolean = false,         // the last one couldn't reach the service
+    job: Job? = null,
+
+    // the state of things, as the window states it
+
+    waiting: Job? = { this.nextJob() },
+    pending: boolean = { this.waiting != null || this.busy || this.conflicts.length > 0 },
+    status: string = { this.offline ? "Not saved: can't reach the service" : this.pending ? "Saving…" : "All changes saved" },
+
+    // A save waits for the edits to pause: each edit restarts a short wait.
+    // ⌘S, leaving the editor, and the end of a reply don't wait.
+
+    docRev: number = { app.doc.rev },
+    trackChanges = ["docRev"],
+    onChange() { this.soon() },
+    gen: number = 0,
+    soon() {
+        gen = gen + 1
+        const g = gen
+        afterDelay(700, () => { if (g == this.gen) this.flush() })
+        },
+
+    start(d: Deck, list: SlideRec[]) {
+        deckId = d.id
+        deckVersion = d.version
+        serverOrder = [...d.slideOrder]
+        savedTitle = d.title
+        known = list.map((s) => ({ key: s.id, id: s.id, version: s.version, saved: this.contentOf(s.background, s.elements) }))
+        conflicts = []
+        offline = false
+        },
+
+    contentOf(bg: string, els: Shape[]) -> string { return JSON.stringify([bg, els]) },
+    knownOf(key: string) -> Known? { return this.known.find((k) => k.key == key) ?? null },
+    conflictOf(key: string) -> Conflict? { return this.conflicts.find((c) => c.key == key) ?? null },
+    idOf(key: string) -> string { return this.knownOf(key)?.id ?? "" },
+
+    nextJob() -> Job? {
+        if (deckId == "" || app.doc.deckId != deckId) return null
+        const base = app.api
+        const slides = app.doc.slides()
+        for (let i = 0; i < slides.length; i++) {
+            const s = slides[i]
+            if (this.knownOf(s.key) == null) {
+                const after = i > 0 ? this.idOf(slides[i - 1].key) : ""
+                return ({ kind: "create", key: s.key, url: base + "/api/decks/" + deckId + "/slides",
+                    body: ({ after: after == "" ? null : after, background: s.background, elements: s.elements }),
+                    sent: this.contentOf(s.background, s.elements) })
+            }
+        }
+        for (const k of known) {
+            if (!slides.some((s) => s.key == k.key))
+                return ({ kind: "delete", key: k.key, url: base + "/api/slides/" + k.id, sent: "" })
+        }
+        for (const s of slides) {
+            const k = this.knownOf(s.key)
+            if (k == null || this.conflictOf(s.key) != null) continue
+            const now = this.contentOf(s.background, s.elements)
+            if (now != k.saved)
+                return ({ kind: "save", key: s.key, url: base + "/api/slides/" + k.id,
+                    body: ({ version: k.version, background: s.background, elements: s.elements }), sent: now })
+        }
+        const mine = slides.map((s) => this.idOf(s.key))
+        const order = [...mine, ...serverOrder.filter((id) => !mine.includes(id))]
+        const title = app.doc.title().trim() == "" ? "Untitled presentation" : app.doc.title().trim()
+        if (order.join(",") != serverOrder.join(",") || title != savedTitle)
+            return ({ kind: "deck", key: "", url: base + "/api/decks/" + deckId,
+                body: ({ version: deckVersion, title: title, slideOrder: order }), sent: title })
+        return null
+        },
+
+    flush() {
+        if (busy) return
+        const j = this.nextJob()
+        if (j == null) return
+        busy = true
+        job = j
+        if (j.kind == "create") creator.fetch()
+        else if (j.kind == "delete") deleter.fetch()
+        else if (j.kind == "save") saver.fetch()
+        else decker.fetch()
+        },
+
+    // One source per kind of request, each built from `job`.
+
+    creator: DataSource [ url = { classroot.job?.url ?? "" }, method = "POST", schema = SlideAdded,
+        body = { classroot.job?.body ?? ({}) },
+        onLoad() { classroot.created(this.value) },
+        onError() { classroot.refused(this.statusCode, this.errorBody) }
+        ],
+    deleter: DataSource [ url = { classroot.job?.url ?? "" }, method = "DELETE", schema = DeckOnly,
+        onLoad() { classroot.deleted(this.value) },
+        onError() { classroot.refused(this.statusCode, this.errorBody) }
+        ],
+    saver: DataSource [ url = { classroot.job?.url ?? "" }, method = "PUT", schema = SlideRec,
+        body = { classroot.job?.body ?? ({}) },
+        onLoad() { classroot.saved(this.value) },
+        onError() { classroot.refused(this.statusCode, this.errorBody) }
+        ],
+    decker: DataSource [ url = { classroot.job?.url ?? "" }, method = "PATCH", schema = Deck,
+        body = { classroot.job?.body ?? ({}) },
+        onLoad() { classroot.deckSaved(this.value) },
+        onError() { classroot.refused(this.statusCode, this.errorBody) }
+        ],
+
+    adoptDeck(d: Deck?) {
+        if (d == null) return
+        deckVersion = d.version
+        serverOrder = [...d.slideOrder]
+        },
+    landed() { busy = false; offline = false; job = null; this.flush() },
+
+    created(r: SlideAdded?) {
+        const j = job
+        if (r != null && j != null) {
+            known = [...known, ({ key: j.key, id: r.slide.id, version: r.slide.version, saved: j.sent })]
+            this.adoptDeck(r.deck)
+        }
+        this.landed()
+        },
+    deleted(r: DeckOnly?) {
+        const j = job
+        if (j != null) known = known.filter((k) => k.key != j.key)
+        if (r != null) this.adoptDeck(r.deck)
+        this.landed()
+        },
+    saved(s: SlideRec?) {
+        const j = job
+        if (s != null && j != null)
+            known = known.map((k) => k.key == j.key ? ({ ...k, version: s.version, saved: j.sent }) : k)
+        this.landed()
+        },
+    deckSaved(d: Deck?) {
+        const j = job
+        this.adoptDeck(d)
+        if (d != null && j != null) savedTitle = j.sent
+        this.landed()
+        },
+
+    // A refusal. A conflict on a slide stops that slide (the person decides);
+    // a conflict on the deck takes the deck's new version and tries again;
+    // a slide that is gone from the service is made again; anything else is
+    // the service not taking the write, and the same request is tried again
+    // shortly. Nothing local is changed by any of it.
+
+    refused(code: number, body: object) {
+        const j = job
+        busy = false
+        job = null
+        if (j == null) return
+        const reply = (body ?? ({})) as { error?: string, current?: object }
+        if (code == 409 && reply.error == "conflict" && j.kind == "save" && reply.current != null) {
+            conflicts = [...conflicts.filter((c) => c.key != j.key), ({ key: j.key, slide: reply.current as SlideRec })]
+            offline = false
+            this.flush()
+        } else if (code == 409 && reply.error == "conflict" && j.kind == "deck" && reply.current != null) {
+            this.adoptDeck(reply.current as Deck)
+            offline = false
+            this.flush()
+        } else if (code == 404 && (j.kind == "save" || j.kind == "delete")) {
+            known = known.filter((k) => k.key != j.key)
+            offline = false
+            this.flush()
+        } else {
+            offline = true
+            afterDelay(2500, () => this.flush())
+        }
+        },
+
+    // Another window. While a slide is open, the service's copy of it is
+    // read every few seconds; a version newer than the one this window last
+    // read, with content this window didn't write, is a change made
+    // somewhere else, and the person is told.
+
+    probeKey: string = "",
+    probeUrl: string = { classroot.probeKey == "" ? "" : app.api + "/api/slides/" + classroot.idOf(classroot.probeKey) },
+    check(key: string) {
+        if (busy || this.knownOf(key) == null || this.conflictOf(key) != null) return
+        probeKey = key
+        probe.fetch()
+        },
+    probe: DataSource [ url = { classroot.probeUrl }, schema = SlideRec,
+        onLoad() { classroot.probed(this.value) }
+        ],
+    probed(s: SlideRec?) {
+        const k = this.knownOf(probeKey)
+        if (s == null || k == null || busy || s.id != k.id || s.version <= k.version) return
+        const theirs = this.contentOf(s.background, s.elements)
+        if (theirs == k.saved) known = known.map((x) => x.key == k.key ? ({ ...x, version: s.version }) : x)
+        else conflicts = [...conflicts.filter((c) => c.key != k.key), ({ key: k.key, slide: s })]
+        },
+
+    // The person's answer to a conflict. Either way the service's version
+    // becomes the one this window has read; "theirs" also puts its content
+    // in the Doc (the App records that as an undoable step).
+
+    resolve(key: string) {
+        const c = this.conflictOf(key)
+        if (c == null) return
+        known = known.map((k) => k.key == key ? ({ ...k, version: c.slide.version,
+            saved: this.contentOf(c.slide.background, c.slide.elements) }) : k)
+        conflicts = conflicts.filter((x) => x.key != key)
+        this.flush()
+        }
+    ]
+
+
+// ── Undo ────────────────────────────────────────────────────────────────────
+//
+// A step is recorded *before* a change, as a snapshot of the whole document
+// and of the selection and slide in view. `record(key)` with the same key
+// within a moment of the last one adds nothing, so a run of nudges or a drag
+// across a slider is one step.
+
+class History extends Node [
+    done: Snapshot[] = [],
+    undone: Snapshot[] = [],
+    lastKey: string = "",
+    lastAt: number = 0,
+    canUndo: boolean = { this.done.length > 0 },
+    canRedo: boolean = { this.undone.length > 0 },
+
+    clear() { done = []; undone = []; lastKey = "" },
+    record(key: string) {
+        const now = Date.now()
+        if (key != "" && key == lastKey && now - lastAt < 1500) { lastAt = now; return }
+        done = [...done.slice(-149), app.snapshot()]
+        undone = []
+        lastKey = key
+        lastAt = now
+        },
+
+    // the step just recorded turned out to change nothing (a click on a text box left empty)
+
+    forget() { if (done.length > 0) done = done.slice(0, -1); lastKey = "" },
+    undo() {
+        if (done.length == 0) return
+        const s = done[done.length - 1]
+        undone = [...undone, app.snapshot()]
+        done = done.slice(0, -1)
+        lastKey = ""
+        app.restore(s)
+        },
+    redo() {
+        if (undone.length == 0) return
+        const s = undone[undone.length - 1]
+        done = [...done, app.snapshot()]
+        undone = undone.slice(0, -1)
+        lastKey = ""
+        app.restore(s)
+        }
+    ]

@@ -454,6 +454,13 @@ const SCENARIOS = {
       if (!(await maybe(stored(async () => (await deck("new")).slides.length === 3, "a duplicate by ⇧⌘D", 2500)))) {
         await press(page, await thumb(page, 1));
         await chord(page, "d");
+        // still no duplicate: the slide's own menu, a right-click on its thumbnail —
+        // where a person looks when no chord is known (the brief names none)
+        if (!(await maybe(stored(async () => (await deck("new")).slides.length === 3, "a duplicate by ⌘D", 2500)))) {
+          await (await thumb(page, 1)).handle.click({ button: "right" });
+          const item = await maybe(control(page, /duplicate slide|^duplicate$/i, { timeout: 2500 }));
+          if (item) await press(page, item);
+        }
       }
     }
     const d3 = await stored(async () => { const d = await deck("new"); return d.slides.length === 3 && d; }, "a third slide, a duplicate");
@@ -468,6 +475,12 @@ const SCENARIOS = {
       if (!(await maybe(stored(async () => (await deck("new")).slides.length === 2, "a delete by ⌫", 2500)))) {
         await press(page, await thumb(page, 3));
         await page.keyboard.press("Delete");
+        // still there: the slide's own menu, as for its duplicate
+        if (!(await maybe(stored(async () => (await deck("new")).slides.length === 2, "a delete by ⌦", 2500)))) {
+          await (await thumb(page, 3)).handle.click({ button: "right" });
+          const item = await maybe(control(page, /delete slide|remove slide|^delete$/i, { timeout: 2500 }));
+          if (item) await press(page, item);
+        }
       }
     }
     await stored(async () => (await deck("new")).slides.length === 2, "two slides after a delete");

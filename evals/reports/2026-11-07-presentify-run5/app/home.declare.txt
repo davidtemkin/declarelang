@@ -1,0 +1,208 @@
+/*
+# Presentify: the presentations, and presenting
+
+The first screen — every presentation as a card with a live picture of its
+first slide — and the last one, presenting, which fills the screen with one
+slide at a time. Both draw slides with the same `SlideView` the editor uses.
+*/
+
+// ── The presentations ───────────────────────────────────────────────────────
+
+class Home [ fill = { provided("theme").background }, scrolls = y,
+    layout: SimpleLayout [ axis = y, align = center ],
+
+    bar: View [ width = { Math.min(1180, parent.width - 72) }, height = 84,
+        layout: SimpleLayout [ axis = x, align = center ],
+        Wordmark [ size = 24 ],
+        Spacer [ ],
+        Button [ label = "New presentation", primary = true, iconLeft = "PlusGlyph", height = 38,
+            disabled = { app.library.creating },
+            onClick() { app.newPresentation() }
+            ]
+        ],
+
+    page: View [ width = { Math.min(1180, parent.width - 72) }, padding = [18, 0, 64, 0],
+        layout: SimpleLayout [ axis = y, spacing = 22 ],
+
+        hello: View [ width = 100%,
+            layout: SimpleLayout [ axis = y, spacing = 6 ],
+            Text [ fontFamily = { app.brandFace }, fontWeight = 800, fontSize = 40, letterSpacing = -1.2,
+                text = "Your presentations" ],
+            Text [ fontSize = 15, textColor = { provided("theme").textMuted },
+                text = { app.library.loaded ? app.deckCountLine : "Gathering your decks…" } ]
+            ],
+
+        // the cards, newest first; a new one is the first card
+
+        grid: View [ width = 100%, datapath = { app.library.value },
+            layout: WrappingLayout [ spacing = 28, rowSpacing = 32 ],
+            NewCard [ visible = { app.library.loaded && app.library.decks().length > 0 } ],
+            DeckCard [ datapath = :decks[] ]
+            ],
+
+        // nothing yet: say what Presentify is for, and offer the first step
+
+        empty: EmptyHome [ width = 100%, visible = { app.library.loaded && app.library.decks().length == 0 } ],
+
+        // still arriving: the shapes of cards, so nothing jumps when they land
+
+        skeleton: View [ width = 100%, visible = { !app.library.loaded && !app.library.failed },
+            layout: WrappingLayout [ spacing = 28, rowSpacing = 32 ],
+            SkeletonCard [ ],
+            SkeletonCard [ ],
+            SkeletonCard [ ],
+            SkeletonCard [ ]
+            ],
+        offline: View [ width = 100%, visible = { !app.library.loaded && app.library.failed }, padding = [60, 0, 0, 0],
+            layout: SimpleLayout [ axis = y, spacing = 10, align = center ],
+            Glyph [ shape = "offline", iconSize = 40, weight = 1.6, ink = { provided("theme").textFaint } ],
+            Text [ fontFamily = { app.brandFace }, fontWeight = 700, fontSize = 20, text = "Can’t reach the service" ],
+            Text [ fontSize = 14, textColor = { provided("theme").textMuted }, width = 360, textAlign = center,
+                text = "Your presentations are kept by the Presentify service, and it isn’t answering. Presentify will keep trying." ],
+            Button [ label = "Try again",
+                onClick() { app.library.fetch() }
+                ]
+            ]
+        ]
+    ]
+
+
+class PlusGlyph extends Glyph [ shape = "plus", weight = 2 ]
+
+use [ PlusGlyph ]
+
+// A presentation: its first slide, its title, when it was last changed.
+// Opening one grows the editor out of this card's picture.
+
+class DeckCard [ width = 262,
+    deckId: string = { :id ?? "" },
+    title: string = { :title ?? "" },
+    stamp: string = { :updatedAt ?? "" },
+    count: number = { :slideCount ?? 0 },
+    lit: boolean = { this.open.hovered || this.open.focused || this.more.hovered },
+    onContextMenu(e: PointerEvent) { app.menuDeck = classroot.deckId; app.deckMenu.open(this, e) },
+
+    thumb: DataSource [ url = { app.api + "/api/slides/" + (:thumbnailSlideId ?? "") }, autoFetch = true, schema = SlideRec ],
+    trackChanges = ["stamp"],
+    onChange() { this.thumb.fetch() },
+
+    open: Control [ width = 100%, accessibilityLabel = { "Open " + (classroot.title == "" ? "Untitled presentation" : classroot.title) },
+        press() { app.openDeck(classroot.deckId, this.pic) },
+        layout: SimpleLayout [ axis = y, spacing = 10 ],
+        pic: View [ width = 262, height = 147.4, cornerRadius = 10, clip = true,
+            fill = { provided("theme").well },
+            shadow = { classroot.lit ? shadow(0, 14, 30, 0x1A183033) : shadow(0, 2, 8, 0x1A18301F) },
+            SlideView [ visible = { classroot.thumb.loaded }, scale = { 262 / 1280 }, datapath = { classroot.thumb.value } ],
+            View [ width = 100%, height = 100%, cornerRadius = 10,
+                stroke = { classroot.open.focused ? stroke(2.5, provided("theme").accent) : stroke(1, 0x1A183014) } ]
+            ],
+        words: View [ width = 228,
+            layout: SimpleLayout [ axis = y, spacing = 3 ],
+            Text [ width = 100%, fontFamily = { app.brandFace }, fontWeight = 700, fontSize = 15.5, maxLines = 2,
+                textColor = { classroot.lit ? provided("theme").accent : provided("theme").text },
+                text = { classroot.title == "" ? "Untitled presentation" : classroot.title } ],
+            Text [ width = 100%, fontSize = 12.5, maxLines = 1, textColor = { provided("theme").textMuted },
+                text = { since(classroot.stamp, app.clock.now) + " · " + classroot.count + (classroot.count == 1 ? " slide" : " slides") } ]
+            ]
+        ],
+    more: IconButton [ x = 232, y = 154, shape = "more", width = 30, height = 30,
+        label = { "More for " + (classroot.title == "" ? "Untitled presentation" : classroot.title) },
+        press() { app.menuDeck = classroot.deckId; app.deckMenu.openFor(this) }
+        ]
+    ]
+
+
+// The first card: a new presentation, where the person's eye already is.
+
+class NewCard extends Control [ width = 262,
+    accessibilityLabel = "New presentation",
+    press() { app.newPresentation() },
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    face: View [ width = 262, height = 147.4, cornerRadius = 10,
+        fill = { classroot.hovered ? provided("theme").controlSelected : provided("theme").panel },
+        stroke = { stroke(1.5, classroot.hovered ? provided("theme").accent : provided("theme").lineStrong) },
+        layout: SimpleLayout [ axis = y, spacing = 8, align = center ],
+        padding = [44, 0, 0, 0],
+        View [ width = 40, height = 40, cornerRadius = 20, fill = { provided("theme").accent },
+            Glyph [ x = center, y = center, iconSize = 18, weight = 2.2, shape = "plus", ink = white ]
+            ],
+        Text [ fontSize = 13.5, fontWeight = 600, textColor = { provided("theme").accent }, text = "New presentation" ]
+        ]
+    ]
+
+
+class SkeletonCard [ width = 262,
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    View [ width = 262, height = 147.4, cornerRadius = 10, fill = { provided("theme").well } ],
+    View [ width = 180, height = 14, cornerRadius = 7, fill = { provided("theme").well } ],
+    View [ width = 110, height = 11, cornerRadius = 6, fill = { provided("theme").well }, opacity = 0.7 ]
+    ]
+
+
+// No presentations yet: a small drawn scene of slides being made, and the one
+// thing to do.
+
+class EmptyHome [ padding = [40, 0, 40, 0],
+    layout: SimpleLayout [ axis = y, spacing = 14, align = center ],
+    art: View [ width = 300, height = 180,
+        draw(d: DrawContext) {
+            // three slides fanned out, the front one with a shape and a title on it
+            const card = (x: number, y: number, rot: number, fill: string) => {
+                d.save(); d.translate(x, y); d.rotate(rot)
+                d.shadowColor = "#1A183026"; d.shadowBlur = 18; d.shadowOffsetY = 8
+                d.fillStyle = fill; d.beginPath(); d.roundRect(-90, -51, 180, 102, 8); d.fill()
+                d.restore()
+                }
+            card(105, 96, -0.16, "#FFC23D")
+            card(195, 92, 0.14, "#FF6A4D")
+            card(150, 86, 0, "#FFFFFF")
+            d.fillStyle = "#6A4DFF"; d.beginPath(); d.roundRect(72, 50, 70, 46, 10); d.fill()
+            d.fillStyle = "#1FBF91"; d.beginPath(); d.arc(186, 72, 22, 0, Math.PI * 2); d.fill()
+            d.fillStyle = "#1A1830"; d.beginPath(); d.roundRect(72, 108, 120, 9, 4.5); d.fill()
+            d.fillStyle = "#D3CEC4"; d.beginPath(); d.roundRect(72, 123, 80, 7, 3.5); d.fill()
+            d.fillStyle = "#6A4DFF"; d.beginPath(); d.moveTo(232, 132); d.lineTo(252, 144); d.lineTo(232, 156); d.closePath(); d.fill()
+            }
+        ],
+    Text [ fontFamily = { app.brandFace }, fontWeight = 800, fontSize = 26, letterSpacing = -0.6, text = "Make your first presentation" ],
+    Text [ width = 420, textAlign = center, fontSize = 15, textColor = { provided("theme").textMuted },
+        text = "Slides, shapes and words, saved as you go. Start with a blank slide; it takes about a minute to make three." ],
+    Button [ label = "New presentation", primary = true, iconLeft = "PlusGlyph", height = 40,
+        onClick() { app.newPresentation() }
+        ]
+    ]
+
+
+// ── Presenting ──────────────────────────────────────────────────────────────
+//
+// One slide at a time, as large as the screen allows, on black. A click, the
+// arrow keys, space and Page Up/Down move through; Escape ends, back on the
+// slide the person ended on.
+
+class Presenter [ fill = black, cursor = { classroot.idle ? "none" : "default" },
+    at: number = 0,
+    total: number = { app.doc.slides().length },
+    s: number = { Math.min(this.width / 1280, this.height / 720) },
+    idle: boolean = false,
+    nudge: number = 0,
+    accessibilityLabel = "Presentation", accessibilityRole = region,
+    onClick() { app.presentStep(1) },
+    onPointerMove() { this.wake() },
+    wake() {
+        idle = false
+        nudge = nudge + 1
+        const n = nudge
+        afterDelay(1800, () => { if (n == this.nudge) this.idle = true })
+        },
+    onInit() { this.wake() },
+    slide: SlideView [ x = { (parent.width - 1280 * parent.s) / 2 }, y = { (parent.height - 720 * parent.s) / 2 },
+        scale = { parent.s }, accessibilityRole = group, accessibilityLabel = { "Slide " + (classroot.at + 1) + " of " + classroot.total },
+        datapath = { app.doc.slides()[classroot.at] ?? null } ],
+    hint: View [ x = center, y = { parent.height - 56 }, height = 32, padding = [0, 14, 0, 14], cornerRadius = 16,
+        fill = 0x1A1830CC,
+        Spring [ attribute = opacity, to = { classroot.idle ? 0 : 1 }, stiffness = 120, damping = 20 ],
+        layout: SimpleLayout [ axis = x, spacing = 14, align = center ],
+        TextLabel [ fontSize = 12.5, fontWeight = 600, textColor = white, numeralWidth = tabular,
+            text = { (classroot.at + 1) + " / " + classroot.total } ],
+        TextLabel [ fontSize = 12.5, textColor = 0xFFFFFFB3, text = "← → to move  ·  Esc to end" ]
+        ]
+    ]
