@@ -287,6 +287,7 @@ export type AttrType = {
     readonly kind: "motion";
 } | {
     readonly kind: "font";
+    readonly nullable?: boolean;
 } | {
     readonly kind: "faceSource";
 } | {

@@ -664,7 +664,7 @@ const RICH_ATTRS = {
     linkUnderline: { kind: "boolean" },
     codeColor: { kind: "color" },
     codeSize: { kind: "number" },
-    codeFamily: { kind: "font" },
+    codeFamily: { kind: "font", nullable: true },
     codeBackground: { kind: "color" },
     codeRule: { kind: "color" },
     richTextLayout: { kind: "record", name: "RichTextLayout" },

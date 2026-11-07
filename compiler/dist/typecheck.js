@@ -460,21 +460,26 @@ function explainTs(d, u, synthTags) {
                         // The font slot's accepted forms, stated where the mistake is made
                         // (borrowed from coerceFont's own failure text — the type alone
                         // says "string" without saying WHICH string).
-                        : u.slot === "fontFamily" || u.slot === "codeFamily"
-                            ? ` — a Font (fontFamily = { app.brand }), a family string like "Helvetica, sans-serif", or a list of them`
-                            // The one-or-four stroke: `BoxStroke` is a scaffold type NAME, not
-                            // something an author has ever written, so the bare "yield a
-                            // BoxStroke" tells them nothing. Say the shape instead — the same
-                            // sentence the literal form's coercion says (errors.ts).
-                            : m[2] === "BoxStroke"
-                                ? ` — ${strokeShapeMessage()}`
-                                // The other two one-or-four slots. `Radius` is the KIND both
-                                // `cornerRadius` and `padding` carry, so the bare type name
-                                // tells a padding mistake in corner words — the very thing
-                                // insetOrRadiusShape exists to prevent on the literal path.
-                                : m[2] === "Radius"
-                                    ? ` — ${insetOrRadiusShape(u.slot)}`
-                                    : ` — make the expression yield a ${m[2]}`;
+                        // A null family is no family: the face from above is read where it is
+                        // meant, never implied by a missing value (Cadence run 30 wrote
+                        // `{ big ? app.display : null }` and got the browser's default serif)
+                        : (m[1] === "null" || m[1] === "undefined") && u.slot === "fontFamily"
+                            ? ` — a family is never null. For the face provided from above in this case, read it: { big ? app.display : provided("fontFamily") }`
+                            : u.slot === "fontFamily" || u.slot === "codeFamily"
+                                ? ` — a Font (fontFamily = { app.brand }), a family string like "Helvetica, sans-serif", or a list of them`
+                                // The one-or-four stroke: `BoxStroke` is a scaffold type NAME, not
+                                // something an author has ever written, so the bare "yield a
+                                // BoxStroke" tells them nothing. Say the shape instead — the same
+                                // sentence the literal form's coercion says (errors.ts).
+                                : m[2] === "BoxStroke"
+                                    ? ` — ${strokeShapeMessage()}`
+                                    // The other two one-or-four slots. `Radius` is the KIND both
+                                    // `cornerRadius` and `padding` carry, so the bare type name
+                                    // tells a padding mistake in corner words — the very thing
+                                    // insetOrRadiusShape exists to prevent on the literal path.
+                                    : m[2] === "Radius"
+                                        ? ` — ${insetOrRadiusShape(u.slot)}`
+                                        : ` — make the expression yield a ${m[2]}`;
                 const named = wordAsName(u.rewrites, m[2]);
                 return `${home} computes ${article(m[1])}, but '${u.slot}' is typed ${m[2]}${named !== "" ? named : canon}`;
             }

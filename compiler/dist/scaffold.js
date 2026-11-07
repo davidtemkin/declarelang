@@ -621,7 +621,10 @@ export function tsType(t) {
         case "filter": return "ImageFilter | readonly ImageFilter[] | null";
         case "mask": return "Gradient | View | null";
         case "motion": return "Motion"; // the token union + MotionCurve brand (prelude)
-        case "font": return "string | Font | readonly (string | Font)[] | null"; // a family string, a Font object, or a fallback list of them
+        // a family string, a Font object, or a fallback list of them; null only where a slot
+        // says null is its default (codeFamily: the house monospace) — a face's own family is
+        // never null, and the face provided from above is read as provided("fontFamily")
+        case "font": return t.nullable === true ? "string | Font | readonly (string | Font)[] | null" : "string | Font | readonly (string | Font)[]";
         case "faceSource": return "string | readonly string[]";
         case "faceWeight": return "FontWeight | readonly [number, number]";
         case "array": return t.of !== undefined ? `${t.of}[]` : "any[]";

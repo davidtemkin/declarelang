@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "c07357e463f2",
+  "buildId": "097a8d2e5743",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -5925,15 +5925,15 @@
    },
    "E0F3ACE": {
     "message": "write 0x…",
-    "at": "value.ts:784"
+    "at": "value.ts:785"
    },
    "E69FF38": {
     "message": "0xRRGGBB (named colors are bare-value vocabulary only)",
-    "at": "value.ts:784"
+    "at": "value.ts:785"
    },
    "EFCD935": {
     "message": "[Declare] a color attribute received … (a …) — inside { } a color is a NUMBER: …. Nothing was painted.",
-    "at": "value.ts:785"
+    "at": "value.ts:786"
    },
    "E622321": {
     "message": "….accessibilityRole is fixed for the view's life — it is set where the view is declared or created, never written afterwards. A view whose role would change is two views (or two classes, picked by classFor).",

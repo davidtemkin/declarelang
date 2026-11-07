@@ -503,7 +503,8 @@ export type AttrType =
   // Fonts: a family slot (`fontFamily`, `codeFamily`). Its literal form is a
   // family string or a list of them; from a { } it also takes a Font object or a
   // list mixing both (font-value.ts resolves it where text measures and paints).
-  | { readonly kind: "font" }
+  // Never null — except a slot whose null means "the house default" (`codeFamily`).
+  | { readonly kind: "font"; readonly nullable?: boolean }
   // A FontFace's `src`: a URL string, `url("…")`, `local("…")`, or a list of them.
   | { readonly kind: "faceSource" }
   // A FontFace's `weight`: a token, a number 1–1000, or `range(lo, hi)`.

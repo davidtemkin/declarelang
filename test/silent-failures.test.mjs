@@ -456,6 +456,19 @@ await test("declare-look --url looks at an app where it is served, with no progr
   } finally { srv.kill(); }
 });
 
+await test("a null fontFamily is refused at its line, with the explicit read of the provided face as the fix", () => {
+  const f = join(DIR, "nullfont.declare");
+  writeFileSync(f, `App [ width = 300, height = 100, fontFamily = "Helvetica", big: boolean = false,
+    Text [ text = "x", fontFamily = { app.big ? "Georgia" : null } ] ]`);
+  const r = run("verify.mjs", f, "--rung=3");
+  assert.match(r.out, /a family is never null[^\n]*provided\("fontFamily"\)/, r.out);
+  writeFileSync(f, `App [ width = 300, height = 100, fontFamily = "Helvetica", big: boolean = false,
+    Text [ text = "x", fontFamily = { app.big ? "Georgia" : provided("fontFamily") } ],
+    Markdown [ y = 40, text = "\`code\`", codeFamily = { app.big ? "Menlo" : null } ] ]`);
+  const ok = run("verify.mjs", f, "--rung=3");
+  assert.match(ok.out, /R3 ✓/, ok.out);
+});
+
 await test("DECLARE4026: sibling toggles each on for one value of the same thing are one of several — kept as drawn, in a ChoiceControl", () => {
   const f = join(DIR, "toggles.declare");
   writeFileSync(f, `class Choice extends Control [ width = 60, height = 44,

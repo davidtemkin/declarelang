@@ -696,7 +696,7 @@ const RICH_ATTRS: Readonly<Record<string, AttrType>> = {
   linkUnderline: { kind: "boolean" },
   codeColor: { kind: "color" },
   codeSize: { kind: "number" },
-  codeFamily: { kind: "font" },
+  codeFamily: { kind: "font", nullable: true },
   codeBackground: { kind: "color" },
   codeRule: { kind: "color" },
   richTextLayout: { kind: "record", name: "RichTextLayout" },
