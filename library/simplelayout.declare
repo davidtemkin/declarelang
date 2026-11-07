@@ -238,6 +238,10 @@ class SimpleLayout extends Layout [
         let pos = 0
         return kids.map((c, i) => {
             const flex = c.visible && flexing(c)
+            // hidden, a flexing child takes no room, and the run has nothing new to
+            // say about its size: it keeps the one it has (handed back to its content,
+            // a screen sized from itself never settled)
+            const held = !c.visible && flexing(c)
             // footprint, never bounds: the strategy must not read the attribute it
             // writes (one-pass discipline). A flexing child's size is allocated
             // (box.w/h), so its footprint is never consulted — lead 0, raw attribute.
@@ -245,6 +249,7 @@ class SimpleLayout extends Layout [
             const lead = f == null ? 0 : (axis == "x" ? f.x : f.y)
             const box = (axis == "x" ? ({ x: pos - lead }) : ({ y: pos - lead })) as any
             if (flex) box[axis == "x" ? "w" : "h"] = given[i]
+            else if (held) box[axis == "x" ? "w" : "h"] = axis == "x" ? c.width : c.height
             if (al != "none") {
                 // start = the line's origin; center/end offset the child's
                 // extent within the line; baseline sits the child's declared

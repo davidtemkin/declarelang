@@ -447,8 +447,10 @@ class ResponsiveLayout extends Layout [
         let pos = 0
         return kids.map((c, i) => {
             if (hidden(c)) {
-                // excluded from the flow entirely: hidden, space reclaimed
-                return stack ? ({ x: 0, y: pos, vis: false }) : ({ x: pos, y: 0, vis: false })
+                // excluded from the flow entirely: hidden, space reclaimed — and the
+                // plan has nothing new to say about its width, so it keeps the one it
+                // has where its content would size it (one it states, it keeps anyway)
+                return stack ? ({ x: 0, y: pos, vis: false, stretch: ({ w: c.width }) }) : ({ x: pos, y: 0, vis: false, stretch: ({ w: c.width }) })
             }
             // allocated children (share, flex) take their attribute raw; natural
             // ones are placed by footprint, lead-compensated
@@ -458,7 +460,8 @@ class ResponsiveLayout extends Layout [
             const box = (stack ? ({ y: pos - lead }) : ({ x: pos - lead })) as any
             box[cross] = across(c)
             if (shares.has(c)) box.w = shareW(c)                       // a share allocates width, both flows
-            if (flexing(c)) box[stack ? "h" : "w"] = given[i]          // a spacer flexes along the flow axis
+            // a spacer flexes along the flow axis; hidden, it keeps the size it has
+            if (flexing(c)) box[stack ? "h" : "w"] = c.visible ? given[i] : (stack ? c.height : c.width)
             // every child its content sizes is made as large as the line; one
             // that states its size keeps it (the runtime skips it)
             if (al == "stretch") box.stretch = stack ? ({ w: line }) : ({ h: line })

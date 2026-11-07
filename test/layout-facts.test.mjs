@@ -329,4 +329,30 @@ class Voice extends Row [ layout: SimpleLayout [ axis = x, spacing = 4 ],
   assert.equal(g["app.v.stamp"][1], 30, "the class's own column still stacks the time below the bubble");
 });
 
+await test("a hidden flexing child keeps the size its layout gave it: its content, sized from it, settles", () => {
+  // Venue run 28: a full-screen hall, flexing in the App's column, hidden when
+  // checkout showed, was handed back to its content's size — and its content was
+  // sized from it (a pane at 100%, seats pitched from the pane): it never settled
+  const file = join(DIR, "hidden-flex.declare");
+  writeFileSync(file, `App [ width = 400, height = 300, on: boolean = true,
+    layout: SimpleLayout [ axis = y ],
+    bar: View [ width = 400, height = 40 ],
+    hall: View [ visible = { app.on }, flexes = true, width = 400,
+        box: View [ width = 10, height = { app.hall.height + 1 } ] ],
+    other: View [ visible = { !app.on }, flexes = true, width = 400 ] ]`);
+  const script = join(DIR, "hidden-flex.mjs");
+  writeFileSync(script, `export default async ({ drive, expect, page }) => {
+  await expect.attr("app.hall", "height", 260);
+  await page.evaluate(() => { window.__declare.find("app").on = false; });
+  await drive.settleMotion();
+  await expect.attr("app.hall", "height", 260);
+  await expect.attr("app.other", "height", 260);
+  await page.evaluate(() => { window.__declare.find("app").on = true; });
+  await drive.settleMotion();
+  await expect.attr("app.hall", "height", 260);
+};`);
+  const p = spawnSync("node", [join(ROOT, "tools/verify.mjs"), file, "--assert", script, "--rung=5", "--no-boot"], { cwd: ROOT, encoding: "utf8" });
+  assert.equal(p.status, 0, (p.stdout ?? "") + (p.stderr ?? ""));
+});
+
 summarize("layout-facts");

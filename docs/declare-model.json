@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "6b88ffd48530",
+  "buildId": "323ce7f5fd74",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -5253,11 +5253,11 @@
    },
    "E957F6E": {
     "message": "this … already arranges a … — one strategy per view",
-    "at": "layout.ts:219"
+    "at": "layout.ts:221"
    },
    "E8702B7": {
     "message": "….place() returned … boxes for … laid children — one box per child, by index",
-    "at": "layout.ts:710"
+    "at": "layout.ts:712"
    },
    "E25E035": {
     "message": "a Color (a name like navy, #RGB, #RRGGBB, #RGBA, #RRGGBBAA, 0xRRGGBB, or null)",
@@ -27769,7 +27769,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/layout.ts",
-    "line": 216
+    "line": 218
    },
    "parent": "Layout",
    "seeAlso": [],
@@ -27790,7 +27790,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/layout.ts",
-    "line": 260
+    "line": 262
    },
    "parent": "Layout",
    "seeAlso": [],
@@ -27811,7 +27811,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/layout.ts",
-    "line": 317
+    "line": 319
    },
    "parent": "Layout",
    "seeAlso": [],
@@ -27832,7 +27832,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/layout.ts",
-    "line": 329
+    "line": 331
    },
    "parent": "Layout",
    "seeAlso": [],
@@ -27853,7 +27853,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/layout.ts",
-    "line": 353
+    "line": 355
    },
    "parent": "Layout",
    "seeAlso": [],
@@ -27874,7 +27874,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/layout.ts",
-    "line": 464
+    "line": 466
    },
    "parent": "Layout",
    "seeAlso": [],
@@ -27895,7 +27895,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/layout.ts",
-    "line": 512
+    "line": 514
    },
    "parent": "Layout",
    "seeAlso": [],
@@ -27916,7 +27916,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/layout.ts",
-    "line": 543
+    "line": 545
    },
    "parent": "Layout",
    "seeAlso": [],
@@ -76954,7 +76954,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/layout.ts",
-      "line": 216
+      "line": 218
      },
      "parent": "Layout",
      "seeAlso": [],
@@ -76975,7 +76975,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/layout.ts",
-      "line": 260
+      "line": 262
      },
      "parent": "Layout",
      "seeAlso": [],
@@ -76996,7 +76996,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/layout.ts",
-      "line": 317
+      "line": 319
      },
      "parent": "Layout",
      "seeAlso": [],
@@ -77017,7 +77017,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/layout.ts",
-      "line": 329
+      "line": 331
      },
      "parent": "Layout",
      "seeAlso": [],
@@ -77038,7 +77038,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/layout.ts",
-      "line": 353
+      "line": 355
      },
      "parent": "Layout",
      "seeAlso": [],
@@ -77059,7 +77059,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/layout.ts",
-      "line": 464
+      "line": 466
      },
      "parent": "Layout",
      "seeAlso": [],
@@ -77080,7 +77080,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/layout.ts",
-      "line": 512
+      "line": 514
      },
      "parent": "Layout",
      "seeAlso": [],
@@ -77101,7 +77101,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/layout.ts",
-      "line": 543
+      "line": 545
      },
      "parent": "Layout",
      "seeAlso": [],

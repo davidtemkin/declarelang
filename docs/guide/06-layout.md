@@ -278,6 +278,10 @@ hidden child leaves the flow: it takes no room and leaves no gap. The body is st
 that flexes, so when the bar appears the body gives up exactly the bar's 40, and when it
 goes, takes it back.
 
+A hidden child that flexes keeps the size it was last given. The layout has nothing new to
+say about it until it shows again, so a whole screen hidden this way keeps its room, and
+what inside it is sized from that room stays as it was.
+
 ## A desktop and a phone
 
 On a desktop the list sits beside the open note. On a phone there is room for only one, so

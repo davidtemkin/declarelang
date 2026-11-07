@@ -377,8 +377,12 @@ export function withLocators(page, { act, settle, advance, pause = async () => {
       async fill(value, o = {}) {
         const i = await one(steps, o.timeout);
         await on(i, (el) => { el.focus(); if (typeof el.select === "function") el.select(); });
+        // the value arrives whole, in one input event, as Playwright's fill sets it
+        // (and as a paste or autofill does) — not key by key, which a field reads
+        // as typing: a combobox picks text that names one item only when it
+        // arrives whole. pressSequentially and type are the key-by-key forms.
         if (String(value) === "") await page.keyboard.press("Backspace");
-        else await page.keyboard.type(String(value));
+        else await page.keyboard.sendCharacter(String(value));
         await settle();
       },
       async clear(o = {}) { return api.fill("", o); },

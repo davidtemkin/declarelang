@@ -153,7 +153,9 @@ export class Layout extends Node {
                 keys.push("x");
             if (!xAxis || aligned)
                 keys.push("y");
-            if (c.visible && allocates(c))
+            // a hidden child keeps its allocation (the run holds its size), so hiding
+            // one is no change of shape and hands nothing back to its content
+            if (allocates(c))
                 keys.push(xAxis ? "w" : "h");
             out.push(keys.join());
         }

@@ -6,7 +6,7 @@ script {
     const FIGURES = {
         "sizes": {
             "calDom": {
-                "app": 12.4,
+                "app": 12.5,
                 "lib": 12.6,
                 "core": 41.1,
                 "view": 12.6,
@@ -22,7 +22,7 @@ script {
                 "ker": 15.2
             },
             "calCanvas": {
-                "app": 12.4,
+                "app": 12.5,
                 "lib": 12.6,
                 "core": 40.5,
                 "view": 12.3,
@@ -38,7 +38,7 @@ script {
                 "ker": 15.1
             },
             "calMac": {
-                "app": 12.4,
+                "app": 12.5,
                 "lib": 12.6,
                 "core": 41.1,
                 "view": 12.6,

@@ -171,7 +171,7 @@ await test("a combobox with its list open: Tab goes on to the next stop, focus m
             cb: Combobox [ width = 240, items = ["Canada", "United States", "United Kingdom"], value <-> app.country ] ],
         Button [ label = "Pay" ] ] ]`);
   const sc = script("country-tab.mjs", `  const box = page.getByRole("combobox", { name: "Country" });
-  await box.fill("Uni");
+  await box.fill("Un");
   await drive.settleMotion();
   await drive.key("Tab");
   await drive.settleMotion();
@@ -181,7 +181,7 @@ await test("a combobox with its list open: Tab goes on to the next stop, focus m
   await page.getByRole("textbox", { name: "Postal code" }).focus();
   await drive.settleMotion();
   if (await page.evaluate(() => window.__declare.find("app.0.1.cb").listShown())) await expect.fail("the list stayed open under a field nobody is in");
-  await box.fill("Uni");
+  await box.fill("Unit");
   await drive.settleMotion();
   await page.getByRole("option", { name: "United States" }).click();
   await drive.settleMotion();
@@ -189,7 +189,11 @@ await test("a combobox with its list open: Tab goes on to the next stop, focus m
   await expect(box).toBeFocused();
   await drive.key("Tab");
   await drive.settleMotion();
-  await expect(page.getByRole("button", { name: "Pay" })).toBeFocused();`);
+  await expect(page.getByRole("button", { name: "Pay" })).toBeFocused();
+  // fill sets the value whole, as Playwright's does: text naming one item picks it
+  await box.fill("Canada");
+  await drive.settleMotion();
+  await expect.attr("app", "country", "Canada");`);
   const r = run("verify.mjs", f, "--assert", sc, "--rung=5", "--no-boot");
   assert.equal(r.status, 0, r.out);
 });
