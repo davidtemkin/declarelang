@@ -46,6 +46,21 @@ const ALL = args.includes("--all");
 const EXAMPLE = args.includes("--example");
 const query = args.filter((a) => !a.startsWith("--")).join(" ").trim();
 
+// several names in one call (`PinchEvent WheelEvent`, `Sheet Popover`): each is answered
+// in turn, as if asked alone — a question in words is still one query
+const names = args.filter((a) => !a.startsWith("--"));
+if (names.length > 1 && names.every((n) => /^([A-Z]\w*(\.\w+)*|\w+\.\w+(\.\w+)*|DECLARE\d{4})$/.test(n))) {
+  const { spawnSync } = await import("node:child_process");
+  const flags = args.filter((a) => a.startsWith("--"));
+  let missed = false;
+  for (const n of names) {
+    if (!JSON_OUT) console.log(`── ${n}`);
+    const r = spawnSync(process.execPath, [process.argv[1], n, ...flags], { stdio: "inherit" });
+    missed ||= r.status !== 0;
+  }
+  process.exit(missed ? 1 : 0);
+}
+
 if (query === "" || args.includes("--help")) {
   console.log(`declare-help — ask the platform a question; it answers in the compiler's register.
 

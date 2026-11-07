@@ -395,7 +395,7 @@ export const Diag = {
   accessibilityCollapsedRead: (owner: string, axis: string, pos: Pos): DeclareError =>
     err(code4(4021), `${owner} hides what it holds by clipping it to a ${axis} of 0, but a screen reader still reads it and Tab still reaches it: absence is visible, not geometry. Add visible = { this.${axis} > 0 }, or the condition that collapses it`, pos),
   accessibilityUnreportedChoice: (owner: string, flag: string, pos: Pos): DeclareError =>
-    err(code4(4022), `${owner} shows whether it is the one chosen ('${flag}'), but tells a screen reader nothing — a row of them reads as plain buttons, none of them picked. For one of many, use Segmented (or a RadioGroup of Radios): it reports the choice, and the arrows move between the options. Keeping your own, set accessibilityPressed = { ${flag} }: a pressed control is the one that is in`, pos),
+    err(code4(4022), `${owner} shows whether it is the one chosen ('${flag}'), but tells a screen reader nothing — a row of them reads as plain buttons, none of them picked. Keep it as you draw it and set accessibilityPressed = { ${flag} }: a pressed control is the one that is in. Where it is one of several, the row can instead be the direct children of a RadioGroup, each with a \`choice\`, which says the choice as one of N and adds nothing to how they look`, pos),
   // A WARNING: toggles used as one of several — sibling controls of one class,
   // each "on" when the same value equals its own literal (Cadence run 17's
   // sport, day and range choices). Each reports pressed, so 4022 is quiet, but

@@ -25,6 +25,20 @@ to everything below. Words a line must not part — a figure and its unit, "12 k
 joined by a no-break space (`"12\u00A0kg"`), in a `Text` and in rich text alike; the line
 breaks at the space before them instead.
 
+A text's size never follows its room by itself. To make a line fill a width \u2014 a large
+figure across its column \u2014 measure it at one size and scale from there:
+`measureText` gives a run's width in a style, with the measurer a
+`Text` uses.
+
+```declare
+style Figure [ fontSize = 100, fontWeight = bold ]
+
+App [ width = 320, height = 120, fill = white,
+    total: Text [ x = 20, y = 10, fontWeight = bold, text = "12,480 km",
+        fontSize = { 100 * Math.min(1, 280 / measureText(this.text, Figure).width) } ]
+    ]
+```
+
 **Numbers, money and dates** are formatted by the host's `Intl`, which a `{ }` and a
 script function call like any other global: `new Intl.NumberFormat("en-US", { style:
 "currency", currency: "USD" }).format(1234.5)` is "$1,234.50", `(1234.5).toLocaleString("en-US")`

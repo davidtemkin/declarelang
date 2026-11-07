@@ -1,11 +1,9 @@
-class Chip [
-    label: string = "",
-    height = 19, width = { this.t.width + 18 }, cornerRadius = 9, fill = #DDF4E4,
-    t: TextLabel [ x = 9, fontSize = 12, textColor = #1A5B2E, text = { classroot.label } ]
-    ]
+class Hero extends Text [ fontSize = 40, textFill = { gradient("90deg", 0x4C8DFF, 0x37E0C8) } ]
 
+style Keyword [ textColor = #C678DD, fontWeight = bold ]
 
-App [ width = 380, height = 96, fill = white,
-    HTMLText [ x = 20, y = 20, width = 340, fontSize = 15, bodyColor = 0x33424E,
-        html = "Filed under <Chip label='docs'/> and <Chip label='runtime'/> this morning." ]
+App [ width = 380, height = 130, fill = white,
+    Hero [ x = 20, y = 16, text = "Big, gradient-filled" ],
+    HTMLText [ x = 20, y = 84, fontSize = 15, bodyColor = 0x33424E,
+        html = "<span class='Keyword'>class</span> Board [ ]" ]
     ]

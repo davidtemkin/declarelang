@@ -1,4 +1,6 @@
-App [ width = 320, height = 84, fill = #0B141B,
-    Text [ x = 20, y = 24, fontSize = 26, textColor = white, fontWeight = bold,
-        outline = outline(1, #C0392B), text = "OUTLINED" ]
+style Figure [ fontSize = 100, fontWeight = bold ]
+
+App [ width = 320, height = 120, fill = white,
+    total: Text [ x = 20, y = 10, fontWeight = bold, text = "12,480 km",
+        fontSize = { 100 * Math.min(1, 280 / measureText(this.text, Figure).width) } ]
     ]

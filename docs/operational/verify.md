@@ -283,7 +283,8 @@ user's scroll coming to rest, keep real time; only the program's time is the dri
 | `expect.explain(path, attr)` | why an attribute holds its value — an assertion about structure, not a number |
 | `expect.traceStart(n?)`, `expect.trace()`, `expect.traceText()` | the runtime's own record of what it did |
 
-`page` is there for anything else. More on `explain()` and the trace is in
+`page` is there for anything else — a value read now to compare with one read later is
+`await page.evaluate(() => window.__declare.find("app").count)`. More on `explain()` and the trace is in
 [Introspection](declare-docs:operational:introspection).
 
 ## Writing a states script

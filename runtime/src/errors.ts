@@ -221,7 +221,7 @@ export function placedAttributeMessage(
   childClass: string,
   slot: string,
   arranger: string,
-  kind: "flow" | "cross" | "cross-offset" | "computed" | "share" | "drop" | "all" | "flex" | "shrink" | "flex-either" | "shrink-either",
+  kind: "flow" | "cross" | "cross-offset" | "computed" | "share" | "drop" | "all" | "flex" | "flex-class" | "shrink" | "flex-either" | "shrink-either",
   where?: Where | null
 ): string {
   const head = diag`${childClass}.${slot}${at(where)} — ${arranger} ${arranges(slot)} its children, so this child does not declare its ${slot}`;
@@ -237,6 +237,8 @@ export function placedAttributeMessage(
       return diag`${head} — a plan gives it a share of the width. Remove it and let the plan size the child, or leave the child out of the share (or name it "auto") to keep its own width.`;
     case "flex":
       return diag`${head} — it flexes, so the run gives it its ${slot}: the room left, shared among the children that flex. Remove the ${slot} to let it flex, or remove 'flexes' to keep its own ${slot}.`;
+    case "flex-class":
+      return diag`${head} — a ${childClass} flexes (its class says so), so the run gives it its ${slot}: the room left, shared among the children that flex. For a fixed ${slot}, use a view that does not flex (a View with a ${slot}), or set flexes = false on this one.`;
     case "shrink":
       return diag`${head} — it shrinks, so the run gives it its ${slot}: its content's, less what it gives up when the room is short. Remove the ${slot} (bound it with '${slot === "width" ? "maxWidth" : "maxHeight"}' instead), or remove 'shrinks' to keep your own ${slot}.`;
     case "flex-either":

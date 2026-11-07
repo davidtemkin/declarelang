@@ -186,7 +186,8 @@ App [ width = 400, height = 300, pick: string = "a", layout: SimpleLayout [ axis
   assert.deepEqual(warnedLines(b, "DECLARE4022"), [1]);
   const m = b.warnings.find((w) => w.code === "DECLARE4022").message;
   assert.match(m, /Choice shows whether it is the one chosen \('on'\)/);
-  assert.match(m, /use Segmented/);
+  assert.doesNotMatch(m, /Segmented/);
+  assert.match(m, /Keep it as you draw it/);
   assert.match(m, /accessibilityPressed = \{ on \}/);
 });
 

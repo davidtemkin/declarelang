@@ -7,7 +7,8 @@ away; on a wide screen it slides in from the end edge (`edge = "end"`) or, for a
 edge is the bottom, floats as a card in the middle. A sheet at the start edge
 (`edge = "start"`) is a navigation drawer: it slides in from the start edge at every width,
 and a swipe back toward that edge on its trailing edge puts it away. Behind it the context
-dims; a press there closes the sheet, and nothing behind it scrolls while it is open. Tab stays inside it;
+dims; a press there closes the sheet, and nothing behind it scrolls while it is open. What it holds
+stands in a column and scrolls inside the sheet when it is taller than the sheet. Tab stays inside it;
 Esc closes it; focus goes to its first control when it opens and back when it closes.
 
 ```declare

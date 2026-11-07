@@ -1304,7 +1304,8 @@ function checkPlacedAttributes(schemas, layoutEl, owner) {
     const errors = [...known.errors];
     // the run's one flow axis (a SimpleLayout's): a WrappingLayout flows both
     const flows = [...known.placed].filter(([k, v]) => v === "flow" && (k === "x" || k === "y")).map(([k]) => k);
-    const flow = flows.length === 1 ? flows[0] : null;
+    // …but its runs go along x, and a child that flexes takes its width from its run
+    const flow = flows.length === 1 ? flows[0] : flows.length === 2 && descendsFrom(ls, "WrappingLayout") ? "x" : null;
     const arranger = `${owner.tag}'s ${layoutEl.tag}`;
     const ownerSchema = Object.hasOwn(schemas, owner.tag) ? schemas[owner.tag] : null;
     for (const c of owner.children) {
@@ -1333,7 +1334,8 @@ function checkPlacedAttributes(schemas, layoutEl, owner) {
         // field written to fill its column, `width = 100%`): the run's share
         // replaces it, as it replaces any class geometry (instantiate.ts
         // CLASS_DEFAULT_GEOMETRY).
-        const sized = flow === null ? null : flexesStatically(c) ? "flex" : saysStatically(c, "shrinks") ? "shrink" : null;
+        const flexHere = c.attrs.some((a) => a.name === "flexes");
+        const sized = flow === null ? null : flexesStatically(c) ? (flexHere ? "flex" : "flex-class") : saysStatically(c, "shrinks") ? "shrink" : null;
         if (flow !== null && sized !== null) {
             const size = flow === "x" ? "width" : "height";
             const here = c.attrs.find((a) => a.name === size);
