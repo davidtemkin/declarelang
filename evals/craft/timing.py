@@ -10,7 +10,7 @@
 # calls, summed; and counts that need no judgement: the app's size, its edits, and the
 # diagnostics the checks reported. A run's logs are deleted when it is done; this is what
 # is kept of them.
-import json, sys, os, re, datetime as dt, statistics as st
+import json, sys, os, re, subprocess, datetime as dt, statistics as st
 
 run = sys.argv[1]
 rows = []
@@ -31,7 +31,7 @@ def kind_of(u):
     return u["name"].lower()
 
 uses, tool, turns = {}, {}, {}
-written, edits, replaced, codes, a11y = set(), 0, 0, {}, 0
+codes, a11y = {}, 0
 first_write = first_verify = None
 for i, r in enumerate(rows):
     c = (r.get("message") or {}).get("content")
@@ -41,10 +41,6 @@ for i, r in enumerate(rows):
             uses[b["id"]] = (b, ts(r))
             s = json.dumps(b["input"])
             if first_write is None and b["name"] in ("Write", "Edit") and ".declare" in s: first_write = ts(r)
-            p = str(b["input"].get("file_path", ""))
-            if b["name"] in ("Write", "Edit") and p.endswith(".declare"):
-                written.add(p); edits += 1
-                if b["name"] == "Edit": replaced += len([l for l in b["input"].get("old_string", "").splitlines() if l.strip()])
             if first_verify is None and "declare-verify" in s and first_write is not None: first_verify = ts(r)
         if b.get("type") == "tool_result" and b.get("tool_use_id") in uses:
             out = b.get("content"); out = out if isinstance(out, str) else json.dumps(out)
@@ -73,8 +69,19 @@ for k, v in sorted(tool.items(), key=lambda x: -sum(x[1])):
 print("model turns, by what came before:")
 for k, v in sorted(turns.items(), key=lambda x: -sum(x[1])):
     print(f"  after {k:7s} {len(v):3d}×  {sum(v)/60:5.2f} min  (median {st.median(v):.1f} s)")
-lines = sum(len([l for l in open(p, errors="replace") if l.strip()]) for p in written if os.path.exists(p))
-print(f"app: {len(written)} .declare files, {lines} non-blank lines · {edits} writes/edits to them, replacing {replaced} non-blank lines")
+# the app's size and churn from record.sh's snapshots, which see a change however it was made
+gd = os.path.join(run, "logs", "files.git")
+if os.path.isdir(gd):
+    git = lambda *a: subprocess.run(["git", "--git-dir", gd, *a], capture_output=True, text=True).stdout
+    decl = [f for f in git("ls-tree", "-r", "--name-only", "HEAD").split() if f.endswith(".declare")]
+    lines = sum(len([l for l in git("show", f"HEAD:{f}").splitlines() if l.strip()]) for f in decl)
+    added = removed = snaps = 0
+    for ln in git("log", "--numstat", "--format=tformat:@", "--", "*.declare").splitlines():
+        if ln == "@": snaps += 1
+        elif ln.strip():
+            a, r, _ = ln.split("\t", 2)
+            if a.isdigit(): added += int(a); removed += int(r)
+    print(f"app: {len(decl)} .declare files, {lines} non-blank lines · {snaps} snapshots changed them: {added} lines added, {removed} removed")
 print(f"verify results mentioning accessibility: {a11y}")
 if codes: print("diagnostic codes, by tool results reporting them: " + ", ".join(f"{c} {n}" for c, n in sorted(codes.items(), key=lambda x: -x[1])))
 tj = os.path.join(run, "logs", "timing.jsonl")
