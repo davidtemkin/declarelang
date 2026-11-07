@@ -1,0 +1,46 @@
+# eval-venue-29
+total 22.7 min · 107 turns · output 116670 tokens (thinking 47243)
+phases: reading 7.1 · writing 1.9 · checking 13.8 min
+tool time 4.0 min · model time 18.7 min
+tools:
+  verify    21×   2.51 min  (median 6.5 s)
+  look      11×   0.97 min  (median 4.9 s)
+  help      12×   0.28 min  (median 1.2 s)
+  bash      24×   0.24 min  (median 0.0 s)
+model turns, by what came before:
+  after bash     23×   4.74 min  (median 4.0 s)
+  after help     12×   3.95 min  (median 4.6 s)
+  after image    19×   2.98 min  (median 6.5 s)
+  after read     13×   2.19 min  (median 1.7 s)
+  after write     6×   2.15 min  (median 3.8 s)
+  after verify   21×   1.80 min  (median 3.0 s)
+  after look     11×   0.62 min  (median 3.3 s)
+inside the agent's verify and look calls:
+   2.44 min    25×  R5 behavior, in all
+   1.93 min    24×  script: the assert script, in all
+   0.61 min    76×  locator.click
+   0.46 min    17×  drive.waitReal
+   0.42 min    34×  page: load, compile in the page and boot
+   0.33 min    40×  compile (R1–R3)
+   0.19 min    74×  drive.settleMotion
+   0.16 min    47×  locator.fill
+   0.11 min    63×  drive.key
+   0.10 min    39×  drive.settleData
+   0.08 min     7×  R4 boot, in all
+   0.08 min   148×  locator: wait a tick for it
+   0.07 min    16×  drive.click
+   0.05 min    34×  page: a new page
+   0.04 min   866×  locator: query the page
+   0.04 min    11×  drive.clickAt
+   0.03 min    16×  locator.pressSequentially
+   0.02 min    32×  chrome: a browser (shared between calls)
+   0.02 min    20×  drive.type
+   0.02 min   316×  locator.isEnabled
+
+machine load (uptime, 1/5/15 min, 12 cores) during the run:
+load at launch (1/5/15 min, 12 cores): 5.05 23.88 24.71
+22:05 5.81 13.07 19.43
+22:10 2.87 7.01 14.83
+22:15 5.33 6.67 12.48
+22:19 3.15 4.58 9.88
+22:24 3.29 4.16 8.18

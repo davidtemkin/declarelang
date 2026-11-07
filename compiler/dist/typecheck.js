@@ -56,6 +56,7 @@ import {} from "../../runtime/dist/parser.js";
 import { resolveShapes } from "../../runtime/dist/shape-resolve.js";
 import { programSchemas, resolveWrittenType } from "../../runtime/dist/program-schema.js";
 import { THEME_PRESET_NAMES } from "../../runtime/dist/themes.js";
+import { autoIncludableNames } from "../../runtime/dist/include.js";
 import { generateScaffold, PRELUDE_NAMES, memberSig, tsType, signatureTsType, shapeObjectText, themeTokenTypes } from "./scaffold.js";
 import { SCHEMAS, attrType, descendsFrom } from "../../runtime/dist/schema.js";
 import { declaredType, isAuthoredUnion } from "../../runtime/dist/value.js";
@@ -587,6 +588,10 @@ function explainTs(d, u, synthTags) {
                 // Name what "a global" means, because the old wording listed it as an
                 // option and an author whose `fetch` had just been refused read that as
                 // "fetch is a global, so why not?" — and reached for (globalThis as any).
+                // a library class the program names only in code (a cast, an instanceof)
+                // joins the build by tag, so it is not here yet: say so, and how to bring it
+                if (autoIncludableNames().includes(m[1]))
+                    return `'${m[1]}' is a library class this program never writes as a tag, so it is not part of the build and a body cannot name it — add \`use [ ${m[1]} ]\` at the top level`;
                 return `nothing in scope is named '${m[1]}' — a bare name in a { } body is a member (written this.${m[1]}, or via parent/classroot/app), a method parameter, or one of the globals a body may use (Math, JSON, Date, URL, console, …); '${m[1]}' is none of these`;
             }
             return msg;

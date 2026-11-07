@@ -138,4 +138,11 @@ await test("a named child under exists, or in a State, is its owner's member to 
   assert.match(JSON.stringify(r), /this\.gated\.visible = false/);
 });
 
+await test("a library class named only in code (a cast) is told to join with use, not that it is no member", async () => {
+  const bare = await build(`App [ width = 200, height = 100, f() { const g = this as unknown as RadioGroup } ]`);
+  assert.ok(texts(bare.errors).some((m) => /'RadioGroup' is a library class this program never writes as a tag[^\n]*use \[ RadioGroup \]/.test(m)), texts(bare.errors).join("\n"));
+  const used = await build(`use [ RadioGroup ]\nApp [ width = 200, height = 100, f() { const g = this as unknown as RadioGroup } ]`);
+  clean(used);
+});
+
 summarize("name-scope");

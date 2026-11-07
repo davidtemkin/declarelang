@@ -271,7 +271,13 @@ export function withLocators(page, { act, settle, advance, pause = async () => {
       const found = await find(steps);
       if (found.length > 1) fail(`${describe(steps)} matches ${found.length} elements — name it more closely, scope it inside another locator, or take .first() / .nth(i): ${found.slice(0, 8).map((h) => h.what).join(", ")}${found.length > 8 ? ", …" : ""}`);
       if (found.length === 1 && found[0].shown) return found[0].i;
-      if (Date.now() > until) fail(found.length === 0 ? `${describe(steps)} found nothing within ${timeout / 1000} s` : `${describe(steps)} found ${found[0].what}, which is not shown`);
+      if (Date.now() > until) {
+        // the program's clock is the script's: motion still in flight (a sheet
+        // rising) has not landed, however long the wait — say so, and the way on
+        const moving = await page.evaluate(() => window.__declare?.clock?.settling === true).catch(() => false);
+        const why = moving ? " — motion is still in flight on the program's clock, which the script holds: let it land first (drive.settleMotion())" : "";
+        fail((found.length === 0 ? `${describe(steps)} found nothing within ${timeout / 1000} s` : `${describe(steps)} found ${found[0].what}, which is not shown`) + why);
+      }
       await tick();
     }
   };

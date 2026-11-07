@@ -489,6 +489,16 @@ function answer() {
       json = { kind: "miss", name: query };
       return true;
     }
+    // a member of a shared namespace (`Accessibility.announce`): its line, and the
+    // namespace for the prose — a namespace is documented whole, not per member
+    const ns = (SPINE.types.shared.namespaces ?? []).find((x) => x.name === cls);
+    if (ns !== undefined) {
+      const line = ns.members.find((l) => l.startsWith(member) && /^[(:?\s]/.test(l.slice(member.length)));
+      if (line !== undefined) { say(`${ns.name}.${line}`); say(`  a member of the shared namespace ${ns.name}: declare-help ${ns.name}`); }
+      else say(`no '${member}' in ${ns.name} — declare-help ${ns.name} lists what it has`);
+      json = { kind: line !== undefined ? "namespace-member" : "miss", name: query };
+      return true;
+    }
     const nearCls = nearestName(cls, CLASS_NAMES);
     if (nearCls !== null) { say(`no class '${cls}' — did you mean '${nearCls}'? (then: declare-help ${nearCls}.${member})`); json = { kind: "near-miss", name: cls, suggestion: nearCls }; return true; }
     return false;
