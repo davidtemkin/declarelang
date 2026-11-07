@@ -1,0 +1,714 @@
+/*
+# Cadence
+
+A training log for someone who runs, rides, lifts and swims: opened in the
+morning to see where they are, and again after a session to put it in.
+
+How it is put together:
+
+- **The records live in one place**, `app.log`, an instance of the data
+  class `Log`: the whole history from the service, newest first, and
+  everything that is true of it whoever is looking — a day's load, the
+  streak, a sport's usual duration, where a session stands. Every write goes
+  to the service, and its reply is written into `app.log`, so the week, the
+  streak, the week's shape and the year are true of it the moment it lands.
+- **The day is the service's**, not the machine's: `app.today` comes from
+  `/api/today`, and the history is fetched once it is known.
+- **Where the person is** is a handful of attributes on the App: the window
+  onto the year (`vStart`, `vSpan`), the open session, whether the form is
+  up and what it is correcting.
+- **The figures travel.** Each headline number on screen is a sprung copy of
+  the true one, so when a session is added or the window moves, the number
+  rolls to its new value; on first load it simply appears.
+- **The year is one drawing** of every day, read through two numbers. A drag,
+  a pinch, a trackpad and the zoom buttons all write those two numbers.
+
+The look (the palette, the type helpers, and the views: the week's bars, the
+live session, the year surface, a session's page, the form) is in
+`cadence-parts.declare`.
+*/
+
+include [ "cadence-parts.declare" ]
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+//
+// Functions of their arguments: dates as day numbers, and how figures are
+// written. A day is "YYYY-MM-DD", the service's form; a day number counts
+// days from 1970-01-01, so a week is a subtraction.
+
+script {
+    const API = "http://127.0.0.1:8320"
+    const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+    const MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "July", "August",
+        "September", "October", "November", "December"]
+    const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    const DAYS_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+
+    function pad(n: number): string { return n < 10 ? "0" + n : "" + n }
+    function dayNum(iso: string): number {
+        const p = iso.split("-").map(Number)
+        return Math.round(Date.UTC(p[0], p[1] - 1, p[2]) / 86400000)
+    }
+    function dateOf(n: number): Date { return new Date(n * 86400000) }
+    function isoOf(n: number): string {
+        const d = dateOf(n)
+        return d.getUTCFullYear() + "-" + pad(d.getUTCMonth() + 1) + "-" + pad(d.getUTCDate())
+    }
+    function weekdayOf(n: number): number { return dateOf(n).getUTCDay() }
+    function dayOfMonth(n: number): number { return dateOf(n).getUTCDate() }
+    function monthOf(n: number): number { return dateOf(n).getUTCMonth() }
+    function yearOf(n: number): number { return dateOf(n).getUTCFullYear() }
+    function monthShort(n: number): string { return MONTHS[monthOf(n)] }
+    function weekdayInitial(n: number): string { return DAYS[weekdayOf(n)].slice(0, 1) }
+    function weekdayLong(n: number): string { return DAYS_LONG[weekdayOf(n)] }
+    function firstOfMonth(n: number): number { return n - dayOfMonth(n) + 1 }
+
+    // "Today", "Yesterday", then "Mon 3 Aug"
+    function dayWord(iso: string, today: string): string {
+        if (iso == "" || today == "") return ""
+        const n = dayNum(iso)
+        const back = dayNum(today) - n
+        if (back == 0) return "Today"
+        if (back == 1) return "Yesterday"
+        if (back > 1 && back < 7) return DAYS_LONG[weekdayOf(n)]
+        return DAYS[weekdayOf(n)] + " " + dayOfMonth(n) + " " + MONTHS[monthOf(n)]
+    }
+    function longDate(iso: string): string {
+        if (iso == "") return ""
+        const n = dayNum(iso)
+        return DAYS_LONG[weekdayOf(n)] + " " + dayOfMonth(n) + " " + MONTHS_LONG[monthOf(n)] + " " + yearOf(n)
+    }
+    function shortDate(n: number): string { return dayOfMonth(n) + " " + MONTHS[monthOf(n)] }
+
+    // The period on screen, as plainly as its length allows.
+    function rangeLabel(from: number, to: number): string {
+        if (to < from) return ""
+        const sameYear = yearOf(from) == yearOf(to)
+        if (to - from > 62) {
+            const a = MONTHS_LONG[monthOf(from)] + (sameYear ? "" : " " + yearOf(from))
+            const b = MONTHS_LONG[monthOf(to)] + " " + yearOf(to)
+            return monthOf(from) == monthOf(to) && sameYear ? b : a + " – " + b
+        }
+        return shortDate(from) + (sameYear ? "" : " " + yearOf(from)) + " – " + shortDate(to) + " " + yearOf(to)
+    }
+
+    // 3h 40m, 45m
+    function fmtDur(minutes: number): string {
+        const m = Math.max(0, Math.round(minutes))
+        const h = Math.floor(m / 60)
+        return h > 0 ? h + "h " + (m % 60) + "m" : m + "m"
+    }
+    function fmtKm(km: number): string { return (Math.round(km * 10) / 10).toFixed(1) + " km" }
+    function fmtClock(secs: number): string {
+        const s = Math.max(0, Math.floor(secs))
+        const h = Math.floor(s / 3600)
+        const m = Math.floor((s % 3600) / 60)
+        return (h > 0 ? h + ":" + pad(m) : "" + m) + ":" + pad(s % 60)
+    }
+    function plural(n: number, one: string, many: string): string { return n == 1 ? one : many }
+
+    function sportName(s: string): string {
+        return s == "run" ? "Run" : s == "ride" ? "Ride" : s == "lift" ? "Lift" : s == "swim" ? "Swim" : s
+    }
+    function effortWord(e: number): string {
+        if (e <= 0) return ""
+        if (e <= 3) return "easy"
+        if (e <= 5) return "steady"
+        if (e <= 7) return "hard"
+        if (e <= 9) return "very hard"
+        return "all out"
+    }
+    function paceLabel(sport: string): string { return sport == "ride" ? "Speed" : sport == "swim" ? "Per 100 m" : "Pace" }
+    function paceOf(sport: string, minutes: number, km: number): string {
+        if (km <= 0) return ""
+        if (sport == "ride") return (Math.round(km / (minutes / 60) * 10) / 10).toFixed(1) + " km/h"
+        const per = sport == "swim" ? minutes / (km * 10) : minutes / km
+        const whole = Math.floor(per)
+        return whole + ":" + pad(Math.round((per - whole) * 60) % 60) + (sport == "swim" ? "" : " /km")
+    }
+
+    function median(xs: number[]): number {
+        if (xs.length == 0) return 0
+        const s = [...xs].sort((a, b) => a - b)
+        return s[Math.floor(s.length / 2)]
+    }
+
+    // Colour arithmetic: a point between two 0xRRGGBB colours.
+    function mix(a: number, b: number, t: number): number {
+        const ch = (c: number, sh: number) => (c >> sh) & 255
+        const at = (sh: number) => Math.round(ch(a, sh) + (ch(b, sh) - ch(a, sh)) * t) << sh
+        return at(16) | at(8) | at(0)
+    }
+    }
+
+
+// ── The shape of the data ───────────────────────────────────────────────────
+
+schema Session [ id: string, date: string, sport: string, minutes: number, distanceKm?: number,
+    effort: number, heartAvg?: number, note?: string ]
+
+schema Live [ id: string, date: string, sport: string, startedSecondsAgo: number, minutes: number,
+    distanceKm?: number, heartNow: number, effort: number ]
+
+// One day's load: its minutes, its hardest effort, how many sessions.
+
+schema DayLoad [ n: number, minutes: number, effort: number, count: number ]
+
+// What happened in a stretch of days.
+
+schema Period [ sessions: number, minutes: number, km: number, hardest?: Session ]
+
+
+// ── The records ─────────────────────────────────────────────────────────────
+//
+// The history, as the service has it, and everything true of it. The App
+// fetches it once the service's date is known. Writes go to the service; the
+// stored session it hands back comes here through `put`, and a deletion
+// through `drop`, so nothing is refetched and nothing is stale.
+
+class Log extends DataSource [ url = { API + "/api/sessions" }, schema = [ sessions[]: Session ],
+
+    all() -> Session[] { return this.value?.sessions ?? [] },
+    at(id: string) -> number { return this.all().findIndex((s) => s.id == id) },
+    byId(id: string) -> Session? { return this.all().find((s) => s.id == id) ?? null },
+    on(n: number) -> Session[] { const iso = isoOf(n); return this.all().filter((s) => s.date == iso) },
+    between(from: number, to: number) -> Session[] {
+        const a = isoOf(from)
+        const b = isoOf(to)
+        return this.all().filter((s) => s.date >= a && s.date <= b)
+        },
+    latest() -> Session? { return this.all()[0] ?? null },
+    hardestOf(list: Session[]) -> Session? {
+        let best: Session | null = null
+        for (const s of list) {
+            if (best == null || s.effort > best.effort || (s.effort == best.effort && s.minutes > best.minutes)) best = s
+            }
+        return best
+        },
+
+    // The first day the year surface shows: the first of the earliest month.
+
+    firstDay(fallback: number) -> number {
+        const list = this.all()
+        return list.length == 0 ? fallback : firstOfMonth(dayNum(list[list.length - 1].date))
+        },
+
+    // Each day from `from` to `to`: its minutes, its hardest effort.
+
+    daily(from: number, to: number) -> DayLoad[] {
+        const out: DayLoad[] = []
+        for (let n = from; n <= to; n++) out.push(({ n: n, minutes: 0, effort: 0, count: 0 }))
+        for (const s of this.all()) {
+            const i = dayNum(s.date) - from
+            if (i < 0 || i >= out.length) continue
+            out[i].minutes = out[i].minutes + s.minutes
+            out[i].effort = Math.max(out[i].effort, s.effort)
+            out[i].count = out[i].count + 1
+            }
+        return out
+        },
+
+    summary(from: number, to: number) -> Period {
+        const list = this.between(from, to)
+        return ({ sessions: list.length,
+            minutes: list.reduce((m, s) => m + s.minutes, 0),
+            km: list.reduce((k, s) => k + (s.distanceKm ?? 0), 0),
+            hardest: this.hardestOf(list) ?? undefined })
+        },
+
+    // Consecutive days with a session, ending today — or yesterday, while
+    // today is still open.
+
+    streak(today: number) -> number {
+        const days = new Set(this.all().map((s) => dayNum(s.date)))
+        let n = days.has(today) ? today : today - 1
+        let count = 0
+        while (days.has(n)) { count = count + 1; n = n - 1 }
+        return count
+        },
+
+    // What the person most likely means. The history has days but not
+    // hours, so "the sport they always do at this hour" is the sport they
+    // most often do on this weekday, recently; then their usual for it.
+
+    likelySport(today: number) -> string {
+        const wd = weekdayOf(today)
+        const counts = new Map<string, number>()
+        const recent = this.all().filter((s) => dayNum(s.date) > today - 84)
+        const same = recent.filter((s) => weekdayOf(dayNum(s.date)) == wd)
+        for (const s of (same.length > 0 ? same : recent)) counts.set(s.sport, (counts.get(s.sport) ?? 0) + 1)
+        let best = "run"
+        let most = 0
+        counts.forEach((c, sport) => { if (c > most) { most = c; best = sport } })
+        return best
+        },
+    ofSport(sport: string) -> Session[] { return this.all().filter((s) => s.sport == sport) },
+    usualMinutes(sport: string) -> number {
+        const m = median(this.ofSport(sport).slice(0, 20).map((s) => s.minutes))
+        return m > 0 ? Math.round(m / 5) * 5 : 45
+        },
+    usualEffort(sport: string) -> number { return median(this.ofSport(sport).slice(0, 20).map((s) => s.effort)) || 5 },
+    usualKm(sport: string, minutes: number) -> number {
+        if (sport == "lift") return 0
+        const paced = this.ofSport(sport).slice(0, 20).filter((s) => (s.distanceKm ?? 0) > 0)
+        const perMinute = median(paced.map((s) => (s.distanceKm ?? 0) / s.minutes))
+        const km = perMinute * minutes
+        return sport == "swim" ? Math.round(km * 10) / 10 : Math.round(km * 2) / 2
+        },
+
+    // Where one session sits: against every session for effort, against its
+    // sport for length, and the last time it was matched.
+
+    standing(id: string) -> string {
+        const me = this.byId(id)
+        if (me == null) return ""
+        const all = this.all()
+        const name = sportName(me.sport).toLowerCase()
+        const harder = Math.round(100 * all.filter((s) => s.effort < me.effort).length / Math.max(1, all.length))
+        const mine = this.ofSport(me.sport)
+        const longer = Math.round(100 * mine.filter((s) => s.minutes < me.minutes).length / Math.max(1, mine.length))
+        const rival = mine.find((s) => s.date < me.date && s.minutes >= me.minutes)
+        const easier = Math.round(100 * all.filter((s) => s.effort > me.effort).length / Math.max(1, all.length))
+        const shorter = Math.round(100 * mine.filter((s) => s.minutes > me.minutes).length / Math.max(1, mine.length))
+        const lines = [
+            harder >= easier ? "Harder than " + harder + "% of all " + all.length + " sessions."
+                             : "Easier than " + easier + "% of all " + all.length + " sessions.",
+            longer >= shorter ? "Longer than " + longer + "% of your " + mine.length + " " + name + "s."
+                              : "Shorter than " + shorter + "% of your " + mine.length + " " + name + "s."
+            ]
+        if (rival == null) lines.push("Your longest " + name + " on record when it happened.")
+        else if (dayNum(me.date) - dayNum(rival.date) > 14) lines.push("Your longest " + name + " since " + longDate(rival.date) + ".")
+        return lines.join(" ")
+        },
+
+    // The writes, as the service confirmed them.
+
+    put(s: Session) {
+        const rest = this.all().filter((o) => o.id != s.id)
+        const i = this.at(s.id)
+        if (i >= 0) this.removeAt(["sessions"], i)
+        let j = rest.findIndex((o) => o.date <= s.date)
+        if (j < 0) j = rest.length
+        this.insert(["sessions"], j, s)
+        },
+    drop(id: string) { const i = this.at(id); if (i >= 0) this.removeAt(["sessions"], i) }
+    ]
+
+
+// ── The app ─────────────────────────────────────────────────────────────────
+
+App [ appName = "Cadence", minWidth = 320,
+    theme = { { ...SanFrancisco, ...Paper } },
+    fill = { provided("theme").background },
+    textColor = { provided("theme").text },
+
+    // ── type: a condensed display face for figures and big words (Barlow
+    //    Condensed, falling back to the system's narrow faces), and the
+    //    system face for everything else. Two families, far apart in scale.
+
+    barlow: Font [
+        FontFace [ weight = medium, src = "https://fonts.gstatic.com/s/barlowcondensed/v13/HTxwL3I-JCGChYJ8VI-L6OO_au7B4-Lwz3bWuYMBYro.woff2" ],
+        FontFace [ weight = bold, src = "https://fonts.gstatic.com/s/barlowcondensed/v13/HTxwL3I-JCGChYJ8VI-L6OO_au7B46r2z3bWuYMBYro.woff2" ]
+        ],
+    display: array = { [app.barlow, "Avenir Next Condensed", "Arial Narrow", "sans-serif"] },
+    fontFamily = { app.uiFace },
+
+    // ── sizes, from the room
+
+    wide: boolean = { app.width >= 900 },
+    narrow: boolean = { app.width < 600 },
+    tap: number = { app.touchFirst ? 48 : 38 },
+    gutter: number = { app.wide ? 56 : app.narrow ? 20 : 36 },
+    hero: number = { app.wide ? 136 : app.narrow ? 100 : 124 },
+    mid: number = { app.narrow ? 52 : 64 },
+    uiFace: array = { ["-apple-system", "system-ui", "Segoe UI", "Helvetica Neue", "sans-serif"] },
+    weekBarH: number = { app.wide ? 120 : 96 },
+
+    // The one colour: effort, from paper-shadow at 2 or less to vermilion at 9 and up.
+    // The curve keeps the middle quiet, so only hard sessions shout.
+
+    heatOf(e: number) -> Color {
+        const t = Math.pow(Math.max(0, Math.min(1, (e - 2) / 7)), 1.3)
+        return mix(provided("theme").cool, provided("theme").heat, t)
+        },
+
+    // ── the day, as the service has it; then the history
+
+    day: DataSource [ url = { API + "/api/today" }, autoFetch = true, schema = [ today: string ],
+        onLoad() { app.log.fetch() }
+        ],
+    today: string = { app.day.value?.today ?? "" },
+    todayN: number = { app.today == "" ? 0 : dayNum(app.today) },
+
+    log: Log [ onLoad() { app.arrived() }
+        ],
+    ready: boolean = { app.log.loaded },
+
+    // ── a session in progress. The service is asked every five seconds;
+    //    between answers the clock counts on from the last one.
+
+    live: DataSource [ url = { API + "/api/live" }, autoFetch = true, schema = [ session?: Live ],
+        onLoad() { app.liveAt = app.clock.now }
+        ],
+    livePoll: Time [ tick = 5000,
+        onTick() { app.live.fetch() }
+        ],
+    clock: Time [ tick = second ],
+    liveAt: number = 0,
+    running: Live? = { app.live.value?.session ?? null },
+    liveSecs: number = { (app.running?.startedSecondsAgo ?? 0) + Math.max(0, Math.floor((app.clock.now - app.liveAt) / 1000)) },
+
+    // ── today: the last seven days, the streak, the last session
+
+    week: Dataset [ schema = [ days[]: DayLoad ], contents = { { days: app.log.daily(app.todayN - 6, app.todayN) } } ],
+    weekCount: number = { app.log.between(app.todayN - 6, app.todayN).length },
+    weekMinutes: number = { app.log.between(app.todayN - 6, app.todayN).reduce((m, s) => m + s.minutes, 0) },
+    streak: number = { app.log.streak(app.todayN) },
+    hasStreak: boolean = { app.streak > 0 || Math.round(app.shownStreak) > 0 },
+    lastSession: Session? = { app.log.latest() },
+
+    // What the screen shows: sprung copies of the figures, so a change rolls
+    // to its new value. `arrived` makes the first values appear outright.
+
+    shownCount: number = 0,
+    shownMinutes: number = 0,
+    shownStreak: number = 0,
+    countSpring: Spring [ attribute = shownCount, to = { app.weekCount }, stiffness = 90, damping = 18 ],
+    minutesSpring: Spring [ attribute = shownMinutes, to = { app.weekMinutes }, stiffness = 90, damping = 18 ],
+    streakSpring: Spring [ attribute = shownStreak, to = { app.streak }, stiffness = 90, damping = 18 ],
+
+    // ── the year: every day from the first month of the history to today,
+    //    seen through a window — `vStart` days in, `vSpan` days wide. The
+    //    hand writes a value and its spring's target together, so nothing
+    //    trails the finger; a zoom button writes only the targets, and the
+    //    window glides there.
+
+    startN: number = { app.log.firstDay(app.todayN - 400) },
+    dayCount: number = { app.todayN - app.startN + 1 },
+    yearDays: DayLoad[] = { app.log.daily(app.startN, app.todayN) },
+
+    vStart: number = 0,
+    vSpan: number = 91,
+    vStartTo: number = 0,
+    vSpanTo: number = 91,
+    Spring [ attribute = vStart, to = { app.vStartTo }, stiffness = 170, damping = 26 ],
+    Spring [ attribute = vSpan, to = { app.vSpanTo }, stiffness = 170, damping = 26 ],
+
+    fitSpan(w: number) -> number { return Math.max(7, Math.min(app.dayCount + 4, w)) },
+    fitStart(s: number, w: number) -> number { return Math.max(-2, Math.min(app.dayCount - w + 2, s)) },
+    hold(s: number, w: number) {
+        const span = fitSpan(w)
+        const start = fitStart(s, span)
+        vSpan = span
+        vSpanTo = span
+        vStart = start
+        vStartTo = start
+        },
+    glide(s: number, w: number) {
+        const span = fitSpan(w)
+        vSpanTo = span
+        vStartTo = fitStart(s, span)
+        },
+
+    // the day at `x` stays at `x` while the span becomes `s`
+
+    zoomAbout(x: number, width: number, from: number, fromSpan: number, s: number) {
+        const at = from + fromSpan * x / Math.max(1, width)
+        const span = fitSpan(s)
+        hold(at - span * x / Math.max(1, width), span)
+        },
+
+    // a zoom button keeps the middle of what is showing where it is
+
+    zoomTo(days: number) { glide(vStartTo + vSpanTo / 2 - fitSpan(days) / 2, days) },
+    showAll() { glide(-1, dayCount + 2) },
+
+    // which of the zoom buttons the window is at, if any
+
+    zoomName: string = { app.zoomNameOf(app.vSpanTo) },
+    zoomNameOf(span: number) -> string {
+        if (Math.abs(span - 14) < 0.5) return "14"
+        if (Math.abs(span - 91) < 0.5) return "91"
+        if (span >= dayCount + 2) return "all"
+        return ""
+        },
+
+    // The days at least half on screen, and what happened in them.
+
+    pFrom: number = { app.startN + Math.max(0, Math.ceil(app.vStart - 0.5)) },
+    pTo: number = { app.startN + Math.min(app.dayCount - 1, Math.floor(app.vStart + app.vSpan - 0.5)) },
+    period: Period = { app.log.summary(app.pFrom, app.pTo) },
+    periodLabel: string = { rangeLabel(app.pFrom, app.pTo) },
+
+    shownPCount: number = 0,
+    shownPMinutes: number = 0,
+    shownPKm: number = 0,
+    pCountSpring: Spring [ attribute = shownPCount, to = { app.period.sessions }, stiffness = 120, damping = 20 ],
+    pMinutesSpring: Spring [ attribute = shownPMinutes, to = { app.period.minutes }, stiffness = 120, damping = 20 ],
+    pKmSpring: Spring [ attribute = shownPKm, to = { app.period.km }, stiffness = 120, damping = 20 ],
+
+    // The history has landed: its figures appear rather than count up, and
+    // the year opens on the last three months.
+
+    arrived() {
+        countSpring.arrive()
+        minutesSpring.arrive()
+        streakSpring.arrive()
+        pCountSpring.arrive()
+        pMinutesSpring.arrive()
+        pKmSpring.arrive()
+        afterSettle(() => app.hold(app.dayCount - 90, 91))
+        },
+
+    // ── where the person is
+
+    openId: string = "",          // the session open on its page, "" for none
+    pageId: string = "",          // what the page shows; kept while it closes
+    formOpen: boolean = false,
+    editId: string = "",          // the session the form corrects, "" for a new one
+
+    openSession(id: string) { openId = id; pageId = id },
+    openDay(n: number) {
+        const s = log.hardestOf(log.on(n))
+        if (s != null) openSession(s.id)
+        },
+    newSession() { openId = ""; editId = ""; formOpen = true },
+    edit(id: string) { openId = ""; editId = id; formOpen = true },
+    closeForm() { formOpen = false },
+
+    // "45m run, yesterday": a session in a toast
+
+    brief(s: Session) -> string { return fmtDur(s.minutes) + " " + sportName(s.sport).toLowerCase() + ", " + dayWord(s.date, app.today).toLowerCase() },
+    describe(s: Session?) -> string {
+        if (s == null) return ""
+        return sportName(s.sport) + ", " + fmtDur(s.minutes) + (s.distanceKm != null ? ", " + fmtKm(s.distanceKm) : "")
+            + ", effort " + s.effort + ", " + dayWord(s.date, app.today)
+        },
+
+    // ── the writes. Each is a source aimed by an attribute; `fetch()`
+    //    settles first, so it sends what the handler just set. Each reply
+    //    goes into the log; a refusal is said in the toast and the form stays.
+
+    outgoing: object = null,
+    target: string = "",
+    removed: Session? = null,     // what Undo puts back
+    saving: boolean = { app.poster.loading || app.putter.loading },
+
+    poster: DataSource [ url = { API + "/api/sessions" }, method = "POST", body = { app.outgoing }, schema = Session,
+        onLoad() { app.landed(this.value) },
+        onError() { app.refused(this.errorBody?.message ?? this.error) }
+        ],
+    putter: DataSource [ url = { API + "/api/sessions/" + app.target }, method = "PUT", body = { app.outgoing }, schema = Session,
+        onLoad() { app.landed(this.value) },
+        onError() { app.refused(this.errorBody?.message ?? this.error) }
+        ],
+    deleter: DataSource [ url = { API + "/api/sessions/" + app.target }, method = "DELETE",
+        onError() { app.refused(this.errorBody?.message ?? this.error) }
+        ],
+
+    save(f: SessionForm) {
+        outgoing = ({ sport: f.sport, date: f.date, minutes: f.minutes,
+            distanceKm: f.hasKm && f.km > 0 ? f.km : null,
+            effort: f.effort, note: f.note.trim() == "" ? null : f.note.trim() })
+        if (f.base != null) { target = f.base.id; putter.fetch() }
+        else poster.fetch()
+        },
+    landed(s: Session) {
+        log.put(s)
+        formOpen = false
+        toast.say("Saved · " + brief(s))
+        },
+    refused(message: string) { toast.say("Not saved · " + message) },
+
+    remove(id: string) {
+        const s = log.byId(id)
+        if (s == null) return
+        removed = s
+        target = id
+        deleter.fetch()
+        log.drop(id)
+        openId = ""
+        toast.say("Deleted " + brief(s), ({ id: "undo", label: "Undo" }))
+        },
+    undo() {
+        const s = removed
+        if (s == null) return
+        removed = null
+        outgoing = ({ sport: s.sport, date: s.date, minutes: s.minutes, distanceKm: s.distanceKm ?? null,
+            effort: s.effort, heartAvg: s.heartAvg ?? null, note: s.note ?? null })
+        poster.fetch()
+        },
+
+    // ── the keyboard
+
+    shortcuts: Shortcuts [ title = "Cadence",
+        items = { [ ({ id: "new", key: "n", label: "Log a session" }),
+                    ({ id: "all", key: "0", label: "Show the whole year" }) ] },
+        picked(id: string) {
+            if (id == "new") app.newSession()
+            else if (id == "all") app.showAll()
+            }
+        ],
+
+    // Views used from far away get one name each here.
+
+    form: SessionForm? = { app.formSheet.entry },
+
+    // ── the screen: a masthead, then today beside the year at a desk, or
+    //    above it on a phone. The page scrolls; on a phone the Log button
+    //    stays at the foot, under the thumb.
+
+    page: View [ width = 100%,
+        padding = { [app.safeTop + (app.narrow ? 18 : 30), app.gutter, app.wide ? 64 : 128, app.gutter] },
+        layout: SimpleLayout [ axis = y, spacing = { app.narrow ? 26 : 40 } ],
+
+        masthead: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 16, align = center ],
+            Figure [ fontSize = 22, letterSpacing = 3, text = "CADENCE" ],
+            Text [ flexes = true, fontSize = 14, fontWeight = medium, wrap = false, textColor = { provided("theme").textMuted },
+                text = { app.today == "" ? "" : longDate(app.today) } ],
+            logButton: Control [ visible = { !app.narrow }, height = 44, cornerRadius = 22, padding = [0, 22, 0, 18],
+                accessibilityLabel = "Log a session",
+                fill = { provided("theme").ink },
+                opacity = { pressed ? 0.85 : 1 },
+                press() { app.newSession() },
+                TextLabel [ y = center, fontSize = 15, fontWeight = bold, textColor = { provided("theme").paper }, text = "+ Log session" ]
+                ]
+            ],
+
+        body: View [ width = 100%,
+            layout: ResponsiveLayout [ gap = { app.narrow ? 36 : 56 }, plan = { [
+                ({ from: 900, flow: "row", share: ({ today: 40, year: 60 }) }),
+                ({ from: 0, flow: "stack", share: ({ today: 100, year: 100 }) })
+                ] } ],
+
+            // ── where am I
+
+            today: View [
+                layout: SimpleLayout [ axis = y, spacing = { app.narrow ? 22 : 30 } ],
+
+                // Each line is its figures and words in reading order, wrapping
+                // between them but never inside a figure.
+
+                thisWeek: View [ width = 100%,
+                    layout: SimpleLayout [ axis = y, spacing = 2 ],
+                    Label [ text = "This week" ],
+                    line: View [ width = 100%,
+                        layout: WrappingLayout [ align = baseline ],
+                        Figure [ fontSize = { app.hero }, text = { "" + Math.round(app.shownCount) } ],
+                        Word [ text = { " " + plural(Math.round(app.shownCount), "session", "sessions") + " · " } ],
+                        Figure [ fontSize = { app.hero }, text = { fmtDur(app.shownMinutes) } ]
+                        ]
+                    ],
+                streak: View [ width = 100%,
+                    layout: SimpleLayout [ axis = y, spacing = 2 ],
+                    Label [ text = "Streak" ],
+                    line: View [ width = 100%,
+                        layout: WrappingLayout [ align = baseline ],
+                        Figure [ visible = { app.hasStreak }, fontSize = { app.hero * 0.72 }, text = { "" + Math.round(app.shownStreak) } ],
+                        Word [ visible = { app.hasStreak }, text = { " " + plural(Math.round(app.shownStreak), "day", "days") } ],
+                        Figure [ visible = { !app.hasStreak }, fontSize = { app.hero * 0.5 }, textColor = { provided("theme").textFaint },
+                            text = "no streak" ]
+                        ]
+                    ],
+
+                shape: View [ width = 100%,
+                    layout: SimpleLayout [ axis = y, spacing = 10 ],
+                    Label [ text = "The last seven days" ],
+                    bars: View [ width = 100%, datapath = { app.week.value },
+                        layout: SimpleLayout [ axis = x, spacing = { app.narrow ? 5 : 10 } ],
+                        DayBar [ datapath = :days[], key = :n, flexes = true ]
+                        ]
+                    ],
+
+                live: LiveNow [ exists = { app.running != null } ],
+                last: LastSession [ s = { app.lastSession } ]
+                ],
+
+            // ── the year
+
+            year: View [
+                layout: SimpleLayout [ axis = y, spacing = 14 ],
+                head: View [ width = 100%,
+                    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+                    Label [ flexes = true, text = "The year" ],
+                    ChoiceControl [ accessibilityLabel = "How much to show", value = { app.zoomName },
+                        commit(v: string) { if (v == "all") { app.showAll() } else { app.zoomTo(Number(v)) } },
+                        layout: SimpleLayout [ axis = x, spacing = 6 ],
+                        Choice [ width = 56, choice = "14", label = "2W", accessibilityLabel = "Two weeks" ],
+                        Choice [ width = 56, choice = "91", label = "3M", accessibilityLabel = "Three months" ],
+                        Choice [ width = 56, choice = "all", label = "All", accessibilityLabel = "Everything" ]
+                        ]
+                    ],
+                Text [ width = 100%, fontSize = { app.narrow ? 22 : 26 }, fontWeight = bold, letterSpacing = -0.3,
+                    text = { app.periodLabel } ],
+                totals: View [ width = 100%,
+                    layout: WrappingLayout [ align = baseline ],
+                    Figure [ fontSize = { app.mid }, text = { "" + Math.round(app.shownPCount) } ],
+                    Word [ text = { " " + plural(Math.round(app.shownPCount), "session", "sessions") + " · " } ],
+                    Figure [ fontSize = { app.mid }, text = { fmtDur(app.shownPMinutes) } ],
+                    Word [ text = " · " ],
+                    Figure [ fontSize = { app.mid }, text = { "" + Math.round(app.shownPKm) } ],
+                    Word [ text = " km" ]
+                    ],
+                surface: YearSurface [ accessibilityRole = image, height = { app.wide ? 340 : 240 } ],
+                Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textFaint },
+                    text = { app.touchFirst ? "Drag through the months · pinch to open a fortnight or a season · tap a day"
+                                            : "Drag through the months · pinch or use the buttons to zoom · click a day" } ],
+                hardest: Control [ visible = { app.period.hardest != null }, width = 100%, padding = [14, 0, 14, 0],
+                    s: Session? = { app.period.hardest ?? null },
+                    accessibilityLabel = { "Hardest in this period: " + app.describe(this.s) },
+                    press() { if (this.s != null) app.openSession(this.s.id) },
+                    opacity = { pressed ? 0.6 : 1 },
+                    stroke = { [stroke(1, provided("theme").line), null, stroke(1, provided("theme").line), null] },
+                    layout: SimpleLayout [ axis = y, spacing = 6 ],
+                    Label [ text = "Hardest in this stretch" ],
+                    row: View [ width = 100%,
+                        layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+                        View [ width = 14, height = 14, cornerRadius = 7, fill = { app.heatOf(app.period.hardest?.effort ?? 0) } ],
+                        Figure [ fontSize = 30, textTransform = uppercase, letterSpacing = 0,
+                            text = { sportName(app.period.hardest?.sport ?? "") } ],
+                        Text [ flexes = true, fontSize = 16, textColor = { provided("theme").textMuted },
+                            text = { app.hardestLine } ]
+                        ]
+                    ]
+                ]
+            ]
+        ],
+
+    hardestLine: string = {
+        app.period.hardest == null ? "" : fmtDur(app.period.hardest.minutes)
+            + (app.period.hardest.distanceKm != null ? " · " + fmtKm(app.period.hardest.distanceKm) : "")
+            + " · effort " + app.period.hardest.effort + " · " + dayWord(app.period.hardest.date, app.today) },
+
+    // A phone's Log button: at the foot, the width of the thumb's reach.
+    // Its dock lets presses through around it.
+
+    dock: View [ visible = { app.narrow && !app.formOpen && app.openId == "" }, ignoreScroll = true, ignoreLayout = true,
+        y = end, width = { app.width }, height = 100, pointerEvents = "none", padding = [0, 20, 26, 20],
+        dockButton: Control [ y = end, width = 100%, height = 60, cornerRadius = 30, accessibilityLabel = "Log a session",
+            fill = { provided("theme").ink },
+            shadow = { shadow(0, 8, 20, 0x16130F40) },
+            scale = { pressed ? 0.97 : 1 }, pivotX = { this.width / 2 }, pivotY = 30,
+            press() { app.newSession() },
+            TextLabel [ x = center, y = center, fontSize = 18, fontWeight = bold, textColor = { provided("theme").paper },
+                text = "+  Log session" ]
+            ]
+        ],
+
+    // ── layers
+
+    detail: Sheet [ edge = "end", sheetWidth = 460, accessibilityLabel = "Session",
+        shown = { app.openId != "" },
+        input(open: boolean) { if (!open) app.openId = "" },
+        page: SessionPage [ exists = { app.detail.present }, datapath = { app.log.byId(app.pageId) } ]
+        ],
+    formSheet: Sheet [ edge = "end", sheetWidth = 460, accessibilityLabel = "Log a session",
+        shown = { app.formOpen },
+        input(open: boolean) { app.formOpen = open },
+        entry: SessionForm [ exists = { app.formSheet.present }, base = { app.log.byId(app.editId) } ]
+        ],
+    toast: Toast [ duration = 6000,
+        picked(id: string) { if (id == "undo") app.undo() }
+        ]
+    ]

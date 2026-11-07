@@ -1,0 +1,42 @@
+# eval-cadence-30.noindex
+total 16.4 min · 73 turns · output 89010 tokens (thinking 36174)
+phases: reading 6.6 · writing 2.3 · checking 7.5 min
+tool time 2.2 min · model time 14.2 min
+tools:
+  verify    15×   0.97 min  (median 2.9 s)
+  look       9×   0.77 min  (median 6.1 s)
+  help       9×   0.29 min  (median 1.2 s)
+  bash      13×   0.15 min  (median 0.1 s)
+model turns, by what came before:
+  after help      9×   5.30 min  (median 33.3 s)
+  after bash     12×   2.28 min  (median 3.2 s)
+  after write     2×   2.24 min  (median 67.1 s)
+  after image    14×   2.09 min  (median 9.3 s)
+  after verify   15×   1.28 min  (median 4.8 s)
+  after look      9×   0.45 min  (median 2.0 s)
+  after read      9×   0.25 min  (median 1.7 s)
+  after edit      1×   0.02 min  (median 1.0 s)
+app: 2 .declare files, 1174 non-blank lines · 22 snapshots changed them: 1539 lines added, 180 removed
+verify results mentioning accessibility: 2
+diagnostic codes, by tool results reporting them: DECLARE2000 4, DECLARE7001 3, DECLARE1002 3, DECLARE4025 2, DECLARE4035 2, DECLARE4015 2, DECLARE3005 1, DECLARE4032 1, DECLARE4026 1
+inside the agent's verify and look calls:
+   0.72 min    19×  R5 behavior, in all
+   0.40 min    30×  compile (R1–R3)
+   0.40 min    19×  script: the assert script, in all
+   0.35 min    33×  page: load, compile in the page and boot
+   0.18 min    10×  R4 boot, in all
+   0.15 min    33×  drive.click
+   0.12 min    53×  drive.settleMotion
+   0.05 min    33×  page: a new page
+   0.03 min    13×  drive.settleData
+   0.02 min     1×  drive.drag
+   0.02 min    12×  drive.wait
+   0.02 min    29×  chrome: a browser (shared between calls)
+   0.01 min     1×  drive.clickAt
+   0.01 min    13×  screenshot: capture and write
+   0.01 min     1×  drive.pinch
+   0.00 min     1×  drive.selectAll
+   0.00 min     2×  drive.key
+   0.00 min    29×  serve: start the program's server
+   0.00 min    12×  drive.set
+   0.00 min     1×  drive.type
