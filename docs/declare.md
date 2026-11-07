@@ -780,8 +780,9 @@ falls to an optional default (`provided("theme", SanFrancisco)`), else throws, n
 value.
 
 Start from a library preset — each a light record with a `…Dark` companion, in scope by name —
-and spread to change a token; the standard library reads specific token names, so build from a
-preset rather than an empty record. A token's relatives share its name (`accent`,
+and spread to change a token; the standard library reads specific token names (`npx declare-help
+"theme tokens"` lists them, with the classes that read each), so build from a preset rather than an
+empty record. A token's relatives share its name (`accent`,
 `accentHovered`, `accentPressed`, `accentTextColor`): change a role, change them with it. You can declare your own with `theme Brand [ … ]`, a
 top-level named record like a `style` bundle. The `{ { … } }` is not special syntax: the outer
 braces open the constraint, the inner ones are a TypeScript object literal. A token read from

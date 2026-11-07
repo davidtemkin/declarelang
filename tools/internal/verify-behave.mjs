@@ -1088,11 +1088,17 @@ bootHost(cfg);
         /** Press at (x, y) inside the view, from its top-left in its own units —
          *  a part of a drawn control (a step of a scale, a day of a chart) that
          *  is not a view of its own. Reached as `click` reaches the view, at that
-         *  point: one some other view covers there is said, not pressed. */
-        async clickAt(path, x, y) {
+         *  point: one some other view covers there is said, not pressed.
+         *  `{ modifiers: ["Shift"] }` holds keys down through it, as `click`'s does. */
+        async clickAt(path, x, y, o = {}) {
+          const odd = Object.keys(o).filter((k) => k !== "modifiers");
+          if (odd.length > 0) throw new VerifyAssertion(`drive.clickAt(…, { ${odd.join(", ")} }): not an option — modifiers`);
           const p = await reach(path, { x, y });
-          step(`${touching() ? "tap" : "click"} ${path} at (${x}, ${y})`);
+          const mods = (o.modifiers ?? []).map((m) => parseChord(m + "+x").mods[0]);
+          step(`${mods.length ? mods.join("+") + "+" : ""}${touching() ? "tap" : "click"} ${path} at (${x}, ${y})`);
+          for (const m of mods) await page.keyboard.down(m);
           await press(p.x, p.y);
+          for (const m of [...mods].reverse()) await page.keyboard.up(m);
         },
         /** A double-click as a person makes one — what `onDblClick` answers —
          *  on the view, or at a point inside it: two presses 100 ms of the
