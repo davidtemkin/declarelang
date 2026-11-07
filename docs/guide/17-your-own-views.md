@@ -289,6 +289,105 @@ inherited value, so a measurement means the same wherever it is taken. When a dr
 should match the text around it, ask for the face in force with
 `providedTextStyle(overrides?)`.
 
+## A control of your own, start to finish
+
+A control's look is yours to choose. What makes it a control is the contract it keeps, and
+none of that contract is visual. Here is a rotary knob, written whole: drawn, dragged,
+turned by the keyboard, read out by a screen reader, and kept by its owner.
+
+```declare
+class Knob extends ValueControl [ width = 72, height = 72, cornerRadius = 36, claim = y,
+    value: number = 0,
+    fieldValue = { value },
+    min: number = 0,
+    max: number = 100,
+    step: number = 1,
+    commit(v: number) { value = v },
+
+    // what a screen reader is told: a slider, its value and its range
+    accessibilityRole = slider,
+    accessibilityValue = { shown },
+    accessibilityMin = { min },
+    accessibilityMax = { max },
+    accessibilityStep = { step },
+
+    // the adjust gesture and the arrow keys both arrive here
+    accessibilityIncrement() { edit(snap(shown + step)) },
+    accessibilityDecrement() { edit(snap(shown - step)) },
+    snap(v: number) -> number {
+        const q = Math.round((v - min) / step) * step + min
+        return Math.max(min, Math.min(max, q))
+        },
+
+    // a drag is one edit, from press to release; dragging up turns it up
+    dragging: boolean = false,
+    _y0: number = 0,
+    _v0: number = 0,
+    onPointerDown() {
+        super.onPointerDown()
+        if (disabled) return
+        dragging = true
+        _y0 = app.pointerY
+        _v0 = shown
+        beginEdit()
+        },
+    onPointerMove() { if (dragging) edit(snap(_v0 + (_y0 - app.pointerY) / 150 * (max - min))) },
+    onPointerUp() { if (dragging) { dragging = false; endEdit() } },
+
+    draw(d: DrawContext) {
+        const frac = (shown - min) / ((max - min) || 1)
+        const start = Math.PI * 0.75, sweep = Math.PI * 1.5, turned = start + sweep * frac
+        d.lineWidth = 6
+        d.lineCap = "round"
+        d.strokeStyle = provided("theme").line
+        d.beginPath()
+        d.arc(36, 36, 28, start, start + sweep, false)
+        d.stroke()
+        d.strokeStyle = provided("theme").accent
+        d.beginPath()
+        d.arc(36, 36, 28, start, turned, false)
+        d.stroke()
+        d.fillStyle = provided("theme").text
+        d.beginPath()
+        d.arc(36 + Math.cos(turned) * 16, 36 + Math.sin(turned) * 16, 4, 0, Math.PI * 2, false)
+        d.fill()
+        },
+    opacity = { disabled ? provided("theme").disabledOpacity : 1 }
+    ]
+
+App [ width = 320, height = 160, theme = { SanFrancisco },
+    volume: number = 40,
+    row: View [ x = 20, y = 20,
+        layout: SimpleLayout [ axis = x, spacing = 20, align = center ],
+        Field [ label = "Volume", stacked = true, Knob [ value <-> app.volume ] ],
+        Text [ textColor = { provided("theme").text }, text = { `volume: ${app.volume}` } ]
+        ]
+    ]
+```
+
+Taken a part at a time:
+
+- **The value.** `value`, `fieldValue` and `commit` are the
+  [delivery contract](#delivering-a-controls-value): the knob reports turns with `edit`, and
+  the use site's `value <-> app.volume` decides where they land.
+- **The drawing** reads `shown`, so the arc follows the finger while a drag is open. Its
+  colours come from the theme, so the knob fits any app that themes it.
+- **The drag** is one edit from press to release: `beginEdit()` on the press, `edit` on
+  each move, `endEdit()` on the release. The override of `onPointerDown` calls `super` first,
+  which is what gives the knob focus when it is pressed. `claim = y` keeps a vertical drag
+  on the knob instead of scrolling the page under it.
+- **The role.** `accessibilityRole = slider` tells a screen reader what the knob is, and a
+  slider is announced with its value and range, so it names those. The adjust gesture calls
+  `accessibilityIncrement()` and `accessibilityDecrement()`, and `Control` sends the arrow
+  keys to the same two methods, so the keyboard comes free. A role says what a control
+  *does*, never how it looks: a knob, a dial and a fader are all sliders.
+- **The name** comes from the `Field` around it: the caption "Volume" labels the knob for a
+  screen reader as it does for the eye.
+
+The library's controls are written the same way, in `library/`, with nothing a class of
+yours can't use. [Your own controls](declare-docs:guide:accessibility@your-own-controls)
+covers the roles and what each one asks you to name.
+
 ## Icons
 
 Small single-color marks are **drawn, not typed**. Font glyphs may be missing, render

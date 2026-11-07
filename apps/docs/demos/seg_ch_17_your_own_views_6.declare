@@ -1,5 +1,28 @@
-class BackChevron extends ChevronIcon [ dir = "left" ]
+class BoltIcon extends Icon [
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        d.moveTo(9.5, 1.5)
+        d.lineTo(4.5, 8.5)
+        d.lineTo(8, 8.5)
+        d.lineTo(6.5, 14.5)
+        d.lineTo(11.5, 7.5)
+        d.lineTo(8, 7.5)
+        d.closePath()
+        d.stroke()
+        }
+    ]
 
-App [ width = 320, height = 80, theme = { SanFrancisco }, fill = { provided("theme").background },
-    Button [ x = 20, y = 20, label = "Albums", iconLeft = "BackChevron" ]
+
+App [ width = 320, height = 120, fill = white, textColor = black,
+    row: View [ x = 20, y = 24,
+        layout: SimpleLayout [ axis = x, spacing = 18 ],
+        BoltIcon [ y = center, iconSize = 16 ],
+        BoltIcon [ y = center, iconSize = 24 ],
+        BoltIcon [ y = center, iconSize = 44 ]
+        ]
     ]

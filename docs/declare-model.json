@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "7a0229f5b226",
+  "buildId": "1586f3f52654",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -17244,6 +17244,11 @@
     "title": "Your own views and drawing",
     "kind": "guide"
    },
+   "guide:your-own-views@a-control-of-your-own-start-to-finish": {
+    "path": "docs/guide/17-your-own-views.md",
+    "title": "A control of your own, start to finish",
+    "kind": "guide-section"
+   },
    "guide:your-own-views@a-frame-around-content": {
     "path": "docs/guide/17-your-own-views.md",
     "title": "A frame around content",
@@ -18441,6 +18446,7 @@
     "View.pressed",
     "View.stroke",
     "WrappingLayout",
+    "guide:accessibility@your-own-controls",
     "guide:animated-arrangements@tweenlayout",
     "guide:controls@the-value-pattern",
     "guide:layout@a-list-that-fills-and-scrolls",
@@ -107985,10 +107991,11 @@
    "short": "Your own views",
    "part": "Building",
    "teaches": {
-    "App": 9,
+    "App": 10,
     "Button": 6,
     "Checkbox": 2,
-    "Control": 6,
+    "Control": 7,
+    "Field": 2,
     "Focus": 5,
     "Font": 1,
     "Image": 3,
@@ -107998,14 +108005,14 @@
     "NativeText": 2,
     "Radio": 2,
     "ResponsiveLayout": 2,
-    "SimpleLayout": 8,
+    "SimpleLayout": 9,
     "Slider": 3,
     "Table": 2,
-    "Text": 14,
+    "Text": 15,
     "TextInput": 1,
     "TweenLayout": 2,
-    "ValueControl": 5,
-    "View": 28,
+    "ValueControl": 6,
+    "View": 29,
     "WrappingLayout": 2
    }
   },
