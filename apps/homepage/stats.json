@@ -4,7 +4,7 @@
     "code": 596,
     "comment": 572,
     "blank": 359,
-    "wireGzip": 229174,
+    "wireGzip": 229219,
     "programGzip": 15650
   },
   "calendar": {
@@ -12,7 +12,7 @@
     "code": 540,
     "comment": 214,
     "blank": 176,
-    "wireGzip": 167095,
+    "wireGzip": 167186,
     "programGzip": 12758
   },
   "tracker": {
@@ -20,7 +20,7 @@
     "code": 982,
     "comment": 251,
     "blank": 274,
-    "wireGzip": 185012,
+    "wireGzip": 185103,
     "programGzip": 18428
   },
   "desktop": {
@@ -28,7 +28,7 @@
     "code": 1994,
     "comment": 932,
     "blank": 573,
-    "wireGzip": 253697,
+    "wireGzip": 253761,
     "programGzip": 22559
   },
   "todo": {
@@ -36,7 +36,7 @@
     "code": 662,
     "comment": 236,
     "blank": 177,
-    "wireGzip": 186817,
+    "wireGzip": 186922,
     "programGzip": 20946,
     "codeWithParts": 847
   },
@@ -90,11 +90,11 @@
       "ker": 0
     },
     "totals": {
-      "calDom": 163.2,
-      "calCanvas": 188.1,
-      "calMac": 138.8
+      "calDom": 163.3,
+      "calCanvas": 188.2,
+      "calMac": 138.9
     },
-    "runtimeKB": 123,
+    "runtimeKB": 123.1,
     "kernelWasmGzipKB": 12.6,
     "kernelWasmRawKB": 23,
     "kernelLoaderKB": 2.6,

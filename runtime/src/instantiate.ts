@@ -1233,15 +1233,17 @@ function constructNode(el: Element, outer: View | null, ctx: Ctx, parentEl: Elem
   // The winner keeps its source's `classroot`, like any member: a layout written
   // in a class body reads that class's instance, one written at the use site the
   // enclosing scope.
+  // One object, one set of children, one layout: a `layout:` is the layout of the
+  // element it is written on, whichever source writes it, and a `defaultPlacement`
+  // moves children only — what it places is arranged by the view it places them in.
   let layoutEl: Element | null = null;
   let layoutCroot: View = croot;
-  let layoutFrom: Element | null = null;
   for (const s of sources) {
     for (const a of s.el.attrs) {
-      if (a.route === "class") { layoutEl = null; layoutFrom = null; }
+      if (a.route === "class") layoutEl = null;
     }
     for (const c of s.el.children) {
-      if (c.classSlot !== undefined) { layoutEl = c; layoutCroot = s.croot ?? croot; layoutFrom = s.el; }
+      if (c.classSlot !== undefined) { layoutEl = c; layoutCroot = s.croot ?? croot; }
     }
   }
   // Methods first (installMethods: the super rule, the runtime-member guard),
@@ -1380,20 +1382,6 @@ function constructNode(el: Element, outer: View | null, ctx: Ctx, parentEl: Elem
     const views = members.length > 0 ? { ...from, children: from.children.filter(isView) } : from;
     appendChildren(views, place.target, fromCroot, ctx, el, place.slot);
     hoistPlacedNames(views, view, place.target);
-    // A layout written beside children that are placed elsewhere arranges
-    // THOSE children: it goes with them, to the view that holds them, queued
-    // after that view's own so it replaces it. (Written in the body that names
-    // the placement, it is that class's own and arranges its frame — never
-    // reached here: a class's own children are never placed.)
-    if (layoutEntry !== null && from === layoutFrom) {
-      const target = place.target;
-      ctx.pending.splice(ctx.pending.indexOf(layoutEntry), 1);
-      // the target's own arrangement never installs: replaced, not swapped
-      // after the fact, so nothing it placed is left behind
-      const own = ctx.pending.findIndex((q) => "layoutEl" in q && q.view === target);
-      if (own >= 0) ctx.pending.splice(own, 1, { ...layoutEntry, view: target });
-      else ctx.pending.push({ ...layoutEntry, view: target });
-    }
   };
   if (user !== undefined) {
     if (ctx.expanding.has(el.tag)) {

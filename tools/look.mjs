@@ -52,7 +52,10 @@ actions, run in the order written (each may repeat)
                                Otherwise a trackpad pinch: onWheel runs, with e.pinch true
   --type TEXT                  type TEXT into whatever has the focus (--click a field first)
   --key NAME                   press a key: Enter, Escape, Tab, ArrowDown, Backspace, …; a chord with +: Shift+Tab, Meta+A
-  --wait MS                    let MS milliseconds pass
+  --wait MS                    let MS milliseconds of the program's time pass — its clock is
+                               held between steps, so motion, timers and Time move only here
+  --wait-real MS               let the program run live for MS of real time: what arrives on
+                               the world's clock (a socket's or a service's timed messages)
   --read PATH.ATTR             print PATH's attribute: app.list.scrollY = 240 (or any
                                property past it: app.col.childViews.length)
   --call PATH.METHOD(ARGS)     call a method, its arguments as JSON: --call 'app.preset(14)'
@@ -147,10 +150,10 @@ for (let i = 0; i < argv.length; i++) {
     actions.push({ kind: "pinch", path, scale });
   } else if (a === "--type") actions.push({ kind: "type", text: arg() });
   else if (a === "--key") actions.push({ kind: "key", name: arg() });
-  else if (a === "--wait") {
+  else if (a === "--wait" || a === "--wait-real") {
     const ms = Number(arg());
-    if (!(ms >= 0)) fail(`--wait ${argv[i]}: write milliseconds, e.g. 500`);
-    actions.push({ kind: "wait", ms });
+    if (!(ms >= 0)) fail(`${a} ${argv[i]}: write milliseconds, e.g. 500`);
+    actions.push({ kind: a === "--wait" ? "wait" : "waitReal", ms });
   } else if (a === "--read") {
     const pa = arg(), k = pa.lastIndexOf(".");
     if (k <= 0) fail(`--read ${pa}: write PATH.ATTR, e.g. app.list.scrollY`);
@@ -195,6 +198,7 @@ const step = (x) => {
     case "type": return `await drive.type(${JSON.stringify(x.text)});${rest}`;
     case "key": return `await drive.key(${JSON.stringify(x.name)});${rest}`;
     case "wait": return `await drive.wait(${x.ms});`;
+    case "waitReal": return `await drive.waitReal(${x.ms});`;
     // the longest leading part that names a view, then any properties past it
     case "read": return `console.log(${JSON.stringify(x.label + " = ")} + JSON.stringify(await page.evaluate((full) => {
       const d = window.__declare, segs = full.match(/"[^"]*"|[^.]+/g) ?? [];

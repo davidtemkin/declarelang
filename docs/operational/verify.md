@@ -131,7 +131,7 @@ step of a drawn scale), `--drag PATH DX,DY`, a drag a step at a time — `--pres
 `--move DX,DY`, `--release`, with `--shot` and `--read` between them seeing it in progress —
 `--wheel PATH DY`, `--pinch PATH SCALE` (two
 fingers spread to SCALE, or drawn together below 1), `--type TEXT`,
-`--key NAME`, `--wait MS`, `--read PATH.ATTR` (printed as `path.attr = value`; any property
+`--key NAME`, `--wait MS` (the program's time), `--wait-real MS` (real time, for what arrives on the world's clock), `--read PATH.ATTR` (printed as `path.attr = value`; any property
 past the view reads too, `app.col.childViews.length`), `--call 'PATH.METHOD(ARGS)'`
 (arguments as JSON) and `--set PATH.ATTR=VALUE` to set up a state, and `--shot FILE` — run
 in the order written, and each may repeat; a run that goes well prints only what it was asked

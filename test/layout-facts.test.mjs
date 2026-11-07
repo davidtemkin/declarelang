@@ -297,21 +297,35 @@ await test("a weight written before anything reads the view reads back as writte
   assert.equal(v.flexes, 2, "an untouched view's untracked read is not the class default once a value left the table");
 });
 
-// A layout written beside children a class places elsewhere arranges THOSE
-// children, in the view that holds them (Presentify run 1: a Popover with a
-// layout failed at boot, blaming the library's own frame). It replaces that
-// view's own layout; written in the class's own body, a layout is the frame's.
-await test("a layout at the use site of a class with defaultPlacement arranges the placed children", () => {
+// One object, one set of children, one layout: a `layout:` is the layout of the
+// element it is written on, from whichever source, and `defaultPlacement` moves
+// children only — the placed ones are arranged by the view that holds them.
+await test("a layout at the use site of a class with defaultPlacement is the instance's own; placed children keep the target's", () => {
   const g = layOut("placed-layout", `App [ width = 600, height = 300,
     f: Frame [ layout: SimpleLayout [ axis = x, spacing = 10 ],
         a: View [ width = 40, height = 20 ], b: View [ width = 40, height = 20 ] ],
     plain: Frame [ c: View [ width = 40, height = 20 ], d: View [ width = 40, height = 20 ] ] ]
 class Frame [ width = 300, height = 200, defaultPlacement = body,
-    edge: View [ x = 2, y = 2, width = 10, height = 10 ],
-    body: View [ x = 20, y = 30, layout: SimpleLayout [ axis = y, spacing = 5 ] ] ]`);
-  assert.deepEqual([g["app.f.body.b"][0], g["app.f.body.b"][1]], [50, 0], "written at the use site: across, in the body, nothing left of its column");
-  assert.deepEqual([g["app.f.edge"][0], g["app.f.edge"][1]], [2, 2], "the frame's own child is not arranged by it");
-  assert.deepEqual([g["app.plain.body.d"][0], g["app.plain.body.d"][1]], [0, 25], "with none written, the body's own column stands");
+    edge: View [ width = 10, height = 10 ],
+    body: View [ layout: SimpleLayout [ axis = y, spacing = 5 ] ] ]`);
+  assert.deepEqual([g["app.f.body.b"][0], g["app.f.body.b"][1]], [0, 25], "the placed children: the body's own column");
+  assert.equal(g["app.f.body"][0], 20, "the use site's row arranges the frame's own children: the body beside the edge");
+  assert.deepEqual([g["app.plain.body.d"][0], g["app.plain.body.d"][1]], [0, 25], "with none written, the same column");
+});
+
+await test("a subclass's layout of a frame with defaultPlacement is the frame's; what it places keeps the target's layout", () => {
+  // Murmur run 14: a message row stacking its bubble above its time, whose voice
+  // subclass wrote a row — the row's own column was lost, and its time drawn over the bubble
+  const g = layOut("placed-own", `App [ width = 600, height = 300, v: Voice [ ], m: Row [ a: View [ width = 30, height = 30 ] ] ]
+class Row [ width = 300, defaultPlacement = bubble,
+    layout: SimpleLayout [ axis = y ],
+    bubble: View [ layout: SimpleLayout [ axis = y ] ],
+    stamp: View [ width = 40, height = 10 ] ]
+class Voice extends Row [ layout: SimpleLayout [ axis = x, spacing = 4 ],
+    a: View [ width = 30, height = 30 ], b: View [ width = 100, height = 20 ] ]`);
+  assert.deepEqual([g["app.v.bubble.b"][0], g["app.v.bubble.b"][1]], [0, 30], "the placed children: the bubble's own column");
+  assert.equal(g["app.v.stamp"][0], g["app.v.bubble"][2] + 4, "the subclass's row arranges the frame: the time beside the bubble");
+  assert.equal(g["app.m.stamp"][1], 30, "the base's own column, where no subclass writes one: the time below the bubble");
 });
 
 summarize("layout-facts");

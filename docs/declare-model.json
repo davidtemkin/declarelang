@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "21ae8927f7bb",
+  "buildId": "ff1bfdba1433",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -4977,107 +4977,111 @@
    },
    "E5F2831": {
     "message": "….………… — … … its children, so this child …; ….",
-    "at": "errors.ts:136"
+    "at": "errors.ts:138"
+   },
+   "EDD15F9": {
+    "message": "the layout written on the … is …'s own: it arranges …'s own frame, not the content you put inside it. To arrange that content, put it in a View with that layout.",
+    "at": "errors.ts:152"
    },
    "E178408": {
     "message": "remove it and let the layout … the child…, or set 'ignoreLayout = true' on the child to … it yourself",
-    "at": "errors.ts:168"
+    "at": "errors.ts:184"
    },
    "EE397F5": {
     "message": "….……… — … … its children, so this child does not declare its …; ….",
-    "at": "errors.ts:182"
+    "at": "errors.ts:201"
    },
    "EFCA92F": {
     "message": ", and this child is the only content it has",
-    "at": "errors.ts:199"
+    "at": "errors.ts:218"
    },
    "E3C5065": {
     "message": "….… is …… — it is sized from its parent (…), which takes its … from its content…; a child sized from its parent does not count toward that content, so on this axis the parent has no size to give. Give … a …, or use its padding instead of arithmetic.",
-    "at": "errors.ts:200"
+    "at": "errors.ts:219"
    },
    "E379C53": {
     "message": "….……)`} is 0 — it takes its … from its children, and every one of them (…) takes its … from it, so nothing decides it. To make them …, remove their own … and use align = stretch on …'s layout; or give … a ….",
-    "at": "errors.ts:207"
+    "at": "errors.ts:226"
    },
    "E47B40D": {
     "message": "….……)`} is only its padding — it takes its … from its children, and … places itself in it (… = center or end), which counts it out, so it hangs outside …. Give … a …, or let its layout place … (a Spacer on each side centers it in a row).",
-    "at": "errors.ts:211"
+    "at": "errors.ts:230"
    },
    "EDAB9DB": {
     "message": "….…… — … … its children, so this child does not declare its …",
-    "at": "errors.ts:227"
+    "at": "errors.ts:246"
    },
    "E0FBF3E": {
     "message": "set 'ignoreLayout = true' on the child to … it yourself",
-    "at": "errors.ts:228"
+    "at": "errors.ts:247"
    },
    "EFB69E6": {
     "message": "…. Across the flow, where a child sits is the layout's 'align'; or ….",
-    "at": "errors.ts:231"
+    "at": "errors.ts:250"
    },
    "EB4A2BF": {
     "message": "…. Across the flow, where a child sits is the layout's 'align', and a plan entry's 'offset' shifts one child from there; or ….",
-    "at": "errors.ts:233"
+    "at": "errors.ts:252"
    },
    "EDC4124": {
     "message": "… — its configuration is computed, so it may place either axis. Remove it, or ….",
-    "at": "errors.ts:235"
+    "at": "errors.ts:254"
    },
    "E30C650": {
     "message": "… — a plan gives it a share of the width. Remove it and let the plan size the child, or leave the child out of the share (or name it \"auto\") to keep its own width.",
-    "at": "errors.ts:237"
+    "at": "errors.ts:256"
    },
    "ECE022E": {
     "message": "… — it flexes, so the run gives it its …: the room left, shared among the children that flex. Remove the … to let it flex, or remove 'flexes' to keep its own ….",
-    "at": "errors.ts:239"
+    "at": "errors.ts:258"
    },
    "ECC8812": {
     "message": "… — it shrinks, so the run gives it its …: its content's, less what it gives up when the room is short. Remove the … (bound it with '…' instead), or remove 'shrinks' to keep your own ….",
-    "at": "errors.ts:241"
+    "at": "errors.ts:260"
    },
    "E77C55E": {
     "message": "… — it …, and the layout's axis is computed, so its … is the run's in one arrangement. Remove the …, and bound it with '…' or '…' if it needs a limit; or give the size only in the arrangement where the run goes the other way, with a State.",
-    "at": "errors.ts:244"
+    "at": "errors.ts:263"
    },
    "ECAD855": {
     "message": "… — a plan drops it (share: 0). Remove it and let the plan show and hide the child, or take the child out of that share.",
-    "at": "errors.ts:246"
+    "at": "errors.ts:265"
    },
    "E454DC9": {
     "message": "…. Remove it and let the layout … the child, or ….",
-    "at": "errors.ts:248"
+    "at": "errors.ts:267"
    },
    "E930EEF": {
     "message": "…: the checker is not aboard this production build — the program was checked at compile time (declarec --debug keeps the checker)",
-    "at": "errors.ts:272"
+    "at": "errors.ts:291"
    },
    "E0EC00E": {
     "message": "…: the inspector is not aboard this production build (declarec --debug keeps it)",
-    "at": "errors.ts:273"
+    "at": "errors.ts:292"
    },
    "EC2B4AC": {
     "message": "…: the introspection bridge is not aboard this production build (declarec --debug keeps it)",
-    "at": "errors.ts:274"
+    "at": "errors.ts:293"
    },
    "E2769D5": {
     "message": "…: not aboard this production build — the program's source names it nowhere, so the build left it out (a name assembled at runtime is not seen — write it in the source)",
-    "at": "errors.ts:275"
+    "at": "errors.ts:294"
    },
    "E49F776": {
     "message": "…: path selectors are not aboard this build (the program declared none at compile time — rebuild)",
-    "at": "errors.ts:276"
+    "at": "errors.ts:295"
    },
    "E5530EA": {
     "message": "… declares no baseline — … [ align = baseline ] aligns children by the baseline each declares; declare 'baseline: number = { <label>.y + <label>.baseline }' on …, or align by start | center | end.",
-    "at": "errors.ts:286"
+    "at": "errors.ts:305"
    },
    "E2F094B": {
     "message": "… [ axis = y, align = baseline ] — baseline aligns a ROW; a stack has no line, so its cross axis (x) takes start | center | end.",
-    "at": "errors.ts:292"
+    "at": "errors.ts:311"
    },
    "E17A8DA": {
     "message": "a Stroke on all four sides (stroke(width, color), drawn inside the box), four of them — [top, right, bottom, left] clockwise from the top, null for a bare side — or null for no border at all",
-    "at": "errors.ts:323"
+    "at": "errors.ts:342"
    },
    "EB5C441": {
     "message": "… — inside { } a color is written …, not … (the #… and named-color forms work only as bare values)",
@@ -5177,71 +5181,71 @@
    },
    "ED46990": {
     "message": "':…[]' makes many instances — a replication belongs on a child element, not here",
-    "at": "instantiate.ts:1307"
+    "at": "instantiate.ts:1309"
    },
    "EA9624C": {
     "message": "datapath = :… — a cursor is ONE place; a selective or data-resolved path matches elsewhere. Read it as a value, or replicate over it: datapath = :…[]",
-    "at": "instantiate.ts:1316"
+    "at": "instantiate.ts:1318"
    },
    "E0CEFC8": {
     "message": "class … contains itself — a class may not appear inside its own body",
-    "at": "instantiate.ts:1400"
+    "at": "instantiate.ts:1388"
    },
    "EC716D7": {
     "message": "defaultPlacement = … — '…' has no child named '…' to place children into",
-    "at": "instantiate.ts:1409"
+    "at": "instantiate.ts:1397"
    },
    "E6D26FF": {
     "message": "a Dataset needs data — a JSON body '{ … }' or a derived 'contents = { … }'",
-    "at": "instantiate.ts:1491"
+    "at": "instantiate.ts:1479"
    },
    "EBDD8CF": {
     "message": "…: the embedded data does not match the schema — …",
-    "at": "instantiate.ts:1513"
+    "at": "instantiate.ts:1501"
    },
    "EDB5B68": {
     "message": "a … overrides its enclosing view's attributes, but '…' has no view to target here",
-    "at": "instantiate.ts:1675"
+    "at": "instantiate.ts:1663"
    },
    "EAC3FD7": {
     "message": "….…: a state override is a value or a { }, not a data read",
-    "at": "instantiate.ts:1701"
+    "at": "instantiate.ts:1689"
    },
    "E95A703": {
     "message": "….…: a layout attribute takes a literal or { }",
-    "at": "instantiate.ts:1764"
+    "at": "instantiate.ts:1752"
    },
    "EB3EBF7": {
     "message": "a replicated child cannot be named — ':…[]' makes one instance per record, and '…' can only name one; reach the instances through their data",
-    "at": "instantiate.ts:1832"
+    "at": "instantiate.ts:1820"
    },
    "E418372": {
     "message": "virtualize = { … } …",
-    "at": "instantiate.ts:1853"
+    "at": "instantiate.ts:1841"
    },
    "EF86534": {
     "message": "'…' is already a member of the running … — choose another name for this child",
-    "at": "instantiate.ts:1885"
+    "at": "instantiate.ts:1873"
    },
    "EEF1C34": {
     "message": "createView: this tree was not built from a program (no registry to resolve '…' against)",
-    "at": "instantiate.ts:1918"
+    "at": "instantiate.ts:1906"
    },
    "E9FB588": {
     "message": "createView: no class named '…' — declare the class, include its library, or keep it with 'use [ … ]'",
-    "at": "instantiate.ts:1921"
+    "at": "instantiate.ts:1909"
    },
    "E4412EB": {
     "message": "createView: …",
-    "at": "instantiate.ts:1951"
+    "at": "instantiate.ts:1939"
    },
    "ED8CD97": {
     "message": "a … cannot replicate — it is not a view",
-    "at": "instantiate.ts:1973"
+    "at": "instantiate.ts:1961"
    },
    "E367A91": {
     "message": "evaluate: this tree was not built from a program (no registry to resolve against)",
-    "at": "instantiate.ts:2028"
+    "at": "instantiate.ts:2016"
    },
    "EA29774": {
     "message": "[Declare] ….post(\"…\"): no tenant linked — message dropped",

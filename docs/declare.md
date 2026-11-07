@@ -241,7 +241,7 @@ or `Dataset` when it is those records' own logic.
 (and a use site's) are appended to the instance, after the base class's own. A class that is a
 frame around content names the child the content belongs in — `class Sheet [
 defaultPlacement = body, body: View [ … ] ]` — and every subclass's and use site's children go
-into `body`, in order, and a `layout:` written beside them goes with them, replacing `body`'s; the base's own children never move. **A child can exist
+into `body`, in order, arranged by `body`'s layout (a `layout:` is its own element's); the base's children never move. **A child can exist
 conditionally:** `exists = { … }` builds it while true and discards it while false, in its
 place (`visible` keeps a hidden view built — a focus sink, a definition read by its parent).
 

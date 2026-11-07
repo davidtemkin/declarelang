@@ -388,7 +388,7 @@ export class Layout extends Node {
         const v = child[slot];
         const shown = typeof v === "number" || typeof v === "boolean" ? String(v) : null;
         console.error("[Declare] " +
-            discardedValueMessage(declareName(child), slot, shown, arranger, setPosOf(child, slot)));
+            discardedValueMessage(declareName(child), slot, shown, arranger, setPosOf(child, slot), child));
     }
     /** `Class.slot` pairs already reported as discarded — see reportDiscarded. */
     discarded = new Set();
