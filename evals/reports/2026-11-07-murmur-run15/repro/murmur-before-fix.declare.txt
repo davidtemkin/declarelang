@@ -1,0 +1,1102 @@
+/*
+# Murmur
+
+A conversation app: six conversations, forty-four thousand messages of
+history, and a live feed that keeps adding to them while you read.
+
+How it is put together:
+
+- **The records live in one place**, `app.murmur`, a `DataSource` class that
+  loads the whole history once and owns every write to it: what arrives on the
+  live socket, what you send, what you react with, what you have read. Nothing
+  else holds a copy.
+- **Where you are** is one attribute, `location` — the open conversation, so
+  Back on a phone closes it. Everything else on the App is derived.
+- **Each conversation is its own scrolling pane**, built once and kept, so
+  coming back to one finds it exactly where you left it. Its messages are
+  virtualized: only the rows near the screen exist. The pane reads from the
+  bottom (`scrollAnchor = end`), which is the whole of "a new message comes
+  into view when you are at the end, and leaves you alone when you are not".
+- **A message row decides its own furniture** from its neighbours: whether it
+  starts a new day, whether it continues the run of the person before it,
+  whether its time is shown. The records stay the records.
+
+The look — palettes, icons, the avatar — is in `murmur-parts.declare`.
+*/
+
+include [ "murmur-parts.declare" ]
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+//
+// Functions of their arguments: dates, durations, initials, the reaction
+// tally. A constraint that calls one depends only on what it passes.
+
+script {
+    type Frame = { t: string, thread?: string, person?: string, state?: string, ref?: string,
+        message?: any, emoji?: string, through?: string }
+
+    type Chip = { id: string, emoji: string, count: number, mine: boolean, who: string[] }
+
+    const DAY = 86400000
+    const timeFmt = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" })
+    const weekdayFmt = new Intl.DateTimeFormat(undefined, { weekday: "long" })
+    const shortFmt = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short" })
+    const longFmt = new Intl.DateTimeFormat(undefined, { weekday: "long", day: "numeric", month: "long" })
+    const yearFmt = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "long", year: "numeric" })
+    const listYearFmt = new Intl.DateTimeFormat(undefined, { day: "numeric", month: "short", year: "2-digit" })
+    const monthYearFmt = new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" })
+
+    function midnight(t: number): number { const d = new Date(t); d.setHours(0, 0, 0, 0); return d.getTime() }
+    function daysAgo(iso: string, now: number): number {
+        return Math.round((midnight(now) - midnight(Date.parse(iso))) / DAY)
+    }
+    function dayKey(iso: string): string { const d = new Date(iso); return d.getFullYear() + "-" + d.getMonth() + "-" + d.getDate() }
+    function sameRun(a: string, b: string): boolean { return Math.abs(Date.parse(b) - Date.parse(a)) < 6 * 60000 }
+    function hhmm(iso: string): string { return iso == "" ? "" : timeFmt.format(new Date(iso)) }
+
+    // A day heading: Today, Yesterday, a weekday this week, else the date.
+    function dayLabel(iso: string, now: number): string {
+        if (iso == "") return ""
+        const n = daysAgo(iso, now)
+        const d = new Date(iso)
+        if (n == 0) return "Today"
+        if (n == 1) return "Yesterday"
+        if (n < 7 && n > 0) return weekdayFmt.format(d)
+        return d.getFullYear() == new Date(now).getFullYear() ? longFmt.format(d) : yearFmt.format(d)
+    }
+
+    // The list's time: a clock time today, a weekday this week, else a date.
+    function stamp(iso: string, now: number): string {
+        if (iso == "") return ""
+        const n = daysAgo(iso, now)
+        const d = new Date(iso)
+        if (n == 0) return timeFmt.format(d)
+        if (n == 1) return "Yesterday"
+        if (n < 7 && n > 0) return weekdayFmt.format(d).slice(0, 3)
+        return d.getFullYear() == new Date(now).getFullYear() ? shortFmt.format(d) : listYearFmt.format(d)
+    }
+
+    function since(iso: string): string { return iso == "" ? "" : monthYearFmt.format(new Date(iso)) }
+
+    function clock(sec: number): string {
+        const s = Math.max(0, Math.round(sec))
+        return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0")
+    }
+
+    function initials(name: string): string {
+        const parts = name.trim().split(/\s+/).filter((p) => p != "")
+        if (parts.length == 0) return ""
+        return (parts[0][0] + (parts.length > 1 ? parts[parts.length - 1][0] : "")).toUpperCase()
+    }
+
+    function grouped(n: number): string { return n.toLocaleString() }
+
+    // Three dots, each brightening in turn.
+    function dotLevel(phase: number, i: number): number {
+        const p = (phase / 1.2 - i * 0.18 + 1) % 1
+        return 0.3 + 0.7 * Math.max(0, Math.sin(p * Math.PI * 1.6))
+    }
+
+    // Reactions as the chips under a message: one per mark, how many, whether
+    // one of them is yours, and who.
+    function tally(list: { person: string, emoji: string }[], me: string): Chip[] {
+        const out: Chip[] = []
+        for (const r of list) {
+            let c = out.find((x) => x.emoji == r.emoji)
+            if (!c) { c = { id: r.emoji, emoji: r.emoji, count: 0, mine: false, who: [] }; out.push(c) }
+            c.count += 1
+            c.who.push(r.person)
+            if (r.person == me) c.mine = true
+        }
+        return out
+    }
+    }
+
+
+// ── The shape of the data ───────────────────────────────────────────────────
+
+schema Person [ id: string, name: string, avatar?: string ]
+schema Sendable [ src: string, alt: string ]
+schema Reaction [ person: string, emoji: string ]
+
+// A message as the service sends it, plus what this app adds to one you sent:
+// `pending` until the service answers, then its `sid`, the id it was given.
+
+schema Message [ id: string, from: string, at: string, kind: "text" | "photo" | "voice",
+    text?: string, src?: string, alt?: string, durationMs?: number, peaks[]?: number,
+    reactions[]?: Reaction, pending?: boolean, sid?: string ]
+
+// Who has read how far, as an index into the messages.
+
+schema Seen [ person: string, index: number ]
+
+// A conversation as served, plus what this session knows about it: how far
+// you have read (`read`, a count of messages), where the unread ones began
+// when you last opened it (`mark`), who is writing now, and who has seen what.
+
+schema Thread [ id: string, title?: string, participants[]: string, lastSeen: string,
+    messages[]: Message, read?: number, mark?: number, typing[]?: string, seen[]?: Seen ]
+
+schema Inbox [ rows[]: Thread ]
+schema Emoji [ id: string, e: string ]
+
+
+// ── The records ─────────────────────────────────────────────────────────────
+//
+// The whole history arrives once. The live socket opens when it has, and
+// every frame it brings is written into the same records — so the list, the
+// open conversation and the unread counts all follow with no code of theirs.
+
+class Murmur extends DataSource [ autoFetch = true,
+    schema = [ me: string, people[]: Person, sendable[]: Sendable, threads[]: Thread ],
+    base: string = "",
+    url = { classroot.base == "" ? "" : classroot.base + "/threads.json" },
+
+    me: string = { this.value?.me ?? "" },
+    sent: number = 0,                       // how many you have sent: each gets its own ref
+
+    // ── reading
+
+    people() -> Person[] { return this.value?.people ?? [] },
+    threads() -> Thread[] { return this.value?.threads ?? [] },
+    at(id: string) -> number { return this.threads().findIndex((t) => t.id == id) },
+    thread(id: string) -> Thread? { return this.threads().find((t) => t.id == id) ?? null },
+    get(id: string) -> Thread { return this.thread(id) ?? ({ id: id, participants: [], lastSeen: "", messages: [] }) },
+    person(id: string) -> Person? { return this.people().find((p) => p.id == id) ?? null },
+    nameOf(id: string) -> string { return id == this.me ? "You" : this.person(id)?.name ?? "" },
+    firstName(id: string) -> string { return id == this.me ? "You" : this.nameOf(id).split(" ")[0] },
+    hueOf(id: string) -> number { return Math.max(0, this.people().findIndex((p) => p.id == id)) % 8 },
+    media(path: string) -> string { return path == "" ? "" : this.base + "/" + path },
+    avatarOf(id: string) -> string { return this.media(this.person(id)?.avatar ?? "") },
+    altOf(src: string) -> string { return (this.value?.sendable ?? []).find((s) => s.src == src)?.alt ?? "" },
+
+    others(t: Thread) -> string[] { return t.participants.filter((p) => p != this.me) },
+    titleIn(tid: string) -> string {
+        const t = this.thread(tid)
+        if (t == null) return ""
+        if (t.title != null) return t.title
+        const others = t.participants.filter((p) => p != this.me)
+        return others.length == 1 ? this.nameOf(others[0]) : others.map((p) => this.firstName(p)).join(", ")
+        },
+    lastOf(t: Thread) -> Message? { return t.messages[t.messages.length - 1] ?? null },
+    lastAt(t: Thread) -> string { return this.lastOf(t)?.at ?? "" },
+
+    // The faces a conversation shows: the most recent other voices first.
+    faces(t: Thread) -> string[] {
+        const out: string[] = []
+        for (let i = t.messages.length - 1; i >= 0 && out.length < 2 && i > t.messages.length - 60; i--) {
+            const f = t.messages[i].from
+            if (f != this.me && !out.includes(f)) out.push(f)
+            }
+        for (const p of this.others(t)) if (out.length < 2 && !out.includes(p)) out.push(p)
+        return out
+        },
+
+    // What has arrived from others since you last looked.
+    unread(t: Thread) -> number {
+        let n = 0
+        for (let i = t.read ?? t.messages.length; i < t.messages.length; i++) if (t.messages[i].from != this.me) n++
+        return n
+        },
+    // The same, by conversation id: what the views ask.
+    facesIn(tid: string) -> string[] { return this.faces(this.get(tid)) },
+    unreadIn(tid: string) -> number { return this.unread(this.get(tid)) },
+    lastAtIn(tid: string) -> string { return this.lastAt(this.get(tid)) },
+    othersIn(tid: string) -> string[] { return this.others(this.get(tid)) },
+    totalUnread: number = { this.threads().reduce((n, t) => n + this.unread(t), 0) },
+
+    // What a message says, in a line: for the list, and for the reaction sheet.
+    gist(m: Message?) -> string {
+        if (m == null) return ""
+        if (m.kind == "photo") return "Photo"
+        if (m.kind == "voice") return "Voice message · " + clock((m.durationMs ?? 0) / 1000)
+        return m.text ?? ""
+        },
+    previewIn(tid: string) -> string { return this.preview(this.get(tid)) },
+    preview(t: Thread) -> string {
+        const m = this.lastOf(t)
+        if (m == null) return "No messages yet"
+        const who = m.from == this.me ? "You: " : this.others(t).length > 1 ? this.firstName(m.from) + ": " : ""
+        return who + this.gist(m)
+        },
+
+    // The conversations, most recent first. These are the threads themselves,
+    // not copies, so the list's rows read the live records.
+    byRecent() -> Inbox {
+        const rows = [...this.threads()]
+        rows.sort((a, b) => this.lastAt(b).localeCompare(this.lastAt(a)))
+        return ({ rows: rows })
+        },
+
+    // Where a message is in its conversation, searching from the end, where
+    // anything that changes almost always is.
+    find(i: number, id: string) -> number {
+        const ms = this.threads()[i]?.messages ?? []
+        for (let j = ms.length - 1; j >= 0; j--) if (ms[j].id == id || ms[j].sid == id) return j
+        return -1
+        },
+
+    // ── arrival: everything the service says is written here
+
+    onLoad() {
+        this.threads().forEach((t, i) => {
+            const j = t.messages.findIndex((m) => m.id == t.lastSeen)
+            this.set(["threads", i, "read"], j + 1)
+            })
+        },
+
+    live: Socket [ url = { classroot.loaded ? classroot.base.replace(/^http/, "ws") + "/live" : "" },
+        onMessage(e: StreamMessage) { classroot.hear(JSON.parse(e.data) as Frame) }
+        ],
+
+    hear(f: Frame) {
+        const i = this.at(f.thread ?? "")
+        if (f.t == "sent") { this.confirm(f.ref ?? "", f.message as Message); return }
+        if (i < 0) return
+        if (f.t == "message") this.arrive(i, f.message as Message)
+        else if (f.t == "reaction") this.attach(i, f.message as string, f.person ?? "", f.emoji ?? "")
+        else if (f.t == "composing") this.composing(i, f.person ?? "", f.state == "start")
+        else if (f.t == "seen") this.seenBy(i, f.person ?? "", f.through ?? "")
+        },
+
+    arrive(i: number, m: Message) {
+        this.composing(i, m.from, false)
+        this.set(["threads", i, "messages", "-"], m)
+        },
+
+    composing(i: number, person: string, on: boolean) {
+        const now = this.threads()[i].typing ?? []
+        if (on == now.includes(person)) return
+        this.set(["threads", i, "typing"], on ? [...now, person] : now.filter((p) => p != person))
+        },
+
+    seenBy(i: number, person: string, through: string) {
+        const j = this.find(i, through)
+        if (j < 0) return
+        const now = (this.threads()[i].seen ?? []).filter((s) => s.person != person)
+        this.set(["threads", i, "seen"], [...now, ({ person: person, index: j })])
+        },
+
+    attach(i: number, id: string, person: string, emoji: string) {
+        const j = this.find(i, id)
+        if (j < 0) return
+        const now = this.threads()[i].messages[j].reactions ?? []
+        if (now.some((r) => r.person == person && r.emoji == emoji)) return
+        this.set(["threads", i, "messages", j, "reactions"], [...now, ({ person: person, emoji: emoji })])
+        },
+
+    // The service's answer to something you sent: it keeps its place and
+    // identity here, and learns the id the service gave it.
+    confirm(ref: string, m: Message) {
+        this.threads().forEach((t, i) => {
+            const j = this.find(i, ref)
+            if (j < 0) return
+            this.set(["threads", i, "messages", j, "sid"], m.id)
+            this.set(["threads", i, "messages", j, "at"], m.at)
+            this.set(["threads", i, "messages", j, "pending"], false)
+            })
+        },
+
+    // ── what you do
+
+    send(tid: string, kind: "text" | "photo", body: string) {
+        const i = this.at(tid)
+        if (i < 0 || body.trim() == "") return
+        this.sent = this.sent + 1
+        const ref = "local-" + this.sent
+        const at = new Date().toISOString()
+        const m: Message = kind == "text"
+            ? ({ id: ref, from: this.me, at: at, kind: "text", text: body, pending: true })
+            : ({ id: ref, from: this.me, at: at, kind: "photo", src: body, alt: this.altOf(body), pending: true })
+        this.set(["threads", i, "messages", "-"], m)
+        this.set(["threads", i, "read"], this.threads()[i].messages.length + 1)
+        this.live.send(JSON.stringify(kind == "text"
+            ? ({ t: "send", ref: ref, thread: tid, kind: "text", text: body })
+            : ({ t: "send", ref: ref, thread: tid, kind: "photo", src: body })))
+        },
+
+    react(tid: string, id: string, emoji: string) {
+        const i = this.at(tid)
+        const j = this.find(i, id)
+        if (j < 0) return
+        const m = this.threads()[i].messages[j]
+        this.attach(i, id, this.me, emoji)
+        this.live.send(JSON.stringify(({ t: "react", thread: tid, message: m.sid ?? m.id, emoji: emoji })))
+        },
+
+    // Opening a conversation remembers where its unread messages began, for
+    // the "New" rule, then counts them read.
+    opened(tid: string) {
+        const i = this.at(tid)
+        if (i < 0) return
+        const t = this.threads()[i]
+        const r = t.read ?? t.messages.length
+        this.set(["threads", i, "mark"], this.unread(t) > 0 ? r : -1)
+        this.markRead(tid)
+        },
+    markRead(tid: string) {
+        const i = this.at(tid)
+        if (i < 0) return
+        const n = this.threads()[i].messages.length
+        if ((this.threads()[i].read ?? 0) != n) this.set(["threads", i, "read"], n)
+        }
+    ]
+
+
+// ── The arrangement ─────────────────────────────────────────────────────────
+//
+// Two children: the list and the open conversation. On a wide screen they
+// sit side by side. On a phone the conversation is pushed over the list, and
+// `push` (sprung, 0 to 1) is how far: the list slides a little way left and
+// dims as the conversation comes in over it, as a stack of pages does.
+
+class Stage extends Layout [
+    wide: boolean = true,
+    side: number = 360,
+    push: number = 0,
+    place() {
+        const w = this.contentExtent("width")
+        const h = this.contentExtent("height")
+        const p = this.push
+        return this.laid().map((c, i) => this.wide
+            ? (i == 0 ? ({ x: 0, y: 0, w: this.side, h: h }) : ({ x: this.side, y: 0, w: w - this.side, h: h }))
+            : (i == 0 ? ({ x: -0.28 * w * p, y: 0, w: w, h: h, vis: p < 0.999 })
+                      : ({ x: w * (1 - p), y: 0, w: w, h: h, vis: p > 0.001 })))
+        }
+    ]
+
+
+// The list's rows, stacked; when the order changes they glide to their new
+// places instead of jumping, so a conversation that rises to the top is seen
+// to rise.
+
+class Stack extends TweenLayout [ duration = 380,
+    gap: number = 2,
+    place() {
+        const w = this.contentExtent("width")
+        let y = 0
+        return this.laid().map((c) => {
+            const box = ({ x: 0, y: y, w: w, h: c.height })
+            y = y + c.height + this.gap
+            return box
+            })
+        }
+    ]
+
+
+// ── The list ────────────────────────────────────────────────────────────────
+
+class ThreadRow extends Control [ height = 76, cornerRadius = 16, padding = [0, 12, 0, 10],
+    tid: string = { :id ?? "" },
+    here: boolean = { app.openId == classroot.tid },
+    lit: boolean = { classroot.here && app.wide },
+    unread: number = { app.murmur.unreadIn(classroot.tid) },
+    typing: string[] = { :typing ?? [] },
+    title: string = { app.murmur.titleIn(classroot.tid) },
+    accessibilityLabel = { classroot.title + (classroot.unread > 0 ? ", " + classroot.unread + " unread" : "") },
+    press() { app.open(classroot.tid) },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").hover : null },
+    State [ applied = { classroot.lit }, fill = { provided("theme").surface },
+        shadow = { shadow(0, 1, 3, app.dark ? 0x00000066 : 0x1C1B1814) } ],
+    layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+
+    ThreadFace [ faces = { app.murmur.facesIn(classroot.tid) } ],
+
+    body: View [ flexes = true, shrinks = true,
+        layout: SimpleLayout [ axis = y, spacing = 3 ],
+        top: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
+            Text [ flexes = true, shrinks = true, wrap = false, maxLines = 1, fontSize = 16,
+                fontWeight = { classroot.unread > 0 ? "bold" : "semibold" }, text = { classroot.title } ],
+            Text [ fontSize = 13, wrap = false, numeralWidth = tabular,
+                fontWeight = { classroot.unread > 0 ? "semibold" : "regular" },
+                textColor = { classroot.unread > 0 ? provided("theme").unread : provided("theme").textFaint },
+                text = { stamp(app.murmur.lastAtIn(classroot.tid), app.now) } ]
+            ],
+        bottom: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+            typingLine: View [ exists = { classroot.typing.length > 0 }, flexes = true, height = 20,
+                layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+                TypingDots [ tone = { provided("theme").fills[app.murmur.hueOf(classroot.typing[0] ?? "")] } ],
+                Text [ shrinks = true, wrap = false, maxLines = 1, fontSize = 14, italic = true,
+                    textColor = { provided("theme").textMuted },
+                    text = { app.murmur.firstName(classroot.typing[0] ?? "") + " is writing" } ]
+                ],
+            Text [ exists = { classroot.typing.length == 0 }, flexes = true, shrinks = true,
+                maxLines = 2, fontSize = 14,
+                textColor = { classroot.unread > 0 ? provided("theme").text : provided("theme").textMuted },
+                text = { app.murmur.previewIn(classroot.tid) } ],
+            badge: View [ exists = { classroot.unread > 0 }, height = 20, cornerRadius = 10, padding = [0, 6, 0, 6],
+                width = { Math.max(20, this.contentWidth) },
+                fill = { provided("theme").unread },
+                TextLabel [ x = center, y = center, fontSize = 12, fontWeight = bold, numeralWidth = tabular,
+                    textColor = white, text = { classroot.unread > 99 ? "99+" : "" + classroot.unread } ]
+                ]
+            ]
+        ]
+    ]
+
+
+class InboxPane [ fill = { provided("theme").rail },
+    stroke = { app.wide ? [null, stroke(1, provided("theme").line), null, null] : null },
+    layout: SimpleLayout [ axis = y ],
+
+    head: View [ width = 100%, height = { 64 + app.safeTop }, padding = { [app.safeTop, 22, 0, 22] },
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Text [ flexes = true, fontFamily = { app.titleFace }, fontSize = 30, fontWeight = semibold, letterSpacing = -0.6,
+            text = "Murmur" ],
+        Text [ visible = { app.murmur.totalUnread > 0 }, fontSize = 13, fontWeight = semibold,
+            textColor = { provided("theme").unread }, text = { app.murmur.totalUnread + " new" } ]
+        ],
+
+    list: View [ width = 100%, flexes = true, scrolls = y, padding = [0, 8, 24, 8],
+        rows: View [ width = 100%, datapath = { app.inbox.value },
+            layout: Stack [ ],
+            ThreadRow [ datapath = :rows[] ]
+            ]
+        ]
+    ]
+
+
+// ── A message ───────────────────────────────────────────────────────────────
+//
+// Every kind of message has the same furniture around it, so the base class
+// draws it and the kinds supply only their bubble (`defaultPlacement`). What
+// the furniture shows is decided from the neighbours: the list provides its
+// records (`rows`), and a row reads the one before and after it.
+//
+//   a day heading      — when this message starts a day
+//   the "New" rule     — when the unread messages began here
+//   the sender's name  — in a group, at the start of someone's run
+//   the bubble         — corners tightened where the run continues
+//   its reactions
+//   its time           — at the end of a run, or "Sending…", or "Seen"
+
+class MsgRow [ width = 100%, defaultPlacement = slot,
+    mid: string = { :id ?? "" },
+    from: string = { :from ?? "" },
+    when: string = { :at ?? "" },
+    prev: Message? = { rowIndex > 0 ? provided("rows")[rowIndex - 1] ?? null : null },
+    next: Message? = { provided("rows")[rowIndex + 1] ?? null },
+    mine: boolean = { classroot.from == app.murmur.me },
+    group: boolean = { provided("group") },
+    newDay: boolean = { classroot.prev == null || dayKey(classroot.prev.at) != dayKey(classroot.when) },
+    startsUnread: boolean = { rowIndex == provided("mark") },
+    nextStartsUnread: boolean = { rowIndex + 1 == provided("mark") },
+    sameDayAsNext: boolean = { classroot.next != null && dayKey(classroot.next.at) == dayKey(classroot.when) },
+    prevIsMine: boolean = { classroot.prev != null && classroot.prev.from == classroot.from },
+    nextIsMine: boolean = { classroot.next != null && classroot.next.from == classroot.from },
+    soonAfterPrev: boolean = { classroot.prev != null && sameRun(classroot.prev.at, classroot.when) },
+    soonBeforeNext: boolean = { classroot.next != null && sameRun(classroot.when, classroot.next.at) },
+    runsOn: boolean = { classroot.prevIsMine && classroot.soonAfterPrev },
+    runsInto: boolean = { classroot.nextIsMine && classroot.soonBeforeNext },
+    joinPrev: boolean = { classroot.runsOn && !classroot.newDay && !classroot.startsUnread },
+    joinNext: boolean = { classroot.runsInto && classroot.sameDayAsNext && !classroot.nextStartsUnread },
+    showName: boolean = { classroot.group && !classroot.mine && !classroot.joinPrev },
+    pending: boolean = { :pending ?? false },
+
+    // The paper this message is set on, and its ink: yours in deep ink, each
+    // other person's on their own tint.
+    hue: number = { app.murmur.hueOf(classroot.from) },
+    paper: Color = { classroot.mine ? provided("theme").mine : provided("theme").tints[classroot.hue] },
+    ink: Color = { classroot.mine ? provided("theme").mineText : provided("theme").text },
+    big: number = 20,
+    small: number = 6,
+    corners: Radius = { classroot.mine
+        ? [classroot.big, classroot.joinPrev ? classroot.small : classroot.big, classroot.joinNext ? classroot.small : classroot.big, classroot.big]
+        : [classroot.joinPrev ? classroot.small : classroot.big, classroot.big, classroot.big, classroot.joinNext ? classroot.small : classroot.big] },
+
+    // The meta line under a run: the time, or what has become of what you sent.
+    seenLine: string = { rowIndex == provided("lastMine") ? provided("seenLine") : "" },
+    endsRun: boolean = { !classroot.joinNext },
+    stamped: string = { classroot.seenLine != "" ? hhmm(classroot.when) + " · " + classroot.seenLine
+        : classroot.endsRun ? hhmm(classroot.when) : "" },
+    meta: string = { classroot.pending ? "Sending…" : classroot.stamped },
+
+    chips: Dataset [ contents = { { list: tally(:reactions ?? [], app.murmur.me) } } ],
+    reacting: boolean = { app.reactTo == classroot.mid && app.reactPicker.shown },
+
+    // Hold a message (or right-click it) to react to it.
+    onHold(e: PointerEvent) { app.pickReaction(this.line.stack.slot, classroot.mid) },
+    onContextMenu(e: PointerEvent) { app.pickReaction(this.line.stack.slot, classroot.mid) },
+
+    padding = { [classroot.newDay ? 8 : classroot.joinPrev ? 2 : 12, 0, 0, 0] },
+    layout: SimpleLayout [ axis = y ],
+
+    day: View [ exists = { classroot.newDay }, width = 100%, height = 48,
+        TextLabel [ x = center, y = center, fontSize = 12, fontWeight = semibold, letterSpacing = 0.8,
+            textTransform = uppercase, textColor = { provided("theme").textFaint },
+            text = { dayLabel(classroot.when, app.now) } ]
+        ],
+
+    fresh: View [ exists = { classroot.startsUnread }, width = 100%, height = 34,
+        View [ y = center, width = 100%, height = 1, fill = { provided("theme").unread }, opacity = 0.5 ],
+        View [ x = end, y = center, height = 20, padding = [0, 0, 0, 8], fill = { provided("theme").background },
+            TextLabel [ y = center, fontSize = 11, fontWeight = bold, letterSpacing = 0.8, textTransform = uppercase,
+                textColor = { provided("theme").unread }, text = "New" ]
+            ]
+        ],
+
+    line: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        gutter: View [ visible = { classroot.group && !classroot.mine }, width = 32,
+            Avatar [ exists = { classroot.showName }, width = 32, person = { classroot.from } ]
+            ],
+        stack: View [ flexes = true,
+            layout: SimpleLayout [ axis = y, spacing = 4, align = { classroot.mine ? "end" : "start" } ],
+            name: Text [ exists = { classroot.showName }, padding = [0, 0, 0, 12], fontSize = 13, fontWeight = semibold,
+                wrap = false, maxLines = 1, textColor = { provided("theme").inks[classroot.hue] },
+                text = { app.murmur.nameOf(classroot.from) } ],
+            slot: View [ opacity = { classroot.pending ? 0.72 : 1 } ],
+            reacts: View [ exists = { (:reactions ?? []).length > 0 }, datapath = { classroot.chips.value },
+                padding = [0, 4, 0, 4],
+                layout: SimpleLayout [ axis = x, spacing = 4 ],
+                ReactionChip [ datapath = :list[], mid = { classroot.mid } ]
+                ],
+            when: Text [ exists = { classroot.meta != "" }, padding = [0, 6, 2, 6], fontSize = 11,
+                numeralWidth = tabular, textColor = { provided("theme").textFaint }, text = { classroot.meta } ],
+
+            // On a desk, the way to react sits beside the bubble while the
+            // pointer is over the message; on a phone it is a hold.
+            reactBtn: IconButton [ ignoreLayout = true,
+                visible = { app.hasMouse && (classroot.hovered || this.focused || classroot.reacting) },
+                x = { classroot.mine ? parent.slot.x - 38 : parent.slot.x + parent.slot.width + 6 },
+                y = { parent.slot.y + parent.slot.height / 2 - 16 },
+                width = 32, height = 32, size = 16, tone = { provided("theme").textFaint },
+                shape = "react", accessibilityLabel = "React",
+                press() { app.pickReaction(classroot.line.stack.slot, classroot.mid) }
+                ]
+            ]
+        ]
+    ]
+
+
+// A reaction under a message: the mark and how many. Yours is outlined in
+// your ink. Pressing one adds yours.
+
+class ReactionChip extends Control [ height = 26, cornerRadius = 13, padding = [0, 8, 0, 7],
+    mid: string = "",
+    mine: boolean = { :mine ?? false },
+    n: number = { :count ?? 0 },
+    tooltipLabel = { ((:who ?? []) as string[]).map((p) => app.murmur.nameOf(p)).join(", ") },
+    accessibilityLabel = { (:emoji ?? "") + " " + classroot.n },
+    fill = { classroot.mine ? provided("theme").chipMine : provided("theme").chip },
+    stroke = { classroot.mine ? stroke(1.2, provided("theme").accent) : stroke(1, provided("theme").line) },
+    press() { app.murmur.react(app.openId, classroot.mid, :emoji ?? "") },
+    layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+    TextLabel [ fontSize = 14, text = { :emoji ?? "" } ],
+    TextLabel [ visible = { classroot.n > 1 }, fontSize = 12, fontWeight = semibold, numeralWidth = tabular,
+        textColor = { classroot.mine ? provided("theme").accent : provided("theme").textMuted },
+        text = { "" + classroot.n } ]
+    ]
+
+
+class TextMsg extends MsgRow [
+    bubble: View [ padding = [8, 13, 9, 13], cornerRadius = { classroot.corners }, fill = { classroot.paper },
+        Text [ width = { Math.min(this.contentWidth, provided("bubbleMax") - 26) }, fontSize = 16, lineHeight = 1.32,
+            selectable = true, textColor = { classroot.ink }, text = { :text ?? "" } ]
+        ]
+    ]
+
+
+// A photograph is shown whole, at its own shape. Its shape is not known until
+// it arrives, so it holds a 4:3 place in the meantime, set with what it shows.
+
+class PhotoMsg extends MsgRow [
+    ratio: number = { classroot.photo.pic.loaded && classroot.photo.pic.naturalHeight > 0
+        ? classroot.photo.pic.naturalWidth / classroot.photo.pic.naturalHeight : 4 / 3 },
+    maxW: number = { Math.min(provided("bubbleMax"), 340) },
+    pw: number = { Math.round(Math.min(classroot.maxW, 360 * classroot.ratio)) },
+    photo: Control [ width = { classroot.pw }, height = { Math.round(classroot.pw / classroot.ratio) },
+        cornerRadius = { classroot.corners }, clip = true, fill = { classroot.paper },
+        accessibilityLabel = { "Photo: " + (:alt ?? "") },
+        press() { app.viewPhoto(:src ?? "", :alt ?? "") },
+        Text [ x = center, y = center, width = { parent.width - 32 }, textAlign = center, fontSize = 13, italic = true,
+            visible = { !parent.pic.loaded }, textColor = { classroot.mine ? provided("theme").mineFaint : provided("theme").textMuted },
+            text = { :alt ?? "" } ],
+        pic: Image [ width = 100%, height = 100%, stretches = cover, source = { app.murmur.media(:src ?? "") },
+            opacity = 0,
+            Spring [ attribute = opacity, to = { parent.loaded ? 1 : 0 }, stiffness = 120, damping = 22 ] ]
+        ]
+    ]
+
+
+// A voice message: play, the shape of the recording, and its length — the
+// whole length before it plays, the time reached while it does.
+
+class VoiceMsg extends MsgRow [
+    secs: number = { (:durationMs ?? 0) / 1000 },
+    current: boolean = { app.voiceId == classroot.mid },
+    playing: boolean = { classroot.current && app.voicePlaying },
+    at: number = { classroot.current ? app.head : 0 },
+    voice: View [ height = 56, cornerRadius = { classroot.corners }, fill = { classroot.paper }, padding = [0, 14, 0, 8],
+        width = { Math.round(Math.min(provided("bubbleMax"), 236 + Math.min(classroot.secs, 90) * 2)) },
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        play: Control [ width = 40, height = 40, cornerRadius = 20,
+            fill = { classroot.mine ? provided("theme").mineText : provided("theme").fills[classroot.hue] },
+            scale = { pressed ? 0.92 : 1 }, pivotX = 20, pivotY = 20,
+            accessibilityLabel = { classroot.playing ? "Pause" : "Play voice message, " + clock(classroot.secs) },
+            press() { app.toggleVoice(classroot.mid, :src ?? "", classroot.secs) },
+            Glyph [ x = { classroot.playing ? 12 : 13 }, y = 12, iconSize = 16, weight = 1.4,
+                shape = { classroot.playing ? "pause" : "play" },
+                ink = { classroot.mine ? provided("theme").mine : 0xFFFFFF } ]
+            ],
+        wave: Scrubber [ flexes = true, height = 40,
+            peaks = { :peaks ?? [] }, secs = { classroot.secs }, at = { classroot.at },
+            live = { classroot.current },
+            ink = { classroot.mine ? provided("theme").mineText : provided("theme").fills[classroot.hue] },
+            accessibilityLabel = { "Position in voice message, " + clock(classroot.secs) },
+            scrub(frac: number) { app.seekVoice(classroot.mid, :src ?? "", classroot.secs, frac) },
+            letGo() { app.endScrub() }
+            ],
+        len: Text [ width = 36, textAlign = end, fontSize = 12, fontWeight = medium, numeralWidth = tabular,
+            textColor = { classroot.mine ? provided("theme").mineFaint : provided("theme").textMuted },
+            text = { clock(classroot.current ? classroot.at : classroot.secs) } ]
+        ]
+    ]
+
+
+// The scrubber. The recording's loudness, drawn as bars; what has played is
+// solid, what is still to come is faint, and the point reached is a bead.
+// Press anywhere on it to go there; drag sideways to move through it (a
+// vertical drag still scrolls the conversation). It is a slider to a screen
+// reader, and the arrow keys step five seconds.
+
+class Scrubber extends Control [ claim = x,
+    peaks: number[] = [],
+    secs: number = 0,
+    at: number = 0,
+    live: boolean = false,
+    ink: Color = gray,
+    dragging: boolean = false,
+    frac: number = { classroot.secs > 0 ? Math.min(1, classroot.at / classroot.secs) : 0 },
+
+    scrub(frac: number) { },
+    letGo() { },
+    scrubAt(x: number) { scrub(Math.max(0, Math.min(1, x / Math.max(1, width)))) },
+
+    accessibilityRole = slider,
+    accessibilityValue = { Math.round(at) },
+    accessibilityMin = 0,
+    accessibilityMax = { Math.round(secs) },
+    accessibilityIncrement() { scrub(Math.min(1, (at + 5) / Math.max(secs, 0.1))); letGo() },
+    accessibilityDecrement() { scrub(Math.max(0, (at - 5) / Math.max(secs, 0.1))); letGo() },
+
+    onPointerDown(e: PointerEvent) { super.onPointerDown(); dragging = true; scrubAt(e.x) },
+    onPointerMove(e: PointerEvent) { if (dragging && pressed) scrubAt(e.x) },
+    onPointerUp(e: PointerUpEvent) { if (dragging) { dragging = false; letGo() } },
+
+    // As many bars as fit, each the loudest of the samples it covers.
+    draw(d: DrawContext) {
+        if (peaks.length == 0) return
+        const w = d.w, h = d.h
+        const bar = 2.5, gap = 2
+        const n = Math.max(1, Math.floor((w + gap) / (bar + gap)))
+        const step = (w + gap) / n
+        const cut = frac * w
+        const shown = live || dragging
+        d.fillStyle = ink
+        for (let i = 0; i < n; i++) {
+            const a = Math.floor(i * peaks.length / n), b = Math.max(a + 1, Math.floor((i + 1) * peaks.length / n))
+            const level = Math.max(...peaks.slice(a, b))
+            const x = i * step
+            const bh = Math.max(3, level * (h - 6))
+            d.globalAlpha = shown && x + bar / 2 <= cut ? 1 : 0.4
+            d.beginPath()
+            d.roundRect(x, (h - bh) / 2, bar, bh, bar / 2)
+            d.fill()
+            }
+        d.globalAlpha = 1
+        if (shown) {
+            d.beginPath()
+            d.arc(Math.max(5, Math.min(w - 5, cut)), h / 2, dragging ? 7 : 5, 0, Math.PI * 2)
+            d.fill()
+            }
+        }
+    ]
+
+
+// Someone writing, at the foot of the conversation: their face and three
+// breathing dots on their paper.
+
+class TypingRow [ width = 100%, padding = [12, 0, 4, 0],
+    who: string = "",
+    group: boolean = false,
+    hue: number = { app.murmur.hueOf(classroot.who) },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = end ],
+    Avatar [ visible = { classroot.group }, width = 32, person = { classroot.who } ],
+    View [ height = 40, cornerRadius = 20, padding = [0, 16, 0, 16], fill = { provided("theme").tints[classroot.hue] },
+        accessibilityRole = status, accessibilityLabel = { app.murmur.firstName(classroot.who) + " is writing" },
+        TypingDots [ y = center, tone = { provided("theme").fills[classroot.hue] } ]
+        ]
+    ]
+
+
+// ── A conversation ──────────────────────────────────────────────────────────
+//
+// One per conversation, all built, one shown. A hidden pane keeps its scroll,
+// its draft and its built rows, so coming back to it is coming back.
+
+class ThreadPane [
+    tid: string = { :id ?? "" },
+    isOpen: boolean = { app.openId == classroot.tid },
+    visible = { classroot.isOpen },
+    draft: string = "",
+    group: boolean = { (:participants ?? []).length > 2 },
+    title: string = { app.murmur.titleIn(classroot.tid) },
+    count: number = { (:messages ?? []).length },
+    typing: string[] = { :typing ?? [] },
+    unread: number = { app.murmur.unreadIn(classroot.tid) },
+
+    // How far the bottom is, and whether you are there. At the bottom of the
+    // open conversation, whatever arrives is read.
+    below: number = { classroot.scroller.contentHeight - classroot.scroller.scrollY - classroot.scroller.height },
+    atBottom: boolean = { classroot.below < 64 },
+    caughtUp: boolean = { classroot.isOpen && classroot.atBottom },
+    trackChanges = ["caughtUp", "count"],
+    onChange() { if (caughtUp) app.murmur.markRead(tid) },
+
+    // Your latest message, and who has seen it.
+    lastMine: number = { app.lastMineIn(classroot.tid) },
+    seenLine: string = { app.seenLineFor(classroot.tid, classroot.lastMine) },
+
+    subtitle: string = { classroot.typing.length > 0
+        ? app.murmur.firstName(classroot.typing[0]) + " is writing…"
+        : classroot.group ? app.murmur.othersIn(classroot.tid).map((p) => app.murmur.firstName(p)).join(", ") + " and you"
+        : "" },
+
+    send() {
+        const text = draft.trim()
+        if (text == "") return
+        app.murmur.send(tid, "text", text)
+        draft = ""
+        scroller.scrollTo(Infinity, ({ duration: 240 }))
+        },
+    sendPhoto(src: string) {
+        app.murmur.send(tid, "photo", src)
+        scroller.scrollTo(Infinity, ({ duration: 240 }))
+        },
+    toEnd() { scroller.scrollTo(Infinity, ({ duration: 320 })) },
+
+    layout: SimpleLayout [ axis = y ],
+
+    header: View [ width = 100%, height = { 64 + app.safeTop }, padding = { [app.safeTop, 12, 0, app.wide ? 24 : 4] },
+        fill = { provided("theme").background },
+        stroke = { [null, null, stroke(1, provided("theme").line), null] },
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        IconButton [ visible = { !app.wide }, shape = "back", size = 20, tone = { provided("theme").accent },
+            accessibilityLabel = "Conversations", press() { app.close() } ],
+        ThreadFace [ side = 40, faces = { app.murmur.facesIn(classroot.tid) } ],
+        titles: View [ flexes = true, shrinks = true,
+            layout: SimpleLayout [ axis = y, spacing = 1 ],
+            Text [ width = 100%, wrap = false, maxLines = 1, fontSize = 17, fontWeight = semibold, text = { classroot.title } ],
+            Text [ visible = { classroot.subtitle != "" }, width = 100%, wrap = false, maxLines = 1, fontSize = 13,
+                textColor = { classroot.typing.length > 0 ? provided("theme").inks[app.murmur.hueOf(classroot.typing[0])] : provided("theme").textMuted },
+                text = { classroot.subtitle } ]
+            ]
+        ],
+
+    scroller: View [ width = 100%, flexes = true, scrolls = y, scrollAnchor = end,
+        page: View [ x = center, width = { Math.min(parent.width, 780) },
+            padding = { [0, app.wide ? 32 : 12, 16, app.wide ? 32 : 12] },
+            layout: SimpleLayout [ axis = y ],
+
+            // The top of the history: who this is, and how long it has gone on.
+            intro: View [ width = 100%, padding = [40, 0, 24, 0],
+                layout: SimpleLayout [ axis = y, spacing = 8, align = center ],
+                ThreadFace [ faces = { app.murmur.facesIn(classroot.tid) } ],
+                Text [ width = { Math.min(this.contentWidth, parent.width - 40) }, textAlign = center,
+                    fontFamily = { app.titleFace }, fontSize = 24, fontWeight = semibold,
+                    text = { classroot.title } ],
+                Text [ fontSize = 13, textColor = { provided("theme").textMuted },
+                    text = { grouped(classroot.count) + (classroot.count == 1 ? " message" : " messages")
+                        + " since " + since((:messages ?? [])[0]?.at ?? "") } ]
+                ],
+
+            list: View [ width = 100%,
+                rows: array = { :messages ?? [] },
+                mark: number = { :mark ?? -1 },
+                group: boolean = { classroot.group },
+                lastMine: number = { classroot.lastMine },
+                seenLine: string = { classroot.seenLine },
+                bubbleMax: number = { Math.round(Math.min(520, this.width * 0.76)) },
+                layout: SimpleLayout [ axis = y ],
+                MsgRow [ datapath = :messages[], virtualize = true,
+                    classFor = { :kind == "photo" ? PhotoMsg : :kind == "voice" ? VoiceMsg : TextMsg } ]
+                ],
+
+            TypingRow [ exists = { classroot.typing.length > 0 }, who = { classroot.typing[0] ?? "" },
+                group = { classroot.group } ]
+            ],
+
+        // The day you are reading, while you move through the history.
+        dayChip: View [ ignoreScroll = true, x = center, y = 10, height = 28, cornerRadius = 14, padding = [0, 12, 0, 12],
+            fill = { provided("theme").surface }, shadow = { shadow(0, 2, 10, 0x00000022) },
+            showing: boolean = { parent.userScrolling && classroot.below > 200 },
+            opacity = 0,
+            Spring [ attribute = opacity, to = { parent.showing ? 1 : 0 }, stiffness = 260, damping = 30 ],
+            visible = { this.opacity > 0.01 },
+            TextLabel [ y = center, fontSize = 12, fontWeight = semibold, textColor = { provided("theme").textMuted },
+                text = { dayLabel((app.murmur.get(classroot.tid).messages[classroot.scroller.page.list.firstVisibleRow] ?? null)?.at ?? "", app.now) } ]
+            ],
+
+        // Back to the latest: there whenever you are away from it, and saying
+        // how many have arrived below you.
+        jump: Control [ ignoreScroll = true, x = { parent.width - this.width - 20 }, y = { parent.height - this.height - 16 }, height = 40, cornerRadius = 20,
+            padding = { classroot.unread > 0 ? [0, 14, 0, 10] : [0, 12, 0, 12] },
+            visible = { classroot.below > 360 || (classroot.unread > 0 && !classroot.atBottom) },
+            fill = { classroot.unread > 0 ? provided("theme").accent : provided("theme").surface },
+            shadow = { shadow(0, 3, 12, 0x00000030) },
+            accessibilityLabel = { classroot.unread > 0 ? classroot.unread + " new messages" : "Latest messages" },
+            press() { classroot.toEnd() },
+            layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+            Glyph [ visible = { classroot.unread > 0 }, iconSize = 15, weight = 2, shape = "down", ink = white ],
+            Glyph [ visible = { classroot.unread == 0 }, iconSize = 16, weight = 2, shape = "down",
+                ink = { provided("theme").textMuted } ],
+            TextLabel [ visible = { classroot.unread > 0 }, fontSize = 13, fontWeight = semibold, textColor = white,
+                text = { classroot.unread + " new" } ]
+            ]
+        ],
+
+    // Writing. Return sends; Shift-Return is a new line.
+    composer: View [ width = 100%, padding = { [8, 10, 10 + Math.max(app.safeBottom, app.keyboardHeight), 6] },
+        fill = { provided("theme").background },
+        stroke = { [stroke(1, provided("theme").line), null, null, null] },
+        layout: SimpleLayout [ axis = x, spacing = 4, align = end ],
+        photos: IconButton [ shape = "photo", size = 20, tone = { provided("theme").textMuted },
+            accessibilityLabel = "Send a photo",
+            press() { app.photoPicker.showFor(this) } ],
+        field: TextInput [ flexes = true, height = 44, multiline = true, enterSubmits = true, wrap = true,
+            fontSize = 16, padding = [11, 16, 11, 16], cornerRadius = 22,
+            fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) },
+            placeholder = { "Message " + (classroot.group ? classroot.title : app.murmur.firstName(app.murmur.othersIn(classroot.tid)[0] ?? "")) },
+            accessibilityLabel = "Message",
+            value = { classroot.draft },
+            commit(v: string) { classroot.draft = v },
+            onEnter() { classroot.send() }
+            ],
+        sendBtn: Control [ width = 44, height = 44, cornerRadius = 22,
+            blank: boolean = { classroot.draft.trim() == "" },
+            disabled = { this.blank },
+            accessibilityLabel = "Send",
+            fill = { this.blank ? null : pressed ? provided("theme").accentPressed : provided("theme").accent },
+            press() { classroot.send() },
+            Glyph [ x = center, y = center, iconSize = 18, weight = 2.2, shape = "send",
+                ink = { parent.blank ? provided("theme").textFaint : provided("theme").accentTextColor } ]
+            ]
+        ]
+    ]
+
+
+// A photograph you can send, in the picker.
+
+class PhotoChoice extends Control [ width = 84, height = 84, cornerRadius = 12, clip = true,
+    fill = { provided("theme").control },
+    accessibilityLabel = { "Send photo: " + (:alt ?? "") },
+    press() { app.sendPhoto(:src ?? "") },
+    Image [ width = 100%, height = 100%, stretches = cover, source = { app.murmur.media(:src ?? "") },
+        opacity = { pressed ? 0.75 : 1 } ]
+    ]
+
+
+class EmojiChoice extends Control [ width = 46, height = 46, cornerRadius = 23,
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").hover : null },
+    accessibilityLabel = { "React " + (:e ?? "") },
+    scale = { pressed ? 1.25 : hovered ? 1.12 : 1 }, pivotX = 23, pivotY = 23,
+    press() { app.react(:e ?? "") },
+    TextLabel [ x = center, y = center, fontSize = 26, text = { :e ?? "" } ]
+    ]
+
+
+// ── The app ─────────────────────────────────────────────────────────────────
+
+App [ appName = "Murmur", minWidth = 320, scrolls = none,
+    dark: boolean = { app.systemDark },
+    theme = { app.dark ? ({ ...SanFranciscoDark, ...MurmurDark }) : ({ ...SanFrancisco, ...MurmurLight }) },
+    fill = { provided("theme").background },
+    textColor = { provided("theme").text },
+    uiFace: array = { ["-apple-system", "system-ui", "Segoe UI", "Helvetica Neue", "sans-serif"] },
+    titleFace: array = { ["Iowan Old Style", "Palatino", "Georgia", "serif"] },
+    fontFamily = { app.uiFace },
+
+    // ── the service
+
+    api: string = "http://localhost:8330",
+    murmur: Murmur [ base = { app.api } ],
+    inbox: Dataset [ schema = Inbox, contents = { app.murmur.byRecent() } ],
+
+    // ── the clock: dates are labelled against it
+
+    clock: Time [ tick = minute ],
+    now: number = { app.clock.now },
+
+    // ── where you are: the open conversation, in the address
+
+    location = "",
+    openId: string = { app.murmur.thread(app.location) != null ? app.location : "" },
+    open(id: string) { location = id },
+    close() { location = "" },
+    trackChanges = ["openId"],
+    onChange() { if (openId != "") murmur.opened(openId) },
+    pane: ThreadPane? = { (app.convo.panes.childViews as ThreadPane[]).find((p) => p.tid == app.openId) ?? null },
+
+    // ── sizes
+
+    wide: boolean = { app.width >= 760 },
+    sideW: number = { app.width >= 1200 ? 400 : 340 },
+    push: number = 0,
+    Spring [ attribute = push, to = { app.openId != "" ? 1 : 0 }, stiffness = 340, damping = 34 ],
+
+    // ── who has seen what you sent
+
+    lastMineIn(tid: string) -> number {
+        const t = murmur.get(tid)
+        for (let i = t.messages.length - 1; i >= 0 && i > t.messages.length - 400; i--) if (t.messages[i].from == murmur.me) return i
+        return -1
+        },
+    seenLineFor(tid: string, i: number) -> string {
+        const t = murmur.get(tid)
+        if (i < 0 || (t.messages[i].pending ?? false)) return ""
+        const who = (t.seen ?? []).filter((s) => s.index >= i).map((s) => s.person)
+        if (who.length == 0) return ""
+        if (murmur.others(t).length == 1) return "Seen"
+        if (who.length == murmur.others(t).length) return "Seen by everyone"
+        return "Seen by " + who.map((p) => murmur.firstName(p)).join(", ")
+        },
+
+    // ── reactions
+
+    emojis: Dataset [ schema = [ rows[]: Emoji ] ] { { "rows": [
+        { "id": "heart", "e": "❤️" }, { "id": "laugh", "e": "😂" }, { "id": "wow", "e": "😮" },
+        { "id": "up", "e": "👍" }, { "id": "fire", "e": "🔥" }, { "id": "hundred", "e": "💯" } ] } },
+    reactTo: string = "",
+    pickReaction(anchor: View, id: string) { reactTo = id; reactPicker.showFor(anchor) },
+    react(e: string) { murmur.react(openId, reactTo, e); reactPicker.close() },
+
+    // ── photographs
+
+    viewing: string = "",
+    viewingAlt: string = "",
+    viewPhoto(src: string, alt: string) { viewingAlt = alt; viewing = src },
+    sendPhoto(src: string) { photoPicker.close(); pane?.sendPhoto(src) },
+
+    // ── voice: one clip at a time. `head` is the playhead, advanced smoothly
+    //    each frame and corrected by the clip whenever the two disagree.
+
+    voiceId: string = "",
+    voiceSrc: string = "",
+    voiceSecs: number = 0,
+    voicePlaying: boolean = false,
+    head: number = 0,
+    resume: boolean = false,
+    load(id: string, src: string, secs: number) {
+        if (voiceId == id) return
+        voiceId = id
+        voiceSrc = murmur.media(src)
+        voiceSecs = secs
+        head = 0
+        },
+    toggleVoice(id: string, src: string, secs: number) {
+        if (voiceId == id) { voicePlaying = !voicePlaying; return }
+        load(id, src, secs)
+        voicePlaying = true
+        },
+    seekVoice(id: string, src: string, secs: number, frac: number) {
+        if (voiceId != id) { load(id, src, secs); resume = true }
+        else if (!resume) resume = voicePlaying
+        voicePlaying = false
+        head = frac * secs
+        app.convo.player.position = head
+        },
+    endScrub() { if (resume) voicePlaying = true; resume = false },
+
+    // ── the typing dots' shared phase, running only while someone types
+
+    phase: number = 0,
+    anyTyping: boolean = { app.murmur.threads().some((t) => (t.typing ?? []).length > 0) },
+    dots: Time [ tick = frame, running = { app.anyTyping }, onTick(dt: number) { app.phase = (app.phase + dt / 1000) % 1.2 } ],
+
+    // ── the screen
+
+    layout: Stage [ wide = { app.wide }, side = { app.sideW }, push = { app.push } ],
+
+    list: InboxPane [ ],
+
+    convo: View [ fill = { provided("theme").background }, clip = true,
+        shadow = { app.wide ? null : shadow(-6, 0, 24, 0x00000026) },
+        panes: View [ width = 100%, height = 100%, datapath = { app.murmur.value },
+            ThreadPane [ datapath = :threads[], width = 100%, height = 100% ]
+            ],
+
+        // Nothing chosen yet, on a wide screen.
+        idle: View [ visible = { app.openId == "" }, width = 100%, height = 100%,
+            View [ x = center, y = center,
+                layout: SimpleLayout [ axis = y, spacing = 8, align = center ],
+                Text [ fontFamily = { app.titleFace }, fontSize = 28, fontWeight = semibold, textColor = { provided("theme").textMuted },
+                    text = { !app.murmur.loaded ? "" : app.murmur.totalUnread > 0 ? app.murmur.totalUnread + " new since you last looked" : "All caught up" } ],
+                Text [ fontSize = 14, textColor = { provided("theme").textFaint }, text = "Choose a conversation to read" ]
+                ]
+            ],
+
+        player: Audio [ source = { app.voiceSrc }, playing = { app.voicePlaying },
+            trackChanges = ["ended"],
+            onChange() { if (this.ended) { app.voicePlaying = false; app.head = 0 } }
+            ],
+        playhead: Time [ tick = frame, running = { app.voicePlaying },
+            onTick(dt: number) {
+                const p = app.convo.player.position
+                const next = app.head + dt / 1000
+                app.head = Math.abs(next - p) > 0.3 ? p : Math.min(next, app.voiceSecs)
+                }
+            ]
+        ],
+
+    // ── before anything has arrived
+
+    splash: View [ ignoreLayout = true, visible = { !app.murmur.loaded }, width = { app.width }, height = { app.height },
+        fill = { provided("theme").background },
+        View [ x = center, y = center,
+            layout: SimpleLayout [ axis = y, spacing = 10, align = center ],
+            Text [ fontFamily = { app.titleFace }, fontSize = 40, fontWeight = semibold, letterSpacing = -0.8, text = "Murmur" ],
+            Text [ fontSize = 14, textColor = { provided("theme").textMuted },
+                text = { app.murmur.failed ? "The conversation service isn't answering." : "Gathering your conversations…" } ]
+            ]
+        ],
+
+    // ── layers
+
+    reactPicker: Popover [ placement = "above",
+        row: View [ datapath = { app.emojis.value },
+            layout: SimpleLayout [ axis = x, spacing = 2 ],
+            EmojiChoice [ datapath = :rows[] ]
+            ]
+        ],
+
+    photoPicker: Popover [ placement = "above", accessibilityLabel = "Send a photo",
+        View [ width = 360, padding = [4, 4, 4, 4],
+            layout: SimpleLayout [ axis = y, spacing = 10 ],
+            Text [ fontSize = 13, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "Send a photo" ],
+            grid: View [ width = 100%, datapath = { app.murmur.value },
+                layout: WrappingLayout [ spacing = 8, rowSpacing = 8 ],
+                PhotoChoice [ datapath = :sendable[] ]
+                ]
+            ]
+        ],
+
+    viewer: Dialog [ presentation = "full", accessibilityLabel = "Photo",
+        shown = { app.viewing != "" },
+        input(open: boolean) { if (!open) app.viewing = "" },
+        stage: View [ width = 100%, height = 100%, fill = { provided("theme").scrim },
+            padding = { [56 + app.safeTop, 16, 72 + app.safeBottom, 16] },
+            dismiss: Control [ ignoreLayout = true, x = 0, y = 0, width = { parent.width }, height = { parent.height },
+                accessibilityLabel = "Close photo", press() { app.viewing = "" } ],
+            Image [ width = 100%, height = 100%, stretches = contain, source = { app.murmur.media(app.viewing) },
+                accessibilityRole = image, accessibilityLabel = { app.viewingAlt } ],
+            Text [ ignoreLayout = true, x = center, y = { parent.height - 52 - app.safeBottom },
+                width = { Math.min(parent.width - 48, 640) }, textAlign = center, fontSize = 14,
+                textColor = 0xFFFFFFCC, text = { app.viewingAlt } ],
+            IconButton [ ignoreLayout = true, x = { parent.width - 56 }, y = { 8 + app.safeTop }, shape = "close",
+                size = 18, tone = 0xFFFFFF, accessibilityLabel = "Close", press() { app.viewing = "" } ]
+            ]
+        ]
+    ]

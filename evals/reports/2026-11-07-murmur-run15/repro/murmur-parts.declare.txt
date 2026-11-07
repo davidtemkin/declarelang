@@ -1,0 +1,146 @@
+/*
+# Murmur: the parts
+
+The look of Murmur, kept apart from how it works: the two palettes, the
+drawn icons, and the small pieces every screen is built from (an avatar, an
+icon button, the typing dots). `murmur.declare` includes this file.
+
+The one idea in the palette: **every person has a colour, and the colour is
+the attribution.** A person's `hue` indexes three parallel lists — `fills`
+(their avatar, the dots when they type), `inks` (their name) and `tints` (the
+paper their words are set on). You are always the same deep ink.
+*/
+
+// ── Colours ─────────────────────────────────────────────────────────────────
+
+theme MurmurLight [
+    background = #F7F5F0, surface = #FFFFFF, card = #FFFFFF, rail = #EFECE5,
+    line = #E4E0D7, lineStrong = #D3CEC2, hover = #EAE6DD, selection = #E3DED2,
+    text = #1C1B18, textMuted = #6C675D, textFaint = #9A9488,
+    accent = #23308F, accentHovered = #1C2777, accentPressed = #161F60, accentTextColor = #FFFFFF,
+    linkColor = #23308F,
+    mine = #23308F, mineText = #FFFFFF, mineFaint = #C9CDF0,
+    unread = #E2552B, scrim = #0D0C0BEE, chip = #FFFFFF, chipMine = #E5E7F8,
+    control = #ECE8E0, controlHovered = #E3DED4, controlPressed = #D8D2C6, controlSelected = #E3DED2,
+
+    //       p1      p2      p3      p4      p5      p6      p7      p8
+
+    fills = [#23308F, #D2553A, #2E8A63, #B7791F, #3C7BBF, #B04A86, #6B5BC9, #1F8F98],
+    inks  = [#23308F, #B8442B, #22714F, #8F5B0E, #2A64A3, #933A6E, #5444AE, #16737B],
+    tints = [#E5E7F8, #F8E6DF, #E1F0E8, #F6ECD9, #E1EBF6, #F4E2EC, #EAE6F8, #DDF0F1]
+    ]
+
+
+theme MurmurDark [
+    background = #141414, surface = #1E1E1E, card = #1E1E1E, rail = #191919,
+    line = #2C2B29, lineStrong = #3A3936, hover = #262523, selection = #2E2D2A,
+    text = #F1EFEA, textMuted = #A8A398, textFaint = #78746B,
+    accent = #8D99FF, accentHovered = #A1ABFF, accentPressed = #7884F0, accentTextColor = #0E1030,
+    linkColor = #8D99FF,
+    mine = #3946B8, mineText = #FFFFFF, mineFaint = #AEB6F5,
+    unread = #FF7A50, scrim = #000000F2, chip = #2A2927, chipMine = #2C3270,
+    control = #262523, controlHovered = #2E2D2A, controlPressed = #3A3936, controlSelected = #2E2D2A,
+    fills = [#3946B8, #E06A4E, #3FA478, #D1932E, #5596DA, #CB5E9E, #8576E0, #2FAAB4],
+    inks  = [#AEB6F5, #F2967E, #73C9A0, #E6B562, #8DB9EA, #E795C2, #AFA3F0, #6CCAD2],
+    tints = [#2C3270, #3A2620, #1E3329, #372D1B, #1E2C3B, #36222E, #2A2640, #18333A]
+    ]
+
+
+// ── Icons ───────────────────────────────────────────────────────────────────
+//
+// One pen for every mark: a round-ended stroke on the library's 16-unit grid.
+
+class Glyph extends Icon [
+    shape: string = "",
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.fillStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        if (shape == "back") {
+            d.moveTo(10.5, 2.5); d.lineTo(5, 8); d.lineTo(10.5, 13.5); d.stroke()
+        } else if (shape == "send") {                       // an arrow up
+            d.moveTo(8, 13.5); d.lineTo(8, 2.8); d.moveTo(3.2, 7.4); d.lineTo(8, 2.6); d.lineTo(12.8, 7.4); d.stroke()
+        } else if (shape == "photo") {                      // a frame with a sun and a hill
+            d.roundRect(1.8, 3, 12.4, 10, 2)
+            d.moveTo(1.8, 11); d.lineTo(6, 7.4); d.lineTo(9.2, 10.2); d.lineTo(11, 8.8); d.lineTo(14.2, 11.4)
+            d.stroke(); d.beginPath(); d.arc(10.6, 6.2, 1.1, 0, 6.3); d.fill()
+        } else if (shape == "play") {
+            d.moveTo(5, 3); d.lineTo(13, 8); d.lineTo(5, 13); d.closePath(); d.fill(); d.stroke()
+        } else if (shape == "pause") {
+            d.roundRect(4, 3, 2.6, 10, 0.8); d.roundRect(9.4, 3, 2.6, 10, 0.8); d.fill()
+        } else if (shape == "down") {
+            d.moveTo(8, 2.8); d.lineTo(8, 13); d.moveTo(3.4, 8.6); d.lineTo(8, 13.2); d.lineTo(12.6, 8.6); d.stroke()
+        } else if (shape == "close") {
+            d.moveTo(3.5, 3.5); d.lineTo(12.5, 12.5); d.moveTo(12.5, 3.5); d.lineTo(3.5, 12.5); d.stroke()
+        } else if (shape == "react") {                      // a face with a small plus
+            d.arc(7, 9, 5.6, 0, 6.3)
+            d.moveTo(4.6, 10.6); d.quadraticCurveTo(7, 12.8, 9.4, 10.6)
+            d.moveTo(12.6, 1.2); d.lineTo(12.6, 5.4); d.moveTo(10.5, 3.3); d.lineTo(14.7, 3.3)
+            d.stroke(); d.beginPath(); d.arc(5.2, 7.6, 0.75, 0, 6.3); d.arc(8.8, 7.6, 0.75, 0, 6.3); d.fill()
+        }
+        }
+    ]
+
+
+// ── An avatar ───────────────────────────────────────────────────────────────
+//
+// A person's picture in a circle, or — when they have none, or it has not
+// arrived yet — their initials on their own colour. The picture lies over the
+// initials and fades in when it lands, so nothing pops.
+
+class Avatar [ width = 32, height = { this.width }, cornerRadius = { this.width / 2 }, clip = true,
+    person: string = "",
+    hue: number = { app.murmur.hueOf(classroot.person) },
+    src: string = { app.murmur.avatarOf(classroot.person) },
+    fill = { provided("theme").fills[classroot.hue] },
+    accessibilityRole = image,
+    accessibilityLabel = { app.murmur.nameOf(classroot.person) },
+    TextLabel [ x = center, y = center, fontSize = { classroot.width * 0.38 }, fontWeight = semibold,
+        letterSpacing = 0.3, textColor = white, text = { initials(app.murmur.nameOf(classroot.person)) } ],
+    pic: Image [ exists = { classroot.src != "" }, width = 100%, height = 100%, stretches = cover,
+        source = { classroot.src }, opacity = { this.loaded ? 1 : 0 } ]
+    ]
+
+
+// A conversation's face in the list: the other person, or for a group the two
+// most recent other voices, one tucked behind the other.
+
+class ThreadFace [ width = { classroot.side }, height = { classroot.side },
+    side: number = 52,
+    faces: string[] = [],
+    small: number = { Math.round(classroot.side * 0.7) },
+    one: Avatar [ exists = { classroot.faces.length < 2 }, width = { classroot.side }, person = { classroot.faces[0] ?? "" } ],
+    back: Avatar [ exists = { classroot.faces.length >= 2 }, width = { classroot.small }, person = { classroot.faces[1] ?? "" } ],
+    front: Avatar [ exists = { classroot.faces.length >= 2 }, x = { classroot.side - classroot.small }, y = { classroot.side - classroot.small },
+        width = { classroot.small }, stroke = { stroke(2.5, provided("theme").rail) }, person = { classroot.faces[0] ?? "" } ]
+    ]
+
+
+// ── Small controls ──────────────────────────────────────────────────────────
+
+// A round icon button: back, photo, send, close.
+
+class IconButton extends Control [ width = 44, height = 44, cornerRadius = 22,
+    shape: string = "",
+    tone: Color = gray,
+    size: number = 18,
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").hover : null },
+    Glyph [ x = center, y = center, iconSize = { classroot.size }, weight = 1.8,
+        shape = { classroot.shape }, ink = { classroot.tone } ]
+    ]
+
+
+// Three dots that breathe, in the colour of whoever is writing. A frame clock
+// runs only while some exist; each dot reads the shared phase.
+
+class TypingDots [ width = 30, height = 10,
+    tone: Color = gray,
+    layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+    View [ width = 6, height = 6, cornerRadius = 3, fill = { classroot.tone }, opacity = { dotLevel(app.phase, 0) } ],
+    View [ width = 6, height = 6, cornerRadius = 3, fill = { classroot.tone }, opacity = { dotLevel(app.phase, 1) } ],
+    View [ width = 6, height = 6, cornerRadius = 3, fill = { classroot.tone }, opacity = { dotLevel(app.phase, 2) } ]
+    ]

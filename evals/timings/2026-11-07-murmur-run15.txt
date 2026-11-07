@@ -1,0 +1,40 @@
+# eval-murmur-15.noindex
+total 33.9 min · 141 turns · output 113412 tokens (thinking 45279)
+phases: reading 4.3 · writing 4.5 · checking 25.2 min
+tool time 14.5 min · model time 19.4 min
+tools:
+  look      41×  12.41 min  (median 8.7 s)
+  verify    16×   1.80 min  (median 1.8 s)
+  help       9×   0.24 min  (median 0.5 s)
+model turns, by what came before:
+  after image    38×   4.54 min  (median 7.5 s)
+  after write     4×   4.50 min  (median 4.1 s)
+  after look     41×   3.70 min  (median 2.5 s)
+  after read     15×   2.78 min  (median 1.7 s)
+  after verify   16×   1.28 min  (median 4.1 s)
+  after help      9×   1.26 min  (median 4.5 s)
+  after bash     16×   1.10 min  (median 2.7 s)
+app: 2 .declare files, 1120 non-blank lines · 34 snapshots changed them: 1493 lines added, 171 removed
+verify results mentioning accessibility: 2
+diagnostic codes, by tool results reporting them: DECLARE7001 6, DECLARE4025 3, DECLARE2000 3, DECLARE6001 2, DECLARE3005 1, DECLARE4006 1, DECLARE2005 1, DECLARE4023 1, DECLARE4002 1, DECLARE4020 1, DECLARE4005 1, DECLARE1002 1, DECLARE4035 1, DECLARE4017 1, DECLARE3006 1, DECLARE4027 1
+inside the agent's verify and look calls:
+  12.48 min    45×  R5 behavior, in all
+  10.30 min    45×  script: the assert script, in all
+   8.07 min   153×  drive.waitReal
+   1.12 min    79×  drive.settleMotion
+   0.76 min    60×  compile (R1–R3)
+   0.59 min    52×  page: load, compile in the page and boot
+   0.42 min    51×  chrome: a browser (shared between calls)
+   0.13 min    17×  drive.wheel
+   0.09 min    25×  drive.click
+   0.09 min     6×  R4 boot, in all
+   0.08 min    52×  page: a new page
+   0.05 min    44×  screenshot: capture and write
+   0.04 min    22×  drive.wait
+   0.04 min     8×  drive.clickAt
+   0.01 min     2×  drive.hold
+   0.01 min     1×  drive.moveBy
+   0.00 min     6×  drive.key
+   0.00 min     3×  drive.type
+   0.00 min    51×  serve: start the program's server
+   0.00 min     1×  drive.press
