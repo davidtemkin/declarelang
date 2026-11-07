@@ -364,7 +364,8 @@ its subclasses and use sites write go **into** that child, after the child's own
 beside it. `class Panel [ defaultPlacement = body, body: View [ … ] ]` — a `DetailPanel`
 extending it, and a `Panel [ … ]` use site, fill `body`. The class's own children are never
 placed. A placed child's `parent` is the child it went into; it is still reachable by name
-from the class or use site that wrote it.
+from the class or use site that wrote it. Placed children are arranged by the child they go
+into: a `layout:` written beside them is the instance's own, as a layout always is.
 
 ## layout
 How this view arranges its children — a reactive `Layout` attribute, not a child and
