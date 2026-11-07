@@ -54,12 +54,12 @@ script {
                 "ker": 0
             },
             "totals": {
-                "calDom": 163.3,
+                "calDom": 163.2,
                 "calCanvas": 188.2,
-                "calMac": 138.9
+                "calMac": 138.8
             }
         },
-        "runtimeKB": 123.1,
+        "runtimeKB": 123,
         "kernelKB": 15.2,
         "kernelWasmGzipKB": 12.6,
         "kernelWasmRawKB": 23,

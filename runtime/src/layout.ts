@@ -438,7 +438,7 @@ export abstract class Layout extends Node implements LayoutStrategy {
     const shown = typeof v === "number" || typeof v === "boolean" ? String(v) : null;
     console.error(
       "[Declare] " +
-        discardedValueMessage(declareName(child), slot, shown, arranger, setPosOf(child, slot), child)
+        discardedValueMessage(declareName(child), slot, shown, arranger, setPosOf(child, slot))
     );
   }
 

@@ -131,25 +131,9 @@ export function layoutConflictMessage(
   write = false,
   child?: unknown
 ): string {
-  const framed = frameLayoutMessage(arranger, where, child);
-  if (framed !== null) return framed;
   const who = by !== null ? ` (set by ${by})` : "";
   const clause = write ? `cannot set its ${slot} while the layout arranges it` : `does not declare its ${slot}`;
   return diag`${childClass}.${slot}${who}${at(where)}${authorSite(child, where)} — ${arranger} ${arranges(slot)} its children, so this child ${clause}; ${layoutEscape(slot)}.`;
-}
-
-/** A FRAME'S OWN CHILD (its class names a `defaultPlacement`) refused by a layout
- *  written where the frame is used: a layout is the layout of the element it is
- *  written on, so it arranges the frame, not the content placed inside it — said
- *  so, rather than blaming a child the author never wrote. Null otherwise. */
-function frameLayoutMessage(arranger: string, where: Where | null | undefined, child: unknown): string | null {
-  type Framed = { parent?: { defaultPlacement?: string; layout?: { classroot?: unknown } | null } | null; classroot?: unknown };
-  const c = child as Framed | undefined, p = c?.parent;
-  if (p == null || typeof p.defaultPlacement !== "string" || p.defaultPlacement === "" || c!.classroot !== p) return null;
-  if (p.layout == null || p.layout.classroot === p) return null;
-  const frame = arranger.split("'s ")[0];
-  const site = authorSite(child, where).replace(/^ — in the /, "");
-  return diag`the layout written on the ${site !== "" ? site : frame} is ${frame}'s own: it arranges ${frame}'s own frame, not the content you put inside it. To arrange that content, put it in a View with that layout.`;
 }
 
 /** When a refusal's line is inside a library class, the place in the author's
@@ -192,11 +176,8 @@ export function discardedValueMessage(
   slot: string,
   value: string | null,
   arranger: string,
-  where?: Where | null,
-  child?: unknown
+  where?: Where | null
 ): string {
-  const framed = frameLayoutMessage(arranger, where, child);
-  if (framed !== null) return framed;
   const wrote = value === null ? "" : ` = ${value}`;
   return diag`${childClass}.${slot}${wrote}${at(where)} — ${arranger} ${arranges(slot)} its children, so this child does not declare its ${slot}; ${layoutEscape(slot)}.`;
 }

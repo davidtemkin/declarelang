@@ -86,7 +86,7 @@ export declare function authorSite(view: unknown, where: Where | null | undefine
 /** A LITERAL on an attribute a layout places — the same sentence as every other
  *  spelling, with the value shown, because the answer never depends on how the
  *  value was written: `y = 99` and `y = { 99 }` are one declaration. */
-export declare function discardedValueMessage(childClass: string, slot: string, value: string | null, arranger: string, where?: Where | null, child?: unknown): string;
+export declare function discardedValueMessage(childClass: string, slot: string, value: string | null, arranger: string, where?: Where | null): string;
 /** A CHILD SIZED FROM A PARENT THAT HAS NO SIZE TO GIVE (docs/system-design/
  *  layout-ownership.md §4): the parent takes its size from its content, the
  *  child does not count toward that content, so on this axis the child's

@@ -122,18 +122,6 @@ await test("autofill into a combobox nobody is in, naming no item: no list opens
   assert.match(r.out, /js: false/, "no list under a field nobody is in");
 });
 
-await test("a layout written on a frame class is the frame's own: the refusal says so, not that the frame's child is at fault", () => {
-  const f = join(DIR, "frame-layout.declare");
-  writeFileSync(f, `class Frame [ width = 300, height = 200, defaultPlacement = body,
-    edge: View [ x = 2, y = 2, width = 10, height = 10 ],
-    body: View [ layout: SimpleLayout [ axis = y ] ] ]
-App [ width = 400, height = 300,
-    f: Frame [ layout: SimpleLayout [ axis = x ], View [ width = 40, height = 20 ] ] ]`);
-  const r = run("verify.mjs", f, "--rung=4");
-  assert.match(r.out, /the layout written on the Frame is Frame's own: it arranges Frame's own frame, not the content you put inside it/, r.out);
-  assert.doesNotMatch(r.out, /View\.x = 2/, r.out);
-});
-
 await test("commit reads the caret after the keystroke; a field regrouped by admit keeps it", () => {
   const f = join(DIR, "keys.declare");
   writeFileSync(f, `App [ width = 400, height = 200, seen: number = -1, digits: string = "",
