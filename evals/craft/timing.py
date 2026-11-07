@@ -7,8 +7,10 @@
 # the first verify, checking to the end), tool time by kind, and the model's turns by
 # what came before them (a screenshot, a command, a document); from logs/timing.jsonl
 # (launch.sh sets DECLARE_TIMING_FILE), the stages inside the agent's verify and look
-# calls, summed. A run's logs are deleted when it is done; this is what is kept of them.
-import json, sys, os, datetime as dt, statistics as st
+# calls, summed; and counts that need no judgement: the app's size, its edits, and the
+# diagnostics the checks reported. A run's logs are deleted when it is done; this is what
+# is kept of them.
+import json, sys, os, re, datetime as dt, statistics as st
 
 run = sys.argv[1]
 rows = []
@@ -29,6 +31,7 @@ def kind_of(u):
     return u["name"].lower()
 
 uses, tool, turns = {}, {}, {}
+written, edits, replaced, codes, a11y = set(), 0, 0, {}, 0
 first_write = first_verify = None
 for i, r in enumerate(rows):
     c = (r.get("message") or {}).get("content")
@@ -38,8 +41,15 @@ for i, r in enumerate(rows):
             uses[b["id"]] = (b, ts(r))
             s = json.dumps(b["input"])
             if first_write is None and b["name"] in ("Write", "Edit") and ".declare" in s: first_write = ts(r)
+            p = str(b["input"].get("file_path", ""))
+            if b["name"] in ("Write", "Edit") and p.endswith(".declare"):
+                written.add(p); edits += 1
+                if b["name"] == "Edit": replaced += len([l for l in b["input"].get("old_string", "").splitlines() if l.strip()])
             if first_verify is None and "declare-verify" in s and first_write is not None: first_verify = ts(r)
         if b.get("type") == "tool_result" and b.get("tool_use_id") in uses:
+            out = b.get("content"); out = out if isinstance(out, str) else json.dumps(out)
+            for code in set(re.findall(r"DECLARE\d{4}", out)): codes[code] = codes.get(code, 0) + 1
+            if re.search(r"accessib", out, re.I) and kind_of(uses[b["tool_use_id"]][0]) == "verify": a11y += 1
             u, t0 = uses[b["tool_use_id"]]; t1 = ts(r); k = kind_of(u)
             if t0 and t1: tool.setdefault(k, []).append((t1 - t0).total_seconds())
             for r2 in rows[i + 1:]:
@@ -63,6 +73,10 @@ for k, v in sorted(tool.items(), key=lambda x: -sum(x[1])):
 print("model turns, by what came before:")
 for k, v in sorted(turns.items(), key=lambda x: -sum(x[1])):
     print(f"  after {k:7s} {len(v):3d}×  {sum(v)/60:5.2f} min  (median {st.median(v):.1f} s)")
+lines = sum(len([l for l in open(p, errors="replace") if l.strip()]) for p in written if os.path.exists(p))
+print(f"app: {len(written)} .declare files, {lines} non-blank lines · {edits} writes/edits to them, replacing {replaced} non-blank lines")
+print(f"verify results mentioning accessibility: {a11y}")
+if codes: print("diagnostic codes, by tool results reporting them: " + ", ".join(f"{c} {n}" for c, n in sorted(codes.items(), key=lambda x: -x[1])))
 tj = os.path.join(run, "logs", "timing.jsonl")
 if os.path.exists(tj):
     agg = {}
