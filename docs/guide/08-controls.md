@@ -23,6 +23,7 @@ what the library ships, and what `extends Control` makes yours.
 | [`Checkbox [ label, checked ]`](declare-docs:Checkbox) | `checked: boolean` | box, mark and label |
 | [`Switch [ checked ]`](declare-docs:Switch) | `checked: boolean` | a sliding thumb |
 | [`RadioGroup [ value ]`](declare-docs:RadioGroup) with [`Radio [ choice, label ]`](declare-docs:Radio) children | `value` on the group | one of several |
+| [`ChoiceControl [ value ]`](declare-docs:ChoiceControl) with [`ChoiceItem [ choice ]`](declare-docs:ChoiceItem) children | `value`, or `values` with `multiple` | one of several, or several at once, each item drawn as your own |
 | [`Slider [ value, min, max, step ]`](declare-docs:Slider) | `value: number` | drag or arrow keys |
 | [`Segmented [ choices, value ]`](declare-docs:Segmented) | the chosen `id` | one of a few, shown at once; set its `width` — segments divide it evenly |
 | [`TabBar [ choices, value ]`](declare-docs:TabBar) | the chosen `id` | a `Segmented` that switches what is shown below it — pages, panes; a screen reader hears tabs |
@@ -237,8 +238,10 @@ The button shows the current choice and a chevron; pressing it opens the menu un
 with a check beside the current row. [Menus, dialogs and overlays](declare-docs:guide:overlays)
 covers menus in full.
 
-A choice of your own shape — a tile, a card — is still a `RadioGroup`: any direct child with
-a `choice` is one of its items ([`RadioGroup`](declare-docs:RadioGroup) shows the three lines it takes).
+A choice of your own shape — a tile, a card, a chip — is a [`ChoiceItem`](declare-docs:ChoiceItem),
+drawn as you like, a direct child of a [`ChoiceControl`](declare-docs:ChoiceControl): the control
+holds what is chosen (`value`, or `values` with `multiple = true` for several at once), says it
+to a screen reader, and moves the arrows between the items, and adds nothing to how they look.
 
 You cannot nest rows inside a `Menu` — there is nowhere to put them. That is the
 contract, not a gap: a class that owns its arrangement owns how it draws, and can

@@ -56,6 +56,7 @@ const SUITE = [
   "test/materialization.test.mjs",
   "test/deferred-dom.test.mjs",    // a view not shown gets no DOM until first shown — and nothing the program can observe changes
   "test/accessibility.test.mjs",   // what a program is to assistive technology: role contracts, the semantic tree
+  "test/choicecontrol.test.mjs",   // a choice among several drawn as your own: both modes, keyboard, screen reader
   "test/accessibility-browser.test.mjs",   // the tree realized on the DOM, against Chrome's own accessibility tree; real focus
   "test/visible-rows.test.mjs",    // which records a list shows: firstVisibleRow / lastVisibleRow, windowed or not
   "test/row-lifetime.test.mjs",    // what a virtualized list drops as it scrolls is collected (nothing the runtime keeps holds it)

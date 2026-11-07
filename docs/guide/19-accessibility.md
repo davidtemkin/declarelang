@@ -131,6 +131,10 @@ A screen reader says "Rating, 3 of 5 stars, slider". Its swipe up sets four star
 does the right arrow: the keyboard and the screen reader call the same method. A control
 that is pressed has `press()` already; a `button` role needs nothing more than a name.
 
+A choice among several that you draw — tiles, chips — is a `ChoiceControl` of `ChoiceItem`s:
+it gives them their role and says the choice as "2 of 4", selected or not, so nothing about
+it is yours to write but the look.
+
 The roles are a closed set — `button`, `checkbox`, `slider`, `tab`, `listbox`, `option`,
 `dialog`, `heading` and the rest; `declare-help View.accessibilityRole` lists them — and a role
 is fixed for a view's lifetime.

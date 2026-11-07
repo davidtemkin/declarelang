@@ -8,18 +8,18 @@ script {
     const REFERENCE_CLASSES: string[] = [
         "Accordion", "AccordionPane", "Animator", "AnimatorGroup", "App", "AppIsland", "AppearanceSwitch", "ArrowIcon",
         "Audio", "AutoIcon", "Breadcrumb", "BreadcrumbCurrent", "BreadcrumbLink", "BreadcrumbStep", "Button", "Card",
-        "Carousel", "CarouselLayout", "CheckIcon", "Checkbox", "ChevronIcon", "CloseIcon", "Combobox", "ContextMenu",
-        "Control", "DOMIsland", "DataGrid", "DataGridCell", "DataGridEdit", "DataGridHeading", "DataGridHeadingRow", "DataGridRow",
-        "DataGridText", "DataSource", "Dataset", "DatePicker", "Dialog", "Disclosure", "Divider", "EventStream",
-        "Field", "FieldLayout", "Floating", "Focus", "FocusRing", "Font", "FontFace", "Form",
-        "Gauge", "HTMLText", "Icon", "IconHost", "Image", "Keys", "Layout", "LightbulbIcon",
-        "Markdown", "Menu", "MenuBar", "MinusIcon", "MonthCalendar", "MonthCalendarArrow", "MonthCalendarDay", "MoonIcon",
-        "NativeText", "Node", "OverlayStrata", "PlusIcon", "Popover", "ProgressBar", "Radio", "RadioGroup",
-        "ResponsiveLayout", "SearchField", "Segmented", "SegmentedItem", "Sheet", "Shortcuts", "SimpleLayout", "Slider",
-        "Socket", "Spacer", "Splitter", "Spring", "State", "Stepper", "SunIcon", "Switch",
-        "TabBar", "TabBarTab", "Table", "TableRow", "Text", "TextInput", "TextLabel", "TextLargeIcon",
-        "TextMediumIcon", "TextSizeIcon", "TextSizeSwitch", "TextSmallIcon", "Time", "Toast", "ToolButton", "Toolbar",
-        "ToolbarDivider", "Tooltip", "Tooltips", "Tree", "TreeRow", "TweenLayout", "ValueControl", "Video",
-        "View", "Window", "WrappingLayout"
+        "Carousel", "CarouselLayout", "CheckIcon", "Checkbox", "ChevronIcon", "ChoiceControl", "ChoiceItem", "CloseIcon",
+        "Combobox", "ContextMenu", "Control", "DOMIsland", "DataGrid", "DataGridCell", "DataGridEdit", "DataGridHeading",
+        "DataGridHeadingRow", "DataGridRow", "DataGridText", "DataSource", "Dataset", "DatePicker", "Dialog", "Disclosure",
+        "Divider", "EventStream", "Field", "FieldLayout", "Floating", "Focus", "FocusRing", "Font",
+        "FontFace", "Form", "Gauge", "HTMLText", "Icon", "IconHost", "Image", "Keys",
+        "Layout", "LightbulbIcon", "Markdown", "Menu", "MenuBar", "MinusIcon", "MonthCalendar", "MonthCalendarArrow",
+        "MonthCalendarDay", "MoonIcon", "NativeText", "Node", "OverlayStrata", "PlusIcon", "Popover", "ProgressBar",
+        "Radio", "RadioGroup", "ResponsiveLayout", "SearchField", "Segmented", "SegmentedItem", "Sheet", "Shortcuts",
+        "SimpleLayout", "Slider", "Socket", "Spacer", "Splitter", "Spring", "State", "Stepper",
+        "SunIcon", "Switch", "TabBar", "TabBarTab", "Table", "TableRow", "Text", "TextInput",
+        "TextLabel", "TextLargeIcon", "TextMediumIcon", "TextSizeIcon", "TextSizeSwitch", "TextSmallIcon", "Time", "Toast",
+        "ToolButton", "Toolbar", "ToolbarDivider", "Tooltip", "Tooltips", "Tree", "TreeRow", "TweenLayout",
+        "ValueControl", "Video", "View", "Window", "WrappingLayout"
         ]
     }

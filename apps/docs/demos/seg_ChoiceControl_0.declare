@@ -1,0 +1,23 @@
+class Key extends ChoiceItem [ width = 72, height = 44, cornerRadius = 10,
+    fill = { on ? 0x1E2A38 : 0xE7EBF1 },
+    TextLabel [ x = center, y = center, text = { classroot.choice },
+        textColor = { classroot.on ? 0xFFFFFF : 0x1E2A38 } ]
+    ]
+
+
+App [ width = 360, height = 140, fill = white,
+    size: string = "M",
+    tags: string[] = [],
+    ChoiceControl [ x = 20, y = 20, value <-> app.size, accessibilityLabel = "Size",
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        Key [ choice = "S" ],
+        Key [ choice = "M" ],
+        Key [ choice = "L" ]
+        ],
+    ChoiceControl [ x = 20, y = 76, multiple = true, values <-> app.tags, accessibilityLabel = "Extras",
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        Key [ choice = "Ice" ],
+        Key [ choice = "Milk" ],
+        Key [ choice = "Shot" ]
+        ]
+    ]

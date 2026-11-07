@@ -1,0 +1,179 @@
+/*
+# ChoiceControl
+
+A choice among several, **drawn as you like**: the control holds what is chosen, and its
+**direct children** that have a `choice` are the things chosen — each a `ChoiceItem`, a
+tile, a chip, a row with a picture. It has no look of its own: its layout arranges the
+items, and anything else among them (a heading, a divider) is part of the drawing.
+
+One of several, the default, is a `value`; several at once, with `multiple = true`, is
+`values`. Either binds with `<->` and is what a `Form` judges.
+
+```declare
+class Key extends ChoiceItem [ width = 72, height = 44, cornerRadius = 10,
+    fill = { on ? 0x1E2A38 : 0xE7EBF1 },
+    TextLabel [ x = center, y = center, text = { classroot.choice },
+        textColor = { classroot.on ? 0xFFFFFF : 0x1E2A38 } ]
+    ]
+
+App [ width = 360, height = 140, fill = white,
+    size: string = "M",
+    tags: string[] = [],
+    ChoiceControl [ x = 20, y = 20, value <-> app.size, accessibilityLabel = "Size",
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        Key [ choice = "S" ], Key [ choice = "M" ], Key [ choice = "L" ]
+        ],
+    ChoiceControl [ x = 20, y = 76, multiple = true, values <-> app.tags, accessibilityLabel = "Extras",
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        Key [ choice = "Ice" ], Key [ choice = "Milk" ], Key [ choice = "Shot" ]
+        ]
+    ]
+```
+
+The control is one Tab stop, landing on the chosen item (with several, the first chosen).
+The arrows move between the items; with one of several they choose as they move, and
+with several Space adds or removes the item they are on. A screen reader hears a list of
+options, each said as selected or not, and "2 of 3".
+
+`RadioGroup` is a `ChoiceControl` with the radio's look and words; reach for a
+`ChoiceControl` when the look is your own.
+
+## multiple
+Whether several may be chosen at once — `values` is then the value — or one, as `value`.
+Fixed for the control's life, as its role is.
+
+## accessibilityMultiselectable
+Follows `multiple`: a screen reader is told whether several may be chosen.
+
+## value
+The chosen item's `choice`, with one of several. Standalone the control owns it;
+constrained, override `commit` beside it, or write `value <-> app.size`.
+
+## values
+The chosen items' `choice`s, with several at once, in the order they were chosen.
+
+## commit()
+Where the choice goes: `value`, or `values` with several. Override it to own the destination
+(`commit(v: string) { app.size = v }`), or bind with `<->`; the items keep working
+untouched, because they deliver rather than store.
+
+## pick()
+Chooses an item by its `choice`, as the person would, through `edit` and `commit`: with one
+of several it becomes the value; with several it is added, if it is not already chosen.
+
+## toggle()
+With several at once, adds the item to `values` or takes it out — what an item's press
+does. With one of several, the same as `pick`.
+
+## has()
+Whether an item's `choice` is chosen now — what `ChoiceItem.on` reads.
+
+## fieldValue
+`value`, or `values` with several: what `required` and `validate` judge (see
+`ValueControl`). An empty `values` is empty, so `required` asks for at least one.
+
+## focusScope
+`stop`: the control is one Tab stop, and the arrows move between its items.
+
+## focusEntry()
+The item Tab lands on: the chosen one (with several, the first chosen), else the first
+that is enabled.
+
+## _arrowed()
+**Internal.** With one of several, the control chooses the item an arrow lands on.
+
+## _items()
+**Internal.** The control's items, for the Tab entry; a handler-only walk.
+*/
+
+/*
+# ChoiceItem
+
+One of the things a `ChoiceControl` chooses between: a direct child of the control, naming
+itself with `choice`, and drawn as you like. It stores nothing — `on` is derived from the
+control — and a press delivers its `choice` to the control. A `Radio` is a `ChoiceItem`
+with a dot and a label.
+
+## choice
+This item's identity within its control, compared against the control's `value` (or found
+in its `values`) by string. **Required and unique per control** — two items sharing a
+`choice` are chosen together.
+
+## on
+Whether this item is chosen now. **Derived from the control, never stored** — which is why
+choosing one can never leave another stale. Draw from it.
+
+## press()
+Delivers this item's `choice` to the control: chooses it, or with several adds or removes
+it. Called by a click and by Space/Enter.
+
+## onBlur
+Judges the control when the focus leaves an item, as a field is judged on leaving. An override
+calls `super.onBlur()`.
+
+## accessibilitySelected
+Follows `on`: whether this item is chosen.
+*/
+
+include [ "valuecontrol.declare" ]
+
+class ChoiceControl extends ValueControl [
+    accessibilityRole = listbox,
+    accessibilityMultiselectable = { multiple },
+    multiple: boolean = false,
+    value: string = "",
+    values: string[] = [],
+    fieldValue = { multiple ? values : value },
+
+    // the items are the stops, not the control (a ValueControl is otherwise one);
+    // it is judged when the focus leaves its items
+
+    focusable = false,
+    focusField() { const r = focusEntry(); if (r != null) Focus.focus(r) },
+
+    commit(v: any) { if (multiple) values = v as string[]; else value = v as string },
+    has(c: string) -> boolean { return multiple ? ((shown ?? []) as string[]).includes(c) : shown == c },
+    pick(c: string) { if (!multiple) edit(c); else if (!has(c)) edit([...((shown ?? []) as string[]), c]) },
+    toggle(c: string) {
+        if (!multiple) pick(c)
+        else edit(has(c) ? ((shown ?? []) as string[]).filter((x) => x != c) : [...((shown ?? []) as string[]), c])
+        },
+
+    // one Tab stop, landing on the chosen item; with one of several the arrows
+    // move and choose (planes.md §13.6), with several they move and Space chooses
+
+    focusScope = stop,
+    _arrowed(to: View) { if (!multiple && (to as any).choice !== undefined) pick((to as any).choice) },
+    focusEntry() -> View? {
+        const rs = this._items()
+        return (rs.find((r) => has((r as ChoiceItem).choice)) ?? rs.find((r) => !(r as ChoiceItem).disabled) ?? null) as View | null
+        },
+    _items() -> array {
+        const out = []
+        for (const c of this.children) { if ((c as ChoiceItem).choice !== undefined) out.push(c) }
+        return out
+        }
+    ]
+
+
+class ChoiceItem extends Control [
+    choice: string = "",
+    accessibilityRole = option,
+    accessibilitySelected = { on },
+
+    // an item's parent is its control (the direct-child discipline above); the
+    // cast informs the typecheck and is stripped for the runtime. `on` reads the
+    // control's facts rather than calling has(), so an item misplaced outside one
+    // is simply not on (the compiler says where)
+
+    on: boolean = { (parent as ChoiceControl).multiple ? (((parent as ChoiceControl).shown ?? []) as string[]).includes(choice) : (parent as ChoiceControl).shown == choice },
+    press() { (parent as ChoiceControl).toggle(choice) },
+
+    // leaving the control's items is leaving the control
+
+    onBlur() {
+        super.onBlur()
+        const g = parent as any
+        if (g != null) g.judged = true
+        }
+    ]

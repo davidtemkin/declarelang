@@ -456,7 +456,7 @@ await test("declare-look --url looks at an app where it is served, with no progr
   } finally { srv.kill(); }
 });
 
-await test("DECLARE4026: sibling toggles each on for one value of the same thing are one of several — kept as drawn, in a RadioGroup", () => {
+await test("DECLARE4026: sibling toggles each on for one value of the same thing are one of several — kept as drawn, in a ChoiceControl", () => {
   const f = join(DIR, "toggles.declare");
   writeFileSync(f, `class Choice extends Control [ width = 60, height = 44,
     on: boolean = false, label: string = "",
@@ -469,7 +469,7 @@ App [ width = 400, height = 200, sport: string = "run",
   const r = run("verify.mjs", f, "--rung", "3");
   assert.match(r.out, /DECLARE4026/, r.out);
   assert.match(r.out, /these 2 Choices are one choice among several/, r.out);
-  assert.match(r.out, /Keep the Choices as you draw them, and make them the direct children of a RadioGroup/, r.out);
+  assert.match(r.out, /Keep the Choices as you draw them, and make them ChoiceItems \(each with a `choice`\), the direct children of a ChoiceControl/, r.out);
   assert.doesNotMatch(r.out, /use Segmented/, r.out);
 });
 

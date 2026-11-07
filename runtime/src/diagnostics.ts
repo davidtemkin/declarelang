@@ -395,13 +395,13 @@ export const Diag = {
   accessibilityCollapsedRead: (owner: string, axis: string, pos: Pos): DeclareError =>
     err(code4(4021), `${owner} hides what it holds by clipping it to a ${axis} of 0, but a screen reader still reads it and Tab still reaches it: absence is visible, not geometry. Add visible = { this.${axis} > 0 }, or the condition that collapses it`, pos),
   accessibilityUnreportedChoice: (owner: string, flag: string, pos: Pos): DeclareError =>
-    err(code4(4022), `${owner} shows whether it is the one chosen ('${flag}'), but tells a screen reader nothing — a row of them reads as plain buttons, none of them picked. Keep it as you draw it and set accessibilityPressed = { ${flag} }: a pressed control is the one that is in. Where it is one of several, the row can instead be the direct children of a RadioGroup, each with a \`choice\`, which says the choice as one of N and adds nothing to how they look`, pos),
+    err(code4(4022), `${owner} shows whether it is the one chosen ('${flag}'), but tells a screen reader nothing — a row of them reads as plain buttons, none of them picked. Keep it as you draw it and set accessibilityPressed = { ${flag} }: a pressed control is the one that is in. Where it is one of several, the row can instead be ChoiceItems (each with a \`choice\`), the direct children of a ChoiceControl, which says the choice as one of N and adds nothing to how they look`, pos),
   // A WARNING: toggles used as one of several — sibling controls of one class,
   // each "on" when the same value equals its own literal (Cadence run 17's
   // sport, day and range choices). Each reports pressed, so 4022 is quiet, but
   // a screen reader hears separate toggles, not one choice among them.
   accessibilityTogglesAsOneOf: (count: number, cls: string, flag: string, subject: string, pos: Pos): DeclareError =>
-    err(code4(4026), `these ${count} ${cls}s are one choice among several — each is '${flag}' when ${subject} equals its own value — but a screen reader hears ${count} separate toggles, not one choice of ${count}, and the arrows do not move between them. Keep the ${cls}s as you draw them, and make them the direct children of a RadioGroup, each with a \`choice\`: the group holds the choice, says it as one of ${count}, and moves the arrows between them, and adds nothing to how they look`, pos),
+    err(code4(4026), `these ${count} ${cls}s are one choice among several — each is '${flag}' when ${subject} equals its own value — but a screen reader hears ${count} separate toggles, not one choice of ${count}, and the arrows do not move between them. Keep the ${cls}s as you draw them, and make them ChoiceItems (each with a \`choice\`), the direct children of a ChoiceControl: the control holds the choice, says it as one of ${count}, and moves the arrows between them, and adds nothing to how they look`, pos),
   // A WARNING: a control hidden from a screen reader. aria-hidden hides what a
   // view says, not where the keyboard goes: Tab still lands on it, and there it
   // says nothing.
@@ -449,7 +449,9 @@ export const Diag = {
     err(code4(4035), `${owner} has an accessibilityLabel but no role, so nothing reads it — a screen reader, the browser and a locator see a plain group with no name. Give it the role it is: accessibilityRole = image (a picture of something), group (a set of things), region (a part of the page), …; or, if it is decoration, accessibilityHidden = true and no label`, pos),
   // A WARNING: a radio whose parent is no RadioGroup — no group to be one of.
   accessibilityRadioAlone: (owner: string, pos: Pos): DeclareError =>
-    err(code4(4032), `${owner} is a radio outside a RadioGroup — a screen reader hears no "one of N", and the arrows do not move between the choices. Make the radios the direct children of a RadioGroup: any child with a choice is one (its press calls the group's pick(choice))`, pos),
+    err(code4(4032), `${owner} is a radio outside a RadioGroup — a screen reader hears no "one of N", and the arrows do not move between the choices. Make the radios the direct children of a RadioGroup; or, drawn as your own, make them ChoiceItems, the direct children of a ChoiceControl`, pos),
+  choiceItemAlone: (owner: string, pos: Pos): DeclareError =>
+    err(code4(4036), `${owner} is a ChoiceItem outside a ChoiceControl — it has no control to read what is chosen from, or to deliver its choice to. Make the items the direct children of a ChoiceControl`, pos),
   keyDownWithoutSuper: (owner: string, pos: Pos): DeclareError =>
     err(code4(4031), `onKeyDown on ${owner} replaces Control's own — Space and Enter no longer press it, and the arrows no longer move in its group. Hand on the keys you do not take: else super.onKeyDown(e)`, pos),
   accessibilityDrawnFocusable: (owner: string, pos: Pos): DeclareError =>

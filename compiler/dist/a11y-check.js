@@ -361,6 +361,16 @@ export function accessibilityDiagnostics(program, schemas, opts) {
                 if (!isA(ptag, "RadioGroup"))
                     warnings.push(Diag.accessibilityRadioAlone(owner, el.pos));
             }
+            // an item reads what is chosen from its ChoiceControl and delivers to it, so
+            // it is that control's direct child (a Radio keeps its warning above)
+            const mineTag = decl !== undefined ? decl.name : el.tag;
+            if (decl === undefined && isA(mineTag, "ChoiceItem") && !isA(mineTag, "Radio")) {
+                const p = above[above.length - 1];
+                const pd = p !== undefined ? classByBody.get(p) : undefined;
+                const ptag = p === undefined ? "" : pd !== undefined ? pd.name : p.tag;
+                if (!isA(ptag, "ChoiceControl"))
+                    errors.push(Diag.choiceItemAlone(owner, el.pos));
+            }
             // content clipped out of sight by a size of 0 is still read — said where
             // the clip or the size is written (a use site inherits the class's), and
             // only of content that does not hide itself as well

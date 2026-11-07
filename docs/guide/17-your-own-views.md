@@ -384,6 +384,10 @@ Taken a part at a time:
 - **The name** comes from the `Field` around it: the caption "Volume" labels the knob for a
   screen reader as it does for the eye.
 
+A choice among several of your own — tiles, chips, cards — is the same idea with the
+choosing done for you: each is a `ChoiceItem`, drawn as you like, in a `ChoiceControl`
+([Controls](declare-docs:guide:controls@choosing-one-of-many)).
+
 The library's controls are written the same way, in `library/`, with nothing a class of
 yours can't use. [Your own controls](declare-docs:guide:accessibility@your-own-controls)
 covers the roles and what each one asks you to name.

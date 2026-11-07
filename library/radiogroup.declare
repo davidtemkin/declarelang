@@ -1,14 +1,13 @@
 /*
 # RadioGroup
 
-One of several, chosen by the group's **direct children**: a `Radio` each, or any child of
-your own drawing that has a `choice` (a card, a tile, a row with a picture). Radios are written as the group's direct children — the group's
-layout arranges them, and each radio reaches its group as `parent`. A radio replicated
-from data (`Radio [ datapath = :plans[], choice = { :id }, label = { :name } ]`) is one
-too: each copy is a direct child of the group. A radio of your own, drawn as you like, is
-any direct child with a `choice`: a `Control` with `accessibilityRole = radio`, `on = {
-(parent as RadioGroup).value == choice }`, and `press() { (parent as RadioGroup).pick(choice) }`.
-The group does the rest — one Tab stop, and the arrows move and check.
+One of several, said as radios: a `ChoiceControl` whose items are `Radio`s, stacked in a
+column. Radios are written as the group's direct children — the group's layout arranges
+them, and each radio reaches its group as `parent`. A radio replicated from data
+(`Radio [ datapath = :plans[], choice = { :id }, label = { :name } ]`) is one too: each copy
+is a direct child of the group. The group is one Tab stop, and the arrows move and check.
+Choices drawn as your own — a card, a tile, a row with a picture — are `ChoiceItem`s in a
+`ChoiceControl`.
 
     RadioGroup [ value = "m", commit(v: string) { app.size = v },
         Radio [ choice = "s", label = "Small" ],
@@ -24,70 +23,19 @@ size: RadioGroup [ x = 20, y = 20, value = "m",
     ]
 ```
 
-## value
-**The group's value — the chosen `choice`, and the only value in the pair.** A
-`Radio` has none of its own; it derives `on` from this. Standalone the group owns it;
-constrained, override `commit` beside it as with any control, or write `value <-> app.size`.
+## accessibilityRole
+`radioGroup`: a screen reader hears the radios as one choice, "2 of 3".
 
-## commit()
-Where the choice goes. The default writes `value`; override it to own the destination
-(`commit(v: string) { app.size = v }`) and the radios keep working untouched, because
-they deliver rather than store.
-
-## pick()
-Selects a choice by name — the seam a `Radio` calls on its group. Call it to move the
-selection as the person would, through `edit` and `commit`.
-
-## focusScope
-`stop`: the group is one Tab stop — Tab lands on the checked radio and the next Tab
-leaves; the arrows move to the next radio and check it, as every platform's radio
-group does.
-
-## focusEntry()
-The radio Tab lands on: the checked one, else the first that is enabled.
-
-## _arrowed()
-**Internal.** The group checks the radio an arrow lands on — so any direct child with a
-`choice` is a radio, a library `Radio` or one of your own.
-
-## _radios()
-**Internal.** The group's radios, for the Tab entry; a handler-only walk.
-
-## fieldValue
-Follows `value`, the chosen `choice`: what `required` and `validate` judge (see `ValueControl`).
+## layout
+A column, the radios 10 apart. Give the group a layout of its own to set them in a row.
 */
 
-include [ "valuecontrol.declare" ]
+include [ "choicecontrol.declare" ]
 
-class RadioGroup extends ValueControl [
+// a ChoiceControl of one, said as radios
+
+class RadioGroup extends ChoiceControl [
     accessibilityRole = radioGroup,
-    value: string = "",
-    fieldValue = { value },
-
-    // the radios are the stops, not the group (a ValueControl is otherwise one);
-    // it is judged when the focus leaves its radios
-
-    focusable = false,
-    focusField() { const r = focusEntry(); if (r != null) Focus.focus(r) },
-
-    commit(v: string) { value = v },
-    pick(v: string)  { edit(v) },
-
-    // one Tab stop, landing on the checked radio; the arrows move and check
-    // (planes.md §13.6)
-
-    focusScope = stop,
-    _arrowed(to: View) { if ((to as any).choice !== undefined) pick((to as any).choice) },
-    focusEntry() -> View? {
-        const rs = this._radios()
-        return (rs.find((r) => (r as Radio).choice == this.value) ?? rs.find((r) => !(r as Radio).disabled) ?? null) as View | null
-        },
-    _radios() -> array {
-        const out = []
-        for (const c of this.children) { if ((c as Radio).choice !== undefined) out.push(c) }
-        return out
-        },
-
     layout: SimpleLayout [ axis = y, spacing = 10 ]
     ]
 
@@ -95,10 +43,10 @@ class RadioGroup extends ValueControl [
 /*
 # Radio
 
-One choice in a `RadioGroup`: a direct child of the group, naming itself with
-`choice`. A radio stores nothing — it derives `on` from the group's `value` and
-delivers its `choice` to the group when pressed, so turning one on can never leave
-another stale.
+One choice in a `RadioGroup`: a `ChoiceItem` with a dot and a label, a direct child of the
+group, naming itself with `choice`. A radio stores nothing — it derives `on` from the
+group's `value` and delivers its `choice` to the group when pressed, so turning one on can
+never leave another stale.
 
 ```declare
 App [ width = 300, height = 120, fill = white, textColor = black,
@@ -111,27 +59,12 @@ App [ width = 300, height = 120, fill = white, textColor = black,
     ]
 ```
 
-## choice
-This radio's identity within its group, compared against the group's `value` by string.
-**Required and unique per group** — two radios sharing a `choice` light together.
-
 ## label
 The text beside the dot. `""` renders the dot alone.
 
 ## baseline
 The baseline a row aligns this radio by — its caption's, so a row of mixed controls and
 text under `align = baseline` reads as one line.
-
-## on
-Whether this radio is the group's current choice. **Derived from the group, never
-stored** — which is why turning one on cannot leave another stale.
-
-## press()
-Delivers this radio's `choice` to the group. Called by a click and by Space/Enter.
-
-## onBlur
-Judges the group when the focus leaves a radio, as a field is judged on leaving. An override
-calls `super.onBlur()`.
 
 ## focusShape()
 Rings the round dot rather than the dot-plus-label row.
@@ -151,31 +84,15 @@ and on a touch-first device at least 44, a finger's target, the dot unchanged.
 Follows `on`: whether this choice is the group's `value`.
 */
 
-class Radio extends Control [ height = { Math.max(this._dot.width + 4, app.touchFirst ? 44 : 0) },
+class Radio extends ChoiceItem [ height = { Math.max(this._dot.width + 4, app.touchFirst ? 44 : 0) },
     baseline: number = { this._cap.y + this._cap.baseline },   // a row aligns the control by its label
 
     // keyboard focus rings the round dot itself, not the dot-plus-label row
 
     focusShape() { return ({ x: this._dot.x, y: this._dot.y, w: this._dot.width, h: this._dot.height, rad: this._dot.width / 2 }) },
-    choice: string = "",
     label:  string = "",
     accessibilityRole = radio,
     accessibilityChecked = { on },
-
-    // a radio's parent is its group (the direct-child discipline above); the
-    // cast informs the typecheck and is stripped for the runtime
-
-    press()   { (parent as RadioGroup).pick(choice) },
-
-    // leaving the group's radios is leaving the group
-
-    onBlur() {
-        super.onBlur()
-        const g = parent as any
-        if (g != null) g.judged = true
-        },
-
-    on: boolean = { (parent as RadioGroup).value == choice },
 
     width   = { this._dot.width + (label == "" ? 0 : 8 + this._cap.width) },
     opacity = { disabled ? (provided("theme").disabledOpacity) : 1 },

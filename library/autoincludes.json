@@ -27,6 +27,8 @@
   "Slider": "slider.declare",
   "RadioGroup": "radiogroup.declare",
   "Radio": "radiogroup.declare",
+  "ChoiceControl": "choicecontrol.declare",
+  "ChoiceItem": "choicecontrol.declare",
   "Field": "field.declare",
   "ProgressBar": "progressbar.declare",
   "FocusRing": "focusring.declare",

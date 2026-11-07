@@ -121,6 +121,7 @@ export declare const Diag: {
     alphaAsFraction: (written: string, pos: Pos) => DeclareError;
     accessibilityLabelUnread: (owner: string, pos: Pos) => DeclareError;
     accessibilityRadioAlone: (owner: string, pos: Pos) => DeclareError;
+    choiceItemAlone: (owner: string, pos: Pos) => DeclareError;
     keyDownWithoutSuper: (owner: string, pos: Pos) => DeclareError;
     accessibilityDrawnFocusable: (owner: string, pos: Pos) => DeclareError;
     afterInValue: (pos: Pos) => DeclareError;
