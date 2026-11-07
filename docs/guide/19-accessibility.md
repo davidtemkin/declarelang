@@ -159,7 +159,9 @@ motion to stand still, or its theme to raise its contrast, reads it where it dec
 
 **You never build any of this yourself.** The renderer makes the tree from what the program
 declares, a control with nothing to be called by is a warning at compile, and
-`declare-verify --semantics` prints the tree as a screen reader gets it.
+`declare-verify --semantics` prints the tree as a screen reader gets it. A sign-in made of
+fields that say their `purpose` (an email and a password), in a `Form` that sends through a
+`DataSource`, is offered for saving by the browser's password manager when it succeeds.
 
 All of this is realized on the DOM renderer, the default: the browser's accessibility tree
 is what this chapter describes, and VoiceOver, NVDA and the rest read it. The canvas

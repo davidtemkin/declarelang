@@ -215,6 +215,9 @@ class Combobox extends ValueControl [
         filtering = false
         this.closeList()
         edit(m)
+        // the focus stays in the entry: a row pressed (it takes no focus) left it
+        // on nothing, and the next Tab would start from the top
+        if (Focus.getFocus() == null) Focus.focus(entry)
         },
 
     // ── the list is a Menu made beside the combobox, lazily at first open —

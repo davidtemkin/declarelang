@@ -177,6 +177,15 @@ await test("a step a handler defers with afterSettle belongs to its node: discar
   assert.equal(app.n, 10, "a node that stays runs its step at the settle's close");
 });
 
+await test("two submits in one turn send once: the second, before the first has sent, does nothing", async () => {
+  const app = await boot(`App [ width = 300, height = 200,
+    pay: DataSource [ url = "http://127.0.0.1:9/pay", method = "POST" ],
+    f: Form [ source = { app.pay }, TextInput [ width = 200, name = "a", value = "x" ] ] ]`);
+  let n = 0; const real = app.pay.fetch.bind(app.pay); app.pay.fetch = (...a) => { n++; return real(...a); };
+  app.f.submit(); app.f.submit(); settle();
+  assert.equal(n, 1, "one request, not two");
+});
+
 await test("a node its handler has already discarded asks for no step: a fetch settled the write before it (a refusal handler that leaves the screen, then fetches)", async () => {
   const app = await boot(`App [ width = 300, height = 100, n: number = 0, m: number = 0, show: boolean = true,
     d: DataSource [ url = "http://127.0.0.1:9/x" ],

@@ -104,6 +104,11 @@ The browser itself holds it against the window's bottom edge, so it stays put wh
 phone's browser shows and hides its own bars and while the page bounces past its end. A
 position written from `app.hostHeight` follows those a frame late, and the bar jumps.
 
+A phone's on-screen keyboard covers the window's foot while it is up, and
+[`app.keyboardHeight`](declare-docs:App.keyboardHeight) says by how much: `0` with none, and
+always on a desktop. A bar there lifts what it holds by it (as bottom padding), or steps aside
+while someone types.
+
 A bar pinned against an edge also tells the keyboard where the scroller's view really
 starts. When Tab moves to a control the scroller has to bring into view, it scrolls the
 control clear of the bar, not under it, and a control scrolled under the bar takes its

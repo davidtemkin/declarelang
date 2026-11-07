@@ -48,7 +48,8 @@ Ends every member's open edit first, committing it, so what is sent is what is s
 judges every member, so every problem shows at once, each under its own field —
 fields the person never reached and fields autofill filled without focusing included.
 Withdraws the last refusals. If anything is wrong, `showProblems()`; otherwise `send()`.
-Does nothing while `pending`. Return in
+Does nothing while `pending`, or while an earlier `submit()` has yet to send (two in one
+turn send once). Return in
 a single-line `TextInput` inside the form calls it (or moves on, under `enterMoves`), unless
 the field declares an `onEnter` of its own.
 
@@ -127,10 +128,13 @@ the body (GraphQL does) calls it from the source's `onLoad`.
 `pointer` or JSON:API's `source.pointer`, and `message`, `detail` or `title`), and a bare
 `{ "message" }`, which names no field. A pointer is read as a dotted name
 (`#/address/city` is `address.city`) and matched exactly. Override it to map
-a service's own shape, its codes to the program's sentences, or another language.
+a service's own shape, its codes to the program's sentences, or another language; an override
+that handles some bodies hands the rest to `super.refusal(body)`, and one that returns `[]`
+lays nothing on the fields (a refusal the program answers itself, in `refusedWith`).
 
 ## refusedWith()
-`refusedWith(body)` is the program's own reaction when the service refuses, given the body:
+`refusedWith(body)` is the program's own reaction when the service refuses, given the body
+(the form's own does nothing, so an override calls no `super`):
 undo a reservation the refusal names, empty a field the service will not take again. The
 order is fixed: `refusedWith` runs first, then the refusal is laid on the members as they
 now are (each named field's `refused`, the rest in `error`), then `showProblems()` — so a
@@ -151,6 +155,10 @@ reply that is not a refusal. Say it in the program's own words.
 
 ## _sending
 **Internal.** the form's own request is out.
+
+## _asked
+**Internal.** A submit is under way and has not yet sent: a second `submit()` before the
+first has sent (two in one turn) does nothing, as one while `pending` does.
 
 ## _heard()
 **Internal.** For a form with no `source`: `pending` turning false after a submit.
@@ -276,10 +284,12 @@ class Form [
     error: string = "",
     submitted: boolean = false,
     _sending: boolean = false,
+    _asked: boolean = false,
     pending: boolean = { this._sending },
 
     submit() {
-        if (pending) return
+        if (pending || _asked) return
+        _asked = true
         submitted = true
         error = ""
         // an edit still open is ended first, committing, so what is sent is what is shown
@@ -291,6 +301,7 @@ class Form [
         afterSettle(() => this._proceed())
         },
     _proceed() {
+        _asked = false
         const own = validate()
         if (problems.length > 0 || own != "") {
             if (own != "") error = own

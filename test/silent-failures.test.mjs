@@ -185,7 +185,11 @@ await test("a combobox with its list open: Tab goes on to the next stop, focus m
   await drive.settleMotion();
   await page.getByRole("option", { name: "United States" }).click();
   await drive.settleMotion();
-  await expect.attr("app", "country", "United States");`);
+  await expect.attr("app", "country", "United States");
+  await expect(box).toBeFocused();
+  await drive.key("Tab");
+  await drive.settleMotion();
+  await expect(page.getByRole("button", { name: "Pay" })).toBeFocused();`);
   const r = run("verify.mjs", f, "--assert", sc, "--rung=5", "--no-boot");
   assert.equal(r.status, 0, r.out);
 });
