@@ -16,6 +16,8 @@ A request that's separate from the build — please don't change anything. Now t
 
 (h) Changes of direction — anything you built one way and then replaced with a different approach before you finished. For each: what it was first, what it became, roughly when, and what made you change: a refusal, a finding, something you saw running, the brief, or your own second thoughts.
 
+(i) The code, quoted — for every refusal, finding or behaviour you couldn't explain, and every time you went round in a circle, quote the code as it stood at that moment (as best you can reconstruct it from this session) and the exact message, so the people who make it can reproduce it.
+
 Then: surprises; what was good and what was bad; how it differs from the frameworks and languages you know, and what it reminded you of; where you'd most want to see improvement; and what you would use it for, if you had the option.
 
 When you call something the hardest, the main problem or the sharpest edge, say whether it was one obstacle or a pattern, roughly what it cost you, and what you would need to have written it right the first time.

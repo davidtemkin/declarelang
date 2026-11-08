@@ -16,4 +16,6 @@ A request that's separate from the build — please don't change anything. Now t
 
 (h) Changes of direction — anything you built one way and then replaced with a different approach before you finished. For each: what it was first, what it became, roughly when, and what made you change: a refusal, a finding, something you saw running, the brief, or your own second thoughts.
 
+(i) The code, quoted — for every error or behaviour you couldn't explain, and every time you went round in a circle, quote the code as it stood at that moment (as best you can reconstruct it from this session) and the exact message, so it can be reproduced.
+
 Be specific — name files, libraries, errors and moments from this build — and say plainly where your judgement is uncertain.
