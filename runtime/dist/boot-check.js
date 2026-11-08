@@ -15,6 +15,7 @@ import { semanticTree, formatSemantics } from "./semantics.js";
 import { DataSource } from "./data.js";
 import { settle } from "./reactive.js";
 import { declareName } from "./declare-name.js";
+import { inColumns } from "./size-report.js";
 export function bootCheck(app, opts = {}) {
     const record = { nodes: 0, notes: [], layout: [], unbuilt: [], answers: [], samples: [], flagged: [] };
     if (opts.feed) {
@@ -160,6 +161,18 @@ function layoutChecks(app, { touch = false, realText = false, skip = [] }, flagg
                 if ((v.scrolls === ax || v.scrolls === "both") && sizedByContent(v, size) && fresh("pane", pathOf(app, v) + ax)) {
                     out.push(`${pathOf(app, v)} scrolls on ${ax}, but its ${size} comes from what it holds, so it has nothing to scroll: it grows, and the page scrolls instead. Give it room — a ${size}, flexes in its parent's layout, or a stretch.`);
                 }
+            }
+        }
+        // A CELL WITH NOTHING IN IT: under `columns` a child keeps its own width and
+        // takes its cell's only when it flexes — one whose own width is 0 (sized by
+        // what it holds, which is sized from it) draws nothing in its cell
+        // (one whose children all take their width from it is said at boot, as a
+        // size nothing decides, in the same words)
+        {
+            const cycle = (c) => c.children.some((k) => k instanceof View) && c.children.every((k) => !(k instanceof View) || !k.visible || k.ignoreLayout || percentOwned(k, "width"));
+            const empty = v.children.filter((c) => c instanceof View && inColumns(c) && c.visible && !c.ignoreLayout && c.width < 0.5 && (c.flexes === false || c.flexes === 0) && !cycle(c));
+            if (empty.length > 0 && fresh("cell", pathOf(app, v))) {
+                out.push(`${pathOf(app, empty[0])}${empty.length > 1 ? ` (and ${empty.length - 1} more)` : ""} is 0 wide: in a \`columns\` layout a child takes its cell's width only with \`flexes = true\`.`);
             }
         }
         // A FLEX WITH NOTHING TO SHARE: the room a flexing child shares is what is

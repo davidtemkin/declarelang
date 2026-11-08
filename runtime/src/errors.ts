@@ -202,9 +202,12 @@ export function negativeSizeMessage(
 
 /** A view that takes its size from its children, every one of which takes its
  *  size from the view: each waits for the other, and nothing decides it. */
-export function emptyContainerMessage(parentClass: string, size: "width" | "height", childClass: string, path = ""): string {
+export function emptyContainerMessage(parentClass: string, size: "width" | "height", childClass: string, path = "", inCell = false): string {
   const most = size === "height" ? "as tall as the tallest" : "as wide as the widest";
-  return diag`${parentClass}.${size}${path === "" ? "" : ` (${path})`} is 0 — it takes its ${size} from its children, and every one of them (${childClass}) takes its ${size} from it, so nothing decides it. To make them ${most}, remove their own ${size} and use align = stretch on ${parentClass}'s layout; or give ${parentClass} a ${size}.`;
+  const head = diag`${parentClass}.${size}${path === "" ? "" : ` (${path})`} is 0 — it takes its ${size} from its children, and every one of them (${childClass}) takes its ${size} from it, so nothing decides it.`;
+  // a cell of a `columns` grid: the cell's width is what it was meant to have
+  if (inCell) return head + diag` In its parent's \`columns\` layout it takes its cell's width only with \`flexes = true\`; or give ${parentClass} a ${size}.`;
+  return head + diag` To make them ${most}, remove their own ${size} and use align = stretch on ${parentClass}'s layout; or give ${parentClass} a ${size}.`;
 }
 
 export function placedFromParentMessage(parentClass: string, size: "width" | "height", childClass: string, pos: "x" | "y", path = ""): string {

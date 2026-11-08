@@ -95,7 +95,7 @@ export declare function discardedValueMessage(childClass: string, slot: string, 
 export declare function negativeSizeMessage(childClass: string, size: "width" | "height", value: number, parentClass: string, onlyContent: boolean, where?: Where | null): string;
 /** A view that takes its size from its children, every one of which takes its
  *  size from the view: each waits for the other, and nothing decides it. */
-export declare function emptyContainerMessage(parentClass: string, size: "width" | "height", childClass: string, path?: string): string;
+export declare function emptyContainerMessage(parentClass: string, size: "width" | "height", childClass: string, path?: string, inCell?: boolean): string;
 export declare function placedFromParentMessage(parentClass: string, size: "width" | "height", childClass: string, pos: "x" | "y", path?: string): string;
 /** The checker's form: what the layout places is known from the source, so the
  *  message can also say HOW the author gets what they meant. `kind` is why the

@@ -76,9 +76,9 @@ and sits at its cell's left. With `columns = { narrow ? 5 : 10 }`, ten options a
 at a desk and two of five on a phone, every cell the same width.
 
 ```declare
-scale: View [ width = 100%,
+scale: View [ width = 100%, datapath = { app.levels.value },
     layout: WrappingLayout [ columns = { app.width < 600 ? 5 : 10 }, spacing = 6, rowSpacing = 6 ],
-    View [ datapath = { app.levels[] }, flexes = true, height = 44, cornerRadius = 6, fill = gainsboro ]
+    View [ datapath = :rows[], flexes = true, height = 44, cornerRadius = 6, fill = gainsboro ]
     ]
 ```
 

@@ -80,6 +80,16 @@ export function judgeNegativeSizes() {
  *  size stays at its first 0, and the view draws nothing. Looked for once, when
  *  the program first has its room. A layout that STRETCHES them is the way to say
  *  "as tall as the tallest", which is what the message offers. */
+/** Is this view laid by its parent's `columns` grid (a WrappingLayout's cells)? */
+export function inColumns(v) {
+    const l = v.parent instanceof View ? v.parent.layout : null;
+    if (l === null || typeof l.columns !== "number" || l.columns < 1)
+        return false;
+    for (let c = l.constructor; c && c !== Object; c = Object.getPrototypeOf(c))
+        if (c.name === "WrappingLayout")
+            return true;
+    return false;
+}
 export function judgeEmptyContainers(root) {
     const said = new Set();
     // which one: a class name alone ("View") sent an agent grepping for the view it
@@ -112,7 +122,7 @@ export function judgeEmptyContainers(root) {
             said.add(key);
             const placed = kids.find((c) => !percentOwned(c, axis));
             console.error("[Declare] " + (placed === undefined
-                ? emptyContainerMessage(declareName(v), axis, declareName(kids[0]), where(v))
+                ? emptyContainerMessage(declareName(v), axis, declareName(kids[0]), where(v), axis === "width" && inColumns(v))
                 : placedFromParentMessage(declareName(v), axis, declareName(placed), pos, where(v))));
         }
         for (const c of kids)

@@ -142,4 +142,28 @@ await test("a panel past the window's edge is named once, with what it carries; 
   assert.ok(!held.boot.layout.some((l) => /edge/.test(l)), held.boot.layout.join("\n"));
 });
 
+await test("a child 0 wide in a columns layout is said, naming flexes; a flexing one is not", () => {
+  const r = verify("cells.declare", `App [
+    cells: Dataset { { "rows": [1, 2, 3] } },
+    grid: View [ width = 400, datapath = { app.cells.value },
+        layout: WrappingLayout [ columns = 3, spacing = 8 ],
+        View [ datapath = :rows[], height = 40, fill = gainsboro ] ],
+    good: View [ y = 100, width = 400, datapath = { app.cells.value },
+        layout: WrappingLayout [ columns = 3, spacing = 8 ],
+        View [ datapath = :rows[], flexes = true, height = 40, fill = gainsboro ] ] ]`);
+  const cells = r.boot.layout.filter((l) => /columns/.test(l));
+  assert.equal(cells.length, 1, r.boot.layout.join("\n"));
+  assert.match(cells[0], /^app\.grid\.0 \(and 2 more\) is 0 wide: in a `columns` layout a child takes its cell's width only with `flexes = true`\.$/);
+  // a cell whose children take their width from it is a size nothing decides,
+  // said once at boot — and in a cell, the cure it names is the cell's width
+  const c = verify("cycle.declare", `App [
+    cells: Dataset { { "rows": [1, 2, 3] } },
+    grid: View [ width = 400, datapath = { app.cells.value },
+        layout: WrappingLayout [ columns = 3, spacing = 8 ],
+        View [ datapath = :rows[], height = 40, Text [ text = "cell", width = 100% ] ] ] ]`);
+  const said = [...c.boot.errors, ...c.boot.layout].filter((l) => /columns/.test(l));
+  assert.equal(said.length, 1, JSON.stringify(c.boot));
+  assert.match(said[0], /is 0 — .* In its parent's `columns` layout it takes its cell's width only with `flexes = true`; or give View a width\./);
+});
+
 summarize("verify-boot");
