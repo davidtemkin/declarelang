@@ -1036,11 +1036,21 @@ class Parser {
       // element's attributes; name the rule, CONSUME the production, continue —
       // so the rest of the body still gets checked (recognition layer).
       if (this.peek().kind === "dot") {
-        this.errors.push(new DeclareError(
-          `'${name.text}.…' — a member sets this element's OWN attributes, never a child's. Write the attribute on '${name.text}' itself, usually as a { } constraint reading the state or flag that drives it`,
+        // `child.press() { … }` is the same instinct for a method: a use site
+        // overrides only the element's own methods, and saying so — rather than
+        // the attribute rule and a parse error after it — names the two fixes
+        let k = 0;
+        while (this.peekAt(k).kind === "dot" && this.peekAt(k + 1).kind === "ident") k += 2;
+        const method = this.peekAt(k).kind === "lparen";
+        this.errors.push(new DeclareError(method
+          ? `'${name.text}.…()' — a use site overrides this element's OWN methods, never a child's. Make '${name.text}' a class of its own whose method does it, or make this element the control that acts`
+          : `'${name.text}.…' — a member sets this element's OWN attributes, never a child's. Write the attribute on '${name.text}' itself, usually as a { } constraint reading the state or flag that drives it`,
           name.pos
         ));
         while (this.peek().kind === "dot") { this.next(); if (this.peek().kind === "ident") this.next(); }
+        // the method's parameters, return type and body: consumed, so the rest of
+        // the element is still checked
+        if (method) { while (this.peek().kind !== "code" && this.peek().kind !== "eof" && this.peek().kind !== "rbracket") this.next(); if (this.peek().kind === "code") this.next(); }
         if (this.peek().kind === "eq") { this.next(); this.parseLiteral(); }
         if (this.peek().kind === "comma") { this.next(); continue; }
         break;

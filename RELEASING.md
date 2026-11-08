@@ -41,21 +41,20 @@ carries it.
 
 ## The increment is a judgment
 
-Each release decides how significant it is, and the number says so:
+**Patch** (0.4.x) is the rolling cadence — almost every release: new forms,
+new verbs and facts, sharpened semantics of what already shipped, the
+language evolving in place. **Minor** only for a milestone that reframes what
+the language is — a new pillar of the model, a rework that re-teaches the
+guide. (Ruled 2026-08-30, after 0.4.0: "minor for new surface" would have
+marched the number to 1.0 long before the language is there.) Nothing infers
+the increment — not from commit messages, not from what changed; `--scaffold`
+takes the version as an argument and refuses without one.
 
-- **Step** (0.6.4.1, a fourth part) — a smaller release between patches: a few additions or
-  fixes worth telling, or a breaking change too small to carry a patch's weight.
-- **Patch** (0.6.x) — the rolling cadence of the language evolving in place: new forms,
-  new verbs and facts, sharpened semantics of what already shipped.
-- **Minor** only for a milestone that reframes what the language is — a new pillar of the
-  model, a rework that re-teaches the guide. (Ruled 2026-08-30, after 0.4.0: "minor for new
-  surface" would have marched the number to 1.0 long before the language is there.)
+A version has three parts, because npm reads `package.json`'s version as semver and
+refuses anything else: v0.6.4.1, the one release published with a fourth part, broke
+`npx` after `npm install`. The tools still read that release's notes, as history.
 
-A step is written only when it is not 0: the release after 0.6.4.2 is 0.6.5, not 0.6.5.0.
-Nothing infers the increment — not from commit messages, not from what changed;
-`--scaffold` takes the version as an argument and refuses without one.
-
-The version number is semver-shaped, with the optional fourth part, but carries no compatibility
+The version number is plain semver-shaped but carries no compatibility
 promise before 1.0 — it orders releases, nothing more. `bundles/version.json`
 is unrelated: that is the derive graph's cache-busting build hash.
 

@@ -275,7 +275,11 @@ export function withLocators(page, { act, settle, advance, pause = async () => {
         // the program's clock is the script's: motion still in flight (a sheet
         // rising) has not landed, however long the wait — say so, and the way on
         const moving = await page.evaluate(() => window.__declare?.clock?.settling === true).catch(() => false);
-        const why = moving ? " — motion is still in flight on the program's clock, which the script holds: let it land first (drive.settleMotion())" : "";
+        // found but not shown: the motion is the likely reason; found nothing: only
+        // a possible one (the locator may simply not match), and said as such
+        const why = !moving ? "" : found.length === 0
+          ? " — motion is still in flight on the program's clock, which the script holds; if what you are looking for appears when it lands, let it land first (drive.settleMotion())"
+          : " — motion is still in flight on the program's clock, which the script holds: let it land first (drive.settleMotion())";
         fail((found.length === 0 ? `${describe(steps)} found nothing within ${timeout / 1000} s` : `${describe(steps)} found ${found[0].what}, which is not shown`) + why);
       }
       await tick();

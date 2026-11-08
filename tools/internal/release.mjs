@@ -127,8 +127,11 @@ export function isPublished(version, { tags, pushed }) {
  *  problems, each with its fix. */
 export function checkRelease({ version, tags, pushed = null, notes, committed, removed = [], notesText = null }) {
   const problems = [];
-  if (parseVersion(version) === null) {
-    problems.push(`package.json version '${version}' is not release-shaped (x.y.z or x.y.z.w)`);
+  // three parts: npm reads this as semver and refuses anything else (v0.6.4.1, the one
+  // four-part release, broke npx after npm install); parseVersion still reads that
+  // release's notes as history
+  if (parseVersion(version) === null || version.split(".").length !== 3) {
+    problems.push(`package.json version '${version}' is not release-shaped (x.y.z)`);
     return { ok: false, pending: false, problems };
   }
   const tagged = isPublished(version, { tags, pushed });
@@ -234,7 +237,7 @@ function lastTag(tags) {
 
 // ── modes ───────────────────────────────────────────────────────────────────
 function scaffold(version) {
-  if (version === undefined || parseVersion(version) === null) {
+  if (version === undefined || parseVersion(version) === null || version.split(".").length !== 3) {
     console.error("release --scaffold needs the version as an argument — x.y.z. The increment is a judgment (RELEASING.md), not inferred.");
     process.exit(1);
   }

@@ -134,6 +134,10 @@ class WrappingLayout extends Layout [
         // each in a cell of the row's room shared out (its indent left out)
         const cols = Math.max(0, Math.floor(this.columns))
         const cellOf = (inset) => cols > 0 ? Math.max(0, (w - inset - (cols - 1) * sp) / cols) : 0
+        // A view whose width comes from these very children has no edge to wrap
+        // at: its flow is one row, as wide as what it holds (the room it has is
+        // only what the last pass left). `columns` divides a width, so it keeps one.
+        const unbounded = cols == 0 && this.viewExtent("width") == 0
         let inRow = 0
         // what a run gives its children along the flow (SimpleLayout's model):
         // a child that flexes (a weight above 0) or shrinks has its width
@@ -157,7 +161,7 @@ class WrappingLayout extends Layout [
         // `rowW` is where the row's content ends (its indent included); `last`
         // says whether it is the flow's final row, which `fill` leaves ragged.
         const finish = (end, rowW, last) => {
-            const slack = Math.max(0, w - rowW)
+            const slack = unbounded ? 0 : Math.max(0, w - rowW)
             // a row too long for the room: its shrinking children give way in
             // proportion to their size, down to their minimums; then its flexing
             // children share the slack, or the shortfall still left, by weight,
@@ -171,7 +175,7 @@ class WrappingLayout extends Layout [
                 if (weight(kids[j]) > 0) flexers.push(j)
                 else shrinkers.push(j)
             }
-            let over = rowW - w
+            let over = unbounded ? 0 : rowW - w
             if (over > 0 && shrinkers.length > 0) {
                 const held = shrinkers.map((j) => false)
                 for (let round = 0; round <= shrinkers.length && over > 0; round = round + 1) {
@@ -295,7 +299,7 @@ class WrappingLayout extends Layout [
             natural.push(flex && cols == 0 ? cw : null)
             // wrap when this child (with its leading gap) would overflow — never
             // on a row's first child, so one over-wide child just overflows
-            if (!firstInRow && (cols > 0 ? inRow >= cols : cx + sp + cw > w)) { const lh = finish(i, cx, false); cx = indN; cy = cy + lh + ls; rowH = 0; rowBase = 0; firstInRow = true; rowStart = i; inRow = 0 }
+            if (!firstInRow && (cols > 0 ? inRow >= cols : !unbounded && cx + sp + cw > w)) { const lh = finish(i, cx, false); cx = indN; cy = cy + lh + ls; rowH = 0; rowBase = 0; firstInRow = true; rowStart = i; inRow = 0 }
             const cell = cols > 0 ? cellOf(rowStart == 0 ? ind0 : indN) : 0
             if (cols > 0) cw = cell
             if (!firstInRow) cx = cx + sp

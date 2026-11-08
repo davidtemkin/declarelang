@@ -1388,8 +1388,10 @@ test fixture that must be shot mid-scroll declares this rather than gesturing.
 Makes this view a **link**: one reference string, the same one an authored
 Markdown href carries. `"#why"` names a destination or an anchor in this app, an absolute
 URL leaves it. The view realizes a real `<a href>`, so ⌘-click, copy-link and the build's
-crawler all work, and every literal reference is checked at build against the registry — a
-typo is a compile error naming the real names. `link = ""` is not a link at all, which is
+crawler all work, and every literal reference to a name — a destination a `shows`
+declares, or an `anchor` — is checked at build against the registry: a typo is a compile
+error naming the real names. A reference with a `/` in it (`"#article/intro"`) is a location
+the program parses itself, which no registry names; the build's crawl checks those. `link = ""` is not a link at all, which is
 how a row turns its own linkage off. A data-driven reference (`link = { :to }`) is checked
 when the crawl evaluates it.
 

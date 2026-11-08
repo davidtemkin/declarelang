@@ -553,11 +553,20 @@ bootHost(cfg);
               };
               walk(top, 0);
             } else {
-              for (const c of window.__declare.inspect(base)?.children ?? []) if (c.name) out.add(c.name);
+              // a child without a name is reached by its place: `0`, `1` — said with
+              // its class, so a path written with class names finds its way
+              let byClass = null;
+              for (const c of window.__declare.inspect(base)?.children ?? []) {
+                const step = String(c.path ?? "").split(".").pop();
+                if (c.name) out.add(c.name);
+                else if (step) { out.add(`${step} (a ${c.kind})`); if (c.kind === miss && byClass === null) byClass = step; }
+              }
+              if (byClass !== null) return { base, miss, near: [...out], byClass };
             }
             return { base, miss, near: [...out] };
           }, path);
           if (r === null || r.near.length === 0) return "";
+          if (r.byClass) return ` — '${r.miss}' is a class, not a name: in '${r.base}' that child is '${r.byClass}' (a path names a view by its member name, or by its place among the views beside it). Give it a name where it is written to reach it by that name`;
           const dist = (a, b) => {
             const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
             for (let j = 1; j <= b.length; j++) d[0][j] = j;
@@ -1465,7 +1474,10 @@ const expect = {
             const said = [];
             const sem = (n) => { if (n == null) return; if (n.name) said.push(n.name); if (n.value?.text) said.push(n.value.text); (n.children ?? []).forEach(sem); };
             try { sem(window.__declare.semantics(p, true)); } catch { /* no semantic tree for this node */ }
-            return [...words, ...said].join(" ");
+            // …only what the words above did not already say: a button's name
+            // is its label, and a row's would otherwise come out twice
+            const base = words.join(" ");
+            return [base, ...said.filter((n) => !base.includes(n))].filter((x) => x !== "").join(" ");
           }, path);
           if (!said.includes(contains)) {
             fail(`expected '${path}' text to contain "${contains}", got "${said}"${await heldNote()}`);
