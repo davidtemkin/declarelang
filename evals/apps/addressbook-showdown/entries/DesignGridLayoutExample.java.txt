@@ -1,0 +1,31 @@
+// archived from https://web.archive.org/web/2012/http://wiki.java.net/twiki/bin/view/Javadesktop/DesignGridLayoutExample
+
+@Override public void build(DesignGridLayout layout)
+{
+   JTextField lastNameField = new JTextField("Martian");
+   JTextField firstNameField = new JTextField("Marvin");
+   JTextField phoneField = new JTextField("805-123-4567");
+   JTextField emailField = new JTextField("marvin@wb.com");
+   JTextField address1Field = new JTextField("1001001010101 Martian Way");
+   JTextField address2Field = new JTextField("Suite 10111011");
+   JTextField cityField = new JTextField("Ventura");
+   JTextField stateField = new JTextField("CA");
+   JTextField postalField = new JTextField("93001");
+   JTextField countryField = new JTextField("USA");
+
+   JButton newButton = new JButton("New");
+   JButton deleteButton = new JButton("Delete");
+   JButton editButton = new JButton("Edit");
+   JButton saveButton = new JButton("Save");
+   JButton cancelButton = new JButton("Cancel");
+
+   layout.row().grid(label("Last Name")).add(lastNameField).grid(label("First Name")).add(firstNameField);
+   layout.row().grid(label("Phone")).add(phoneField).grid(label("Email")).add(emailField);
+   layout.row().grid(label("Address 1")).add(address1Field);
+   layout.row().grid(label("Address 2")).add(address2Field);
+   layout.row().grid(label("City"), 1).add(cityField);
+   layout.row().grid(label("State")).add(stateField).grid(label("Postal Code")).add(postalField);
+   layout.row().grid(label("Country"), 1).add(countryField);
+   layout.emptyRow();
+   layout.row().center().add(newButton).add(deleteButton).add(editButton).add(saveButton).add(cancelButton);
+}

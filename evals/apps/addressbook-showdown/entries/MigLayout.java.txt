@@ -1,0 +1,33 @@
+// archived from https://web.archive.org/web/2012/http://wiki.java.net/twiki/bin/view/Javadesktop/MigLayout
+
+JPanel p = new JPanel(new MigLayout("", "[]15[][grow,fill]15[grow]")); 
+
+JScrollPane listScrollPane = new JScrollPane(new JList(new String[] {"Mouse, Mickey"}));
+
+p.add(listScrollPane,            "spany, growy, wmin 150");
+p.add(new JLabel("Last Name"));
+p.add(new JTextField());
+p.add(new JLabel("First Name"),  "split");          // split divides the cell
+p.add(new JTextField(),          "growx, wrap");
+p.add(new JLabel("Phone"));
+p.add(new JTextField());
+p.add(new JLabel("Email"),       "split");
+p.add(new JTextField(),          "growx, wrap");
+p.add(new JLabel("Address 1"));
+p.add(new JTextField(),          "span");          // span merges cells
+p.add(new JLabel("Address 2"));
+p.add(new JTextField(),          "span");
+p.add(new JLabel("City"));
+p.add(new JTextField(),          "wrap");          // wrap continues on next line
+p.add(new JLabel("State"));
+p.add(new JTextField());
+p.add(new JLabel("Postal Code"), "split");
+p.add(new JTextField(),          "growx, wrap");
+p.add(new JLabel("Country"));
+p.add(new JTextField(),          "wrap 15");
+
+p.add(new JButton("New"),        "span, split, align left");
+p.add(new JButton("Delete"));
+p.add(new JButton("Edit"));
+p.add(new JButton("Save"));
+p.add(new JButton("Cancel"),     "wrap push");

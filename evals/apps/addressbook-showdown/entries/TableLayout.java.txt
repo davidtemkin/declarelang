@@ -1,0 +1,195 @@
+// archived from https://web.archive.org/web/2012/http://wiki.java.net/twiki/bin/view/Javadesktop/TableLayout
+
+package uk.ac.leeds.comp.nde;
+
+
+import info.clearthought.layout.TableLayout;
+
+import javax.swing.JButton;
+import javax.swing.JFrame;
+import javax.swing.JLabel;
+import javax.swing.JList;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextField;
+
+
+
+/**
+ * An implementation of the address book GUI for John O'Conner's
+ * layout manager showdown, based on TableLayout.
+ *
+ * @author Nick Efford
+ * @version 1.0 (2006-10-13)
+ */
+public class AddressBookDemo extends JFrame
+{
+  private JList listBox;
+
+  private JTextField lastNameField;
+  private JTextField firstNameField;
+  private JTextField phoneField;
+  private JTextField emailField;
+  private JTextField addressField1;
+  private JTextField addressField2;
+  private JTextField cityField;
+  private JTextField stateField;
+  private JTextField postcodeField;
+  private JTextField countryField;
+
+  private JButton newButton;
+  private JButton deleteButton;
+  private JButton editButton;
+  private JButton saveButton;
+  private JButton cancelButton;
+
+
+  /**
+   * Creates an AddressBookDemo frame.
+   */
+  public AddressBookDemo()
+  {
+    super("Address Book Demo");
+
+    createListBox();
+    createTextFields();
+    createButtons();
+    arrangeComponents();
+
+    pack();
+    setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+    setVisible(true);
+  }
+
+
+  /**
+   * Creates this GUI's list box.
+   */
+  private void createListBox()
+  {
+    listBox = new JList(new String[] {
+        "Bunny, Bugs",
+        "Cat, Sylvester",
+        "Coyote, Wile",
+        "Devil, Tasmanian",
+        "Duck, Daffy",
+        "Fudd, Elmer",
+        "Le Pew, Pepe",
+        "Martian, Marvin"
+    });
+  }
+
+
+  /**
+   * Creates this GUI's text fields.
+   */
+  private void createTextFields()
+  {
+    lastNameField = new JTextField();
+    firstNameField = new JTextField();
+    phoneField = new JTextField();
+    emailField = new JTextField();
+    addressField1 = new JTextField();
+    addressField2 = new JTextField();
+    cityField = new JTextField();
+    stateField = new JTextField();
+    postcodeField = new JTextField();
+    countryField = new JTextField();
+  }
+
+
+  /**
+   * Creates this GUI's buttons.
+   */
+  private void createButtons()
+  {
+    newButton = new JButton("New");
+    deleteButton = new JButton("Delete");
+    editButton = new JButton("Edit");
+    saveButton = new JButton("Save");
+    cancelButton = new JButton("Cancel");
+  }
+
+
+  /**
+   * Arranges this GUI's buttons in a panel.
+   *
+   * @return Panel containing the buttons
+   */
+  private JPanel getButtonPanel()
+  {
+    JPanel panel = new JPanel();
+    panel.add(newButton);
+    panel.add(deleteButton);
+    panel.add(editButton);
+    panel.add(saveButton);
+    panel.add(cancelButton);
+    return panel;
+  }
+
+
+  /**
+   * Arranges the components of this GUI.
+   */
+  private void arrangeComponents()
+  {
+    double b = 10;    // border around all components
+    double cg = 10;   // standard column gap
+    double rg = 5;    // standard row gap 
+
+    double f = TableLayout.FILL;
+    double p = TableLayout.PREFERRED;
+
+    double[][] size = {
+        { b, f, cg*2, p, cg, f, cg, p, cg, p, cg, f, b },
+        { b, p, rg, p, rg, p, rg, p, rg, p, rg, p, rg, p, rg*3, f, p, b }
+    };
+
+    setLayout(new TableLayout(size));
+    addComponents();
+  }
+
+
+  /**
+   * Adds each component to this GUI.
+   */
+  private void addComponents()
+  {
+    JScrollPane pane = new JScrollPane(listBox);
+    pane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_ALWAYS);
+
+    add(pane,                       "1,1,1,16"  );
+    add(new JLabel("Last name"),    "3,1,r,c"   );
+    add(lastNameField,              "5,1"       );
+    add(new JLabel("First name"),   "7,1,9,1"   );
+    add(firstNameField,             "11,1"      );
+    add(new JLabel("Phone"),        "3,3,r,c"   );
+    add(phoneField,                 "5,3"       );
+    add(new JLabel("Email"),        "7,3"       );
+    add(emailField,                 "9,3,11,3"  );
+    add(new JLabel("Address 1"),    "3,5,r,c"   );
+    add(addressField1,              "5,5,11,5"  );
+    add(new JLabel("Address 2"),    "3,7,r,c"   );
+    add(addressField2,              "5,7,11,7"  );
+    add(new JLabel("City"),         "3,9,r,c"   );
+    add(cityField,                  "5,9"       );
+    add(new JLabel("State"),        "3,11,r,c"  );
+    add(stateField,                 "5,11"      );
+    add(new JLabel("Postal Code"),  "7,11,9,11" );
+    add(postcodeField,              "11,11"     );
+    add(new JLabel("Country"),      "3,13,r,c"  );
+    add(countryField,               "5,13"      );
+    add(getButtonPanel(),           "3,16,11,16");
+  }
+
+
+  /**
+   * Application entry point.
+   *
+   * @param args Command-line arguments (unused)
+   */
+  public static void main(String[] args)
+  {
+    new AddressBookDemo();
+  }
+}

@@ -1,0 +1,139 @@
+// archived from https://web.archive.org/web/2012/http://wiki.java.net/twiki/bin/view/Javadesktop/GridBagLayout
+
+import java.awt.*;
+import javax.swing.*;
+
+public class Layout {
+   public static void main(String args[]) {
+      JFrame frame;
+      Container c;
+      GridBagLayout layout;
+      GridBagConstraints constraints;
+      
+      frame = new JFrame("Address Book Demo");
+      c = frame.getContentPane();
+      
+      layout = new GridBagLayout();
+      constraints = new GridBagConstraints();
+      constraints.gridwidth = 1;
+      constraints.weightx = 0;
+      constraints.weighty = 0;
+      constraints.anchor = GridBagConstraints.EAST;
+      constraints.fill = GridBagConstraints.BOTH;
+      c.setLayout(layout);
+
+      constraints.weightx = 1;
+      constraints.weighty = 1;
+      constraints.gridheight = 10;
+      c.add(new JScrollPane(new JList(new String[] {"Bunny, Bugs", "Cat, Sylvester", "Coyote, Wile E.", "Devil, Tasmanian", "Duck, Daffy", "Fudd, Elmer", "Le Pew, Pepe", "Martian, Marvin"})), constraints);   
+
+      constraints.weightx = 0;
+      constraints.weighty = 0;
+      constraints.gridheight = 1;
+      c.add(new JLabel("Last Name"), constraints);
+      constraints.weightx = 1;
+      constraints.fill = GridBagConstraints.BOTH;
+      c.add(new JTextField("Martian"), constraints);
+
+      constraints.weightx = 0;
+      constraints.fill = GridBagConstraints.NONE;
+      c.add(new JLabel("First Name"), constraints);
+      constraints.gridwidth = GridBagConstraints.REMAINDER;
+      constraints.weightx = 1;
+      constraints.fill = GridBagConstraints.BOTH;
+      c.add(new JTextField("Marvin"), constraints);
+
+      constraints.gridwidth = 1;
+      constraints.weightx = 0;
+      constraints.fill = GridBagConstraints.NONE;
+      c.add(new JLabel("Phone"), constraints);
+      constraints.weightx = 1;
+      constraints.fill = GridBagConstraints.BOTH;
+      c.add(new JTextField("805-123-4567"), constraints);
+
+      constraints.weightx = 0;
+      constraints.fill = GridBagConstraints.NONE;
+      c.add(new JLabel("Email"), constraints);
+      constraints.gridwidth = GridBagConstraints.REMAINDER;
+      constraints.weightx = 1;
+      constraints.fill = GridBagConstraints.BOTH;
+      c.add(new JTextField("marvin@wb.com"), constraints);
+
+      constraints.gridwidth = 1;
+      constraints.weightx = 0;
+      constraints.fill = GridBagConstraints.NONE;
+      c.add(new JLabel("Address 1"), constraints);
+      constraints.gridwidth = GridBagConstraints.REMAINDER;
+      constraints.weightx = 1;
+      constraints.fill = GridBagConstraints.BOTH;
+      c.add(new JTextField("1001001010101 Martian Way"), constraints);
+
+      constraints.gridwidth = 1;
+      constraints.weightx = 0;
+      constraints.fill = GridBagConstraints.NONE;
+      c.add(new JLabel("Address 2"), constraints);
+      constraints.gridwidth = GridBagConstraints.REMAINDER;
+      constraints.weightx = 1;
+      constraints.fill = GridBagConstraints.BOTH;
+      c.add(new JTextField("Suite 10111011"), constraints);
+
+      constraints.gridwidth = 1;
+      constraints.weightx = 0;
+      constraints.fill = GridBagConstraints.NONE;
+      c.add(new JLabel("City"), constraints);
+      constraints.weightx = 1;
+      constraints.fill = GridBagConstraints.BOTH;
+      c.add(new JTextField("Ventura"), constraints);
+      constraints.gridwidth = GridBagConstraints.REMAINDER;
+      constraints.fill = GridBagConstraints.BOTH;
+      c.add(new JLabel(), constraints);
+
+      constraints.gridwidth = 1;
+      constraints.weightx = 0;
+      constraints.fill = GridBagConstraints.NONE;
+      c.add(new JLabel("State"), constraints);
+      constraints.fill = GridBagConstraints.BOTH;
+      c.add(new JTextField("CA"), constraints);
+      constraints.fill = GridBagConstraints.NONE;
+      c.add(new JLabel("Postal Code"), constraints);
+      constraints.gridwidth = GridBagConstraints.REMAINDER;
+      constraints.fill = GridBagConstraints.BOTH;
+      c.add(new JTextField("93001"), constraints);
+
+      constraints.gridwidth = 1;
+      constraints.fill = GridBagConstraints.NONE;
+      c.add(new JLabel("Country"), constraints);
+      constraints.fill = GridBagConstraints.BOTH;
+      c.add(new JTextField(), constraints);
+      constraints.gridwidth = GridBagConstraints.REMAINDER;
+      c.add(new JLabel(""), constraints);
+
+      JPanel buttons = createButtonPanel();
+      c.add(buttons, constraints); 
+      
+      frame.pack();
+      frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+      frame.show();   
+   }
+
+   static JPanel createButtonPanel() {
+      GridBagLayout layout = new GridBagLayout();
+      GridBagConstraints c = new GridBagConstraints();
+      JPanel panel = new JPanel();
+
+      panel.setLayout(layout);
+      c.weightx = 0;
+      c.weighty = 0;
+      c.fill = GridBagConstraints.NONE;
+      c.anchor = GridBagConstraints.CENTER;
+
+      panel.add(new JButton("New"), c);
+      panel.add(new JButton("Delete"), c);
+      panel.add(new JButton("Edit"), c);
+      panel.add(new JButton("Save"), c);
+      panel.add(new JButton("Cancel"), c);
+
+      return panel;   
+   }   
+}
+

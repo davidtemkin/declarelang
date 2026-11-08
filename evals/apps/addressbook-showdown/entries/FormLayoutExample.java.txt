@@ -1,0 +1,89 @@
+// archived from https://web.archive.org/web/2012/http://wiki.java.net/twiki/bin/view/Javadesktop/FormLayoutExample
+
+import java.awt.Dimension;
+
+import javax.swing.JButton;
+import javax.swing.JFrame;
+import javax.swing.JList;
+import javax.swing.JPanel;
+import javax.swing.JScrollPane;
+import javax.swing.JTextField;
+
+import com.jgoodies.forms.builder.DefaultFormBuilder;
+import com.jgoodies.forms.factories.ButtonBarFactory;
+import com.jgoodies.forms.layout.FormLayout;
+
+public class Showdown {
+
+    public Showdown() {
+        JFrame frame = new JFrame("Address Book Demo");
+        FormLayout formLayout = new FormLayout(
+                "pref:grow(0.33), 4dlu, pref:grow(0.67)",
+                "fill:pref:grow");
+        DefaultFormBuilder builder = new DefaultFormBuilder(formLayout);
+        builder.setDefaultDialogBorder();
+
+        JList list = new JList(new String[] {
+                "Bunny, Bugs", "Cat, Sylvester", "Coyote, Wily E.",
+                "Devil, Tasmanian", "Duck, Daffy", "Fedd, Elmer",
+                "Le Pew, Pepe", "Martian, Marvin"
+        });
+        list.setPreferredSize(new Dimension(150, 20));
+        JScrollPane scroll = new JScrollPane(list);
+        builder.append(scroll);
+        builder.append(createDetailsPanel(frame));
+        frame.add(builder.getPanel());
+
+        frame.pack();
+        frame.setLocationRelativeTo(null);
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setVisible(true);
+    }
+
+    private JPanel createDetailsPanel(JFrame frame) {
+        FormLayout formLayout = new FormLayout(
+                "right:pref, 2dlu, pref:grow(0.5), 2dlu, pref:grow(0.5)");
+        DefaultFormBuilder builder = new DefaultFormBuilder(formLayout);
+
+        builder.append("Last Name", new JTextField(12));
+        builder.append(createUnalignedField("First Name"));
+        builder.append("Phone", new JTextField(12));
+        builder.append(createUnalignedField("Email"));
+        builder.append("Address 1", new JTextField(40), 3);
+        builder.append("Address 2", new JTextField(40), 3);
+        builder.append("City", new JTextField(12));
+        builder.nextLine();
+        builder.append("State", new JTextField(12));
+        builder.append(createUnalignedField("Postal Code"));
+        builder.append("Country", new JTextField(12));
+        builder.nextLine();
+        JButton[] buttons = new JButton[] {
+                new JButton("New"),
+                new JButton("Delete"),
+                new JButton("Edit"),
+                new JButton("Save"),
+                new JButton("Cancel")
+        };
+        builder.appendUnrelatedComponentsGapRow();
+        builder.nextLine();
+        builder.appendRow("p");
+        builder.append(ButtonBarFactory.buildCenteredBar(buttons), 5);
+        frame.getRootPane().setDefaultButton(buttons[1]);
+
+        return builder.getPanel();
+    }
+
+    private JPanel createUnalignedField(String label) {
+        FormLayout formLayout = new FormLayout("pref, 2dlu, pref:grow");
+        DefaultFormBuilder builder = new DefaultFormBuilder(formLayout);
+
+        builder.append(label, new JTextField(12));
+
+        return builder.getPanel();
+    }
+
+    public static void main(String[] args) {
+        new Showdown();
+    }
+
+}
