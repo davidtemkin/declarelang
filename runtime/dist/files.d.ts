@@ -20,6 +20,8 @@ export interface FilesHost {
     pick(options: PickOptions): Promise<FileRecord[]>;
 }
 export declare function provideFilesHost(h: FilesHost | null): void;
+export declare function fromBrowser(f: File, path: string): FileRecord;
+export declare function adopt(list: readonly FileRecord[]): FileRecord[];
 /** The file dialog. Call it from what the person does — a press, a click — as
  *  a browser allows a file dialog only then; it resolves to the files chosen,
  *  none if the dialog was dismissed. */

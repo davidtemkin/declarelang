@@ -18,6 +18,7 @@ import { DeclareError, notAboard } from "./errors.js";
 import { Keys } from "./keys.js";
 import { Focus, deliverKeys } from "./focus.js";
 import { wireFiles } from "./files.js";
+import { wireClipboard } from "./clipboard.js";
 import { bridgeFor } from "./inspect.js";
 import { localPoint, watchScrolling, setPageScrollWatch } from "./dom-backend.js";
 import { noteFinger } from "./interaction.js";
@@ -89,6 +90,10 @@ export function wireInput(app, host, chrome = false) {
     // program takes none); an embedded app answers for its box before its host
     if (!chrome)
         onDiscard(app, wireFiles(app, host));
+    // copy, cut and paste for the focused view (clipboard.ts) — a text field's
+    // stay its own; an embedded app answers while focus is in it
+    if (!chrome)
+        onDiscard(app, wireClipboard(app));
     if (chrome || embedded)
         return;
     Focus.setRoot(app);

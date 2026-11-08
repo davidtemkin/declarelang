@@ -260,10 +260,40 @@ deepest such view under the drag, as with a press — with `onFilesOver` and `on
 light it while they are over it. What a file is, and what to do with one, is in
 [Data](declare-docs:guide:data@files).
 
+## Copy, cut and paste
+
+⌘C, ⌘X and ⌘V — and the Edit menu — go to the focused view if it declares
+[`onClipboardCopy`](declare-docs:View.event.clipboardCopy), [`onClipboardCut`](declare-docs:View.event.clipboardCut) or
+[`onClipboardPaste`](declare-docs:View.event.clipboardPaste), or else to its nearest ancestor that does; with
+nothing focused, to the App. A text field keeps them for itself, as text fields do everywhere.
+
+The clipboard holds one thing in several representations, by MIME type, and each app
+that pastes takes the best one it understands. A copy puts as many as it likes:
+`e.put(text)` is plain text, which every app reads; `e.put("text/html", …)` keeps
+formatting for a mail or a document; a type of the program's own (`"application/x-…"`)
+carries the whole thing to another of its windows. A paste looks at `e.types` and reads
+with `e.get(type)`, `e.text`, or `e.files` for pasted images and files:
+
+```declare
+App [ width = 320, height = 120, fill = white, textColor = black,
+    word: string = "tomato",
+    chip: View [ x = 20, y = 40, padding = 10, cornerRadius = 8, fill = gainsboro, focusable = true,
+        onClipboardCopy(e: ClipboardEvent) { e.put(app.word) },
+        onClipboardPaste(e: ClipboardEvent) { if (e.text.trim() != "") { app.word = e.text.trim() } },
+        Text [ text = { app.word } ] ],
+    Text [ x = 20, y = 90, text = "Click the chip, then ⌘C or ⌘V" ]
+    ]
+```
+
+A button writes with `Clipboard.copy` — `Clipboard.copy(link)`,
+or a record of representations — from the press, as a browser allows the write only then.
+There is no reading the clipboard from code: pasting is the person's act, and `onClipboardPaste` is
+where it arrives.
+
 ---
 
 **What you can now do:** style from hover and press, route behavior by calling methods,
 choose between the raw and resolved layers, let one view carry a drag and a click, find
-what is under the pointer, handle keys, declare shortcuts, and take the person's files.
+what is under the pointer, handle keys, declare shortcuts, take the person's files, and copy and paste.
 
 [Next: **Touch and gestures** →](declare-docs:guide:touch)

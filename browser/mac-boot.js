@@ -17,7 +17,8 @@
 import { buildProgram, mountApp, settle, observe, provideTransport, provideMeasurer, fontsReady, bridgeFor, kernelReadySync,
          Keys, Focus, deliverKeys, setInspectionTarget, linkIslandTenant, islandProvisions, setAppAssetBase,
          scrollPlaces, holdScrollPlaces, dropScrollPlaces, islandNavigation, provideHostServices,
-         provideFilesHost, deliverFiles, feedPointer } from "../runtime/dist/index.js";
+         provideFilesHost, deliverFiles, feedPointer,
+         provideClipboardHost, deliverCopy, deliverPaste, takesClipboard } from "../runtime/dist/index.js";
 import { MacBackend, flushOps, provideHitPath, macScrollFacts, macWheel, macRichHeight, macRichLink,
          macEditInput, macEditAdmit, macEditFocus, macEditEnter, macEditSelect, embedsPending, mountEmbed, clearEmbed, surfaceById,
          publishChildName, islandViewById, macScrollTo, surfaceOrigin, createOverlaySurface, rootBox,
@@ -61,6 +62,26 @@ provideHitPath((d, x, y) => H.pathHit(d, x, y));
     settle();
   };
 }
+
+// Copy, cut and paste (runtime clipboard.ts): the Edit menu asks whether a view
+// takes the command ("can-…"), a copy answers what was put (JSON, or null to
+// leave it to the platform), and a paste hands over the pasteboard's
+// representations and files. Clipboard.copy writes through the host.
+provideClipboardHost({ write: (data) => H.clipboardWrite(JSON.stringify(data)) });
+globalThis.__declareClipboard = (kind, json) => {
+  if (currentApp === null) return null;
+  if (kind.startsWith("can-")) return takesClipboard(currentApp, kind.slice(4)) ? "1" : null;
+  if (kind === "copy" || kind === "cut") {
+    const put = deliverCopy(currentApp, kind);
+    settle();
+    return put === null ? null : JSON.stringify(put);
+  }
+  let o = {};
+  try { o = JSON.parse(json); } catch { o = {}; }
+  deliverPaste(currentApp, o.data ?? {}, o.files ?? []);
+  settle();
+  return null;
+};
 
 provideTransport((url, opts) => {
   const href = new URL(url, globalThis.__declareBase || "http://localhost/").href;

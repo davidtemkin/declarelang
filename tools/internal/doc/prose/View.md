@@ -952,6 +952,24 @@ the drag moves; the place to light a drop target.
 The drag left the view, or ended — the partner of `filesOver`, and the place to put the
 light out.
 
+## onClipboardCopy
+⌘C, or Edit ▸ Copy, while this view or one inside it has focus (the nearest view declaring
+it takes it; with nothing focused, the App). `e.put(text)` puts plain text, which every app
+reads; `e.put(type, data)` puts another representation of the same thing, by MIME type —
+`"text/html"` for formatting, a type of the program's own for itself. A copy that puts
+nothing is left to the platform. A focused text field keeps the command for itself.
+
+## onClipboardCut
+⌘X, or Edit ▸ Cut — `onClipboardCopy`'s partner, taken the same way: put the representations, then
+remove what was cut.
+
+## onClipboardPaste
+⌘V, or Edit ▸ Paste, taken as `onClipboardCopy` is. The event holds what the clipboard offers:
+`e.types`, the MIME types on it; `e.get(type)`, one of them (null when absent); `e.text`, the
+plain text ("" when none); and `e.files`, pasted files and images as file records. Read the
+best representation the view understands. There is no other way to read the clipboard:
+pasting is the person's act.
+
 ## scrollIntoView()
 Scrolls this view into the visible region of its nearest `scrolls` ancestor (or the page),
 aligning its top to the viewport top — the imperative partner of the declarative jump-index

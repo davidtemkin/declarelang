@@ -30,7 +30,7 @@
     "test:ladder": "npm run build && node test/ladder.test.mjs && node test/eval-references.test.mjs --ladder",
     "test:all": "npm run build && node tools/internal/run-tests.mjs --full && npm run test:ladder",
     "test:conform": "npm run build && node test/conform/conform.test.mjs",
-    "test:mac": "npm run build:mac && node test/mac-shell.test.mjs && node test/conform/conform.test.mjs --mac && node mac-host/gate.mjs"
+    "test:mac": "npm run build:mac && node test/mac-shell.test.mjs && node test/mac-clipboard.test.mjs && node test/conform/conform.test.mjs --mac && node mac-host/gate.mjs"
   },
   "dependencies": {
     "esbuild": "^0.28.1",

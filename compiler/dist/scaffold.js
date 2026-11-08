@@ -445,6 +445,18 @@ interface FilesOverEvent { readonly count: number; readonly x: number; readonly 
 /** Files dropped on a view: the files — a dropped folder's, every file in it, each with
  *  its path — and where, in the view's own coordinates. */
 interface FilesDropEvent { readonly files: File[]; readonly x: number; readonly y: number }
+/** The clipboard at a copy, cut or paste: one thing in several representations, by MIME
+ *  type. A copy \`put\`s as many as it likes — \`put(text)\` is plain text, which every app
+ *  reads; \`put("text/html", …)\` for apps that take formatting; a type of its own
+ *  (\`"application/x-…"\`) for itself. A paste reads the best it understands: \`types\` lists
+ *  what is on offer, \`get(type)\` reads one (null when absent), \`text\` is the plain text,
+ *  and \`files\` holds pasted files and images. */
+interface ClipboardEvent { readonly types: string[]; readonly text: string; readonly files: File[]; get(type: string): string | null; put(text: string): void; put(type: string, data: string): void }
+/** Writing to the clipboard from a press — a "Copy link" button: \`copy(text)\`, or
+ *  \`copy({ "text/plain": …, "text/html": … })\` for several representations. Call it from
+ *  what the person does, as a browser allows the write only then. Pasting is the person's:
+ *  a view reads the clipboard in \`onClipboardPaste\`. */
+declare const Clipboard: { copy(what: string | Record<string, string>): void };
 /** What \`FilePicker.pick\` offers: the types (MIME types or extensions), more than one file,
  *  or a whole folder. */
 interface FilePickOptions { accept?: string[]; multiple?: boolean; folder?: boolean }
@@ -635,7 +647,7 @@ export function tsType(t) {
 /** The event-payload type names, writable in a handler's signature. Declared
  *  in the prelude above; the shapes live in the runtime (events.ts, keys.ts,
  *  tip.ts, focus.ts) and this list is what makes them nameable by an author. */
-const PAYLOAD_TYPES = new Set(["PointerEvent", "PointerUpEvent", "TouchEvent", "WheelEvent", "PinchEvent", "Touch", "KeyEvent", "FocusGeometry", "TooltipEvent", "StreamMessage", "File", "FilesOverEvent", "FilesDropEvent", "FilePickOptions", "DrawContext", "DrawGradient"]);
+const PAYLOAD_TYPES = new Set(["PointerEvent", "PointerUpEvent", "TouchEvent", "WheelEvent", "PinchEvent", "Touch", "KeyEvent", "FocusGeometry", "TooltipEvent", "StreamMessage", "File", "FilesOverEvent", "FilesDropEvent", "ClipboardEvent", "FilePickOptions", "DrawContext", "DrawGradient"]);
 /** A WRITTEN signature type name (`f(w: Window) -> number`) → its TypeScript
  *  type. Two sources, the same two an attribute declaration draws on: the
  *  declarable value vocabulary (`number`, `string`, `array`, `Axis`, …) and the

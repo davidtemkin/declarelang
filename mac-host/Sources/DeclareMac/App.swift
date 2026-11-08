@@ -317,6 +317,45 @@ final class DeclareView: NSView {
         // Let ⌘-shortcuts reach the menu bar as well.
         if e.modifierFlags.contains(.command) { super.keyDown(with: e) }
     }
+    // ── the Edit menu's Copy, Cut and Paste ───────────────────────────────────
+    //
+    // Reached when no text view is first responder (a field keeps its own). A
+    // live selection in a drawn flow copies as text; otherwise the runtime's
+    // focused view takes the command (clipboard.ts), and an item no view takes
+    // is disabled.
+
+    @objc func copy(_ sender: Any?) {
+        if let text = bridge?.tree?.allFlows().first(where: { $0.selectedText != nil })?.selectedText {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+            return
+        }
+        put("copy")
+    }
+    @objc func cut(_ sender: Any?) { put("cut") }
+    @objc func paste(_ sender: Any?) {
+        bridge.call("__declareClipboard", ["paste", Clipboard.read()])
+        bridge.needsFrame()
+    }
+    private func put(_ kind: String) {
+        if case .text(let json) = bridge.ask("__declareClipboard", [kind, ""], timeout: 0.5) { Clipboard.write(json: json) }
+        bridge.needsFrame()
+    }
+    @objc func validateMenuItem(_ item: NSMenuItem) -> Bool {
+        let kind: String
+        switch item.action {
+        case #selector(copy(_:)):
+            if bridge?.tree?.allFlows().contains(where: { $0.selectedText != nil }) == true { return true }
+            kind = "copy"
+        case #selector(cut(_:)): kind = "cut"
+        case #selector(paste(_:)): kind = "paste"
+        default: return true
+        }
+        guard let bridge else { return false }
+        if case .text = bridge.ask("__declareClipboard", ["can-" + kind, ""], timeout: 0.1) { return true }
+        return false
+    }
+
     override func keyUp(with e: NSEvent) {
         bridge.call("__declareKey", ["keyup", Self.keyName(e), mods(e), 0, Self.keyCode(e.keyCode)])
         bridge.needsFrame()

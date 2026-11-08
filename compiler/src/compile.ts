@@ -895,7 +895,7 @@ const ES_GLOBALS = new Set([
 // in a handler is the service, never a member to resolve. `afterSettle` and
 // `tint` are the function-shaped entries; the built-in theme presets are in
 // scope by name (`SanFrancisco`, `CupertinoDark`, …), so a body names one.
-const RUNTIME_SERVICES = new Set(["Focus", "Keys", "FilePicker", "Inspect", "Accessibility", "afterSettle", "activeTone", ...THEME_PRESET_NAMES]);
+const RUNTIME_SERVICES = new Set(["Focus", "Keys", "FilePicker", "Clipboard", "Inspect", "Accessibility", "afterSettle", "activeTone", ...THEME_PRESET_NAMES]);
 
 /** Every name the runtime binds in a { } body's own scope (expr.ts SCOPE): the
  *  value constructors, the literal-lowering helper, the services and presets.

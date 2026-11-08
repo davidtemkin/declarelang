@@ -771,7 +771,7 @@ const TYPE_GROUPS = [
   ["Text", ["TextStyle", "TextStyles", "TagStyles", "BlockGeometry", "RichTextLayout"]],
   ["Event payloads", ["PointerEvent", "PointerUpEvent", "TouchEvent", "Touch", "WheelEvent", "PinchEvent",
                       "KeyEvent", "FocusGeometry", "TooltipEvent", "StreamMessage", "ChangeEvent", "ValueChange",
-                      "FilesOverEvent", "FilesDropEvent"]],
+                      "FilesOverEvent", "FilesDropEvent", "ClipboardEvent"]],
   ["Files", ["File", "FilePickOptions"]],
   ["Drawing", ["DrawContext", "DrawGradient", "DrawImageSource"]],
   ["Inspection", ["TraceSettle", "TraceChange"]],

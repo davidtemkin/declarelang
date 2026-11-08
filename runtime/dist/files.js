@@ -25,12 +25,12 @@ export function provideFilesHost(h) {
  *  itself reads the bytes (the native host's file: URLs). A record is a file
  *  this runtime handed out — a copy of one (a dataset keeps copies) still is. */
 const known = new Map();
-function fromBrowser(f, path) {
+export function fromBrowser(f, path) {
     const url = URL.createObjectURL(f);
     known.set(url, f);
     return Object.freeze({ name: f.name, size: f.size, type: f.type, modified: f.lastModified, path, url });
 }
-function adopt(list) {
+export function adopt(list) {
     for (const r of list)
         if (!known.has(r.url))
             known.set(r.url, null);

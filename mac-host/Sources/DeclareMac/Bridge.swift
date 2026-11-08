@@ -531,6 +531,12 @@ final class Bridge {
             }
         } as @convention(block) (Int, String) -> Void, forKeyedSubscript: "pickFiles")
 
+        // Clipboard.copy: the representations written to the general pasteboard
+        // (Clipboard.swift) — on main, where AppKit wants it
+        host.setObject({ (json: String) in
+            DispatchQueue.main.async { Clipboard.write(json: json) }
+        } as @convention(block) (String) -> Void, forKeyedSubscript: "clipboardWrite")
+
         // WebSocket (the env's WebSocket class): URLSessionWebSocketTask does
         // the protocol — the HTTP upgrade handshake, framing, ping/pong, the
         // closing handshake; the reply comes back as __declareWsOpen /

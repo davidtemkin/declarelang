@@ -52,13 +52,13 @@ export function provideFilesHost(h: FilesHost | null): void {
  *  this runtime handed out — a copy of one (a dataset keeps copies) still is. */
 const known = new Map<string, Blob | null>();
 
-function fromBrowser(f: File, path: string): FileRecord {
+export function fromBrowser(f: File, path: string): FileRecord {
   const url = URL.createObjectURL(f);
   known.set(url, f);
   return Object.freeze({ name: f.name, size: f.size, type: f.type, modified: f.lastModified, path, url });
 }
 
-function adopt(list: readonly FileRecord[]): FileRecord[] {
+export function adopt(list: readonly FileRecord[]): FileRecord[] {
   for (const r of list) if (!known.has(r.url)) known.set(r.url, null);
   return list.map((r) => Object.freeze({ ...r }));
 }

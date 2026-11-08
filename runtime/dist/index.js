@@ -63,6 +63,7 @@ export { DeclareError, DeclareErrors } from "./errors.js";
 export { headingSlug } from "./slug.js";
 export { Keys, KeysService, normalize } from "./keys.js";
 export { Focus, FocusService, deliverKeys } from "./focus.js";
+export { Clipboard, ClipboardEvent, provideClipboardHost, deliverCopy, deliverPaste, takesClipboard } from "./clipboard.js";
 export { FilePicker, provideFilesHost, deliverFiles } from "./files.js";
 // The runtime services usable INSIDE `{ }` bodies (`Focus.focus(this)` in a
 // click handler) are injected by services.js — a side-effect-only module, split

@@ -453,7 +453,9 @@ const ViewSchema = {
         "pinchStart", "pinch", "pinchEnd",
         "retire", "contextMenu", "focus", "blur", "outsidePress", "keyDown", "keyUp",
         // files dragged over the view, leaving it, dropped on it (files.ts)
-        "filesOver", "filesOut", "filesDrop"],
+        "filesOver", "filesOut", "filesDrop",
+        // ⌘C, ⌘X, ⌘V at the focused view or its nearest ancestor that declares one (clipboard.ts)
+        "clipboardCopy", "clipboardCut", "clipboardPaste"],
     // (`init` is INHERITED from Node now — the faceless tier's lifecycle,
     // 2026-08-20; re-listing it here doubled it in the handlers-it-knows error)
 };
@@ -1469,6 +1471,7 @@ export const EVENT_PAYLOAD = {
     message: "StreamMessage", // Stream: data/type/id (streams.ts)
     filesOver: "FilesOverEvent", // View: files dragged over it — how many, where (files.ts)
     filesDrop: "FilesDropEvent", // View: the files dropped on it, and where
+    clipboardCopy: "ClipboardEvent", clipboardCut: "ClipboardEvent", clipboardPaste: "ClipboardEvent", // View: the clipboard's representations (clipboard.ts)
     post: "IslandMessage", // Island bridge: { topic, payload } (view.ts)
     hostMessage: "IslandMessage", // App: a message from the host island, { topic, payload } (view.ts postToHost's other half)
     navigate: "IslandNavigation", // Island: a hosted program's navigation (island.ts)

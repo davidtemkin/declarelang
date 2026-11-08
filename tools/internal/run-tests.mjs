@@ -124,6 +124,7 @@ const SUITE = [
   "test/fetch-family.test.mjs",
   "test/script-host.test.mjs",
   "test/files-browser.test.mjs",
+  "test/clipboard-browser.test.mjs", // copy, cut and paste at the focused view, by the page's own events
   "test/island-browser.test.mjs",
   "test/two-way.test.mjs",         // the apps/two-way showcase: the whole embedder surface on one page
   "test/verify-apps.test.mjs",
