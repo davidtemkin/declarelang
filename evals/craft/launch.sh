@@ -25,7 +25,7 @@ EVALS="$(cd "$HERE/.." && pwd)"
 SRC="$EVALS/apps/$APP"
 [ -f "$SRC/brief.md" ] || { echo "no brief at $SRC/brief.md" >&2; exit 1; }
 # the app's own port is the one its brief names (the 83xx service port)
-APP_PORT="$(grep -oE '\b83[0-9]{2}\b' "$SRC/brief.md" | head -1)"
+APP_PORT="$(grep -oE '\b83[0-9]{2}\b' "$SRC/brief.md" | head -1 || true)"
 PORT="${PORT:-${APP_PORT:-8320}}"
 [ -e "$RUN" ] && { echo "$RUN exists — a run directory is always fresh" >&2; exit 1; }
 if lsof -iTCP:"$PORT" -sTCP:LISTEN -P >/dev/null 2>&1; then echo "port $PORT is taken — the service needs it" >&2; exit 1; fi
