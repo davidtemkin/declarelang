@@ -10,7 +10,7 @@ script {
                 "lib": 12.6,
                 "core": 41.1,
                 "view": 12.6,
-                "backend": 15.3,
+                "backend": 15.4,
                 "input": 17.7,
                 "draw": 16.5,
                 "anim": 3.2,
@@ -54,12 +54,12 @@ script {
                 "ker": 0
             },
             "totals": {
-                "calDom": 163.2,
-                "calCanvas": 188.2,
+                "calDom": 163.3,
+                "calCanvas": 188.3,
                 "calMac": 138.8
             }
         },
-        "runtimeKB": 123,
+        "runtimeKB": 123.1,
         "kernelKB": 15.2,
         "kernelWasmGzipKB": 12.6,
         "kernelWasmRawKB": 23,

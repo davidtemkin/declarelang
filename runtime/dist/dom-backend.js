@@ -44,6 +44,10 @@ import { platformTimeout, clearPlatformTimeout } from "./platform-time.js";
 /** A child is being moved (insertChild): a native blur it causes is not the
  *  person leaving the field. */
 let MOVING_FOCUS = false;
+/** True while an editable element is replaced in place (input ↔ textarea) and its
+ *  focus carried across: neither the old element's blur nor the new one's focus is
+ *  something the person did. */
+let SWAPPING = false;
 /** Move `el` (by `move`) without losing a focused field inside it. */
 /** A drawing's raster area held to its view's box, for a view that clips: the
  *  part of `r` inside 0…w × 0…h, with a unit of margin so a mark ending on the
@@ -2472,8 +2476,21 @@ export class DomSurface {
         const tag = spec.multiline ? "textarea" : "input";
         let el = this.editEl;
         const fresh = el === null || el.tagName.toLowerCase() !== tag;
+        // An input swapped for a textarea (multiline arriving after the field was
+        // made) while it holds focus: the swap is not the person leaving the field.
+        // Its blur is not reported, and the focus moves to the new element
+        // (Presentify run 5: a text box focused in onInit lost focus to its own
+        // swap a moment later, and an onBlur that ended the edit ended it).
+        const hadFocus = fresh && el !== null && document.activeElement === el;
         if (fresh) {
-            el?.remove();
+            if (hadFocus)
+                SWAPPING = true;
+            try {
+                el?.remove();
+            }
+            finally {
+                SWAPPING = false;
+            }
             el = document.createElement(tag);
             const s = el.style;
             // Fill the surface box; transparent so the view's own box paint shows
@@ -2501,8 +2518,9 @@ export class DomSurface {
             // what the person does to the text: checked before it lands where the
             // platform says beforehand, reported after it lands either way (editable-input.ts)
             wireEditableInput(self, () => this.edit);
-            el.addEventListener("focus", () => this.edit?.onFocus());
-            el.addEventListener("blur", () => { if (!MOVING_FOCUS)
+            el.addEventListener("focus", () => { if (!SWAPPING)
+                this.edit?.onFocus(); });
+            el.addEventListener("blur", () => { if (!MOVING_FOCUS && !SWAPPING)
                 this.edit?.onBlur(); });
             watchSelection(el, (s, e) => this.edit?.onSelect?.(s, e));
             el.addEventListener("keydown", (e) => {
@@ -2522,6 +2540,15 @@ export class DomSurface {
             });
             this.element.appendChild(el);
             this.editEl = el;
+            if (hadFocus) {
+                SWAPPING = true;
+                try {
+                    el.focus({ preventScroll: true });
+                }
+                finally {
+                    SWAPPING = false;
+                }
+            }
         }
         if (el === null)
             return;

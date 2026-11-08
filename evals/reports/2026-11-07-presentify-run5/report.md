@@ -50,6 +50,12 @@ literals outside a theme (the sample decks' and the palette's own colours, which
 renderer drawn at every scale, recursive `classFor` for groups, a `History` node with
 whole-document snapshots for undo.
 
+> **Finding 8 resolved after filing (2026-11-07): a runtime defect, now fixed.** The text box's field was
+> made as an `<input>` and replaced by a `<textarea>` a moment later, once `multiline` reached it. The
+> replaced element's blur was reported as the person leaving the field, so the agent's
+> `onBlur() { app.endTextEdit() }` ended the edit. `setEditable` now carries focus across the swap and
+> reports no blur; the agent's scenario passes with its original `onBlur`, and a regression test covers it.
+
 ## Findings for the platform
 
 **Fix now (tools, docs):**

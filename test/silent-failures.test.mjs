@@ -456,6 +456,25 @@ await test("declare-look --url looks at an app where it is served, with no progr
   } finally { srv.kill(); }
 });
 
+await test("a multi-line field that focuses itself keeps focus: its input-to-textarea swap is no blur", () => {
+  const f = join(DIR, "swap.declare");
+  writeFileSync(f, `App [ width = 300, height = 200, editing: boolean = false, blurs: number = 0,
+    Button [ label = "Edit", onClick() { app.editing = true } ],
+    box: View [ y = 60, width = 260, height = 100,
+        TextInput [ exists = { app.editing }, width = 100%, height = 80, multiline = true, accessibilityLabel = "Note",
+            onBlur() { app.blurs = app.blurs + 1 },
+            onInit() { afterSettle(() => Focus.focus(this)) } ] ] ]`);
+  const sc = join(DIR, "swap.mjs");
+  writeFileSync(sc, `export default async ({ drive, page, expect }) => {
+  await drive.click('app."Edit"');
+  await drive.waitReal(300);
+  await expect.attr("app", "blurs", 0);
+  await expect.equal(await page.evaluate(() => document.activeElement?.tagName), "TEXTAREA");
+};`);
+  const r = run("verify.mjs", f, "--assert", sc, "--rung=5", "--no-boot");
+  assert.match(r.out, /R5 ✓/, r.out);
+});
+
 await test("a media element's own report of playing is not sent back to it: no play/pause echo against the author's constraint", () => {
   const f = join(DIR, "echo.declare");
   // a tiny silent WAV, so the clip loads without a service
