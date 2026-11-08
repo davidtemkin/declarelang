@@ -28,6 +28,7 @@ import { familyCss, heldFamily, isFontValue } from "./font-value.js";
 import { headingSlug } from "./slug.js";
 import { resolveAsset } from "./asset-base.js";
 import { percentAxis } from "./bind.js";
+import { physicalAlign, runDirection } from "./text.js";
 import { styleBundles, bundleRecord } from "./style-bundles.js";
 import { budgetTruncated, flowRichCanvas, layoutBlocks, startBudget } from "./rich-views.js";
 import { docNodes } from "./rich-doc.js";
@@ -153,6 +154,8 @@ export let BODY = { size: 16, weight: "normal", tracking: 0 };
 // an app-wide override but look right with zero config.
 export let HEADINGW = "bold";
 export let HEADINGC = 0, LINKC = 0, CODEC = 0;
+/** How prose lines sit across the width for this render (`textAlign`, made physical). */
+let ALIGN = "left";
 let LINKU = true; // underline links (schema `linkUnderline`)
 // Code face + size — resolved per rebuild from the provided codeSize/codeFamily
 // slots, with the house code style (PROSE.codeSize / PROSE.mono) as the fallback.
@@ -1172,10 +1175,10 @@ function inlineText(inline) {
 export function proseBlock(b, gapBefore, bodyColor, ctx) {
     if (b.t === "heading") {
         const size = PROSE.heading[b.level - 1];
-        return { tag: `h${b.level}`, runs: richRunsOf(b.inline, tagged(`h${b.level}`, base(size, HEADINGW, HEADINGC)), ctx.family), gapBefore, lineHeight: 1.2, fontSize: sz(size), family: ctx.family, weight: HEADINGW, anchor: headingSlug(inlineText(b.inline)) || undefined };
+        return { tag: `h${b.level}`, runs: richRunsOf(b.inline, tagged(`h${b.level}`, base(size, HEADINGW, HEADINGC)), ctx.family), gapBefore, lineHeight: 1.2, fontSize: sz(size), family: ctx.family, weight: HEADINGW, anchor: headingSlug(inlineText(b.inline)) || undefined, ...(ALIGN !== "left" ? { align: ALIGN } : {}) };
     }
     const body = base(BODY.size, BODY.weight, bodyColor, BODY.tracking);
-    return { tag: "p", runs: richRunsOf(b.inline, QUOTED > 0 ? tagged("quote", body) : body, ctx.family), gapBefore, lineHeight: ctx.lead, fontSize: sz(BODY.size), family: ctx.family, weight: BODY.weight };
+    return { ...(ALIGN !== "left" ? { align: ALIGN } : {}), tag: "p", runs: richRunsOf(b.inline, QUOTED > 0 ? tagged("quote", body) : body, ctx.family), gapBefore, lineHeight: ctx.lead, fontSize: sz(BODY.size), family: ctx.family, weight: BODY.weight };
 }
 /** Apply a new container width to a laid-out set of blocks, in place.
  *  Returns false if any block has no re-width — the caller then rebuilds. */
@@ -1275,7 +1278,7 @@ export class RichText extends View {
         // first build it knows none, so it keys on every face until then.
         // Every slot $rebuild reads is in the key: a size or weight that settles after
         // the first build (a `{ }` on the window's width) otherwise kept the first one.
-        const c = new Constraint(`${declareName(this)}.render`, () => `${this.$sourceKey()} ${this.lineHeight} ${this.maxLines} ${this.bodyColor} ${this.$paletteKey()} ${this.fontScale} ${this.codeBackground} ${this.codeRule} ${this.fontSize} ${this.fontWeight} ${this.letterSpacing} ${this.headingWeight} ${this.headingColor} ${this.linkColor} ${this.linkUnderline} ${this.codeColor} ${this.codeSize} ${JSON.stringify(this.richTextLayout ?? null)} ${textStylesKey(this.textStyles)} ${JSON.stringify(this.tagStyles ?? null)} ${this.$families === null ? `*${faceGeneration()}` : familiesGeneration(this.$families)} ${heldFamily(this, "fontFamily", this.fontFamily)} ${heldFamily(this, "codeFamily", this.codeFamily)}`, () => { this.$families = collectFamilies(() => this.$rebuild()); }, 0);
+        const c = new Constraint(`${declareName(this)}.render`, () => `${this.$sourceKey()} ${this.lineHeight} ${this.maxLines} ${this.bodyColor} ${this.$paletteKey()} ${this.fontScale} ${this.codeBackground} ${this.codeRule} ${this.fontSize} ${this.fontWeight} ${this.letterSpacing} ${this.headingWeight} ${this.headingColor} ${this.linkColor} ${this.linkUnderline} ${this.codeColor} ${this.codeSize} ${JSON.stringify(this.richTextLayout ?? null)} ${textStylesKey(this.textStyles)} ${JSON.stringify(this.tagStyles ?? null)} ${this.textAlign} ${this.$families === null ? `*${faceGeneration()}` : familiesGeneration(this.$families)} ${heldFamily(this, "fontFamily", this.fontFamily)} ${heldFamily(this, "codeFamily", this.codeFamily)}`, () => { this.$families = collectFamilies(() => this.$rebuild()); }, 0);
         c.run();
         onDiscard(this, () => c.dispose());
         // WIDTH — nothing structural depends on it, so re-width in place. Separate
@@ -1440,6 +1443,7 @@ export class RichText extends View {
         SCALE = this.fontScale || 1; // font-size multiplier for this render
         STYLES = this.$stylesOf(); // named styles for this render
         TAGS = this.tagStyles ?? EMPTY_TAGS; // which named style each element wears
+        ALIGN = physicalAlign(this.textAlign ?? "start", runDirection(this));
         QUOTED = 0;
         for (const v of this.built) {
             this.$removeChild(v);
@@ -1553,6 +1557,7 @@ defineAttributes(RichText, {
     textStyles: { def: EMPTY_STYLES, defBinding: providedDefault("textStyles", EMPTY_STYLES) },
     // which named style each element wears — inherited with the palette it names
     tagStyles: { def: EMPTY_TAGS, defBinding: providedDefault("tagStyles", EMPTY_TAGS) },
+    textAlign: { def: "start" },
     // the line length a rich text with no width wraps at; it then takes its widest line
     wrapWidth: { def: READING_MEASURE },
     // FACE slots, off View: each defaults to the nearest provided value.

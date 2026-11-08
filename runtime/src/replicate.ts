@@ -365,7 +365,14 @@ export class Replicator {
     if (base === null) return none;
     if (this.plan !== null && isSelective(this.plan)) {
       if (this.wantsVirtual()) this.fallback = diag`a selective path replicates its selection fully (windowing over selections is a later increment)`;
-      const nodes = selectNodes(base.data, base.path, this.plan);
+      let nodes = selectNodes(base.data, base.path, this.plan);
+      // A path that ENDS in a name after its selector (`:columns[*].items[]`) names
+      // arrays, one per selected record: `[]` replicates their records, as it does
+      // the records of `:rows[]`, across all of them in order. One that ends in a
+      // selector (`:rows[2:8][]`) names the records themselves.
+      if (typeof this.plan[this.plan.length - 1] === "string") {
+        nodes = nodes.flatMap((n) => Array.isArray(n.value) ? n.value.map((value, i) => ({ path: [...n.path, String(i)], value })) : []);
+      }
       return { data: base.data, nodes, items: nodes.map((n) => n.value), arrayPath: null, logical: nodes.length, start: 0, unit: 0, windowed: false, dataChanged: true, leading: 0 };
     }
     const at = this.plan === null ? splitPath(this.path) : selectNodes(base.data, base.path, this.plan)[0]?.path;

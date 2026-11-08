@@ -989,6 +989,10 @@ export const RichTextSchema: ClassSchema = {
     // The line length a rich text with no width of its own wraps at (640, the
     // reading measure, unless set); it then takes the width of its widest line.
     wrapWidth: { kind: "number" },
+    // How every paragraph's and heading's lines sit across the flow's width, as a
+    // Text's do: start (the default), center, end, left, right — start and end by the
+    // text's direction. A table's columns keep their own alignment.
+    textAlign: enumType("TextAlign", "start", "center", "end", "left", "right"),
     bodyColor: { kind: "color" },
     // `fontScale` multiplies every type size in the flow (body, headings, code) —
     // a font-size zoom a reader control can drive; 1 = the natural sizes. Not

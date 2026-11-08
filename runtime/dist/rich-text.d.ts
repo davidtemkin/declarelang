@@ -388,6 +388,7 @@ export declare abstract class RichText extends View {
      *  defaults to the nearest provided one (defineAttributes below). */
     textStyles: Record<string, RunStyle>;
     tagStyles: Partial<Record<TagKind, string>>;
+    textAlign: "start" | "center" | "end" | "left" | "right";
     protected $stylesOf(): Record<string, RunStyle>;
     /** A rich text's type size is `fontScale`, its own attribute, and it never
      *  touches the geometry `scale` every other view means by that name. The

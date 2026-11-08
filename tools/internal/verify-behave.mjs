@@ -65,7 +65,16 @@ function bodyHas(body, want) {
 }
 
 async function withHost({ compiled, appDir, fixturesDir = null, backendClass = "DomBackend", built = null, scrollbars = false, url = null }, fn) {
-  const baseHref = "/" + relative(ROOT, resolve(appDir)).split("\\").join("/") + "/";
+  // A program inside the Declare tree is served at its own path in it; one outside
+  // (a project of its own, a scratch folder) is mounted whole at /__app__/, so what it
+  // names relatively (data/home.json, an image) is found beside it. It used to get a
+  // base of "/../../…" that named nothing, every relative file answered 404, and a run
+  // passed with its data sources failed (the NYT front-page exercise, 2026-11-07).
+  const appRoot = resolve(appDir);
+  const inTree = !relative(ROOT, appRoot).startsWith("..");
+  const baseHref = inTree ? "/" + relative(ROOT, appRoot).split("\\").join("/") + "/" : "/__app__/";
+  const APP_MOUNT = "/__app__/";
+  const fileOf = (p) => !inTree && p.startsWith(APP_MOUNT) ? join(appRoot, p.slice(APP_MOUNT.length)) : join(ROOT, p);
   const builtFiles = new Map((built?.files ?? []).map((f) => [f.name, f.contents]));
   const cfg = { backend: backendClass, program: compiled?.program ?? null };
   // The viewport meta is LOAD-BEARING: without it a mobile-sized emulation
@@ -99,7 +108,7 @@ bootHost(cfg);
         try {
           const { source, name, dir } = JSON.parse(body);
           const { compile } = await import(pathToFileURL(join(ROOT, "compiler/dist/compile-node.js")).href);
-          const file = join(ROOT, String(dir ?? baseHref), String(name) + ".declare");
+          const file = fileOf(String(dir ?? baseHref).replace(/\/?$/, "/") + String(name) + ".declare");
           const r = await compile(source, { originDir: dirname(file) });
           const out = r.errors.length > 0 ? { report: r.errors.map((e) => e.message).join("\n") } : { program: r.program };
           res.writeHead(200, { "content-type": "application/json" });
@@ -123,9 +132,9 @@ bootHost(cfg);
     if (fixturesDir !== null && pathname.startsWith(baseHref)) {
       candidates.push(join(resolve(fixturesDir), pathname.slice(baseHref.length)));
     }
-    candidates.push(join(ROOT, pathname));
+    candidates.push(fileOf(pathname));
     for (const file of candidates) {
-      if (!file.startsWith(ROOT) && (fixturesDir === null || !file.startsWith(resolve(fixturesDir)))) continue;
+      if (!file.startsWith(ROOT) && (inTree || !file.startsWith(appRoot)) && (fixturesDir === null || !file.startsWith(resolve(fixturesDir)))) continue;
       if (existsSync(file) && statSync(file).isFile()) {
         res.writeHead(200, { "content-type": MIME[extname(file)] ?? "application/octet-stream" });
         return res.end(readFileSync(file));
@@ -1853,7 +1862,10 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
     });
     for (const e of app.pageErrors) failures.push(`page error: ${e}`);
     for (const e of new Set(app.thrown)) failures.push(`error: ${e}`);
-    return { ok: failures.length === 0, failures, log: app.log, writes: writesOf(app), intercepted: interceptedOf(app), talked: originsOf(app, false), wrote: originsOf(app, true), checks: app.checks, asserted: app.asserted(), warned: app.warned, waited: app.waited };
+    // what the program asked for and did not get — a data file not found, a service
+    // that refused — said beside the verdict: a run otherwise passes with its data empty
+    const refused = [...new Set(app.drive.requests().filter((q) => q.intercepted === undefined && typeof q.status === "number" && q.status >= 400).map((q) => `${q.method} ${q.path} answered ${q.status}`))];
+    return { ok: failures.length === 0, failures, log: app.log, writes: writesOf(app), intercepted: interceptedOf(app), talked: originsOf(app, false), wrote: originsOf(app, true), checks: app.checks, asserted: app.asserted(), warned: app.warned, waited: app.waited, refused };
   });
 }
 

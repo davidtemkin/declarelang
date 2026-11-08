@@ -13,7 +13,7 @@
 // R4 counts the layout findings it prints; `--rung 4` is read either way.
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { writeFileSync, readFileSync } from "node:fs";
+import { writeFileSync, readFileSync, mkdirSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { test, summarize, tempDir } from "./harness.mjs";
@@ -454,6 +454,34 @@ await test("declare-look --url looks at an app where it is served, with no progr
     assert.equal(v.status, 0, v.out);
     assert.doesNotMatch(v.out, /\/compile/, v.out);
   } finally { srv.kill(); }
+});
+
+await test("NYT front-page findings: data beside an out-of-tree program loads; [*] then a name replicates the records; an appended #fragment is another site's; rich text aligns", () => {
+  const dir = tempDir("declare-nyt-");
+  mkdirSync(join(dir, "data"), { recursive: true });
+  writeFileSync(join(dir, "data", "home.json"), JSON.stringify({ columns: [{ items: [{ t: "a" }, { t: "b" }] }, { items: [{ t: "c" }] }] }));
+  const f = join(dir, "nyt.declare");
+  writeFileSync(f, `App [ width = 400, height = 300, base: string = "https://example.com/a.html",
+    home: DataSource [ url = "data/home.json", autoFetch = true ],
+    list: View [ datapath = { app.home.value }, layout: SimpleLayout [ axis = y ],
+        Text [ datapath = :columns[*].items[], text = :t ] ],
+    out: Text [ y = 200, text = "comments", link = { app.base + "#comments" } ],
+    tip: HTMLText [ y = 240, width = 400, textAlign = center, html = "<b>Got a tip?</b> Send it." ] ]`);
+  const sc = join(dir, "nyt.mjs");
+  writeFileSync(sc, `export default async ({ drive, page, expect }) => {
+  await drive.settleData();
+  await expect.equal(await page.evaluate(() => window.__declare.find("app.list").childViews.map((v) => v.text).join("")), "abc");
+  await expect.equal(await page.evaluate(() => getComputedStyle(document.querySelector("p")).textAlign), "center");
+};`);
+  const r = run("verify.mjs", f, "--assert", sc, "--rung=5", "--no-boot");
+  assert.match(r.out, /R5 ✓/, r.out);
+  assert.doesNotMatch(r.out, /names no declared destination/, r.out);
+  assert.doesNotMatch(r.out, /answered 404/, r.out);
+  // and a request the service refuses is said beside the verdict
+  writeFileSync(f, readFileSync(f, "utf8").replace("data/home.json", "data/missing.json"));
+  writeFileSync(join(dir, "nyt2.mjs"), "export default async () => {};");
+  const m2 = run("verify.mjs", f, "--assert", join(dir, "nyt2.mjs"), "--rung=5", "--no-boot");
+  assert.match(m2.out, /note the program's request GET \S*data\/missing\.json answered 404/, m2.out);
 });
 
 await test("a TextInput sits on a row's baseline beside a label, one-line and multi-line", () => {

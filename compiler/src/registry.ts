@@ -118,8 +118,14 @@ function fragmentLiterals(src: string): string[] {
   try {
     sf = ts.createSourceFile("l.ts", src, ts.ScriptTarget.Latest, true, ts.ScriptKind.TS);
   } catch { return out; }
+  // A "#…" literal names this app's place only where it BEGINS the link. One added on
+  // the right of something else (`base + "#comments"`) is that other URL's fragment —
+  // another site's anchor, which this program can't know and doesn't judge (the NYT
+  // front-page exercise built article links this way and was refused).
+  const appended = (n: ts.Node): boolean =>
+    ts.isBinaryExpression(n.parent) && n.parent.operatorToken.kind === ts.SyntaxKind.PlusToken && n.parent.right === n;
   const visit = (n: ts.Node): void => {
-    if (ts.isStringLiteralLike(n) && n.text.startsWith("#")) out.push(n.text);
+    if (ts.isStringLiteralLike(n) && n.text.startsWith("#") && !appended(n)) out.push(n.text);
     ts.forEachChild(n, visit);
   };
   visit(sf);

@@ -333,6 +333,7 @@ if (failedRung === null && flags.rung >= 5 && flags.assert !== null) {
     behave.warned = r.warned ?? [];
     behave.waited = r.waited ?? [];
     behave.writes = r.writes ?? [];
+    behave.refused = r.refused ?? [];
     behave.intercepted = r.intercepted ?? [];
     // A LIVE SERVICE REMEMBERS. What earlier runs wrote to a service is still
     // there for this one: a script that bought seats meets them sold the next
@@ -504,6 +505,7 @@ if (flags.json) {
   for (const n of boot.notes) console.log(`  note ${n}`);
   if (behave.serviceNote) console.log(`  note ${behave.serviceNote}`);
   for (const w of behave.warned ?? []) console.log(`  note the runtime said: ${w}`);
+  for (const q of behave.refused ?? []) console.log(`  note the program's request ${q} — what it fetched there is missing from this run (a relative path is read beside the program; a service must be running)`);
   for (const w of behave.waited ?? []) console.log(`  note a settle waited its whole time for ${w}, which never came back — a request open for good (a stream by fetch, a long poll) holds every settle that long`);
   if ((behave.intercepted ?? []).length > 0) {
     const shown = [...new Set(behave.intercepted)];

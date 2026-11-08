@@ -131,6 +131,12 @@ so it adds to it, and nesting composes outside in: `<b><i>…</i></b>` is the st
 then the em style over it, the inner winning only where both set the same field. A name no
 palette or `style` defines is refused at its line. Inherited, like the palette it names.
 
+## textAlign
+How each paragraph's and heading's lines sit across the flow's width, as a `Text`'s do:
+`start` (the default), `center`, `end`, `left` or `right`, with `start` and `end` following the
+text's direction. A centred line of rich text is `HTMLText [ textAlign = center, html = "…" ]`.
+A table's columns keep their own alignment.
+
 ## lineHeight
 Leading multiplier on the natural line height — `1` (the default) is tight, `1.5` airy.
 Tune prose density without touching the font size.
