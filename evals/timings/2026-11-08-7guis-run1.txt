@@ -1,0 +1,43 @@
+# eval-7guis-1.noindex
+total 15.0 min · 105 turns · output 72318 tokens (thinking 26841)
+phases: reading 4.7 · writing 2.7 · checking 7.6 min
+tool time 3.6 min · model time 11.4 min
+tools:
+  look      19×   2.02 min  (median 4.5 s)
+  verify    13×   1.11 min  (median 2.3 s)
+  help       6×   0.31 min  (median 1.8 s)
+  bash      15×   0.14 min  (median 0.0 s)
+  read      22×   0.02 min  (median 0.0 s)
+model turns, by what came before:
+  after read     22×   4.94 min  (median 2.0 s)
+  after image    17×   1.44 min  (median 5.2 s)
+  after write     9×   1.31 min  (median 6.3 s)
+  after verify   13×   1.02 min  (median 4.5 s)
+  after bash     14×   0.93 min  (median 2.5 s)
+  after look     19×   0.70 min  (median 1.4 s)
+  after edit      3×   0.46 min  (median 3.3 s)
+  after help      6×   0.37 min  (median 3.9 s)
+app: 8 .declare files, 788 non-blank lines · 23 snapshots changed them: 1029 lines added, 71 removed
+verify results mentioning accessibility: 1
+diagnostic codes, by tool results reporting them: DECLARE7001 4, DECLARE4025 2, DECLARE2000 2, DECLARE3005 1, DECLARE5000 1, DECLARE4023 1, DECLARE4035 1, DECLARE1002 1, DECLARE4005 1, DECLARE6001 1
+inside the agent's verify and look calls:
+   2.06 min    22×  R5 behavior, in all
+   1.81 min    22×  script: the assert script, in all
+   0.83 min   297×  drive.settleMotion
+   0.52 min   315×  check: scrolling come to rest
+   0.38 min    29×  compile (R1–R3)
+   0.34 min   102×  drive.click
+   0.34 min    30×  page: load, compile in the page and boot
+   0.24 min     8×  R4 boot, in all
+   0.20 min    37×  drive.dblclick
+   0.16 min    22×  open: the app loaded and arrived, in all
+   0.15 min   174×  drive.key
+   0.10 min    24×  drive.selectAll
+   0.07 min    48×  drive.wait
+   0.06 min    80×  drive.type
+   0.06 min    20×  drive.clickAt
+   0.05 min    30×  page: a new page
+   0.03 min     5×  drive.drag
+   0.03 min    18×  end: layout questions at the end of the script
+   0.03 min   315×  check: the layout questions
+   0.02 min    30×  chrome: a browser (shared between calls)

@@ -1,0 +1,123 @@
+/*
+# 5. CRUD
+
+People, filtered by a surname prefix, created, updated and deleted.
+
+- **The domain** is `People`, a dataset class: the records and the three
+  writes that change them. It knows nothing about filters, fields or
+  selection.
+- **The presentation** is `CrudTask`: the prefix, the two fields and the
+  selected person, a derived dataset of the people the prefix lets through,
+  and the views. The list is a library `Table` whose selection the task owns.
+*/
+
+schema Person [ id: number, name: string, surname: string ]
+
+
+class People extends Dataset [ schema = [ people[]: Person ],
+    all() -> Person[] { return this.value?.people ?? [] },
+    nextId() -> number { return this.all().reduce((m, p) => Math.max(m, p.id), 0) + 1 },
+    indexOf(id: number) -> number { return this.all().findIndex((p) => p.id == id) },
+
+    withSurnamePrefix(prefix: string) -> Person[] {
+        const p = prefix.toLowerCase()
+        return this.all().filter((x) => x.surname.toLowerCase().startsWith(p))
+        },
+
+    create(name: string, surname: string) -> Person {
+        const person = ({ id: this.nextId(), name: name, surname: surname })
+        this.set(["people", "-"], person)
+        return person
+        },
+    update(id: number, name: string, surname: string) {
+        const i = this.indexOf(id)
+        if (i >= 0) this.set(["people", i], ({ id: id, name: name, surname: surname }))
+        },
+    remove(id: number) {
+        const i = this.indexOf(id)
+        if (i >= 0) this.removeAt(["people"], i)
+        }
+    ]
+
+
+class CrudTask [
+    people: People [ ] { { "people": [
+        { "id": 1, "name": "Hans", "surname": "Emil" },
+        { "id": 2, "name": "Max", "surname": "Mustermann" },
+        { "id": 3, "name": "Roman", "surname": "Tisch" } ] } },
+
+    // ── where the person is
+
+    prefix: string = "",
+    name: string = "",
+    surname: string = "",
+    selectedId: number = 0,
+
+    // ── what the list shows, and who in it is selected. A person the filter
+    //    hides is not selected, so Update and Delete can't act on someone out
+    //    of sight.
+
+    shown: Dataset [ schema = [ people[]: Person ],
+        contents = { { people: classroot.people.withSurnamePrefix(classroot.prefix) } } ],
+    selected: Person? = { classroot.shown.value.people.find((p) => p.id == classroot.selectedId) ?? null },
+    hasSelection: boolean = { selected != null },
+
+    // Picking a person puts them in the fields, ready to update.
+
+    choose(sel: Person[]?) {
+        const p = sel != null && sel.length > 0 ? sel[sel.length - 1] : null
+        selectedId = p?.id ?? 0
+        if (p != null) { name = p.name; surname = p.surname }
+        },
+    create() { selectedId = people.create(name, surname).id },
+    update() { if (selected != null) people.update(selected.id, name, surname) },
+    remove() { if (selected != null) { people.remove(selected.id); selectedId = 0 } },
+
+    // ── the views: the filter above, the list taking the room that is left
+    //    beside the fields, the buttons below
+
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+
+    filterRow: View [
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Text [ text = "Filter prefix:" ],
+        SearchField [ width = 180, placeholder = "Surname", accessibilityLabel = "Filter prefix", value <-> classroot.prefix ]
+        ],
+
+    middle: View [ width = 100%, flexes = true,
+        layout: SimpleLayout [ axis = x, spacing = 16, align = stretch ],
+        list: Table [ flexes = true, accessibilityLabel = "People",
+            fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) }, cornerRadius = 6,
+            datapath = { classroot.shown.value },
+            selected = { classroot.selected },
+            selection = { classroot.selected == null ? [] : [classroot.selected] },
+            input(sel: object) { classroot.choose(sel as Person[] | null) },
+            deleteRequested() { classroot.remove() },
+            TableRow [ datapath = :people[], height = 28,
+                TextLabel [ x = 10, y = center, text = { :surname + ", " + :name } ]
+                ]
+            ],
+        fields: View [ width = 260,
+            layout: SimpleLayout [ axis = y, spacing = 10 ],
+            Field [ label = "Name:", labelWidth = 70,
+                TextInput [ width = 180, value <-> classroot.name ]
+                ],
+            Field [ label = "Surname:", labelWidth = 70,
+                TextInput [ width = 180, value <-> classroot.surname ]
+                ]
+            ]
+        ],
+
+    buttons: View [
+        layout: SimpleLayout [ axis = x, spacing = 10 ],
+        Button [ label = "Create",
+            onClick() { classroot.create() }
+            ],
+        Button [ label = "Update", disabled = { !classroot.hasSelection },
+            onClick() { classroot.update() }
+            ],
+        Button [ label = "Delete", disabled = { !classroot.hasSelection },
+            onClick() { classroot.remove() }
+            ]
+        ]
+    ]

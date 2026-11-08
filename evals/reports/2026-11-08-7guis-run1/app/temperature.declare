@@ -1,0 +1,55 @@
+/*
+# 2. Temperature Converter
+
+Two fields, Celsius and Fahrenheit. Each field's text is the task's own state,
+so typing in one is a write to that text; when the text is a number, the same
+write sets the other field's text from it. Text that isn't a number leaves the
+other field alone, and is marked.
+*/
+
+script {
+    // A number as a person types one: "21", "-4.5", ".5", "1e3". Anything
+    // else — including "" — is not one.
+    function parseNumber(t: string): number | null {
+        const s = t.trim()
+        return /^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/.test(s) ? Number(s) : null
+    }
+
+    // A converted temperature, to at most two decimals.
+    function formatTemperature(n: number): string { return String(Math.round(n * 100) / 100) }
+    }
+
+
+// A temperature field: marked when what it holds is not a number.
+
+class TemperatureField extends TextInput [ width = 110, textAlign = end,
+    invalid: boolean = { classroot.value.trim() != "" && parseNumber(classroot.value) == null },
+    State [ applied = { classroot.invalid }, stroke = { stroke(1.5, provided("theme").error) } ]
+    ]
+
+
+class TemperatureTask [
+    celsius: string = "",
+    fahrenheit: string = "",
+
+    setCelsius(t: string) {
+        celsius = t
+        const c = parseNumber(t)
+        if (c != null) fahrenheit = formatTemperature(c * 9 / 5 + 32)
+        },
+    setFahrenheit(t: string) {
+        fahrenheit = t
+        const f = parseNumber(t)
+        if (f != null) celsius = formatTemperature((f - 32) * 5 / 9)
+        },
+
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    TemperatureField [ accessibilityLabel = "Celsius", value = { classroot.celsius },
+        commit(t: string) { classroot.setCelsius(t) }
+        ],
+    Text [ text = "Celsius  =" ],
+    TemperatureField [ accessibilityLabel = "Fahrenheit", value = { classroot.fahrenheit },
+        commit(t: string) { classroot.setFahrenheit(t) }
+        ],
+    Text [ text = "Fahrenheit" ]
+    ]

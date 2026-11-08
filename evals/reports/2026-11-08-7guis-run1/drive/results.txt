@@ -1,0 +1,15 @@
+PASS  counter  1.6 s  met
+PASS  temperature  3.8 s  met
+PASS  flight  12.3 s  met
+PASS  timer  9.8 s  met
+PASS  crud  3.8 s  met
+FAIL  circles_select  2.1 s  after a click at (946, 261) the spot under the pointer is rgb(255,255,255) — no circle filled grey there (background rgb(255,255,255))
+PASS  circles_history  8.2 s  met
+FAIL  cells  18.6 s  accessibility: the sheet has no grid, gridcell, columnheader or rowheader in the tree — its cells can't be reached by role or name (everything else met)
+      fallbacks: cells are found by the visible column letters and row numbers: the sheet exposes no column/row headers (accessibility)
+note  counter: the count is exposed as status, not a read-only text field
+note  flight: the kind-of-flight control is named "Kind of flight"; the choice it shows is in its text, not its name
+note  flight: the bad start date is marked only in colour, not exposed as invalid (aria-invalid)
+note  flight: the bad return date is marked only in colour, not exposed as invalid (aria-invalid)
+note  circles: Tab never reaches the adjust window's slider (30 presses) — keyboard users can't adjust a diameter
+6 of 8 passed in 69 s

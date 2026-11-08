@@ -1,0 +1,26 @@
+/*
+# 1. Counter
+
+A read-only field showing a count, and a button that adds one to it. The count
+is the task's one piece of state; the field's text is a constraint on it.
+*/
+
+class CounterTask [
+    count: number = 0,
+
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+
+    // A field that shows a value and takes no typing: the field's look, with
+    // the count as its text.
+
+    field: View [ width = 120, height = 38, padding = [0, 10, 0, 10], cornerRadius = 6,
+        fill = { provided("theme").surface },
+        stroke = { stroke(1, provided("theme").line) },
+        accessibilityRole = status,
+        accessibilityLabel = { "Count " + classroot.count },
+        TextLabel [ x = end, y = center, numeralWidth = tabular, text = { "" + classroot.count } ]
+        ],
+    Button [ label = "Count", primary = true,
+        onClick() { classroot.count = classroot.count + 1 }
+        ]
+    ]

@@ -1,0 +1,40 @@
+/*
+# 4. Timer
+
+The elapsed time and the duration are the task's two numbers. A frame clock
+adds each frame's time to the elapsed time, and runs only while the elapsed
+time is short of the duration — so it stops when it gets there, and starts
+again by itself when the slider raises the duration or Reset sets it back to
+zero. The gauge and the label are constraints on the two numbers.
+*/
+
+class TimerTask [ width = 360,
+    elapsed: number = 0,          // seconds
+    duration: number = 10,        // seconds
+    maxDuration: number = 30,
+
+    clock: Time [ tick = frame,
+        running = { classroot.elapsed < classroot.duration },
+        onTick(dt: number) { classroot.elapsed = Math.min(classroot.duration, classroot.elapsed + dt) }
+        ],
+
+    progress: number = { duration <= 0 ? 1 : Math.min(1, elapsed / duration) },
+
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    gaugeRow: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Text [ width = 110, text = "Elapsed Time:" ],
+        ProgressBar [ flexes = true, accessibilityLabel = "Elapsed time", value = { classroot.progress }, max = 1 ]
+        ],
+    Text [ numeralWidth = tabular, text = { classroot.elapsed.toFixed(1) + " s" } ],
+    durationRow: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Text [ width = 110, text = "Duration:" ],
+        Slider [ flexes = true, accessibilityLabel = "Duration", min = 0, max = { classroot.maxDuration }, step = 0.1,
+            value <-> classroot.duration ],
+        Text [ width = 52, textAlign = end, numeralWidth = tabular, text = { classroot.duration.toFixed(1) + " s" } ]
+        ],
+    Button [ width = 100%, label = "Reset",
+        onClick() { classroot.elapsed = 0 }
+        ]
+    ]

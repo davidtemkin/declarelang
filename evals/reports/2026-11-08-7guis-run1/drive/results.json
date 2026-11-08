@@ -1,0 +1,170 @@
+{
+  "app": "http://127.0.0.1:8290/my-apps/7guis-run1/7guis.declare",
+  "results": [
+    {
+      "name": "counter",
+      "pass": true,
+      "reason": "met",
+      "ms": 1617,
+      "fallbacks": [],
+      "observed": {
+        "via": "link \"1 Counter\"",
+        "field": "status \"Count 0\""
+      },
+      "screenshot": "/tmp/7guis-drive/counter.png"
+    },
+    {
+      "name": "temperature",
+      "pass": true,
+      "reason": "met",
+      "ms": 3839,
+      "fallbacks": [],
+      "observed": {
+        "via": "link \"2 Temperature Converter\"",
+        "C→F": "100 → 212",
+        "C→F (negative)": "-40 → -40",
+        "C→F (decimal)": "37 → 98.6",
+        "F→C": "212 → 100",
+        "F→C (2)": "50 → 10",
+        "notANumber": "C \"abc\" left F \"50\"; F \"x12\" left C \"20\""
+      },
+      "screenshot": "/tmp/7guis-drive/temperature.png"
+    },
+    {
+      "name": "flight",
+      "pass": true,
+      "reason": "met",
+      "ms": 12266,
+      "fallbacks": [],
+      "observed": {
+        "via": "link \"3 Flight Booker\"",
+        "start": {
+          "kind": "one-way",
+          "startDate": "08.11.2026",
+          "returnDate": "08.11.2026"
+        },
+        "format": "DD.MM.YYYY",
+        "booked one-way": "You have booked a one-way flight on 08.11.2026. OK",
+        "kindControl": "button \"Kind of flight\" showing \"Kind of flight return flight return flight\"",
+        "booked return": "You have booked a return flight on 14.11.2026, returning on 21.11.2026. OK",
+        "start \"not a date\"": "aria-invalid no; red pixels 0 → 916",
+        "return \"not a date\"": "aria-invalid no; red pixels 0 → 916",
+        "booked one-way (again)": "You have booked a one-way flight on 14.11.2026. OK"
+      },
+      "screenshot": "/tmp/7guis-drive/flight.png"
+    },
+    {
+      "name": "timer",
+      "pass": true,
+      "reason": "met",
+      "ms": 9755,
+      "fallbacks": [],
+      "observed": {
+        "via": "link \"4 Timer\"",
+        "gauge": "progressbar \"Elapsed time\"",
+        "label": "0.8 s",
+        "realTime": "0.8 → 2.3 over 1.50 s",
+        "d1": 3.799999952316284,
+        "stopped": "3.8 s, gauge 1.00",
+        "resumed": "to 5.3 s at d 5.300000190734863",
+        "drag": "d 4.199999809265137 → 19.200000762939453, gauge 1.00 → 0.30 while the button is down",
+        "reset": "0 then 0.8"
+      },
+      "screenshot": "/tmp/7guis-drive/timer.png"
+    },
+    {
+      "name": "crud",
+      "pass": true,
+      "reason": "met",
+      "ms": 3839,
+      "fallbacks": [],
+      "observed": {
+        "via": "link \"5 CRUD\"",
+        "selected": [
+          "Mustermann, Max"
+        ],
+        "layout": {
+          "filter": [
+            346,
+            69,
+            32
+          ],
+          "list": [
+            252,
+            113,
+            880,
+            703
+          ],
+          "create": [
+            252,
+            828
+          ]
+        }
+      },
+      "screenshot": "/tmp/7guis-drive/crud.png"
+    },
+    {
+      "name": "circles_select",
+      "pass": false,
+      "reason": "after a click at (946, 261) the spot under the pointer is rgb(255,255,255) — no circle filled grey there (background rgb(255,255,255))",
+      "ms": 2056,
+      "fallbacks": [],
+      "observed": {
+        "via": "link \"6 Circle Drawer\"",
+        "canvas": [
+          252,
+          121,
+          1156,
+          747
+        ]
+      },
+      "screenshot": "/tmp/7guis-drive/circles_select.png"
+    },
+    {
+      "name": "circles_history",
+      "pass": true,
+      "reason": "met",
+      "ms": 8155,
+      "fallbacks": [],
+      "observed": {
+        "via": "link \"6 Circle Drawer\"",
+        "canvas": [
+          252,
+          121,
+          1156,
+          747
+        ],
+        "menuItem": "menuitem \"Adjust diameter…\"",
+        "slider": "\"Diameter\" 40",
+        "live": "thumb dragged 24 px: slider 40 → 55, radius 21.5 → 29.5 before the button was up",
+        "closedBy": "Close",
+        "history": "radius 21.5 → adjusted 29.5 → undo 21.5 → redo 29.5"
+      },
+      "screenshot": "/tmp/7guis-drive/circles_history.png"
+    },
+    {
+      "name": "cells",
+      "pass": false,
+      "reason": "accessibility: the sheet has no grid, gridcell, columnheader or rowheader in the tree — its cells can't be reached by role or name (everything else met)",
+      "ms": 18556,
+      "fallbacks": [
+        "cells are found by the visible column letters and row numbers: the sheet exposes no column/row headers (accessibility)"
+      ],
+      "observed": {
+        "via": "link \"7 Cells\"",
+        "columns": "ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+        "error": "#ERROR",
+        "escape": "Escape cancels the edit",
+        "Z99": "32"
+      },
+      "screenshot": "/tmp/7guis-drive/cells.png"
+    }
+  ],
+  "notes": [
+    "counter: the count is exposed as status, not a read-only text field",
+    "flight: the kind-of-flight control is named \"Kind of flight\"; the choice it shows is in its text, not its name",
+    "flight: the bad start date is marked only in colour, not exposed as invalid (aria-invalid)",
+    "flight: the bad return date is marked only in colour, not exposed as invalid (aria-invalid)",
+    "circles: Tab never reaches the adjust window's slider (30 presses) — keyboard users can't adjust a diameter"
+  ]
+}

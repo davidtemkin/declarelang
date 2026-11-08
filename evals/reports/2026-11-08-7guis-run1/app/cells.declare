@@ -1,0 +1,298 @@
+/*
+# 7. Cells
+
+A spreadsheet of 26 columns (A–Z) and 100 rows (0–99), built here from views:
+no grid component.
+
+How it divides:
+
+- **The formula language** is `formula.ts`, plain TypeScript with no view and no
+  data of its own: it parses a formula, says which cells it reads, and
+  evaluates it given a way to look cells up.
+- **The sheet** is `Spreadsheet`, a dataset class: every cell's formula and value.
+  Setting a formula recomputes exactly the cells that change — the cell
+  itself, then the cells that read it, and theirs in turn, each after the
+  cells it reads — and writes only those. A write to a cell wakes only the
+  views that show that cell.
+- **The widget** is `CellsTask`: the column and row headings, the rows of
+  `SheetCell`s, the selected cell and the one being edited. Rows are built
+  only near the screen (`virtualize`); the headings stay put as the sheet
+  scrolls both ways.
+
+Click a cell to select it; double-click it, or press Return, to edit its
+formula. Return or leaving the cell ends the edit and evaluates it; Escape
+throws it away. The arrow keys move the selection; Delete clears a cell.
+*/
+
+script [ "formula.ts" ]
+
+script {
+    // What a cell shows for its value.
+    function cellText(kind: string, num: number, str: string): string {
+        if (kind == "number") return formatNumber(num)
+        if (kind == "text") return str
+        if (kind == "error") return "#ERROR"
+        return ""
+    }
+    }
+
+
+schema CellRecord [ id: string, formula: string, kind: "empty" | "number" | "text" | "error", num: number, str: string ]
+schema RowRecord [ id: number, cells[]: CellRecord ]
+
+
+class Spreadsheet extends Dataset [ schema = [ rows[]: RowRecord ],
+
+    // An empty sheet: one record per cell, each knowing its name.
+
+    onInit() {
+        const rows = []
+        for (let r = 0; r < ROWS; r++) {
+            const cells = []
+            for (let c = 0; c < COLUMNS; c++) cells.push(this.blank(cellName(c, r)))
+            rows.push(({ id: r, cells: cells }))
+        }
+        this.set([], ({ rows: rows }))
+        },
+
+    blank(id: string) -> CellRecord { return ({ id: id, formula: "", kind: "empty", num: 0, str: "" }) },
+
+    record(id: string, formula: string, v: CellValue) -> CellRecord {
+        if (v.kind == "number") return ({ id: id, formula: formula, kind: "number", num: v.value, str: "" })
+        if (v.kind == "text") return ({ id: id, formula: formula, kind: "text", num: 0, str: v.value })
+        if (v.kind == "error") return ({ id: id, formula: formula, kind: "error", num: 0, str: v.message })
+        return ({ id: id, formula: formula, kind: "empty", num: 0, str: "" })
+        },
+
+    cell(id: string) -> CellRecord {
+        const at = cellAt(id)!
+        return this.value.rows[at.row]?.cells[at.col] ?? this.blank(id)
+        },
+    current(id: string) -> CellValue {
+        const c = this.cell(id)
+        if (c.kind == "number") return ({ kind: "number", value: c.num })
+        if (c.kind == "text") return ({ kind: "text", value: c.str })
+        if (c.kind == "error") return ({ kind: "error", message: c.str })
+        return ({ kind: "empty" })
+        },
+
+    // Every non-empty formula, by cell.
+
+    formulas() -> Map<string, string> {
+        const out = new Map<string, string>()
+        for (const row of this.value.rows) for (const c of row.cells) if (c.formula != "") out.set(c.id, c.formula)
+        return out
+        },
+
+    // ── the one write: a cell's formula, and the change it makes
+
+    setFormula(id: string, src: string) {
+        if (cellAt(id) == null || src == this.cell(id).formula) return
+        const formulas = this.formulas()
+        if (src.trim() == "") formulas.delete(id)
+        else formulas.set(id, src)
+        const formulaOf = (k: string) => formulas.get(k) ?? ""
+
+        // Who reads whom.
+        const readers = new Map<string, string[]>()
+        formulas.forEach((f, k) => {
+            for (const r of references(parseFormula(f))) readers.set(r, [...(readers.get(r) ?? []), k])
+            })
+
+        // The cells to recompute: this one, and every cell that reads it, at any distance.
+        const affected = new Set<string>([id])
+        const queue = [id]
+        while (queue.length > 0) {
+            for (const k of readers.get(queue.shift()!) ?? []) {
+                if (!affected.has(k)) { affected.add(k); queue.push(k) }
+            }
+        }
+
+        // Their order: each after the affected cells it reads. Cells left
+        // over wait on a cycle.
+        const waiting = new Map<string, number>()
+        affected.forEach((k) => waiting.set(k, references(parseFormula(formulaOf(k))).filter((r) => affected.has(r)).length))
+        const ready = [...affected].filter((k) => waiting.get(k) == 0)
+        const fresh = new Map<string, CellValue>()
+        const lookup = (k: string) => fresh.get(k) ?? this.current(k)
+        while (ready.length > 0) {
+            const k = ready.shift()!
+            fresh.set(k, evaluate(parseFormula(formulaOf(k)), lookup))
+            for (const reader of readers.get(k) ?? []) {
+                if (!affected.has(reader)) continue
+                const n = waiting.get(reader)! - 1
+                waiting.set(reader, n)
+                if (n == 0) ready.push(reader)
+            }
+        }
+        affected.forEach((k) => { if (!fresh.has(k)) fresh.set(k, ({ kind: "error", message: "Circular reference" })) })
+
+        // Write what was recomputed, and nothing else.
+        fresh.forEach((v, k) => {
+            const at = cellAt(k)!
+            this.set(["rows", at.row, "cells", at.col], this.record(k, formulaOf(k), v))
+            })
+        }
+    ]
+
+
+// One cell: its value, or — while it is being edited — a field holding its
+// formula. What selecting, editing and finishing an edit mean is the sheet
+// widget's to say, at the use site.
+
+class SheetCell [ width = 88, height = 24, clip = true, padding = [0, 5, 0, 5],
+    selected: boolean = false,
+    editing: boolean = false,
+    isError: boolean = { :kind == "error" },
+
+    edited(src: string) { },
+    stopEditing() { },
+
+    stroke = { [null, stroke(1, provided("theme").line), stroke(1, provided("theme").line), null] },
+    State [ applied = { classroot.selected }, stroke = { stroke(2, provided("theme").accent) } ],
+    tooltipLabel = { classroot.isError ? :str : "" },
+
+    Text [ width = 100%, y = center, wrap = false, maxLines = 1,
+        textAlign = { :kind == "number" ? "end" : "start" },
+        textColor = { classroot.isError ? provided("theme").error : provided("theme").text },
+        text = { cellText(:kind, :num, :str) } ],
+
+    editor: TextInput [ exists = { classroot.editing }, ignoreLayout = true, x = -5, width = { classroot.width }, height = 24,
+        padding = [0, 4, 0, 4], cornerRadius = 0, accessibilityLabel = { "Formula of " + :id },
+        value = { :formula },
+        commitOn = "end",
+        commit(src: string) { classroot.edited(src) },
+        onBlur() { classroot.stopEditing() },
+
+        // Return ends the edit, committing it; Escape throws it away.
+
+        onKeyDown(e: KeyEvent) {
+            if (e.key == "Enter") { this.endEdit(); classroot.stopEditing(); return }
+            if (e.key == "Escape") { this.cancelEdit(); classroot.stopEditing(); return }
+            super.onKeyDown(e)
+            },
+        onInit() { afterSettle(() => Focus.focus(this)) }
+        ]
+    ]
+
+
+class CellsTask [
+    sheet: Spreadsheet [ ] { { "rows": [] } },
+
+    // ── where the person is: the selected cell, and the one being edited
+
+    selCol: number = 0,
+    selRow: number = 0,
+    selectedId: string = { cellName(selCol, selRow) },
+    selectedCell: CellRecord = { classroot.sheet.cell(selectedId) },
+    editingId: string = "",
+
+    // Selecting a cell gives the grid the keyboard.
+
+    select(id: string) {
+        const at = cellAt(id)
+        if (at == null) return
+        selCol = at.col
+        selRow = at.row
+        Focus.focus(frame.pane)
+        },
+    edit(id: string) { select(id); editingId = id },
+    finish(id: string, src: string) { sheet.setFormula(id, src) },
+    stopEditing() {
+        if (editingId == "") return
+        editingId = ""
+        afterSettle(() => Focus.focus(classroot.frame.pane))
+        },
+    move(dc: number, dr: number) {
+        selCol = Math.max(0, Math.min(COLUMNS - 1, selCol + dc))
+        selRow = Math.max(0, Math.min(ROWS - 1, selRow + dr))
+        reveal(selCol, selRow)
+        },
+
+    // Scroll the pane, if need be, so the cell at (col, row) is in sight.
+
+    reveal(col: number, row: number) {
+        const p = frame.pane
+        const top = row * cellH, left = col * cellW
+        if (top < p.scrollY) p.scrollTo(top)
+        else if (top + cellH > p.scrollY + p.height) p.scrollTo(top + cellH - p.height)
+        if (left < p.scrollX) p.scrollToX(left)
+        else if (headW + left + cellW > p.scrollX + p.width) p.scrollToX(headW + left + cellW - p.width)
+        },
+
+    columns: Dataset [ contents = { { cols: Array.from({ length: COLUMNS }, (_, i) => columnName(i)) } } ],
+    headW: number = 40,
+    cellW: number = 88,
+    cellH: number = 24,
+
+    formulaBar: View [ width = 100%, height = 30,
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Text [ width = 36, fontWeight = semibold, text = { classroot.selectedId } ],
+        Text [ flexes = true, wrap = false, maxLines = 1, textColor = { provided("theme").textMuted },
+            text = { classroot.selectedCell.formula } ],
+        Text [ wrap = false, maxLines = 1, textColor = { provided("theme").error },
+            visible = { classroot.selectedCell.kind == "error" }, text = { classroot.selectedCell.str } ]
+        ],
+
+    // ── the grid: a corner and the column headings, fixed above; below, the
+    //    rows in a pane that scrolls both ways
+
+    frame: View [ width = 100%, flexes = true, clip = true, cornerRadius = 6,
+        fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").line) },
+        layout: SimpleLayout [ axis = y ],
+
+        heads: View [ width = 100%, height = { classroot.cellH }, clip = true,
+            fill = { provided("theme").background },
+            cols: View [ x = { classroot.headW - classroot.frame.pane.scrollX }, datapath = { classroot.columns.value },
+                layout: SimpleLayout [ axis = x ],
+                SheetHeading [ datapath = :cols[], width = { classroot.cellW }, text = :@ ]
+                ],
+            corner: SheetHeading [ width = { classroot.headW }, text = "" ]
+            ],
+
+        pane: View [ width = 100%, flexes = true, scrolls = both, focusable = true,
+            accessibilityLabel = "Spreadsheet",
+            onKeyDown(e: KeyEvent) {
+                if (classroot.editingId != "") return
+                if (e.key == "ArrowLeft") classroot.move(-1, 0)
+                else if (e.key == "ArrowRight") classroot.move(1, 0)
+                else if (e.key == "ArrowUp") classroot.move(0, -1)
+                else if (e.key == "ArrowDown") classroot.move(0, 1)
+                else if (e.key == "Enter" || e.key == "F2") classroot.edit(classroot.selectedId)
+                else if (e.key == "Delete" || e.key == "Backspace") classroot.sheet.setFormula(classroot.selectedId, "")
+                },
+            rows: View [ datapath = { classroot.sheet.value },
+                layout: SimpleLayout [ axis = y ],
+                View [ datapath = :rows[], virtualize = true, height = { classroot.cellH },
+                    layout: SimpleLayout [ axis = x ],
+                    View [ width = { classroot.headW } ],
+                    SheetCell [ datapath = :cells[], width = { classroot.cellW },
+                        selected = { classroot.selectedId == :id },
+                        editing = { classroot.editingId == :id },
+                        onClick() { classroot.select(:id) },
+                        onDblClick() { classroot.edit(:id) },
+                        edited(src: string) { classroot.finish(:id, src) },
+                        stopEditing() { classroot.stopEditing() }
+                        ],
+
+                    // the row's number, held at the pane's left edge
+
+                    SheetHeading [ ignoreLayout = true, x = { classroot.frame.pane.scrollX }, width = { classroot.headW },
+                        text = { "" + :id } ]
+                    ]
+                ]
+            ]
+        ],
+
+    layout: SimpleLayout [ axis = y, spacing = 8 ]
+    ]
+
+
+// A column or row heading.
+
+class SheetHeading [ height = 24,
+    text: string = "",
+    fill = { provided("theme").background },
+    stroke = { [null, stroke(1, provided("theme").line), stroke(1, provided("theme").line), null] },
+    TextLabel [ x = center, y = center, fontSize = 12, textColor = { provided("theme").textMuted }, text = { classroot.text } ]
+    ]

@@ -1,0 +1,95 @@
+/*
+# 3. Flight Booker
+
+A choice of one-way or return flight, two date fields and Book. The two date
+texts and the kind of flight are the task's state; everything else — whether
+each date is valid, whether the return field can be edited, whether Book can be
+pressed and why not — is derived from them.
+
+Dates are written DD.MM.YYYY, as the fields' placeholders show.
+*/
+
+script {
+    function pad2(n: number): string { return n < 10 ? "0" + n : "" + n }
+
+    function formatDate(y: number, m: number, d: number): string { return pad2(d) + "." + pad2(m) + "." + y }
+
+    // "14.11.2026" → days since 1 Jan 1970, or null when it is not a real date
+    // (31.02.2026 is not).
+    function parseDate(t: string): number | null {
+        const m = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(t.trim())
+        if (m == null) return null
+        const d = Number(m[1]), mo = Number(m[2]), y = Number(m[3])
+        const at = new Date(Date.UTC(y, mo - 1, d))
+        if (at.getUTCFullYear() != y || at.getUTCMonth() != mo - 1 || at.getUTCDate() != d) return null
+        return Math.round(at.getTime() / 86400000)
+    }
+
+    // A parsed date written back the same way, so "1.2.2027" books as "01.02.2027".
+    function writeDate(day: number): string {
+        const at = new Date(day * 86400000)
+        return formatDate(at.getUTCFullYear(), at.getUTCMonth() + 1, at.getUTCDate())
+    }
+    }
+
+
+// A date field: marked while it holds something that isn't a date. A field
+// that can't be edited isn't judged.
+
+class DateField extends TextInput [ width = 140, placeholder = "DD.MM.YYYY",
+    invalid: boolean = { !classroot.disabled && parseDate(classroot.value) == null },
+    State [ applied = { classroot.invalid }, stroke = { stroke(1.5, provided("theme").error) } ]
+    ]
+
+
+class FlightTask [
+    clock: Time [ tick = day ],
+    today: string = { formatDate(this.clock.year, this.clock.month, this.clock.day) },
+
+    // ── the state: what kind of flight, and the two dates as typed
+
+    kind: "one-way" | "return" = "one-way",
+    startText: string = { classroot.today },
+    returnText: string = { classroot.today },
+
+    // ── what follows from it
+
+    isReturn: boolean = { kind == "return" },
+    start: number? = { parseDate(startText) },
+    back: number? = { parseDate(returnText) },
+    bothDates: boolean = { start != null && back != null },
+    backTooEarly: boolean = { isReturn && bothDates && back! < start! },
+    canBook: boolean = { start != null && (!isReturn || (back != null && !backTooEarly)) },
+    problem: string = { backTooEarly ? "The return date is before the start date." : "" },
+
+    book() {
+        if (!canBook) return
+        const message = isReturn
+            ? "You have booked a return flight on " + writeDate(start!) + ", returning on " + writeDate(back!) + "."
+            : "You have booked a one-way flight on " + writeDate(start!) + "."
+        confirmation.notice("Flight booked", message)
+        },
+
+    kinds: Menu [
+        items = { [ ({ id: "one-way", label: "one-way flight", checked: !classroot.isReturn }),
+                    ({ id: "return", label: "return flight", checked: classroot.isReturn }) ] },
+        picked(id: string) { classroot.kind = id == "return" ? "return" : "one-way" }
+        ],
+    confirmation: Dialog [ ],
+
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+
+    // A pop-up button: it names the current choice, and opens the menu of both.
+
+    Button [ width = 200, accessibilityLabel = "Kind of flight", menu = { classroot.kinds },
+        label = { classroot.isReturn ? "return flight" : "one-way flight" } ],
+    DateField [ width = 200, accessibilityLabel = "Start date", value <-> classroot.startText ],
+    DateField [ width = 200, accessibilityLabel = "Return date", disabled = { !classroot.isReturn },
+        value <-> classroot.returnText ],
+    Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = "Dates as DD.MM.YYYY" ],
+    Button [ width = 200, label = "Book", primary = true, disabled = { !classroot.canBook },
+        onClick() { classroot.book() }
+        ],
+    Text [ fontSize = 12, textColor = { provided("theme").error }, visible = { classroot.problem != "" },
+        text = { classroot.problem } ]
+    ]
