@@ -1,0 +1,42 @@
+# eval-realworld-1.noindex
+total 19.3 min · 107 turns · output 101602 tokens (thinking 44097)
+phases: reading 9.0 · writing 1.8 · checking 8.5 min
+tool time 3.7 min · model time 15.6 min
+tools:
+  verify    24×   3.33 min  (median 7.4 s)
+  help      17×   0.29 min  (median 0.9 s)
+  look       1×   0.05 min  (median 2.8 s)
+  bash      22×   0.04 min  (median 0.0 s)
+model turns, by what came before:
+  after help     17×   7.22 min  (median 6.7 s)
+  after bash     22×   2.46 min  (median 2.7 s)
+  after verify   23×   1.87 min  (median 3.9 s)
+  after write     3×   1.78 min  (median 43.5 s)
+  after image    18×   1.06 min  (median 0.5 s)
+  after read     13×   0.74 min  (median 2.0 s)
+  after edit      8×   0.21 min  (median 1.2 s)
+  after look      1×   0.02 min  (median 1.2 s)
+app: 3 .declare files, 1044 non-blank lines · 19 snapshots changed them: 1332 lines added, 110 removed
+verify results mentioning accessibility: 2
+diagnostic codes, by tool results reporting them: DECLARE7001 2, DECLARE4025 2, DECLARE2000 2, DECLARE3005 1, DECLARE5000 1, DECLARE4026 1, DECLARE1002 1, DECLARE3006 1, DECLARE6001 1
+inside the agent's verify and look calls:
+   2.52 min    16×  R5 behavior, in all
+   2.25 min    16×  script: the assert script, in all
+   0.63 min   135×  locator.click
+   0.58 min   228×  drive.settleData
+   0.49 min    34×  drive.click
+   0.46 min   273×  check: scrolling come to rest
+   0.39 min    34×  page: load, compile in the page and boot
+   0.26 min    24×  compile (R1–R3)
+   0.25 min    18×  R4 boot, in all
+   0.22 min    16×  open: the app loaded and arrived, in all
+   0.16 min     9×  drive.reveal
+   0.16 min   302×  locator: wait a tick for it
+   0.16 min    96×  locator.fill
+   0.08 min    35×  drive.settleMotion
+   0.06 min    34×  page: a new page
+   0.03 min     3×  drive.device
+   0.02 min    34×  chrome: a browser (shared between calls)
+   0.02 min    10×  end: layout questions at the end of the script
+   0.02 min   555×  locator: query the page
+   0.01 min     9×  locator.press

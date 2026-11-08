@@ -1,0 +1,100 @@
+PASS  health  1.8 s  met
+      checks: ✓ app should load successfully | ✓ API should be accessible | ✓ can navigate to login page | ✓ can navigate to register page
+PASS  auth_register  2.0 s  met
+PASS  auth_register_bad_email  3.9 s  met
+PASS  auth_login_logout  2.8 s  met
+      checks: ✓ should logout successfully | ✓ should login with existing user
+PASS  auth_login_errors  2.5 s  met
+      checks: ✓ should show error for invalid login | ✓ should fail login with wrong password
+FAIL  auth_guard_session  3.1 s  should prevent accessing editor when not logged in: a signed-out visitor stays on /editor
+      checks: ✗ should prevent accessing editor when not logged in | ✓ should maintain session after page reload
+PASS  auth_invalid_token  2.0 s  met
+      adapted: invalid token: every Authorization-bearing request answered 401 token is invalid; 'token cleared' judged by a reload with the network restored staying signed out
+PASS  article_create  3.0 s  met
+PASS  article_edit  3.3 s  met
+PASS  article_delete  4.4 s  met
+      checks: ✓ should delete an article | ✓ should delete an article when server returns 200 instead of 204
+PASS  article_favorite  2.4 s  met
+      checks: ✓ should favorite an article | ✓ should unfavorite an article
+PASS  article_from_feed  3.4 s  met
+      checks: ✓ should display article preview correctly | ✓ should view article from home feed
+PASS  article_remove_tags  3.6 s  met
+PASS  article_author_only  5.9 s  met
+PASS  comment_add_delete  4.5 s  met
+      checks: ✓ should add a comment to an article | ✓ should delete own comment | ✓ should delete comment when server returns 200 instead of 204
+PASS  comment_multiple  4.4 s  met
+      checks: ✓ should display multiple comments | ✓ should clear comment form after posting | ✓ should preserve comments after page reload | ✓ should handle long comments
+PASS  comment_requires_login  5.3 s  met
+PASS  comment_author_only  3.5 s  met
+PASS  nav_logged_out  2.0 s  met
+PASS  nav_logged_in  2.5 s  met
+PASS  nav_tag_filter  3.8 s  met
+      checks: ✓ / should show Global Feed for everyone; /tag/:tag should filter by tag | ✓ should filter articles by tag
+      adapted: no /tag/:tag route in the spec: tag chosen from the sidebar; .active → aria or the look swapping between tabs
+PASS  nav_feeds  6.0 s  met
+      checks: ✓ /?feed=following … when not authenticated (no Your Feed tab) | ✓ should switch between Global Feed and Your Feed (Global Feed lists the new article) | ✓ clicking Your Feed shows Your Feed (current); empty Your Feed shows a message | ✓ clicking Global Feed shows Global Feed (current)
+      adapted: no ?feed=following route in the spec: Your Feed by its tab; signed-out redirect → no Your Feed tab; empty-feed wording → any empty-state line; .active → aria or the look swapping
+PASS  nav_popular_tags  3.1 s  met
+PASS  nav_pagination  4.4 s  met
+      checks: ✓ tag pagination shows correct articles per page; pagination should work with the tag | ✓ page should reset when switching feeds | ✓ pagination preserves the feed (Your Feed's page 2)
+      adapted: no /tag/:tag or ?page=N routes in the spec: tag from the sidebar, page 2 by its link; judged by the articles shown and the current page; direct ?page=N not ported
+      fallbacks: page 2: current shown by its look (no aria-current/aria-selected)
+PASS  nav_author_link  3.4 s  met
+PASS  nav_profile_counts  5.8 s  met
+      checks: ✓ should handle empty states gracefully | ✓ should show article count on profile tabs
+PASS  settings_bio  3.2 s  met
+      checks: ✓ should update bio only | ✓ should display updated bio on profile page | ✓ should preserve username in navbar after update | ✓ should allow navigation to settings again after update
+      adapted: getToken/getCurrentUser → signed in after a reload and the settings form showing the saved bio
+PASS  settings_image  3.3 s  met
+      checks: ✓ should update image only; should display updated image on profile page | ✓ should update bio and image together
+PASS  social_follow  2.9 s  met
+      checks: ✓ follow johndoe | ✓ unfollow johndoe
+PASS  social_profiles  5.0 s  met
+      checks: ✓ should view own profile | ✓ should view other user profile
+PASS  social_profile_articles  5.1 s  met
+      checks: ✓ should display user articles on profile | ✓ should display favorited articles on profile
+PASS  social_feed  2.7 s  met
+PASS  avatars_default  3.4 s  met
+      checks: ✓ default avatar in navbar | ✓ default avatar on profile page | ✓ default avatar on article meta and in comment section
+      adapted: src contains default-avatar.svg → the drawn picture is the spec's default-avatar.svg, pixel-compared
+PASS  avatars_custom  3.3 s  met
+      checks: ✓ setting image should display custom avatar on profile page | ✓ clearing image to empty string should restore default avatar
+PASS  nulls_bio_fields  3.2 s  met
+      checks: ✓ null bio should not render as literal "null" on profile page | ✓ settings form should show empty string for null image / null bio | ✓ setting then clearing bio should not show stale data
+PASS  avatars_feed  1.4 s  met
+FAIL  xss_images  45.3 s  should prevent XSS via onerror attribute injection: the profile shows no picture (pictures shown: none) ‖ should prevent XSS via onerror with javascript protocol: the profile shows no picture (pictures shown: none) ‖ should prevent XSS via onload attribute injection: the profile shows no picture (pictures shown: none) ‖ should prevent XSS via javascript protocol in src: the profile shows no picture (pictures shown: none) ‖ should prevent XSS via data URI with script: the profile shows no picture (pictures shown: none)
+      checks: ✗ should prevent XSS via onerror attribute injection | ✗ should prevent XSS via onerror with javascript protocol | ✗ should prevent XSS via onload attribute injection | ✗ should prevent XSS via javascript protocol in src | ✗ should prevent XSS via data URI with script | ✓ should safely render malicious payload in navbar image | ✓ should safely render malicious payload in article comments
+      adapted: signed in through the form, not a token injected into localStorage; executable payloads looked for anywhere in the page, not under .user-img
+PASS  xss_content  17.6 s  met
+      checks: ✓ should sanitize script tag in article description | ✓ should sanitize img onerror in article description | ✓ should sanitize svg onload in article description | ✓ should sanitize script tag in article body | ✓ should sanitize img onerror in article body | ✓ should sanitize svg onload in article body | ✓ should sanitize iframe srcdoc in article body | ✓ should sanitize anchor javascript href in article body | ✓ should sanitize event handler in div in article body
+      adapted: signed in through the form; `.article-preview p`/`.article-content` → the page's text and the whole page's markup
+PASS  errors_auth_forms  3.9 s  met
+      checks: ✓ should handle 400 on login with validation errors | ✓ should handle 400 on registration with validation errors | ✓ should show error message on login form when network fails | ✓ should show error message on register form when network fails
+      adapted: .error-messages → a new error line; "Unable to connect" wording → any error line
+PASS  errors_editor  3.9 s  met
+      checks: ✓ should handle 400 on article creation | ✓ should show error message on create article form when network fails | ✓ should handle 403 when updating article | ✓ should show error message on update article form when network fails
+      adapted: signed in through the form instead of a fake token + mocked GET /user; .error-messages → a new error line; 'Unable to connect' → any error line
+PASS  errors_settings  3.8 s  met
+      checks: ✓ should handle 401 when submitting settings form | ✓ should handle 500 when submitting settings | ✓ should show error message on settings form when network fails
+      adapted: signed in through the form instead of a fake token + mocked GET /user; .error-messages → a new error line; 'Unable to connect' → any error line
+FAIL  errors_article  11.1 s  should handle 403 when deleting another users comment: a 403 on deleting a comment: no error message shown
+      checks: ✓ should handle 500 on article detail load | ✓ should handle network error on article detail load | ✓ should handle 404 for non-existent article | ✓ should handle 401 when posting a comment | ✗ should handle 403 when deleting another users comment | ✓ should show error message when adding comment fails due to network | ✓ should handle network error when favoriting article
+      adapted: signed in through the form; .article-content → the body text shown; .article-page → content between header and footer; .error-messages → a new error line
+PASS  errors_profile  4.7 s  met
+      checks: ✓ should handle 500 on user profile load | ✓ should handle network error on user profile load | ✓ should handle 404 for non-existent profile | ✓ should handle 403 when following user you are blocked by | ✓ should handle network error when following user
+      adapted: signed in through the form; .user-info/.profile-page → the user's name heading / content between header and footer
+PASS  errors_home  3.3 s  met
+      checks: ✓ should handle 500 on articles feed load | ✓ should handle 500 on tags load | ✓ should handle network error on tags load | ✓ should handle intermittent 500 errors gracefully | ✓ should handle network timeout | ✓ should handle connection refused | ✓ should handle malformed JSON response | ✓ should handle empty response body
+FAIL  user_fetch_4xx  34.8 s  should handle 400 on /api/user: a 400 on /api/user: no Sign in link ‖ should handle 403 on /api/user: a 403 on /api/user: no Sign in link ‖ should handle 404 on /api/user: a 404 on /api/user: no Sign in link
+      checks: ✗ should handle 400 on /api/user | ✓ should handle 401 on /api/user | ✗ should handle 403 on /api/user | ✗ should handle 404 on /api/user
+      adapted: token from signing in through the form; getToken()==null → a reload with the network restored stays signed out
+PASS  user_fetch_5xx  14.7 s  met
+      checks: ✓ should handle 500 Internal Server Error on /api/user | ✓ should handle network timeout on /api/user | ✓ should handle network failure on /api/user | ✓ should handle empty response on /api/user | ✓ should handle malformed JSON on /api/user | ✓ should allow browsing app in unavailable mode and persist token across reloads
+      adapted: token from the form; getToken()!=null → a reload with the network restored comes back signed in; "Connecting" text recorded, not required
+FAIL  user_fetch_protected  7.7 s  should redirect from /settings on 401: should redirect from /settings on 401: still at /settings ‖ should redirect from /editor on 401: should redirect from /editor on 401: still at /editor
+      checks: ✗ should redirect from /settings on 401 | ✗ should redirect from /editor on 401 | ✓ should handle 500 on loading /settings gracefully | ✓ should handle network error on /settings gracefully
+      adapted: the token is the app's own, from signing in through the form
+note  the app routes by hash (#/…); the spec's routes were taken as hash routes
+note  titles and names the templates show as headings (the page title, article titles, the profile's name) are not headings in the tree; found as text
+note  article titles in lists are not headings in the tree; counted as text
+42 of 47 scenarios passed (118 of 130 ported tests) in 288 s

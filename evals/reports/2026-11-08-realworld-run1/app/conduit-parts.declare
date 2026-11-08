@@ -1,0 +1,461 @@
+/*
+# Conduit: the parts
+
+How Conduit looks, kept apart from how it works: the theme (the shared Conduit
+stylesheet's colours, as tokens), the drawn icons that stand in for Ionicons,
+and the small pieces every page is made of — buttons, fields, tags, tabs,
+avatars, the byline, an article's preview, the page frame. `conduit.declare`
+includes this file and `conduit-pages.declare`.
+
+Sizes are the stylesheet's, in pixels at its 16px rem: a `.btn-sm` is 14px text
+in a 28px button, `.tag-default` is 12.8px, and so on.
+*/
+
+// ── Colours ─────────────────────────────────────────────────────────────────
+//
+// The App lays this over a library preset, so the library's controls read the
+// same palette (`accent`, `line`, `text`, `textMuted` are names they know) and
+// our parts read the rest by name: `provided("theme").brand`.
+
+theme Conduit [
+    brand = #33AA44, brandHover = #2B8E3A, brandActive = #237630,
+    danger = #B85C5C, secondary = #CCCCCC, secondaryHover = #B3B3B3,
+    ink = #222222, field = #55595C, lighter = #AAAAAA, light = #BBBBBB, quiet = #555555,
+    rule = #EEEEEE, wash = #F5F5F5, pageHover = #ECEEEF,
+    navLink = #0000004D, navHover = #00000099, navActive = #000000CC,
+
+    // the library's own names, in Conduit's colours
+
+    accent = #33AA44, accentHovered = #2B8E3A, accentPressed = #237630, accentTextColor = #FFFFFF,
+    background = #FFFFFF, surface = #FFFFFF, line = #EEEEEE, error = #B85C5C,
+    text = #373A3C, textMuted = #999999, textFaint = #BBBBBB, linkColor = #33AA44
+    ]
+
+
+// ── Icons ───────────────────────────────────────────────────────────────────
+//
+// The templates use seven Ionicons (heart, compose, gear, plus, edit, trash,
+// close). These are drawn instead, on the library's 16-unit grid: `unit`
+// scales the grid to `iconSize`, and the stroke stays `weight` pixels wide.
+
+class Ion extends Icon [
+    shape: string = "",
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.fillStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        if (shape == "heart") {
+            d.moveTo(8, 14)
+            d.bezierCurveTo(1.5, 9.8, 0.5, 6.8, 1.6, 4.6)
+            d.bezierCurveTo(2.8, 2.1, 6.4, 1.6, 8, 4.4)
+            d.bezierCurveTo(9.6, 1.6, 13.2, 2.1, 14.4, 4.6)
+            d.bezierCurveTo(15.5, 6.8, 14.5, 9.8, 8, 14)
+            d.fill()
+        } else if (shape == "compose") {    // a page with a pencil across it
+            d.moveTo(9, 2.5); d.lineTo(2.5, 2.5); d.lineTo(2.5, 13.5); d.lineTo(13.5, 13.5); d.lineTo(13.5, 7)
+            d.moveTo(6.5, 9.5); d.lineTo(7, 7.5); d.lineTo(13, 1.5); d.lineTo(14.5, 3); d.lineTo(8.5, 9); d.closePath()
+            d.stroke()
+        } else if (shape == "gear") {       // a cog: a ring, eight teeth, a hub
+            for (let i = 0; i < 8; i++) {
+                const a = i * Math.PI / 4
+                d.moveTo(8 + Math.cos(a) * 4.6, 8 + Math.sin(a) * 4.6)
+                d.lineTo(8 + Math.cos(a) * 6.8, 8 + Math.sin(a) * 6.8)
+                }
+            d.moveTo(12.6, 8); d.arc(8, 8, 4.6, 0, 6.3)
+            d.moveTo(10, 8); d.arc(8, 8, 2, 0, 6.3)
+            d.stroke()
+        } else if (shape == "plus") {
+            d.moveTo(8, 2.5); d.lineTo(8, 13.5); d.moveTo(2.5, 8); d.lineTo(13.5, 8); d.stroke()
+        } else if (shape == "edit") {       // a pencil
+            d.moveTo(2.5, 13.5); d.lineTo(3.2, 10.6); d.lineTo(11, 2.8); d.lineTo(13.2, 5); d.lineTo(5.4, 12.8); d.closePath()
+            d.moveTo(9.6, 4.2); d.lineTo(11.8, 6.4); d.stroke()
+        } else if (shape == "trash") {      // a bin
+            d.moveTo(2.5, 4); d.lineTo(13.5, 4); d.moveTo(6, 4); d.lineTo(6.5, 2); d.lineTo(9.5, 2); d.lineTo(10, 4)
+            d.moveTo(3.8, 4); d.lineTo(4.6, 14); d.lineTo(11.4, 14); d.lineTo(12.2, 4); d.stroke()
+        } else if (shape == "close") {
+            d.moveTo(4, 4); d.lineTo(12, 12); d.moveTo(12, 4); d.lineTo(4, 12); d.stroke()
+        }
+        }
+    ]
+
+
+// ── People ──────────────────────────────────────────────────────────────────
+//
+// A round picture of a person; anyone with no image gets the shared default
+// avatar, which sits beside this file.
+
+class Avatar extends Image [ width = 32, height = { this.width }, cornerRadius = { this.width / 2 }, clip = true,
+    stretches = cover,
+    url: string = "",
+    source = { classroot.url == "" ? "default-avatar.svg" : classroot.url }
+    ]
+
+
+// A green link that underlines under the pointer (`a`, `a:hover`).
+
+class Anchor extends Text [
+    textColor = { hovered ? provided("theme").brandActive : provided("theme").brand },
+    underline = { hovered }
+    ]
+
+
+// An author's picture, name and the date beside it (`.article-meta` with its
+// `.info`), standing on an article record: `:author` and `:createdAt`. In an
+// article's banner the name takes the text colour instead of the link green.
+
+class Byline [
+    inBanner: boolean = false,
+    name: string = { :author.username ?? "" },
+    profileLink: string = { "#/profile/" + encodeURIComponent(classroot.name) },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    Avatar [ url = { :author.image ?? "" }, link = { classroot.profileLink }, accessibilityLabel = { classroot.name } ],
+    info: View [ padding = [0, 24, 0, 0],
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Anchor [ fontWeight = medium, wrap = false, link = { classroot.profileLink }, text = { classroot.name },
+            State [ applied = { classroot.inBanner && !hovered }, textColor = { provided("theme").text } ]
+            ],
+        Text [ fontSize = 12.8, fontWeight = light, wrap = false, textColor = { provided("theme").light },
+            text = { longDate(:createdAt ?? "") } ]
+        ]
+    ]
+
+
+// ── Buttons ─────────────────────────────────────────────────────────────────
+//
+// One class for every `.btn` the templates use. `kind` is the colour family —
+// `primary` is filled green, `outline` is `.btn-outline-primary`, `secondary`
+// is `.btn-outline-secondary`, `danger` is `.btn-outline-danger`, and `muted`
+// is the profile's grey `.action-btn` — and `size` is `.btn-sm`, plain, or
+// `.btn-lg`. An outline button fills with its colour under the pointer, and
+// stays filled while `filled` (a favorited article, a followed author).
+
+class Btn extends Control [
+    kind: "primary" | "outline" | "secondary" | "danger" | "muted" = "primary",
+    size: "sm" | "md" | "lg" = "md",
+    label: string = "",
+    icon: string = "",
+    count: string = "",              // the `.counter` after the label: "(29)"
+    filled: boolean = false,
+    accessibilityLabel = { classroot.label + (classroot.count == "" ? "" : " " + classroot.count) },
+
+    tone: Color = { classroot.toneOf(classroot.kind) },
+    toneOf(k: string) -> Color {
+        const t = provided("theme")
+        switch (k) {
+            case "secondary": return t.secondary
+            case "danger": return t.danger
+            case "muted": return t.textMuted
+            default: return t.brand
+            }
+        },
+    engaged: boolean = { hovered || pressed },
+    solid: boolean = { classroot.kind == "primary" || classroot.filled || classroot.engaged },
+    ink: Color = { classroot.solid ? 0xFFFFFF : classroot.tone },
+
+    sm: boolean = { classroot.size == "sm" },
+    lg: boolean = { classroot.size == "lg" },
+    height = { classroot.sm ? 28 : classroot.lg ? 51 : 38 },
+    cornerRadius = { classroot.sm ? 6 : classroot.lg ? 10 : 8 },
+    padding = { classroot.sm ? [0, 8, 0, 8] : classroot.lg ? [0, 24, 0, 24] : [0, 16, 0, 16] },
+    fontSize = { classroot.sm ? 14 : classroot.lg ? 20 : 16 },
+
+    stroke = { stroke(1, classroot.tone) },
+    State [ applied = { classroot.solid }, fill = { classroot.tone } ],
+    State [ applied = { classroot.kind == "primary" && (hovered || pressed) },
+        fill = { provided("theme").brandHover }, stroke = { stroke(1, provided("theme").brandHover) } ],
+    State [ applied = { classroot.kind == "muted" && classroot.solid },
+        fill = { provided("theme").secondary }, stroke = { stroke(1, provided("theme").textMuted) } ],
+    State [ applied = { disabled }, opacity = 0.65 ],
+
+    layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+    Ion [ visible = { classroot.icon != "" }, shape = { classroot.icon }, iconSize = { classroot.sm ? 12 : 14 },
+        weight = 1.6, ink = { classroot.ink } ],
+    TextLabel [ visible = { classroot.label != "" }, wrap = false, textColor = { classroot.ink }, text = { classroot.label } ],
+    TextLabel [ visible = { classroot.count != "" }, wrap = false, fontSize = 12.8, textColor = { classroot.ink },
+        text = { classroot.count } ]
+    ]
+
+
+// ── Fields ──────────────────────────────────────────────────────────────────
+//
+// `.form-control`, and `.form-control-lg` when `large`. A field joins the
+// form it sits in by being inside it; `name` is what the service calls it, so
+// its refusal ("email has already been taken") lands on the right field.
+
+class Input extends TextInput [ width = 100%,
+    large: boolean = false,
+    fontSize = { classroot.large ? 20 : 16 },
+    padding = { classroot.large ? [12, 24, 12, 24] : [8, 12, 8, 12] },
+    cornerRadius = { classroot.large ? 10 : 8 },
+    textColor = { provided("theme").field },
+    fill = 0xFFFFFF,
+    stroke = { stroke(1, focused ? provided("theme").brand : error != "" ? provided("theme").danger : provided("theme").rule) }
+    ]
+
+
+// A form that talks to the Conduit API. The service refuses with
+// `{ "errors": { "email": ["has already been taken"] } }`, which is not a shape
+// `Form` reads by itself, so `refusal` reads it: each message lands on the
+// field it names, worded as Conduit words it ("email has already been taken").
+// A bad sign-in names no field, so it becomes the form's own `error`.
+//
+// Every problem shows in `.error-messages` above the fields once the person
+// has tried to send.
+
+class ConduitForm extends Form [ width = 100%,
+    failedMessage = "Something went wrong. Please try again.",
+    refusal(body: any) -> FormProblem[] {
+        const errors = body?.errors
+        if (errors == null || typeof errors != "object" || Array.isArray(errors)) return super.refusal(body)
+        const out: FormProblem[] = []
+        for (const field of Object.keys(errors)) {
+            for (const m of errors[field]) {
+                if (field == "credentials") out.push({ name: "", message: "email or password is invalid" })
+                else out.push({ name: field, message: field + " " + m })
+                }
+            }
+        return out
+        },
+    messages: string[] = { classroot.submitted ? [...classroot.problems.map((p) => p.message), ...(classroot.error == "" ? [] : [classroot.error])] : [] },
+    errors: ErrorList [ messages = { classroot.messages } ]
+    ]
+
+
+// `.error-messages`: a bulleted list in the danger colour.
+
+class ErrorList [ width = 100%, padding = [0, 0, 16, 24],
+    messages: string[] = [],
+    visible = { classroot.messages.length > 0 },
+    shown: Dataset [ contents = { { rows: classroot.messages } } ],
+    datapath = { classroot.shown.value },
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Text [ datapath = :rows[], width = 100%, fontWeight = bold, textColor = { provided("theme").danger },
+        text = { "•  " + :@ } ]
+    ]
+
+
+// ── Tags ────────────────────────────────────────────────────────────────────
+
+// `.tag-default.tag-outline`: a tag shown on an article. In a preview the pill
+// is tight (`compact`); under an article it has its full padding.
+
+class TagOutline [
+    compact: boolean = false,
+    label: string = "",
+    height = { classroot.compact ? 20 : 30 }, padding = [0, 12, 0, 12], cornerRadius = { this.height / 2 },
+    stroke = { stroke(1, provided("theme").rule) },
+    TextLabel [ y = center, fontSize = 12.8, fontWeight = light, wrap = false, textColor = { provided("theme").lighter },
+        text = { classroot.label } ]
+    ]
+
+
+// `.tag-default.tag-pill`: a popular tag to filter the feed by.
+
+class TagButton extends Control [ height = 30, padding = [0, 12, 0, 12], cornerRadius = 15,
+    label: string = "",
+    accessibilityLabel = { classroot.label },
+    stroke = { stroke(1, provided("theme").rule) },
+    fill = { hovered ? provided("theme").rule : null },
+    TextLabel [ y = center, fontSize = 12.8, wrap = false, textColor = { provided("theme").ink }, text = { classroot.label } ]
+    ]
+
+
+// A tag being written in the editor, with its × : pressing it takes the tag off.
+
+class TagChip extends Control [ height = 30, padding = [0, 12, 0, 10], cornerRadius = 15,
+    label: string = "",
+    accessibilityLabel = { "Remove tag " + classroot.label },
+    stroke = { stroke(1, provided("theme").rule) },
+    fill = { hovered ? provided("theme").rule : null },
+    layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+    Ion [ shape = "close", iconSize = 10, weight = 1.6, ink = { provided("theme").ink }, opacity = { classroot.hovered ? 1 : 0.6 } ],
+    TextLabel [ fontSize = 12.8, wrap = false, textColor = { provided("theme").ink }, text = { classroot.label } ]
+    ]
+
+
+// ── Navigation ──────────────────────────────────────────────────────────────
+
+// `.nav-pills.outline-active`: a feed tab, green and underlined while it is
+// the one chosen. The tabs are one choice, so each is a `ChoiceItem` in a
+// `ChoiceControl`, which says so to a screen reader and moves the arrows.
+
+class TabPill extends ChoiceItem [ padding = [8, 16, 8, 16],
+    label: string = "",
+    accessibilityLabel = { classroot.label },
+    State [ applied = { classroot.on }, stroke = { [null, null, stroke(2, provided("theme").brand), null] } ],
+    Text [ wrap = false, text = { classroot.label },
+        textColor = { classroot.on ? provided("theme").brand : hovered ? provided("theme").quiet : provided("theme").lighter } ]
+    ]
+
+
+// `.pagination`: one numbered page. Its neighbours share a border, and the end
+// ones are rounded on their outer side.
+
+class PageLink extends Control [ height = 38, padding = [0, 12, 0, 12],
+    n: number = 1,
+    active: boolean = false,
+    first: boolean = false,
+    last: boolean = false,
+    accessibilityLabel = { "Page " + classroot.n },
+    accessibilitySelected = { classroot.active },
+    stroke = { stroke(1, provided("theme").rule) },
+    cornerRadius = { [classroot.first ? 8 : 0, classroot.last ? 8 : 0, classroot.last ? 8 : 0, classroot.first ? 8 : 0] },
+    fill = { hovered ? provided("theme").pageHover : 0xFFFFFF },
+    State [ applied = { classroot.active }, fill = { provided("theme").rule } ],
+    TextLabel [ y = center, wrap = false, text = { "" + classroot.n },
+        textColor = { classroot.active ? provided("theme").ink : hovered ? provided("theme").brandActive : provided("theme").brand } ]
+    ]
+
+
+// A link in the header: grey, darker under the pointer, darkest on its own
+// page. It may carry an icon, or the signed-in person's picture.
+
+class NavItem [ height = 36,
+    label: string = "",
+    icon: string = "",
+    picture: string? = null,
+    active: boolean = false,
+    tone: Color = { classroot.active ? provided("theme").navActive : hovered ? provided("theme").navHover : provided("theme").navLink },
+    layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+    Ion [ visible = { classroot.icon != "" }, shape = { classroot.icon }, iconSize = 14, weight = 1.6, ink = { classroot.tone } ],
+    Avatar [ visible = { classroot.picture != null }, width = 26, url = { classroot.picture ?? "" } ],
+    TextLabel [ wrap = false, textColor = { classroot.tone }, text = { classroot.label } ]
+    ]
+
+
+// ── The page frame ──────────────────────────────────────────────────────────
+
+// `.container`: as wide as the window allows, up to the stylesheet's step for
+// the window's width, and centred by its parent's layout.
+
+class Container [ padding = [0, 15, 0, 15],
+    width = { Math.min(app.containerMax, parent.contentBox("width")) }
+    ]
+
+
+// A grid column inside a container: `span` of twelve from the stylesheet's
+// medium width up (`.col-md-6` is 6), the whole row below it. Offset columns
+// are centred by their parent's layout.
+
+class Column [
+    span: number = 12,
+    width = { (parent.contentBox("width") + 30) * (app.md ? classroot.span : 12) / 12 - 30 }
+    ]
+
+
+// A page's band across the window: a hairline above and below (`.banner`,
+// `.user-info`).
+
+class Band [ width = 100%,
+    stroke = { [stroke(1, provided("theme").rule), null, stroke(1, provided("theme").rule), null] }
+    ]
+
+
+// The `.navbar`: the brand on the left, the links on the right. Signed out it
+// offers Sign in and Sign up; signed in, New Article, Settings and the
+// person's own profile.
+
+class NavBar [ width = 100%, padding = [8, 16, 8, 16],
+    layout: SimpleLayout [ axis = y, align = center ],
+    Container [
+        layout: SimpleLayout [ axis = x, align = center ],
+        Text [ padding = [0, 32, 4, 0], fontFamily = { app.serifFace }, fontSize = 24, wrap = false,
+            textColor = { provided("theme").ink }, link = "#/", text = "conduit" ],
+
+        // on a narrow window the links wrap rather than run off the edge
+
+        links: View [ flexes = true,
+            layout: WrappingLayout [ spacing = 16, rowSpacing = 0, justify = end, align = center ],
+            NavItem [ label = "Home", link = "#/", active = { app.page == "home" } ],
+            NavItem [ visible = { !app.session.signedIn }, label = "Sign in", link = "#/login", active = { app.page == "login" } ],
+            NavItem [ visible = { !app.session.signedIn }, label = "Sign up", link = "#/register", active = { app.page == "register" } ],
+            NavItem [ visible = { app.session.signedIn }, icon = "compose", label = "New Article", link = "#/editor",
+                active = { app.page == "editor" } ],
+            NavItem [ visible = { app.session.signedIn }, icon = "gear", label = "Settings", link = "#/settings",
+                active = { app.page == "settings" } ],
+            NavItem [ visible = { app.session.signedIn }, label = { app.session.name },
+                picture = { app.session.user?.image ?? "" },
+                link = { "#/profile/" + encodeURIComponent(app.session.name) },
+                active = { app.page == "profile" && app.param == app.session.name } ]
+            ]
+        ]
+    ]
+
+
+// The footer: the brand and the attribution, in a 720-wide column.
+
+class Footer [ width = 100%, padding = [16, 0, 16, 0],
+    stroke = { [stroke(1, provided("theme").rule), null, null, null] },
+    layout: SimpleLayout [ axis = y, align = center ],
+    View [ width = { Math.min(720, parent.contentBox("width")) }, padding = [0, 15, 0, 15],
+        layout: SimpleLayout [ axis = x, spacing = 10, align = baseline ],
+        Text [ fontFamily = { app.serifFace }, wrap = false, textColor = { provided("theme").ink }, link = "#/", text = "conduit" ],
+        Text [ flexes = true, fontSize = 12.8, fontWeight = light, textColor = { provided("theme").light },
+            text = "An interactive learning project. Code & design licensed under MIT." ]
+        ]
+    ]
+
+
+// ── Articles in a list ──────────────────────────────────────────────────────
+
+// `.article-preview`: the byline and the heart on one line, then the title,
+// the description and the tags, all one link to the article. It stands on an
+// article record from the list.
+
+class ArticlePreview [ width = 100%, padding = [24, 0, 24, 0],
+    stroke = { [stroke(1, provided("theme").rule), null, null, null] },
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+    meta: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, align = center ],
+        Byline [ ],
+        Spacer [ ],
+        heart: Btn [ kind = "outline", size = "sm", icon = "heart", label = { "" + (:favoritesCount ?? 0) },
+            filled = { :favorited ?? false }, disabled = { app.favorite.loading },
+            accessibilityLabel = { ((:favorited ?? false) ? "Unfavorite" : "Favorite") + " article, " + (:favoritesCount ?? 0) },
+            press() { app.toggleFavorite(:@) }
+            ]
+        ],
+    body: View [ width = 100%, link = { "#/article/" + encodeURIComponent(:slug ?? "") },
+        layout: SimpleLayout [ axis = y ],
+        Text [ width = 100%, fontSize = 24, fontWeight = semibold, textColor = { provided("theme").text }, text = { :title ?? "" } ],
+        Text [ width = 100%, padding = [3, 0, 15, 0], fontWeight = light, textColor = { provided("theme").textMuted },
+            text = { :description ?? "" } ],
+        foot: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, spacing = 16 ],
+            Text [ fontSize = 12.8, fontWeight = light, wrap = false, textColor = { provided("theme").light }, text = "Read more..." ],
+            tags: View [ flexes = true,
+                layout: WrappingLayout [ spacing = 8, rowSpacing = 6, justify = end ],
+                TagOutline [ datapath = :tagList[], compact = true, label = :@ ]
+                ]
+            ]
+        ]
+    ]
+
+
+// The article list under the tabs: a note while it loads or when there is
+// nothing, else a preview per article and the pages beneath. It shows
+// `app.articles`, whatever the place in the app has it asking for.
+
+class ArticleFeed [ width = 100%,
+    layout: SimpleLayout [ axis = y ],
+    note: View [ width = 100%, padding = [24, 0, 24, 0], visible = { app.articles.loading || app.articleCount == 0 },
+        stroke = { [stroke(1, provided("theme").rule), null, null, null] },
+        Text [ text = { app.articles.loading ? "Loading articles..." : app.articles.failed ? "Articles could not be loaded." : "No articles are here... yet." } ]
+        ],
+    list: View [ width = 100%, visible = { !app.articles.loading }, datapath = { app.articles.value },
+        layout: SimpleLayout [ axis = y ],
+        ArticlePreview [ datapath = :articles[], key = :slug ]
+        ],
+    pager: View [ width = 100%, padding = [16, 0, 16, 0], visible = { !app.articles.loading && app.pageCount > 1 },
+        datapath = { app.pages.value },
+        layout: WrappingLayout [ spacing = -1, rowSpacing = 4 ],
+        PageLink [ datapath = :pages[], n = :@, active = { :@ == app.pageNo }, first = { rowIndex == 0 },
+            last = { rowIndex == app.pageCount - 1 },
+            press() { app.pageNo = :@ }
+            ]
+        ]
+    ]

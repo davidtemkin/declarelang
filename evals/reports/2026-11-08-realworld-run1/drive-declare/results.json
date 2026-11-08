@@ -1,0 +1,1212 @@
+{
+  "app": "http://127.0.0.1:8290/my-apps/realworld-run1-score/conduit.declare",
+  "results": [
+    {
+      "name": "health",
+      "pass": true,
+      "reason": "met",
+      "ms": 1800,
+      "checks": [
+        {
+          "test": "app should load successfully",
+          "pass": true,
+          "ms": 561
+        },
+        {
+          "test": "API should be accessible",
+          "pass": true,
+          "ms": 3
+        },
+        {
+          "test": "can navigate to login page",
+          "pass": true,
+          "ms": 267
+        },
+        {
+          "test": "can navigate to register page",
+          "pass": true,
+          "ms": 267
+        }
+      ],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/health.png"
+    },
+    {
+      "name": "auth_register",
+      "pass": true,
+      "reason": "met",
+      "ms": 1971,
+      "checks": [],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/auth_register.png"
+    },
+    {
+      "name": "auth_register_bad_email",
+      "pass": true,
+      "reason": "met",
+      "ms": 3868,
+      "checks": [],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/auth_register_bad_email.png"
+    },
+    {
+      "name": "auth_login_logout",
+      "pass": true,
+      "reason": "met",
+      "ms": 2797,
+      "checks": [
+        {
+          "test": "should logout successfully",
+          "pass": true,
+          "ms": 538
+        },
+        {
+          "test": "should login with existing user",
+          "pass": true,
+          "ms": 615
+        }
+      ],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/auth_login_logout.png"
+    },
+    {
+      "name": "auth_login_errors",
+      "pass": true,
+      "reason": "met",
+      "ms": 2459,
+      "checks": [
+        {
+          "test": "should show error for invalid login",
+          "pass": true,
+          "ms": 978
+        },
+        {
+          "test": "should fail login with wrong password",
+          "pass": true,
+          "ms": 737
+        }
+      ],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {
+        "invalid": "•  email or password is invalid",
+        "wrongPassword": "•  email or password is invalid"
+      },
+      "screenshot": "/tmp/rw-drive-declare/auth_login_errors.png"
+    },
+    {
+      "name": "auth_guard_session",
+      "pass": false,
+      "reason": "should prevent accessing editor when not logged in: a signed-out visitor stays on /editor",
+      "ms": 3130,
+      "checks": [
+        {
+          "test": "should prevent accessing editor when not logged in",
+          "pass": false,
+          "reason": "a signed-out visitor stays on /editor",
+          "ms": 1571
+        },
+        {
+          "test": "should maintain session after page reload",
+          "pass": true,
+          "ms": 877
+        }
+      ],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/auth_guard_session.png"
+    },
+    {
+      "name": "auth_invalid_token",
+      "pass": true,
+      "reason": "met",
+      "ms": 2031,
+      "checks": [],
+      "adaptations": [
+        "invalid token: every Authorization-bearing request answered 401 token is invalid; 'token cleared' judged by a reload with the network restored staying signed out"
+      ],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/auth_invalid_token.png"
+    },
+    {
+      "name": "article_create",
+      "pass": true,
+      "reason": "met",
+      "ms": 2987,
+      "checks": [],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/article_create.png"
+    },
+    {
+      "name": "article_edit",
+      "pass": true,
+      "reason": "met",
+      "ms": 3347,
+      "checks": [],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/article_edit.png"
+    },
+    {
+      "name": "article_delete",
+      "pass": true,
+      "reason": "met",
+      "ms": 4422,
+      "checks": [
+        {
+          "test": "should delete an article",
+          "pass": true,
+          "ms": 1281
+        },
+        {
+          "test": "should delete an article when server returns 200 instead of 204",
+          "pass": true,
+          "ms": 1256
+        }
+      ],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/article_delete.png"
+    },
+    {
+      "name": "article_favorite",
+      "pass": true,
+      "reason": "met",
+      "ms": 2415,
+      "checks": [
+        {
+          "test": "should favorite an article",
+          "pass": true,
+          "ms": 64
+        },
+        {
+          "test": "should unfavorite an article",
+          "pass": true,
+          "ms": 66
+        }
+      ],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {
+        "favorited": "Unfavorite Article (6)",
+        "unfavorited": "Favorite Article (5)"
+      },
+      "screenshot": "/tmp/rw-drive-declare/article_favorite.png"
+    },
+    {
+      "name": "article_from_feed",
+      "pass": true,
+      "reason": "met",
+      "ms": 3367,
+      "checks": [
+        {
+          "test": "should display article preview correctly",
+          "pass": true,
+          "ms": 182
+        },
+        {
+          "test": "should view article from home feed",
+          "pass": true,
+          "ms": 232
+        }
+      ],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/article_from_feed.png"
+    },
+    {
+      "name": "article_remove_tags",
+      "pass": true,
+      "reason": "met",
+      "ms": 3636,
+      "checks": [],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/article_remove_tags.png"
+    },
+    {
+      "name": "article_author_only",
+      "pass": true,
+      "reason": "met",
+      "ms": 5883,
+      "checks": [],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/article_author_only.png"
+    },
+    {
+      "name": "comment_add_delete",
+      "pass": true,
+      "reason": "met",
+      "ms": 4484,
+      "checks": [
+        {
+          "test": "should add a comment to an article",
+          "pass": true,
+          "ms": 354
+        },
+        {
+          "test": "should delete own comment",
+          "pass": true,
+          "ms": 621
+        },
+        {
+          "test": "should delete comment when server returns 200 instead of 204",
+          "pass": true,
+          "ms": 617
+        }
+      ],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/comment_add_delete.png"
+    },
+    {
+      "name": "comment_multiple",
+      "pass": true,
+      "reason": "met",
+      "ms": 4370,
+      "checks": [
+        {
+          "test": "should display multiple comments",
+          "pass": true,
+          "ms": 636
+        },
+        {
+          "test": "should clear comment form after posting",
+          "pass": true,
+          "ms": 3
+        },
+        {
+          "test": "should preserve comments after page reload",
+          "pass": true,
+          "ms": 573
+        },
+        {
+          "test": "should handle long comments",
+          "pass": true,
+          "ms": 333
+        }
+      ],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/comment_multiple.png"
+    },
+    {
+      "name": "comment_requires_login",
+      "pass": true,
+      "reason": "met",
+      "ms": 5251,
+      "checks": [],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/comment_requires_login.png"
+    },
+    {
+      "name": "comment_author_only",
+      "pass": true,
+      "reason": "met",
+      "ms": 3504,
+      "checks": [],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {
+        "existingComments": 0
+      },
+      "screenshot": "/tmp/rw-drive-declare/comment_author_only.png"
+    },
+    {
+      "name": "nav_logged_out",
+      "pass": true,
+      "reason": "met",
+      "ms": 1982,
+      "checks": [],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/nav_logged_out.png"
+    },
+    {
+      "name": "nav_logged_in",
+      "pass": true,
+      "reason": "met",
+      "ms": 2487,
+      "checks": [],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/nav_logged_in.png"
+    },
+    {
+      "name": "nav_tag_filter",
+      "pass": true,
+      "reason": "met",
+      "ms": 3764,
+      "checks": [
+        {
+          "test": "/ should show Global Feed for everyone; /tag/:tag should filter by tag",
+          "pass": true,
+          "ms": 944
+        },
+        {
+          "test": "should filter articles by tag",
+          "pass": true,
+          "ms": 2124
+        }
+      ],
+      "adaptations": [
+        "no /tag/:tag route in the spec: tag chosen from the sidebar; .active → aria or the look swapping between tabs"
+      ],
+      "fallbacks": [],
+      "observed": {
+        "tag": "javascript"
+      },
+      "screenshot": "/tmp/rw-drive-declare/nav_tag_filter.png"
+    },
+    {
+      "name": "nav_feeds",
+      "pass": true,
+      "reason": "met",
+      "ms": 5958,
+      "checks": [
+        {
+          "test": "/?feed=following … when not authenticated (no Your Feed tab)",
+          "pass": true,
+          "ms": 2227
+        },
+        {
+          "test": "should switch between Global Feed and Your Feed (Global Feed lists the new article)",
+          "pass": true,
+          "ms": 235
+        },
+        {
+          "test": "clicking Your Feed shows Your Feed (current); empty Your Feed shows a message",
+          "pass": true,
+          "ms": 367
+        },
+        {
+          "test": "clicking Global Feed shows Global Feed (current)",
+          "pass": true,
+          "ms": 499
+        }
+      ],
+      "adaptations": [
+        "no ?feed=following route in the spec: Your Feed by its tab; signed-out redirect → no Your Feed tab; empty-feed wording → any empty-state line; .active → aria or the look swapping"
+      ],
+      "fallbacks": [],
+      "observed": {
+        "emptyMessage": "Your Feed Global Feed No articles are here"
+      },
+      "screenshot": "/tmp/rw-drive-declare/nav_feeds.png"
+    },
+    {
+      "name": "nav_popular_tags",
+      "pass": true,
+      "reason": "met",
+      "ms": 3139,
+      "checks": [],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/nav_popular_tags.png"
+    },
+    {
+      "name": "nav_pagination",
+      "pass": true,
+      "reason": "met",
+      "ms": 4410,
+      "checks": [
+        {
+          "test": "tag pagination shows correct articles per page; pagination should work with the tag",
+          "pass": true,
+          "ms": 1204
+        },
+        {
+          "test": "page should reset when switching feeds",
+          "pass": true,
+          "ms": 110
+        },
+        {
+          "test": "pagination preserves the feed (Your Feed's page 2)",
+          "pass": true,
+          "ms": 1356
+        }
+      ],
+      "adaptations": [
+        "no /tag/:tag or ?page=N routes in the spec: tag from the sidebar, page 2 by its link; judged by the articles shown and the current page; direct ?page=N not ported"
+      ],
+      "fallbacks": [
+        "page 2: current shown by its look (no aria-current/aria-selected)"
+      ],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/nav_pagination.png"
+    },
+    {
+      "name": "nav_author_link",
+      "pass": true,
+      "reason": "met",
+      "ms": 3373,
+      "checks": [],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/nav_author_link.png"
+    },
+    {
+      "name": "nav_profile_counts",
+      "pass": true,
+      "reason": "met",
+      "ms": 5836,
+      "checks": [
+        {
+          "test": "should handle empty states gracefully",
+          "pass": true,
+          "ms": 947
+        },
+        {
+          "test": "should show article count on profile tabs",
+          "pass": true,
+          "ms": 3251
+        }
+      ],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/nav_profile_counts.png"
+    },
+    {
+      "name": "settings_bio",
+      "pass": true,
+      "reason": "met",
+      "ms": 3174,
+      "checks": [
+        {
+          "test": "should update bio only",
+          "pass": true,
+          "ms": 723
+        },
+        {
+          "test": "should display updated bio on profile page",
+          "pass": true,
+          "ms": 2
+        },
+        {
+          "test": "should preserve username in navbar after update",
+          "pass": true,
+          "ms": 3
+        },
+        {
+          "test": "should allow navigation to settings again after update",
+          "pass": true,
+          "ms": 801
+        }
+      ],
+      "adaptations": [
+        "getToken/getCurrentUser → signed in after a reload and the settings form showing the saved bio"
+      ],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/settings_bio.png"
+    },
+    {
+      "name": "settings_image",
+      "pass": true,
+      "reason": "met",
+      "ms": 3255,
+      "checks": [
+        {
+          "test": "should update image only; should display updated image on profile page",
+          "pass": true,
+          "ms": 1010
+        },
+        {
+          "test": "should update bio and image together",
+          "pass": true,
+          "ms": 586
+        }
+      ],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/settings_image.png"
+    },
+    {
+      "name": "social_follow",
+      "pass": true,
+      "reason": "met",
+      "ms": 2864,
+      "checks": [
+        {
+          "test": "follow johndoe",
+          "pass": true,
+          "ms": 574
+        },
+        {
+          "test": "unfollow johndoe",
+          "pass": true,
+          "ms": 549
+        }
+      ],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {
+        "following": "Unfollow johndoe",
+        "unfollowed": "Follow johndoe"
+      },
+      "screenshot": "/tmp/rw-drive-declare/social_follow.png"
+    },
+    {
+      "name": "social_profiles",
+      "pass": true,
+      "reason": "met",
+      "ms": 5023,
+      "checks": [
+        {
+          "test": "should view own profile",
+          "pass": true,
+          "ms": 2289
+        },
+        {
+          "test": "should view other user profile",
+          "pass": true,
+          "ms": 1110
+        }
+      ],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/social_profiles.png"
+    },
+    {
+      "name": "social_profile_articles",
+      "pass": true,
+      "reason": "met",
+      "ms": 5105,
+      "checks": [
+        {
+          "test": "should display user articles on profile",
+          "pass": true,
+          "ms": 2421
+        },
+        {
+          "test": "should display favorited articles on profile",
+          "pass": true,
+          "ms": 1047
+        }
+      ],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/social_profile_articles.png"
+    },
+    {
+      "name": "social_feed",
+      "pass": true,
+      "reason": "met",
+      "ms": 2658,
+      "checks": [],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/social_feed.png"
+    },
+    {
+      "name": "avatars_default",
+      "pass": true,
+      "reason": "met",
+      "ms": 3367,
+      "checks": [
+        {
+          "test": "default avatar in navbar",
+          "pass": true,
+          "ms": 21
+        },
+        {
+          "test": "default avatar on profile page",
+          "pass": true,
+          "ms": 267
+        },
+        {
+          "test": "default avatar on article meta and in comment section",
+          "pass": true,
+          "ms": 1444
+        }
+      ],
+      "adaptations": [
+        "src contains default-avatar.svg → the drawn picture is the spec's default-avatar.svg, pixel-compared"
+      ],
+      "fallbacks": [],
+      "observed": {
+        "articlePictures": 5
+      },
+      "screenshot": "/tmp/rw-drive-declare/avatars_default.png"
+    },
+    {
+      "name": "avatars_custom",
+      "pass": true,
+      "reason": "met",
+      "ms": 3263,
+      "checks": [
+        {
+          "test": "setting image should display custom avatar on profile page",
+          "pass": true,
+          "ms": 1661
+        },
+        {
+          "test": "clearing image to empty string should restore default avatar",
+          "pass": true,
+          "ms": 909
+        }
+      ],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/avatars_custom.png"
+    },
+    {
+      "name": "nulls_bio_fields",
+      "pass": true,
+      "reason": "met",
+      "ms": 3241,
+      "checks": [
+        {
+          "test": "null bio should not render as literal \"null\" on profile page",
+          "pass": true,
+          "ms": 1222
+        },
+        {
+          "test": "settings form should show empty string for null image / null bio",
+          "pass": true,
+          "ms": 423
+        },
+        {
+          "test": "setting then clearing bio should not show stale data",
+          "pass": true,
+          "ms": 913
+        }
+      ],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/nulls_bio_fields.png"
+    },
+    {
+      "name": "avatars_feed",
+      "pass": true,
+      "reason": "met",
+      "ms": 1388,
+      "checks": [],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/avatars_feed.png"
+    },
+    {
+      "name": "xss_images",
+      "pass": false,
+      "reason": "should prevent XSS via onerror attribute injection: the profile shows no picture (pictures shown: none) ‖ should prevent XSS via onerror with javascript protocol: the profile shows no picture (pictures shown: none) ‖ should prevent XSS via onload attribute injection: the profile shows no picture (pictures shown: none) ‖ should prevent XSS via javascript protocol in src: the profile shows no picture (pictures shown: none) ‖ should prevent XSS via data URI with script: the profile shows no picture (pictures shown: none)",
+      "ms": 45332,
+      "checks": [
+        {
+          "test": "should prevent XSS via onerror attribute injection",
+          "pass": false,
+          "reason": "the profile shows no picture (pictures shown: none)",
+          "ms": 7866
+        },
+        {
+          "test": "should prevent XSS via onerror with javascript protocol",
+          "pass": false,
+          "reason": "the profile shows no picture (pictures shown: none)",
+          "ms": 7866
+        },
+        {
+          "test": "should prevent XSS via onload attribute injection",
+          "pass": false,
+          "reason": "the profile shows no picture (pictures shown: none)",
+          "ms": 7869
+        },
+        {
+          "test": "should prevent XSS via javascript protocol in src",
+          "pass": false,
+          "reason": "the profile shows no picture (pictures shown: none)",
+          "ms": 7915
+        },
+        {
+          "test": "should prevent XSS via data URI with script",
+          "pass": false,
+          "reason": "the profile shows no picture (pictures shown: none)",
+          "ms": 7866
+        },
+        {
+          "test": "should safely render malicious payload in navbar image",
+          "pass": true,
+          "ms": 2215
+        },
+        {
+          "test": "should safely render malicious payload in article comments",
+          "pass": true,
+          "ms": 2050
+        }
+      ],
+      "adaptations": [
+        "signed in through the form, not a token injected into localStorage; executable payloads looked for anywhere in the page, not under .user-img"
+      ],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/xss_images.png"
+    },
+    {
+      "name": "xss_content",
+      "pass": true,
+      "reason": "met",
+      "ms": 17634,
+      "checks": [
+        {
+          "test": "should sanitize script tag in article description",
+          "pass": true,
+          "ms": 1767
+        },
+        {
+          "test": "should sanitize img onerror in article description",
+          "pass": true,
+          "ms": 1770
+        },
+        {
+          "test": "should sanitize svg onload in article description",
+          "pass": true,
+          "ms": 1768
+        },
+        {
+          "test": "should sanitize script tag in article body",
+          "pass": true,
+          "ms": 1767
+        },
+        {
+          "test": "should sanitize img onerror in article body",
+          "pass": true,
+          "ms": 1764
+        },
+        {
+          "test": "should sanitize svg onload in article body",
+          "pass": true,
+          "ms": 1767
+        },
+        {
+          "test": "should sanitize iframe srcdoc in article body",
+          "pass": true,
+          "ms": 1765
+        },
+        {
+          "test": "should sanitize anchor javascript href in article body",
+          "pass": true,
+          "ms": 1766
+        },
+        {
+          "test": "should sanitize event handler in div in article body",
+          "pass": true,
+          "ms": 1767
+        }
+      ],
+      "adaptations": [
+        "signed in through the form; `.article-preview p`/`.article-content` → the page's text and the whole page's markup"
+      ],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/xss_content.png"
+    },
+    {
+      "name": "errors_auth_forms",
+      "pass": true,
+      "reason": "met",
+      "ms": 3906,
+      "checks": [
+        {
+          "test": "should handle 400 on login with validation errors",
+          "pass": true,
+          "ms": 958
+        },
+        {
+          "test": "should handle 400 on registration with validation errors",
+          "pass": true,
+          "ms": 748
+        },
+        {
+          "test": "should show error message on login form when network fails",
+          "pass": true,
+          "ms": 687
+        },
+        {
+          "test": "should show error message on register form when network fails",
+          "pass": true,
+          "ms": 753
+        }
+      ],
+      "adaptations": [
+        ".error-messages → a new error line; \"Unable to connect\" wording → any error line"
+      ],
+      "fallbacks": [],
+      "observed": {
+        "login400": "•  email or password is invalid",
+        "register400": "•  username is too short (minimum is 3 characters)",
+        "loginNetwork": "•  Something went wrong. Please try again.",
+        "registerNetwork": "•  Something went wrong. Please try again."
+      },
+      "screenshot": "/tmp/rw-drive-declare/errors_auth_forms.png"
+    },
+    {
+      "name": "errors_editor",
+      "pass": true,
+      "reason": "met",
+      "ms": 3934,
+      "checks": [
+        {
+          "test": "should handle 400 on article creation",
+          "pass": true,
+          "ms": 409
+        },
+        {
+          "test": "should show error message on create article form when network fails",
+          "pass": true,
+          "ms": 781
+        },
+        {
+          "test": "should handle 403 when updating article",
+          "pass": true,
+          "ms": 530
+        },
+        {
+          "test": "should show error message on update article form when network fails",
+          "pass": true,
+          "ms": 546
+        }
+      ],
+      "adaptations": [
+        "signed in through the form instead of a fake token + mocked GET /user; .error-messages → a new error line; 'Unable to connect' → any error line"
+      ],
+      "fallbacks": [],
+      "observed": {
+        "create400": "•  title can't be blank",
+        "createNetwork": "•  Something went wrong. Please try again.",
+        "update403": "•  message You are not authorized to edit this article",
+        "updateNetwork": "•  Something went wrong. Please try again."
+      },
+      "screenshot": "/tmp/rw-drive-declare/errors_editor.png"
+    },
+    {
+      "name": "errors_settings",
+      "pass": true,
+      "reason": "met",
+      "ms": 3811,
+      "checks": [
+        {
+          "test": "should handle 401 when submitting settings form",
+          "pass": true,
+          "ms": 549
+        },
+        {
+          "test": "should handle 500 when submitting settings",
+          "pass": true,
+          "ms": 1130
+        },
+        {
+          "test": "should show error message on settings form when network fails",
+          "pass": true,
+          "ms": 549
+        }
+      ],
+      "adaptations": [
+        "signed in through the form instead of a fake token + mocked GET /user; .error-messages → a new error line; 'Unable to connect' → any error line"
+      ],
+      "fallbacks": [],
+      "observed": {
+        "settings401": "•  message Session expired",
+        "settingsNetwork": "•  Something went wrong. Please try again."
+      },
+      "screenshot": "/tmp/rw-drive-declare/errors_settings.png"
+    },
+    {
+      "name": "errors_article",
+      "pass": false,
+      "reason": "should handle 403 when deleting another users comment: a 403 on deleting a comment: no error message shown",
+      "ms": 11132,
+      "checks": [
+        {
+          "test": "should handle 500 on article detail load",
+          "pass": true,
+          "ms": 690
+        },
+        {
+          "test": "should handle network error on article detail load",
+          "pass": true,
+          "ms": 262
+        },
+        {
+          "test": "should handle 404 for non-existent article",
+          "pass": true,
+          "ms": 264
+        },
+        {
+          "test": "should handle 401 when posting a comment",
+          "pass": true,
+          "ms": 268
+        },
+        {
+          "test": "should handle 403 when deleting another users comment",
+          "pass": false,
+          "reason": "a 403 on deleting a comment: no error message shown",
+          "ms": 6480
+        },
+        {
+          "test": "should show error message when adding comment fails due to network",
+          "pass": true,
+          "ms": 631
+        },
+        {
+          "test": "should handle network error when favoriting article",
+          "pass": true,
+          "ms": 1133
+        }
+      ],
+      "adaptations": [
+        "signed in through the form; .article-content → the body text shown; .article-page → content between header and footer; .error-messages → a new error line"
+      ],
+      "fallbacks": [],
+      "observed": {
+        "commentNetwork": "•  Something went wrong. Please try again."
+      },
+      "screenshot": "/tmp/rw-drive-declare/errors_article.png"
+    },
+    {
+      "name": "errors_profile",
+      "pass": true,
+      "reason": "met",
+      "ms": 4713,
+      "checks": [
+        {
+          "test": "should handle 500 on user profile load",
+          "pass": true,
+          "ms": 538
+        },
+        {
+          "test": "should handle network error on user profile load",
+          "pass": true,
+          "ms": 265
+        },
+        {
+          "test": "should handle 404 for non-existent profile",
+          "pass": true,
+          "ms": 263
+        },
+        {
+          "test": "should handle 403 when following user you are blocked by",
+          "pass": true,
+          "ms": 1127
+        },
+        {
+          "test": "should handle network error when following user",
+          "pass": true,
+          "ms": 1125
+        }
+      ],
+      "adaptations": [
+        "signed in through the form; .user-info/.profile-page → the user's name heading / content between header and footer"
+      ],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/errors_profile.png"
+    },
+    {
+      "name": "errors_home",
+      "pass": true,
+      "reason": "met",
+      "ms": 3341,
+      "checks": [
+        {
+          "test": "should handle 500 on articles feed load",
+          "pass": true,
+          "ms": 692
+        },
+        {
+          "test": "should handle 500 on tags load",
+          "pass": true,
+          "ms": 266
+        },
+        {
+          "test": "should handle network error on tags load",
+          "pass": true,
+          "ms": 268
+        },
+        {
+          "test": "should handle intermittent 500 errors gracefully",
+          "pass": true,
+          "ms": 266
+        },
+        {
+          "test": "should handle network timeout",
+          "pass": true,
+          "ms": 266
+        },
+        {
+          "test": "should handle connection refused",
+          "pass": true,
+          "ms": 266
+        },
+        {
+          "test": "should handle malformed JSON response",
+          "pass": true,
+          "ms": 268
+        },
+        {
+          "test": "should handle empty response body",
+          "pass": true,
+          "ms": 269
+        }
+      ],
+      "adaptations": [],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/errors_home.png"
+    },
+    {
+      "name": "user_fetch_4xx",
+      "pass": false,
+      "reason": "should handle 400 on /api/user: a 400 on /api/user: no Sign in link ‖ should handle 403 on /api/user: a 403 on /api/user: no Sign in link ‖ should handle 404 on /api/user: a 404 on /api/user: no Sign in link",
+      "ms": 34833,
+      "checks": [
+        {
+          "test": "should handle 400 on /api/user",
+          "pass": false,
+          "reason": "a 400 on /api/user: no Sign in link",
+          "ms": 11430
+        },
+        {
+          "test": "should handle 401 on /api/user",
+          "pass": true,
+          "ms": 799
+        },
+        {
+          "test": "should handle 403 on /api/user",
+          "pass": false,
+          "reason": "a 403 on /api/user: no Sign in link",
+          "ms": 11212
+        },
+        {
+          "test": "should handle 404 on /api/user",
+          "pass": false,
+          "reason": "a 404 on /api/user: no Sign in link",
+          "ms": 10588
+        }
+      ],
+      "adaptations": [
+        "token from signing in through the form; getToken()==null → a reload with the network restored stays signed out"
+      ],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/user_fetch_4xx.png"
+    },
+    {
+      "name": "user_fetch_5xx",
+      "pass": true,
+      "reason": "met",
+      "ms": 14734,
+      "checks": [
+        {
+          "test": "should handle 500 Internal Server Error on /api/user",
+          "pass": true,
+          "ms": 2412
+        },
+        {
+          "test": "should handle network timeout on /api/user",
+          "pass": true,
+          "ms": 2393
+        },
+        {
+          "test": "should handle network failure on /api/user",
+          "pass": true,
+          "ms": 2377
+        },
+        {
+          "test": "should handle empty response on /api/user",
+          "pass": true,
+          "ms": 2136
+        },
+        {
+          "test": "should handle malformed JSON on /api/user",
+          "pass": true,
+          "ms": 2380
+        },
+        {
+          "test": "should allow browsing app in unavailable mode and persist token across reloads",
+          "pass": true,
+          "ms": 1182
+        }
+      ],
+      "adaptations": [
+        "token from the form; getToken()!=null → a reload with the network restored comes back signed in; \"Connecting\" text recorded, not required"
+      ],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/user_fetch_5xx.png"
+    },
+    {
+      "name": "user_fetch_protected",
+      "pass": false,
+      "reason": "should redirect from /settings on 401: should redirect from /settings on 401: still at /settings ‖ should redirect from /editor on 401: should redirect from /editor on 401: still at /editor",
+      "ms": 7740,
+      "checks": [
+        {
+          "test": "should redirect from /settings on 401",
+          "pass": false,
+          "reason": "should redirect from /settings on 401: still at /settings",
+          "ms": 2773
+        },
+        {
+          "test": "should redirect from /editor on 401",
+          "pass": false,
+          "reason": "should redirect from /editor on 401: still at /editor",
+          "ms": 2396
+        },
+        {
+          "test": "should handle 500 on loading /settings gracefully",
+          "pass": true,
+          "ms": 1175
+        },
+        {
+          "test": "should handle network error on /settings gracefully",
+          "pass": true,
+          "ms": 581
+        }
+      ],
+      "adaptations": [
+        "the token is the app's own, from signing in through the form"
+      ],
+      "fallbacks": [],
+      "observed": {},
+      "screenshot": "/tmp/rw-drive-declare/user_fetch_protected.png"
+    }
+  ],
+  "notes": [
+    "the app routes by hash (#/…); the spec's routes were taken as hash routes",
+    "titles and names the templates show as headings (the page title, article titles, the profile's name) are not headings in the tree; found as text",
+    "article titles in lists are not headings in the tree; counted as text"
+  ]
+}

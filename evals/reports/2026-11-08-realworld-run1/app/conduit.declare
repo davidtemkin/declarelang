@@ -1,0 +1,333 @@
+/*
+# Conduit
+
+The RealWorld example app — a place to publish articles, read them, comment on
+them, favorite them, follow their authors and filter them by tag — written to
+the RealWorld spec and wearing its shared Conduit theme. Every record lives
+behind the Conduit API (http://127.0.0.1:8380/api); this program holds none of
+its own.
+
+How to read it:
+
+- **Addresses are `location`**, the URL after `#`: `/`, `/login`,
+  `/register`, `/settings`, `/editor`, `/editor/<slug>`, `/article/<slug>`,
+  `/profile/<name>` and `/profile/<name>/favorites`. The App parses it into
+  `section`, `param` and `page`; every link writes it, Back writes it back,
+  and nothing else navigates.
+- **The service is a few `DataSource`s whose addresses derive from where the
+  user is.** `Api` is the one base they share: it prefixes the API's address
+  and carries the signed-in person's token. Reads load themselves
+  (`autoFetch`) when their path changes — open an article and its comments
+  arrive — and a path of "" asks for nothing.
+- **The session** — the token, kept in localStorage, and the account it
+  names — is a `Session`, a class with no view.
+- **Writes** are `Api`s too. The ones several pages share (favorite, follow,
+  delete) are on the App with the verbs that aim them; a form's own write is
+  declared on its page (`conduit-pages.declare`). A reply is merged into what
+  is on screen, so a heart or a follow changes everywhere at once.
+- **Pages are classes**, one per route. The screen is one record, keyed by the
+  address, and `classFor` builds the page it names: only the current page
+  exists, and a new address starts it fresh.
+
+Files: this one (data, session, the App), `conduit-pages.declare` (the
+pages), `conduit-parts.declare` (the theme, icons and small parts).
+*/
+
+include [ "conduit-parts.declare" ]
+
+include [ "conduit-pages.declare" ]
+
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+script {
+    // "2026-07-02T14:31:05.000Z" → "July 2, 2026"
+    function longDate(iso: string): string {
+        if (iso == "") return ""
+        return new Date(iso).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })
+    }
+    }
+
+// The token survives a reload in localStorage, as the RealWorld spec asks:
+// browser-only, so this block says so.
+
+script [ host = browser ] {
+    function storedToken(): string { return localStorage.getItem("jwtToken") ?? "" }
+    function storeToken(token: string) {
+        if (token == "") localStorage.removeItem("jwtToken")
+        else localStorage.setItem("jwtToken", token)
+    }
+    }
+
+// ── The shape of the data (the API's) ───────────────────────────────────────
+
+schema User [ email: string, token: string, username: string, bio?: string, image?: string ]
+schema Profile [ username: string, bio?: string, image?: string, following: boolean ]
+schema Article [ slug: string, title: string, description: string, body?: string, tagList[]: string,
+    createdAt: string, updatedAt: string, favorited: boolean, favoritesCount: number, author: Profile ]
+schema Comment [ id: number, createdAt: string, updatedAt: string, body: string, author: Profile ]
+
+// The page on screen: the address is its identity, so a new address builds a
+// new page, and `page` says which.
+
+schema Screen [ id: string, page: string ]
+
+
+// ── The service ─────────────────────────────────────────────────────────────
+//
+// A request to the Conduit API. `path` is the part after `/api` ("" for no
+// request at all); the signed-in person's token rides along on every one.
+
+class Api extends DataSource [
+    path: string = "",
+    url = { classroot.path == "" ? "" : app.apiBase + classroot.path },
+    headers = { app.session.auth }
+    ]
+
+
+// A page of articles: `articlesCount` says how many match in all, and a reply
+// to a favorite or a follow is merged into the records already here.
+
+class Articles extends Api [ autoFetch = true, schema = [ articles[]: Article, articlesCount: number ],
+    replace(a: Article) {
+        const i = (this.value?.articles ?? []).findIndex((x) => x.slug == a.slug)
+        if (i >= 0) this.set(["articles", i], a)
+        },
+    authorChanged(p: Profile) {
+        (this.value?.articles ?? []).forEach((x, i) => {
+            if (x.author.username == p.username) this.set(["articles", i, "author"], p)
+            })
+        }
+    ]
+
+
+// Who is signed in. The token is the fact, kept across reloads; the account
+// is fetched from it, and a token the service no longer accepts signs out.
+
+class Session extends Node [
+    token: string = { storedToken() },
+    trackChanges = ["token"],
+    onChange() { storeToken(token) },
+
+    signedIn: boolean = { classroot.token != "" },
+    auth: object = { { Authorization: classroot.signedIn ? "Token " + classroot.token : "" } },
+    me: Api [ path = { classroot.signedIn ? "/user" : "" }, autoFetch = true, schema = [ user: User ],
+        onError() { if (this.statusCode == 401) classroot.signOut() }
+        ],
+    user: User? = { classroot.signedIn ? classroot.me.value?.user ?? null : null },
+    name: string = { classroot.user?.username ?? "" },
+
+    signIn(u: User) { me.set([], ({ user: u })); token = u.token },
+    signOut() { token = ""; me.clear() }
+    ]
+
+
+// ── The app ─────────────────────────────────────────────────────────────────
+
+App [ minWidth = 320, appName = { app.title },
+    theme = { { ...SanFrancisco, ...Conduit } },
+    fill = { provided("theme").background },
+    textColor = { provided("theme").text },
+
+    // ── type: Source Sans Pro for everything, Lora for the brand and articles
+
+    sans: Font [
+        FontFace [ weight = light, src = "https://fonts.gstatic.com/s/sourcesanspro/v24/6xKydSBYKcSV-LCoeQqfX1RYOo3ik4zwlxdu3cOWxw.woff2" ],
+        FontFace [ weight = regular, src = "https://fonts.gstatic.com/s/sourcesanspro/v24/6xK3dSBYKcSV-LCoeQqfX1RYOo3qOK7lujVj9w.woff2" ],
+        FontFace [ weight = semibold, src = "https://fonts.gstatic.com/s/sourcesanspro/v24/6xKydSBYKcSV-LCoeQqfX1RYOo3i54rwlxdu3cOWxw.woff2" ],
+        FontFace [ weight = bold, src = "https://fonts.gstatic.com/s/sourcesanspro/v24/6xKydSBYKcSV-LCoeQqfX1RYOo3ig4vwlxdu3cOWxw.woff2" ]
+        ],
+    lora: Font [
+        FontFace [ weight = range(400, 700), src = "https://fonts.gstatic.com/s/lora/v37/0QIvMX1D_JOuMwr7I_FMl_E.woff2" ]
+        ],
+    serifFace: array = { [app.lora, "Georgia", "serif"] },
+    fontFamily = { [app.sans, "Helvetica Neue", "Arial", "sans-serif"] },
+    fontSize = 16,
+
+    // ── the window: the stylesheet's container steps and its medium width
+
+    containerMax: number = { app.containerFor(app.width) },
+    containerFor(w: number) -> number {
+        if (w >= 1200) return 1140
+        if (w >= 992) return 940
+        if (w >= 768) return 720
+        if (w >= 544) return 576
+        return w
+        },
+    md: boolean = { app.width >= 768 },
+    readW: number = { Math.min(720, app.containerMax - 30) },     // an article's measure
+
+    // ── the service
+
+    apiBase: string = "http://127.0.0.1:8380/api",
+    session: Session [ ],
+
+    // ── where the user is: the address, parsed
+
+    location = "/",
+    route: string[] = { app.location.split("/").filter((s) => s != "").map((s) => decodeURIComponent(s)) },
+    section: string = { app.route[0] ?? "" },
+    param: string = { app.route[1] ?? "" },
+    favorites: boolean = { app.route[2] == "favorites" },
+
+    // The page the address shows. Settings and the editor need an account, so
+    // signed out they show the sign-in page at the same address, and signing in
+    // lands where the person was going. Signed in, /login and /register have
+    // nothing to show.
+
+    page: string = { app.pageFor(app.section, app.param, app.session.signedIn) },
+    pageFor(section: string, param: string, signedIn: boolean) -> string {
+        switch (section) {
+            case "login": case "register": return signedIn ? "home" : section
+            case "settings": case "editor": return signedIn ? section : "login"
+            case "article": case "profile": return param == "" ? "home" : section
+            default: return "home"
+            }
+        },
+    title: string = { app.page == "article" && app.current != null ? app.current.title + " — Conduit" : "Conduit" },
+
+    // The home page's tab, its tag, and the page of the list: not worth an
+    // address. "Your Feed" needs an account, so signed out it reads as Global.
+
+    tab: string = "global",            // "feed", "global" or "tag"
+    tag: string = "",
+    pageNo: number = 1,
+    feedTab: string = { app.tab == "feed" && !app.session.signedIn ? "global" : app.tab },
+
+    showFeed(t: string) { tab = t; tag = ""; pageNo = 1 },
+    showTag(t: string) { tab = "tag"; tag = t; pageNo = 1 },
+
+    // A new place starts at its first page.
+
+    trackChanges = ["location"],
+    onChange() { pageNo = 1 },
+
+    // ── what the service is asked for, from where the user is
+
+    articles: Articles [ path = { app.listPath } ],
+    listPath: string = { app.listPathFor(app.page, app.feedTab, app.tag, app.param, app.favorites, app.pageNo) },
+    listPathFor(page: string, tab: string, tag: string, who: string, favs: boolean, n: number) -> string {
+        const paging = "limit=10&offset=" + (n - 1) * 10
+        if (page == "profile") return "/articles?" + (favs ? "favorited=" : "author=") + encodeURIComponent(who) + "&" + paging
+        if (page != "home") return ""
+        if (tab == "feed") return "/articles/feed?" + paging
+        if (tab == "tag") return "/articles?tag=" + encodeURIComponent(tag) + "&" + paging
+        return "/articles?" + paging
+        },
+    articleCount: number = { app.articles.value?.articlesCount ?? 0 },
+    pageCount: number = { Math.ceil(app.articleCount / 10) },
+    pages: Dataset [ contents = { { pages: Array.from({ length: app.pageCount }, (_, i) => i + 1) } } ],
+
+    tags: Api [ path = "/tags", autoFetch = true, schema = [ tags[]: string ] ],
+
+    slugPath: string = { "/articles/" + encodeURIComponent(app.param) },
+    article: Api [ autoFetch = true, schema = [ article: Article ],
+        path = { (app.page == "article" || app.page == "editor") && app.param != "" ? app.slugPath : "" } ],
+    current: Article? = { app.article.value?.article?.slug == app.param ? app.article.value?.article ?? null : null },
+    comments: Api [ autoFetch = true, schema = [ comments[]: Comment ],
+        path = { app.page == "article" ? app.slugPath + "/comments" : "" } ],
+
+    profile: Api [ autoFetch = true, schema = [ profile: Profile ],
+        path = { app.page == "profile" ? "/profiles/" + encodeURIComponent(app.param) : "" } ],
+    shownProfile: Profile? = { app.profile.value?.profile?.username == app.param ? app.profile.value?.profile ?? null : null },
+
+    // ── the writes several pages share, and the verbs that aim them
+
+    favorite: Api [ schema = [ article: Article ],
+        slug: string = "",
+        on: boolean = true,
+        path = { "/articles/" + encodeURIComponent(this.slug) + "/favorite" },
+        method = { this.on ? "POST" : "DELETE" },
+        onLoad() { app.articleChanged(this.value.article) }
+        ],
+    toggleFavorite(a: Article) {
+        if (!session.signedIn) { followLink("#/login"); return }
+        favorite.slug = a.slug
+        favorite.on = !a.favorited
+        favorite.fetch()
+        },
+
+    follow: Api [ schema = [ profile: Profile ],
+        who: string = "",
+        on: boolean = true,
+        path = { "/profiles/" + encodeURIComponent(this.who) + "/follow" },
+        method = { this.on ? "POST" : "DELETE" },
+        onLoad() { app.profileChanged(this.value.profile) }
+        ],
+    toggleFollow(p: Profile) {
+        if (!session.signedIn) { followLink("#/login"); return }
+        follow.who = p.username
+        follow.on = !p.following
+        follow.fetch()
+        },
+
+    removeArticle: Api [ method = "DELETE", format = "text",
+        slug: string = "",
+        path = { "/articles/" + encodeURIComponent(this.slug) },
+        onLoad() { app.followLink("#/") }
+        ],
+    deleteArticle(slug: string) { removeArticle.slug = slug; removeArticle.fetch() },
+
+    removeComment: Api [ method = "DELETE", format = "text",
+        id: number = 0,
+        path = { app.slugPath + "/comments/" + this.id },
+        onLoad() { app.commentRemoved(this.id) }
+        ],
+    deleteComment(id: number) { removeComment.id = id; removeComment.fetch() },
+
+    // ── replies merged into what is on screen
+
+    articleChanged(a: Article) {
+        articles.replace(a)
+        if (article.value?.article?.slug == a.slug) article.set(["article"], a)
+        },
+    profileChanged(p: Profile) {
+        articles.authorChanged(p)
+        if (profile.value?.profile?.username == p.username) profile.set(["profile"], p)
+        if (article.value?.article?.author.username == p.username) article.set(["article", "author"], p)
+        },
+    commentAdded(c: Comment) { comments.insert(["comments"], 0, c) },
+    commentRemoved(id: number) {
+        const i = (comments.value?.comments ?? []).findIndex((c) => c.id == id)
+        if (i >= 0) comments.removeAt(["comments"], i)
+        },
+
+    // ── what follows a form's success
+
+    welcome(u: User) {
+        session.signIn(u)
+        if (section == "login" || section == "register") followLink("#/")
+        },
+    saved(u: User) {
+        session.signIn(u)
+        followLink("#/profile/" + encodeURIComponent(u.username))
+        },
+    published(a: Article) {
+        article.set([], ({ article: a }))
+        tags.fetch()
+        followLink("#/article/" + encodeURIComponent(a.slug))
+        },
+    signOut() {
+        session.signOut()
+        tab = "global"
+        followLink("#/")
+        },
+
+    // ── the screen: the header, the page, the footer pinned to the foot of a
+    //    short page
+
+    screen: Dataset [ schema = [ pages[]: Screen ], contents = { { pages: [({ id: app.location, page: app.page })] } } ],
+
+    layout: SimpleLayout [ axis = y ],
+    header: NavBar [ ],
+    main: View [ width = 100%, flexes = true, minHeight = { this.contentHeight }, padding = [0, 0, 42, 0],
+        datapath = { app.screen.value },
+        Page [ datapath = :pages[], classFor = {
+            :page == "home" ? HomePage
+            : :page == "login" || :page == "register" ? AuthPage
+            : :page == "settings" ? SettingsPage
+            : :page == "editor" ? EditorPage
+            : :page == "article" ? ArticlePage
+            : ProfilePage } ]
+        ],
+    footer: Footer [ ]
+    ]
