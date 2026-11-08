@@ -139,10 +139,14 @@ async function elementOf(n) {
   if (h) h = (await h.evaluateHandle((e) => (e.nodeType === 1 ? e : e.parentElement))).asElement();
   return h;
 }
+// A container (a row, a list item, a cell) takes the name of what it holds: a control inside it
+// that matches is the thing a person presses, so it comes first.
+const CONTAINER_ROLES = new Set(["row", "listitem", "cell", "gridcell", "columnheader", "rowheader", "treeitem"]);
 async function find(page, test, { timeout = FIND_MS, what = "an element" } = {}) {
   const until = Date.now() + timeout;
   for (;;) {
-    const hit = (await nodes(page)).find(test);
+    const hits = (await nodes(page)).filter(test);
+    const hit = hits.find((n) => !CONTAINER_ROLES.has(n.role)) ?? hits[0];
     if (hit) { const h = await elementOf(hit); if (h) return { node: hit, handle: h }; }
     if (Date.now() > until) throw new Error(`not found: ${what}`);
     await sleep(150);
@@ -275,7 +279,7 @@ async function view(page, ctx, name) {
 }
 // The editor for a kind: its own control ("New expense"), else a "New" menu or the kind chosen at the top.
 async function newEditor(page, ctx, kind) {
-  const direct = await maybe(control(page, new RegExp(`^(new|add|record) ${kind}\\b`, "i"), { timeout: 3000 }));
+  const direct = await maybe(control(page, new RegExp(`^(\\+ ?)?((new|add|record) (an? )?)?${kind}\\b(?!s)`, "i"), { timeout: 3000 }));
   if (direct) { await press(page, direct); }
   else {
     ctx.fallback(`no "New ${kind}" control; opened a general New`);
@@ -308,14 +312,18 @@ const SCENARIOS = {
       // the figure: a node whose name starts with the label and carries the value, else the
       // page's text right after the label
       const re = unit === "$" ? new RegExp(`${label}[^$%]{0,40}?([−-]?\\s*\\$[\\d,]+(?:\\.\\d\\d)?)`) : new RegExp(`${label}[^%]{0,40}?([\\d.]+)\\s*%`);
-      const t = await seeText(page, re, FIND_MS).catch(() => { throw new Error(`Overview shows no "${label}" figure with a value`); });
-      const shown = unit === "$" ? parseMoney(t[1]) : Number(t[1]);
-      if (unit === "$" ? Math.abs(shown - value) >= 100 : value === null || Math.abs(shown - value) > 1) throw new Error(`${label} shows ${t[1]}${unit === "%" ? "%" : ""}; the service's this-month value is ${unit === "$" ? money(value) : value + "%"}`);
-      // its change against last month: an arrow or sign and a figure, against the month
-      const ch = new RegExp(`${label}[\\s\\S]{0,160}?([▲▼↑↓]|\\b(up|down)\\b|[+−-]\\s?\\d)[\\s\\S]{0,40}?(vs\\.?|from|than|against|compared( to| with)?)\\s*(${d.lastMonthName.slice(0, 3)}|last month|previous)`, "i");
-      const c = await maybe(seeText(page, ch, 2000));
+      // every place the label is followed by a value (the label also names filters and charts):
+      // one of them must carry this month's value, and its change against last month
+      await seeText(page, re, FIND_MS).catch(() => { throw new Error(`Overview shows no "${label}" figure with a value`); });
+      const ch = new RegExp(`^[\\s\\S]{0,120}?([▲▼↑↓]|\\b(up|down)\\b|[+−-]\\s?\\d)[\\s\\S]{0,40}?(vs\\.?|from|than|against|compared( to| with)?)\\s*(${d.lastMonthName.slice(0, 3)}|last month|previous)`, "i");
+      const text = await allText(page);
+      const g = new RegExp(re.source, "g");
+      const seen = [...text.matchAll(g)].map((m) => ({ shown: unit === "$" ? parseMoney(m[1]) : Number(m[1]), raw: m[1], after: text.slice(m.index + m[0].length, m.index + m[0].length + 160), at: m[0] }));
+      const right = seen.filter((x) => (unit === "$" ? Math.abs(x.shown - value) < 100 : value !== null && Math.abs(x.shown - value) <= 1));
+      if (!right.length) throw new Error(`${label} shows ${seen.map((x) => x.raw).join(" / ")}; the service's this-month value is ${unit === "$" ? money(value) : value + "%"}`);
+      const c = right.find((x) => ch.test(x.after));
       if (!c) throw new Error(`the ${label} figure shows no change against last month (no "▲ 12% vs ${d.lastMonthName.slice(0, 3)}" or the like)`);
-      ctx.observed[label] = c[0].slice(0, 90);
+      ctx.observed[label] = (c.at + ch.exec(c.after)[0]).replace(/\s+/g, " ").slice(0, 90);
     }
     await seeText(page, /income vs\.? expenses/i).catch(() => { throw new Error('no "Income vs expenses" chart on Overview'); });
     // this month's expense bar
@@ -324,20 +332,41 @@ const SCENARIOS = {
     let bar = await maybe(find(page, isBar, { timeout: 2500 }));
     let reachedByKeys = false;
     if (!bar) {
-      // a chart that is one keyboard stop shows one series at a time: the arrow keys move to
-      // the expense series of this month's period (§6, for someone who can't see the chart)
-      const period = new RegExp(`(${d.monthName}|\\b${d.monthName.slice(0, 3)}\\b)\\b.*\\$`, "i");
-      const any = await maybe(find(page, (n) => !["StaticText", "heading"].includes(n.role) && named(n, period) && !/^(revenue|expenses|net profit|gross margin),/i.test(n.name), { timeout: 2500 }));
-      if (any) {
-        await any.handle.focus();
-        for (const k of ["ArrowDown", "ArrowDown", "ArrowDown", "ArrowUp", "ArrowUp", "ArrowUp", "ArrowUp"]) {
-          bar = await maybe(find(page, (n) => isBar(n) && n.focused, { timeout: 300 }));
-          if (bar) break;
-          await page.keyboard.press(k);
+      // A chart that is one keyboard stop (§6, for someone who can't see the chart): focused, its
+      // arrow keys walk periods and series and each point is announced — as the focused mark's own
+      // name, its active descendant, or the text the chart is described by. Walked to this month's
+      // expenses by what is announced, then opened with Enter.
+      const mon = `(${d.monthName}|\\b${d.monthName.slice(0, 3)}\\b)`;
+      const monthRe = new RegExp(mon, "i"), target = new RegExp(`${mon}[^|]*\\bexpenses?\\b`, "i");
+      const announced = () => page.evaluate(() => {
+        const a = document.activeElement;
+        if (!a || a === document.body) return "";
+        const byId = (id) => document.getElementById(id);
+        const said = [a.getAttribute("aria-label") ?? ""];
+        const ad = a.getAttribute("aria-activedescendant");
+        if (ad && byId(ad)) said.push(byId(ad).getAttribute("aria-label") ?? byId(ad).textContent);
+        for (const id of (a.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean)) said.push(byId(id)?.textContent ?? "");
+        return said.join(" | ");
+      });
+      // where the walk starts: a period's mark in the tree, else the chart itself, named for its title
+      const period = new RegExp(`${d.monthName}\\b[^|]*\\b(revenue|expenses|net profit|income)\\b[^|]*\\$`, "i");
+      const start = await maybe(find(page, (n) => !["StaticText", "heading"].includes(n.role) && named(n, period), { timeout: 2500 }))
+        ?? await maybe(find(page, (n) => ["application", "img", "figure", "graphics-document", "group", "grid", "list"].includes(n.role) && named(n, /income vs\.? expenses/i), { timeout: 2500 }));
+      if (start) {
+        await start.handle.evaluate((e) => e.focus());   // an <svg> chart too, which puppeteer's focus() refuses
+        await sleep(150);
+        let ann = "";
+        for (let i = 0; i < 16; i++) {
+          ann = await announced();
+          if (target.test(ann)) break;
+          await page.keyboard.press(!ann.includes("$") ? "ArrowRight" : monthRe.test(ann) ? "ArrowDown" : "End");
           await sleep(150);
         }
-        reachedByKeys = !!bar;
-        if (bar) ctx.fallback(`this month's expense bar is not in the accessibility tree until the chart is arrowed to it ("${bar.node.name}")`);
+        if (target.test(ann)) {
+          reachedByKeys = true;
+          bar = { node: { name: (ann.split(" | ").find((x) => target.test(x)) ?? ann).trim() }, handle: null };
+          ctx.fallback(`this month's expense bar has no node of its own in the tree until the chart is arrowed to it ("${bar.node.name}")`);
+        }
       }
     }
     let via = "the expense bar";
@@ -377,7 +406,7 @@ const SCENARIOS = {
     await press(page, await controlOr(page, ctx, /^split\b/i, /split/i));
     await sleep(400);
     const parts = async () => ({
-      cats: await findAll(page, (n) => ["combobox", "textbox", "button", "listbox"].includes(n.role) && /categor/i.test(n.name ?? "") && !/^category$/i.test(n.name) || (n.role === "combobox" && /part|split/i.test(n.name ?? ""))),
+      cats: await findAll(page, (n) => ["combobox", "textbox", "searchbox"].includes(n.role) && (/categor/i.test(n.name ?? "") && !/^category$/i.test(n.name) || /part|split/i.test(n.name ?? "") && !/amount/i.test(n.name ?? ""))),
       amts: await findAll(page, (n) => ["textbox", "spinbutton"].includes(n.role) && /amount/i.test(n.name ?? "") && /part|split|line|categor|\d/i.test(n.name ?? "")),
     });
     let ps = await parts();
@@ -636,7 +665,7 @@ const SCENARIOS = {
     const sel = await controlOr(page, ctx, /select all/i, /^all\b|select/i);
     await press(page, sel);
     await sleep(400);
-    const cat = await controlOr(page, ctx, /^categori[sz]e\b/i, /categori[sz]e|set category/i);
+    const cat = await controlOr(page, ctx, /^categori[sz]e\b/i, /\bcategori[sz]e\b|set category/i);
     await press(page, cat);
     await sleep(300);
     const other = await maybe(option(page, /^other$/i, { timeout: 3000 }));
@@ -671,9 +700,14 @@ const SCENARIOS = {
     await cdp.send("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: dir, browserContextId: page.browserContext().id, eventsEnabled: true });
     await open(page);
     await view(page, ctx, "Transactions");
-    await press(page, await controlOr(page, ctx, /^kind\b/i, /kind|type/i));
-    await press(page, await option(page, /^expenses?\b/i));
-    await page.keyboard.press("Escape");
+    const kindCtl = await maybe(control(page, /^kind\b/i, { timeout: 3000 }));
+    if (kindCtl) { await press(page, kindCtl); await press(page, await option(page, /^expenses?\b/i)); await page.keyboard.press("Escape"); }
+    else {
+      // no Kind menu: the kinds shown as toggles in the filter bar (a group named Kind, or the bar itself)
+      const t = await find(page, (n) => ["button", "togglebutton", "checkbox", "radio", "tab", "switch"].includes(n.role) && named(n, /^expenses?$/i) && !n.disabled, { what: "an Expenses kind filter" });
+      ctx.fallback(`no Kind menu; pressed the "${t.node.name}" kind toggle (${t.node.role})`);
+      await press(page, t);
+    }
     const want = await summary({ from: d.monthStart, to: d.today, kind: "expense" });
     await summaryBecomes(page, want, "this month, expenses only");
     await press(page, await controlOr(page, ctx, /export( csv)?\b/i, /export|csv|download/i));
@@ -742,7 +776,22 @@ const SCENARIOS = {
     if (save) await press(page, save);
     const b = await stored(async () => (await api(`/api/budgets?month=${d.month}`)).budgets.find((x) => x.categoryId === "software" && x.amount === 3000), "a $30 Software budget this month");
     ctx.observed.service = b;
-    const words = await maybe(seeText(page, /software[^|]{0,160}?(on track|under (budget|pace)|\$[\d,.]+ (over|under) pace|over pace|over by \$[\d,.]+|near (the )?limit)|(on track|over pace|over by \$[\d,.]+)[^|]{0,60}software/i, 6000));
+    const STATE = /on track|under (budget|pace)|\$[\d,.]+ (over|under) pace|over pace|over by \$[\d,.]+|near (the )?limit/i;
+    // the words of Software's own row: the smallest block on screen holding "Software" and a state
+    // (a block that also names another expense category is a list, not Software's row)
+    const cats = (await api("/api/categories")).categories;
+    const others = cats.filter((c) => c.kind === "expense" && c.id !== "software").map((c) => c.name);
+    const rowText = () => page.evaluate((src, others) => {
+      const st = new RegExp(src, "i");
+      let best = null;
+      for (const e of document.querySelectorAll("body *")) {
+        const t = e.innerText ?? "";
+        if (/\bSoftware\b/.test(t) && st.test(t) && !others.some((o) => t.includes(o)) && e.checkVisibility() && (!best || t.length < best.length)) best = t;
+      }
+      return best && best.replace(/\s+/g, " ");
+    }, STATE.source, others);
+    let words = null;
+    for (const until = Date.now() + 6000; !words && Date.now() < until; await sleep(200)) { const t = await rowText(); if (t) words = [t]; }
     if (!words) throw new Error("Budgets doesn't say in words where Software stands (On track / $… over pace / Over by $…)");
     ctx.observed.words = words[0].slice(0, 140);
     // over by the right amount, when over
