@@ -71,6 +71,16 @@ export declare abstract class Media extends View {
      *  rejected promise. When it is refused the slot goes back to false, because
      *  a `playing` that reads true over silence (or a still picture) is a lie. */
     $syncPlaying(): void;
+    /** True while the runtime writes the transport's state back — the element played,
+     *  paused, ended, or refused — so its own report is not taken for the author asking
+     *  to play or pause, and sent straight back to the element. Without it, an author's
+     *  constraint that disagreed with the element (`playing = { app.on }` while a play
+     *  it had interrupted still landed) answered each report with the opposite call,
+     *  and the two traded play() and pause() without end (Murmur run 15: 135,000 of
+     *  each in two seconds). */
+    protected $reportingPlay: boolean;
+    /** The runtime's write of whether the element is playing. */
+    protected $reportPlaying(on: boolean): void;
     /** True while the runtime writes the playhead back, so its own report is not taken for
      *  the author asking to seek. */
     protected $reporting: boolean;

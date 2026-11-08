@@ -200,5 +200,12 @@ export async function sharedChrome({ args = [], ignoreDefaultArgs = [] } = {}) {
   // a call keeps the reaper's clock at zero
   try { const t = new Date(); utimesSync(slot.state, t, t); } catch { /* fine */ }
   const context = await browser.createBrowserContext();
-  return { browser, context, release: async () => { await context.close().catch(() => {}); await browser.disconnect(); } };
+  // Release: the context's disposal is asked for, and waited on two seconds at
+  // most. Chrome carries a disposal through once asked, whoever is listening; a
+  // large page's teardown took ten (Murmur run 15), every call, with nothing for
+  // the caller to wait for.
+  return { browser, context, release: async () => {
+    await Promise.race([context.close().catch(() => {}), new Promise((r) => setTimeout(r, 2000))]);
+    await browser.disconnect();
+  } };
 }

@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "097a8d2e5743",
+  "buildId": "afd279e09679",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -25837,7 +25837,7 @@
    "api": true,
    "source": {
     "file": "runtime/src/media.ts",
-    "line": 234
+    "line": 250
    },
    "parent": "Media",
    "seeAlso": [],
@@ -26065,7 +26065,7 @@
    "api": false,
    "source": {
     "file": "runtime/src/audio.ts",
-    "line": 102
+    "line": 103
    },
    "parent": "Audio",
    "seeAlso": [],
@@ -75498,7 +75498,7 @@
      "api": true,
      "source": {
       "file": "runtime/src/media.ts",
-      "line": 234
+      "line": 250
      },
      "parent": "Media",
      "seeAlso": [],

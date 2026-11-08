@@ -33,6 +33,14 @@ and 21.2. Murmur has no hidden acceptance.
 Two episodes took about 10 min, and live-arrival waits inside `declare-look` most of the extra
 tool time.
 
+> **Resolved after filing (2026-11-07).** The scrubber "hang" was a runtime defect, not the agent's
+> `super.onPointerDown()`: `Media.playing` echoed the element's own play/pause reports back to the element,
+> and against a constraint that disagreed (`playing = { app.voicePlaying }` across a seek) the two traded
+> `play()` and `pause()` about 67,000 times a second, starving the page. The checker's 15-second alarm
+> fired on that, and every check that followed waited on the busy page — most of the run's 14.5 min of tool
+> time. Fixed in the runtime (the guard `position` already had, now on `playing`), with a regression test;
+> the original program runs the hanging command in 9 s, of which 5.9 s are its own requested waits.
+
 ## The audit
 
 The compiler's refusals were all of the agent's code, by its own reading and mine: a

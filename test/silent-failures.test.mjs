@@ -456,6 +456,33 @@ await test("declare-look --url looks at an app where it is served, with no progr
   } finally { srv.kill(); }
 });
 
+await test("a media element's own report of playing is not sent back to it: no play/pause echo against the author's constraint", () => {
+  const f = join(DIR, "echo.declare");
+  // a tiny silent WAV, so the clip loads without a service
+  const wav = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=";
+  writeFileSync(f, `App [ width = 200, height = 100, on: boolean = false,
+    player: Audio [ source = "${wav}", playing = { app.on } ] ]`);
+  const sc = join(DIR, "echo.mjs");
+  writeFileSync(sc, `export default async ({ drive, page, expect }) => {
+  await page.evaluate(() => { window.__n = { play: 0, pause: 0 }; const P = HTMLMediaElement.prototype, p = P.play, q = P.pause;
+    P.play = function () { window.__n.play++; window.__el = this; return p.call(this).catch(() => {}); };
+    P.pause = function () { window.__n.pause++; return q.call(this); }; });
+  await page.evaluate(() => { window.__declare.find("app").on = true; });
+  await drive.waitReal(300);
+  await page.evaluate(() => { window.__declare.find("app").on = false; });
+  await drive.waitReal(300);
+  const before = await page.evaluate(() => window.__n.play + window.__n.pause);
+  // the element says it is playing while the author's constraint says it is not
+  await page.evaluate(() => window.__el?.dispatchEvent(new Event("play")));
+  await drive.waitReal(500);
+  const after = await page.evaluate(() => window.__n.play + window.__n.pause);
+  // the report is the element's own: nothing is called on the element in answer
+  await expect.equal(after - before, 0);
+};`);
+  const r = run("verify.mjs", f, "--assert", sc, "--rung=5", "--no-boot");
+  assert.match(r.out, /R5 ✓/, r.out);
+});
+
 await test("a null fontFamily is refused at its line, with the explicit read of the provided face as the fix", () => {
   const f = join(DIR, "nullfont.declare");
   writeFileSync(f, `App [ width = 300, height = 100, fontFamily = "Helvetica", big: boolean = false,

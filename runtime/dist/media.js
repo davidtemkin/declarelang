@@ -106,15 +106,15 @@ export class Media extends View {
         el.onplay = () => {
             if (seq !== this.loadSeq)
                 return;
-            setBound(this, "playing", true);
+            this.$reportPlaying(true);
             setBound(this, "ended", false);
         };
         el.onpause = () => { if (seq === this.loadSeq)
-            setBound(this, "playing", false); };
+            this.$reportPlaying(false); };
         el.onended = () => {
             if (seq !== this.loadSeq)
                 return;
-            setBound(this, "playing", false);
+            this.$reportPlaying(false);
             setBound(this, "ended", true);
             fireEvent(this, "ended");
         };
@@ -134,6 +134,8 @@ export class Media extends View {
      *  rejected promise. When it is refused the slot goes back to false, because
      *  a `playing` that reads true over silence (or a still picture) is a lie. */
     $syncPlaying() {
+        if (this.$reportingPlay)
+            return;
         const el = this.el;
         if (el === null)
             return;
@@ -146,11 +148,29 @@ export class Media extends View {
             const p = el.play();
             if (p !== undefined && typeof p.catch === "function") {
                 p.catch(() => { if (this.el === el)
-                    setBound(this, "playing", false); });
+                    this.$reportPlaying(false); });
             }
         }
         else if (!el.paused) {
             el.pause();
+        }
+    }
+    /** True while the runtime writes the transport's state back — the element played,
+     *  paused, ended, or refused — so its own report is not taken for the author asking
+     *  to play or pause, and sent straight back to the element. Without it, an author's
+     *  constraint that disagreed with the element (`playing = { app.on }` while a play
+     *  it had interrupted still landed) answered each report with the opposite call,
+     *  and the two traded play() and pause() without end (Murmur run 15: 135,000 of
+     *  each in two seconds). */
+    $reportingPlay = false;
+    /** The runtime's write of whether the element is playing. */
+    $reportPlaying(on) {
+        this.$reportingPlay = true;
+        try {
+            setBound(this, "playing", on);
+        }
+        finally {
+            this.$reportingPlay = false;
         }
     }
     /** True while the runtime writes the playhead back, so its own report is not taken for

@@ -81,6 +81,8 @@ export class Audio extends Media {
         super.$teardown();
     }
     $syncPlaying() {
+        if (this.$reportingPlay)
+            return;
         if (!this.$held()) {
             super.$syncPlaying();
             return;
@@ -120,17 +122,17 @@ export class Audio extends Media {
             if (this.$voices.size > 0)
                 return;
             this.$report(this.duration);
-            setBound(this, "playing", false);
+            this.$reportPlaying(false);
             setBound(this, "ended", true);
             fireEvent(this, "ended");
         });
         if (voice === null) {
-            setBound(this, "playing", false);
+            this.$reportPlaying(false);
             return;
         }
         this.$voices.add(voice);
         setBound(this, "ended", false);
-        setBound(this, "playing", true);
+        this.$reportPlaying(true);
     }
     $silence() {
         const voices = [...this.$voices];

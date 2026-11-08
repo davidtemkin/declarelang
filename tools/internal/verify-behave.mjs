@@ -494,7 +494,7 @@ bootHost(cfg);
           // scroll event and no scroller reporting the user's scroll live, in
           // real time, at most 2.5 s — then two frames for the model to take
           // the last position.
-          await page.evaluate(() => new Promise((done) => {
+          await timing.time("check: scrolling come to rest", () => page.evaluate(() => new Promise((done) => {
             const until = performance.now() + 2500;
             let n = 0, seen = -1, still = 0;
             const count = () => { n++; };
@@ -513,8 +513,8 @@ bootHost(cfg);
               } else requestAnimationFrame(frame);
             };
             requestAnimationFrame(frame);
-          }));
-          const r = await page.evaluate((o) => window.__declare?.bootCheck?.(o) ?? null, { touch, realText: true, classes: check.classes ?? [], skip: [...reported] });
+          })));
+          const r = await timing.time("check: the layout questions", () => page.evaluate((o) => window.__declare?.bootCheck?.(o) ?? null, { touch, realText: true, classes: check.classes ?? [], skip: [...reported] }));
           if (r !== null) {
             for (const k of r.flagged ?? []) reported.add(k);
             checks.push({ where, layout: r.layout, notes: r.notes, unbuilt: r.unbuilt, flagged: r.flagged ?? [] });
@@ -1517,7 +1517,7 @@ const expect = {
 
     return await fn({ openApp });
   } finally {
-    await release();
+    await timing.time("end: the browser context released", () => release());
     server.close();
   }
 }
@@ -1817,7 +1817,7 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
     if (typeof mod.default !== "function") throw new VerifyAssertion(`${assertPath} has no default export function`);
     let app;
     try {
-      app = await openApp({ ...(mod.device ?? {}), budgetMs, check: classes === null ? null : { classes, skip } });
+      app = await timing.time("open: the app loaded and arrived, in all", () => openApp({ ...(mod.device ?? {}), budgetMs, check: classes === null ? null : { classes, skip } }));
     } catch (e) {
       if (e?.lines === undefined) throw e;
       return { ok: false, failures: e.lines, log: [] };
@@ -1834,15 +1834,23 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
         (String(e?.stack ?? "").split("\n").find((l) => l.includes(".mjs")) ?? "").trim();
       failures.push(`${e instanceof VerifyAssertion ? "" : "unexpected error: "}${e?.message ?? e}${where}${frame ? `\n      at ${frame}` : ""}`);
     }
-    if (failures.length === 0) { await app.quiet(2000); await app.checkHere("at the end of the script"); }
+    if (failures.length === 0) {
+      await timing.time("end: the network quiet after the script", () => app.quiet(2000));
+      await timing.time("end: layout questions at the end of the script", () => app.checkHere("at the end of the script"));
+    }
     // THE PAGE CLOSED AS A PERSON CLOSES A TAB, at once: it is told it is leaving
     // (beforeunload, pagehide, hidden), a "Leave site?" it asks is answered by
     // leaving, and what it sends on the way out is sent. Work the program had
     // only scheduled for later is lost, as it would be: a program saves on leave
     app.page.on("dialog", (d) => { d.accept().catch(() => {}); });
     const closed = new Promise((r) => app.page.once("close", r));
-    await app.page.close({ runBeforeUnload: true }).catch(() => {});
-    await Promise.race([closed, new Promise((r) => setTimeout(r, 2000))]);
+    // At most two seconds, the close included: close() with beforeunload resolves
+    // only once the page is gone, and a page busy leaving (a large tree torn
+    // down, a clip still streaming) took ten (Murmur run 15) with nothing to show
+    await timing.time("end: the page closed", async () => {
+      const closing = app.page.close({ runBeforeUnload: true }).catch(() => {});
+      await Promise.race([Promise.all([closing, closed]), new Promise((r) => setTimeout(r, 2000))]);
+    });
     for (const e of app.pageErrors) failures.push(`page error: ${e}`);
     for (const e of new Set(app.thrown)) failures.push(`error: ${e}`);
     return { ok: failures.length === 0, failures, log: app.log, writes: writesOf(app), intercepted: interceptedOf(app), talked: originsOf(app, false), wrote: originsOf(app, true), checks: app.checks, asserted: app.asserted(), warned: app.warned, waited: app.waited };
