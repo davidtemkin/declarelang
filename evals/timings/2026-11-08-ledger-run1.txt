@@ -1,0 +1,43 @@
+# eval-ledger-1.noindex
+total 46.2 min · 196 turns · output 257624 tokens (thinking 82073)
+phases: reading 5.4 · writing 2.7 · checking 38.0 min
+tool time 8.1 min · model time 38.1 min
+tools:
+  verify    63×   6.39 min  (median 4.3 s)
+  look      12×   1.41 min  (median 6.5 s)
+  help      15×   0.24 min  (median 0.8 s)
+  bash      38×   0.08 min  (median 0.0 s)
+  read      25×   0.02 min  (median 0.0 s)
+model turns, by what came before:
+  after bash     37×  11.40 min  (median 3.0 s)
+  after verify   63×   8.46 min  (median 6.9 s)
+  after help     15×   7.05 min  (median 8.8 s)
+  after write    12×   4.55 min  (median 20.6 s)
+  after edit     10×   2.14 min  (median 2.2 s)
+  after image    20×   2.12 min  (median 7.3 s)
+  after read     25×   1.66 min  (median 2.0 s)
+  after look     12×   0.42 min  (median 1.2 s)
+app: 10 .declare files, 3650 non-blank lines · 51 snapshots changed them: 4631 lines added, 438 removed
+verify results mentioning accessibility: 3
+diagnostic codes, by tool results reporting them: DECLARE7001 15, DECLARE4025 13, DECLARE2000 4, DECLARE6001 3, DECLARE3005 1, DECLARE4035 1, DECLARE4031 1, DECLARE4022 1, DECLARE4023 1, DECLARE4002 1, DECLARE2001 1, DECLARE1000 1, DECLARE4030 1
+inside the agent's verify and look calls:
+   3.59 min    53×  R5 behavior, in all
+   2.79 min    53×  script: the assert script, in all
+   2.22 min    97×  compile (R1–R3)
+   1.05 min   100×  page: load, compile in the page and boot
+   0.66 min   154×  locator.click
+   0.64 min    53×  open: the app loaded and arrived, in all
+   0.64 min    47×  R4 boot, in all
+   0.61 min  1148×  locator: wait a tick for it
+   0.61 min    29×  drive.waitReal
+   0.52 min   116×  expect(locator), in all
+   0.46 min   277×  check: scrolling come to rest
+   0.36 min   137×  drive.settleData
+   0.24 min   102×  drive.settleMotion
+   0.16 min   100×  page: a new page
+   0.12 min    23×  locator.focus
+   0.09 min  1482×  locator: query the page
+   0.08 min    97×  drive.key
+   0.07 min    38×  end: layout questions at the end of the script
+   0.04 min    19×  drive.wait
+   0.04 min   100×  chrome: a browser (shared between calls)

@@ -1,0 +1,321 @@
+/*
+# Ledger: the model
+
+What the program knows of the books, and how it talks to the Ledger service
+(`task/api/API.md`). `ledger.declare` includes this file.
+
+- **The shapes** — a `schema` per kind of answer the service gives, so every
+  `:field` and every `.value` read is checked against it, and a malformed
+  reply lands in `failed` instead of three constraints deep.
+- **`Books`** — what holds still under any filter: today, the categories,
+  channels, products and contacts, their names and colours; and every write
+  the program makes. A write answers with a `changeId`, which is what Undo
+  takes back. `Books` knows nothing of the screen: when a write lands it calls
+  its own `wrote(…)`, and the App, which placed it, says what that means.
+- **`Figures`** — everything the service computes under the person's filter:
+  the transaction list and its summary, the periods behind every chart, the
+  category, product and customer totals, the amount histogram, budgets. Each
+  is a `DataSource` whose address is derived from the filter, so a change of
+  filter is a change of address and a refetch; a newer request supersedes the
+  one in flight, so an answer for filters since replaced is never shown, and
+  the old answer stays in `value` until the new one lands.
+
+Money is whole cents everywhere; dates are "YYYY-MM-DD" strings.
+*/
+
+
+// ── The shapes ──────────────────────────────────────────────────────────────
+
+schema Category [ id: string, name: string, kind: "income" | "expense", colour: number, archived: boolean ]
+schema Channel [ id: string, name: string ]
+schema Product [ id: string, name: string, price: number, unitCost: number, archived: boolean ]
+schema Contact [ id: string, name: string, type: "customer" | "vendor", usualCategoryId?: string,
+    transactionCount: number, lastDate?: string ]
+
+schema Summary [ count: number, in: number, out: number, net: number ]
+schema Split [ parts: number, categoryIds[]: string ]
+
+// One row of the list. `signed` is the amount with its direction (money out is
+// negative); `inFilter` is the part of it the filter counts (a split expense
+// filtered to one category counts only that part).
+
+schema Txn [ id: string, kind: "sale" | "refund" | "expense", date: string, description: string,
+    contactId?: string, contactName?: string, categoryId?: string, split?: Split, channel?: string,
+    amount: number, signed: number, inFilter: number, lineCount: number, refundOf?: string, refunded?: number ]
+schema TxnPage [ total: number, summary: Summary, rows[]: Txn ]
+
+// One transaction, whole: its lines (a sale's, with what is left to refund), its
+// split parts, the refunds against it or the sale it refunds, and its margin.
+
+schema Line [ id: string, productId?: string, saleLineId?: string, description: string, quantity: number,
+    unitPrice: number, amount: number, unitCost?: number, refunded?: number, refundedQuantity?: number,
+    refundable?: number, refundableQuantity?: number ]
+schema Part [ categoryId: string, amount: number ]
+schema TxnRef [ id: string, date: string, description: string, amount: number ]
+schema TxnDetail [ id: string, kind: "sale" | "refund" | "expense", date: string, description: string,
+    contactId?: string, contactName?: string, categoryId?: string, split?: Split, channel?: string,
+    amount: number, signed: number, lineCount: number, refundOf?: string, refunded?: number,
+    parts[]?: Part, lines[]: Line, refunds[]?: TxnRef, sale?: TxnRef, refundable?: number,
+    cost?: number, margin?: number ]
+schema Saved [ transaction: TxnDetail, changeId: string ]
+
+// The figures behind the charts.
+
+schema Measure [ amount: number, count: number ]
+schema Margin [ amount: number, percent?: number, count: number ]
+schema Period [ period: string, start: string, end: string, from: string, to: string, partial: boolean,
+    revenue: Measure, sales: Measure, refunds: Measure, expenses: Measure, net: Measure,
+    cogs: number, grossMargin: Margin ]
+schema Totals [ revenue: Measure, sales: Measure, refunds: Measure, expenses: Measure, net: Measure,
+    cogs: number, grossMargin: Margin ]
+schema Periods [ by: string, from: string, to: string, periods[]: Period, total: Totals ]
+schema CategoryTotal [ categoryId?: string, amount: number, count: number ]
+schema CategoryTotals [ side: string, categories[]: CategoryTotal, total: Measure ]
+schema ProductTotal [ productId?: string, units: number, revenue: number, cost: number, margin: number,
+    marginPercent?: number, count: number ]
+schema ProductTotals [ products[]: ProductTotal ]
+schema ContactTotal [ contactId?: string, contactName?: string, amount: number, count: number ]
+schema ContactTotals [ side: string, contacts[]: ContactTotal, total: Measure ]
+schema Bucket [ min: number, max?: number, count: number ]
+schema Amounts [ buckets[]: Bucket, count: number, lowest?: number, highest?: number ]
+schema CategoryCount [ categoryId?: string, count: number ]
+schema CategoryCounts [ categories[]: CategoryCount, total: number ]
+schema Budget [ categoryId: string, amount: number, spent: number, remaining: number, count: number ]
+schema Budgets [ month: string, from: string, to: string, budgets[]: Budget ]
+
+// What a refusal looks like: the first problem as `message`, every problem
+// with the field of the request body it concerns.
+
+schema Problem [ field?: string, message: string, remaining?: number ]
+schema Refusal [ error: string, message: string, problems[]?: Problem ]
+
+// The one filter every screen shares. `from`/`to` "" is open-ended; `min`/`max`
+// are cents, absent for no bound; `categories` may hold "none", Uncategorised.
+
+schema Filter [ preset: string, from: string, to: string, compare: "previous" | "year" | "none",
+    q: string, min?: number, max?: number,
+    kinds[]: string, categories[]: string, contacts[]: string, products[]: string ]
+
+// A change that can be undone: what it did, in words, and the service's id for it.
+
+schema Change [ changeId: string, said: string ]
+
+
+// ── Books ───────────────────────────────────────────────────────────────────
+//
+// The lookups load once (`autoFetch`); `reload()` refetches them after a write
+// that adds to them (a new vendor). The writes are one source each, aimed and
+// sent from a verb: a verb sets what the request is built from and calls
+// `fetch()`, which settles first, so the request carries what was just set.
+
+class Books extends Node [
+    api: string = "",
+
+    todayFeed: DataSource [ url = { classroot.api + "/api/today" }, autoFetch = true, schema = [ today: string ] ],
+    cats: DataSource [ url = { classroot.api + "/api/categories" }, autoFetch = true, schema = [ categories[]: Category ] ],
+    chans: DataSource [ url = { classroot.api + "/api/channels" }, autoFetch = true, schema = [ channels[]: Channel ] ],
+    prods: DataSource [ url = { classroot.api + "/api/products" }, autoFetch = true, schema = [ products[]: Product ] ],
+    people: DataSource [ url = { classroot.api + "/api/contacts" }, autoFetch = true, schema = [ contacts[]: Contact ] ],
+
+    ready: boolean = { todayFeed.loaded && cats.loaded && chans.loaded && prods.loaded && people.loaded },
+    failed: boolean = { todayFeed.failed || cats.failed || chans.failed || prods.failed || people.failed },
+    retry() {
+        if (!todayFeed.loaded) todayFeed.fetch()
+        if (!cats.loaded) cats.fetch()
+        if (!chans.loaded) chans.fetch()
+        if (!prods.loaded) prods.fetch()
+        if (!people.loaded) people.fetch()
+        },
+    today: string = { todayFeed.value?.today ?? "" },
+
+    // ── the lookups, by id
+
+    categories() -> Category[] { return cats.value?.categories ?? [] },
+    channels() -> Channel[] { return chans.value?.channels ?? [] },
+    products() -> Product[] { return prods.value?.products ?? [] },
+    contacts() -> Contact[] { return people.value?.contacts ?? [] },
+
+    category(id: string?) -> Category? { return this.categories().find((c) => c.id == id) ?? null },
+    categoryName(id: string?) -> string { return id == null || id == "none" ? "Uncategorised" : this.category(id)?.name ?? id },
+    colourOf(id: string?) -> number { return this.category(id)?.colour ?? -1 },
+    channelName(id: string?) -> string { return this.channels().find((c) => c.id == id)?.name ?? "" },
+    product(id: string?) -> Product? { return this.products().find((p) => p.id == id) ?? null },
+    productName(id: string?) -> string { return id == null ? "Other items" : this.product(id)?.name ?? id },
+    contact(id: string?) -> Contact? { return this.contacts().find((c) => c.id == id) ?? null },
+    contactName(id: string?) -> string { return id == null || id == "none" ? "No contact" : this.contact(id)?.name ?? id },
+
+    // the categories a new record may take, of one side, archived ones left out
+
+    usable(kind: "income" | "expense") -> Category[] { return this.categories().filter((c) => c.kind == kind && !c.archived) },
+    vendors() -> Contact[] { return this.contacts().filter((c) => c.type == "vendor") },
+    customers() -> Contact[] { return this.contacts().filter((c) => c.type == "customer") },
+
+    reload() { people.fetch() },
+
+    // ── the writes. Each lands in `wrote(what, reply)`, or `refused(what,
+    //    status, body)` when the service says no; the App overrides both.
+
+    wrote(what: string, reply: object) { },
+    refused(what: string, status: number, body: object) { },
+
+    // what the next write carries
+
+    _patchId: string = "",
+    _patchBody: object = null,
+    _bulkBody: object = null,
+    _undoId: string = "",
+    _deleteId: string = "",
+    _budgetPath: string = "",
+    _budgetBody: object = null,
+
+    patchSource: DataSource [ method = "PATCH", schema = Saved,
+        url = { classroot.api + "/api/transactions/" + classroot._patchId },
+        body = { classroot._patchBody },
+        onLoad() { classroot.wrote("patch", this.value) },
+        onError() { classroot.refused("patch", this.statusCode, this.errorBody) }
+        ],
+    bulkSource: DataSource [ method = "POST",
+        url = { classroot.api + "/api/transactions/bulk" },
+        body = { classroot._bulkBody },
+        onLoad() { classroot.wrote("bulk", this.value) },
+        onError() { classroot.refused("bulk", this.statusCode, this.errorBody) }
+        ],
+    undoSource: DataSource [ method = "POST",
+        url = { classroot.api + "/api/changes/" + classroot._undoId + "/undo" },
+        onLoad() { classroot.wrote("undo", this.value) },
+        onError() { classroot.refused("undo", this.statusCode, this.errorBody) }
+        ],
+    deleteSource: DataSource [ method = "DELETE",
+        url = { classroot.api + "/api/transactions/" + classroot._deleteId },
+        onLoad() { classroot.wrote("delete", this.value) },
+        onError() { classroot.refused("delete", this.statusCode, this.errorBody) }
+        ],
+    budgetSource: DataSource [ method = "PUT",
+        url = { classroot.api + "/api/budgets/" + classroot._budgetPath },
+        body = { classroot._budgetBody },
+        onLoad() {
+            classroot._budgetDone = classroot._budgetDone + 1
+            if (classroot._budgetQueue.length > 0) classroot.nextBudget()
+            else classroot.wrote("budget", ({ count: classroot._budgetDone }))
+            },
+        onError() { classroot.refused("budget", this.statusCode, this.errorBody) }
+        ],
+
+    patch(id: string, body: object) { _patchId = id; _patchBody = body; patchSource.fetch() },
+    bulk(body: object) { _bulkBody = body; bulkSource.fetch() },
+    undo(changeId: string) { _undoId = changeId; undoSource.fetch() },
+    remove(id: string) { _deleteId = id; deleteSource.fetch() },
+    setBudget(month: string, categoryId: string, amount: number?) {
+        this.setBudgets(month, [({ categoryId: categoryId, amount: amount })])
+        },
+
+    // several at once go one after another: a newer request on a source would stop the one before
+
+    _budgetQueue: array = [],
+    _budgetMonth: string = "",
+    _budgetDone: number = 0,
+    setBudgets(month: string, list: array) {
+        _budgetMonth = month
+        _budgetQueue = list
+        _budgetDone = 0
+        this.nextBudget()
+        },
+    nextBudget() {
+        const b = _budgetQueue[0]
+        _budgetQueue = _budgetQueue.slice(1)
+        _budgetPath = _budgetMonth + "/" + b.categoryId
+        _budgetBody = ({ amount: b.amount })
+        budgetSource.fetch()
+        }
+    ]
+
+
+// ── Figures ─────────────────────────────────────────────────────────────────
+//
+// Every figure under the filter. The App hands in the query strings it builds
+// from the filter (`filtered` has the date range, `others` everything but it),
+// the date ranges each figure covers, and what each screen needs (sort, side,
+// grain, month). A source with no address (`""`) is not needed now and fetches
+// nothing; it keeps its last answer.
+
+class Figures extends Node [
+    api: string = "",
+    filtered: string = "",          // the whole filter, as a query string
+    others: string = "",            // the filter without its date range
+    cmpFrom: string = "",           // the comparison period, "" for none
+    cmpTo: string = "",
+    chartFrom: string = "",         // the time charts' range: the filter's, ending today at the latest
+    chartTo: string = "",
+    yearFrom: string = "",          // twelve months up to the filter's end: Overview's chart and sparklines
+    yearTo: string = "",
+    grain: string = "month",
+    side: string = "expense",       // Breakdown: expense or income categories
+    sortOn: string = "date",
+    sortDir: string = "desc",
+    budgetMonth: string = "",
+    live: boolean = false,          // the lookups are in, so ids in the filter mean something
+
+    at(path: string, query: string) -> string { return live ? api + path + "?" + query : "" },
+    range(from: string, to: string) -> string { return (from != "" ? "&from=" + from : "") + (to != "" ? "&to=" + to : "") },
+    hasCompare: boolean = { cmpFrom != "" },
+
+    // the list: everything matching, in the order asked for (the service sorts)
+
+    list: DataSource [ autoFetch = true, schema = TxnPage,
+        url = { classroot.at("/api/transactions", classroot.filtered + "&sort=" + classroot.sortOn + "&dir=" + classroot.sortDir + "&limit=10000") } ],
+    recent: DataSource [ autoFetch = true, schema = TxnPage,
+        url = { classroot.at("/api/transactions", classroot.filtered + "&limit=6") } ],
+
+    // the periods: the filter's range, its comparison, and the year to date
+
+    periods: DataSource [ autoFetch = true, schema = Periods,
+        url = { classroot.at("/api/aggregates/periods", classroot.others + classroot.range(classroot.chartFrom, classroot.chartTo) + "&by=" + classroot.grain) } ],
+    cmpPeriods: DataSource [ autoFetch = true, schema = Periods,
+        url = { classroot.hasCompare ? classroot.at("/api/aggregates/periods", classroot.others + classroot.range(classroot.cmpFrom, classroot.cmpTo) + "&by=" + classroot.grain) : "" } ],
+    year: DataSource [ autoFetch = true, schema = Periods,
+        url = { classroot.at("/api/aggregates/periods", classroot.others + classroot.range(classroot.yearFrom, classroot.yearTo) + "&by=month") } ],
+
+    // where the money went, and came from
+
+    categories: DataSource [ autoFetch = true, schema = CategoryTotals,
+        url = { classroot.at("/api/aggregates/categories", classroot.filtered + "&side=" + classroot.side) } ],
+    cmpCategories: DataSource [ autoFetch = true, schema = CategoryTotals,
+        url = { classroot.hasCompare ? classroot.at("/api/aggregates/categories", classroot.others + classroot.range(classroot.cmpFrom, classroot.cmpTo) + "&side=" + classroot.side) : "" } ],
+    expenses: DataSource [ autoFetch = true, schema = CategoryTotals,
+        url = { classroot.at("/api/aggregates/categories", classroot.filtered + "&side=expense") } ],
+    products: DataSource [ autoFetch = true, schema = ProductTotals,
+        url = { classroot.at("/api/aggregates/products", classroot.filtered) } ],
+    customers: DataSource [ autoFetch = true, schema = ContactTotals,
+        url = { classroot.at("/api/aggregates/contacts", classroot.filtered + "&side=income&limit=5") } ],
+
+    // what the filter panel shows beside its controls
+
+    amounts: DataSource [ autoFetch = true, schema = Amounts,
+        url = { classroot.at("/api/aggregates/amounts", classroot.filtered) } ],
+    categoryCounts: DataSource [ autoFetch = true, schema = CategoryCounts,
+        url = { classroot.at("/api/aggregates/category-counts", classroot.filtered) } ],
+
+    // the whole books, unfiltered: whether there is anything recorded at all
+
+    everything: DataSource [ autoFetch = true, schema = Summary, url = { classroot.at("/api/summary", "") } ],
+
+    // what needs attention: uncategorised records over all time, and this month's budgets
+
+    uncategorised: DataSource [ autoFetch = true, schema = Summary,
+        url = { classroot.at("/api/summary", "category=none") } ],
+    budgets: DataSource [ autoFetch = true, schema = Budgets,
+        url = { classroot.budgetMonth == "" ? "" : classroot.at("/api/budgets", "month=" + classroot.budgetMonth + "&" + classroot.others) } ],
+    lastMonth: DataSource [ autoFetch = true, schema = CategoryTotals,
+        url = { classroot.budgetMonth == "" ? "" : classroot.at("/api/aggregates/categories",
+            "side=expense" + classroot.range(addMonths(classroot.budgetMonth + "-01", -1), monthEnd(addMonths(classroot.budgetMonth + "-01", -1)))) } ],
+
+    // after a write, everything is fetched again; each keeps its answer until the new one lands
+
+    refresh() {
+        list.fetch(); recent.fetch(); periods.fetch(); year.fetch(); categories.fetch()
+        expenses.fetch(); products.fetch(); customers.fetch(); amounts.fetch()
+        categoryCounts.fetch(); uncategorised.fetch(); everything.fetch()
+        if (hasCompare) { cmpPeriods.fetch(); cmpCategories.fetch() }
+        if (budgetMonth != "") { budgets.fetch(); lastMonth.fetch() }
+        }
+    ]

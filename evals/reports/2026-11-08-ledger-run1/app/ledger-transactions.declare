@@ -1,0 +1,563 @@
+/*
+# Ledger: Transactions
+
+The workhorse: the whole history under the filter, and it stays smooth at that
+size. The service sorts and filters; the list holds every matching record and
+builds only the rows near the screen (`virtualize`), so scrolling is the
+browser's own and the end is one keypress away.
+
+- **The table** is a library `Table`: click selects one, Shift-click a range,
+  ⌘-click and Space toggle one, arrows walk and the detail follows, Delete
+  deletes, Enter edits the row's description. The selection is records on the
+  App (`app.selection`), so a re-sort or a refetch does not scramble it.
+- **Editing in place**: a click on a cell of the row already open edits that
+  cell. Return saves, Escape cancels, Tab saves and moves to the next cell.
+  A category or contact is chosen by typing part of its name.
+- **The summary line** always describes what is shown, or the selection.
+- **The detail** beside the list (a sheet on a phone): lines, totals, margin,
+  the refunds against a sale or the sale a refund belongs to.
+- **The bulk bar** acts on the selection: categorise, set contact, export,
+  delete — each said in a toast with Undo.
+*/
+
+
+// ── A row ───────────────────────────────────────────────────────────────────
+
+// A cell's editor for text: a date, a description, an amount. It opens with
+// everything selected, saves on Return or Tab, and Escape puts the value back.
+
+class CellField extends TextInput [ height = 30, fontSize = 13,
+    field: string = "",
+    row: Txn? = null,
+    saved(v: string) { },
+    commit(v: string) { },          // nothing is written while typing: Return or Tab saves
+
+    // saves what is typed; false when it was refused (the cell stays open and says why)
+
+    finish() -> boolean { this.saved(this.text); return this.refused == "" },
+    onInit() { afterSettle(() => { Focus.focus(this); this.select(0, this.text.length) }) },
+    onEnter() { this.saved(this.text) },
+    onKeyDown(e: KeyEvent) {
+        if (e.key == "Escape") app.editCell = null
+        else super.onKeyDown(e)
+        }
+    ]
+
+
+// A cell's editor for a choice by name: a category or a contact.
+
+class CellChoice extends Combobox [ height = 30,
+    field: string = "",
+    row: Txn? = null,
+    chosen(id: string?) { },
+    onInit() { afterSettle(() => { this.focusField(); this.open() }) },
+    commit(v: object) { const m = v as any; if (m != null) this.chosen(m.id == "none" ? null : m.id) },
+    onKeyDown(e: KeyEvent) {
+        if (e.key == "Escape" && !this.listShown()) app.editCell = null
+        else super.onKeyDown(e)
+        }
+    ]
+
+
+class TxnRow extends TableRow [ height = { app.phone ? (classroot.startsDay ? 98 : 66) : 52 },
+    rec: Txn = { :@ },
+    out: boolean = { (:inFilter ?? 0) < 0 },
+    editing: string = { app.editCell != null && (app.editCell as any).id == :id ? (app.editCell as any).field : "" },
+
+    // a description or contact being edited takes both lines' place
+
+    lines: boolean = { classroot.editing != "description" && classroot.editing != "contact" },
+    notSaved: boolean = { app.unsaved != null && (app.unsaved as any).id == :id },
+    words: string[] = { searchWords(app.filters.q) },
+    title: string = { (:description ?? "") != "" ? :description : app.kindName(:kind ?? "") },
+    who: string = { :contactName ?? (:kind == "sale" || :kind == "refund" ? app.books.channelName(:channel) : "") },
+
+    // a phone groups the list by day: the row that starts a day carries its heading
+
+    startsDay: boolean = { rowIndex == 0 || provided("rows")[rowIndex - 1]?.date != :date },
+
+    fill = { selected ? provided("theme").rowSelected : hovered ? provided("theme").rowHover : null },
+    stroke = { [null, null, stroke(1, provided("theme").grid), null] },
+
+    // a click on a cell of the row already open edits that cell
+
+    onClick(e?: PointerEvent) {
+        const wasOpen = app.openId == :id && app.selection.length == 1
+        super.onClick(e)
+        if (!wasOpen || e == null || e.shift || e.meta || e.ctrl || app.phone) return
+        const f = this.fieldAt(app.pointerX, app.pointerY)
+        if (f != "") app.beginEdit(:@, f)
+        },
+    fieldAt(x: number, y: number) -> string {
+        if (this.desk.date.containsPoint(x, y)) return "date"
+        if (this.desk.what.containsPoint(x, y)) return "description"
+        if (this.desk.category.visible && this.desk.category.containsPoint(x, y)) return "category"
+        if (this.desk.amount.containsPoint(x, y)) return "amount"
+        return ""
+        },
+    onContextMenu(e: PointerEvent) { super.onClick(); app.rowMenu.open(this, e) },
+    onHold(e: PointerEvent) { app.rowMenu.open(this, e) },
+
+    // ── on a desk: one line, in columns
+
+    desk: View [ visible = { !app.phone }, width = 100%, height = 52, padding = [0, 20, 0, 20],
+        layout: SimpleLayout [ axis = x, spacing = 14, align = center ],
+        date: View [ width = 84, height = 40,
+            Text [ visible = { classroot.editing != "date" }, y = center, fontSize = 13, wrap = false, numeralWidth = tabular,
+                textColor = { provided("theme").textMuted }, text = { shortDate(:date ?? "", app.today.slice(0, 4)) } ],
+            CellField [ exists = { classroot.editing == "date" }, y = center, width = 100%, field = "date", row = { classroot.rec },
+                accessibilityLabel = "Date", placeholder = "3 nov",
+                value = { shortDate(:date ?? "") },
+                saved(v: string) {
+                    const d = parseDateInput(v, app.today)
+                    if (d == "") { this.refuse("Type a date like “3 nov” or “yesterday”"); return }
+                    if (d != classroot.rec.date) app.saveCell(classroot.rec, ({ date: d }))
+                    app.editCell = null
+                    }
+                ]
+            ],
+        what: View [ flexes = true, height = 40,
+            layout: SimpleLayout [ axis = y, spacing = 1 ],
+            padding = { classroot.lines ? [3, 0, 0, 0] : [5, 0, 0, 0] },
+            plain: Text [ exists = { classroot.lines && classroot.words.length == 0 }, width = 100%, fontSize = 13.5,
+                fontWeight = medium, wrap = false, maxLines = 1, text = { classroot.title } ],
+            marked: HTMLText [ exists = { classroot.lines && classroot.words.length > 0 }, width = 100%, fontSize = 13.5,
+                fontWeight = medium, wrapWidth = 2000, maxLines = 1,
+                textStyles = { { Hit: { ...Hit, textColor: provided("theme").hit } } },
+                html = { highlightHtml(classroot.title, classroot.words) } ],
+            CellField [ exists = { classroot.editing == "description" }, width = 100%, field = "description", row = { classroot.rec },
+                accessibilityLabel = "Description", value = { :description ?? "" },
+                saved(v: string) {
+                    if (v.trim() != classroot.rec.description) app.saveCell(classroot.rec, ({ description: v.trim() }))
+                    app.editCell = null
+                    }
+                ],
+            who: View [ visible = { classroot.lines }, width = 100%, height = 16,
+                Text [ exists = { classroot.words.length == 0 }, width = 100%, fontSize = 12, wrap = false, maxLines = 1,
+                    textColor = { provided("theme").textMuted }, text = { classroot.who } ],
+                HTMLText [ exists = { classroot.words.length > 0 }, width = 100%, fontSize = 12, wrapWidth = 2000, maxLines = 1,
+                    bodyColor = { provided("theme").textMuted },
+                    textStyles = { { Hit: { ...Hit, textColor: provided("theme").hit } } },
+                    html = { highlightHtml(classroot.who, classroot.words) } ]
+                ],
+            CellChoice [ exists = { classroot.editing == "contact" }, width = 260, field = "contact", row = { classroot.rec },
+                accessibilityLabel = "Contact", placeholder = "Type a name",
+                items = { app.contactItems(classroot.rec.kind) },
+                chosen(id: string?) { if (id != classroot.rec.contactId) app.saveCell(classroot.rec, ({ contactId: id })); app.editCell = null }
+                ]
+            ],
+        notSaved: Control [ visible = { classroot.notSaved }, height = 24, cornerRadius = 6, padding = [0, 8, 0, 8],
+            fill = { provided("theme").badTint }, tooltipLabel = { (app.unsaved as any)?.message ?? "" },
+            press() { app.retryUnsaved() },
+            TextLabel [ fontSize = 12, fontWeight = semibold, textColor = { provided("theme").bad }, text = "Not saved · Retry" ]
+            ],
+        category: View [ visible = { !app.hidden("category") }, width = 180, height = 40,
+            CategoryChip [ visible = { classroot.editing != "category" }, y = center,
+                categoryId = { :categoryId }, parts = { :split?.parts ?? 0 },
+                name = { app.books.categoryName(:categoryId) }, colour = { app.books.colourOf(:categoryId) } ],
+            CellChoice [ exists = { classroot.editing == "category" }, y = center, width = 100%, field = "category", row = { classroot.rec },
+                accessibilityLabel = "Category", placeholder = "Type a category",
+                items = { app.categoryItems(classroot.rec.kind) },
+                chosen(id: string?) { if (id != classroot.rec.categoryId || classroot.rec.split != null) app.saveCell(classroot.rec, ({ categoryId: id })); app.editCell = null }
+                ]
+            ],
+        channel: Text [ visible = { app.showChannel }, width = 96, fontSize = 12.5, wrap = false, maxLines = 1,
+            textColor = { provided("theme").textMuted }, text = { app.books.channelName(:channel) } ],
+        amount: View [ width = 116, height = 40,
+            Money [ visible = { classroot.editing != "amount" }, x = end, y = center, fontSize = 13.5, fontWeight = medium,
+                cents = { :inFilter ?? 0 },
+                textColor = { classroot.out ? provided("theme").text : provided("theme").good } ],
+            CellField [ exists = { classroot.editing == "amount" }, y = center, width = 100%, field = "amount", row = { classroot.rec },
+                accessibilityLabel = "Amount", textAlign = right, numeralWidth = tabular, purpose = decimal,
+                value = { moneyInput(:amount ?? 0) },
+                saved(v: string) {
+                    const c = parseMoney(v)
+                    if (isNaN(c) || c <= 0) { this.refuse("Type an amount above zero, like 42.50"); return }
+                    if (c != classroot.rec.amount) app.saveCell(classroot.rec, ({ amount: c }))
+                    app.editCell = null
+                    }
+                ]
+            ]
+        ],
+
+    // ── on a phone: the day's heading, then description and contact, amount, category
+
+    hand: View [ visible = { app.phone }, width = 100%,
+        layout: SimpleLayout [ axis = y ],
+        day: View [ visible = { classroot.startsDay }, width = 100%, height = 32, padding = [10, 16, 0, 16],
+            fill = { provided("theme").background },
+            Text [ fontSize = 12, fontWeight = semibold, textColor = { provided("theme").textMuted },
+                text = { dayHeading(:date ?? "", app.today) } ]
+            ],
+        line: View [ width = 100%, height = 66, padding = [10, 16, 10, 16],
+            layout: SimpleLayout [ axis = x, spacing = 10 ],
+            View [ flexes = true,
+                layout: SimpleLayout [ axis = y, spacing = 3 ],
+                Text [ width = 100%, fontSize = 15, fontWeight = medium, wrap = false, maxLines = 1, text = { classroot.title } ],
+                Text [ width = 100%, fontSize = 13, wrap = false, maxLines = 1, textColor = { provided("theme").textMuted }, text = { classroot.who } ]
+                ],
+            View [ layout: SimpleLayout [ axis = y, spacing = 4, align = end ],
+                Money [ fontSize = 15, fontWeight = medium, cents = { :inFilter ?? 0 },
+                    textColor = { classroot.out ? provided("theme").text : provided("theme").good } ],
+                CategoryChip [ categoryId = { :categoryId }, parts = { :split?.parts ?? 0 },
+                    name = { app.books.categoryName(:categoryId) }, colour = { app.books.colourOf(:categoryId) } ]
+                ]
+            ]
+        ],
+
+    accessibilityLabel = { shortDate(:date ?? "") + ", " + classroot.title + (classroot.who != "" ? ", " + classroot.who : "") + ", " +
+        (classroot.out ? "out " : "in ") + money(Math.abs(:inFilter ?? 0)) + ", " +
+        ((:split ?? null) != null ? "split" : app.books.categoryName(:categoryId)) }
+    ]
+
+
+// A column heading: its name, and the order it sorts in when it is the one.
+
+class ColumnHead extends Control [ height = 32, padding = [0, 4, 0, 4], cornerRadius = 6,
+    label: string = "",
+    sortKey: string = "",
+    alignEnd: boolean = false,
+    on: boolean = { app.sortOn == classroot.sortKey },
+    accessibilityPressed = { classroot.on },
+    accessibilityLabel = { "Sort by " + classroot.label + (classroot.on ? (app.sortDir == "desc" ? ", sorted descending" : ", sorted ascending") : "") },
+    fill = { hovered ? provided("theme").controlHovered : null },
+    press() { app.sortBy(classroot.sortKey) },
+    layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+    Spacer [ visible = { classroot.alignEnd } ],
+    TextLabel [ fontSize = 11.5, fontWeight = semibold, letterSpacing = 0.3, wrap = false,
+        textColor = { classroot.on ? provided("theme").text : provided("theme").textMuted }, text = { classroot.label } ],
+    ArrowIcon [ visible = { classroot.on }, iconSize = 10, dir = { app.sortDir == "desc" ? "down" : "up" }, ink = { provided("theme").textMuted } ]
+    ]
+
+
+// ── The detail ──────────────────────────────────────────────────────────────
+
+// one line of a transaction: what, how many at what, how much, what was refunded
+
+class DetailLine [ width = 100%, padding = [6, 0, 6, 0],
+    stroke = { [null, null, stroke(1, provided("theme").grid), null] },
+    layout: SimpleLayout [ axis = x, spacing = 10 ],
+    View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ width = 100%, fontSize = 13, text = { :description ?? "" } ],
+        Text [ width = 100%, fontSize = 12, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+            text = { (:quantity ?? 1) + " × " + money(:unitPrice ?? 0) +
+                ((:refundedQuantity ?? 0) > 0 ? " · " + (:refundedQuantity ?? 0) + " refunded" : (:refunded ?? 0) > 0 ? " · " + money(:refunded ?? 0) + " refunded" : "") } ]
+        ],
+    Money [ fontSize = 13, cents = { :amount ?? 0 } ]
+    ]
+
+
+class DetailPart [ width = 100%, height = 30,
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    CategoryChip [ categoryId = { :categoryId }, name = { app.books.categoryName(:categoryId) }, colour = { app.books.colourOf(:categoryId) } ],
+    Spacer [ ],
+    Money [ fontSize = 13, cents = { :amount ?? 0 } ]
+    ]
+
+
+// a linked transaction: a refund against this sale, or the sale this refunds
+
+class LinkedTxn extends Control [ width = 100%, height = 34, cornerRadius = 6, padding = [0, 8, 0, 8],
+    fill = { hovered || focused ? provided("theme").rowHover : provided("theme").raised },
+    accessibilityLabel = { "Open " + (:description ?? "") + ", " + money(:amount ?? 0) },
+    press() { app.peek(:id ?? "") },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    Text [ fontSize = 12, numeralWidth = tabular, textColor = { provided("theme").textMuted }, text = { shortDate(:date ?? "", app.today.slice(0, 4)) } ],
+    Text [ flexes = true, fontSize = 13, wrap = false, maxLines = 1, text = { (:description ?? "") == "" ? "Untitled" : :description } ],
+    Money [ fontSize = 13, cents = { :amount ?? 0 } ],
+    ChevronIcon [ dir = "right", iconSize = 10, ink = { provided("theme").textFaint } ]
+    ]
+
+
+class Detail [ width = 100%,
+    padding = [18, 20, 24, 20],
+    d: TxnDetail? = { app.detail.value },
+    known: boolean = { classroot.d != null && classroot.d.id == app.detailId },
+    opacity = { app.detail.loading ? 0.55 : 1 },
+    layout: SimpleLayout [ axis = y, spacing = 14 ],
+
+    failed: View [ visible = { app.detail.failed }, width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Text [ flexes = true, fontSize = 13, textColor = { provided("theme").bad }, text = "Couldn’t load this transaction." ],
+        Button [ height = 28, label = "Retry",
+            onClick() { app.detail.fetch() }
+            ]
+        ],
+
+    body: View [ visible = { classroot.known }, width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 14 ],
+        head: View [ width = 100%,
+            layout: SimpleLayout [ axis = y, spacing = 4 ],
+            Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 0.3, textColor = { provided("theme").textMuted },
+                text = { (app.kindName(classroot.d?.kind ?? "") + " · " + longDate(classroot.d?.date ?? "")).toUpperCase() } ],
+            Text [ width = 100%, fontSize = 18, fontWeight = semibold, accessibilityRole = heading, accessibilityLevel = 2,
+                text = { (classroot.d?.description ?? "") == "" ? app.kindName(classroot.d?.kind ?? "") : classroot.d?.description ?? "" } ],
+            Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted },
+                text = { [classroot.d?.contactName ?? "", app.books.channelName(classroot.d?.channel)].filter((s) => s != "").join(" · ") } ]
+            ],
+        Money [ fontSize = 26, fontWeight = semibold, cents = { classroot.d?.signed ?? 0 } ],
+
+        // where it is filed
+
+        CategoryChip [ visible = { (classroot.d?.parts ?? null) == null }, categoryId = { classroot.d?.categoryId ?? null },
+            name = { app.books.categoryName(classroot.d?.categoryId) }, colour = { app.books.colourOf(classroot.d?.categoryId) } ],
+        parts: View [ visible = { (classroot.d?.parts ?? null) != null }, width = 100%, datapath = { classroot.d },
+            layout: SimpleLayout [ axis = y ],
+            Text [ fontSize = 12, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "Split" ],
+            DetailPart [ datapath = :parts[] ]
+            ],
+
+        // a sale's or a refund's lines, and what they add up to
+
+        lines: View [ visible = { (classroot.d?.lines ?? []).length > 0 }, width = 100%, datapath = { classroot.d },
+            layout: SimpleLayout [ axis = y ],
+            DetailLine [ datapath = :lines[] ],
+            View [ width = 100%, padding = [8, 0, 0, 0],
+                layout: SimpleLayout [ axis = x ],
+                Text [ flexes = true, fontSize = 13, fontWeight = semibold, text = "Total" ],
+                Money [ fontSize = 13, fontWeight = semibold, cents = { classroot.d?.amount ?? 0 } ]
+                ]
+            ],
+
+        // a sale: what it cost and what it made
+
+        Text [ visible = { classroot.d?.kind == "sale" && classroot.d?.cost != null }, width = 100%, fontSize = 13, numeralWidth = tabular,
+            text = { "Cost " + money(classroot.d?.cost ?? 0) + " · Margin " + money(classroot.d?.margin ?? 0) +
+                " (" + pct((classroot.d?.amount ?? 0) == 0 ? null : (classroot.d?.margin ?? 0) / (classroot.d?.amount ?? 1) * 100) + ")" } ],
+
+        // the refunds against a sale
+
+        refunds: View [ visible = { (classroot.d?.refunds ?? []).length > 0 }, width = 100%, datapath = { classroot.d },
+            layout: SimpleLayout [ axis = y, spacing = 4 ],
+            Text [ fontSize = 12, fontWeight = semibold, textColor = { provided("theme").textMuted },
+                text = { "Refunded " + money(classroot.d?.refunded ?? 0) + " of " + money(classroot.d?.amount ?? 0) } ],
+            LinkedTxn [ datapath = :refunds[] ]
+            ],
+
+        // the sale a refund belongs to
+
+        sale: View [ visible = { (classroot.d?.sale ?? null) != null }, width = 100%, datapath = { classroot.d },
+            layout: SimpleLayout [ axis = y, spacing = 4 ],
+            Text [ fontSize = 12, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "Refund of" ],
+            LinkedTxn [ datapath = :sale ]
+            ],
+
+        actions: View [ width = 100%,
+            layout: WrappingLayout [ spacing = 8, rowSpacing = 8 ],
+            Button [ visible = { classroot.d?.kind == "sale" && (classroot.d?.refundable ?? 0) > 0 }, height = 32, fontSize = 13,
+                label = "Refund…",
+                onClick() { app.refundSale(classroot.d?.id ?? "") }
+                ],
+            Button [ height = 32, fontSize = 13, label = "Edit description", visible = { !app.phone && app.openId == classroot.d?.id },
+                onClick() { if (app.selected != null) app.beginEdit(app.selected, "description") }
+                ],
+            Button [ height = 32, fontSize = 13, label = "Delete", inkColor = { provided("theme").bad },
+                disabled = { (classroot.d?.refunds ?? []).length > 0 },
+                tooltipLabel = { (classroot.d?.refunds ?? []).length > 0 ? "Delete its refunds first" : "" },
+                onClick() { app.books.remove(classroot.d?.id ?? "") }
+                ]
+            ],
+        Text [ visible = { (classroot.d?.refunds ?? []).length > 0 }, width = 100%, fontSize = 12, textColor = { provided("theme").textMuted },
+            text = "A sale with refunds can’t be deleted until its refunds are." ]
+        ]
+    ]
+
+
+// ── The screen ──────────────────────────────────────────────────────────────
+
+class TransactionsScreen [ width = 100%, height = 100%,
+    page: TxnPage? = { app.figures.list.value },
+    total: number = { classroot.page?.total ?? 0 },
+    sum: Summary? = { classroot.page?.summary ?? null },
+
+    // Escape steps back: an edit, then the selection. Tab in a cell being edited saves it
+    // and moves to the row's next cell (Shift-Tab, the one before).
+
+    keys: Keys [ onKeyDown(e: KeyEvent) {
+        if (app.screen != "transactions") return
+        if (e.key == "Tab" && app.editCell != null) {
+            const f = Focus.getFocus()
+            const cell = f as CellField
+            const choice = f?.parent as CellChoice
+            if (cell != null && cell.finish != null && cell.row != null) { if (cell.finish()) app.nextCell(cell.row, cell.field, e.shift ? -1 : 1) }
+            else if (choice != null && choice.chosen != null && choice.row != null) app.nextCell(choice.row, choice.field, e.shift ? -1 : 1)
+            return
+            }
+        if (e.key != "Escape") return
+        if (app.editCell != null) app.editCell = null
+        else if (app.selection.length > 0 && !app.detailSheet.shown) app.clearSelection()
+        }
+        ],
+    shortcuts: Shortcuts [ title = "Transactions",
+        items = { [({ id: "all", key: "⌘A", label: "Select all", enabled: app.screen == "transactions" }),
+                   ({ id: "export", key: "⌘E", label: "Export CSV", enabled: app.screen == "transactions" })] },
+        picked(id: string) { if (id == "all") app.selectAll(); else app.exportCsv() }
+        ],
+
+    layout: SimpleLayout [ axis = x ],
+
+    col: View [ flexes = true, height = 100%,
+        layout: SimpleLayout [ axis = y ],
+
+        // where a drill-down came from, and the way back to it
+
+        back: View [ visible = { app.returnTo != null }, width = 100%, padding = { app.phone ? [8, 14, 0, 14] : [10, 28, 0, 28] },
+            layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+            Button [ height = 28, fontSize = 12.5, iconLeft = "BackChevron",
+                label = { "Back to " + ({ overview: "Overview", insights: "Insights", budgets: "Budgets", transactions: "Transactions" } as any)[app.returnTo?.location ?? "overview"] },
+                onClick() { app.goBack() }
+                ],
+            Text [ flexes = true, fontSize = 12.5, wrap = false, maxLines = 1, textColor = { provided("theme").textMuted },
+                text = { "Showing the records behind " + (app.returnTo?.why ?? "") } ]
+            ],
+
+        // the summary line: what is shown, or the selection
+
+        summary: View [ width = 100%, padding = { app.phone ? [10, 14, 8, 14] : [12, 28, 10, 28] },
+            layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+            Text [ flexes = true, fontSize = 13, wrap = true, numeralWidth = tabular, accessibilityLive = polite,
+                fontWeight = { app.selection.length > 0 ? "semibold" : "normal" },
+                text = { app.selection.length > 0 ? app.summaryLine(app.selectionSummary, true) : app.summaryLine(classroot.sum, false) } ],
+            Control [ visible = { classroot.total > 1 && !app.allSelected }, height = { app.tap }, cornerRadius = 6, padding = [0, 8, 0, 8],
+                fill = { hovered ? provided("theme").controlHovered : null },
+                press() { app.selectAll() },
+                TextLabel [ fontSize = 12.5, fontWeight = semibold, textColor = { provided("theme").accent },
+                    text = { "Select all " + classroot.total.toLocaleString("en-US") } ]
+                ],
+            Button [ visible = { !app.phone }, height = 28, fontSize = 12.5, label = "Columns", iconLeft = "ColumnsIcon",
+                menu = { app.columnsMenu } ]
+            ],
+        allNote: View [ visible = { app.allSelected }, width = 100%, padding = { app.phone ? [0, 14, 8, 14] : [0, 28, 10, 28] },
+            View [ width = 100%, padding = [8, 12, 8, 12], cornerRadius = 8, fill = { provided("theme").controlSelected },
+                layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+                Text [ flexes = true, fontSize = 12.5,
+                    text = { "All " + app.selection.length.toLocaleString("en-US") + " transactions matching the filters are selected, including those not on screen." } ],
+                Button [ height = 26, fontSize = 12.5, label = "Clear selection",
+                    onClick() { app.clearSelection() }
+                    ]
+                ]
+            ],
+
+        // the column headings
+
+        heads: View [ visible = { !app.phone }, width = 100%, height = 34, padding = [0, 16, 0, 16],
+            stroke = { [stroke(1, provided("theme").line), null, stroke(1, provided("theme").line), null] },
+            fill = { provided("theme").raised },
+
+            // the same columns as a row's, each 4 wider for the heading's own inset
+
+            layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+            ColumnHead [ width = 92, label = "DATE", sortKey = "date" ],
+            ColumnHead [ flexes = true, label = "DESCRIPTION", sortKey = "description" ],
+            ColumnHead [ visible = { !app.hidden("category") }, width = 188, label = "CATEGORY", sortKey = "category" ],
+            ColumnHead [ visible = { app.showChannel }, width = 104, label = "CHANNEL", sortKey = "channel" ],
+            ColumnHead [ width = 124, label = "AMOUNT", sortKey = "amount", alignEnd = true ]
+            ],
+
+        // the list: every record matching, the rows near the screen built
+
+        holder: View [ width = 100%, flexes = true,
+            list: Table [ width = 100%, height = 100%, selects = "multi",
+                accessibilityLabel = "Transactions",
+                datapath = { classroot.page },
+                rows: Txn[] = { classroot.page?.rows ?? [] },
+                selected = { app.selected },
+                selection = { app.selection },
+                input(sel: array) { app.select((sel ?? []) as Txn[]) },
+                activateRequested() { if (app.selected != null) app.beginEdit(app.selected, "description") },
+                deleteRequested() { app.deleteSelection() },
+                opacity = { app.figures.list.loading && app.figures.list.loaded ? 0.55 : 1 },
+                TxnRow [ datapath = :rows[], virtualize = true ]
+                ],
+
+            // nothing matches: say which filters, and offer the one change that brings results back
+
+            empty: View [ visible = { app.figures.list.loaded && classroot.total == 0 && !app.figures.list.loading },
+                ignoreLayout = true, x = center, y = 60, width = 360,
+                layout: SimpleLayout [ axis = y, spacing = 10, align = center ],
+                Text [ fontSize = 16, fontWeight = semibold, text = "No transactions match" ],
+                Text [ width = 360, textAlign = center, fontSize = 13, textColor = { provided("theme").textMuted },
+                    text = { "Filtered by " + app.filterSentence + "." } ],
+                Button [ visible = { app.bestRelax != null }, primary = true,
+                    label = { app.bestRelax == null ? "" : app.bestRelax.label },
+                    onClick() { app.relax() }
+                    ],
+                Button [ visible = { app.filtered }, label = "Clear all filters",
+                    onClick() { app.clearFilters() }
+                    ]
+                ],
+            failed: View [ visible = { app.figures.list.failed }, ignoreLayout = true, x = center, y = 24,
+                padding = [10, 14, 10, 14], cornerRadius = 10, fill = { provided("theme").badTint },
+                layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+                Text [ fontSize = 13, textColor = { provided("theme").bad }, text = "Couldn’t load transactions." ],
+                Button [ height = 28, label = "Retry",
+                    onClick() { app.figures.list.fetch() }
+                    ]
+                ],
+
+            // what to do with a selection of several
+
+            bulk: View [ visible = { app.selection.length > 1 || app.allSelected }, ignoreLayout = true,
+                x = center, y = { parent.height - this.height - 18 },
+                height = 48, padding = [8, 10, 8, 16], cornerRadius = 12,
+                fill = { provided("theme").tooltipFill }, shadow = { shadow(0, 8, 28, 0x00000050) },
+                layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+                Text [ fontSize = 13, fontWeight = semibold, wrap = false, textColor = { provided("theme").tooltipTextColor },
+                    text = { app.selection.length.toLocaleString("en-US") + " selected" } ],
+                View [ width = 8 ],
+                BulkButton [ label = "Categorise", menu = { app.categoriseMenu } ],
+                BulkButton [ label = "Set contact",
+                    press() { app.contactSetPop.showFor(this) }
+                    ],
+                BulkButton [ label = "Export",
+                    press() { app.exportCsv() }
+                    ],
+                BulkButton [ label = "Delete", danger = true,
+                    press() { app.deleteSelection() }
+                    ],
+                Control [ width = 30, height = 30, cornerRadius = 8, accessibilityLabel = "Clear selection",
+                    fill = { hovered ? 0x80808040 : null },
+                    press() { app.clearSelection() },
+                    CloseIcon [ x = center, y = center, iconSize = 11, ink = { provided("theme").tooltipTextColor } ]
+                    ]
+                ]
+            ]
+        ],
+
+    // the detail, beside the list on a wide desk
+
+    side: View [ visible = { !app.phone && app.detailId != "" }, width = { app.wide ? 380 : 320 }, height = 100%, scrolls = y,
+        fill = { provided("theme").surface }, stroke = { [null, null, null, stroke(1, provided("theme").line)] },
+        accessibilityRole = complementary, accessibilityLabel = "Transaction detail",
+        Detail [ ]
+        ]
+    ]
+
+
+// a command on the bulk bar, light on dark
+
+class BulkButton extends Control [ height = 32, cornerRadius = 8, padding = [0, 10, 0, 10],
+    label: string = "",
+    danger: boolean = false,
+    fill = { pressed ? 0x80808060 : hovered ? 0x80808040 : null },
+    TextLabel [ fontSize = 13, fontWeight = medium, wrap = false,
+        textColor = { classroot.danger ? provided("theme").bad : provided("theme").tooltipTextColor }, text = { classroot.label } ]
+    ]
+
+
+class BackChevron extends ChevronIcon [ dir = "left" ]
+
+class ColumnsIcon extends Glyph [ shape = "columns" ]
+
+// Setting one contact on the selection: typed to narrow.
+
+class SetContactPanel [ width = 280,
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    PanelTitle [ text = { "SET CONTACT ON " + app.selection.length + " TRANSACTIONS" } ],
+    Combobox [ width = 100%, placeholder = "Type a name", accessibilityLabel = "Contact",
+        items = { app.contactItems("") },
+        onInit() { afterSettle(() => this.focusField()) },
+        commit(v: object) { const m = v as any; if (m != null) { app.setContact(m.id == "none" ? null : m.id); app.contactSetPop.close() } }
+        ]
+    ]

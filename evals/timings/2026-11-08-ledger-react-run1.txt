@@ -1,0 +1,14 @@
+# eval-ledger-react-1.noindex
+total 39.5 min · 166 turns · output 249164 tokens (thinking 51080)
+tool time 5.4 min · model time 34.1 min
+tools:
+  bash      66×   5.41 min  (median 1.1 s)
+model turns, by what came before:
+  after write    76×  20.39 min  (median 10.5 s)
+  after bash     65×   8.27 min  (median 5.9 s)
+  after image    15×   2.02 min  (median 7.9 s)
+  after read      3×   1.84 min  (median 7.6 s)
+  after edit      4×   0.94 min  (median 10.0 s)
+  after grep      1×   0.35 min  (median 20.9 s)
+app: 0 .declare files, 0 non-blank lines · 0 snapshots changed them: 0 lines added, 0 removed
+verify results mentioning accessibility: 0

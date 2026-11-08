@@ -1,0 +1,225 @@
+/*
+# Ledger: Insights
+
+Charts of the filtered data, as tabs: Trends, Income vs expenses, Breakdown,
+Products. Each has a title, one plain sentence saying what it shows, the
+chart, and a table holding everything the chart shows. Every bar, point, row
+and cell opens the records behind it (the App's `open…` verbs).
+*/
+
+
+// A time chart as a table: a row per period, a cell per series, each cell
+// opening its records.
+
+class ChartTable [ width = 100%,
+    points: ChartPoint[] = [],
+    series: Series[] = [],
+    format: "money" | "pct" | "count" = "money",
+    opened(p: ChartPoint, s: Series) { },
+    walk: Series[] = { classroot.series.filter((s) => s.id != "cmp") },
+    fmt(v: number) -> string { return format == "pct" ? pct(v) : format == "count" ? Math.round(v).toLocaleString("en-US") : money(v) },
+    rows: Dataset [ contents = { { rows: classroot.points } } ],
+    cols: Dataset [ contents = { { cols: classroot.series } } ],
+    layout: SimpleLayout [ axis = y ],
+    head: View [ width = 100%, height = 30, padding = [0, 6, 0, 6], datapath = { classroot.cols.value },
+        stroke = { [null, null, stroke(1, provided("theme").line), null] },
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        Text [ flexes = true, fontSize = 11.5, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "PERIOD" ],
+        Text [ datapath = :cols[], width = 128, textAlign = right, fontSize = 11.5, fontWeight = semibold, wrap = false, maxLines = 1,
+            textColor = { provided("theme").textMuted }, text = { (:name ?? "").toUpperCase() } ]
+        ],
+    body: View [ width = 100%, datapath = { classroot.rows.value },
+        layout: SimpleLayout [ axis = y ],
+        View [ datapath = :rows[], width = 100%, height = 32, padding = [0, 6, 0, 6],
+            point: ChartPoint = { :@ },
+            stroke = { [null, null, stroke(1, provided("theme").grid), null] },
+            layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+            Text [ flexes = true, fontSize = 13, wrap = false, text = { (:label ?? "") + ((:partial ?? false) ? " (so far)" : "") } ],
+            cells: View [ datapath = { classroot.cols.value },
+                layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+                OpenCell [ datapath = :cols[], width = 128,
+                    label = { classroot.fmt(pointValue(parent.parent.point, :id ?? "")) },
+                    disabled = { :id == "cmp" },
+                    accessibilityLabel = { (parent.parent.point.label) + ", " + (:name ?? "") + ", " + classroot.fmt(pointValue(parent.parent.point, :id ?? "")) },
+                    press() { classroot.opened(parent.parent.point, :@) }
+                    ]
+                ]
+            ]
+        ]
+    ]
+
+
+// The heading of one insight: its title, the sentence, and the switch between
+// the chart and its table.
+
+class InsightHead [ width = 100%,
+    title: string = "",
+    sentence: string = "",
+    layout: SimpleLayout [ axis = x, spacing = 12 ],
+    View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        Text [ fontSize = 16, fontWeight = semibold, accessibilityRole = heading, accessibilityLevel = 2, text = { classroot.title } ],
+        Text [ width = 100%, fontSize = 13.5, textColor = { provided("theme").textMuted }, accessibilityLive = polite,
+            text = { classroot.sentence } ]
+        ],
+    Segmented [ width = 150, value = { app.asTable ? "table" : "chart" },
+        choices = { [({ id: "chart", label: "Chart" }), ({ id: "table", label: "Table" })] },
+        input(v: string) { app.asTable = v == "table" }
+        ]
+    ]
+
+
+// The products: units, revenue, cost, margin and margin % each, sortable.
+
+class ProductHead extends Control [ height = 30, padding = [0, 4, 0, 4], cornerRadius = 6,
+    label: string = "",
+    col: string = "",
+    on: boolean = { app.productSort == classroot.col },
+    accessibilityPressed = { classroot.on },
+    accessibilityLabel = { "Sort by " + classroot.label },
+    fill = { hovered ? provided("theme").controlHovered : null },
+    press() { app.sortProducts(classroot.col) },
+    layout: SimpleLayout [ axis = x, spacing = 3, align = center ],
+    Spacer [ visible = { classroot.col != "name" } ],
+    TextLabel [ fontSize = 11.5, fontWeight = semibold, wrap = false,
+        textColor = { classroot.on ? provided("theme").text : provided("theme").textMuted }, text = { classroot.label } ],
+    ArrowIcon [ visible = { classroot.on }, iconSize = 9, dir = { app.productDir == "desc" ? "down" : "up" }, ink = { provided("theme").textMuted } ]
+    ]
+
+
+class ProductRow extends Control [ width = 100%, height = 36, padding = [0, 6, 0, 6],
+    fill = { pressed ? provided("theme").controlPressed : hovered || focused ? provided("theme").rowHover : null },
+    stroke = { [null, null, stroke(1, provided("theme").grid), null] },
+    accessibilityLabel = { (:name ?? "") + ", " + (:units ?? 0) + " sold, revenue " + money(:revenue ?? 0) + ", margin " + money(:margin ?? 0) + ", " + pct(:marginPercent ?? null) },
+    press() { app.drill(({ products: [:id ?? "none"] }), :name ?? "") },
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    Text [ flexes = true, fontSize = 13, wrap = false, maxLines = 1, text = { :name ?? "" } ],
+    Text [ width = 70, textAlign = right, fontSize = 13, numeralWidth = tabular, text = { "" + (:units ?? 0) } ],
+    Money [ width = 104, textAlign = right, fontSize = 13, cents = { :revenue ?? 0 } ],
+    Money [ width = 104, textAlign = right, fontSize = 13, cents = { :cost ?? 0 }, textColor = { provided("theme").textMuted } ],
+    Money [ width = 104, textAlign = right, fontSize = 13, cents = { :margin ?? 0 } ],
+    Text [ width = 74, textAlign = right, fontSize = 13, numeralWidth = tabular, text = { pct(:marginPercent ?? null) } ]
+    ]
+
+
+class InsightsScreen [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+
+    TabBar [ width = { Math.min(560, parent.width) }, value = { app.insightTab },
+        choices = { [({ id: "trends", label: "Trends" }), ({ id: "income", label: "Income vs expenses" }),
+                     ({ id: "breakdown", label: "Breakdown" }), ({ id: "products", label: "Products" })] },
+        input(v: string) { app.insightTab = v }
+        ],
+
+    // ── Trends: one measure over time, the comparison period dashed alongside
+
+    trends: Panel [ visible = { app.insightTab == "trends" }, width = 100%,
+        loading = { app.figures.periods.loading || app.figures.cmpPeriods.loading },
+        failed = { app.figures.periods.failed }, slow = { app.periodWatch.slow },
+        retry() { app.figures.periods.fetch(); app.figures.cmpPeriods.fetch() },
+        InsightHead [ title = { app.measureName(app.trendMeasure) + " over time" }, sentence = { app.trendSentence } ],
+        controls: View [ width = 100%,
+            layout: WrappingLayout [ spacing = 12, rowSpacing = 8, align = center ],
+            Segmented [ width = { app.phone ? 330 : 470 }, value = { app.trendMeasure },
+                accessibilityLabel = "Measure",
+                choices = { [({ id: "revenue", label: "Revenue" }), ({ id: "expenses", label: "Expenses" }), ({ id: "net", label: "Net profit" }),
+                    ({ id: "margin", label: "Gross margin" }), ({ id: "sales", label: "Sales" })] },
+                input(v: string) { app.trendMeasure = v }
+                ],
+            Segmented [ width = 290, value = { app.grain }, accessibilityLabel = "Granularity",
+                choices = { [({ id: "day", label: "Days" }), ({ id: "week", label: "Weeks" }), ({ id: "month", label: "Months" }), ({ id: "quarter", label: "Quarters" })] },
+                input(v: string) { app.grainPick = v }
+                ]
+            ],
+        thin: Text [ visible = { app.trendPoints.length < 2 && app.figures.periods.loaded }, width = 100%, fontSize = 13,
+            textColor = { provided("theme").textMuted },
+            text = "Too little data to draw a trend: the range holds one period at this granularity. Choose a finer granularity or a longer range." ],
+        PeriodChart [ visible = { !app.asTable && app.trendPoints.length >= 2 }, width = 100%, height = 300,
+            name = { app.measureName(app.trendMeasure) + " by " + app.grain },
+            format = { app.trendFormat }, points = { app.trendPoints }, series = { app.trendSeries },
+            opened(p: ChartPoint, s: Series) { app.openPoint(p, s, "Insights") },
+            rangeChosen(from: string, to: string) { app.setDates(from, to, "custom") }
+            ],
+        ChartTable [ visible = { app.asTable }, format = { app.trendFormat }, points = { app.trendPoints }, series = { app.trendSeries },
+            opened(p: ChartPoint, s: Series) { app.openPoint(p, s, "Insights") }
+            ]
+        ],
+
+    // ── Income vs expenses: bars for each, net profit as a line, and the running total
+
+    income: Panel [ visible = { app.insightTab == "income" }, width = 100%,
+        loading = { app.figures.periods.loading }, failed = { app.figures.periods.failed }, slow = { app.periodWatch.slow },
+        retry() { app.figures.periods.fetch() },
+        InsightHead [ title = "Income vs expenses", sentence = { app.breakEvenSentence } ],
+        Segmented [ width = 290, value = { app.grain }, accessibilityLabel = "Granularity",
+            choices = { [({ id: "day", label: "Days" }), ({ id: "week", label: "Weeks" }), ({ id: "month", label: "Months" }), ({ id: "quarter", label: "Quarters" })] },
+            input(v: string) { app.grainPick = v }
+            ],
+        PeriodChart [ visible = { !app.asTable }, width = 100%, height = 320, name = { "Income vs expenses by " + app.grain },
+            points = { app.incomePoints }, series = { app.ieSeries(true) },
+            opened(p: ChartPoint, s: Series) { app.openPoint(p, s, "Insights") },
+            rangeChosen(from: string, to: string) { app.setDates(from, to, "custom") }
+            ],
+        ChartTable [ visible = { app.asTable }, points = { app.incomePoints }, series = { app.ieSeries(true) },
+            opened(p: ChartPoint, s: Series) { app.openPoint(p, s, "Insights") }
+            ]
+        ],
+
+    // ── Breakdown: categories as sorted bars, with share and change
+
+    breakdown: Panel [ visible = { app.insightTab == "breakdown" }, width = 100%,
+        loading = { app.figures.categories.loading || app.figures.cmpCategories.loading },
+        failed = { app.figures.categories.failed },
+        retry() { app.figures.categories.fetch(); app.figures.cmpCategories.fetch() },
+        InsightHead [ title = { app.breakdownSide == "income" ? "Income by category" : "Expenses by category" },
+            sentence = { app.breakdownSentence } ],
+        Segmented [ width = 220, value = { app.breakdownSide }, accessibilityLabel = "Side",
+            choices = { [({ id: "expense", label: "Expenses" }), ({ id: "income", label: "Income" })] },
+            input(v: string) { app.breakdownSide = v }
+            ],
+        cols: View [ width = 100%, height = 26, padding = [0, 6, 0, 6],
+            layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+            Text [ flexes = true, fontSize = 11.5, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "CATEGORY" ],
+            Text [ width = 96, textAlign = right, fontSize = 11.5, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "AMOUNT" ],
+            Text [ width = 48, textAlign = right, fontSize = 11.5, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "SHARE" ],
+            Text [ width = 64, textAlign = right, fontSize = 11.5, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "CHANGE" ]
+            ],
+        View [ width = 100%, datapath = { app.breakdownRanks.value }, focusScope = stop,
+            accessibilityRole = group, accessibilityLabel = "Categories",
+            layout: SimpleLayout [ axis = y ],
+            RankRow [ datapath = :rows[], detailed = true, upIsGood = { app.breakdownSide == "income" },
+                press() { app.openRank("category", :@) }
+                ]
+            ],
+        total: View [ width = 100%, height = 34, padding = [0, 6, 0, 6], stroke = { [stroke(1, provided("theme").line), null, null, null] },
+            layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+            Text [ flexes = true, fontSize = 13, fontWeight = semibold, text = "Total" ],
+            Money [ width = 96, textAlign = right, fontSize = 13, fontWeight = semibold, cents = { app.figures.categories.value?.total.amount ?? 0 } ],
+            View [ width = 122 ]
+            ],
+        Text [ visible = { (app.breakdownRanks.value?.rows ?? []).length == 0 && app.figures.categories.loaded }, fontSize = 13,
+            textColor = { provided("theme").textMuted }, text = "Nothing to break down in this range." ]
+        ],
+
+    // ── Products: what sold, what it cost, what it made
+
+    products: Panel [ visible = { app.insightTab == "products" }, width = 100%,
+        loading = { app.figures.products.loading }, failed = { app.figures.products.failed },
+        retry() { app.figures.products.fetch() },
+        InsightHead [ title = "Products", sentence = { app.productSentence } ],
+        heads: View [ width = 100%, height = 30, padding = [0, 2, 0, 2], stroke = { [null, null, stroke(1, provided("theme").line), null] },
+            layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+            ProductHead [ flexes = true, label = "PRODUCT", col = "name" ],
+            ProductHead [ width = 70, label = "UNITS", col = "units" ],
+            ProductHead [ width = 104, label = "REVENUE", col = "revenue" ],
+            ProductHead [ width = 104, label = "COST", col = "cost" ],
+            ProductHead [ width = 104, label = "MARGIN", col = "margin" ],
+            ProductHead [ width = 74, label = "MARGIN %", col = "marginPercent" ]
+            ],
+        View [ width = 100%, datapath = { app.productTable.value }, focusScope = stop,
+            accessibilityRole = group, accessibilityLabel = "Products",
+            layout: SimpleLayout [ axis = y ],
+            ProductRow [ datapath = :rows[] ]
+            ]
+        ]
+    ]

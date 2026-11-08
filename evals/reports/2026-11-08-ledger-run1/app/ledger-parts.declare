@@ -1,0 +1,280 @@
+/*
+# Ledger: the parts
+
+The look of Ledger, kept apart from how it works: the two themes, the drawn
+glyphs, and the small pieces every screen is made of — a money figure, a
+category chip, a filter chip, a panel, a change against the comparison period,
+a sparkline. `ledger.declare` includes this file.
+*/
+
+// ── Colours ─────────────────────────────────────────────────────────────────
+//
+// Laid over the library's San Francisco preset, so library controls read the
+// same palette. `cats` is one colour per category colour index (0–11, the
+// service's `colour`), so a category is the same colour on every chart.
+// `good` and `bad` colour a change where its direction means something;
+// neither is ever the only carrier of it (an arrow and words go with it).
+
+theme LedgerLight [
+    background = #F6F5F2, surface = #FFFFFF, raised = #FBFAF8, line = #E3E1DC, lineStrong = #CFCCC5,
+    text = #1E2227, textMuted = #5C636C, textFaint = #8E959E,
+    accent = #3A57C9, accentHovered = #334EB6, accentPressed = #2D45A2, accentTextColor = #FFFFFF, linkColor = #3A57C9,
+    control = #EEECE8, controlHovered = #E5E3DE, controlPressed = #DAD7D1, controlSelected = #DDE4FA,
+    rowHover = #F3F2EE, rowSelected = #E6ECFC,
+    good = #1D7A50, bad = #B93A26, warn = #A96A10, warnTint = #FBF1DF, badTint = #FBE9E5, goodTint = #E3F2EA,
+    hit = #8A5A00, hitFill = #FFE9A8,
+    income = #3F8F6B, expense = #D07A4F, net = #1E2227, compare = #9AA0A8, grid = #ECEAE5, partial = #F1EFEA,
+    cats = [#3E7CB1, #4F8F3A, #8A6FBF, #D08A2E, #A0785A, #2E9AA0, #C2577A, #5965D0, #D4573B, #6E8A2E, #8C939C, #B39A2E],
+    catTints = [#E6EFF7, #E8F2E4, #EFEAF7, #FAEEDD, #F2ECE6, #E1F2F3, #F7E6EC, #E8EAFA, #FAE6E1, #ECF1E0, #EEEFF1, #F5F1DD]
+    ]
+
+
+theme LedgerDark [
+    background = #121417, surface = #1A1D22, raised = #1F2329, line = #2B3038, lineStrong = #3A414B,
+    text = #E8EAED, textMuted = #A5ADB7, textFaint = #6E7782,
+    accent = #6F86F2, accentHovered = #7F94F5, accentPressed = #6075E0, accentTextColor = #FFFFFF, linkColor = #8EA2F7,
+    control = #262A31, controlHovered = #2E333B, controlPressed = #383E47, controlSelected = #27325A,
+    rowHover = #1F2329, rowSelected = #232C4C,
+    good = #5BC48F, bad = #FF7D66, warn = #E8A93E, warnTint = #3A2E17, badTint = #3D211C, goodTint = #193126,
+    hit = #FFD36B, hitFill = #4A3A10,
+    income = #5BB389, expense = #E8946A, net = #E8EAED, compare = #6E7782, grid = #23272D, partial = #1E2126,
+    cats = [#6AA4D6, #7CBB64, #AE95E2, #E8A44E, #C39C7C, #4FC1C7, #E07C9C, #8792EE, #F07C60, #A3BF5B, #A3AAB3, #D6BE52],
+    catTints = [#1B2A38, #1E2D1A, #2A2338, #3A2C17, #30271F, #163234, #3A1F29, #22253F, #3B211B, #273019, #26292D, #353016]
+    ]
+
+
+// a search hit inside a description: the theme decides its colours, where it is used
+
+style Hit [ fontWeight = semibold ]
+
+// ── Glyphs ──────────────────────────────────────────────────────────────────
+//
+// The marks no library icon covers, drawn on a 16-unit grid with one pen.
+
+class Glyph extends Icon [
+    shape: string = "",
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.fillStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        if (shape == "search") {
+            d.arc(7, 7, 4.6, 0, 6.3); d.moveTo(10.5, 10.5); d.lineTo(14, 14); d.stroke()
+        } else if (shape == "export") {            // a tray with an arrow out of it
+            d.moveTo(8, 10); d.lineTo(8, 2); d.moveTo(5, 5); d.lineTo(8, 2); d.lineTo(11, 5)
+            d.moveTo(3, 9); d.lineTo(3, 13.5); d.lineTo(13, 13.5); d.lineTo(13, 9); d.stroke()
+        } else if (shape == "warn") {              // a triangle with a bang
+            d.moveTo(8, 2); d.lineTo(14.5, 13.5); d.lineTo(1.5, 13.5); d.closePath(); d.stroke()
+            d.beginPath(); d.moveTo(8, 6.5); d.lineTo(8, 9.5); d.stroke()
+            d.beginPath(); d.arc(8, 11.6, 0.8, 0, 6.3); d.fill()
+        } else if (shape == "split") {             // one line forking into three
+            d.moveTo(2, 8); d.lineTo(7, 8); d.moveTo(7, 8); d.lineTo(13, 3.5); d.moveTo(7, 8); d.lineTo(13, 8)
+            d.moveTo(7, 8); d.lineTo(13, 12.5); d.stroke()
+        } else if (shape == "table") {             // a grid
+            d.rect(2, 3, 12, 10); d.moveTo(2, 6.5); d.lineTo(14, 6.5); d.moveTo(2, 10); d.lineTo(14, 10)
+            d.moveTo(6.5, 3); d.lineTo(6.5, 13); d.stroke()
+        } else if (shape == "chart") {             // three bars
+            d.moveTo(3.5, 13.5); d.lineTo(3.5, 8); d.moveTo(8, 13.5); d.lineTo(8, 3); d.moveTo(12.5, 13.5); d.lineTo(12.5, 6.5); d.stroke()
+        } else if (shape == "columns") {           // three columns
+            d.rect(2, 3, 12, 10); d.moveTo(6, 3); d.lineTo(6, 13); d.moveTo(10, 3); d.lineTo(10, 13); d.stroke()
+        } else if (shape == "undo") {
+            d.moveTo(5.5, 3.5); d.lineTo(2.5, 6.5); d.lineTo(5.5, 9.5); d.moveTo(2.5, 6.5); d.lineTo(10, 6.5)
+            d.arc(10, 9.5, 3, -Math.PI / 2, Math.PI / 2); d.lineTo(6, 12.5); d.stroke()
+        } else if (shape == "home") {
+            d.moveTo(2, 7.5); d.lineTo(8, 2.5); d.lineTo(14, 7.5); d.moveTo(3.5, 6.5); d.lineTo(3.5, 13.5)
+            d.lineTo(12.5, 13.5); d.lineTo(12.5, 6.5); d.stroke()
+        } else if (shape == "list") {
+            for (const y of [4, 8, 12]) { d.moveTo(5.5, y); d.lineTo(14, y) }
+            d.stroke(); d.beginPath()
+            for (const y of [4, 8, 12]) { d.moveTo(3, y); d.arc(2.4, y, 0.8, 0, 6.3) }
+            d.fill()
+        } else if (shape == "insights") {
+            d.moveTo(2, 13.5); d.lineTo(14, 13.5); d.moveTo(3, 11); d.lineTo(6.5, 7); d.lineTo(9.5, 9); d.lineTo(13.5, 3.5); d.stroke()
+        } else if (shape == "budget") {            // a gauge
+            d.arc(8, 10, 6, Math.PI, 0); d.moveTo(8, 10); d.lineTo(11, 6); d.stroke()
+        }
+        }
+    ]
+
+
+// ── Figures ─────────────────────────────────────────────────────────────────
+//
+// Money is set in tabular figures, so a column of amounts lines up digit for
+// digit, and right-aligned wherever it stands in a column.
+
+class Money extends Text [ wrap = false, numeralWidth = tabular,
+    cents: number = 0,
+    text = { money(classroot.cents) }
+    ]
+
+
+// The change of a figure against the comparison period: "▲ 12% vs Oct". An
+// arrow and words always; colour where the direction is good or bad. For
+// expenses an increase is the unfavourable one (`upIsGood = false`).
+
+class Delta [
+    now: number = 0,
+    then: number = 0,
+    known: boolean = true,          // false when there is nothing to compare with
+    upIsGood: boolean = true,
+    neutral: boolean = false,       // a change that is neither good nor bad
+    versus: string = "",
+    points: boolean = false,        // a percentage figure: the change is in points, not per cent
+    change: number = { classroot.points ? classroot.now - classroot.then : changePct(classroot.now, classroot.then) },
+    up: boolean = { classroot.change > 0 },
+    flat: boolean = { Math.abs(classroot.change) < 0.05 || isNaN(classroot.change) },
+    good: boolean = { classroot.up == classroot.upIsGood },
+
+    // the size of the change, in words: "12%", "1.1 pts"
+
+    size: string = { classroot.points ? signedPct(classroot.change).replace("%", " pts") : signedPct(classroot.change).replace(/^[+−]/, "") },
+    arrow: string = { classroot.flat ? "■ No change" : (classroot.up ? "▲ " : "▼ ") + classroot.size },
+    words: string = { classroot.sentence() },
+    sentence() -> string {
+        if (!known) return "No comparison"
+        if (isNaN(change)) return "New " + versus
+        return arrow + " " + versus
+        },
+
+    // coloured only where the direction means something
+
+    plain: boolean = { !classroot.known || classroot.flat || classroot.neutral || isNaN(classroot.change) },
+    tone: Color = { classroot.plain ? provided("theme").textMuted : classroot.good ? provided("theme").good : provided("theme").bad },
+    Text [ fontSize = 12.5, fontWeight = medium, wrap = false, textColor = { classroot.tone }, text = { classroot.words } ]
+    ]
+
+
+// A small line of the last periods, under a headline figure. The last point is
+// dotted, and a period not yet over is drawn faint so its dip is not misread.
+
+class Sparkline [ height = 28,
+    values: number[] = [],
+    partialLast: boolean = false,
+    tone: Color = gray,
+    draw(d: DrawContext) {
+        const v = values
+        if (v.length < 2) return
+        const lo = Math.min(0, ...v), hi = Math.max(...v, 1)
+        const w = d.w, h = d.h - 4
+        const px = (i: number) => i * (w - 4) / (v.length - 1) + 2
+        const py = (x: number) => 2 + h - (x - lo) / ((hi - lo) || 1) * h
+        d.lineWidth = 1.5
+        d.lineJoin = "round"
+        d.strokeStyle = tone
+        d.beginPath()
+        const solid = partialLast ? v.length - 1 : v.length
+        for (let i = 0; i < solid; i++) { if (i == 0) d.moveTo(px(i), py(v[i])); else d.lineTo(px(i), py(v[i])) }
+        d.stroke()
+        if (partialLast) {
+            d.globalAlpha = 0.45
+            d.setLineDash([2, 2])
+            d.beginPath(); d.moveTo(px(v.length - 2), py(v[v.length - 2])); d.lineTo(px(v.length - 1), py(v[v.length - 1])); d.stroke()
+            d.setLineDash([])
+            d.globalAlpha = 1
+            }
+        d.fillStyle = tone
+        d.beginPath(); d.arc(px(v.length - 1), py(v[v.length - 1]), 2.2, 0, 6.3); d.fill()
+        }
+    ]
+
+
+// ── Chips ───────────────────────────────────────────────────────────────────
+
+// A category as a coloured chip: a dot and the name on the category's tint.
+// "Uncategorised" is marked as needing attention; a split names its parts' count.
+
+class CategoryChip [ height = 22, cornerRadius = 11, padding = [0, 9, 0, 8],
+    categoryId: string? = null,
+    parts: number = 0,
+    name: string = "",
+    colour: number = -1,
+    loose: boolean = { classroot.parts == 0 && classroot.categoryId == null },
+    fill = { classroot.loose ? provided("theme").warnTint : classroot.colour >= 0 ? provided("theme").catTints[classroot.colour] : provided("theme").control },
+    layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+    dot: View [ visible = { !classroot.loose && classroot.parts == 0 }, width = 7, height = 7, cornerRadius = 4,
+        fill = { classroot.colour >= 0 ? provided("theme").cats[classroot.colour] : provided("theme").textFaint } ],
+    fork: Glyph [ visible = { classroot.parts > 0 }, shape = "split", iconSize = 11, weight = 1.6, ink = { provided("theme").textMuted } ],
+    warn: Glyph [ visible = { classroot.loose }, shape = "warn", iconSize = 11, weight = 1.5, ink = { provided("theme").warn } ],
+    TextLabel [ fontSize = 12, fontWeight = medium, wrap = false, maxLines = 1,
+        textColor = { classroot.loose ? provided("theme").warn : provided("theme").text },
+        text = { classroot.loose ? "Uncategorised" : classroot.parts > 0 ? "Split (" + classroot.parts + ")" : classroot.name } ]
+    ]
+
+
+// An active filter: its value, and a way to remove it. The chip is one
+// control (pressing it removes the filter), named for what it does.
+
+class FilterChip extends Control [ height = 26, cornerRadius = 13, padding = [0, 6, 0, 11],
+    label: string = "",
+    accessibilityLabel = { "Remove filter " + classroot.label },
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").controlSelected },
+    layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+    TextLabel [ fontSize = 12.5, fontWeight = medium, wrap = false, textColor = { provided("theme").text }, text = { classroot.label } ],
+    CloseIcon [ iconSize = 10, weight = 1.8, ink = { provided("theme").textMuted } ]
+    ]
+
+
+// ── Panels ──────────────────────────────────────────────────────────────────
+//
+// A titled surface; what it holds goes into `body`. A panel that is still
+// loading keeps its shape and dims; one that failed says so in place, with
+// Retry, and the rest of the screen goes on working.
+
+class Panel [ cornerRadius = 12, fill = { provided("theme").surface },
+    stroke = { stroke(1, provided("theme").line) },
+    defaultPlacement = body,
+    title: string = "",
+    note: string = "",
+    loading: boolean = false,
+    failed: boolean = false,
+    slow: boolean = false,
+    retry() { },
+    layout: SimpleLayout [ axis = y ],
+    head: View [ width = 100%, padding = [14, 16, 0, 16], visible = { classroot.title != "" },
+        layout: SimpleLayout [ axis = x, spacing = 8, align = baseline ],
+        Text [ fontSize = 14, fontWeight = semibold, wrap = false, accessibilityRole = heading, accessibilityLevel = 2,
+            text = { classroot.title } ],
+        Text [ flexes = true, fontSize = 12, wrap = false, maxLines = 1, textColor = { provided("theme").textMuted },
+            text = { classroot.note } ]
+        ],
+    problem: View [ width = 100%, padding = [10, 16, 0, 16], visible = { classroot.failed || classroot.slow },
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Text [ flexes = true, fontSize = 12.5, textColor = { classroot.failed ? provided("theme").bad : provided("theme").textMuted },
+            accessibilityLive = polite,
+            text = { classroot.failed ? "Couldn’t load this." : "Still working…" } ],
+        Button [ visible = { classroot.failed }, height = 26, fontSize = 12.5, label = "Retry",
+            onClick() { classroot.retry() }
+            ]
+        ],
+    body: View [ width = 100%, padding = [12, 16, 16, 16],
+        opacity = { classroot.loading ? 0.55 : 1 },
+        layout: SimpleLayout [ axis = y, spacing = 10 ]
+        ]
+    ]
+
+
+// A source's own state, held as one watcher: `slow` turns true when a request
+// has been out longer than a moment, so a panel can say it is still working.
+
+class Watch extends Node [
+    busy: boolean = false,
+    slow: boolean = false,
+    trackChanges = ["busy"],
+    onChange() {
+        slow = false
+        if (busy) afterDelay(1500, () => { if (this.busy) this.slow = true })
+        }
+    ]
+
+
+// A labelled value in a detail or a table cell that opens the records behind it.
+
+class OpenCell extends Control [ height = 26, cornerRadius = 6, padding = [0, 6, 0, 6],
+    label: string = "",
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },
+    TextLabel [ x = end, fontSize = 13, wrap = false, numeralWidth = tabular,
+        textColor = { provided("theme").text }, text = { classroot.label } ]
+    ]

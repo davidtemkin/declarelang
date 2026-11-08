@@ -1,0 +1,15 @@
+PASS  overview_drill  4.6 s  met
+      fallbacks: this month's expense bar has no node of its own in the tree until the chart is arrowed to it ("November 2026 (so far), Expenses, $3,084.17, down 49% from October 2026, 17 transactions")
+PASS  split_expense  12.1 s  met
+      fallbacks: no option named /printworks/i offered after typing "Printworks" into "Vendor" (offered: nothing); pressed Enter
+PASS  sale_refund  7.4 s  met
+      fallbacks: "Refund how many Speckled mug" took no typed digits; set to 1 with the arrow keys
+PASS  filters_keyboard  7.3 s  met
+PASS  bulk_undo  5.9 s  met
+      fallbacks: no "Clear all" (a fresh start has no filters to clear)
+PASS  export_csv  3.4 s  met
+PASS  budget_words  6.4 s  met
+      fallbacks: the Software budget was set through "Add a budget", then the field "Monthly budget for Software"
+PASS  phone  9.2 s  met
+      fallbacks: no "New expense" control; opened a general New | the category list offered nothing until typed into; typed "Ship"
+8 of 8 passed in 67 s

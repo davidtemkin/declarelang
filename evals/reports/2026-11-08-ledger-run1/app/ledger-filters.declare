@@ -1,0 +1,460 @@
+/*
+# Ledger: the filters
+
+One set of filters shapes every list, chart and summary. It lives on the App as
+one record, `app.filters`; everything here shows it and hands changes back
+through the App's verbs (`setFilter`, `pickPreset`, `stepDates`, `removeChip`,
+`clearFilters`). Nothing here holds a copy of a filter.
+
+- **`FilterBar`** — the date range with its arrows and the comparison beside
+  it, the search, and a button for each other filter, each opening a panel.
+- **`FilterChips`** — every active filter as a chip that removes it, "Clear
+  all", and the line that says the figures are filtered.
+- **The panels** — amount (a histogram over a two-handled slider, and two exact
+  fields), kind, category (with counts under the other filters), contact.
+- **`AmountRange`** — the two-handled slider: a track laid out on the service's
+  own histogram edges, so the crowded low end gets room, and two handles that
+  never cross, each a slider of its own to the keyboard and a screen reader.
+*/
+
+
+// ── The bar ─────────────────────────────────────────────────────────────────
+
+// A button that opens a filter's panel: its name, or what it is set to.
+
+class FilterButton extends Control [ height = { app.tap }, cornerRadius = 8, padding = [0, 8, 0, 11],
+    label: string = "",
+    on: boolean = false,
+
+    // a look per state: the later one wins while both hold
+
+    fill = { provided("theme").control },
+    State [ applied = { hovered }, fill = { provided("theme").controlHovered } ],
+    State [ applied = { classroot.on }, fill = { provided("theme").controlSelected } ],
+    State [ applied = { pressed }, fill = { provided("theme").controlPressed } ],
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    TextLabel [ fontSize = 13, fontWeight = { classroot.on ? "semibold" : "medium" }, wrap = false, text = { classroot.label } ],
+    ChevronIcon [ iconSize = 10, weight = 1.6, ink = { provided("theme").textMuted } ]
+    ]
+
+
+// A small round arrow that steps the date range.
+
+class StepArrow extends Control [ width = { app.tap }, height = { app.tap }, cornerRadius = 8,
+    dir: string = "left",
+    fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
+    ChevronIcon [ x = center, y = center, iconSize = 11, weight = 1.8, dir = { classroot.dir }, ink = { provided("theme").text } ]
+    ]
+
+
+class FilterBar [ width = 100%,
+    layout: WrappingLayout [ spacing = 8, rowSpacing = 8, align = center ],
+
+    // the date range, always present: back, the range, on; and its comparison
+
+    dates: View [
+        layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+        StepArrow [ dir = "left", accessibilityLabel = "Previous period", tooltipLabel = "Previous period  [",
+            disabled = { app.filters.from == "" },
+            press() { app.stepDates(-1) }
+            ],
+        range: FilterButton [ on = true, menu = { app.presetMenu }, accessibilityLabel = { "Date range, " + app.rangeName },
+            label = { app.rangeName } ],
+        StepArrow [ dir = "right", accessibilityLabel = "Next period", tooltipLabel = "Next period  ]",
+            disabled = { app.filters.from == "" },
+            press() { app.stepDates(1) }
+            ]
+        ],
+    compare: FilterButton [ visible = { !app.phone }, menu = { app.compareMenu }, accessibilityLabel = { "Compare with: " + app.compareWords },
+        label = { app.compareWords } ],
+
+    // a phone: every other filter in one sheet, at the thumb
+
+    more: FilterButton [ visible = { app.phone }, on = { app.filtered },
+        label = { app.filtered ? "Filters · " + (app.chips.value?.chips ?? []).length : "Filters" },
+        press() { app.filterSheetOpen = true }
+        ],
+
+    // the search: every word must match; Escape clears it
+
+    search: View [ width = { app.phone ? parent.width : 220 },
+        field: SearchField [ width = 100%, height = { app.tap }, fontSize = { app.phone ? 16 : 13.5 }, padding = [0, 10, 0, 30],
+            placeholder = { app.phone ? "Search" : "Search  /" }, accessibilityLabel = "Search transactions",
+            value = { app.searchText },
+            commit(v: string) { app.typeSearch(v) },
+            onKeyDown(e: KeyEvent) {
+                if (e.key == "Escape" && app.searchText != "") app.typeSearch("")
+                else super.onKeyDown(e)
+                }
+            ],
+        Glyph [ x = 10, y = center, shape = "search", iconSize = 14, weight = 1.6, ink = { provided("theme").textFaint },
+            accessibilityHidden = true ]
+        ],
+
+    amount: FilterButton [ visible = { !app.phone }, label = { app.amountWords == "" ? "Amount" : app.amountWords }, on = { app.amountWords != "" },
+        press() { app.amountPop.showFor(this) }
+        ],
+    kind: FilterButton [ visible = { !app.phone }, label = { app.kindWords == "" ? "Kind" : app.kindWords }, on = { app.filters.kinds.length > 0 },
+        press() { app.kindPop.showFor(this) }
+        ],
+    category: FilterButton [ visible = { !app.phone }, label = { app.categoryWords == "" ? "Category" : app.categoryWords }, on = { app.filters.categories.length > 0 },
+        press() { app.categoryPop.showFor(this) }
+        ],
+    contact: FilterButton [ visible = { !app.phone }, label = { app.contactWords == "" ? "Contact" : app.contactWords }, on = { app.filters.contacts.length > 0 },
+        press() { app.contactPop.showFor(this) }
+        ]
+    ]
+
+
+// A phone's filters, in one sheet: the comparison, then each filter's panel.
+
+class PhoneFilters [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 18 ],
+    Text [ fontSize = 20, fontWeight = bold, accessibilityRole = heading, accessibilityLevel = 2, text = "Filters" ],
+    View [ width = 100%,
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        PanelTitle [ text = "COMPARE WITH" ],
+        Segmented [ width = 100%, height = 44, value = { app.filters.compare }, accessibilityLabel = "Compare with",
+            choices = { [({ id: "previous", label: "Previous" }), ({ id: "year", label: "Last year" }), ({ id: "none", label: "None" })] },
+            input(v: string) { app.setFilter(({ compare: v })) }
+            ]
+        ],
+    AmountPanel [ width = 100% ],
+    KindPanel [ width = 100% ],
+    CategoryPanel [ width = 100% ],
+    ContactPanel [ width = 100% ],
+    View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 10 ],
+        Button [ flexes = true, height = 44, label = "Clear all",
+            onClick() { app.clearFilters() }
+            ],
+        Button [ flexes = true, height = 44, primary = true, label = "Done",
+            onClick() { app.filterSheetOpen = false }
+            ]
+        ]
+    ]
+
+
+// ── The chips ───────────────────────────────────────────────────────────────
+//
+// Shown while any filter beyond the date range is on, so a filtered total is
+// never read as the whole: the line says so on every screen.
+
+class FilterChips [ width = 100%, visible = { app.filtered },
+    layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = center ],
+    note: View [ height = 26,
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        Glyph [ shape = "warn", iconSize = 13, weight = 1.5, ink = { provided("theme").warn }, accessibilityHidden = true ],
+        TextLabel [ fontSize = 12.5, fontWeight = semibold, wrap = false, textColor = { provided("theme").warn },
+            text = "Filtered:" ]
+        ],
+    chips: View [ datapath = { app.chips.value },
+        layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = center ],
+        FilterChip [ datapath = :chips[], label = :label,
+            press() { app.removeChip(:id) }
+            ]
+        ],
+    Control [ height = 26, cornerRadius = 6, padding = [0, 8, 0, 8],
+        fill = { hovered ? provided("theme").controlHovered : null },
+        press() { app.clearFilters() },
+        TextLabel [ fontSize = 12.5, fontWeight = semibold, textColor = { provided("theme").accent }, text = "Clear all" ]
+        ]
+    ]
+
+
+// ── The amount slider ───────────────────────────────────────────────────────
+//
+// One handle of the range. A slider to the keyboard and a screen reader, named
+// for what it sets; the arrows step it by a sensible amount for where it is
+// ($1 low down, $100 in the thousands), Shift-arrows ten times that, Page Up and
+// Page Down to the next stop of the scale ($20, $50, $100, $500…). A drag is one
+// edit, from press to release, so the handle follows the hand every frame
+// whatever the filter does meanwhile.
+
+class AmountHandle extends ValueControl [ claim = x,
+    // the knob is 22 across; on touch the handle around it is a finger's 44
+
+    size: number = { app.tap == 44 ? 44 : 22 },
+    width = { classroot.size }, height = { classroot.size }, cornerRadius = { classroot.size / 2 },
+    value: number = 0,
+    fieldValue = { value },
+    lowest: number = 0,             // where this handle may go: never past the other one
+    highest: number = 500000,
+    top: boolean = false,           // the top handle: at the end of the track it means "no top"
+    what: string = "",
+    commit(v: number) { value = v },
+    accessibilityRole = slider,
+    accessibilityLabel = { classroot.what },
+    accessibilityValue = { classroot.shown },
+    accessibilityMin = { classroot.lowest },
+    accessibilityMax = { classroot.highest },
+    accessibilityValueText = { classroot.words },
+    words: string = { classroot.top && classroot.shown >= 500000 ? "No maximum" : money(classroot.shown) },
+    bounded(v: number) -> number { return Math.max(lowest, Math.min(highest, v)) },
+    accessibilityIncrement() { edit(bounded(snapAmount(shown + amountStep(shown)))) },
+    accessibilityDecrement() { edit(bounded(snapAmount(shown - amountStep(Math.max(0, shown - 1))))) },
+    onKeyDown(e: KeyEvent) {
+        if (e.shift && (e.key == "ArrowRight" || e.key == "ArrowUp")) edit(bounded(snapAmount(shown + 10 * amountStep(shown))))
+        else if (e.shift && (e.key == "ArrowLeft" || e.key == "ArrowDown")) edit(bounded(snapAmount(shown - 10 * amountStep(Math.max(0, shown - 1)))))
+        else if (e.key == "PageUp") edit(bounded(AMOUNT_EDGES.find((x) => x > shown) ?? highest))
+        else if (e.key == "PageDown") edit(bounded([...AMOUNT_EDGES].reverse().find((x) => x < shown) ?? lowest))
+        else if (e.key == "Home") edit(lowest)
+        else if (e.key == "End") edit(highest)
+        else super.onKeyDown(e)
+        },
+
+    // placed on its own track by its own value
+
+    track: number = 200,
+    x = { amountFrac(classroot.shown) * classroot.track - (classroot.size - 22) / 2 },
+    y = { 30 - (classroot.size - 22) / 2 },
+
+    dragging: boolean = false,
+    _x0: number = 0,
+    _f0: number = 0,
+    onPointerDown() {
+        super.onPointerDown()
+        if (disabled) return
+        dragging = true
+        _x0 = app.pointerX
+        _f0 = amountFrac(shown)
+        beginEdit()
+        },
+    onPointerMove() {
+        if (dragging) edit(bounded(snapAmount(amountAt(_f0 + (app.pointerX - _x0) / Math.max(1, track)))))
+        },
+    onPointerUp() { if (dragging) { dragging = false; endEdit() } },
+
+    knob: View [ x = center, y = center, width = 22, height = 22, cornerRadius = 11,
+        fill = { provided("theme").surface },
+        stroke = { stroke(2, provided("theme").accent) },
+        shadow = { shadow(0, 1, 4, 0x00000030) },
+        scale = { classroot.dragging ? 1.12 : 1 }, pivotX = 11, pivotY = 11 ]
+    ]
+
+
+// The whole range: the histogram, the track and its highlighted span, the two
+// handles and the labels at friendly values. `lo` and `hi` are the range in
+// cents (`hi` at the end is "no top"); `buckets` is the service's histogram of
+// the transactions matching the other filters.
+
+class AmountRange [ height = 82,
+    lo: number = 0,
+    hi: number = 500000,
+    buckets: Bucket[] = [],
+    changed(lo: number, hi: number) { },
+    span: number = { this.width - 22 },           // where a handle's left edge may go
+
+    // what the person has set and the filter has not caught up with yet (-1: nothing);
+    // the next step of a held key starts from here, not from the filter
+
+    _lo: number = -1,
+    _hi: number = -1,
+    curLo: number = { classroot._lo >= 0 ? classroot._lo : classroot.lo },
+    curHi: number = { classroot._hi >= 0 ? classroot._hi : classroot.hi },
+    trackChanges = ["lo", "hi"],
+    onChange() { _lo = -1; _hi = -1 },
+
+    // what the handles show right now (the hand's, while a drag is open)
+
+    shownLo: number = { classroot.min.shown },
+    shownHi: number = { classroot.max.shown },
+
+    histogram: View [ x = 11, y = 0, width = { classroot.span }, height = 30,
+        draw(d: DrawContext) {
+            const b = classroot.buckets
+            const n = AMOUNT_EDGES.length - 1
+            if (b.length == 0) return
+            const peak = Math.max(1, ...b.map((x) => x.count))
+            const w = d.w / n
+            for (let i = 0; i < n && i < b.length; i++) {
+                const c = i == n - 1 ? b[i].count + (b[i + 1]?.count ?? 0) : b[i].count     // the last bar holds the long tail
+                if (c == 0) continue
+                const h = Math.max(2, Math.sqrt(c / peak) * (d.h - 2))
+                const inside = b[i].min >= classroot.shownLo && (classroot.shownHi >= 500000 || (b[i].max ?? 0) <= classroot.shownHi)
+                d.fillStyle = inside ? provided("theme").accent : provided("theme").lineStrong
+                d.globalAlpha = inside ? 0.75 : 1
+                d.beginPath()
+                d.roundRect(i * w + 1, d.h - h, w - 2, h, 2)
+                d.fill()
+                d.globalAlpha = 1
+                }
+            }
+        ],
+    rail: View [ x = 11, y = 40, width = { classroot.span }, height = 4, cornerRadius = 2, fill = { provided("theme").control },
+        span: View [ height = 4, cornerRadius = 2, fill = { provided("theme").accent },
+            x = { amountFrac(classroot.shownLo) * parent.width },
+            width = { (amountFrac(classroot.shownHi) - amountFrac(classroot.shownLo)) * parent.width } ]
+        ],
+    min: AmountHandle [ what = "Minimum amount", track = { classroot.span },
+        value = { classroot.curLo }, lowest = 0, highest = { Math.max(0, classroot.shownHi - amountStep(classroot.shownHi)) },
+        commit(v: number) { classroot._lo = v; classroot.changed(v, classroot.curHi) }
+        ],
+    max: AmountHandle [ what = "Maximum amount", top = true, track = { classroot.span },
+        value = { classroot.curHi }, lowest = { classroot.shownLo + amountStep(classroot.shownLo) }, highest = 500000,
+        commit(v: number) { classroot._hi = v; classroot.changed(classroot.curLo, v) }
+        ],
+    ticks: View [ x = 11, y = 60, width = { classroot.span }, height = 16,
+        draw(d: DrawContext) {
+            const st = ({ fontSize: 10.5, textColor: provided("theme").textFaint })
+            for (const v of AMOUNT_TICKS) {
+                const label = v >= 500000 ? roundMoneyLabel(v) + "+" : roundMoneyLabel(v)
+                const m = measureText(label, st)
+                const x = Math.max(0, Math.min(d.w - m.width, amountFrac(v) * d.w - m.width / 2))
+                d.fillText(label, x, 12, st)
+                }
+            }
+        ]
+    ]
+
+
+// ── The panels ──────────────────────────────────────────────────────────────
+
+class PanelTitle extends Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 0.3, wrap = false,
+    textColor = { provided("theme").textMuted }
+    ]
+
+
+// Amount: the slider, and two fields that take exact cents.
+
+class AmountPanel [ width = 340,
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    PanelTitle [ text = "AMOUNT" ],
+    Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textMuted },
+        text = { (app.figures.amounts.value?.count ?? 0).toLocaleString("en-US") + " transactions match the other filters" } ],
+    range: AmountRange [ width = 100%,
+        lo = { app.filters.min ?? 0 }, hi = { app.filters.max ?? 500000 },
+        buckets = { app.figures.amounts.value?.buckets ?? [] },
+        changed(lo: number, hi: number) { app.setAmount(lo, hi) }
+        ],
+    fields: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        lowField: TextInput [ flexes = true, height = { app.tap }, fontSize = 13, accessibilityLabel = "Minimum amount, exact",
+            placeholder = "No minimum", commitOn = "end", purpose = decimal,
+            value = { app.filters.min == null ? "" : moneyInput(app.filters.min) },
+            validate(v: string) -> string { return v.trim() == "" || !isNaN(parseMoney(v)) ? "" : "Type an amount like 20.00" },
+            commit(v: string) { app.typeAmount("min", v) }
+            ],
+        Text [ fontSize = 13, textColor = { provided("theme").textMuted }, text = "to" ],
+        highField: TextInput [ flexes = true, height = { app.tap }, fontSize = 13, accessibilityLabel = "Maximum amount, exact",
+            placeholder = "No maximum", commitOn = "end", purpose = decimal,
+            value = { app.filters.max == null ? "" : moneyInput(app.filters.max) },
+            validate(v: string) -> string { return v.trim() == "" || !isNaN(parseMoney(v)) ? "" : "Type an amount like 200.00" },
+            commit(v: string) { app.typeAmount("max", v) }
+            ]
+        ],
+    Button [ visible = { app.amountWords != "" }, height = 28, fontSize = 12.5, label = "Any amount",
+        onClick() { app.setFilter(({ min: null, max: null })) }
+        ]
+    ]
+
+
+// One choice in a panel: a checkbox, its name, and a count beside it.
+
+class ChoiceRow [ width = 100%, height = { app.tap },
+    label: string = "",
+    count: number = -1,
+    on: boolean = false,
+    toggled(v: boolean) { },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    Checkbox [ flexes = true, label = { classroot.label }, checked = { classroot.on },
+        commit(v: boolean) { classroot.toggled(v) }
+        ],
+    Text [ visible = { classroot.count >= 0 }, fontSize = 12, wrap = false, numeralWidth = tabular,
+        textColor = { provided("theme").textFaint }, text = { classroot.count.toLocaleString("en-US") } ]
+    ]
+
+
+// Kind: sales, refunds, expenses — several at once.
+
+class KindPanel [ width = 220,
+    layout: SimpleLayout [ axis = y, spacing = 4 ],
+    PanelTitle [ text = "KIND" ],
+    list: View [ width = 100%, datapath = { app.kindsData.value },
+        layout: SimpleLayout [ axis = y ],
+        ChoiceRow [ datapath = :kinds[], label = :label, on = { app.filters.kinds.includes(:id) },
+            toggled(v: boolean) { app.toggleIn("kinds", :id, v) }
+            ]
+        ]
+    ]
+
+
+// Category: every category, with how many transactions each would have under
+// the other filters, Uncategorised first.
+
+class CategoryPanel [ width = 280,
+    layout: SimpleLayout [ axis = y, spacing = 4 ],
+    PanelTitle [ text = "CATEGORY" ],
+    list: View [ width = 100%, height = 360, scrolls = y,
+        datapath = { app.categoryChoices.value },
+        layout: SimpleLayout [ axis = y ],
+        ChoiceRow [ datapath = :rows[], label = :label, count = :count, on = { app.filters.categories.includes(:id) },
+            toggled(v: boolean) { app.toggleIn("categories", :id, v) }
+            ]
+        ]
+    ]
+
+
+// Contact: typed to narrow, then ticked; the ones chosen stay at the top.
+
+class ContactPanel [ width = 280,
+    query: string = "",
+    choices: Dataset [ contents = { { rows: app.contactChoices(classroot.query) } } ],
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    PanelTitle [ text = "CONTACT" ],
+    SearchField [ width = 100%, height = { app.tap }, fontSize = { app.phone ? 16 : 13 }, placeholder = "Find a customer or vendor",
+        accessibilityLabel = "Find a contact", value <-> classroot.query ],
+    list: View [ width = 100%, height = 300, scrolls = y,
+        datapath = { classroot.choices.value },
+        layout: SimpleLayout [ axis = y ],
+        ChoiceRow [ datapath = :rows[], label = :label, on = { app.filters.contacts.includes(:id) },
+            toggled(v: boolean) { app.toggleIn("contacts", :id, v) }
+            ]
+        ]
+    ]
+
+
+// A custom date range: two dates, typed as when recording ("1 mar", "yesterday",
+// 2026-03-01), each showing the day it was read as, applied together.
+
+class DateEntry [ width = 100%,
+    label: string = "",
+    text: string = "",
+    day: string = { parseDateInput(classroot.text, app.today) },
+    changed(v: string) { },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    TextInput [ width = 130, height = 32, fontSize = 13, accessibilityLabel = { classroot.label },
+        placeholder = "1 mar", value = { classroot.text },
+        validate(v: string) -> string { return parseDateInput(v, app.today) != "" ? "" : "Type a date like “1 mar” or 2026-03-01" },
+        commit(v: string) { classroot.changed(v) },
+        onEnter() { app.customForm?.apply() }
+        ],
+    Text [ flexes = true, fontSize = 12.5, textColor = { provided("theme").textMuted }, text = { longDate(classroot.day) } ]
+    ]
+
+
+class CustomRange [ width = 300,
+    fromText: string = { app.filters.from == "" ? shortDate(addMonths(app.today, -1)) : shortDate(app.filters.from) },
+    toText: string = { app.filters.to == "" ? shortDate(app.today) : shortDate(app.filters.to) },
+    from: string = { parseDateInput(classroot.fromText, app.today) },
+    to: string = { parseDateInput(classroot.toText, app.today) },
+    ok: boolean = { classroot.from != "" && classroot.to != "" },
+    apply() {
+        if (!ok) return
+        app.setDates(from <= to ? from : to, from <= to ? to : from, "custom")
+        app.customPop.close()
+        },
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    PanelTitle [ text = "DATE RANGE" ],
+    EditorLabel [ text = "From" ],
+    DateEntry [ label = "From", text = { classroot.fromText },
+        changed(v: string) { classroot.fromText = v }
+        ],
+    EditorLabel [ text = "To" ],
+    DateEntry [ label = "To", text = { classroot.toText },
+        changed(v: string) { classroot.toText = v }
+        ],
+    Button [ label = "Apply", primary = true, disabled = { !classroot.ok },
+        onClick() { classroot.apply() }
+        ]
+    ]

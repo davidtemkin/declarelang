@@ -1,0 +1,1140 @@
+/*
+# Ledger
+
+The books of a small business that makes and sells things: what came in, what
+went out, and how the business is doing. Every record lives behind the Ledger
+service (`task/api/API.md`, on port 8370), which validates every write and
+computes every total; this program never adds money up on its own, except to
+describe a selection the person has made in the list.
+
+How to read it:
+
+- **The records are the service's.** `books` (a `Books`, ledger-model.declare)
+  holds what does not depend on the filters — today, the categories, channels,
+  products, contacts — and makes every write. `figures` (a `Figures`) holds
+  what does: the list and its summary, every chart's periods, every ranking,
+  the budgets. Each figure is a `DataSource` whose address is derived from the
+  filters, so changing the filters is the whole of "reload": the old answer stays
+  on screen, dimmed, until the new one lands, and a request for filters since
+  replaced is superseded and never shown.
+- **Where the person is** lives on this App: the screen (`location`, in the
+  URL), the one `filters` every screen shares, the Insights tab, the list's
+  sort, the selection, the cell being edited, the editor. Everything on screen
+  derives from those and from the figures.
+- **Every number opens its records.** A chart, a ranking, a headline or a
+  budget calls one of the `open…` verbs below, which narrow the filters to
+  exactly the records behind the figure and go to Transactions, remembering
+  where they came from: Back returns to the chart as it was.
+- **Every change can be undone.** A write's reply carries a `changeId`; the
+  toast says what was done and offers Undo, and ⌘Z does the same.
+
+The files, in the order to read them:
+
+- `ledger-model.declare` — the service's shapes, `Books` and `Figures`.
+- `ledger-helpers.ts` — money, dates, presets, parsing: plain functions.
+- `ledger-parts.declare` — themes, glyphs, small parts.
+- `ledger-filters.declare` — the filters bar, chips and panels.
+- `ledger-charts.declare` — the period chart and ranked bars.
+- `ledger-overview.declare`, `ledger-transactions.declare`,
+  `ledger-insights.declare`, `ledger-budgets.declare` — the four screens.
+- `ledger-editor.declare` — recording an expense, a sale or a refund.
+
+`checks/` holds the brief's "what done looks like" as scripts, one flow each, run
+against the live service: `npx declare-verify my-apps/ledger/ledger.declare --assert
+my-apps/ledger/checks/01-overview-drill.mjs`. They write to the service (a sale, a
+refund, an expense, a budget), as a person trying the flows would.
+*/
+
+include [ "ledger-model.declare", "ledger-parts.declare", "ledger-filters.declare", "ledger-charts.declare",
+    "ledger-overview.declare", "ledger-transactions.declare", "ledger-insights.declare",
+    "ledger-budgets.declare", "ledger-editor.declare"
+    ]
+
+
+script [ "ledger-helpers.ts" ]
+
+// Saving a file is the browser's business, so this one function is marked for it.
+
+script [ host = browser ] {
+    function downloadText(name: string, text: string) {
+        const url = URL.createObjectURL(new Blob([text], { type: "text/csv;charset=utf-8" }))
+        const a = document.createElement("a")
+        a.href = url
+        a.download = name
+        document.body.appendChild(a)
+        a.click()
+        a.remove()
+        setTimeout(() => URL.revokeObjectURL(url), 1000)
+    }
+    }
+
+schema Chip [ id: string, label: string ]
+schema Attention [ id: string, label: string, detail: string, severe: boolean, categoryId?: string, from?: string, to?: string ]
+schema Return [ location: string, filter: Filter, tab: string, why: string ]
+
+
+// One way out of an empty list: the same filter without one of its parts, and
+// how many transactions that would show. Asked only while the list is empty.
+
+class Relax extends Node [
+    facet: string = "",
+    words: string = "",              // the part, as the person reads it: "Amount ≥ $500"
+    query: string = "",              // the filter without it, "" when not asked
+    api: string = "",
+    src: DataSource [ autoFetch = true, schema = Summary,
+        url = { classroot.query == "" ? "" : classroot.api + "/api/summary?" + classroot.query } ],
+    count: number = { classroot.query == "" ? 0 : classroot.src.value?.count ?? 0 }
+    ]
+
+
+// A place in the sidebar: a link to a screen. A narrow sidebar shows only its icon.
+
+class NavItem [ width = 100%, height = 34, cornerRadius = 8, padding = { app.slim ? [0, 0, 0, 13] : [0, 10, 0, 10] },
+    place: string = "overview",
+    label: string = "",
+    glyph: string = "",
+    here: boolean = { app.screen == classroot.place },
+    link = { "#" + classroot.place },
+    accessibilityLabel = { classroot.label },
+    tooltipLabel = { app.slim ? classroot.label : "" },
+    fill = { classroot.here ? provided("theme").controlSelected : hovered ? provided("theme").controlHovered : null },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    Glyph [ shape = { classroot.glyph }, iconSize = 16, weight = 1.6,
+        ink = { classroot.here ? provided("theme").accent : provided("theme").textMuted } ],
+    TextLabel [ visible = { !app.slim }, fontSize = 13.5, fontWeight = { classroot.here ? "semibold" : "medium" }, text = { classroot.label } ]
+    ]
+
+
+// A tab at a phone's foot: big enough for a thumb.
+
+class PhoneTab [ flexes = true, height = 56,
+    place: string = "overview",
+    label: string = "",
+    glyph: string = "",
+    here: boolean = { app.screen == classroot.place },
+    link = { "#" + classroot.place },
+    layout: SimpleLayout [ axis = y, spacing = 3, align = center ],
+    padding = [9, 0, 0, 0],
+    Glyph [ shape = { classroot.glyph }, iconSize = 20, weight = 1.7,
+        ink = { classroot.here ? provided("theme").accent : provided("theme").textMuted } ],
+    Text [ fontSize = 11, fontWeight = medium, wrap = false,
+        textColor = { classroot.here ? provided("theme").accent : provided("theme").textMuted }, text = { classroot.label } ]
+    ]
+
+
+App [ appName = "Ledger", minWidth = 320, scrolls = none,
+    fill = { provided("theme").background },
+    textColor = { provided("theme").text },
+    fontFamily = ["-apple-system", "system-ui", "Segoe UI", "Helvetica Neue", "sans-serif"],
+
+    // ── appearance: follow the system until the person picks one; less motion when asked
+
+    themeMode: "auto" | "light" | "dark" = "auto",
+    isDark: boolean = { app.themeMode == "auto" ? app.systemDark : app.themeMode == "dark" },
+    theme = { app.isDark ? ({ ...SanFranciscoDark, ...LedgerDark }) : ({ ...SanFrancisco, ...LedgerLight }) },
+    calm: boolean = { app.accessibilitySettings.reduceMotion },
+    springK: number = { app.calm ? 3000 : 220 },
+    springD: number = { app.calm ? 120 : 26 },
+
+    // ── sizes: a desk first; a phone gets its own arrangement
+
+    phone: boolean = { app.width < 700 },
+    narrow: boolean = { app.width < 1000 },
+    wide: boolean = { app.width >= 1180 },          // room for everything at full size
+    slim: boolean = { !app.wide && !app.phone },    // between: the sidebar folds to its icons
+    tap: number = { app.phone || app.touchFirst ? 44 : 32 },   // a control's height: a finger's on touch
+
+    // ── the books and the figures
+
+    api: string = "http://127.0.0.1:8370",
+    books: Books [ api = { app.api },
+        wrote(what: string, reply: object) { app.wrote(what, reply) },
+        refused(what: string, status: number, body: object) { app.refused(what, status, body) }
+        ],
+    ready: boolean = { app.books.ready },
+    today: string = { app.books.today },
+
+    figures: Figures [ api = { app.api }, live = { app.ready },
+        filtered = { app.queryOf(app.filters, true) },
+        others = { app.queryOf(app.filters, false) },
+        cmpFrom = { app.cmpRange[0] }, cmpTo = { app.cmpRange[1] },
+        chartFrom = { app.filters.from }, chartTo = { app.chartTo },
+        yearFrom = { app.yearRange[0] }, yearTo = { app.yearRange[1] },
+        grain = { app.grain }, side = { app.breakdownSide },
+        sortOn = { app.sortOn }, sortDir = { app.sortDir },
+        budgetMonth = { app.budgetMonth } ],
+    listWatch: Watch [ busy = { app.figures.list.loading } ],
+    yearWatch: Watch [ busy = { app.figures.year.loading } ],
+    periodWatch: Watch [ busy = { app.figures.periods.loading } ],
+
+    // ── where the person is
+
+    location = "overview",
+    screen: string = { app.location == "" ? "overview" : app.location },
+    screenTitle: string = { ({ overview: "Overview", transactions: "Transactions", insights: "Insights", budgets: "Budgets" })[app.screen] ?? "Ledger" },
+
+    // The one filters. Until it is first changed it follows today: this month.
+
+    filters: Filter = { app.freshFilter(app.today) },
+    freshFilter(today: string) -> Filter {
+        const r = today == "" ? ["", ""] : presetRange("this-month", today)
+        return ({ preset: "this-month", from: r[0], to: r[1], compare: "previous", q: "", min: null, max: null,
+            kinds: [], categories: [], contacts: [], products: [] })
+        },
+
+    searchText: string = { app.filters.q },          // what is typed; it reaches the filters a moment later
+    insightTab: string = "trends",
+    trendMeasure: string = "revenue",
+    grainPick: string = "",                          // "" follows the range
+    breakdownSide: string = "expense",
+    sortOn: string = "date",
+    sortDir: string = "desc",
+    returnTo: Return? = null,                        // where a drill-down came from
+
+    // A new filters is a new list: nothing in it is selected yet, and it starts at the top.
+
+    trackChanges = ["filters", "location"],
+    onChange(e: ChangeEvent) {
+        for (const c of e.changed) {
+            if (c.name == "filters") { app.clearSelection(); app.grainPick = "" }
+            if (c.name == "location") app.arrived()
+            }
+        },
+
+    // ── the filters, in words
+
+    rangeName: string = {
+        app.filters.preset == "custom" || app.filters.preset == "all" ? rangeLabel(app.filters.from, app.filters.to)
+        : app.phone ? presetLabel(app.filters.preset) : presetLabel(app.filters.preset) + " · " + rangeLabel(app.filters.from, app.filters.to) },
+    cmpRange: string[] = { compareRange(app.filters.from, app.filters.to, app.filters.compare, app.today) },
+    comparing: boolean = { app.cmpRange[0] != "" },
+    versus: string = { compareName(app.filters.from, app.filters.to, app.cmpRange[0], app.filters.compare) },
+    compareWords: string = { app.filters.compare == "none" ? "No comparison" : app.filters.compare == "year" ? "vs same period last year" : "vs previous period" },
+    amountWords: string = { app.amountLabel(app.filters.min, app.filters.max) },
+    amountLabel(min: number?, max: number?) -> string {
+        if (min == null && max == null) return ""
+        if (max == null) return "≥ " + money(min ?? 0)
+        if (min == null || min == 0) return "≤ " + money(max)
+        return money(min) + " – " + money(max)
+        },
+    kindName(k: string) -> string { return k == "sale" ? "Sale" : k == "refund" ? "Refund" : k == "expense" ? "Expense" : "" },
+    kindPlural(k: string) -> string { return k == "sale" ? "Sales" : k == "refund" ? "Refunds" : "Expenses" },
+    listWords(names: string[]) -> string {
+        if (names.length == 0) return ""
+        return names.length == 1 ? names[0] : names[0] + " +" + (names.length - 1)
+        },
+    kindWords: string = { app.listWords(app.filters.kinds.map((k) => app.kindPlural(k))) },
+    categoryWords: string = { app.listWords(app.filters.categories.map((c) => app.books.categoryName(c))) },
+    contactWords: string = { app.listWords(app.filters.contacts.map((c) => app.books.contactName(c))) },
+
+    // the filters beyond the date range: when any is on, every screen says the figures are filtered
+
+    filtered: boolean = { app.filters.q.trim() != "" || app.filters.min != null || app.filters.max != null ||
+        app.filters.kinds.length > 0 || app.filters.categories.length > 0 || app.filters.contacts.length > 0 || app.filters.products.length > 0 },
+
+    chips: Dataset [ schema = [ chips[]: Chip ], contents = { { chips: app.chipList(app.filters) } } ],
+    chipList(f: Filter) -> Chip[] {
+        const out: Chip[] = []
+        if (f.q.trim() != "") out.push(({ id: "q", label: "“" + f.q.trim() + "”" }))
+        const amt = this.amountLabel(f.min, f.max)
+        if (amt != "") out.push(({ id: "amount", label: "Amount " + amt }))
+        for (const k of f.kinds) out.push(({ id: "kinds:" + k, label: this.kindPlural(k) }))
+        for (const c of f.categories) out.push(({ id: "categories:" + c, label: books.categoryName(c) }))
+        for (const c of f.contacts) out.push(({ id: "contacts:" + c, label: books.contactName(c) }))
+        for (const p of f.products) out.push(({ id: "products:" + p, label: books.productName(p) }))
+        return out
+        },
+
+    // the filters as the service's query: dates, or everything but them
+
+    queryOf(f: Filter, dates: boolean) -> string {
+        const p = new URLSearchParams()
+        if (dates && f.from != "") p.set("from", f.from)
+        if (dates && f.to != "") p.set("to", f.to)
+        if (f.q.trim() != "") p.set("q", f.q.trim())
+        if (f.min != null) p.set("min", String(f.min))
+        if (f.max != null) p.set("max", String(f.max))
+        if (f.kinds.length > 0) p.set("kind", f.kinds.join(","))
+        if (f.categories.length > 0) p.set("category", f.categories.join(","))
+        if (f.contacts.length > 0) p.set("contact", f.contacts.join(","))
+        if (f.products.length > 0) p.set("product", f.products.join(","))
+        return p.toString()
+        },
+
+    // ── the ranges the figures cover
+
+    // time charts run to today at the latest: a period not yet begun is not drawn
+
+    chartTo: string = { app.filters.to == "" || app.filters.to > app.today ? app.today : app.filters.to },
+
+    // twelve months up to the filter's end; six on a phone, so each is a finger wide
+
+    yearRange: string[] = { [monthStart(addMonths(app.chartTo == "" ? "2000-01-01" : app.chartTo, app.phone ? -5 : -11)), app.chartTo] },
+    grain: string = { app.grainPick != "" ? app.grainPick : defaultGrain(app.filters.from == "" ? addMonths(app.today, -24) : app.filters.from, app.chartTo) },
+    budgetMonth: string = { app.today == "" ? "" : monthKey(app.chartTo < app.filters.from ? app.filters.from : app.chartTo) },
+
+    // ── changing the filters
+
+    setFilter(patch: object) { filters = ({ ...filters, ...patch }) as Filter },
+    setDates(from: string, to: string, preset: string) { this.setFilter(({ from: from, to: to, preset: preset })) },
+    pickPreset(id: string) { const r = presetRange(id, today); this.setDates(r[0], r[1], id) },
+    stepDates(dir: number) {
+        if (filters.from == "" || filters.to == "") return
+        const r = stepRange(filters.from, filters.to, dir)
+        this.setDates(r[0], r[1], "custom")
+        },
+    toggleIn(field: string, id: string, on: boolean) {
+        const cur = ((filters as any)[field] ?? []) as string[]
+        const next = on ? (cur.includes(id) ? cur : [...cur, id]) : cur.filter((x) => x != id)
+        this.setFilter(({ [field]: next }))
+        },
+    removeChip(id: string) {
+        if (id == "q") { searchText = ""; this.setFilter(({ q: "" })) }
+        else if (id == "amount") this.setFilter(({ min: null, max: null }))
+        else { const i = id.indexOf(":"); this.toggleIn(id.slice(0, i), id.slice(i + 1), false) }
+        },
+
+    // "Clear all" returns to this month and nothing else
+
+    clearFilters() { searchText = ""; filters = this.freshFilter(today) },
+
+    // the search reaches the filters once typing pauses
+
+    _searchSeq: number = 0,
+    typeSearch(v: string) {
+        searchText = v
+        _searchSeq = _searchSeq + 1
+        const seq = _searchSeq
+        afterDelay(v == "" ? 0 : 180, () => { if (app._searchSeq == seq && app.filters.q != app.searchText) app.setFilter(({ q: app.searchText })) })
+        },
+
+    // the slider reaches the filters once the hand pauses; the handles follow the hand meanwhile
+
+    _amountSeq: number = 0,
+    setAmount(lo: number, hi: number) {
+        _amountSeq = _amountSeq + 1
+        const seq = _amountSeq
+        afterDelay(120, () => { if (app._amountSeq == seq) app.setFilter(({ min: lo > 0 ? lo : null, max: hi >= 500000 ? null : hi })) })
+        },
+    typeAmount(which: string, text: string) {
+        const v = text.trim() == "" ? null : parseMoney(text)
+        if (v != null && (isNaN(v) || v < 0)) return
+        if (which == "min") this.setFilter(({ min: v == 0 ? null : v }))
+        else this.setFilter(({ max: v }))
+        },
+
+    // what the filters panels list
+
+    kindsData: Dataset { { "kinds": [ { "id": "sale", "label": "Sales" }, { "id": "refund", "label": "Refunds" }, { "id": "expense", "label": "Expenses" } ] } },
+    categoryChoices: Dataset [ contents = { { rows: app.categoryRows() } } ],
+    categoryRows() -> array {
+        const counts = figures.categoryCounts.value?.categories ?? []
+        const countOf = (id: string | null) => counts.find((c) => c.categoryId == id)?.count ?? 0
+        const cats = books.categories().filter((c) => !c.archived || countOf(c.id) > 0 || filters.categories.includes(c.id))
+        return [({ id: "none", label: "Uncategorised", count: countOf(null) }),
+            ...cats.map((c) => ({ id: c.id, label: c.name + (c.kind == "income" ? " (income)" : ""), count: countOf(c.id) }))]
+        },
+    contactChoices(q: string) -> array {
+        const t = q.trim().toLowerCase()
+        const all = books.contacts().filter((c) => t == "" || c.name.toLowerCase().includes(t))
+        const chosen = all.filter((c) => filters.contacts.includes(c.id))
+        const rest = all.filter((c) => !filters.contacts.includes(c.id))
+        return [...chosen, ...rest].map((c) => ({ id: c.id, label: c.name }))
+        },
+
+    // ── the headline figures
+
+    curTotals: Totals? = { app.figures.periods.value?.total ?? null },
+    cmpTotals: Totals? = { app.comparing ? app.figures.cmpPeriods.value?.total ?? null : null },
+    measureOf(t: Totals?, m: string) -> number {
+        if (t == null) return 0
+        if (m == "revenue") return t.revenue.amount
+        if (m == "expenses") return t.expenses.amount
+        if (m == "net") return t.net.amount
+        if (m == "sales") return t.sales.count
+        return t.grossMargin.percent ?? NaN
+        },
+    spark(m: string) -> number[] {
+        return (figures.year.value?.periods ?? []).map((p) => m == "margin" ? p.grossMargin.percent ?? 0 : this.measureOf(p, m))
+        },
+    sparkPartial: boolean = { (app.figures.year.value?.periods ?? []).some((p) => p.partial) },
+
+    // ── the charts' points
+
+    ieSeries(running: boolean) -> Series[] {
+        const t = provided("theme")
+        const out: Series[] = [
+            ({ id: "a", name: "Revenue", tone: t.income, kinds: ["sale", "refund"] }),
+            ({ id: "b", name: "Expenses", tone: t.expense, kinds: ["expense"] }),
+            ({ id: "line", name: "Net profit", tone: t.net, kinds: [] })]
+        if (running) out.push(({ id: "run", name: "Net profit so far", tone: t.accent, kinds: [] }))
+        return out
+        },
+    toPoints(ps: Period[], by: string, cmp: Period[], m: string) -> ChartPoint[] {
+        let run = 0, runCount = 0
+        return ps.map((p, i) => {
+            run = run + p.net.amount
+            runCount = runCount + p.net.count
+            const c = cmp[i]
+            return ({ id: p.period, label: periodLabel(p.period, by, true), tick: periodTick(p.period, by),
+                from: p.from, to: p.to, partial: p.partial,
+                a: p.revenue.amount, b: p.expenses.amount,
+                line: m == "" ? p.net.amount : m == "margin" ? p.grossMargin.percent ?? 0 : this.measureOf(p, m),
+                run: run, cmp: c == null ? 0 : m == "margin" ? c.grossMargin.percent ?? 0 : this.measureOf(c, m == "" ? "net" : m),
+                ca: p.revenue.count, cb: p.expenses.count,
+                cl: m == "sales" ? p.sales.count : m == "margin" || m == "revenue" ? p.revenue.count : m == "expenses" ? p.expenses.count : p.net.count,
+                cr: runCount, cc: 0, cmpLabel: c == null ? "" : periodLabel(c.period, by, true) })
+            })
+        },
+    yearPoints: ChartPoint[] = { app.toPoints(app.figures.year.value?.periods ?? [], "month", [], "") },
+
+    // ── rankings
+
+    expenseRanks: Dataset [ schema = [ rows[]: Rank ], contents = { { rows: app.categoryRanks(app.figures.expenses.value?.categories ?? [], [], 5) } } ],
+    categoryRanks(cs: CategoryTotal[], before: CategoryTotal[], top: number) -> Rank[] {
+        const t = provided("theme")
+        const total = cs.reduce((n, c) => n + c.amount, 0)
+        const head = top > 0 && cs.length > top + 1 ? cs.slice(0, top) : cs
+        const rest = cs.slice(head.length)
+        const rows: Rank[] = head.map((c) => {
+            const was = before.find((b) => b.categoryId == c.categoryId)
+            const col = books.colourOf(c.categoryId)
+            return ({ id: c.categoryId ?? "none", name: books.categoryName(c.categoryId), tone: col >= 0 ? t.cats[col] : t.warn,
+                amount: c.amount, frac: 0, share: total == 0 ? 0 : c.amount / total * 100,
+                change: was == null ? NaN : changePct(c.amount, was.amount), hasChange: was != null && was.amount != 0,
+                count: c.count, extra: "" })
+            })
+        if (rest.length > 0) rows.push(({ id: "other:" + rest.map((c) => c.categoryId ?? "none").join(","), name: "Other",
+            tone: t.textFaint, amount: rest.reduce((n, c) => n + c.amount, 0), frac: 0,
+            share: total == 0 ? 0 : rest.reduce((n, c) => n + c.amount, 0) / total * 100,
+            change: NaN, hasChange: false, count: rest.reduce((n, c) => n + c.count, 0), extra: "" }))
+        const peak = Math.max(1, ...rows.map((r) => Math.abs(r.amount)))
+        return rows.map((r) => ({ ...r, frac: Math.max(0, r.amount) / peak }))
+        },
+    productRanks: Dataset [ schema = [ rows[]: Rank ], contents = { { rows: app.productRankRows(5) } } ],
+    productRankRows(top: number) -> Rank[] {
+        const ps = (figures.products.value?.products ?? []).slice(0, top)
+        const peak = Math.max(1, ...ps.map((p) => p.revenue))
+        return ps.map((p, i) => ({ id: p.productId ?? "none", name: books.productName(p.productId), tone: provided("theme").income,
+            amount: p.revenue, frac: Math.max(0, p.revenue) / peak, share: 0, change: NaN, hasChange: false, count: p.count,
+            extra: p.units + " sold" }))
+        },
+    customerRanks: Dataset [ schema = [ rows[]: Rank ], contents = { { rows: app.customerRankRows() } } ],
+    customerRankRows() -> Rank[] {
+        const cs = figures.customers.value?.contacts ?? []
+        const peak = Math.max(1, ...cs.map((c) => c.amount))
+        return cs.map((c) => ({ id: c.contactId ?? "none", name: c.contactId == null ? "No customer" : c.contactName ?? "",
+            tone: provided("theme").accent, amount: c.amount, frac: Math.max(0, c.amount) / peak, share: 0, change: NaN,
+            hasChange: false, count: c.count, extra: "" }))
+        },
+
+    // ── what needs attention
+
+    attention: Dataset [ schema = [ items[]: Attention ], contents = { { items: app.attentionItems() } } ],
+    attentionItems() -> Attention[] {
+        const out: Attention[] = []
+        const un = figures.uncategorised.value
+        if (un != null && un.count > 0) out.push(({ id: "uncategorised", severe: false,
+            label: un.count + (un.count == 1 ? " uncategorised transaction" : " uncategorised transactions"),
+            detail: "In " + money(un.in) + " · Out " + money(un.out) + " · all time" }))
+        const b = figures.budgets.value
+        for (const x of b?.budgets ?? []) {
+            if (x.amount <= 0 || x.spent < x.amount * 0.9) continue
+            const over = x.spent > x.amount
+            out.push(({ id: "budget:" + x.categoryId, categoryId: x.categoryId, from: b?.from, to: b?.to, severe: over,
+                label: books.categoryName(x.categoryId) + (over ? " is over budget" : " is near its budget"),
+                detail: (over ? "Over by " + money(x.spent - x.amount) : money(x.amount - x.spent) + " left") +
+                    " · " + money(x.spent) + " of " + money(x.amount) + " in " + monthLong((b?.month ?? "") + "-01") }))
+            }
+        return out
+        },
+    attentionCount: number = { (app.attention.value?.items ?? []).length },
+
+    // ── every number opens its records
+    //
+    // Each narrows the filters to exactly the records behind a figure and goes to
+    // Transactions, remembering where it came from. A figure's kinds are combined
+    // with the kinds already chosen (the kinds both allow), so the list's summary
+    // equals the figure to the cent.
+
+    drill(patch: object, why: string) {
+        returnTo = ({ location: screen, filter: filters, tab: insightTab, why: why })
+        const kinds = ((patch as any).kinds ?? null) as string[] | null
+        let next = ({ ...filters, ...patch }) as Filter
+        if (kinds != null && kinds.length > 0 && filters.kinds.length > 0) {
+            const both = kinds.filter((k) => filters.kinds.includes(k))
+            next = ({ ...next, kinds: both.length > 0 ? both : kinds }) as Filter
+            }
+        else if (kinds != null && kinds.length == 0) next = ({ ...next, kinds: filters.kinds }) as Filter
+        searchText = next.q
+        filters = next
+        location = "transactions"
+        },
+    openPoint(p: ChartPoint, s: Series, from: string) {
+        const start = s.id == "run" ? (this.yearPoints[0]?.from ?? p.from) : p.from
+        this.drill(({ from: start, to: p.to, preset: "custom", kinds: s.kinds }), s.name + " · " + (s.id == "run" ? "to " : "") + p.label)
+        },
+    openRank(kind: string, r: Rank) {
+        if (kind == "category") {
+            const ids = r.id.startsWith("other:") ? r.id.slice(6).split(",") : [r.id]
+            this.drill(({ categories: ids, kinds: breakdownSide == "income" && screen == "insights" ? ["sale", "refund"] : ["expense"] }), r.name)
+            }
+        else if (kind == "product") this.drill(({ products: [r.id] }), r.name)
+        else this.drill(({ contacts: [r.id], kinds: ["sale", "refund"] }), r.name)
+        },
+    openAttention(a: Attention) {
+        if (a.id == "uncategorised") {
+            this.drill(({ preset: "all", from: "", to: "", q: "", min: null, max: null, kinds: [], categories: ["none"], contacts: [], products: [] }),
+                "Uncategorised")
+            }
+        else this.drill(({ preset: "custom", from: a.from ?? "", to: a.to ?? "", categories: [a.categoryId ?? ""], kinds: ["expense"] }), a.label)
+        },
+    openTrend(m: string) { trendMeasure = m; insightTab = "trends"; location = "insights" },
+
+    // a transaction from Overview: the list, with it open
+
+    openTransaction(t: Txn) {
+        location = "transactions"
+        afterSettle(() => app.select([t]))
+        },
+
+    // Back from a drill-down, by the browser's Back or the banner's: the filters and tab as they were
+
+    arrived() {
+        const r = returnTo
+        if (r == null) return
+        if (screen == r.location) {
+            returnTo = null
+            searchText = r.filter.q
+            filters = r.filter
+            insightTab = r.tab
+            }
+        else if (screen != "transactions") returnTo = null
+        },
+    goBack() { const r = returnTo; if (r != null) location = r.location },
+
+    // ── the selection in the list: records, which survive any re-sort
+
+    selection: Txn[] = [],
+    allSelected: boolean = false,                    // "select all": every transaction matching the filters
+    selected: Txn? = { app.selection.length > 0 ? app.selection[app.selection.length - 1] : null },
+    openId: string = { app.selection.length == 1 ? app.selection[0].id : "" },
+    select(rows: Txn[]) { selection = rows; allSelected = false; peekId = ""; editCell = null },
+    selectAll() {
+        const rows = figures.list.value?.rows ?? []
+        selection = [...rows]
+        allSelected = rows.length > 0
+        },
+    clearSelection() { if (selection.length > 0) selection = []; allSelected = false; editCell = null },
+    selectionIds: string[] = { app.selection.map((t) => t.id) },
+
+    // the selection, described: client-side sums of whole cents, exact
+
+    selectionSummary: Summary = { app.summarise(app.selection) },
+    summarise(rows: Txn[]) -> Summary {
+        let i = 0, o = 0
+        for (const t of rows) { if (t.inFilter > 0) i = i + t.inFilter; else o = o - t.inFilter }
+        return ({ count: rows.length, in: i, out: o, net: i - o })
+        },
+
+    // ── editing a cell in place: which row, which field; Tab walks the row's cells
+
+    editCell: object = null,                         // { id, field } or null
+    editFields: string[] = ["date", "description", "category", "contact", "amount"],
+    editable(t: Txn, field: string) -> boolean {
+        if (field == "amount") return t.split == null && (t.kind == "expense" ? true : t.lineCount == 1) && !(t.kind == "sale" && (t.refunded ?? 0) > 0)
+        return true
+        },
+    beginEdit(t: Txn, field: string) { if (this.editable(t, field)) editCell = ({ id: t.id, field: field }) },
+    nextCell(t: Txn, field: string, dir: number) {
+        let i = editFields.indexOf(field) + dir
+        while (i >= 0 && i < editFields.length && !this.editable(t, editFields[i])) i = i + dir
+        editCell = i >= 0 && i < editFields.length ? ({ id: t.id, field: editFields[i] }) : null
+        },
+
+    // a cell's change, sent; a refusal keeps the row marked as not saved, with Retry
+
+    unsaved: object = null,                          // { id, body, message } of a change the service did not take
+    saveCell(t: Txn, body: object) {
+        unsaved = null
+        books.patch(t.id, body)
+        },
+    retryUnsaved() { const u = unsaved as any; if (u != null) books.patch(u.id, u.body) },
+
+    // ── writes, and undoing them
+
+    lastChange: Change? = null,
+    say(text: string, undoable: boolean) {
+        if (undoable) toast.say(text, ({ id: "undo", label: "Undo" }))
+        else toast.say(text, null)
+        },
+    wrote(what: string, reply: object) {
+        const r = reply as any
+        if (what == "patch") {
+            unsaved = null
+            lastChange = ({ changeId: r.changeId, said: "Change" })
+            this.say("Saved", true)
+            }
+        else if (what == "bulk") {
+            if (r.changeId == null) { this.say("Nothing to change — they already were", false); return }
+            const n = r.count as number
+            const noun = n == 1 ? " transaction" : " transactions"
+            const said = r.action == "categorise" ? "Categorised " + n + noun
+                : r.action == "set-contact" ? "Set the contact on " + n + noun : "Deleted " + n + noun
+            const skipped = (r.skipped ?? []).length
+            lastChange = ({ changeId: r.changeId, said: said })
+            this.say(said + (skipped > 0 ? " (" + skipped + " left as they were)" : ""), true)
+            this.clearSelection()
+            }
+        else if (what == "delete") {
+            lastChange = ({ changeId: r.changeId, said: "Deleted 1 transaction" })
+            this.say("Deleted 1 transaction", true)
+            this.clearSelection()
+            }
+        else if (what == "undo") {
+            const said = lastChange?.said ?? "Change"
+            lastChange = null
+            this.say("Undone: " + said.charAt(0).toLowerCase() + said.slice(1), false)
+            }
+        else if (what == "budget") {
+            const n = r.count as number
+            this.say(n > 1 ? "Set " + n + " budgets for " + budgetMonthName : "Budget saved", false)
+            }
+        else if (what == "created") {
+            lastChange = ({ changeId: r.changeId, said: r.said })
+            this.say(r.said, true)
+            }
+        figures.refresh()
+        if (detailId != "") detail.fetch()
+        },
+    refused(what: string, status: number, body: object) {
+        const msg = ((body as any)?.message ?? "") as string
+        if (what == "patch") {
+            unsaved = ({ id: books._patchId, body: books._patchBody, message: msg == "" ? "Not saved" : msg })
+            this.say("Not saved: " + (msg == "" ? "the service didn’t answer" : msg), false)
+            }
+        else if (what == "undo") this.say(status == 409 ? "Can’t undo: those records have changed since" : "Couldn’t undo: " + msg, false)
+        else this.say("Couldn’t do that: " + (msg == "" ? "the service didn’t answer" : msg), false)
+        },
+    undoLast() { const c = lastChange; if (c != null) books.undo(c.changeId) },
+
+    // ── bulk changes: the selection by its ids, or "everything matching" by the filters
+
+    bulkWhere() -> object {
+        if (allSelected) return ({ where: this.queryOf(filters, true), expectedCount: selection.length })
+        return ({ where: ({ ids: selectionIds }) })
+        },
+    categorise(categoryId: string?) { books.bulk(({ action: "categorise", categoryId: categoryId, ...this.bulkWhere() })) },
+    setContact(contactId: string?) { books.bulk(({ action: "set-contact", contactId: contactId, ...this.bulkWhere() })) },
+    deleteSelection() {
+        if (selection.length == 0) return
+        if (selection.length == 1 && !allSelected) books.remove(selection[0].id)
+        else books.bulk(({ action: "delete", ...this.bulkWhere() }))
+        },
+
+    // ── taking data out: the selection, or everything shown, as a CSV
+
+    exportCsv() {
+        const rows = selection.length > 0 ? selection : (figures.list.value?.rows ?? [])
+        const head = ["id", "date", "kind", "description", "contact", "category", "channel", "amount"]
+        const lines = rows.map((t) => [t.id, t.date, t.kind, t.description, t.contactName ?? "",
+            t.split != null ? "Split: " + t.split.categoryIds.map((c) => books.categoryName(c)).join("; ") : books.categoryName(t.categoryId),
+            books.channelName(t.channel), plainMoney(t.inFilter)].map((v) => csvCell(String(v))).join(","))
+        const name = "ledger-" + (filters.from == "" ? "all" : filters.from + "-to-" + filters.to) + ".csv"
+        downloadText(name, [head.join(","), ...lines].join("\n") + "\n")
+        this.say("Exported " + rows.length + (rows.length == 1 ? " transaction" : " transactions") + " · Net " + money(this.summarise(rows).net), false)
+        },
+
+    // ── the list's columns and order
+
+    hiddenCols: string[] = [],
+    hidden(col: string) -> boolean { return hiddenCols.includes(col) },
+
+    // the channel column steps aside while a detail shares a window that is not wide
+
+    showChannel: boolean = { !app.hidden("channel") && (app.wide || app.detailId == "") },
+    columnsMenu: Menu [
+        items = { [({ id: "category", label: "Category", checked: !app.hidden("category") }),
+                   ({ id: "channel", label: "Channel", checked: !app.hidden("channel") })] },
+        picked(id: string) { app.hiddenCols = app.hidden(id) ? app.hiddenCols.filter((c) => c != id) : [...app.hiddenCols, id] }
+        ],
+    sortBy(key: string) {
+        if (sortOn == key) sortDir = sortDir == "desc" ? "asc" : "desc"
+        else { sortOn = key; sortDir = key == "date" || key == "amount" ? "desc" : "asc" }
+        },
+
+    // "1,284 transactions · In $48,210.00 · Out $31,905.50 · Net $16,304.50"
+
+    summaryLine(s: Summary?, selected: boolean) -> string {
+        if (s == null) return "Loading transactions…"
+        const n = s.count.toLocaleString("en-US") + (s.count == 1 ? " transaction" : " transactions") + (selected ? " selected" : "")
+        // a figure never parts from its label at a line's end: "Net\u00A0−$14.50"
+        return n + " · In\u00A0" + money(s.in) + " · Out\u00A0" + money(s.out) + " · Net\u00A0" + money(s.net)
+        },
+
+    // the choices a cell's editor offers, by the kind of record
+
+    categoryItems(kind: string) -> array {
+        const side = kind == "expense" ? "expense" : "income"
+        const cats = books.usable(side).map((c) => ({ id: c.id, label: c.name }))
+        return side == "expense" ? [({ id: "none", label: "Uncategorised" }), ...cats] : cats
+        },
+    contactItems(kind: string) -> array {
+        const people = kind == "expense" ? books.vendors() : kind == "" ? books.contacts() : books.customers()
+        return [({ id: "none", label: "No contact" }), ...people.map((c) => ({ id: c.id, label: c.name }))]
+        },
+
+    // ── the detail: the one open row, or a linked transaction peeked at from it
+
+    peekId: string = "",
+    detailId: string = { app.peekId != "" ? app.peekId : app.openId },
+    peek(id: string) { peekId = id },
+    detail: DataSource [ autoFetch = true, schema = TxnDetail,
+        url = { app.detailId == "" || !app.ready ? "" : app.api + "/api/transactions/" + app.detailId } ],
+
+    // the menus the list opens: a row's, and the selection's categories
+
+    rowMenu: ContextMenu [
+        row: Txn? = { app.selected },
+        items = { [
+            ({ id: "edit", label: "Edit description", enabled: app.selection.length == 1 }),
+            ({ id: "categorise", label: "Categorise", submenu: app.categoriseItems() }),
+            ({ id: "refund", label: "Refund…", enabled: this.row?.kind == "sale" && app.selection.length == 1 }),
+            ({ divider: true }),
+            ({ id: "delete", label: app.selection.length > 1 ? "Delete " + app.selection.length + " transactions" : "Delete" })] },
+        picked(id: string) {
+            const t = this.row
+            if (id == "edit" && t != null) app.beginEdit(t, "description")
+            else if (id == "refund" && t != null) app.refundSale(t.id)
+            else if (id == "delete") app.deleteSelection()
+            else if (id.startsWith("cat:")) app.categorise(id == "cat:none" ? null : id.slice(4))
+            }
+        ],
+    categoriseItems() -> array {
+        return [({ id: "cat:none", label: "Uncategorised" }), ({ divider: true }),
+            ...books.usable("expense").map((c) => ({ id: "cat:" + c.id, label: c.name })), ({ divider: true }),
+            ...books.usable("income").map((c) => ({ id: "cat:" + c.id, label: c.name + " (income)" }))]
+        },
+    categoriseMenu: Menu [
+        items = { app.categoriseItems() },
+        picked(id: string) { app.categorise(id == "cat:none" ? null : id.slice(4)) }
+        ],
+    contactSetPop: Popover [ SetContactPanel [ exists = { app.contactSetPop.present } ]
+        ],
+
+    // ── when nothing matches: the filter in a sentence, and the one change that brings results back
+
+    filterSentence: string = { [app.rangeName, ...(app.chips.value?.chips ?? []).map((c) => c.label)].join(", ") },
+    listEmpty: boolean = { app.figures.list.loaded && (app.figures.list.value?.total ?? 1) == 0 },
+    without(facet: string) -> string {
+        const f = filters
+        if (!listEmpty) return ""
+        const cut = facet == "dates" ? ({ ...f, from: "", to: "" }) : facet == "q" ? ({ ...f, q: "" })
+            : facet == "amount" ? ({ ...f, min: null, max: null }) : ({ ...f, [facet]: [] })
+        const changed = facet == "dates" ? f.from != "" || f.to != "" : facet == "q" ? f.q.trim() != ""
+            : facet == "amount" ? f.min != null || f.max != null : ((f as any)[facet] ?? []).length > 0
+        return changed ? this.queryOf(cut as Filter, true) : ""
+        },
+    relaxQ: Relax [ api = { app.api }, facet = "q", words = { "“" + app.filters.q.trim() + "”" }, query = { app.without("q") } ],
+    relaxAmount: Relax [ api = { app.api }, facet = "amount", words = { "Amount " + app.amountWords }, query = { app.without("amount") } ],
+    relaxKinds: Relax [ api = { app.api }, facet = "kinds", words = { app.kindWords }, query = { app.without("kinds") } ],
+    relaxCategories: Relax [ api = { app.api }, facet = "categories", words = { app.categoryWords }, query = { app.without("categories") } ],
+    relaxContacts: Relax [ api = { app.api }, facet = "contacts", words = { app.contactWords }, query = { app.without("contacts") } ],
+    relaxProducts: Relax [ api = { app.api }, facet = "products", words = { app.listWords(app.filters.products.map((p) => app.books.productName(p))) }, query = { app.without("products") } ],
+    relaxDates: Relax [ api = { app.api }, facet = "dates", words = { app.rangeName }, query = { app.without("dates") } ],
+    bestRelax: Chip? = { app.pickRelax([app.relaxQ.count, app.relaxAmount.count, app.relaxKinds.count, app.relaxCategories.count,
+        app.relaxContacts.count, app.relaxProducts.count, app.relaxDates.count]) },
+    pickRelax(counts: number[]) -> Chip? {
+        const all = [relaxQ, relaxAmount, relaxKinds, relaxCategories, relaxContacts, relaxProducts, relaxDates]
+        let best = -1
+        for (let i = 0; i < all.length; i++) if (counts[i] > 0 && (best < 0 || counts[i] > counts[best])) best = i
+        if (best < 0) return null
+        const r = all[best]
+        return ({ id: r.facet, label: (r.facet == "dates" ? "Search all dates" : "Remove " + r.words) + " to see " +
+            counts[best].toLocaleString("en-US") + (counts[best] == 1 ? " transaction" : " transactions") })
+        },
+    relax() {
+        const r = bestRelax
+        if (r == null) return
+        if (r.id == "dates") this.setDates("", "", "all")
+        else if (r.id == "q") { searchText = ""; this.setFilter(({ q: "" })) }
+        else if (r.id == "amount") this.setFilter(({ min: null, max: null }))
+        else this.setFilter(({ [r.id]: [] }))
+        },
+
+    // ── Insights: the measures, their points, and a sentence for each chart
+
+    asTable: boolean = false,
+    measureName(m: string) -> string {
+        return m == "revenue" ? "Revenue" : m == "expenses" ? "Expenses" : m == "net" ? "Net profit" : m == "margin" ? "Gross margin" : "Number of sales"
+        },
+    measureKinds(m: string) -> string[] {
+        return m == "revenue" || m == "margin" ? ["sale", "refund"] : m == "expenses" ? ["expense"] : m == "sales" ? ["sale"] : []
+        },
+    trendFormat: "money" | "pct" | "count" = { app.trendMeasure == "margin" ? "pct" : app.trendMeasure == "sales" ? "count" : "money" },
+    trendPoints: ChartPoint[] = { app.toPoints(app.figures.periods.value?.periods ?? [], app.grain,
+        app.comparing ? app.figures.cmpPeriods.value?.periods ?? [] : [], app.trendMeasure) },
+    trendSeries: Series[] = { app.trendSeriesOf(app.trendMeasure, app.comparing) },
+    trendSeriesOf(m: string, cmp: boolean) -> Series[] {
+        const t = provided("theme")
+        const own = ({ id: "line", name: this.measureName(m), tone: t.accent, kinds: this.measureKinds(m) })
+        if (!cmp) return [own]
+        return [own, ({ id: "cmp", name: "Comparison: " + rangeLabel(cmpRange[0], cmpRange[1]), tone: t.compare, kinds: [] })]
+        },
+    trendSentence: string = { app.describeTrend(app.trendPoints, app.trendMeasure) },
+    describeTrend(ps: ChartPoint[], m: string) -> string {
+        if (ps.length == 0) return "No figures for this range."
+        const fmt = (v: number) => m == "margin" ? pct(v) : m == "sales" ? Math.round(v) + (Math.round(v) == 1 ? " sale" : " sales") : money(v)
+        let hi = 0
+        for (let i = 1; i < ps.length; i++) if (ps[i].line > ps[hi].line) hi = i
+        const whole = ps.filter((p) => !p.partial)
+        const lead = this.measureName(m) + " was highest " + this.during(ps[hi].label) + " (" + fmt(ps[hi].line) + ")"
+        if (!comparing || whole.length == 0) return lead + "."
+        const now = m == "margin" ? this.measureOf(curTotals, m) : ps.reduce((n, p) => n + p.line, 0)
+        const then = m == "margin" ? this.measureOf(cmpTotals, m) : ps.reduce((n, p) => n + p.cmp, 0)
+        if (m == "margin") return lead + "; " + pct(now) + " over the range, against " + pct(then) + " " + versus.replace(/^vs /, "for ") + "."
+        const c = changePct(now, then)
+        return lead + "; " + fmt(now) + " in all, " + (isNaN(c) ? "against nothing " + versus.replace(/^vs /, "in ") :
+            (Math.abs(c) < 0.5 ? "level " : (c > 0 ? "up " : "down ") + signedPct(c).replace(/^[+−]/, "") + " ") + versus) + "."
+        },
+
+    // "on Sat 7 Nov", "in the week of 2 Nov", "in March 2026": a period, in a sentence
+
+    during(label: string) -> string {
+        return grain == "day" ? "on " + label : grain == "week" ? "in the " + label.charAt(0).toLowerCase() + label.slice(1) : "in " + label
+        },
+    incomePoints: ChartPoint[] = { app.toPoints(app.figures.periods.value?.periods ?? [], app.grain, [], "") },
+    breakEvenSentence: string = { app.describeBreakEven(app.incomePoints) },
+    describeBreakEven(ps: ChartPoint[]) -> string {
+        if (ps.length == 0) return "No figures for this range."
+        const end = ps[ps.length - 1].run
+        let firstUp = -1, everDown = false
+        for (let i = 0; i < ps.length; i++) {
+            if (ps[i].run < 0) { everDown = true; firstUp = -1 }
+            else if (firstUp < 0) firstUp = i
+            }
+        if (!everDown) return "Net profit stayed above zero from the start, ending at " + money(end) + "."
+        if (end < 0) return "Not yet broken even: net profit so far is " + money(end) + "."
+        return "Broke even " + this.during(ps[firstUp].label) + ": net profit so far turned positive then, ending at " + money(end) + "."
+        },
+
+    breakdownRanks: Dataset [ schema = [ rows[]: Rank ], contents = { { rows: app.categoryRanks(app.figures.categories.value?.categories ?? [],
+        app.comparing ? app.figures.cmpCategories.value?.categories ?? [] : [], 0) } } ],
+    breakdownSentence: string = { app.describeBreakdown(app.breakdownRanks.value?.rows ?? [], app.breakdownSide) },
+    describeBreakdown(rows: Rank[], side: string) -> string {
+        if (rows.length == 0) return "Nothing in this range."
+        const r = rows[0]
+        return r.name + " was the largest " + (side == "income" ? "source of income" : "expense") + ": " + money(r.amount) +
+            ", " + pct(r.share) + " of the total" + this.changeClause(r) + "."
+        },
+    changeClause(r: Rank) -> string {
+        if (!r.hasChange) return ""
+        if (Math.abs(r.change) < 0.5) return ", unchanged " + versus
+        return ", " + (r.change > 0 ? "up " : "down ") + signedPct(r.change).replace(/^[+−]/, "") + " " + versus
+        },
+
+    productSort: string = "revenue",
+    productDir: string = "desc",
+    sortProducts(col: string) {
+        if (productSort == col) productDir = productDir == "desc" ? "asc" : "desc"
+        else { productSort = col; productDir = col == "name" ? "asc" : "desc" }
+        },
+    productTable: Dataset [ contents = { { rows: app.productRows(app.productSort, app.productDir) } } ],
+    productRows(col: string, dir: string) -> array {
+        const rows = (figures.products.value?.products ?? []).map((p) => ({ id: p.productId ?? "none", name: books.productName(p.productId),
+            units: p.units, revenue: p.revenue, cost: p.cost, margin: p.margin, marginPercent: p.marginPercent ?? null }))
+        const sign = dir == "desc" ? -1 : 1
+        return [...rows].sort((a, b) => col == "name" ? sign * a.name.localeCompare(b.name)
+            : sign * (((a as any)[col] ?? -1e15) - ((b as any)[col] ?? -1e15)))
+        },
+    productSentence: string = { app.describeProducts(app.figures.products.value?.products ?? []) },
+    describeProducts(ps: ProductTotal[]) -> string {
+        const sold = ps.filter((p) => p.productId != null)
+        if (sold.length == 0) return "No products sold in this range."
+        const top = sold[0]
+        const best = [...sold].filter((p) => p.units > 0).sort((a, b) => (b.marginPercent ?? 0) - (a.marginPercent ?? 0))[0]
+        return books.productName(top.productId) + " brought in the most: " + money(top.revenue) + " from " + top.units + " sold" +
+            (best != null && best.productId != top.productId ? "; " + books.productName(best.productId) + " has the best margin, " + pct(best.marginPercent ?? 0) : "") + "."
+        },
+
+    // ── Budgets: the month in the date filter
+
+    budgetMonthName: string = { app.budgetMonth == "" ? "" : monthLong(app.budgetMonth + "-01") + " " + app.budgetMonth.slice(0, 4) },
+    lastMonthName: string = { app.budgetMonth == "" ? "last month" : monthLong(addMonths(app.budgetMonth + "-01", -1)) },
+
+    // how far through the month we are: all of a past month, none of a future one
+
+    monthPace: number = { app.paceOf(app.budgetMonth, app.today) },
+    paceOf(month: string, today: string) -> number {
+        if (month == "" || month > monthKey(today)) return 0
+        if (month < monthKey(today)) return 1
+        return Number(today.slice(8, 10)) / Number(monthEnd(today).slice(8, 10))
+        },
+    budgetNote: string = { app.describeBudgets(app.figures.budgets.value?.budgets ?? []) },
+    describeBudgets(bs: Budget[]) -> string {
+        if (bs.length == 0) return ""
+        const over = bs.filter((b) => b.spent > b.amount).length
+        const ahead = bs.filter((b) => b.spent <= b.amount && monthPace < 1 && b.spent > b.amount * monthPace).length
+        const ok = bs.length - over - ahead
+        return [ok > 0 ? ok + " on track" : "", ahead > 0 ? ahead + " over pace" : "", over > 0 ? over + " over budget" : ""]
+            .filter((x) => x != "").join(" · ") + (filtered ? " · spending is filtered" : "")
+        },
+    unbudgeted: Category[] = { app.books.usable("expense").filter((c) => !(app.figures.budgets.value?.budgets ?? []).some((b) => b.categoryId == c.id)) },
+    lastMonthSuggestions: array = { (app.figures.lastMonth.value?.categories ?? [])
+        .filter((c) => c.categoryId != null && c.amount > 0 && app.unbudgeted.some((u) => u.id == c.categoryId))
+        .map((c) => ({ categoryId: c.categoryId, amount: Math.ceil(c.amount / 100) * 100 })) },
+    addBudgetMenu: Menu [
+        items = { app.unbudgeted.map((c) => ({ id: c.id, label: c.name })) },
+        picked(id: string) { app.setBudget(id, app.suggestBudget(id)) }
+        ],
+
+    // a new budget starts at last month's spending, rounded up to the dollar, or $100 when there was none
+
+    suggestBudget(id: string) -> number {
+        const last = (figures.lastMonth.value?.categories ?? []).find((c) => c.categoryId == id)?.amount ?? 0
+        return last > 0 ? Math.ceil(last / 100) * 100 : 10000
+        },
+    setBudget(categoryId: string, amount: number?) { books.setBudget(budgetMonth, categoryId, amount) },
+    startFromLastMonth() { books.setBudgets(budgetMonth, lastMonthSuggestions) },
+    openBudget(b: Budget) {
+        const from = budgetMonth + "-01"
+        this.drill(({ preset: "custom", from: from, to: monthEnd(from), categories: [b.categoryId], kinds: ["expense"] }),
+            books.categoryName(b.categoryId) + " · " + budgetMonthName)
+        },
+    budgetList: View = { app.main.screens.budgets.screen.panel.list },
+    focusBudget(i: number) {
+        const row = budgetList.childViews.find((v) => v.rowIndex == i) as BudgetRow | undefined
+        if (row != null) Focus.focus(row.top.amountField)
+        },
+
+    // ── the editor: one sheet for every kind
+
+    editorOpen: boolean = false,
+    editorKind: "expense" | "sale" | "refund" = "expense",
+    editorRefundOf: string = "",                     // a refund starts from a sale
+    editorNonce: number = 0,                         // a fresh form for each "Save & new"
+    record(kind: "expense" | "sale" | "refund") { editorKind = kind; editorRefundOf = ""; editorOpen = true },
+    refundSale(id: string) { editorKind = "refund"; editorRefundOf = id; editorOpen = true },
+
+    // ── menus and panels: declared once, opened where they are needed
+
+    presetMenu: Menu [
+        items = { [...PRESETS.map((p) => ({ id: p[0], label: p[1], checked: app.filters.preset == p[0] })),
+            ({ divider: true }), ({ id: "custom", label: "Custom range…", checked: app.filters.preset == "custom" })] },
+        picked(id: string) {
+            if (id == "custom") app.customPop.showFor(app.bar.dates.range)
+            else app.pickPreset(id)
+            }
+        ],
+    compareMenu: Menu [
+        items = { [({ id: "previous", label: "Previous period", checked: app.filters.compare == "previous" }),
+            ({ id: "year", label: "Same period last year", checked: app.filters.compare == "year" }),
+            ({ id: "none", label: "No comparison", checked: app.filters.compare == "none" })] },
+        picked(id: string) { app.setFilter(({ compare: id })) }
+        ],
+    newMenu: Menu [
+        items = { [({ id: "expense", label: "Expense", key: "N" }), ({ id: "sale", label: "Sale", key: "⇧N" }),
+            ({ id: "refund", label: "Refund…" })] },
+        picked(id: string) { app.record(id as "expense" | "sale" | "refund") }
+        ],
+    amountPop: Popover [ AmountPanel [ ]
+        ],
+    kindPop: Popover [ KindPanel [ ]
+        ],
+    categoryPop: Popover [ CategoryPanel [ ]
+        ],
+    contactPop: Popover [ ContactPanel [ exists = { app.contactPop.present } ]
+        ],
+    customPop: Popover [ custom: CustomRange [ exists = { app.customPop.present } ]
+        ],
+    customForm: CustomRange? = { app.customPop.custom },
+
+    // ── the keyboard: commands are records, each with its key and its name
+
+    shortcuts: Shortcuts [ title = "Ledger",
+        items = { [
+            ({ id: "expense", key: "n", label: "New expense" }),
+            ({ id: "sale", key: "⇧N", label: "New sale" }),
+            ({ id: "search", key: "/", label: "Search" }),
+            ({ id: "prev", key: "[", label: "Previous period" }),
+            ({ id: "next", key: "]", label: "Next period" }),
+            ({ id: "undo", key: "⌘Z", label: "Undo", enabled: app.lastChange != null }),
+            ({ id: "overview", key: "1", label: "Overview" }),
+            ({ id: "transactions", key: "2", label: "Transactions" }),
+            ({ id: "insights", key: "3", label: "Insights" }),
+            ({ id: "budgets", key: "4", label: "Budgets" })] },
+        picked(id: string) {
+            if (id == "expense" || id == "sale") app.record(id)
+            else if (id == "search") Focus.focus(app.bar.search.field)
+            else if (id == "prev") app.stepDates(-1)
+            else if (id == "next") app.stepDates(1)
+            else if (id == "undo") app.undoLast()
+            else app.location = id
+            }
+        ],
+
+    // the filters bar, reached from far away
+
+    bar: FilterBar = { app.main.head.filterBar },
+
+    // ── the screen: the sidebar beside everything else on a desk
+
+    layout: SimpleLayout [ axis = x ],
+
+    side: View [ visible = { !app.phone }, width = { app.slim ? 64 : 208 }, height = 100%, padding = [18, 12, 16, 12],
+        fill = { provided("theme").raised }, stroke = { [null, stroke(1, provided("theme").line), null, null] },
+        accessibilityRole = navigation,
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        brand: View [ height = 40, padding = [0, 0, 0, 10],
+            layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+            View [ width = 22, height = 22, cornerRadius = 6, fill = { provided("theme").accent },
+                Text [ x = center, y = center, fontSize = 13, fontWeight = bold, textColor = white, text = "L", accessibilityHidden = true ]
+                ],
+            Text [ visible = { !app.slim }, fontSize = 17, fontWeight = bold, letterSpacing = -0.3, text = "Ledger" ]
+            ],
+        View [ height = 10 ],
+        NavItem [ place = "overview", label = "Overview", glyph = "home" ],
+        NavItem [ place = "transactions", label = "Transactions", glyph = "list" ],
+        NavItem [ place = "insights", label = "Insights", glyph = "insights" ],
+        NavItem [ place = "budgets", label = "Budgets", glyph = "budget" ],
+        Spacer [ ],
+        Button [ visible = { !app.slim }, width = 100%, height = 34, fontSize = 13, primary = true, label = "New expense", iconLeft = "PlusIcon",
+            tooltipLabel = "N",
+            onClick() { app.record("expense") }
+            ],
+        View [ height = 6 ],
+        Button [ visible = { !app.slim }, width = 100%, height = 34, fontSize = 13, label = "New sale", iconLeft = "PlusIcon",
+            tooltipLabel = "Shift N",
+            onClick() { app.record("sale") }
+            ],
+        View [ height = 14 ],
+        View [ width = 100%, padding = { app.slim ? [0, 0, 0, 4] : [0, 4, 0, 6] },
+            layout: SimpleLayout [ axis = x, align = center ],
+            Text [ visible = { !app.slim }, flexes = true, fontSize = 12, textColor = { provided("theme").textMuted }, text = "Appearance" ],
+            AppearanceSwitch [ dark = { app.isDark },
+                input(v: boolean) { app.themeMode = v ? "dark" : "light" }
+                ]
+            ]
+        ],
+
+    main: View [ flexes = true, height = 100%,
+        layout: SimpleLayout [ axis = y ],
+
+        head: View [ width = 100%, padding = { app.phone ? [10 + app.safeTop, 14, 8, 14] : [18, 28, 12, 28] },
+            stroke = { [null, null, stroke(1, provided("theme").line), null] },
+            layout: SimpleLayout [ axis = y, spacing = 10 ],
+            titleRow: View [ width = 100%,
+                layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+                Text [ flexes = true, fontSize = { app.phone ? 22 : 24 }, fontWeight = bold, letterSpacing = -0.5, wrap = false,
+                    accessibilityRole = heading, accessibilityLevel = 1, text = { app.screenTitle } ],
+                Text [ visible = { app.figures.list.loading && !app.phone }, fontSize = 12, textColor = { provided("theme").textMuted },
+                    accessibilityLive = polite, text = { app.listWatch.slow ? "Still working…" : "Updating…" } ],
+                Button [ visible = { app.screen == "transactions" && !app.phone }, height = 32, fontSize = 13, label = "Export CSV",
+                    tooltipLabel = "The transactions shown, or the selection",
+                    onClick() { app.exportCsv() }
+                    ],
+                Button [ visible = { !app.phone }, height = 32, fontSize = 13, primary = true, label = "New", iconLeft = "PlusIcon",
+                    menu = { app.newMenu } ]
+                ],
+            filterBar: FilterBar [ ],
+            FilterChips [ ]
+            ],
+
+        // the four screens share one place; the location says which is shown
+
+        screens: View [ width = 100%, flexes = true,
+            overview: View [ shows = "overview", width = 100%, height = 100%, scrolls = y,
+                padding = { app.phone ? [14, 14, 90, 14] : [20, 28, 40, 28] },
+                welcome: View [ visible = { app.figures.everything.loaded && (app.figures.everything.value?.count ?? 1) == 0 }, width = 100%,
+                    padding = [40, 0, 40, 0],
+                    layout: SimpleLayout [ axis = y, spacing = 12, align = center ],
+                    Text [ fontSize = 20, fontWeight = semibold, text = "Welcome to your books" ],
+                    Text [ width = 340, textAlign = center, textColor = { provided("theme").textMuted },
+                        text = "Nothing is recorded yet. Start with your last sale or your last expense; the overview fills in as you go." ],
+                    View [ layout: SimpleLayout [ axis = x, spacing = 10 ],
+                        Button [ primary = true, label = "Record a sale",
+                            onClick() { app.record("sale") }
+                            ],
+                        Button [ label = "Record an expense",
+                            onClick() { app.record("expense") }
+                            ]
+                        ]
+                    ],
+                Overview [ visible = { !(app.figures.everything.loaded && (app.figures.everything.value?.count ?? 1) == 0) } ]
+                ],
+            transactions: View [ shows = "transactions", width = 100%, height = 100%,
+                TransactionsScreen [ ]
+                ],
+            insights: View [ shows = "insights", width = 100%, height = 100%, scrolls = y,
+                padding = { app.phone ? [14, 14, 90, 14] : [20, 28, 40, 28] },
+                InsightsScreen [ ]
+                ],
+            budgets: View [ shows = "budgets", width = 100%, height = 100%, scrolls = y,
+                padding = { app.phone ? [14, 14, 90, 14] : [20, 28, 40, 28] },
+                screen: BudgetsScreen [ ]
+                ]
+            ],
+
+        // a phone: the two screens it is for, at the thumb
+
+        tabs: View [ visible = { app.phone }, width = 100%, height = { 56 + app.safeBottom }, padding = { [0, 0, app.safeBottom, 0] },
+            fill = { provided("theme").raised }, stroke = { [stroke(1, provided("theme").line), null, null, null] },
+            accessibilityRole = navigation,
+            layout: SimpleLayout [ axis = x ],
+            PhoneTab [ place = "overview", label = "Overview", glyph = "home" ],
+            PhoneTab [ place = "transactions", label = "Transactions", glyph = "list" ]
+            ]
+        ],
+
+    // a phone's record button: above the tabs, at the thumb
+
+    fab: View [ visible = { app.phone && !app.editorOpen }, ignoreLayout = true, pointerEvents = "none",
+        y = end, width = { app.width }, height = { 150 + app.safeBottom }, padding = { [0, 18, 72 + app.safeBottom, 0] },
+        Control [ x = end, y = end, width = 56, height = 56, cornerRadius = 28, accessibilityLabel = "Record",
+            fill = { provided("theme").accent }, shadow = { shadow(0, 6, 16, 0x00000040) },
+            scale = { pressed ? 0.94 : 1 }, pivotX = 28, pivotY = 28,
+            menu = { app.newMenu },
+            PlusIcon [ x = center, y = center, iconSize = 22, weight = 2.4, ink = white ]
+            ]
+        ],
+
+    // nothing works until the books are open: say so, or why not
+
+    entry: View [ visible = { !app.ready }, ignoreLayout = true, width = { app.width }, height = { app.height },
+        fill = { provided("theme").background },
+        col: View [ x = center, y = { app.height * 0.36 }, width = 300,
+            layout: SimpleLayout [ axis = y, spacing = 12, align = center ],
+            Text [ fontSize = 22, fontWeight = bold, text = "Ledger" ],
+            Text [ width = 300, textAlign = center, textColor = { provided("theme").textMuted }, accessibilityLive = polite,
+                text = { app.books.failed ? "Couldn’t reach the books. Is the Ledger service running?" : "Opening the books…" } ],
+            Button [ visible = { app.books.failed }, label = "Retry",
+                onClick() { app.books.retry() }
+                ]
+            ]
+        ],
+
+    filterSheetOpen: boolean = false,
+    filterSheet: Sheet [ edge = "end", shown = { app.filterSheetOpen && app.phone }, accessibilityLabel = "Filters",
+        input(open: boolean) { app.filterSheetOpen = open },
+        PhoneFilters [ exists = { app.filterSheet.present } ]
+        ],
+
+    editorSheet: Sheet [ edge = "end", sheetWidth = 480, shown = { app.editorOpen },
+        accessibilityLabel = "Record a transaction",
+        input(open: boolean) { app.editorOpen = open },
+        form: Editor [ exists = { app.editorSheet.present } ]
+        ],
+    editorForm: Editor? = { app.editorSheet.form },
+
+    // a phone opens a transaction as a sheet
+
+    detailSheet: Sheet [ shown = { app.phone && app.detailId != "" && app.screen == "transactions" },
+        accessibilityLabel = "Transaction",
+        input(open: boolean) { if (!open) { app.peekId = ""; app.clearSelection() } },
+        Detail [ ]
+        ],
+
+    toast: Toast [ duration = 7000,
+        picked(id: string) { if (id == "undo") app.undoLast() }
+        ]
+    ]

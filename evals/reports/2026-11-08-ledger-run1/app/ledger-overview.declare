@@ -1,0 +1,184 @@
+/*
+# Ledger: Overview
+
+In five seconds: how are we doing this period, and what needs attention?
+Four headline figures, income against expenses by month, where the money
+went, the best products and customers, what needs attention, and the latest
+records. Every figure opens the records behind it; a headline opens its trend.
+*/
+
+
+// A headline figure: its value, its change against the comparison period, and
+// a small line of the last twelve months. Pressing it opens its trend.
+
+class KpiCard extends Control [ cornerRadius = 12, padding = [14, 16, 12, 16],
+    measure: string = "revenue",
+    title: string = "",
+    now: number = 0,
+    then: number = 0,
+    known: boolean = true,
+    upIsGood: boolean = true,
+    isPct: boolean = false,
+    spark: number[] = [],
+    partialLast: boolean = false,
+    tone: Color = gray,
+    fill = { provided("theme").surface },
+    stroke = { stroke(1, hovered || focused ? provided("theme").lineStrong : provided("theme").line) },
+    figure: string = { classroot.isPct ? (isNaN(classroot.now) ? "—" : pct(classroot.now)) : money(classroot.now) },
+    accessibilityLabel = { classroot.title + ", " + classroot.figure + ", " + classroot.delta.words + ". Opens its trend." },
+    press() { app.openTrend(classroot.measure) },
+    layout: SimpleLayout [ axis = y, spacing = 4 ],
+    Text [ fontSize = 12.5, fontWeight = semibold, wrap = false, textColor = { provided("theme").textMuted }, text = { classroot.title } ],
+    Text [ fontSize = { app.phone ? 22 : 26 }, fontWeight = semibold, wrap = false, numeralWidth = tabular, letterSpacing = -0.4,
+        text = { classroot.figure } ],
+    delta: Delta [ now = { classroot.now }, then = { classroot.then }, known = { classroot.known },
+        upIsGood = { classroot.upIsGood }, points = { classroot.isPct }, versus = { app.versus } ],
+    Sparkline [ width = 100%, values = { classroot.spark }, partialLast = { classroot.partialLast }, tone = { classroot.tone } ]
+    ]
+
+
+// What needs attention: an item that opens exactly the records it is about.
+
+class AttentionItem extends Control [ width = 100%, cornerRadius = 8, padding = [8, 10, 8, 10],
+    label: string = "",
+    detail: string = "",
+    severe: boolean = false,
+    fill = { pressed ? provided("theme").controlPressed : hovered || focused ? provided("theme").rowHover : null },
+    accessibilityLabel = { classroot.label + ", " + classroot.detail },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    Glyph [ shape = "warn", iconSize = 15, weight = 1.5, ink = { classroot.severe ? provided("theme").bad : provided("theme").warn },
+        accessibilityHidden = true ],
+    View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 1 ],
+        Text [ width = 100%, fontSize = 13, fontWeight = medium, text = { classroot.label } ],
+        Text [ width = 100%, fontSize = 12, textColor = { provided("theme").textMuted }, text = { classroot.detail } ]
+        ],
+    ChevronIcon [ dir = "right", iconSize = 10, ink = { provided("theme").textFaint } ]
+    ]
+
+
+// A recent transaction, one line: date, description, amount. Opens it in Transactions.
+
+class RecentRow extends Control [ width = 100%, height = 40, cornerRadius = 6, padding = [0, 8, 0, 8],
+    fill = { pressed ? provided("theme").controlPressed : hovered || focused ? provided("theme").rowHover : null },
+    accessibilityLabel = { (:description ?? "") + ", " + money(:signed ?? 0) + ", " + shortDate(:date ?? "", app.today.slice(0, 4)) },
+    press() { app.openTransaction(:@) },
+    layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+    Text [ width = 52, fontSize = 12, wrap = false, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+        text = { shortDate(:date ?? "", app.today.slice(0, 4)) } ],
+    View [ flexes = true,
+        layout: SimpleLayout [ axis = y ],
+        Text [ width = 100%, fontSize = 13, wrap = false, maxLines = 1, text = { (:description ?? "") == "" ? app.kindName(:kind ?? "") : :description } ],
+        Text [ width = 100%, fontSize = 11.5, wrap = false, maxLines = 1, textColor = { provided("theme").textMuted },
+            text = { :contactName ?? app.books.channelName(:channel) } ]
+        ],
+    Money [ fontSize = 13, cents = { :signed ?? 0 },
+        textColor = { (:signed ?? 0) < 0 ? provided("theme").text : provided("theme").good } ]
+    ]
+
+
+class Overview [ width = 100%,
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+
+    // the four headline figures: two by two on a phone, four across on a desk
+
+    kpis: View [ width = 100%,
+        layout: WrappingLayout [ columns = { app.phone ? 2 : 4 }, spacing = 12, rowSpacing = 12 ],
+        KpiCard [ flexes = true, measure = "revenue", title = "Revenue", tone = { provided("theme").income },
+            now = { app.measureOf(app.curTotals, "revenue") }, then = { app.measureOf(app.cmpTotals, "revenue") }, known = { app.comparing },
+            spark = { app.spark("revenue") }, partialLast = { app.sparkPartial } ],
+        KpiCard [ flexes = true, measure = "expenses", title = "Expenses", upIsGood = false, tone = { provided("theme").expense },
+            now = { app.measureOf(app.curTotals, "expenses") }, then = { app.measureOf(app.cmpTotals, "expenses") }, known = { app.comparing },
+            spark = { app.spark("expenses") }, partialLast = { app.sparkPartial } ],
+        KpiCard [ flexes = true, measure = "net", title = "Net profit", tone = { provided("theme").net },
+            now = { app.measureOf(app.curTotals, "net") }, then = { app.measureOf(app.cmpTotals, "net") }, known = { app.comparing },
+            spark = { app.spark("net") }, partialLast = { app.sparkPartial } ],
+        KpiCard [ flexes = true, measure = "margin", title = "Gross margin", isPct = true, tone = { provided("theme").accent },
+            now = { app.measureOf(app.curTotals, "margin") }, then = { app.measureOf(app.cmpTotals, "margin") }, known = { app.comparing },
+            spark = { app.spark("margin") }, partialLast = { app.sparkPartial } ]
+        ],
+
+    // income against expenses, month by month, beside what needs attention
+
+    band: View [ width = 100%,
+        layout: SimpleLayout [ axis = { app.narrow ? "y" : "x" }, spacing = 16, align = stretch ],
+        Panel [ flexes = { app.narrow ? 0 : 2 }, title = "Income vs expenses", note = { (app.phone ? "Last 6 months" : "Last 12 months") + " · net profit as a line" },
+            loading = { app.figures.year.loading }, failed = { app.figures.year.failed }, slow = { app.yearWatch.slow },
+            retry() { app.figures.year.fetch() },
+            PeriodChart [ width = 100%, height = 250, name = "Income vs expenses, by month",
+                points = { app.yearPoints }, series = { app.ieSeries(false) },
+                opened(p: ChartPoint, s: Series) { app.openPoint(p, s, "Overview") },
+                rangeChosen(from: string, to: string) { app.setDates(from, to, "custom") }
+                ]
+            ],
+        Panel [ flexes = { app.narrow ? 0 : 1 }, minWidth = 260, title = "Needs attention",
+            loading = { app.figures.uncategorised.loading || app.figures.budgets.loading },
+            failed = { app.figures.uncategorised.failed || app.figures.budgets.failed },
+            retry() { app.figures.uncategorised.fetch(); app.figures.budgets.fetch() },
+            items: View [ width = 100%, datapath = { app.attention.value },
+                layout: SimpleLayout [ axis = y, spacing = 2 ],
+                AttentionItem [ datapath = :items[], label = :label, detail = :detail, severe = :severe,
+                    press() { app.openAttention(:@) }
+                    ]
+                ],
+            calm: View [ width = 100%, padding = [16, 0, 16, 0], visible = { app.attentionCount == 0 && app.figures.uncategorised.loaded },
+                layout: SimpleLayout [ axis = y, spacing = 6, align = center ],
+                CheckIcon [ iconSize = 22, weight = 2, ink = { provided("theme").good } ],
+                Text [ fontSize = 14, fontWeight = semibold, text = "All caught up." ],
+                Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = "Nothing uncategorised, no budget near its limit." ]
+                ]
+            ]
+        ],
+
+    // where the money went, what sold, who bought
+
+    ranks: View [ width = 100%,
+        layout: SimpleLayout [ axis = { app.wide ? "x" : "y" }, spacing = 16, align = stretch ],
+        Panel [ flexes = { app.wide }, title = "Expenses by category",
+            loading = { app.figures.expenses.loading }, failed = { app.figures.expenses.failed },
+            retry() { app.figures.expenses.fetch() },
+            View [ width = 100%, datapath = { app.expenseRanks.value }, focusScope = stop, accessibilityRole = group, accessibilityLabel = "Expenses by category",
+                layout: SimpleLayout [ axis = y ],
+                RankRow [ datapath = :rows[],
+                    press() { app.openRank("category", :@) }
+                    ]
+                ],
+            Text [ visible = { (app.expenseRanks.value?.rows ?? []).length == 0 }, fontSize = 12.5,
+                textColor = { provided("theme").textMuted }, text = "No expenses in this period." ]
+            ],
+        Panel [ flexes = { app.wide }, title = "Top products", note = "by revenue",
+            loading = { app.figures.products.loading }, failed = { app.figures.products.failed },
+            retry() { app.figures.products.fetch() },
+            View [ width = 100%, datapath = { app.productRanks.value }, focusScope = stop, accessibilityRole = group, accessibilityLabel = "Top products",
+                layout: SimpleLayout [ axis = y ],
+                RankRow [ datapath = :rows[],
+                    press() { app.openRank("product", :@) }
+                    ]
+                ],
+            Text [ visible = { (app.productRanks.value?.rows ?? []).length == 0 }, fontSize = 12.5,
+                textColor = { provided("theme").textMuted }, text = "No sales in this period." ]
+            ],
+        Panel [ flexes = { app.wide }, title = "Top customers", note = "by revenue",
+            loading = { app.figures.customers.loading }, failed = { app.figures.customers.failed },
+            retry() { app.figures.customers.fetch() },
+            View [ width = 100%, datapath = { app.customerRanks.value }, focusScope = stop, accessibilityRole = group, accessibilityLabel = "Top customers",
+                layout: SimpleLayout [ axis = y ],
+                RankRow [ datapath = :rows[],
+                    press() { app.openRank("contact", :@) }
+                    ]
+                ],
+            Text [ visible = { (app.customerRanks.value?.rows ?? []).length == 0 }, fontSize = 12.5,
+                textColor = { provided("theme").textMuted }, text = "No sales in this period." ]
+            ]
+        ],
+
+    Panel [ width = 100%, title = "Recent transactions",
+        loading = { app.figures.recent.loading }, failed = { app.figures.recent.failed },
+        retry() { app.figures.recent.fetch() },
+        View [ width = 100%, datapath = { app.figures.recent.value },
+            layout: SimpleLayout [ axis = y ],
+            RecentRow [ datapath = :rows[] ]
+            ],
+        Button [ height = 30, fontSize = 13, label = "All transactions", link = "#transactions" ]
+        ]
+    ]
