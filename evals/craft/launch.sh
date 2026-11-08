@@ -54,6 +54,8 @@ fi
 # the task: the brief and the service, beside the download. An app with fixtures/ keeps
 # its service outside the sandbox — the agent gets the contract, not the data or the schedule
 cp "$SRC/brief.md" task/
+# an app whose brief is a published specification (RealWorld) carries it beside the brief
+[ -d "$SRC/spec" ] && cp -R "$SRC/spec" task/
 if [ -d "$SRC/fixtures" ]; then
   mkdir -p task/api && cp "$SRC/api/API.md" task/api/
   SERVICE=("$SRC/api/server.mjs" "--port=$PORT" "--seed=1")
