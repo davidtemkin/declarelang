@@ -11,6 +11,7 @@ import { cellIdsOf, isSet, ownerOf, percentOwned } from "./attributes.js";
 import { emptyContainerMessage, negativeSizeMessage, placedFromParentMessage } from "./errors.js";
 import { declareName } from "./declare-name.js";
 import { pathOf } from "./node-path.js";
+import { inColumns } from "./columns.js";
 
 /** A CHILD SIZED FROM A PARENT THAT HAS NO SIZE TO GIVE is reported
  *  (docs/system-design/layout-ownership.md §4). A child whose size is derived
@@ -75,14 +76,6 @@ export function judgeNegativeSizes(): void {
  *  size stays at its first 0, and the view draws nothing. Looked for once, when
  *  the program first has its room. A layout that STRETCHES them is the way to say
  *  "as tall as the tallest", which is what the message offers. */
-/** Is this view laid by its parent's `columns` grid (a WrappingLayout's cells)? */
-export function inColumns(v: View): boolean {
-  const l = v.parent instanceof View ? v.parent.layout as { columns?: unknown } | null : null;
-  if (l === null || typeof l.columns !== "number" || l.columns < 1) return false;
-  for (let c = (l as object).constructor; c && c !== Object; c = Object.getPrototypeOf(c)) if (c.name === "WrappingLayout") return true;
-  return false;
-}
-
 export function judgeEmptyContainers(root: View): void {
   const said = new Set<string>();
   // which one: a class name alone ("View") sent an agent grepping for the view it

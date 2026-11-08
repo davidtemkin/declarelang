@@ -172,9 +172,13 @@ if (flags.wrap && !hasApp) {
     console.error(`verify --wrap: no top-level class found in ${file}`);
     process.exit(2);
   }
+  // An item of a choice reads what is chosen from its ChoiceControl, so it is
+  // probed as one's child, as it is used.
+  const item = (d) => d.name === "ChoiceItem" || d.base === "ChoiceItem";
   const probe = decls.map((d) =>
     /Layout$/.test(d.base)
       ? `    probe${d.name}: View [ width = 400, height = 200,\n        layout: ${d.name} [ ],\n        View [ fill = #888888 ],\n        View [ fill = #888888 ],\n        ],`
+      : item(d) ? `    ChoiceControl [ accessibilityLabel = "Probe", ${d.name} [ choice = "a" ] ],`
       : `    ${d.name} [ ],`
   ).join("\n");
   source = `${source}\n\nApp [ width = 480, height = 320,\n${probe}\n    ]\n`;

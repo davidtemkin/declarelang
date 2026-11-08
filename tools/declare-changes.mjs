@@ -21,15 +21,15 @@ import { parseProgram, parseLibrary } from "../runtime/dist/parser.js";
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const VERSION = JSON.parse(readFileSync(join(ROOT, "package.json"), "utf8")).version;
 
-const parts = (v) => { const [a = 0, b = 0, c = 0] = v.split(".").map(Number); return [a, b, c]; };
-const cmp = (a, b) => { const x = parts(a), y = parts(b); return x[0] - y[0] || x[1] - y[1] || x[2] - y[2]; };
+const parts = (v) => { const [a = 0, b = 0, c = 0, d = 0] = v.split(".").map(Number); return [a, b, c, d]; };
+const cmp = (a, b) => { const x = parts(a), y = parts(b); return x[0] - y[0] || x[1] - y[1] || x[2] - y[2] || x[3] - y[3]; };
 
 /** Every release's notes, oldest first: [{ version, entries }]. */
 export function releases(root = ROOT) {
   const dir = join(root, "releases");
   if (!existsSync(dir)) return [];
   return readdirSync(dir)
-    .map((f) => /^v(\d+\.\d+\.\d+)\.md$/.exec(f))
+    .map((f) => /^v(\d+\.\d+\.\d+(?:\.\d+)?)\.md$/.exec(f))
     .filter((m) => m !== null)
     .map((m) => ({ version: m[1], entries: readChanges(readFileSync(join(dir, m[0]), "utf8")) }))
     .sort((a, b) => cmp(a.version, b.version));

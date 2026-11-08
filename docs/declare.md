@@ -774,17 +774,15 @@ panel: View [                                                // on a DESCENDANT,
 `provided(…)` is the one new construct — an explicit up-the-tree read, bare in `[ ]` (like
 `gradient(…)`) or a call in `{ }`. It is explicit on purpose: it reaches past this node, and a
 non-local read is worth showing. You rarely write it — `Text` and the library widgets read the face
-and theme values *for* you, so app code that only *sets* those values never says `provided(…)`;
-you write it where your own code reads a value from up the tree. A read that finds no provider
+and theme values *for* you; you write it where your own code reads a value from up the tree. A read that finds no provider
 falls to an optional default (`provided("theme", SanFrancisco)`), else throws, naming the
 value.
 
 Start from a library preset — each a light record with a `…Dark` companion, in scope by name —
 and spread to change a token; the standard library reads specific token names (`npx declare-help
-"theme tokens"` lists them, with the classes that read each), so build from a preset rather than an
-empty record. A token's relatives share its name (`accent`,
-`accentHovered`, `accentPressed`, `accentTextColor`): change a role, change them with it. You can declare your own with `theme Brand [ … ]`, a
-top-level named record like a `style` bundle. The `{ { … } }` is not special syntax: the outer
+"theme tokens"` lists them), so build from a preset, not an empty record. A token's relatives share its name (`accent`,
+`accentHovered`, `accentPressed`, `accentTextColor`): change a role, change them with it. Declare your own with `theme Brand [ … ]`, a
+top-level record like a `style` bundle. The `{ { … } }` is not special syntax: the outer
 braces open the constraint, the inner ones are a TypeScript object literal. A token read from
 `provided("theme")` must be one some theme declares — a preset, the library defaults, your own
 `theme`, or a record your `theme = …` writes — so a misspelled token is a compile error.

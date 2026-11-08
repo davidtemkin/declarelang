@@ -44,7 +44,7 @@ declareVersion [ "0.6" ]
     changed since".
   - the same release, or no line: nothing.
 - **Per file.** The main file's line is the program's. Versions are release versions (`releases/v<version>.md`),
-  compared as `major.minor.patch`.
+  compared as `major.minor.patch`, with an optional fourth part for a step between patches (0.6.4.1).
 
 ### 2.2 Release notes say what to change, in a set form
 

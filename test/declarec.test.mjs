@@ -643,8 +643,11 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // measured 158.0 KB.
   // 159 → 164 KB (2026-11-01, with the runtime's limit below): headroom for the
   // runtime's next increments — measured 159.4 KB.
+  // 164 → 169 KB (2026-11-07, v0.6.4.1, the user's ruling): copy, cut and paste
+  // at a view (clipboard.ts, in every program as files.ts is), tagStyles, rich
+  // text alignment, the media echo guard — measured 164.4 KB.
   const wire = out.files.reduce((n, f) => n + gzipSync(Buffer.from(f.contents)).length, 0);
-  assert.ok(wire > 20 * 1024 && wire < 164 * 1024,
+  assert.ok(wire > 20 * 1024 && wire < 169 * 1024,
     `unexpected FIRST-LOAD size ${(wire / 1024).toFixed(1)} KB — ` +
     out.files.map((f) => `${f.name} ${(gzipSync(Buffer.from(f.contents)).length / 1024).toFixed(1)}`).join(", "));
 

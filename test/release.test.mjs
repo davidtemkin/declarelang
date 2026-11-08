@@ -82,6 +82,11 @@ await test("versions order as semver, and the names are what the tree uses", () 
   assert.ok(compareVersions("0.5.0", "0.4.9") > 0);
   assert.ok(compareVersions("1.0.0", "0.9.9") > 0);
   assert.equal(compareVersions("0.4.3", "0.4.3"), 0);
+  // a step between patches: 0.6.4 < 0.6.4.1 < 0.6.4.2 < 0.6.5
+  assert.ok(compareVersions("0.6.4.1", "0.6.4") > 0);
+  assert.ok(compareVersions("0.6.4.2", "0.6.4.1") > 0);
+  assert.ok(compareVersions("0.6.5", "0.6.4.2") > 0);
+  assert.equal(compareVersions("0.6.4.0", "0.6.4"), 0);
   assert.equal(notesPath("0.4.3"), "releases/v0.4.3.md");
   assert.equal(tagOf("0.4.3"), "v0.4.3");
 });

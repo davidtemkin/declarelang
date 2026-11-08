@@ -180,7 +180,7 @@ await test("scaffold: View declares its attrs (AttrType→TS map) + the §11 nou
   // string / color / enum are demonstrated on Text, the record kind on RichText.
   const text = classBlock(s, "Text");
   assert.ok(text.includes("text: string;"), "string → string");
-  assert.ok(text.includes("fontFamily: string | Font | readonly (string | Font)[] | null;"), "font → a family string, a Font, or a list of them");
+  assert.ok(text.includes("fontFamily: string | Font | readonly (string | Font)[];"), "font → a family string, a Font, or a list of them — never null");
   assert.ok(text.includes("textColor: Color;"), "color → Color");
   assert.ok(text.includes("fontWeight: FontWeight;"), "enum → named union");
   const rich = classBlock(s, "RichText");

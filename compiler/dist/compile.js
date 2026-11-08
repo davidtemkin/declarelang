@@ -1283,7 +1283,9 @@ async function compileUnquieted(source, opts, seen) {
         const order = compareReleases(version, DECLARE_VERSION);
         if (order > 0)
             r.errors.push(Diag.versionNewer(version, DECLARE_VERSION, pos));
-        else if (compareReleases(version, DECLARE_VERSION.split(".").slice(0, releaseDepth(version)).join(".")) < 0)
+        // "0.6" means any 0.6 release; "0.6.4" names one exactly, so a step after it
+        // (0.6.4.1) is newer than the program
+        else if (compareReleases(version, releaseDepth(version) >= 3 ? DECLARE_VERSION : DECLARE_VERSION.split(".").slice(0, releaseDepth(version)).join(".")) < 0)
             r.warnings.push(Diag.versionOlder(version, DECLARE_VERSION, (opts.mainId ?? "app.declare").split("/").pop(), pos));
     }
     r.warnings.push(...smallFieldWarnings(program, preludeLen));

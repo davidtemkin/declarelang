@@ -68,12 +68,13 @@ export const notesPath = (version) => `${RELEASES}/v${version}.md`;
 
 // ── pure: versions ──────────────────────────────────────────────────────────
 export function parseVersion(v) {
-  const m = /^(\d+)\.(\d+)\.(\d+)$/.exec(v);
-  return m === null ? null : m.slice(1).map(Number);
+  // x.y.z, or x.y.z.w — a smaller release between patches (0.6.4.1)
+  const m = /^(\d+)\.(\d+)\.(\d+)(?:\.(\d+))?$/.exec(v);
+  return m === null ? null : m.slice(1).map((n) => Number(n ?? 0));
 }
 export function compareVersions(a, b) {
   const x = parseVersion(a), y = parseVersion(b);
-  for (let i = 0; i < 3; i++) if (x[i] !== y[i]) return x[i] - y[i];
+  for (let i = 0; i < 4; i++) if (x[i] !== y[i]) return x[i] - y[i];
   return 0;
 }
 
@@ -127,7 +128,7 @@ export function isPublished(version, { tags, pushed }) {
 export function checkRelease({ version, tags, pushed = null, notes, committed, removed = [], notesText = null }) {
   const problems = [];
   if (parseVersion(version) === null) {
-    problems.push(`package.json version '${version}' is not semver-shaped (x.y.z)`);
+    problems.push(`package.json version '${version}' is not release-shaped (x.y.z or x.y.z.w)`);
     return { ok: false, pending: false, problems };
   }
   const tagged = isPublished(version, { tags, pushed });
@@ -151,7 +152,7 @@ export function checkRelease({ version, tags, pushed = null, notes, committed, r
     }
   }
   for (const n of notes) {
-    const m = /^releases\/v(\d+\.\d+\.\d+)\.md$/.exec(n);
+    const m = /^releases\/v(\d+\.\d+\.\d+(?:\.\d+)?)\.md$/.exec(n);
     if (m === null) continue;
     const v = m[1];
     if (v !== version && !isPublished(v, { tags, pushed })) {
@@ -301,7 +302,7 @@ function publish() {
   // an earlier release's notes can be amended too (RELEASING.md, "To amend"): every
   // published page follows its file, not only the newest
   for (const n of s.notes) {
-    const v = /^releases\/v(\d+\.\d+\.\d+)\.md$/.exec(n)?.[1];
+    const v = /^releases\/v(\d+\.\d+\.\d+(?:\.\d+)?)\.md$/.exec(n)?.[1];
     if (v !== undefined && v !== s.version && s.tags.includes(tagOf(v))) project(v, false);
   }
 }

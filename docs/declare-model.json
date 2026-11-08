@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "166ee510e720",
+  "buildId": "ffa26f5fc553",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -111818,10 +111818,10 @@
      "declareVersion [ \"0.6.0\" ]"
     ],
     "syntaxText": "declareVersion [ \"0.6.0\" ]",
-    "lead": "The release of Declare a file was written for. No program needs it: `npx declare-changes\n--done` writes it, first in the file, once a program has been moved to a release, so the next\nrelease's list of changes starts from there. The main file's line is the program's.\n\nThe compiler reads it. A program written for a release newer than the compiler is an error; one\nwritten for an older release compiles, with a one-line note naming `npx declare-changes`. A\nrelease is compared as far as it is written: `\"0.6\"` is current under any 0.6 release.",
+    "lead": "The release of Declare a file was written for. No program needs it: `npx declare-changes\n--done` writes it, first in the file, once a program has been moved to a release, so the next\nrelease's list of changes starts from there. The main file's line is the program's.\n\nThe compiler reads it. A program written for a release newer than the compiler is an error; one\nwritten for an older release compiles, with a one-line note naming `npx declare-changes`. A\nrelease is compared as far as it is written: `\"0.6\"` is current under any 0.6 release. Three\nparts or more name one release exactly: `\"0.6.4\"` is older than `0.6.4.1`, a step after it.",
     "docSegs": [
      {
-      "md": "The release of Declare a file was written for. No program needs it: `npx declare-changes\n--done` writes it, first in the file, once a program has been moved to a release, so the next\nrelease's list of changes starts from there. The main file's line is the program's.\n\nThe compiler reads it. A program written for a release newer than the compiler is an error; one\nwritten for an older release compiles, with a one-line note naming `npx declare-changes`. A\nrelease is compared as far as it is written: `\"0.6\"` is current under any 0.6 release.",
+      "md": "The release of Declare a file was written for. No program needs it: `npx declare-changes\n--done` writes it, first in the file, once a program has been moved to a release, so the next\nrelease's list of changes starts from there. The main file's line is the program's.\n\nThe compiler reads it. A program written for a release newer than the compiler is an error; one\nwritten for an older release compiles, with a one-line note naming `npx declare-changes`. A\nrelease is compared as far as it is written: `\"0.6\"` is current under any 0.6 release. Three\nparts or more name one release exactly: `\"0.6.4\"` is older than `0.6.4.1`, a step after it.",
       "code": []
      }
     ],
@@ -120375,7 +120375,7 @@
        "label": "Language form",
        "slug": "declareVersion",
        "loc": "language/declareVersion",
-       "doc": "# declareVersion\n\n```declare-fragment\ndeclareVersion [ \"0.6.0\" ]\n```\n\nThe release of Declare a file was written for. No program needs it: `npx declare-changes\n--done` writes it, first in the file, once a program has been moved to a release, so the next\nrelease's list of changes starts from there. The main file's line is the program's.\n\nThe compiler reads it. A program written for a release newer than the compiler is an error; one\nwritten for an older release compiles, with a one-line note naming `npx declare-changes`. A\nrelease is compared as far as it is written: `\"0.6\"` is current under any 0.6 release.",
+       "doc": "# declareVersion\n\n```declare-fragment\ndeclareVersion [ \"0.6.0\" ]\n```\n\nThe release of Declare a file was written for. No program needs it: `npx declare-changes\n--done` writes it, first in the file, once a program has been moved to a release, so the next\nrelease's list of changes starts from there. The main file's line is the program's.\n\nThe compiler reads it. A program written for a release newer than the compiler is an error; one\nwritten for an older release compiles, with a one-line note naming `npx declare-changes`. A\nrelease is compared as far as it is written: `\"0.6\"` is current under any 0.6 release. Three\nparts or more name one release exactly: `\"0.6.4\"` is older than `0.6.4.1`, a step after it.",
        "preview": "declare-fragment declareVersion \"0.6.0\" The release of Declare a file was written for. No program needs it: npx declare-changes --done writes it, first in the file, once a program has been moved to a release, so the next release's list of c…"
       },
       {

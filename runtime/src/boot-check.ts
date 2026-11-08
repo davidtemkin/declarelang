@@ -17,7 +17,7 @@ import { semanticTree, formatSemantics } from "./semantics.js";
 import { DataSource } from "./data.js";
 import { settle } from "./reactive.js";
 import { declareName } from "./declare-name.js";
-import { inColumns } from "./size-report.js";
+import { inColumns } from "./columns.js";
 
 export interface BootCheckOptions {
   /** The window is a touch device: targets too small for a finger are said. */

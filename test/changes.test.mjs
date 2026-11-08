@@ -101,6 +101,17 @@ await test("declareVersion: a newer release is an error, an older one a note nam
   assert.ok(older.some((d) => d.code === "DECLARE2009" && /declare-changes app\.declare/.test(d.message)));
   const same = await diags(`declareVersion [ "${maj}.${min}" ]\nApp [ ]`);
   assert.equal(same.some((d) => /DECLARE200[89]/.test(d.code)), false);
+  const exact = await diags(`declareVersion [ "${VERSION}" ]\nApp [ ]`);
+  assert.equal(exact.some((d) => /DECLARE200[89]/.test(d.code)), false);
+  // three parts name one release exactly: under a step after it (0.6.4.1) the
+  // program is older, and is told so
+  const [, , pat] = VERSION.split(".").map(Number);
+  const before = await diags(`declareVersion [ "${maj}.${min}.${pat - 1}" ]\nApp [ ]`);
+  assert.ok(pat < 1 || before.some((d) => d.code === "DECLARE2009"));
+  if (VERSION.split(".").length === 4) {
+    const patch = await diags(`declareVersion [ "${maj}.${min}.${pat}" ]\nApp [ ]`);
+    assert.ok(patch.some((d) => d.code === "DECLARE2009"), "a step is newer than its patch");
+  }
   const twice = await compile(`declareVersion [ "${VERSION}" ]\ndeclareVersion [ "${VERSION}" ]\nApp [ ]`, { originDir: ROOT });
   assert.ok((twice.errors ?? []).length > 0, "a second declareVersion is refused");
 });

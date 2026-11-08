@@ -1110,7 +1110,8 @@ release's list of changes starts from there. The main file's line is the program
 
 The compiler reads it. A program written for a release newer than the compiler is an error; one
 written for an older release compiles, with a one-line note naming `npx declare-changes`. A
-release is compared as far as it is written: `"0.6"` is current under any 0.6 release.
+release is compared as far as it is written: `"0.6"` is current under any 0.6 release. Three
+parts or more name one release exactly: `"0.6.4"` is older than `0.6.4.1`, a step after it.
 
 ### rules
 
