@@ -693,8 +693,8 @@ separate multi-finger stream, for when you need the finger list rather than a po
 
 Reach for the raw layer to run a command and it misfires on touch, where a finger landing on a
 button may be starting a scroll. Because the runtime resolves the gesture, a wandering pointer is
-a drag and activates nothing, and declaring `onDblClick` makes that view's single click wait out
-the double window. Every pointer event carries its point both ways: `x`/`y` in the view's own
+a drag and activates nothing, and a view declaring `onDblClick` hears its first click at once,
+its second as `onDblClick`. Every pointer event carries its point both ways: `x`/`y` in the view's own
 coordinates, and `rootX`/`rootY` in **root space** — the frame a drag reads, because it does not move
 with the dragged thing — with `deltaX`/`deltaY` the root-space movement since the press.
 
