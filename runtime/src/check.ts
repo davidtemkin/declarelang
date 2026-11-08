@@ -2001,7 +2001,7 @@ function checkControlledInput(program: Program): DeclareError[] {
     writes.set(name, out);
     return out;
   };
-  const visit = (el: Element, tag: string): void => {
+  const visit = (el: Element, tag: string, who: string = tag): void => {
     const w = writtenByInput(tag);
     if (w !== null && !el.methods.some((m) => m.name === w.via)) {
       const attr = w.attr, via = w.via;
@@ -2023,10 +2023,26 @@ function checkControlledInput(program: Program): DeclareError[] {
           a.pos));
       }
     }
+    // …and the element's OWN method writing what the element itself binds
+    // (`value = { src }` beside `commit(t) { value = t }`, the homepage's editor
+    // after the 0.6.0 migration): the write is refused when it runs — the first
+    // keystroke — so it is said here. A declared attribute with a computed
+    // default (`edited: string = { src }`) is the form that gives way to a write.
+    for (const a of el.attrs) {
+      if ((a.value.kind !== "code" && a.value.kind !== "path") || a.bind !== undefined) continue;
+      const writes = new RegExp(`(?:^|[^.:\\w$])(?:this\\.)?${a.name}\\s*=(?!=)`);
+      const m = el.methods.find((x) => writes.test(x.body.replace(/(["'`])(?:\\.|(?!\1).)*\1/g, '""')));
+      if (m === undefined) continue;
+      const bound = a.value.kind === "path" ? `:${(a.value as { path: string }).path}` : `{ ${(a.value as { src: string }).src.trim()} }`;
+      errors.push(new DeclareError(
+        `${who}'s own '${m.name}(…)' writes ${a.name}, which it binds with a constraint (${a.name} = ${bound}) — the write is refused when it runs. ` +
+        `Hold what changes in a declared attribute that starts from the same value ('edited: <type> = ${bound}'), bind '${a.name} = { edited }', and write 'edited'`,
+        m.pos ?? a.pos));
+    }
     for (const c of el.children) visit(c, c.tag);
   };
   visit(program.root, program.root.tag);
-  for (const c of program.classes) visit(c.body, c.base);
+  for (const c of program.classes) visit(c.body, c.base, c.name);
   return errors;
 }
 

@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "2d2bb462f111",
+  "buildId": "542333d3b83a",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -4927,19 +4927,19 @@
    },
    "EE44519": {
     "message": "defaultPlacement names one of the class's children, written bare: 'defaultPlacement = body'",
-    "at": "check.ts:2043"
+    "at": "check.ts:2059"
    },
    "EE157AC": {
     "message": "defaultPlacement = … — '…' declares no child named '…'; name the child its subclasses' and use sites' children should go into",
-    "at": "check.ts:2044"
+    "at": "check.ts:2060"
    },
    "EB27292": {
     "message": "defaultPlacement belongs on a class — it says where the children of its subclasses and use sites go; write it in the class body",
-    "at": "check.ts:2049"
+    "at": "check.ts:2065"
    },
    "E14041E": {
     "message": "tagStyles.… names '…', which no textStyles entry or style declaration defines…'?` : \"\"}; name one of the program's styles",
-    "at": "check.ts:2084"
+    "at": "check.ts:2100"
    },
    "E908CAC": {
     "message": "classFor = { … } …",

@@ -876,10 +876,12 @@ App [ fill = { provided("theme").background },
             textColor = { app.codeFg() },
             fill = { provided("theme").codeBg },
 
-            // the file's text until the person edits it; then their edit
+            // the file's text until the person edits it; then their edit (a declared
+            // default gives way to a write, where a binding of `value` would refuse it)
 
-            value = { app.demoSources["__raw__"] || app.rawSrc.value || "" },
-            commit(t: string) { value = t; parent.edited = true; app.liveCard = "__raw__"; app.liveSource = t }
+            draft: string = { app.demoSources["__raw__"] || app.rawSrc.value || "" },
+            value = { draft },
+            commit(t: string) { draft = t; parent.edited = true; app.liveCard = "__raw__"; app.liveSource = t }
             ],
 
         // Revert — restores the file's pristine text and recompiles it; armed
@@ -894,7 +896,7 @@ App [ fill = { provided("theme").background },
             onClick() {
                 if (!parent.edited) return
                 const raw = app.demoSources["__raw__"] || app.rawSrc.value || ""
-                parent.editor.value = raw
+                parent.editor.draft = raw
                 parent.edited = false
                 app.liveCard = "__raw__"; app.liveSource = raw
                 },
