@@ -70,14 +70,17 @@ if [ -n "$APP_PORT" ] && [ "$PORT" != "$APP_PORT" ]; then
   for f in task/brief.md task/api/API.md; do [ -f "$f" ] && perl -pi -e "s/\\b$APP_PORT\\b/$PORT/g" "$f"; done
 fi
 
-# the prompt: nothing beyond what the task needs — the distribution carries the rest
+# the prompt: nothing beyond what the task needs — the distribution carries the rest.
+# An app with no service (7GUIs) leaves the service sentence out.
+SVC_LINE=""
+[ -d "$SRC/api" ] && SVC_LINE=" The data service is described in \`task/api/API.md\` and is already running on port $PORT; do not modify it."
 if [ -z "$STACK" ]; then
 cat > "$LOGS/prompt.txt" <<EOF
-You have just downloaded the Declare distribution into \`declarelang/\`. Declare is a UI language not in your training data; that repository is the only source of truth and documents itself. Start at its README.md. Build the app described in \`task/brief.md\`. The data service is described in \`task/api/API.md\` and is already running on port $PORT; do not modify it.
+You have just downloaded the Declare distribution into \`declarelang/\`. Declare is a UI language not in your training data; that repository is the only source of truth and documents itself. Start at its README.md. Build the app described in \`task/brief.md\`.$SVC_LINE
 EOF
 else
 cat > "$LOGS/prompt.txt" <<EOF
-Build the app described in \`task/brief.md\` as a $STACK application. The data service is described in \`task/api/API.md\` and is already running on port $PORT; do not modify it.
+Build the app described in \`task/brief.md\` as a $STACK application.$SVC_LINE
 EOF
 fi
 
