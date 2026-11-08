@@ -794,7 +794,7 @@ function extractBody(sf, locals, inlinable, extraRoots, bodyPos) {
                         // that name anywhere there is nothing to follow, and either way the
                         // call is never refused.)
                         if (USER_METHOD_NAMES.has(m) && recv.kind !== ts.SyntaxKind.SuperKeyword && pathTextOf(recv) !== "$base") {
-                            calls.push({ kind: "method", name: m, receiver: pathTextOf(recv), args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s), body: bodyPos });
+                            calls.push({ kind: "method", name: m, receiver: pathTextOf(recv), args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s), body: bodyPos, builtinName: true });
                         }
                     }
                     else {
@@ -1436,8 +1436,13 @@ function buildMethodSummaries() {
                 sub = follow1(c, stack, ctx);
             else if (c.kind === "method") {
                 const m = rebaseIn(c.receiver, frame);
+                // a member call on a parameter whose argument is no nameable path: the
+                // lenient tier, as a read through it is — refused only in a strict
+                // (script) frame, and never for a built-in's name (`iso.split(…)` is
+                // String's split, whatever methods the program declares)
                 if (!m.ok) {
-                    errors.push(m.error);
+                    if (frame.lenient !== true && c.builtinName !== true)
+                        errors.push(m.error);
                     continue;
                 }
                 sub = follow1({ ...c, receiver: m.path, args: c.args.map(out) }, stack, ctx);
