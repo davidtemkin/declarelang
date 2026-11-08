@@ -309,11 +309,12 @@ export class FocusService {
                 // shown and focusable, yet out of reach: a container's tabOrder() leaves it out
                 if (shownChain(v) && canFocus(v))
                     warnOnce(v, `focus on ${where(v)} was dropped: a container's tabOrder() leaves it out, so Tab cannot reach it — list it there (compose with tabDefault()) or focus a view Tab reaches`);
+                const ring = this.keyboard;
                 this.apply(null);
                 this.startPoint = v;
                 const p = parentAcross(v);
                 if (p !== null)
-                    this.recover(v, p);
+                    this.recover(v, p, ring);
             });
         });
         this.watch = k;
@@ -568,6 +569,7 @@ export class FocusService {
     noteDiscarded(view) {
         if (this.current === null || !isInSubtree(this.current, view))
             return;
+        const ring = this.keyboard;
         this.current = null; // the old focus is dying; drop it without a blur into a dead view
         noteFocused(null);
         this.setKeyboard(false);
@@ -579,22 +581,32 @@ export class FocusService {
         const p = view.parent instanceof View ? view.parent : null;
         this.startPoint = p !== null ? { parent: p, at: p.childViews.indexOf(view) } : null;
         if (p !== null)
-            this.recover(view, p);
+            this.recover(view, p, ring);
     }
     /** Focus was lost from `lost` (hidden, made unreachable, or torn down — its
      *  subtree's root). On the next frame, if focus is still nowhere and nothing
      *  has called focus() or blur() since, give it to the nearest container above
      *  the place, from `from` up, that says where (restoreTarget). Else it stays
-     *  cleared and the next Tab starts from the place, as today. Whatever the last
-     *  input was — the program asked; after a press the ring stays hidden. */
-    recover(lost, from) {
+     *  cleared and the next Tab starts from the place, as today. The focus it
+     *  gives shows its ring as focus given back by an overlay does: only if the
+     *  lost focus showed it (`ring`), and the person is still at the keyboard. A
+     *  field edited after a click and closed with Return gives its container
+     *  focus without a ring; one reached by Tab keeps the ring going. */
+    recover(lost, from, ring) {
         const calls = this.calls;
         from.$afterDelay(0, () => {
             if (this.current !== null || this.calls !== calls)
                 return;
             const t = restoreTarget(from, lost);
-            if (t !== null)
+            if (t === null)
+                return;
+            this.givingBack = ring && this.lastInputKeyboard;
+            try {
                 this.focus(t);
+            }
+            finally {
+                this.givingBack = null;
+            }
         });
     }
 }

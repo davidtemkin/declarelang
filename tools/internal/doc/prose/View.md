@@ -654,7 +654,9 @@ of `stop`) that answers nothing takes focus itself, at its entry. When nothing a
 focus is cleared and the next Tab starts from where it was. On an overlay it is read as the
 overlay closes; `null` there gives focus back to what had it when it opened. It can be a
 constraint, read at that moment, so it can depend on what just happened. Focus the program
-moves itself meanwhile wins.
+moves itself meanwhile wins. Focus that goes back this way shows the keyboard ring only if
+the focus that was lost showed it: a field edited after a click and closed with Return gives
+its list focus without a ring.
 
 ```declare-fragment
 confirm: Dialog [ restoresFocusTo = { app.deleted ? app.listHeading : null } ]

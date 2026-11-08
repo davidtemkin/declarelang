@@ -158,6 +158,27 @@ await test("focus given back on close shows its ring only if it showed it on ope
   assert.equal(await run(true, false), false, "opened from the keyboard, closed by a press: no ring");
 });
 
+// The same for focus a loss gives back: a cell's field edited after a click and
+// closed with Return gives the grid focus without a ring (the Return was ending
+// an edit, not navigating); one reached from the keyboard keeps the ring going.
+await test("focus recovered after a loss shows its ring only if the lost focus showed it", async () => {
+  const src = `App [ width = 500, height = 300, editing: boolean = true,
+    grid: View [ width = 400, height = 200, focusScope = stop, restoresFocusTo = { this.row },
+        row: Button [ label = "Row" ],
+        cell: TextInput [ y = 40, width = 200, exists = { app.editing } ] ] ]`;
+  const run = async (reachedByKeyboard) => {
+    const app = await boot(src);
+    Focus.lastInputKeyboard = reachedByKeyboard;   // a click on the cell, or a key that opened it
+    Focus.focus(app.grid.cell); settle();
+    Focus.lastInputKeyboard = true;                // Return
+    app.editing = false; settle(); await turns();
+    same(Focus.getFocus(), app.grid.row, "focus goes where the grid says");
+    return Focus.byKeyboard();
+  };
+  assert.equal(await run(false), false, "edited after a click, closed with Return: no ring");
+  assert.equal(await run(true), true, "reached from the keyboard, closed with Return: the ring");
+});
+
 await test("a quiet view a tabOrder() lists sits where it lists it: Tab goes on from there, not from its place in the tree", async () => {
   const app = await boot(`App [ width = 800, height = 400,
     bar: Button [ label = "Performances" ],

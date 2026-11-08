@@ -214,8 +214,11 @@ export declare class FocusService {
      *  subtree's root). On the next frame, if focus is still nowhere and nothing
      *  has called focus() or blur() since, give it to the nearest container above
      *  the place, from `from` up, that says where (restoreTarget). Else it stays
-     *  cleared and the next Tab starts from the place, as today. Whatever the last
-     *  input was — the program asked; after a press the ring stays hidden. */
+     *  cleared and the next Tab starts from the place, as today. The focus it
+     *  gives shows its ring as focus given back by an overlay does: only if the
+     *  lost focus showed it (`ring`), and the person is still at the keyboard. A
+     *  field edited after a click and closed with Return gives its container
+     *  focus without a ring; one reached by Tab keeps the ring going. */
     private recover;
 }
 /** A scroller with nothing inside it that takes focus — a pane of text, a strip
