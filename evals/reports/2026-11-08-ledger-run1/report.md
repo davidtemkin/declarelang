@@ -61,27 +61,36 @@ charts (`draw` plus transparent `Control` slots for pointer and keyboard), cell 
 
 ## Findings for the platform
 
-Ranked by cost to this run. Each is to be confirmed against the runtime before a fix.
+Ranked by cost to this run, as the agent told it. **Measured from the run's timestamps, the
+agent overstated its losses about tenfold:** the DatePicker report took 2.8 minutes (27.4–30.2),
+not "about 25"; the nameable-path refusals under a minute in all, not "about 20". The
+platform's share of the run was about 5–6 of 46 minutes.
 
 1. **A report inside library code, triggered by the program (about 25 min).** DECLARE7001 at
    `library/datepicker.declare:366:34` (`_dateOf(…) reads through its 'iso' parameter, but the
    argument passed for it is not a nameable path`) appeared once the editor file was included,
    with two `DatePicker [ value <-> classroot.from ]` in a `Popover` whose `exists` is computed,
    `from: string = { … ? app.today : app.filters.from }`. The agent never isolated it and
-   replaced the pickers with typed fields. A finding the author cannot act on, at a line they
-   did not write: a checker defect. Needs a reproduction.
+   replaced the pickers with typed fields. **Reproduced from the run's snapshot and fixed
+   (2026-11-08):** the cause was the program's own `split()` method (the editor's Split action).
+   A built-in's name that a program's method also has is followed as a possible method call,
+   and `iso.split(…)` in DatePicker's `_dateOf` — a call on a parameter whose argument is an
+   expression — was then refused, ignoring the method frame's leniency. Three lines reproduce
+   it: an App with `split() { }` and a `DatePicker`. Now such a call is never refused, and a
+   member call on a parameter is lenient in a method frame, as the code already documented.
 2. **DECLARE7001 through locals and expressions (about 20 min, a pattern).** Refused three
    times: a computed totals object passed to a method, a `? :` passed as an argument, and a
    local `const p = points[i]` passed onward. The agent: "surprising that a local … passed
    onward is refused"; it asked for the analysis to see through locals, or before-and-after
    cases up front.
-3. **A program's script function replaced a library script function silently.** The agent's
-   `dateParts` had the same name as DatePicker's script function; scripts share one scope and
-   nothing said so. Contributed to finding 1's confusion.
+3. ~~A program's script function replaced a library script function silently.~~ **Not so:** no
+   `dateParts` exists in the platform. The agent renamed its own `parts` to `dateParts` as the
+   DatePicker report appeared, and blamed the name. The report was finding 1.
 4. **A type error hides DECLARE7001.** Analysis does not reach the 7001 phase when typecheck
    fails, so a bisect that introduces type errors "fixes" the report falsely.
 5. **R5's default window is 1024×768; `verify.md` names 1280×800** (for R4's boot). The agent
-   lost time before finding `app.width = 1024` in a debug print. A self-contradiction to fix.
+   lost time before finding `app.width = 1024` in a debug print. **Fixed (2026-11-08):** R5
+   opens in R4's laptop window, 1280×800, and verify.md names the size.
 6. **Tab never reaches a text field's `onKeyDown`** (focus traversal takes it). The brief's
    editing in place needs Tab to save the cell and move; no message, the request simply never
    came. Worked around through a screen-level `Keys` member and a cast of the focused view.
@@ -89,8 +98,8 @@ Ranked by cost to this run. Each is to be confirmed against the runtime before a
    saving a file (a browser script with a Blob and an anchor — "a FileSaver-like counterpart to
    FilePicker would be welcome"); writing `location` without a history entry; the click
    position in a `Control`'s `onClick`.
-8. **Smaller:** a `declare-look --click` on a side navigation item did not navigate (it used
-   `--set app.location`); a layout whose axis switches with width while children keep `flexes`
+8. **Smaller:** a `declare-look --click app.side.NavItem[1]` never ran — zsh read the unquoted
+   `[1]` as a filename pattern ("no matches found"), the agent's quoting, not the tool; a layout whose axis switches with width while children keep `flexes`
    collapses along y (guide 06 suggests `axis = { app.narrow ? "y" : "x" }`); `height = { Math.min
    (this.contentHeight, 360) }` with `scrolls = y` is refused as nothing to scroll while declare.md
    shows the cap with `clip`; repeated keys on a handle bound to a debounced filter.

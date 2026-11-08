@@ -354,6 +354,10 @@ type Call =
        *  calling body in its class chain — `baseKey` names that summary
        *  (filled in where the calling body's element is known). */
       viaBase?: boolean; baseKey?: string;
+      /** A built-in's name (`split`, `find`) that a program's method also has:
+       *  followed only if the receiver reaches a node with that method, and
+       *  never refused — on a string or an array it is the built-in. */
+      builtinName?: boolean;
       /** A READ of a computed `{ }` default (`x.count`), not a call: it follows
        *  defaults only, never a method that shares the name in another class. */
       ofDefault?: boolean;
@@ -740,7 +744,7 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
             // that name anywhere there is nothing to follow, and either way the
             // call is never refused.)
             if (USER_METHOD_NAMES.has(m) && recv.kind !== ts.SyntaxKind.SuperKeyword && pathTextOf(recv) !== "$base") {
-              calls.push({ kind: "method", name: m, receiver: pathTextOf(recv), args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s), body: bodyPos });
+              calls.push({ kind: "method", name: m, receiver: pathTextOf(recv), args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s), body: bodyPos, builtinName: true });
             }
           }
           else {
@@ -1344,7 +1348,11 @@ function buildMethodSummaries(): Summaries {
       if (c.kind === "scriptValue") sub = follow1(c, stack, ctx);
       else if (c.kind === "method") {
         const m = rebaseIn(c.receiver, frame);
-        if (!m.ok) { errors.push(m.error); continue; }
+        // a member call on a parameter whose argument is no nameable path: the
+        // lenient tier, as a read through it is — refused only in a strict
+        // (script) frame, and never for a built-in's name (`iso.split(…)` is
+        // String's split, whatever methods the program declares)
+        if (!m.ok) { if (frame.lenient !== true && c.builtinName !== true) errors.push(m.error); continue; }
         sub = follow1({ ...c, receiver: m.path, args: c.args.map(out) }, stack, ctx);
       } else if (c.kind === "collection") {
         // an unnameable receiver names no node: nothing to refuse

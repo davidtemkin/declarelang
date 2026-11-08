@@ -193,7 +193,7 @@ reasons that are not the program's. Write a script to take what is available now
 service if it offers a way, or answer from files with `--fixtures <dir>`. A run reports the writes
 it sent, and a run that fails after earlier runs wrote to the same service says so.
 
-A script runs on a laptop-sized window by default. To run it on another device, export one:
+A script runs in the laptop window rung 4 boots in (1280×800) by default. To run it on another device, export one:
 `export const device = { width: 390, height: 844, touch: true }` — the app loads once, on it.
 `drive` and `expect` drive the app by **view path**, never by DOM selector. A path names
 members (`app.toolbar.add`), a replicated row by its index among the views (`app.list.3`: the fourth view, whatever else the list holds; in a virtualized list only the rows on screen are built, in no data order, so `.0` is not record 0 — name such a row by what it says), or a view by what

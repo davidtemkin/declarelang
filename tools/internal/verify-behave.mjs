@@ -1821,12 +1821,13 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
   return withHost({ compiled, appDir, fixturesDir, backendClass, built, scrollbars: true, url }, async ({ openApp }) => {
     const failures = [];
     // a script may name the device it runs on — `export const device = { width,
-    // height, touch }` — so the app loads once, on it, rather than twice
+    // height, touch }` — so the app loads once, on it, rather than twice. With
+    // none, the laptop window rung 4 boots in (1280×800), as verify.md says.
     const mod = await importScript(assertPath);
     if (typeof mod.default !== "function") throw new VerifyAssertion(`${assertPath} has no default export function`);
     let app;
     try {
-      app = await timing.time("open: the app loaded and arrived, in all", () => openApp({ ...(mod.device ?? {}), budgetMs, check: classes === null ? null : { classes, skip } }));
+      app = await timing.time("open: the app loaded and arrived, in all", () => openApp({ width: 1280, height: 800, ...(mod.device ?? {}), budgetMs, check: classes === null ? null : { classes, skip } }));
     } catch (e) {
       if (e?.lines === undefined) throw e;
       return { ok: false, failures: e.lines, log: [] };
