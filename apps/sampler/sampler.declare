@@ -437,8 +437,10 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
 
         // the document's name until the person edits it; then their draft
 
-        nameField: TextInput [ width = 100%, value = { app.docName },
-            commit(t: string) { value = t },
+        nameField: TextInput [ width = 100%,
+            draft: string = { app.docName },
+            value = { draft },
+            commit(t: string) { draft = t },
             accessibilityLabel = "Document name"
             ]
         ],
