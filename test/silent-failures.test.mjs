@@ -456,6 +456,25 @@ await test("declare-look --url looks at an app where it is served, with no progr
   } finally { srv.kill(); }
 });
 
+await test("a TextInput sits on a row's baseline beside a label, one-line and multi-line", () => {
+  const f = join(DIR, "fieldbase.declare");
+  writeFileSync(f, `App [ width = 500, height = 220, fontSize = 15,
+    row: View [ x = 20, y = 20, width = 460, layout: SimpleLayout [ axis = x, spacing = 10, align = baseline ],
+        Text [ text = "Amount" ], TextInput [ width = 140, value = "120.00" ], TextInput [ width = 120, height = 60, value = "tall" ] ],
+    row2: View [ x = 20, y = 120, width = 460, layout: SimpleLayout [ axis = x, spacing = 10, align = baseline ],
+        Text [ text = "Note" ], TextInput [ width = 220, height = 60, multiline = true, value = "first line" ] ] ]`);
+  const sc = join(DIR, "fieldbase.mjs");
+  writeFileSync(sc, `export default async ({ page, expect }) => {
+  const at = (p) => page.evaluate((p) => { const v = window.__declare.find(p); return Math.round(v.y + v.baseline); }, p);
+  const label = await at("app.row.0");
+  await expect.equal(await at("app.row.1"), label);
+  await expect.equal(await at("app.row.2"), label);
+  await expect.equal(await at("app.row2.1"), await at("app.row2.0"));
+};`);
+  const r = run("verify.mjs", f, "--assert", sc, "--rung=5", "--no-boot");
+  assert.match(r.out, /R5 ✓/, r.out);
+});
+
 await test("a multi-line field that focuses itself keeps focus: its input-to-textarea swap is no blur", () => {
   const f = join(DIR, "swap.declare");
   writeFileSync(f, `App [ width = 300, height = 200, editing: boolean = false, blurs: number = 0,

@@ -134,6 +134,12 @@ reader.
 For a `multiline` field, whether long lines wrap (`true`) or scroll horizontally (`false`) —
 a code field wants `false`.
 
+## baseline
+The baseline a row aligns this field by — its text's first line. Under `align = baseline`
+a field sits with the words of a label beside it on one line. A one-line field centres its
+line in its box, so its baseline follows the box's height; a multi-line field's first line
+starts at the top.
+
 ## padding
 **Where the text sits inside the field** — the field's content box: one number insets all four
 sides; four are `[top, right, bottom, left]`. An auto-sized field (`height` unset) counts the
@@ -196,6 +202,13 @@ The theme's `fieldCornerRadius`, else its `controlCornerRadius`.
 ## _typed()
 **Internal.** A change the native element has landed, already admitted: opens the edit if
 none is open and takes it; a change to a field nobody is in (autofill) ends at once.
+
+## _lineTop
+**Internal.** Where the first line of text starts: at the top inset, and for one line,
+centred in what is left.
+
+## _lineTopOf()
+**Internal.** `_lineTop`'s arithmetic, from the inset, the height and the line.
 
 ## _pad
 **Internal.** The inset `padding` starts from: the theme's `fieldPadding`.
@@ -265,6 +278,16 @@ class TextInput extends ValueControl [
 
     padding = { app.touchFirst && !multiline ? [_tall, _pad, _tall, _pad] : _pad },
     _pad: number = { provided("theme")?.fieldPadding ?? 10 },
+
+    // a row aligns the field by its first line's baseline, as it does a label's
+
+    baseline: number = { this._lineTop + measureText("Hg", providedTextStyle()).baseline },
+    _lineTop: number = { this._lineTopOf(this.padding, this.height, this._native.textHeight, multiline) },
+    _lineTopOf(pad: any, h: number, line: number, many: boolean) -> number {
+        const top = typeof pad == "number" ? pad : pad[0]
+        const bottom = typeof pad == "number" ? pad : pad[2]
+        return many ? top : top + (h - top - bottom - line) / 2
+        },
     _tall: number = { Math.max(_pad, (44 - _native.textHeight) / 2) },
 
     _native: NativeText [

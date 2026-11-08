@@ -1411,10 +1411,26 @@ final class EditableOverlay: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
                 sizeDocument(toViewport: r.size)
             }
         } else {
-            // centred in the content box: the frame less the inset on each side
+            // The LINE centred in the content box, as the web's input centres it —
+            // not the field's own box, whose cell insets sat the text 2–3 pt above a
+            // label beside it, and off the baseline TextInput reports for a row's
+            // `align = baseline`. The line is the font's (ascent + descent + leading,
+            // the measure a Text's line takes here); the field is placed so its own
+            // first baseline lands where that centred line's does.
             let h = (field?.intrinsicContentSize.height ?? r.height)
-            let lead = clipBox.isFlipped ? pad.top : pad.bottom
-            field?.frame = CGRect(x: off.x + pad.left, y: off.y + lead + (r.height - pad.top - pad.bottom - h) / 2,
+            let inner = r.height - pad.top - pad.bottom
+            var top = pad.top + (inner - h) / 2
+            if let f = field, let font = f.font {
+                let line = font.ascender - font.descender + font.leading
+                let baseline = pad.top + (inner - line) / 2 + font.ascender
+                // the cell draws its text from the top of its title rect, so the field's
+                // own baseline sits an ascender below that (its reported first-baseline
+                // offset, 15 for an 18-tall field at 15 pt, is not where the glyphs land)
+                let title = f.cell?.titleRect(forBounds: NSRect(x: 0, y: 0, width: max(1, r.width), height: h)) ?? .zero
+                top = baseline - (title.minY + font.ascender)
+            }
+            let y = clipBox.isFlipped ? top : r.height - top - h
+            field?.frame = CGRect(x: off.x + pad.left, y: off.y + y,
                                   width: max(0, r.width - pad.left - pad.right), height: h)
         }
     }
@@ -1465,5 +1481,22 @@ final class EditableOverlay: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
 /// textarea does — `textContainerInset` alone is the same on opposite sides.
 final class InsetTextView: NSTextView {
     var insets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
-    override var textContainerOrigin: NSPoint { NSPoint(x: insets.left, y: insets.top) }
+    /// The first line's baseline where a label's line puts it — the face centred in the
+    /// default line, below the inset — which is the baseline TextInput reports for a row's
+    /// `align = baseline`; the layout manager's own first line sat it a point lower.
+    override var textContainerOrigin: NSPoint {
+        var y = insets.top
+        if let font = font, let lm = layoutManager {
+            // where the first line's baseline actually lands in the container: the
+            // first glyph's, else (an empty field) the layout manager's default
+            var actual = lm.defaultBaselineOffset(for: font)
+            if lm.numberOfGlyphs > 0 {
+                actual = lm.lineFragmentRect(forGlyphAt: 0, effectiveRange: nil).minY + lm.location(forGlyphAt: 0).y
+            }
+            // …and where a label's line puts it: the face centred in the default line
+            let line = lm.defaultLineHeight(for: font)
+            y += (line - (font.ascender - font.descender)) / 2 + font.ascender - actual
+        }
+        return NSPoint(x: insets.left, y: y)
+    }
 }
