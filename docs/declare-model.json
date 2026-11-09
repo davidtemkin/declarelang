@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "0c7734934b42",
+  "buildId": "1923c3b3a129",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -4483,19 +4483,19 @@
    },
    "E365A77": {
     "message": "….datapath = { … } …",
-    "at": "bind.ts:555"
+    "at": "bind.ts:556"
    },
    "EF84AB8": {
     "message": "….… = …%: no axis to resolve a percent against",
-    "at": "bind.ts:641"
+    "at": "bind.ts:642"
    },
    "EC5E7D2": {
     "message": "….… = …%: the root has no parent for a percent to resolve against",
-    "at": "bind.ts:645"
+    "at": "bind.ts:646"
    },
    "E210C28": {
     "message": "….… = …: the root has no parent to align against",
-    "at": "bind.ts:719"
+    "at": "bind.ts:720"
    },
    "E5CAF1A": {
     "message": "[Declare] onLoad on … threw: …",
@@ -5875,19 +5875,19 @@
    },
    "E9E8D8A": {
     "message": "…: a disposed constraint cannot run",
-    "at": "reactive.ts:982"
+    "at": "reactive.ts:984"
    },
    "EAB267A": {
     "message": "kernel: out of rules — the program exceeds the runtime's rule capacity",
-    "at": "reactive.ts:984"
+    "at": "reactive.ts:986"
    },
    "E6BFAE9": {
     "message": "…: wire() after the constraint already ran",
-    "at": "reactive.ts:1008"
+    "at": "reactive.ts:1010"
    },
    "E9CD748": {
     "message": "kernel: settle failed (…)",
-    "at": "reactive.ts:1226"
+    "at": "reactive.ts:1281"
    },
    "E3D0EC5": {
     "message": "a selective path replicates its selection fully (windowing over selections is a later increment)",
