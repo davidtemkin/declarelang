@@ -5,7 +5,7 @@ agent can learn it from this repository alone and write good programs in it. The
 answer that, and keep the record: what each agent was asked, what it built, what it cost,
 and what it got wrong.
 
-There are two instruments.
+There are two instruments, and a third that turns what they find back on the platform.
 
 **Craft runs: one app, read closely.** One agent gets one brief and a fresh download of the
 repository, with `evals/` removed, and builds the app from the README onward. The standard
@@ -23,6 +23,12 @@ verify ladder. The tasks are in `tasks/`; the frozen reference the model gets is
 including `measure.mjs`, which prices any run — tokens by class, cost, and time by activity
 — the same way every time.
 
+**Hardening rounds: the platform, layer by layer.** What the runs find wrong with the
+platform is inventoried, and then each layer of the stack, from the reactive core up, is
+examined directly: everything the docs say about it turned into checks, and the code driven
+with random real input under invariants. [`hardening/README.md`](hardening/README.md) has the
+process and the record of each round, kept so a round can be run again.
+
 ```
 apps/<app>/         brief.md · api/ (the data service) · fixtures/ — what a craft run is given
 craft/              launch.sh and its helpers — how a craft run is run
@@ -34,6 +40,7 @@ reports/            one folder per run (what it was asked, what it built, how it
                     dated write-ups outside the scored runs: cold-read rounds, field reports,
                     bug dispositions, the early friction log
 runs/               local only (git ignores it): transcripts, sandboxes, apps kept to run again
+hardening/          shaking the platform out layer by layer — docs and code — and the record of each round
 ```
 
 ## Filing a run
