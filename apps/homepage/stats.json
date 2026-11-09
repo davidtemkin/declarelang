@@ -20,15 +20,15 @@
     "code": 982,
     "comment": 251,
     "blank": 274,
-    "wireGzip": 186279,
-    "programGzip": 18489
+    "wireGzip": 186277,
+    "programGzip": 18484
   },
   "desktop": {
     "total": 3499,
     "code": 1994,
     "comment": 932,
     "blank": 573,
-    "wireGzip": 255319,
+    "wireGzip": 255318,
     "programGzip": 22664
   },
   "todo": {
