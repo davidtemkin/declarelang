@@ -96,7 +96,8 @@ function walk(v, out) {
     // is seen and marked hidden from a screen reader
     if (!v.visible || v.opacity === 0 || v.accessibilityHidden)
         return;
-    if (isText(v)) {
+    // a run of text that declares a role (a heading) reads as that role, below
+    if (isText(v) && v.accessibilityRole === "none") {
         const t = textOfRun(v);
         if (t.trim() !== "")
             out.push({ id: semanticId(v), role: "text", name: t, states: [], actions: [], frame: frameOf(v), children: [] });

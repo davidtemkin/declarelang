@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "1923c3b3a129",
+  "buildId": "67d9585748b1",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -1848,8 +1848,7 @@
        "cx?: number",
        "cy?: number",
        "r?: number",
-       "stops: readonly { offset: number | null",
-       "color: Color }[]"
+       "stops: readonly { offset: number | null; color: Color }[]"
       ],
       "doc": "A gradient value, as `gradient`, `radialGradient` and `conicGradient` build it. Any `Fill` slot takes one, and a drawing can too. Write it through a constructor rather than by hand: the shape is published so a program can read one back."
      },
@@ -2158,8 +2157,7 @@
       "extends": "PointerEvent",
       "members": [
        "scale: number",
-       "center: { readonly x: number",
-       "readonly y: number }"
+       "center: { readonly x: number; readonly y: number }"
       ],
       "doc": "A resolved two-finger zoom: the accumulated `scale` (1 at `onPinchStart`) and the point between the fingers it pivots about. `center` is that point in ROOT space (the same as `rootX`/`rootY`); `x`/`y` are the same point in this view's own coordinates — what zooming \"about the fingers\" on this view wants."
      },
@@ -2286,10 +2284,7 @@
        "attr: string",
        "from?: number | boolean | string | null",
        "to?: number | boolean | string | null",
-       "by: { rule: string",
-       "source: string | null",
-       "line?: number",
-       "file?: string } | null"
+       "by: { rule: string; source: string | null; line?: number; file?: string } | null"
       ],
       "doc": "One attribute the wake trace saw change: the view it lives on (`path`) and the attribute, its value before and after, and — for a change the settle made — the rule that wrote it (`by`; null for a plain write)."
      },
@@ -2725,8 +2720,7 @@
       "name": "Accessibility",
       "members": [
        "announce(text: string, politeness?: \"polite\" | \"assertive\"): void",
-       "announced(): readonly { text: string",
-       "politeness: \"polite\" | \"assertive\" }[]"
+       "announced(): readonly { text: string; politeness: \"polite\" | \"assertive\" }[]"
       ],
       "doc": "What a program says to assistive technology with no view to say it from — \"Message sent\", \"3 results\": `announce` speaks it without moving the focus, `polite` (the default) at the next pause, `assertive` at once. A view whose own changes should be heard sets `accessibilityLive` instead."
      },
@@ -2734,56 +2728,24 @@
       "name": "Inspect",
       "members": [
        "ready(): boolean",
-       "rows(open: Record<string, boolean>): { path: string",
-       "name: string",
-       "kind: string",
-       "depth: number",
-       "hasKids: boolean",
-       "visible: boolean",
-       "constrained: boolean",
-       "motion: boolean }[]",
+       "rows(open: Record<string, boolean>): { path: string; name: string; kind: string; depth: number; hasKids: boolean; visible: boolean; constrained: boolean; motion: boolean }[]",
        "node(path: string): any",
        "kindOf(path: string): string",
-       "slots(path: string): { attr: string",
-       "text: string",
-       "kind: string",
-       "open: boolean",
-       "origin: string",
-       "motion: boolean",
-       "viewKind?: string",
-       "color?: string }[]",
+       "slots(path: string): { attr: string; text: string; kind: string; open: boolean; origin: string; motion: boolean; viewKind?: string; color?: string }[]",
        "explain(path: string, attr: string): any",
        "depValue(path: string, readPath: string): string",
        "depTargetPath(path: string, readPath: string): string",
        "expand(path: string, attr: string, trail: readonly string[]): any",
-       "dependents(attr: string): { path: string",
-       "attr: string",
-       "label: string }[]",
-       "rect(path: string): { x: number",
-       "y: number",
-       "width: number",
-       "height: number } | null",
+       "dependents(attr: string): { path: string; attr: string; label: string }[]",
+       "rect(path: string): { x: number; y: number; width: number; height: number } | null",
        "at(x: number, y: number, pierce?: boolean): string",
-       "stats(): { nodes: number",
-       "ownedSlots: number",
-       "motionBusy: boolean }",
+       "stats(): { nodes: number; ownedSlots: number; motionBusy: boolean }",
        "hasData(path: string): boolean",
        "dataKeys(path: string): string[]",
-       "dataRows(path: string): { key: string",
-       "text: string",
-       "kind: string",
-       "open: boolean }[]",
+       "dataRows(path: string): { key: string; text: string; kind: string; open: boolean }[]",
        "dataPreview(path: string): string",
-       "evaluate(path: string, src: string): { ok: boolean",
-       "input: string",
-       "text: string",
-       "verb: string",
-       "temporary?: boolean }",
-       "clock: { manual(): void",
-       "auto(): void",
-       "step(ms?: number): void",
-       "settleMotion(maxMs?: number): boolean",
-       "now(): number }",
+       "evaluate(path: string, src: string): { ok: boolean; input: string; text: string; verb: string; temporary?: boolean }",
+       "clock: { manual(): void; auto(): void; step(ms?: number): void; settleMotion(maxMs?: number): boolean; now(): number }",
        "trace: {",
        "start(cap?: number): void",
        "stop(): void",
@@ -2791,10 +2753,8 @@
        "active(): boolean",
        "read(): TraceSettle[]",
        "text(settles?: TraceSettle[]): string",
-       "}",
-       "profile: { start(why?: boolean): void",
-       "stop(): string",
-       "active(): boolean }"
+       "};",
+       "profile: { start(why?: boolean): void; stop(): string; active(): boolean }"
       ],
       "doc": "The running program, readable — what the Inspector is built on: the node rows with their kinds and constraint state, and whether the service is up. Dev tooling; a production build ships a stub unless you ask for it."
      },
@@ -2828,6 +2788,7 @@
       "combobox",
       "datagrid",
       "datepicker",
+      "focusring",
       "gauge",
       "menu",
       "progressbar",
@@ -2990,6 +2951,7 @@
       "datagrid",
       "datepicker",
       "dialog",
+      "focusring",
       "menu",
       "popover",
       "radiogroup",
@@ -3283,6 +3245,14 @@
      "default": "true"
     },
     {
+     "name": "focusRingColor",
+     "required": false,
+     "read": [
+      "focusring"
+     ],
+     "stated": false
+    },
+    {
      "name": "focusRingGap",
      "required": false,
      "read": [
@@ -3290,6 +3260,14 @@
      ],
      "stated": false,
      "default": "0"
+    },
+    {
+     "name": "focusRingInnerColor",
+     "required": false,
+     "read": [
+      "focusring"
+     ],
+     "stated": false
     },
     {
      "name": "focusRingInnerWidth",
@@ -5629,137 +5607,141 @@
     "message": "members are separated by commas — add ',' before '…'",
     "at": "parser.ts:1288"
    },
+   "E565747": {
+    "message": "a list written bare holds literals only, and '…).name}……' reads a value — write the whole list in braces: { [ … ] }",
+    "at": "parser.ts:1348"
+   },
    "E04A326": {
     "message": "'…(' — a schema declares shape, not behavior: no methods, no handlers. Methods live on classes; a record's derived values live in { } constraints that read its fields",
-    "at": "parser.ts:1364"
+    "at": "parser.ts:1369"
    },
    "ECC858C": {
     "message": "'…!' — identity is never declared: a record's 'id' field IS its identity by convention (key = :field overrides an unconventional name); drop the '!'",
-    "at": "parser.ts:1372"
+    "at": "parser.ts:1377"
    },
    "ED28610": {
     "message": "a literal union is all strings or all numbers — '…' mixes them",
-    "at": "parser.ts:1392"
+    "at": "parser.ts:1397"
    },
    "E18CCFD": {
     "message": "a shape field's type is string | number | boolean | any, a schema name (capitalized), a literal union of strings, or a nested [ … ] — not '…'",
-    "at": "parser.ts:1409"
+    "at": "parser.ts:1414"
    },
    "E53F3DD": {
     "message": "'…' is marked an array twice — write '…: …[]' or '…[]: …', not both (a field is one array deep)",
-    "at": "parser.ts:1419"
+    "at": "parser.ts:1424"
    },
    "EA1DC53": {
     "message": "'…: …[][]' — a schema field is one array deep: a list of lists is a list of records ('…[]: Row', with 'schema Row [ items[]: … ]'), or 'any' when the program only passes it along",
-    "at": "parser.ts:1428"
+    "at": "parser.ts:1433"
    },
    "E9B7802": {
     "message": "'…: … | …' — a schema field has one type; a union is a literal union of strings or of numbers ('status: \"open\" | \"closed\"'), or a type with null ('…: … | null')",
-    "at": "parser.ts:1439"
+    "at": "parser.ts:1444"
    },
    "E8E345D": {
     "message": "'… = …' — a schema field takes no default: a schema declares shape, never values. Defaults belong to attribute declarations ('name: Type = value' on a class), or to the code that builds the record",
-    "at": "parser.ts:1444"
+    "at": "parser.ts:1449"
    },
    "EA1FFF4": {
     "message": "a computed key [( … )] is TypeScript, so its path is written in braces — { :@[(key)] }",
-    "at": "parser.ts:1499"
+    "at": "parser.ts:1504"
    },
    "EDFFABD": {
     "message": "filter selectors ([?…]) are not in the path subset yet (jsonpath-spelling.md §5) — derive the subset in a Dataset [ contents = { … } ] and bind to that",
-    "at": "parser.ts:1502"
+    "at": "parser.ts:1507"
    },
    "E3129C4": {
     "message": "a path index is a plain integer",
-    "at": "parser.ts:1516"
+    "at": "parser.ts:1521"
    },
    "E07DE5F": {
     "message": "a path selector is [index], [start:end:step], [*], or ['name']",
-    "at": "parser.ts:1535"
+    "at": "parser.ts:1540"
    },
    "EEB27CE": {
     "message": "union selectors ([a, b]) are not in the path subset (jsonpath-spelling.md §5) — write separate reads, or derive the set in a Dataset [ contents = { … } ]",
-    "at": "parser.ts:1538"
+    "at": "parser.ts:1543"
    },
    "EB65D4E": {
     "message": "a schema's name is capitalized ('schema …… [ … ]') — it is a type name, like a class's",
-    "at": "parser.ts:1583"
+    "at": "parser.ts:1588"
    },
    "E41A54B": {
     "message": "schemas do not extend — a schema is composed by NESTING (a field typed by another schema: 'owner: Person') or by repeating the fields it shares",
-    "at": "parser.ts:1587"
+    "at": "parser.ts:1592"
    },
    "E088E2A": {
     "message": "'…' is not a host — a script runs on …",
-    "at": "parser.ts:1633"
+    "at": "parser.ts:1638"
    },
    "E538C16": {
     "message": "host = [ ] names no host — list the hosts this script runs on, or drop host to run on every host",
-    "at": "parser.ts:1654"
+    "at": "parser.ts:1659"
    },
    "EB5B2DE": {
     "message": "a script takes file paths and host — script [ \\\"helpers.ts\\\" ], script [ host = browser ] { … }; for inline code on every host, braces alone: script { … }",
-    "at": "parser.ts:1660"
+    "at": "parser.ts:1665"
    },
    "E83D16A": {
     "message": "a script is from files or written here, not both — script [ \\\"a.ts\\\", host = browser ] or script [ host = browser ] { … }",
-    "at": "parser.ts:1668"
+    "at": "parser.ts:1673"
    },
    "EF1BEAC": {
     "message": "script [ ] names no file — script [ \\\"helpers.ts\\\" ], or follow it with the code: script [ host = browser ] { … }",
-    "at": "parser.ts:1678"
+    "at": "parser.ts:1683"
    },
    "EDBDD5F": {
     "message": "a use entry is a class name",
-    "at": "parser.ts:1725"
+    "at": "parser.ts:1730"
    },
    "E324F94": {
     "message": "declareVersion names a release in quotes — declareVersion [ \"0.6\" ]",
-    "at": "parser.ts:1750"
+    "at": "parser.ts:1755"
    },
    "E783F90": {
     "message": "ship has no member '…' — islands, files, compiler, or inspector",
-    "at": "parser.ts:1776"
+    "at": "parser.ts:1781"
    },
    "E3DAC32": {
     "message": "ship names '…' twice — one entry per member",
-    "at": "parser.ts:1780"
+    "at": "parser.ts:1785"
    },
    "E1EC0FD": {
     "message": "ship's … is a list of quoted paths — … = [ \"…\" ]",
-    "at": "parser.ts:1785"
+    "at": "parser.ts:1790"
    },
    "E3AE548": {
     "message": "ship's … is true or false",
-    "at": "parser.ts:1796"
+    "at": "parser.ts:1801"
    },
    "E4AC7CC": {
     "message": "defaultFlags has no member '…' — …",
-    "at": "parser.ts:1825"
+    "at": "parser.ts:1830"
    },
    "E868ACE": {
     "message": "defaultFlags names '…' twice — one entry per member",
-    "at": "parser.ts:1829"
+    "at": "parser.ts:1834"
    },
    "EEEB8C3": {
     "message": "defaultFlags' … is …",
-    "at": "parser.ts:1834"
+    "at": "parser.ts:1839"
    },
    "EDD3394": {
     "message": "an include path is a quoted string",
-    "at": "parser.ts:1857"
+    "at": "parser.ts:1862"
    },
    "E54E981": {
     "message": "one control binds one value both ways — '… <-> …' is a second",
-    "at": "parser.ts:2053"
+    "at": "parser.ts:2058"
    },
    "EB9F72B": {
     "message": "'… <-> …' already says where the person's change goes, and this element also declares commit(…) — keep one: the shorthand, or '… = { … }' with your own commit",
-    "at": "parser.ts:2056"
+    "at": "parser.ts:2061"
    },
    "E2766C4": {
     "message": "'… <-> :…[]' — a control binds one place, not a many-path",
-    "at": "parser.ts:2059"
+    "at": "parser.ts:2064"
    },
    "E20143A": {
     "message": "'…' is a built-in class — a class of the program can't take its name; rename yours",
@@ -115729,8 +115711,8 @@
     "group": "Values",
     "doc": "A gradient value, as `gradient`, `radialGradient` and `conicGradient` build it. Any `Fill` slot takes one, and a drawing can too. Write it through a constructor rather than by hand: the shape is published so a program can read one back.",
     "gist": "A gradient value, as `gradient`, `radialGradient` and `conicGradient` build it.",
-    "syntax": "interface Gradient {\n    kind?: \"linear\" | \"radial\" | \"conic\"\n    angle: number\n    cx?: number\n    cy?: number\n    r?: number\n    stops: readonly { offset: number | null\n    color: Color }[]\n}",
-    "syntaxText": "interface Gradient {\n    kind?: \"linear\" | \"radial\" | \"conic\"\n    angle: number\n    cx?: number\n    cy?: number\n    r?: number\n    stops: readonly { offset: number | null\n    color: Color }[]\n}",
+    "syntax": "interface Gradient {\n    kind?: \"linear\" | \"radial\" | \"conic\"\n    angle: number\n    cx?: number\n    cy?: number\n    r?: number\n    stops: readonly { offset: number | null; color: Color }[]\n}",
+    "syntaxText": "interface Gradient {\n    kind?: \"linear\" | \"radial\" | \"conic\"\n    angle: number\n    cx?: number\n    cy?: number\n    r?: number\n    stops: readonly { offset: number | null; color: Color }[]\n}",
     "extends": null,
     "tokenGroups": [],
     "nTokens": 0,
@@ -115751,10 +115733,7 @@
       "line": "r?: number"
      },
      {
-      "line": "stops: readonly { offset: number | null"
-     },
-     {
-      "line": "color: Color }[]"
+      "line": "stops: readonly { offset: number | null; color: Color }[]"
      }
     ],
     "usedBy": [
@@ -118023,8 +118002,8 @@
     "group": "Event payloads",
     "doc": "A resolved two-finger zoom: the accumulated `scale` (1 at `onPinchStart`) and the point between the fingers it pivots about. `center` is that point in ROOT space (the same as `rootX`/`rootY`); `x`/`y` are the same point in this view's own coordinates — what zooming \"about the fingers\" on this view wants.",
     "gist": "A resolved two-finger zoom: the accumulated `scale` (1 at `onPinchStart`) and the point between the fingers it pivots about.",
-    "syntax": "interface PinchEvent extends PointerEvent {\n    scale: number\n    center: { readonly x: number\n    readonly y: number }\n}",
-    "syntaxText": "interface PinchEvent extends PointerEvent {\n    scale: number\n    center: { readonly x: number\n    readonly y: number }\n}",
+    "syntax": "interface PinchEvent extends PointerEvent {\n    scale: number\n    center: { readonly x: number; readonly y: number }\n}",
+    "syntaxText": "interface PinchEvent extends PointerEvent {\n    scale: number\n    center: { readonly x: number; readonly y: number }\n}",
     "extends": "PointerEvent",
     "tokenGroups": [],
     "nTokens": 0,
@@ -118033,10 +118012,7 @@
       "line": "scale: number"
      },
      {
-      "line": "center: { readonly x: number"
-     },
-     {
-      "line": "readonly y: number }"
+      "line": "center: { readonly x: number; readonly y: number }"
      }
     ],
     "usedBy": [
@@ -118884,8 +118860,8 @@
     "group": "Inspection",
     "doc": "One attribute the wake trace saw change: the view it lives on (`path`) and the attribute, its value before and after, and — for a change the settle made — the rule that wrote it (`by`; null for a plain write).",
     "gist": "One attribute the wake trace saw change: the view it lives on (`path`) and the attribute, its value before and after, and — for a change the settle made — the rule that wrote it (`by`; null for a plain write).",
-    "syntax": "interface TraceChange {\n    path: string\n    attr: string\n    from?: number | boolean | string | null\n    to?: number | boolean | string | null\n    by: { rule: string\n    source: string | null\n    line?: number\n    file?: string } | null\n}",
-    "syntaxText": "interface TraceChange {\n    path: string\n    attr: string\n    from?: number | boolean | string | null\n    to?: number | boolean | string | null\n    by: { rule: string\n    source: string | null\n    line?: number\n    file?: string } | null\n}",
+    "syntax": "interface TraceChange {\n    path: string\n    attr: string\n    from?: number | boolean | string | null\n    to?: number | boolean | string | null\n    by: { rule: string; source: string | null; line?: number; file?: string } | null\n}",
+    "syntaxText": "interface TraceChange {\n    path: string\n    attr: string\n    from?: number | boolean | string | null\n    to?: number | boolean | string | null\n    by: { rule: string; source: string | null; line?: number; file?: string } | null\n}",
     "extends": null,
     "tokenGroups": [],
     "nTokens": 0,
@@ -118903,16 +118879,7 @@
       "line": "to?: number | boolean | string | null"
      },
      {
-      "line": "by: { rule: string"
-     },
-     {
-      "line": "source: string | null"
-     },
-     {
-      "line": "line?: number"
-     },
-     {
-      "line": "file?: string } | null"
+      "line": "by: { rule: string; source: string | null; line?: number; file?: string } | null"
      }
     ],
     "usedBy": [
@@ -121608,7 +121575,7 @@
      "subtitle": "",
      "kind": "reference",
      "label": "Reference",
-     "doc": "# Types and functions\n\n*The shared vocabulary every `{ }` body can name. The scaffold declares all of it into\neach program's check block, so it is typechecked for your code exactly as for the\nstandard library's.*\n\nBeyond the tree, a bare name in a body may be one of three things, the same on every\nrenderer: an **ES built-in** (`Math`, `JSON`, `Date`, `Promise`, `Map`, …); one of the\n**host chores declared below** (timers, `console`, `fetch` and the `URL` family) — each\nwith the one narrow shape it has everywhere Declare runs; or a **runtime service**\n(`Focus`, `Keys`, `Themes`, `afterSettle`). Nothing else: `document`, `window`,\n`localStorage`, `process` are the host's, and the compiler refuses each by name with the\nDeclare way beside it. A capability the language lacks arrives through an `external`\nattribute the host supplies, never through a bare global. A body is synchronous — there\nis no `await`; a value the screen derives from is a `DataSource`.\n\n## `DrawContext` — what a `draw(d)` method receives\n\n`draw(d: DrawContext)` is an ordinary method a view defines to paint itself. `View` calls it from a\nconstraint of its own (`drawing = { record(draw) }` — the View page), so it runs on invalidation\nand re-runs when what it *read* changes, **never per frame** — the rule every method has when a\nconstraint calls it. So a drawing composes with attributes and constraints instead of escaping\nthem — `ink`, `width` and state are ordinary reads, and changing one re-records. What it records\nis a display list every renderer paints.\n\nThis is how the library draws every mark a font cannot give it: a `Checkbox`'s tick and the\nwhole `Icon` set are recorded paths, not glyphs. Author an icon in a 16×16 box and scale it\ninside the body (see `Icon`); **never animate a drawing's size** — reading size inside `draw`\nmakes the recording size-dependent, so an animated size re-records and reallocates its backing\ncanvas every frame.\n\n```declare-fragment\ndraw(d: DrawContext) {\n    d.fillStyle = provided(\"theme\").accent\n    d.beginPath()\n    d.arc(width / 2, height / 2, 6, 0, Math.PI * 2, false)\n    d.fill()\n    }\n```\n\n`d.w` / `d.h` are the view's own size, for a drawing that sizes itself. Reading one is\nwhat opts a drawing into re-recording when the view resizes — a body that never mentions\nthem never pays for the resize. (There is no `d.x`/`d.y`: a recording's origin IS the\nview's top-left, so they could only be 0.)\n\n**State you set:** `w: number` · `h: number` · `fillStyle: string \\| Color \\| DrawGradient` · `strokeStyle: string \\| Color \\| DrawGradient` · `lineWidth: number` · `lineCap: string` · `lineJoin: string` · `miterLimit: number` · `lineDashOffset: number` · `globalAlpha: number` · `globalCompositeOperation: string` · `shadowBlur: number` · `shadowColor: string \\| Color` · `shadowOffsetX: number` · `shadowOffsetY: number` · `filter: string` · `imageSmoothingEnabled: boolean` · `imageSmoothingQuality: string` · `font: string` · `textAlign: string` · `textBaseline: string` · `direction: string` · `letterSpacing: string` · `wordSpacing: string` · `fontKerning: string`\n\n**Calls:** `arc(x: number, y: number, r: number, a0: number, a1: number, ccw?: boolean): void` · `arcTo(x1: number, y1: number, x2: number, y2: number, r: number): void` · `beginPath(): void` · `bezierCurveTo(cp1x: number, cp1y: number, cp2x: number, cp2y: number, x: number, y: number): void` · `clearRect(x: number, y: number, w: number, h: number): void` · `clip(rule?: string): void` · `closePath(): void` · `createConicGradient(startAngle: number, x: number, y: number): DrawGradient` · `createLinearGradient(x0: number, y0: number, x1: number, y1: number): DrawGradient` · `createRadialGradient(x0: number, y0: number, r0: number, x1: number, y1: number, r1: number): DrawGradient` · `drawImage(image: DrawImageSource, dx: number, dy: number): void` · `drawImage(image: DrawImageSource, dx: number, dy: number, dw: number, dh: number): void` · `drawImage(image: DrawImageSource, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number, dw: number, dh: number): void` · `ellipse(x: number, y: number, rx: number, ry: number, rot: number, a0: number, a1: number, ccw?: boolean): void` · `fill(rule?: string): void` · `fillRect(x: number, y: number, w: number, h: number): void` · `fillText(text: string, x: number, y: number, maxWidth?: number): void` · `fillText(text: string, x: number, y: number, style: TextStyle, maxWidth?: number): void` · `lineTo(x: number, y: number): void` · `list(): any` · `moveTo(x: number, y: number): void` · `quadraticCurveTo(cpx: number, cpy: number, x: number, y: number): void` · `rect(x: number, y: number, w: number, h: number): void` · `resetTransform(): void` · `restore(): void` · `rotate(angle: number): void` · `roundRect(x: number, y: number, w: number, h: number, radii: number | number[]): void` · `save(): void` · `scale(x: number, y: number): void` · `setLineDash(segments: number[]): void` · `setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void` · `stroke(): void` · `strokeRect(x: number, y: number, w: number, h: number): void` · `strokeText(text: string, x: number, y: number, maxWidth?: number): void` · `strokeText(text: string, x: number, y: number, style: TextStyle, maxWidth?: number): void` · `transform(a: number, b: number, c: number, d: number, e: number, f: number): void` · `translate(x: number, y: number): void`\n\n\n## Event payloads\n\n*What a handler's argument carries.*\n\n| type | what it is | members |\n|---|---|---|\n| `PointerEvent` | a pointer went down, moved, or a view was clicked | `x: number` · `y: number` · `rootX: number` · `rootY: number` · `deltaX: number` · `deltaY: number` · `shift: boolean` · `ctrl: boolean` · `alt: boolean` · `meta: boolean` |\n| `PointerUpEvent` | a pointer release — carries **`canceled`**, true when the browser reclaimed the gesture | `x: number` · `y: number` · `rootX: number` · `rootY: number` · `deltaX: number` · `deltaY: number` · `shift: boolean` · `ctrl: boolean` · `alt: boolean` · `meta: boolean` · `canceled: boolean` |\n| `WheelEvent` | a wheel or trackpad gesture — carries **`pinch`**, true for a trackpad pinch | `x: number` · `y: number` · `rootX: number` · `rootY: number` · `deltaX: number` · `deltaY: number` · `shift: boolean` · `ctrl: boolean` · `alt: boolean` · `meta: boolean` · `pinch: boolean` |\n| `TouchEvent` | the multi-finger stream — carries the finger list | `x: number` · `y: number` · `rootX: number` · `rootY: number` · `deltaX: number` · `deltaY: number` · `shift: boolean` · `ctrl: boolean` · `alt: boolean` · `meta: boolean` · `touches: readonly Touch[]` · `changed: readonly Touch[]` |\n| `Touch` | one finger within a `TouchEvent` | `id: number` · `x: number` · `y: number` |\n| `KeyEvent` | a key went down or up — `key`, `code`, and modifier flags; never a numeric code | `code: string` · `key: string` · `shift: boolean` · `ctrl: boolean` · `alt: boolean` · `meta: boolean` · `repeat: boolean` |\n| `FocusGeometry` | the focused control's live silhouette, for a focus indicator | `x: number` · `y: number` · `w: number` · `h: number` · `rad: number` · `view: View` · `root: View` · `scroller: View` · `homeX: number` · `homeY: number` · `homeW: number` · `homeH: number` · `homeRad: number` · `homeRot: number` · `theme: any` |\n| `TooltipEvent` | a tooltip request from the `Tooltips` service | `readonly text: string` · `readonly x: number` · `readonly y: number` · `readonly w: number` · `readonly h: number` · `readonly root: View` |\n| `StreamMessage` | one arrival from an `EventStream` or `Socket` | `readonly data: string` · `readonly type: string` · `readonly id: string` |\n\n## Value types\n\n| type | what it is | shape |\n|---|---|---|\n| `Percent` | what a bare `50%` literal becomes; you never write the type | `{ percent: number }` |\n| `Length` | a number of pixels, or a `Percent` from a bare `50%` literal | `number \\| Percent` |\n| `Radius` | | `number \\| readonly [number, number, number, number]` |\n| `Inset` | | `number \\| readonly [number, number, number, number]` |\n| `Color` | a packed `0xRRGGBB` number in a `{ }` body — `null` means *no paint*, not black. **Alpha, by context**: a constant carries it in the literal — `0xRRGGBBAA` (or `#RRGGBBAA`), in bare slots and `{ }` bodies alike; a computed alpha calls `colorWithAlpha(rgb, a)` in a body; inside `draw()` the canvas takes its own CSS string (`\"rgba(51,102,153,0.5)\"`). `rgba(…)` is never a slot spelling | `number \\| null` |\n| `ClipPath` | a clip shape | `string \\| null` |\n| `Fill` | what paints a box: a `Color` or a `Gradient` | `Color \\| Gradient` |\n| `BoxStroke` | | `Stroke \\| readonly [Stroke \\| null, Stroke \\| null, Stroke \\| null, Stroke \\| null] \\| null` |\n| `ImageFilter` | one function of the filter vocabulary, for `filter` (the view's own paint) and `backdrop` (what lies beneath) | `{ fn: \"blur\"; radius: number } \\| { fn: \"brightness\" \\| \"contrast\" \\| \"saturate\" \\| \"grayscale\" \\| \"invert\" \\| \"sepia\"; amount: number } \\| { fn: \"hueRotate\"; degrees: number } \\| { fn: \"colorize\"; color: Color } \\| Shadow` |\n| `FilterList` | a list of filters, applied in order — to the view's own paint (`filter`) or to what lies beneath it (`backdrop`); `frost(…)` builds the common backdrop pair | `readonly ImageFilter[]` |\n| `Theme` | a design-token record; see **Theme tokens** for the vocabulary classes read | `Readonly<Record<string, any>>` |\n| `TextStyles` | | `Readonly<Record<string, TextStyle>>` |\n| `RichTextLayout` | | `Readonly<Record<string, BlockGeometry>>` |\n| `MotionCurve` | an easing curve for an `Animator` | `{ readonly __motion: true }` |\n| `Gradient` | colour stops along a line (`gradient(…)`), out from a centre (`radialGradient(…)`) or around one (`conicGradient(…)`) | `kind?: \"linear\" \\| \"radial\" \\| \"conic\"` · `angle: number` · `cx?: number` · `cy?: number` · `r?: number` · `stops: readonly { offset: number \\| null` · `color: Color }[]` |\n| `Stroke` | a width and a colour — build it with `stroke(w, c)`. A border *is* a stroke | `width: number` · `color: Color` |\n| `GlyphOutline` | | `width: number` · `color: Color` |\n| `Shadow` | offset, blur and colour — build it with `shadow(dx, dy, blur, c)` | `fn: \"shadow\"` · `dx: number` · `dy: number` · `blur: number` · `color: Color` |\n| `DataCursor` | a datapath's resolved position — `.data` and `.path` | `readonly data: any` · `readonly path: readonly string[]` |\n| `IslandMessage` | | `readonly topic: string` · `readonly payload: unknown` |\n| `IslandNavigation` | | `readonly to: string` · `readonly program: string` · `readonly location: string` · `readonly newWindow: boolean` |\n| `TextStyle` | | `fontFamily?: string \\| Font \\| readonly (string \\| Font)[] \\| null` · `fontSize?: number` · `fontWeight?: FontWeight` · `italic?: boolean` · `letterSpacing?: number` · `lineHeight?: number` · `textColor?: Color \\| null` · `textShadow?: Shadow \\| null` · `textTransform?: \"none\" \\| \"uppercase\" \\| \"lowercase\" \\| \"capitalize\"` · `smallCaps?: boolean` · `numerals?: \"normal\" \\| \"lining\" \\| \"oldstyle\"` · `numeralWidth?: \"normal\" \\| \"tabular\" \\| \"proportional\"` · `slashedZero?: boolean` · `textFill?: Fill \\| null` · `outline?: GlyphOutline \\| null` · `underline?: boolean` · `strike?: boolean` |\n| `TagStyles` | | `strong?: string` · `em?: string` · `strike?: string` · `code?: string` · `link?: string` · `quote?: string` · `h1?: string` · `h2?: string` · `h3?: string` · `h4?: string` · `h5?: string` · `h6?: string` |\n| `BlockGeometry` | | `maxWidth?: number` · `margin?: readonly [number, number]` · `align?: \"left\" \\| \"center\" \\| \"right\"` |\n| `AccessibilitySettings` | | `readonly reduceMotion: boolean` · `readonly increaseContrast: boolean` · `readonly reduceTransparency: boolean` · `readonly textScale: number` |\n| `TextMetrics` | | `readonly width: number` · `readonly height: number` · `readonly baseline: number` · `readonly capHeight: number` · `readonly lines: number` |\n| `DelayHandle` | | `cancel(): void` |\n| `DrawGradient` | a gradient built inside a drawing, via `d.createLinearGradient(…)` | `addColorStop(offset: number, color: string \\| Color): void` |\n| `DrawImageSource` | what `d.drawImage(…)` paints from — any `Image` view (its `loaded`, `naturalWidth`, `naturalHeight`) | `loaded: boolean` · `naturalWidth: number` · `naturalHeight: number` |\n| `ValueChange` | one changed value — its `name`, its `previousValue`, and its `currentValue` | `readonly name: string` · `readonly previousValue: any` · `readonly currentValue: any` |\n| `ChangeEvent` | values this node tracks (`trackChanges`) changed in this settle — `changed`, one `ValueChange` each | `readonly changed: readonly ValueChange[]` |\n| `PinchEvent` | | `scale: number` · `center: { readonly x: number` · `readonly y: number }` |\n| `File` | | `readonly name: string` · `readonly size: number` · `readonly type: string` · `readonly modified: number` · `readonly path: string` · `readonly url: string` |\n| `FilesOverEvent` | | `readonly count: number` · `readonly x: number` · `readonly y: number` |\n| `FilesDropEvent` | | `readonly files: File[]` · `readonly x: number` · `readonly y: number` |\n| `ClipboardEvent` | | `readonly types: string[]` · `readonly text: string` · `readonly files: File[]` · `get(type: string): string \\| null` · `put(text: string): void` · `put(type: string, data: string): void` |\n| `FilePickOptions` | | `accept?: string[]` · `multiple?: boolean` · `folder?: boolean` |\n| `TraceChange` | | `path: string` · `attr: string` · `from?: number \\| boolean \\| string \\| null` · `to?: number \\| boolean \\| string \\| null` · `by: { rule: string` · `source: string \\| null` · `line?: number` · `file?: string } \\| null` |\n| `TraceSettle` | | `n: number` · `at: number` · `ms: number` · `origin: string[]` · `runs: number` · `triggers: TraceChange[]` · `changes: TraceChange[]` · `unnamed: number` |\n| `Headers` | a response's headers — `get(name)` | `get(name: string): string \\| null` · `has(name: string): boolean` · `forEach(fn: (value: string, key: string) => void): void` |\n| `AbortSignal` | the cancellation handle an `AbortController` issues | `readonly aborted: boolean` · `addEventListener(type: \"abort\", fn: () => void): void` |\n| `AbortController` | cancel an in-flight `fetch` — pass `.signal`, call `.abort()` | `readonly signal: AbortSignal` · `abort(reason?: unknown): void` |\n| `RequestInit` | the options `fetch` takes — `method`, `headers`, `body`, `signal` | `method?: string` · `headers?: Record<string, string> \\| [string, string][]` · `body?: string \\| FormData \\| Blob \\| ArrayBuffer \\| null` · `credentials?: \"omit\" \\| \"same-origin\" \\| \"include\"` · `mode?: \"cors\" \\| \"no-cors\" \\| \"same-origin\"` · `cache?: string` · `redirect?: \"follow\" \\| \"error\" \\| \"manual\"` · `signal?: AbortSignal \\| null` · `keepalive?: boolean` |\n| `Response` | what `fetch` resolves to — `ok`, `status`, `json()`, `text()` | `readonly ok: boolean` · `readonly status: number` · `readonly statusText: string` · `readonly url: string` · `readonly headers: Headers` · `readonly bodyUsed: boolean` · `json(): Promise<any>` · `text(): Promise<string>` · `arrayBuffer(): Promise<ArrayBuffer>` · `blob(): Promise<Blob>` · `clone(): Response` |\n| `Blob` | a binary body | `readonly size: number` · `readonly type: string` · `text(): Promise<string>` · `arrayBuffer(): Promise<ArrayBuffer>` |\n| `FormData` | a multipart body | `append(name: string, value: string \\| Blob, fileName?: string): void` · `get(name: string): string \\| Blob \\| null` · `has(name: string): boolean` |\n| `URLSearchParams` | a query string as a map — `get`, `set`, `append`, `toString()` | `constructor(init?: string \\| Record<string, string> \\| [string, string][])` · `get(name: string): string \\| null` · `getAll(name: string): string[]` · `has(name: string): boolean` · `set(name: string, value: string): void` · `append(name: string, value: string): void` · `delete(name: string): void` · `forEach(fn: (value: string, key: string) => void): void` · `toString(): string` |\n| `URL` | parse or build a URL — `new URL(path, base)`, then `.searchParams`, `.pathname`, `.href` | `constructor(url: string \\| URL, base?: string \\| URL)` · `href: string` · `readonly origin: string` · `protocol: string` · `host: string` · `hostname: string` · `port: string` · `pathname: string` · `search: string` · `hash: string` · `readonly searchParams: URLSearchParams` · `toString(): string` |\n\n## Global functions\n\n| call | what it does |\n|---|---|\n| `activeTone(accent: Color, surface: Color): Color` |  |\n| `gradient(...args: (Color \\| string \\| { offset: number \\| null; color: Color })[]): Gradient` | build a `Gradient` from an angle and colours |\n| `radialGradient(cx: number, cy: number, r: number, ...stops: (Color \\| { offset: number \\| null; color: Color })[]): Gradient` | a radial `Gradient` — `radialGradient(cx, cy, r, stops…)`, centre as fractions of the box, reach as a fraction of the farthest corner |\n| `conicGradient(cx: number, cy: number, angle: number, ...stops: (Color \\| { offset: number \\| null; color: Color })[]): Gradient` | a conic `Gradient` — `conicGradient(cx, cy, angle, stops…)`, swept clockwise from the angle |\n| `stroke(width: number, color: Color): Stroke` | build a `Stroke` |\n| `outline(width: number, color: Color): GlyphOutline` |  |\n| `colorStop(offset: number, color: Color): { offset: number; color: Color }` | one colour stop, for `gradient(…)` |\n| `shadow(dx: number, dy: number, blur: number, color: Color): Shadow` | build a `Shadow` — the box's own, glyphs' (`textShadow`), or in a `filter` list the painted alpha's |\n| `frost(radius: number, saturation?: number): FilterList` | the material pair `[blur(radius), saturate(saturation)]` — what lies beneath the view, blurred under its own fill |\n| `blur(radius: number): ImageFilter` | a Gaussian blur, radius in view units |\n| `brightness(amount: number): ImageFilter` | multiply the light: `brightness(0.8)` darkens, `1` is unchanged |\n| `contrast(amount: number): ImageFilter` | scale about mid-grey: `contrast(1.5)` deepens, `1` is unchanged |\n| `saturate(amount: number): ImageFilter` | scale the colour: `saturate(1.4)` deepens, `0` is grey, `1` is unchanged |\n| `grayscale(amount: number): ImageFilter` | toward grey, `0`…`1` |\n| `invert(amount: number): ImageFilter` | toward the negative, `0`…`1` |\n| `sepia(amount: number): ImageFilter` | toward sepia, `0`…`1` |\n| `hueRotate(degrees: number): ImageFilter` | turn every hue by this many degrees |\n| `colorize(color: Color): ImageFilter` | the group's alpha in one colour — what `Image.tint` is sugar for |\n| `colorWithAlpha(rgb: number, a: number): number` | an `0xRRGGBB` plus an alpha, as the packed form the paint slots take |\n| `measureText(text: string, style: TextStyle, width?: number): TextMetrics` |  |\n| `hostProvided<T>(name: string, fallback: T): T` |  |\n| `hostProvided(name: string): any` |  |\n| `afterDelay(ms: number, fn: () => void): DelayHandle` |  |\n| `providedTextStyle(overrides?: TextStyle): TextStyle` |  |\n| `escapeHtml(s: string): string` | a value, made safe to concatenate into rich-text content — escape what you interpolate, not the markup |\n| `cubicBezier(x1: number, y1: number, x2: number, y2: number): MotionCurve` | a custom easing curve |\n| `back(overshoot: number): MotionCurve` | an overshooting easing curve |\n| `steps(n: number, jump?: \"jumpStart\" \\| \"jumpEnd\"): MotionCurve` | a stepped easing curve |\n| `laszlo(beginPole: number, endPole: number): MotionCurve` | the OpenLaszlo easing curve, kept |\n| `afterSettle(fn: () => void): void` |  |\n| `setTimeout(fn: (...args: any[]) => void, ms?: number): number` | deferred work — **a timer does not die with its node; cancel it yourself** |\n| `clearTimeout(id: number): void` | cancel a `setTimeout` |\n| `setInterval(fn: (...args: any[]) => void, ms?: number): number` | repeating work — same caveat as `setTimeout` |\n| `clearInterval(id: number): void` | cancel a `setInterval` |\n| `fetch(input: string \\| URL, init?: RequestInit): Promise<Response>` | the host's `fetch` — for an imperative request; a `DataSource` is the declarative one, and the usual answer |\n| `queueMicrotask(fn: () => void): void` | run after the current turn, before anything else |\n| `structuredClone<T>(value: T): T` | a deep copy |\n| `encodeURIComponent(s: string \\| number \\| boolean): string` | percent-encode one query value |\n| `decodeURIComponent(s: string): string` | the inverse of `encodeURIComponent` |\n| `encodeURI(s: string): string` | percent-encode a whole URL, keeping its structure |\n| `decodeURI(s: string): string` | the inverse of `encodeURI` |\n\n## `Clipboard`\n\n\n\n| call | |\n|---|---|\n| `Clipboard.copy(what: string \\| Record<string, string>): void` |  |\n\n## `FilePicker`\n\n\n\n| call | |\n|---|---|\n| `FilePicker.pick(options?: FilePickOptions): Promise<File[]>` |  |\n\n## `Accessibility`\n\n\n\n| call | |\n|---|---|\n| `Accessibility.announce(text: string, politeness?: \"polite\" \\| \"assertive\"): void` |  |\n| `Accessibility.announced(): readonly { text: string` |  |\n| `Accessibility.politeness: \"polite\" \\| \"assertive\" }[]` |  |\n\n## `Inspect`\n\nThe running program's introspection surface, behind the same door as `__declare.explain` — dev tooling, stubbed in a production build unless you pass `declarec --debug`.\n\n| call | |\n|---|---|\n| `Inspect.ready(): boolean` |  |\n| `Inspect.rows(open: Record<string, boolean>): { path: string` |  |\n| `Inspect.name: string` |  |\n| `Inspect.kind: string` |  |\n| `Inspect.depth: number` |  |\n| `Inspect.hasKids: boolean` |  |\n| `Inspect.visible: boolean` |  |\n| `Inspect.constrained: boolean` |  |\n| `Inspect.motion: boolean }[]` |  |\n| `Inspect.node(path: string): any` |  |\n| `Inspect.kindOf(path: string): string` |  |\n| `Inspect.slots(path: string): { attr: string` |  |\n| `Inspect.text: string` |  |\n| `Inspect.kind: string` |  |\n| `Inspect.open: boolean` |  |\n| `Inspect.origin: string` |  |\n| `Inspect.motion: boolean` |  |\n| `Inspect.viewKind?: string` |  |\n| `Inspect.color?: string }[]` |  |\n| `Inspect.explain(path: string, attr: string): any` |  |\n| `Inspect.depValue(path: string, readPath: string): string` |  |\n| `Inspect.depTargetPath(path: string, readPath: string): string` |  |\n| `Inspect.expand(path: string, attr: string, trail: readonly string[]): any` |  |\n| `Inspect.dependents(attr: string): { path: string` |  |\n| `Inspect.attr: string` |  |\n| `Inspect.label: string }[]` |  |\n| `Inspect.rect(path: string): { x: number` |  |\n| `Inspect.y: number` |  |\n| `Inspect.width: number` |  |\n| `Inspect.height: number } \\| null` |  |\n| `Inspect.at(x: number, y: number, pierce?: boolean): string` |  |\n| `Inspect.stats(): { nodes: number` |  |\n| `Inspect.ownedSlots: number` |  |\n| `Inspect.motionBusy: boolean }` |  |\n| `Inspect.hasData(path: string): boolean` |  |\n| `Inspect.dataKeys(path: string): string[]` |  |\n| `Inspect.dataRows(path: string): { key: string` |  |\n| `Inspect.text: string` |  |\n| `Inspect.kind: string` |  |\n| `Inspect.open: boolean }[]` |  |\n| `Inspect.dataPreview(path: string): string` |  |\n| `Inspect.evaluate(path: string, src: string): { ok: boolean` |  |\n| `Inspect.input: string` |  |\n| `Inspect.text: string` |  |\n| `Inspect.verb: string` |  |\n| `Inspect.temporary?: boolean }` |  |\n| `Inspect.clock: { manual(): void` |  |\n| `Inspect.auto(): void` |  |\n| `Inspect.step(ms?: number): void` |  |\n| `Inspect.settleMotion(maxMs?: number): boolean` |  |\n| `Inspect.now(): number }` |  |\n| `Inspect.trace: {` |  |\n| `Inspect.start(cap?: number): void` |  |\n| `Inspect.stop(): void` |  |\n| `Inspect.clear(): void` |  |\n| `Inspect.active(): boolean` |  |\n| `Inspect.read(): TraceSettle[]` |  |\n| `Inspect.text(settles?: TraceSettle[]): string` |  |\n| `Inspect.}` |  |\n| `Inspect.profile: { start(why?: boolean): void` |  |\n| `Inspect.stop(): string` |  |\n| `Inspect.active(): boolean }` |  |\n\n## `performance`\n\n\n\n| call | |\n|---|---|\n| `performance.now(): number` |  |",
+     "doc": "# Types and functions\n\n*The shared vocabulary every `{ }` body can name. The scaffold declares all of it into\neach program's check block, so it is typechecked for your code exactly as for the\nstandard library's.*\n\nBeyond the tree, a bare name in a body may be one of three things, the same on every\nrenderer: an **ES built-in** (`Math`, `JSON`, `Date`, `Promise`, `Map`, …); one of the\n**host chores declared below** (timers, `console`, `fetch` and the `URL` family) — each\nwith the one narrow shape it has everywhere Declare runs; or a **runtime service**\n(`Focus`, `Keys`, `Themes`, `afterSettle`). Nothing else: `document`, `window`,\n`localStorage`, `process` are the host's, and the compiler refuses each by name with the\nDeclare way beside it. A capability the language lacks arrives through an `external`\nattribute the host supplies, never through a bare global. A body is synchronous — there\nis no `await`; a value the screen derives from is a `DataSource`.\n\n## `DrawContext` — what a `draw(d)` method receives\n\n`draw(d: DrawContext)` is an ordinary method a view defines to paint itself. `View` calls it from a\nconstraint of its own (`drawing = { record(draw) }` — the View page), so it runs on invalidation\nand re-runs when what it *read* changes, **never per frame** — the rule every method has when a\nconstraint calls it. So a drawing composes with attributes and constraints instead of escaping\nthem — `ink`, `width` and state are ordinary reads, and changing one re-records. What it records\nis a display list every renderer paints.\n\nThis is how the library draws every mark a font cannot give it: a `Checkbox`'s tick and the\nwhole `Icon` set are recorded paths, not glyphs. Author an icon in a 16×16 box and scale it\ninside the body (see `Icon`); **never animate a drawing's size** — reading size inside `draw`\nmakes the recording size-dependent, so an animated size re-records and reallocates its backing\ncanvas every frame.\n\n```declare-fragment\ndraw(d: DrawContext) {\n    d.fillStyle = provided(\"theme\").accent\n    d.beginPath()\n    d.arc(width / 2, height / 2, 6, 0, Math.PI * 2, false)\n    d.fill()\n    }\n```\n\n`d.w` / `d.h` are the view's own size, for a drawing that sizes itself. Reading one is\nwhat opts a drawing into re-recording when the view resizes — a body that never mentions\nthem never pays for the resize. (There is no `d.x`/`d.y`: a recording's origin IS the\nview's top-left, so they could only be 0.)\n\n**State you set:** `w: number` · `h: number` · `fillStyle: string \\| Color \\| DrawGradient` · `strokeStyle: string \\| Color \\| DrawGradient` · `lineWidth: number` · `lineCap: string` · `lineJoin: string` · `miterLimit: number` · `lineDashOffset: number` · `globalAlpha: number` · `globalCompositeOperation: string` · `shadowBlur: number` · `shadowColor: string \\| Color` · `shadowOffsetX: number` · `shadowOffsetY: number` · `filter: string` · `imageSmoothingEnabled: boolean` · `imageSmoothingQuality: string` · `font: string` · `textAlign: string` · `textBaseline: string` · `direction: string` · `letterSpacing: string` · `wordSpacing: string` · `fontKerning: string`\n\n**Calls:** `arc(x: number, y: number, r: number, a0: number, a1: number, ccw?: boolean): void` · `arcTo(x1: number, y1: number, x2: number, y2: number, r: number): void` · `beginPath(): void` · `bezierCurveTo(cp1x: number, cp1y: number, cp2x: number, cp2y: number, x: number, y: number): void` · `clearRect(x: number, y: number, w: number, h: number): void` · `clip(rule?: string): void` · `closePath(): void` · `createConicGradient(startAngle: number, x: number, y: number): DrawGradient` · `createLinearGradient(x0: number, y0: number, x1: number, y1: number): DrawGradient` · `createRadialGradient(x0: number, y0: number, r0: number, x1: number, y1: number, r1: number): DrawGradient` · `drawImage(image: DrawImageSource, dx: number, dy: number): void` · `drawImage(image: DrawImageSource, dx: number, dy: number, dw: number, dh: number): void` · `drawImage(image: DrawImageSource, sx: number, sy: number, sw: number, sh: number, dx: number, dy: number, dw: number, dh: number): void` · `ellipse(x: number, y: number, rx: number, ry: number, rot: number, a0: number, a1: number, ccw?: boolean): void` · `fill(rule?: string): void` · `fillRect(x: number, y: number, w: number, h: number): void` · `fillText(text: string, x: number, y: number, maxWidth?: number): void` · `fillText(text: string, x: number, y: number, style: TextStyle, maxWidth?: number): void` · `lineTo(x: number, y: number): void` · `list(): any` · `moveTo(x: number, y: number): void` · `quadraticCurveTo(cpx: number, cpy: number, x: number, y: number): void` · `rect(x: number, y: number, w: number, h: number): void` · `resetTransform(): void` · `restore(): void` · `rotate(angle: number): void` · `roundRect(x: number, y: number, w: number, h: number, radii: number | number[]): void` · `save(): void` · `scale(x: number, y: number): void` · `setLineDash(segments: number[]): void` · `setTransform(a: number, b: number, c: number, d: number, e: number, f: number): void` · `stroke(): void` · `strokeRect(x: number, y: number, w: number, h: number): void` · `strokeText(text: string, x: number, y: number, maxWidth?: number): void` · `strokeText(text: string, x: number, y: number, style: TextStyle, maxWidth?: number): void` · `transform(a: number, b: number, c: number, d: number, e: number, f: number): void` · `translate(x: number, y: number): void`\n\n\n## Event payloads\n\n*What a handler's argument carries.*\n\n| type | what it is | members |\n|---|---|---|\n| `PointerEvent` | a pointer went down, moved, or a view was clicked | `x: number` · `y: number` · `rootX: number` · `rootY: number` · `deltaX: number` · `deltaY: number` · `shift: boolean` · `ctrl: boolean` · `alt: boolean` · `meta: boolean` |\n| `PointerUpEvent` | a pointer release — carries **`canceled`**, true when the browser reclaimed the gesture | `x: number` · `y: number` · `rootX: number` · `rootY: number` · `deltaX: number` · `deltaY: number` · `shift: boolean` · `ctrl: boolean` · `alt: boolean` · `meta: boolean` · `canceled: boolean` |\n| `WheelEvent` | a wheel or trackpad gesture — carries **`pinch`**, true for a trackpad pinch | `x: number` · `y: number` · `rootX: number` · `rootY: number` · `deltaX: number` · `deltaY: number` · `shift: boolean` · `ctrl: boolean` · `alt: boolean` · `meta: boolean` · `pinch: boolean` |\n| `TouchEvent` | the multi-finger stream — carries the finger list | `x: number` · `y: number` · `rootX: number` · `rootY: number` · `deltaX: number` · `deltaY: number` · `shift: boolean` · `ctrl: boolean` · `alt: boolean` · `meta: boolean` · `touches: readonly Touch[]` · `changed: readonly Touch[]` |\n| `Touch` | one finger within a `TouchEvent` | `id: number` · `x: number` · `y: number` |\n| `KeyEvent` | a key went down or up — `key`, `code`, and modifier flags; never a numeric code | `code: string` · `key: string` · `shift: boolean` · `ctrl: boolean` · `alt: boolean` · `meta: boolean` · `repeat: boolean` |\n| `FocusGeometry` | the focused control's live silhouette, for a focus indicator | `x: number` · `y: number` · `w: number` · `h: number` · `rad: number` · `view: View` · `root: View` · `scroller: View` · `homeX: number` · `homeY: number` · `homeW: number` · `homeH: number` · `homeRad: number` · `homeRot: number` · `theme: any` |\n| `TooltipEvent` | a tooltip request from the `Tooltips` service | `readonly text: string` · `readonly x: number` · `readonly y: number` · `readonly w: number` · `readonly h: number` · `readonly root: View` |\n| `StreamMessage` | one arrival from an `EventStream` or `Socket` | `readonly data: string` · `readonly type: string` · `readonly id: string` |\n\n## Value types\n\n| type | what it is | shape |\n|---|---|---|\n| `Percent` | what a bare `50%` literal becomes; you never write the type | `{ percent: number }` |\n| `Length` | a number of pixels, or a `Percent` from a bare `50%` literal | `number \\| Percent` |\n| `Radius` | | `number \\| readonly [number, number, number, number]` |\n| `Inset` | | `number \\| readonly [number, number, number, number]` |\n| `Color` | a packed `0xRRGGBB` number in a `{ }` body — `null` means *no paint*, not black. **Alpha, by context**: a constant carries it in the literal — `0xRRGGBBAA` (or `#RRGGBBAA`), in bare slots and `{ }` bodies alike; a computed alpha calls `colorWithAlpha(rgb, a)` in a body; inside `draw()` the canvas takes its own CSS string (`\"rgba(51,102,153,0.5)\"`). `rgba(…)` is never a slot spelling | `number \\| null` |\n| `ClipPath` | a clip shape | `string \\| null` |\n| `Fill` | what paints a box: a `Color` or a `Gradient` | `Color \\| Gradient` |\n| `BoxStroke` | | `Stroke \\| readonly [Stroke \\| null, Stroke \\| null, Stroke \\| null, Stroke \\| null] \\| null` |\n| `ImageFilter` | one function of the filter vocabulary, for `filter` (the view's own paint) and `backdrop` (what lies beneath) | `{ fn: \"blur\"; radius: number } \\| { fn: \"brightness\" \\| \"contrast\" \\| \"saturate\" \\| \"grayscale\" \\| \"invert\" \\| \"sepia\"; amount: number } \\| { fn: \"hueRotate\"; degrees: number } \\| { fn: \"colorize\"; color: Color } \\| Shadow` |\n| `FilterList` | a list of filters, applied in order — to the view's own paint (`filter`) or to what lies beneath it (`backdrop`); `frost(…)` builds the common backdrop pair | `readonly ImageFilter[]` |\n| `Theme` | a design-token record; see **Theme tokens** for the vocabulary classes read | `Readonly<Record<string, any>>` |\n| `TextStyles` | | `Readonly<Record<string, TextStyle>>` |\n| `RichTextLayout` | | `Readonly<Record<string, BlockGeometry>>` |\n| `MotionCurve` | an easing curve for an `Animator` | `{ readonly __motion: true }` |\n| `Gradient` | colour stops along a line (`gradient(…)`), out from a centre (`radialGradient(…)`) or around one (`conicGradient(…)`) | `kind?: \"linear\" \\| \"radial\" \\| \"conic\"` · `angle: number` · `cx?: number` · `cy?: number` · `r?: number` · `stops: readonly { offset: number \\| null; color: Color }[]` |\n| `Stroke` | a width and a colour — build it with `stroke(w, c)`. A border *is* a stroke | `width: number` · `color: Color` |\n| `GlyphOutline` | | `width: number` · `color: Color` |\n| `Shadow` | offset, blur and colour — build it with `shadow(dx, dy, blur, c)` | `fn: \"shadow\"` · `dx: number` · `dy: number` · `blur: number` · `color: Color` |\n| `DataCursor` | a datapath's resolved position — `.data` and `.path` | `readonly data: any` · `readonly path: readonly string[]` |\n| `IslandMessage` | | `readonly topic: string` · `readonly payload: unknown` |\n| `IslandNavigation` | | `readonly to: string` · `readonly program: string` · `readonly location: string` · `readonly newWindow: boolean` |\n| `TextStyle` | | `fontFamily?: string \\| Font \\| readonly (string \\| Font)[] \\| null` · `fontSize?: number` · `fontWeight?: FontWeight` · `italic?: boolean` · `letterSpacing?: number` · `lineHeight?: number` · `textColor?: Color \\| null` · `textShadow?: Shadow \\| null` · `textTransform?: \"none\" \\| \"uppercase\" \\| \"lowercase\" \\| \"capitalize\"` · `smallCaps?: boolean` · `numerals?: \"normal\" \\| \"lining\" \\| \"oldstyle\"` · `numeralWidth?: \"normal\" \\| \"tabular\" \\| \"proportional\"` · `slashedZero?: boolean` · `textFill?: Fill \\| null` · `outline?: GlyphOutline \\| null` · `underline?: boolean` · `strike?: boolean` |\n| `TagStyles` | | `strong?: string` · `em?: string` · `strike?: string` · `code?: string` · `link?: string` · `quote?: string` · `h1?: string` · `h2?: string` · `h3?: string` · `h4?: string` · `h5?: string` · `h6?: string` |\n| `BlockGeometry` | | `maxWidth?: number` · `margin?: readonly [number, number]` · `align?: \"left\" \\| \"center\" \\| \"right\"` |\n| `AccessibilitySettings` | | `readonly reduceMotion: boolean` · `readonly increaseContrast: boolean` · `readonly reduceTransparency: boolean` · `readonly textScale: number` |\n| `TextMetrics` | | `readonly width: number` · `readonly height: number` · `readonly baseline: number` · `readonly capHeight: number` · `readonly lines: number` |\n| `DelayHandle` | | `cancel(): void` |\n| `DrawGradient` | a gradient built inside a drawing, via `d.createLinearGradient(…)` | `addColorStop(offset: number, color: string \\| Color): void` |\n| `DrawImageSource` | what `d.drawImage(…)` paints from — any `Image` view (its `loaded`, `naturalWidth`, `naturalHeight`) | `loaded: boolean` · `naturalWidth: number` · `naturalHeight: number` |\n| `ValueChange` | one changed value — its `name`, its `previousValue`, and its `currentValue` | `readonly name: string` · `readonly previousValue: any` · `readonly currentValue: any` |\n| `ChangeEvent` | values this node tracks (`trackChanges`) changed in this settle — `changed`, one `ValueChange` each | `readonly changed: readonly ValueChange[]` |\n| `PinchEvent` | | `scale: number` · `center: { readonly x: number; readonly y: number }` |\n| `File` | | `readonly name: string` · `readonly size: number` · `readonly type: string` · `readonly modified: number` · `readonly path: string` · `readonly url: string` |\n| `FilesOverEvent` | | `readonly count: number` · `readonly x: number` · `readonly y: number` |\n| `FilesDropEvent` | | `readonly files: File[]` · `readonly x: number` · `readonly y: number` |\n| `ClipboardEvent` | | `readonly types: string[]` · `readonly text: string` · `readonly files: File[]` · `get(type: string): string \\| null` · `put(text: string): void` · `put(type: string, data: string): void` |\n| `FilePickOptions` | | `accept?: string[]` · `multiple?: boolean` · `folder?: boolean` |\n| `TraceChange` | | `path: string` · `attr: string` · `from?: number \\| boolean \\| string \\| null` · `to?: number \\| boolean \\| string \\| null` · `by: { rule: string; source: string \\| null; line?: number; file?: string } \\| null` |\n| `TraceSettle` | | `n: number` · `at: number` · `ms: number` · `origin: string[]` · `runs: number` · `triggers: TraceChange[]` · `changes: TraceChange[]` · `unnamed: number` |\n| `Headers` | a response's headers — `get(name)` | `get(name: string): string \\| null` · `has(name: string): boolean` · `forEach(fn: (value: string, key: string) => void): void` |\n| `AbortSignal` | the cancellation handle an `AbortController` issues | `readonly aborted: boolean` · `addEventListener(type: \"abort\", fn: () => void): void` |\n| `AbortController` | cancel an in-flight `fetch` — pass `.signal`, call `.abort()` | `readonly signal: AbortSignal` · `abort(reason?: unknown): void` |\n| `RequestInit` | the options `fetch` takes — `method`, `headers`, `body`, `signal` | `method?: string` · `headers?: Record<string, string> \\| [string, string][]` · `body?: string \\| FormData \\| Blob \\| ArrayBuffer \\| null` · `credentials?: \"omit\" \\| \"same-origin\" \\| \"include\"` · `mode?: \"cors\" \\| \"no-cors\" \\| \"same-origin\"` · `cache?: string` · `redirect?: \"follow\" \\| \"error\" \\| \"manual\"` · `signal?: AbortSignal \\| null` · `keepalive?: boolean` |\n| `Response` | what `fetch` resolves to — `ok`, `status`, `json()`, `text()` | `readonly ok: boolean` · `readonly status: number` · `readonly statusText: string` · `readonly url: string` · `readonly headers: Headers` · `readonly bodyUsed: boolean` · `json(): Promise<any>` · `text(): Promise<string>` · `arrayBuffer(): Promise<ArrayBuffer>` · `blob(): Promise<Blob>` · `clone(): Response` |\n| `Blob` | a binary body | `readonly size: number` · `readonly type: string` · `text(): Promise<string>` · `arrayBuffer(): Promise<ArrayBuffer>` |\n| `FormData` | a multipart body | `append(name: string, value: string \\| Blob, fileName?: string): void` · `get(name: string): string \\| Blob \\| null` · `has(name: string): boolean` |\n| `URLSearchParams` | a query string as a map — `get`, `set`, `append`, `toString()` | `constructor(init?: string \\| Record<string, string> \\| [string, string][])` · `get(name: string): string \\| null` · `getAll(name: string): string[]` · `has(name: string): boolean` · `set(name: string, value: string): void` · `append(name: string, value: string): void` · `delete(name: string): void` · `forEach(fn: (value: string, key: string) => void): void` · `toString(): string` |\n| `URL` | parse or build a URL — `new URL(path, base)`, then `.searchParams`, `.pathname`, `.href` | `constructor(url: string \\| URL, base?: string \\| URL)` · `href: string` · `readonly origin: string` · `protocol: string` · `host: string` · `hostname: string` · `port: string` · `pathname: string` · `search: string` · `hash: string` · `readonly searchParams: URLSearchParams` · `toString(): string` |\n\n## Global functions\n\n| call | what it does |\n|---|---|\n| `activeTone(accent: Color, surface: Color): Color` |  |\n| `gradient(...args: (Color \\| string \\| { offset: number \\| null; color: Color })[]): Gradient` | build a `Gradient` from an angle and colours |\n| `radialGradient(cx: number, cy: number, r: number, ...stops: (Color \\| { offset: number \\| null; color: Color })[]): Gradient` | a radial `Gradient` — `radialGradient(cx, cy, r, stops…)`, centre as fractions of the box, reach as a fraction of the farthest corner |\n| `conicGradient(cx: number, cy: number, angle: number, ...stops: (Color \\| { offset: number \\| null; color: Color })[]): Gradient` | a conic `Gradient` — `conicGradient(cx, cy, angle, stops…)`, swept clockwise from the angle |\n| `stroke(width: number, color: Color): Stroke` | build a `Stroke` |\n| `outline(width: number, color: Color): GlyphOutline` |  |\n| `colorStop(offset: number, color: Color): { offset: number; color: Color }` | one colour stop, for `gradient(…)` |\n| `shadow(dx: number, dy: number, blur: number, color: Color): Shadow` | build a `Shadow` — the box's own, glyphs' (`textShadow`), or in a `filter` list the painted alpha's |\n| `frost(radius: number, saturation?: number): FilterList` | the material pair `[blur(radius), saturate(saturation)]` — what lies beneath the view, blurred under its own fill |\n| `blur(radius: number): ImageFilter` | a Gaussian blur, radius in view units |\n| `brightness(amount: number): ImageFilter` | multiply the light: `brightness(0.8)` darkens, `1` is unchanged |\n| `contrast(amount: number): ImageFilter` | scale about mid-grey: `contrast(1.5)` deepens, `1` is unchanged |\n| `saturate(amount: number): ImageFilter` | scale the colour: `saturate(1.4)` deepens, `0` is grey, `1` is unchanged |\n| `grayscale(amount: number): ImageFilter` | toward grey, `0`…`1` |\n| `invert(amount: number): ImageFilter` | toward the negative, `0`…`1` |\n| `sepia(amount: number): ImageFilter` | toward sepia, `0`…`1` |\n| `hueRotate(degrees: number): ImageFilter` | turn every hue by this many degrees |\n| `colorize(color: Color): ImageFilter` | the group's alpha in one colour — what `Image.tint` is sugar for |\n| `colorWithAlpha(rgb: number, a: number): number` | an `0xRRGGBB` plus an alpha, as the packed form the paint slots take |\n| `measureText(text: string, style: TextStyle, width?: number): TextMetrics` |  |\n| `hostProvided<T>(name: string, fallback: T): T` |  |\n| `hostProvided(name: string): any` |  |\n| `afterDelay(ms: number, fn: () => void): DelayHandle` |  |\n| `providedTextStyle(overrides?: TextStyle): TextStyle` |  |\n| `escapeHtml(s: string): string` | a value, made safe to concatenate into rich-text content — escape what you interpolate, not the markup |\n| `cubicBezier(x1: number, y1: number, x2: number, y2: number): MotionCurve` | a custom easing curve |\n| `back(overshoot: number): MotionCurve` | an overshooting easing curve |\n| `steps(n: number, jump?: \"jumpStart\" \\| \"jumpEnd\"): MotionCurve` | a stepped easing curve |\n| `laszlo(beginPole: number, endPole: number): MotionCurve` | the OpenLaszlo easing curve, kept |\n| `afterSettle(fn: () => void): void` |  |\n| `setTimeout(fn: (...args: any[]) => void, ms?: number): number` | deferred work — **a timer does not die with its node; cancel it yourself** |\n| `clearTimeout(id: number): void` | cancel a `setTimeout` |\n| `setInterval(fn: (...args: any[]) => void, ms?: number): number` | repeating work — same caveat as `setTimeout` |\n| `clearInterval(id: number): void` | cancel a `setInterval` |\n| `fetch(input: string \\| URL, init?: RequestInit): Promise<Response>` | the host's `fetch` — for an imperative request; a `DataSource` is the declarative one, and the usual answer |\n| `queueMicrotask(fn: () => void): void` | run after the current turn, before anything else |\n| `structuredClone<T>(value: T): T` | a deep copy |\n| `encodeURIComponent(s: string \\| number \\| boolean): string` | percent-encode one query value |\n| `decodeURIComponent(s: string): string` | the inverse of `encodeURIComponent` |\n| `encodeURI(s: string): string` | percent-encode a whole URL, keeping its structure |\n| `decodeURI(s: string): string` | the inverse of `encodeURI` |\n\n## `Clipboard`\n\n\n\n| call | |\n|---|---|\n| `Clipboard.copy(what: string \\| Record<string, string>): void` |  |\n\n## `FilePicker`\n\n\n\n| call | |\n|---|---|\n| `FilePicker.pick(options?: FilePickOptions): Promise<File[]>` |  |\n\n## `Accessibility`\n\n\n\n| call | |\n|---|---|\n| `Accessibility.announce(text: string, politeness?: \"polite\" \\| \"assertive\"): void` |  |\n| `Accessibility.announced(): readonly { text: string; politeness: \"polite\" \\| \"assertive\" }[]` |  |\n\n## `Inspect`\n\nThe running program's introspection surface, behind the same door as `__declare.explain` — dev tooling, stubbed in a production build unless you pass `declarec --debug`.\n\n| call | |\n|---|---|\n| `Inspect.ready(): boolean` |  |\n| `Inspect.rows(open: Record<string, boolean>): { path: string; name: string; kind: string; depth: number; hasKids: boolean; visible: boolean; constrained: boolean; motion: boolean }[]` |  |\n| `Inspect.node(path: string): any` |  |\n| `Inspect.kindOf(path: string): string` |  |\n| `Inspect.slots(path: string): { attr: string; text: string; kind: string; open: boolean; origin: string; motion: boolean; viewKind?: string; color?: string }[]` |  |\n| `Inspect.explain(path: string, attr: string): any` |  |\n| `Inspect.depValue(path: string, readPath: string): string` |  |\n| `Inspect.depTargetPath(path: string, readPath: string): string` |  |\n| `Inspect.expand(path: string, attr: string, trail: readonly string[]): any` |  |\n| `Inspect.dependents(attr: string): { path: string; attr: string; label: string }[]` |  |\n| `Inspect.rect(path: string): { x: number; y: number; width: number; height: number } \\| null` |  |\n| `Inspect.at(x: number, y: number, pierce?: boolean): string` |  |\n| `Inspect.stats(): { nodes: number; ownedSlots: number; motionBusy: boolean }` |  |\n| `Inspect.hasData(path: string): boolean` |  |\n| `Inspect.dataKeys(path: string): string[]` |  |\n| `Inspect.dataRows(path: string): { key: string; text: string; kind: string; open: boolean }[]` |  |\n| `Inspect.dataPreview(path: string): string` |  |\n| `Inspect.evaluate(path: string, src: string): { ok: boolean; input: string; text: string; verb: string; temporary?: boolean }` |  |\n| `Inspect.clock: { manual(): void; auto(): void; step(ms?: number): void; settleMotion(maxMs?: number): boolean; now(): number }` |  |\n| `Inspect.trace: {` |  |\n| `Inspect.start(cap?: number): void` |  |\n| `Inspect.stop(): void` |  |\n| `Inspect.clear(): void` |  |\n| `Inspect.active(): boolean` |  |\n| `Inspect.read(): TraceSettle[]` |  |\n| `Inspect.text(settles?: TraceSettle[]): string` |  |\n| `Inspect.};` |  |\n| `Inspect.profile: { start(why?: boolean): void; stop(): string; active(): boolean }` |  |\n\n## `performance`\n\n\n\n| call | |\n|---|---|\n| `performance.now(): number` |  |",
      "preview": "The shared vocabulary every { } body can name. The scaffold declares all of it into each program's check block, so it is typechecked for your code exactly as for the standard library's. Beyond the tree, a bare name in a body may be one of t…"
     },
     {
@@ -121616,7 +121583,7 @@
      "subtitle": "",
      "kind": "reference",
      "label": "Reference",
-     "doc": "# Theme tokens\n\n*The vocabulary the standard library reads off the `theme` provided value. Measured from\nthe library sources, so it cannot drift from what the classes actually consult.*\n\nA `theme` is a plain record, a **provided value**: set it high in the tree and every\ndescendant reads it with `provided(\"theme\")` until one overrides it. Start from a preset and\nspread to change a token — **an empty record is not a theme**, because the library reads\nspecific names:\n\n```declare-fragment\ntheme = { app.systemDark ? SanFranciscoDark : SanFrancisco },     // on the App\ntheme = { { ...provided(\"theme\"), accent: 0xCC3333 } }       // override one token below\n```\n\nPresets, each with a light record and a `…Dark` companion: [`Cupertino`](declare-docs:Cupertino) · [`MountainView`](declare-docs:MountainView) · [`Redmond`](declare-docs:Redmond) · [`SanFrancisco`](declare-docs:SanFrancisco).\n\n## Required — the contract\n\n**15 tokens are read bare**, with no fallback. A record missing one of these\nbreaks the classes that read it, which is why a theme is built from a preset rather than\nfrom scratch.\n\n| token | read by |\n|---|---|\n| `accent` | button, checkbox, combobox, datagrid, datepicker, gauge, … |\n| `accentHovered` | button, datepicker |\n| `accentPressed` | button, datepicker |\n| `accentTextColor` | button, checkbox, datepicker, menu |\n| `control` | accordion, button, checkbox, gauge, progressbar, segmented, … |\n| `controlCornerRadius` | accordion, appearanceswitch, breadcrumb, button, card, checkbox, … |\n| `controlHovered` | appearanceswitch, button, datepicker, disclosure, segmented, stepper, … |\n| `controlPressed` | appearanceswitch, button, datepicker, disclosure, segmented, stepper, … |\n| `controlSelected` | accordion, button, menubar, switch, table, tree |\n| `focusRingStyle` | focusring |\n| `line` | card, checkbox, combobox, datagrid, datepicker, dialog, … |\n| `surface` | card, datagrid, datepicker, dialog, menu, popover, … |\n| `text` | accordion, appearanceswitch, breadcrumb, button, datepicker, dialog, … |\n| `textFaint` | window |\n| `textMuted` | accordion, appearanceswitch, breadcrumb, checkbox, combobox, datagrid, … |\n\n## Optional — the tuning surface\n\n**82 tokens have a default.** Every provided theme is laid over the library's\ndefaults record (`ThemeDefaults`), so a theme states only what it changes; a token whose\ndefault is another token (`trackFill` is `control` unless stated) is read with `??`.\nThese are what a city preset reaches for to change platform character — button geometry,\nmenu material, focus-ring behaviour, dialog arrangement.\n\n| token | default | read by |\n|---|---|---|\n| `accordionFontSize` | `14` | accordion, disclosure |\n| `accordionHeaderFill` | `null` | accordion |\n| `accordionHeaderHeight` | `34` | accordion, disclosure |\n| `appearanceSwitchSize` | `32` | appearanceswitch |\n| `buttonCornerRadius` | — | button |\n| `buttonHeight` | `40` | button |\n| `buttonStrokeColor` | — | button |\n| `checkboxCornerRadius` | — | checkbox |\n| `checkboxSize` | `20` | checkbox |\n| `comboboxHeight` | `30` | combobox, datepicker |\n| `dialogBodyFontSize` | `13` | dialog |\n| `dialogButtonLayout` | `\"end\"` | dialog |\n| `dialogCornerRadius` | `null` | dialog, window |\n| `dialogShadow` | `null` | dialog, window |\n| `dialogTextAlign` | — | dialog, window |\n| `dialogTitleFontSize` | `15` | dialog |\n| `dialogWidth` | `420` | dialog |\n| `disabledOpacity` | `0.45` | accordion, button, checkbox, datepicker, menu, radiogroup, … |\n| `dragShadow` | `shadow(0, 4, 14, #00000038)` | datagrid |\n| `error` | `#C93429` | checkbox, combobox, datepicker, dialog, field |\n| `fieldCornerRadius` | — | datepicker |\n| `fieldPadding` | — | datepicker |\n| `focusAnimate` | `true` | focusring |\n| `focusRingGap` | `0` | focusring |\n| `focusRingInnerWidth` | `0` | focusring |\n| `focusRingWidth` | `3` | focusring |\n| `focusSights` | `false` | focusring |\n| `gridCellCornerRadius` | `3` | datagrid |\n| `gridFontSize` | `13` | datagrid |\n| `gridHeaderFontSize` | `12` | datagrid |\n| `gridHeaderHeight` | `30` | datagrid |\n| `gridRowHeight` | `28` | datagrid |\n| `menuBackdrop` | — | menu |\n| `menuBarFontSize` | `14` | menubar |\n| `menuBarHeight` | `25` | menubar |\n| `menuBarTitleCornerRadius` | `6` | menubar |\n| `menuCornerRadius` | `8` | dialog, menu, window |\n| `menuFill` | — | menu |\n| `menuFontSize` | `13` | menu, tree |\n| `menuHighlightCornerRadius` | `5` | menu |\n| `menuHighlightFill` | — | menu |\n| `menuHighlightTextColor` | — | menu |\n| `menuKeyFontSize` | `12` | menu |\n| `menuRowHeight` | `26` | menu, tree |\n| `menuShadow` | `shadow(0, 10, 40, #00000038)` | dialog, menu, window |\n| `menuTitleHighlightFill` | — | menubar |\n| `popoverCornerRadius` | `12` | popover |\n| `popoverShadow` | `shadow(0, 10, 32, #00000033)` | popover |\n| `progressBarHeight` | `8` | progressbar |\n| `radioSize` | `18` | radiogroup |\n| `scrimFill` | `#000000` | dialog, popover, sheet |\n| `scrimOpacity` | `0.32` | dialog, popover, sheet |\n| `searchFieldCornerRadius` | `\"round\"` | searchfield |\n| `searchFieldFill` | `null` | searchfield |\n| `searchFieldHeight` | `32` | searchfield |\n| `searchFieldPadding` | `16` | searchfield |\n| `searchFieldStroke` | `null` | searchfield |\n| `segmentDividerColor` | — | segmented |\n| `segmentedCornerRadius` | `8` | segmented, stepper, toolbar |\n| `segmentedFontSize` | `13` | breadcrumb, segmented, stepper, toolbar |\n| `segmentedHeight` | `30` | breadcrumb, segmented, stepper, toolbar |\n| `segmentedSelectedFill` | — | segmented, toolbar |\n| `segmentedSelectedTextColor` | `null` | segmented, toolbar |\n| `sheetCornerRadius` | `16` | popover, sheet |\n| `sheetShadow` | `shadow(0, 8, 40, #00000040)` | sheet |\n| `sliderHandleStyle` | — | slider |\n| `sliderThumbFill` | — | slider |\n| `sliderTrackHeight` | `4` | slider |\n| `switchHeight` | `24` | switch |\n| `switchThumbFill` | — | switch |\n| `switchThumbOffSize` | — | switch |\n| `switchWidth` | `44` | switch |\n| `toastCornerRadius` | `12` | toast |\n| `toastFontSize` | `13` | toast |\n| `toastShadow` | `shadow(0, 6, 24, #00000040)` | toast |\n| `tooltipCornerRadius` | `4` | tooltip |\n| `tooltipFill` | `#1B2733` | toast, tooltip |\n| `tooltipFontSize` | `12` | tooltip |\n| `tooltipPlacement` | `\"below\"` | tooltip |\n| `tooltipStrokeColor` | — | toast, tooltip |\n| `tooltipTextColor` | `#F4F6FA` | toast, tooltip |\n| `trackFill` | — | gauge, progressbar, segmented, slider, stepper, switch, … |\n",
+     "doc": "# Theme tokens\n\n*The vocabulary the standard library reads off the `theme` provided value. Measured from\nthe library sources, so it cannot drift from what the classes actually consult.*\n\nA `theme` is a plain record, a **provided value**: set it high in the tree and every\ndescendant reads it with `provided(\"theme\")` until one overrides it. Start from a preset and\nspread to change a token — **an empty record is not a theme**, because the library reads\nspecific names:\n\n```declare-fragment\ntheme = { app.systemDark ? SanFranciscoDark : SanFrancisco },     // on the App\ntheme = { { ...provided(\"theme\"), accent: 0xCC3333 } }       // override one token below\n```\n\nPresets, each with a light record and a `…Dark` companion: [`Cupertino`](declare-docs:Cupertino) · [`MountainView`](declare-docs:MountainView) · [`Redmond`](declare-docs:Redmond) · [`SanFrancisco`](declare-docs:SanFrancisco).\n\n## Required — the contract\n\n**15 tokens are read bare**, with no fallback. A record missing one of these\nbreaks the classes that read it, which is why a theme is built from a preset rather than\nfrom scratch.\n\n| token | read by |\n|---|---|\n| `accent` | button, checkbox, combobox, datagrid, datepicker, focusring, … |\n| `accentHovered` | button, datepicker |\n| `accentPressed` | button, datepicker |\n| `accentTextColor` | button, checkbox, datepicker, menu |\n| `control` | accordion, button, checkbox, gauge, progressbar, segmented, … |\n| `controlCornerRadius` | accordion, appearanceswitch, breadcrumb, button, card, checkbox, … |\n| `controlHovered` | appearanceswitch, button, datepicker, disclosure, segmented, stepper, … |\n| `controlPressed` | appearanceswitch, button, datepicker, disclosure, segmented, stepper, … |\n| `controlSelected` | accordion, button, menubar, switch, table, tree |\n| `focusRingStyle` | focusring |\n| `line` | card, checkbox, combobox, datagrid, datepicker, dialog, … |\n| `surface` | card, datagrid, datepicker, dialog, focusring, menu, … |\n| `text` | accordion, appearanceswitch, breadcrumb, button, datepicker, dialog, … |\n| `textFaint` | window |\n| `textMuted` | accordion, appearanceswitch, breadcrumb, checkbox, combobox, datagrid, … |\n\n## Optional — the tuning surface\n\n**84 tokens have a default.** Every provided theme is laid over the library's\ndefaults record (`ThemeDefaults`), so a theme states only what it changes; a token whose\ndefault is another token (`trackFill` is `control` unless stated) is read with `??`.\nThese are what a city preset reaches for to change platform character — button geometry,\nmenu material, focus-ring behaviour, dialog arrangement.\n\n| token | default | read by |\n|---|---|---|\n| `accordionFontSize` | `14` | accordion, disclosure |\n| `accordionHeaderFill` | `null` | accordion |\n| `accordionHeaderHeight` | `34` | accordion, disclosure |\n| `appearanceSwitchSize` | `32` | appearanceswitch |\n| `buttonCornerRadius` | — | button |\n| `buttonHeight` | `40` | button |\n| `buttonStrokeColor` | — | button |\n| `checkboxCornerRadius` | — | checkbox |\n| `checkboxSize` | `20` | checkbox |\n| `comboboxHeight` | `30` | combobox, datepicker |\n| `dialogBodyFontSize` | `13` | dialog |\n| `dialogButtonLayout` | `\"end\"` | dialog |\n| `dialogCornerRadius` | `null` | dialog, window |\n| `dialogShadow` | `null` | dialog, window |\n| `dialogTextAlign` | — | dialog, window |\n| `dialogTitleFontSize` | `15` | dialog |\n| `dialogWidth` | `420` | dialog |\n| `disabledOpacity` | `0.45` | accordion, button, checkbox, datepicker, menu, radiogroup, … |\n| `dragShadow` | `shadow(0, 4, 14, #00000038)` | datagrid |\n| `error` | `#C93429` | checkbox, combobox, datepicker, dialog, field |\n| `fieldCornerRadius` | — | datepicker |\n| `fieldPadding` | — | datepicker |\n| `focusAnimate` | `true` | focusring |\n| `focusRingColor` | — | focusring |\n| `focusRingGap` | `0` | focusring |\n| `focusRingInnerColor` | — | focusring |\n| `focusRingInnerWidth` | `0` | focusring |\n| `focusRingWidth` | `3` | focusring |\n| `focusSights` | `false` | focusring |\n| `gridCellCornerRadius` | `3` | datagrid |\n| `gridFontSize` | `13` | datagrid |\n| `gridHeaderFontSize` | `12` | datagrid |\n| `gridHeaderHeight` | `30` | datagrid |\n| `gridRowHeight` | `28` | datagrid |\n| `menuBackdrop` | — | menu |\n| `menuBarFontSize` | `14` | menubar |\n| `menuBarHeight` | `25` | menubar |\n| `menuBarTitleCornerRadius` | `6` | menubar |\n| `menuCornerRadius` | `8` | dialog, menu, window |\n| `menuFill` | — | menu |\n| `menuFontSize` | `13` | menu, tree |\n| `menuHighlightCornerRadius` | `5` | menu |\n| `menuHighlightFill` | — | menu |\n| `menuHighlightTextColor` | — | menu |\n| `menuKeyFontSize` | `12` | menu |\n| `menuRowHeight` | `26` | menu, tree |\n| `menuShadow` | `shadow(0, 10, 40, #00000038)` | dialog, menu, window |\n| `menuTitleHighlightFill` | — | menubar |\n| `popoverCornerRadius` | `12` | popover |\n| `popoverShadow` | `shadow(0, 10, 32, #00000033)` | popover |\n| `progressBarHeight` | `8` | progressbar |\n| `radioSize` | `18` | radiogroup |\n| `scrimFill` | `#000000` | dialog, popover, sheet |\n| `scrimOpacity` | `0.32` | dialog, popover, sheet |\n| `searchFieldCornerRadius` | `\"round\"` | searchfield |\n| `searchFieldFill` | `null` | searchfield |\n| `searchFieldHeight` | `32` | searchfield |\n| `searchFieldPadding` | `16` | searchfield |\n| `searchFieldStroke` | `null` | searchfield |\n| `segmentDividerColor` | — | segmented |\n| `segmentedCornerRadius` | `8` | segmented, stepper, toolbar |\n| `segmentedFontSize` | `13` | breadcrumb, segmented, stepper, toolbar |\n| `segmentedHeight` | `30` | breadcrumb, segmented, stepper, toolbar |\n| `segmentedSelectedFill` | — | segmented, toolbar |\n| `segmentedSelectedTextColor` | `null` | segmented, toolbar |\n| `sheetCornerRadius` | `16` | popover, sheet |\n| `sheetShadow` | `shadow(0, 8, 40, #00000040)` | sheet |\n| `sliderHandleStyle` | — | slider |\n| `sliderThumbFill` | — | slider |\n| `sliderTrackHeight` | `4` | slider |\n| `switchHeight` | `24` | switch |\n| `switchThumbFill` | — | switch |\n| `switchThumbOffSize` | — | switch |\n| `switchWidth` | `44` | switch |\n| `toastCornerRadius` | `12` | toast |\n| `toastFontSize` | `13` | toast |\n| `toastShadow` | `shadow(0, 6, 24, #00000040)` | toast |\n| `tooltipCornerRadius` | `4` | tooltip |\n| `tooltipFill` | `#1B2733` | toast, tooltip |\n| `tooltipFontSize` | `12` | tooltip |\n| `tooltipPlacement` | `\"below\"` | tooltip |\n| `tooltipStrokeColor` | — | toast, tooltip |\n| `tooltipTextColor` | `#F4F6FA` | toast, tooltip |\n| `trackFill` | — | gauge, progressbar, segmented, slider, stepper, switch, … |\n",
      "preview": "The vocabulary the standard library reads off the theme provided value. Measured from the library sources, so it cannot drift from what the classes actually consult. A theme is a plain record, a provided value: set it high in the tree and e…"
     },
     {

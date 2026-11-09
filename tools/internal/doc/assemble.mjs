@@ -212,7 +212,18 @@ function sharedTypes() {
   // one-liner into the next `^}` it could find, which made `Touch` report the
   // remainder of the file as its members.
   const lines = prelude.split("\n");
-  const splitMembers = (s) => s.split(";").map((x) => x.trim()).filter((x) => x && !x.startsWith("//"));
+  // at the top level only: a `;` inside a member's own type (`{ text: string; … }[]`) is not a split
+  const splitMembers = (s) => {
+    const parts = []; let depth = 0, from = 0;
+    for (let i = 0; i < s.length; i++) {
+      const c = s[i];
+      if (c === "{" || c === "(" || c === "[" || c === "<") depth++;
+      else if ((c === "}" || c === ")" || c === "]" || c === ">") && s[i - 1] !== "=") depth--;
+      else if (c === ";" && depth === 0) { parts.push(s.slice(from, i)); from = i + 1; }
+    }
+    parts.push(s.slice(from));
+    return parts.map((x) => x.trim()).filter((x) => x && !x.startsWith("//"));
+  };
   for (let i = 0; i < lines.length; i++) {
     // `declare class X { … }` is the same shape for the reader's purposes — a
     // named set of members (the host classes a body constructs: URL,
@@ -277,8 +288,11 @@ function themeTokenSpine() {
   for (const f of files) {
     // comments carry `theme.x` in prose — strip them, or documentation counts as usage;
     // a read is spelled `provided("theme").x`, folded to `theme.x` for the scan
-    const code = readFileSync(join(ROOT, f), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "")
+    let code = readFileSync(join(ROOT, f), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "")
       .replaceAll('provided("theme")', "theme");
+    // …and a local that holds the theme (`const t = this.ringTheme()`) reads it too
+    for (const al of new Set([...code.matchAll(/const\s+(\w+)\s*=\s*(?:theme\b|this\.\w*[tT]heme\(\))/g)].map((m) => m[1])))
+      code = code.replace(new RegExp(`\\b${al}\\.(?=[a-zA-Z])`, "g"), "theme.");
     const who = f.replace(/^library\//, "").replace(/\.declare$/, "");
     for (const line of code.split("\n")) {
       for (const mm of line.matchAll(/theme\.([a-zA-Z][A-Za-z0-9]*)/g)) {

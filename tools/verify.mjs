@@ -534,7 +534,7 @@ if (flags.json) {
     // the runtime-tracking path (a residue, or the alias/closure DYNAMIC class)
     const wired = out.deps ? out.deps.filter((d) => d.length > 0).length : 0;
     console.log(`  verify: ${file} — clean through R${climbed}` +
-      (out.deps?.length ? ` (${wired} of ${out.deps.length} constraints statically wired)` : "") +
+      (out.deps?.length ? ` (${wired} of ${out.deps.length} constraints statically wired${wired < out.deps.length ? "; the rest find their reads as they run — nothing to do" : ""})` : "") +
       (layoutCount > 0 ? `, with ${layoutCount} layout finding${layoutCount === 1 ? "" : "s"} to look at (the layout lines)` : ""));
     // WHAT R4 CANNOT SEE. Rungs 1–4 run in a synthetic Node backend, so a clean
     // climb is proof the program is well-formed — not that the browser bundle

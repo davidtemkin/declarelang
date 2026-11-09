@@ -1341,6 +1341,11 @@ class Parser {
           if (this.peek().kind === "comma") this.next();
           else break;
         }
+        // a name reached through a dot (`app.gutter`) is an expression, not a
+        // literal: the list goes in braces, as any value that reads something does
+        const nx = this.peek();
+        if ((nx.kind === "dot" || nx.kind === "lparen") && items.length > 0 && items[items.length - 1].kind === "ident")
+          throw new DeclareError(`a list written bare holds literals only, and '${(items[items.length - 1] as { name: string }).name}${nx.text}…' reads a value — write the whole list in braces: { [ … ] }`, nx.pos);
         this.expect("rbracket", "']'");
         return { kind: "list", items, pos: t.pos };
       }

@@ -712,6 +712,10 @@ function answer() {
     sharedHit("shared-namespace", "namespaces", (n) => {
       say(`${n.name} — a shared namespace:`);
       for (const mline of n.members.slice(0, ALL ? Infinity : BUDGET_LINES - 3)) say(`  ${n.name}.${mline}`);
+      // what a view says for itself is its own attributes, named after the namespace
+      const stem = n.name[0].toLowerCase() + n.name.slice(1);
+      const own = Object.keys(schemaOf("View")?.attrs ?? {}).filter((a) => a.startsWith(stem));
+      if (own.length > 0) say(`  on every view: ${own.join(", ")} — declare-help View.<name>`);
     });
 
   // bare attribute — ranked owners, no single guess (§3 row 4)

@@ -608,6 +608,11 @@ export function bridgeFor(root) {
          *  including `1 + 2` (field report 2026-08-19). Only the never-primed
          *  first call still returns a promise, for the lazy import. */
         evaluate: (path, src) => {
+            // one argument is the expression, evaluated at the App
+            if (src === undefined) {
+                src = path;
+                path = "app";
+            }
             if (evalService !== null)
                 return evalService.evaluateIn(root, path, src);
             return import("./inspect-service.js").then((m) => {
