@@ -71,7 +71,7 @@ import { declarationsOf, isSet, ownerOf, ownValues, ownedSlots } from "./attribu
 import { materializationInfo } from "./replicate.js";
 import { sharedClock, browserScheduler } from "./animate.js";
 import { declareName } from "./declare-name.js";
-import { settle } from "./reactive.js";
+import { settle, staleRules } from "./reactive.js";
 import { clearTrace, readTrace, startTrace, stopTrace, traceText, tracing } from "./wake-trace.js";
 const isView = (n) => n instanceof View;
 /** The class name to SHOW for a node: the program's name for its class, in
@@ -490,6 +490,21 @@ export function elementView(root, el) {
     }
     return null;
 }
+/** A value for the stale report: short text, a view by its name. */
+function shortValue(v) {
+    if (v instanceof Node)
+        return declareName(v);
+    if (typeof v === "function")
+        return "(function)";
+    let t;
+    try {
+        t = JSON.stringify(v) ?? String(v);
+    }
+    catch {
+        t = String(v);
+    }
+    return t.length > 120 ? t.slice(0, 117) + "…" : t;
+}
 export function bridgeFor(root) {
     primeEvalService();
     return {
@@ -539,6 +554,12 @@ export function bridgeFor(root) {
             return n !== null ? explain(n, attr) : null;
         },
         stats: () => stats(root),
+        /** Every program constraint whose body, computed afresh at rest, disagrees
+         *  with what its slot holds: an update the dependency wiring missed. */
+        stale: () => staleRules().map(({ rule, held, fresh }) => ({
+            rule: rule.label, wired: rule.isStatic, source: rule.source, at: rule.sourcePos,
+            held: shortValue(held), fresh: shortValue(fresh),
+        })),
         /** What assistive technology is given: the semantic tree (accessibility.md),
          *  as indented text, or as data with `asData`. */
         semantics: (path, asData = false) => {

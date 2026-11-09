@@ -1854,7 +1854,11 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
       // cannot distinguish from a runtime crash.
       const frame = e instanceof VerifyAssertion ? "" :
         (String(e?.stack ?? "").split("\n").find((l) => l.includes(".mjs")) ?? "").trim();
-      failures.push(`${e instanceof VerifyAssertion ? "" : "unexpected error: "}${e?.message ?? e}${where}${frame ? `\n      at ${frame}` : ""}`);
+      // A press that followed a link leaves the program: every step after it
+      // fails inside the driver, which is not what a reader should be told.
+      const left = !(e instanceof VerifyAssertion) && await app.page.evaluate(() => window.__declare === undefined).catch(() => false);
+      if (left) failures.push(`the page left the program — it is now at ${app.page.url()}${where}: a press followed a link, or the program navigated away, and a flow ends where it leaves the program`);
+      else failures.push(`${e instanceof VerifyAssertion ? "" : "unexpected error: "}${e?.message ?? e}${where}${frame ? `\n      at ${frame}` : ""}`);
     }
     if (failures.length === 0) {
       await timing.time("end: the network quiet after the script", () => app.quiet(2000));

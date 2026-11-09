@@ -444,6 +444,7 @@ bytecode) {
         writeOwned(view, name, v);
     } } : (v) => setBound(view, name, v), 0, yielding);
     rule.k = k;
+    k.slot = { node: view, name };
     // Retain the authored text + position for the Inspector (inspect.ts explain()).
     k.source = src;
     k.sourcePos = sourceAt(pos);

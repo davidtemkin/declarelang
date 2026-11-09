@@ -428,6 +428,7 @@ export function bindConstraint(
     yielding
   );
   rule.k = k;
+  k.slot = { node: view, name };
   // Retain the authored text + position for the Inspector (inspect.ts explain()).
   k.source = src;
   k.sourcePos = sourceAt(pos);

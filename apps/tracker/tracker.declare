@@ -844,7 +844,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
             const members = rows.filter((it) => it.status == st)
             if (members.length == 0) return
             out.push(({ kind: "hdr", id: -1 - i, status: st, count: members.length }))    // ids below every issue's
-            if (!this.isCollapsed(st)) out.push(...members)
+            if (!this.isCollapsed(st)) for (const m of members) out.push(m)   // not push(...members): a group can hold 250,000 rows, past the argument limit
             })
         return ({ rows: out, total: rows.length })
         },

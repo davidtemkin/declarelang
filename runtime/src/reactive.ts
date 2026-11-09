@@ -821,6 +821,8 @@ export class Constraint {
    *  layout installed, or a handler's write — takes the slot from it, as a
    *  size stated before the install is never claimed (attributes.ts). */
   fillsContent = false;
+  /** The attribute a program's `{ }` holds (bind.ts), for the stale check. */
+  slot: { node: object; name: string } | null = null;
 
   constructor(
     /** For error messages: "View.width", "Text.draw", … */
@@ -1084,6 +1086,22 @@ export class Constraint {
     if (this.id >= 0) K!.invalidate(this.id);
   }
 
+  /** @internal The stale check (staleRules): compute the body afresh, with no
+   *  tracker listening, and compare it with what the slot holds. Null when the
+   *  rule is not a live program constraint at rest, or the answers agree. */
+  freshDiff(): { held: unknown; fresh: unknown } | null {
+    if (this.dead || this.suspended || this.native || this.slot === null || this.id < 0) return null;
+    if ((K!.stateOf(this.id) & KERNEL_STATE.QUEUED) !== 0) return null;
+    const { node, name } = this.slot;
+    let held: unknown, fresh: unknown;
+    try { held = untracked(() => (node as Record<string, unknown>)[name]); fresh = asTracked(() => this.compute()); }
+    catch { return null; }   // a body that throws now (an input not yet delivered) is no stale value
+    if (sameValue(held, fresh)) return null;
+    // a deep document (a dataset's contents) compares by what it holds
+    try { if (typeof held === "object" && held !== null && JSON.stringify(held) === JSON.stringify(fresh)) return null; } catch { /* cyclic: by identity */ }
+    return { held, fresh };
+  }
+
   /** Permanently retire (a yielding owner displaced by a direct write). */
   dispose(): void {
     this.dead = true;
@@ -1118,6 +1136,43 @@ export class Constraint {
       rethrow();
     } else this.run();
   }
+}
+
+/** The stale check, for tooling: every program constraint whose body, computed
+ *  afresh at rest, disagrees with the value its slot holds. Each one is an
+ *  update the dependency wiring missed. Call it after a settle, at rest. */
+export function staleRules(): Array<{ rule: Constraint; held: unknown; fresh: unknown }> {
+  const out: Array<{ rule: Constraint; held: unknown; fresh: unknown }> = [];
+  for (const r of RULES) {
+    if (r == null) continue;   // a retired id, or a hole the table never filled
+    const d = r.freshDiff();
+    if (d !== null) out.push({ rule: r, ...d });
+  }
+  return out;
+}
+
+/** Run `fn` reading as a constraint does (a Time's facts as of its last tick,
+ *  not the live clock), while linking no edge to any rule: the reads collect
+ *  into a set that is thrown away. */
+function asTracked<T>(fn: () => T): T {
+  const c = S.collecting, a = ACTIVE[0];
+  drainTrack();
+  S.collecting = new Set(); ACTIVE[0] = -1;
+  try { return fn(); } finally { drainTrack(); S.collecting = c; ACTIVE[0] = a; }
+}
+
+/** Equal for the stale check: numbers within a rounding hair, records and
+ *  arrays field by field, anything else (a view, a function) by identity. */
+function sameValue(a: unknown, b: unknown, depth = 0): boolean {
+  if (a === b) return true;
+  if (typeof a === "number" && typeof b === "number") return (a !== a && b !== b) || Math.abs(a - b) <= 1e-9 * Math.max(1, Math.abs(a));
+  if (a === null || b === null || typeof a !== "object" || typeof b !== "object" || depth > 6) return false;
+  const pa = Object.getPrototypeOf(a), pb = Object.getPrototypeOf(b);
+  if (pa !== pb || (pa !== Object.prototype && pa !== Array.prototype && pa !== null)) return false;
+  const ka = Object.keys(a), kb = Object.keys(b);
+  if (ka.length !== kb.length) return false;
+  for (const k of ka) if (!sameValue((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k], depth + 1)) return false;
+  return true;
 }
 
 // ── The scheduler ───────────────────────────────────────────────────────────

@@ -192,6 +192,11 @@ export declare class Constraint {
      *  layout installed, or a handler's write — takes the slot from it, as a
      *  size stated before the install is never claimed (attributes.ts). */
     fillsContent: boolean;
+    /** The attribute a program's `{ }` holds (bind.ts), for the stale check. */
+    slot: {
+        node: object;
+        name: string;
+    } | null;
     constructor(
     /** For error messages: "View.width", "Text.draw", … */
     label: string, compute: () => unknown, apply: (value: unknown) => void, phase?: Phase, 
@@ -316,6 +321,13 @@ export declare class Constraint {
     /** Queue for the next settle. Coalesces: already-queued, disposed, or
      *  suspended constraints are a no-op, so N invalidations cost one run. */
     invalidate(): void;
+    /** @internal The stale check (staleRules): compute the body afresh, with no
+     *  tracker listening, and compare it with what the slot holds. Null when the
+     *  rule is not a live program constraint at rest, or the answers agree. */
+    freshDiff(): {
+        held: unknown;
+        fresh: unknown;
+    } | null;
     /** Permanently retire (a yielding owner displaced by a direct write). */
     dispose(): void;
     /** Displace this constraint without killing it: drop its dependency edges
@@ -329,6 +341,14 @@ export declare class Constraint {
      *  (animation.md §2 rule 4: resumed, not reinstated with a stale output). */
     resume(): void;
 }
+/** The stale check, for tooling: every program constraint whose body, computed
+ *  afresh at rest, disagrees with the value its slot holds. Each one is an
+ *  update the dependency wiring missed. Call it after a settle, at rest. */
+export declare function staleRules(): Array<{
+    rule: Constraint;
+    held: unknown;
+    fresh: unknown;
+}>;
 /** Evaluate `fn` with NO tracker listening — neither the dynamic collector
  *  nor the kernel's active rule sees its reads (a declared default refreshed
  *  at displacement, attributes.ts own(): a read made on the newcomer's behalf
