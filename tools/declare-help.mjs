@@ -873,7 +873,33 @@ function answer() {
   return false;
 }
 
-const answered = answer();
+/** A record type the library declares (`schema FormProblem [ … ]` in form.declare):
+ *  the reference names these as types — `refusal` returns `FormProblem[]` — but the
+ *  docs model holds classes, not schemas, so they are read from the library's own
+ *  files. */
+function answerSchema() {
+  if (!/^[A-Z][A-Za-z0-9]*$/.test(query)) return false;
+  const dir = join(ROOT, "library");
+  for (const f of readdirSync(dir).filter((n) => n.endsWith(".declare")).sort()) {
+    const src = readFileSync(join(dir, f), "utf8");
+    const at = src.search(new RegExp(`^schema ${query}\\s*\\[`, "m"));
+    if (at < 0) continue;
+    let depth = 0, end = at;
+    for (let i = src.indexOf("[", at); i < src.length; i++) {
+      if (src[i] === "[") depth++;
+      else if (src[i] === "]" && --depth === 0) { end = i + 1; break; }
+    }
+    const line = src.slice(0, at).split("\n").length;
+    const body = src.slice(at, end).replace(/\s+/g, " ");
+    say(`${query} — a record type (library/${f}:${line})`);
+    say(`  ${body}`);
+    json = { kind: "schema", name: query, file: `library/${f}`, line, declaration: body };
+    return true;
+  }
+  return false;
+}
+
+const answered = answer() || answerSchema();
 
 // A word that is BOTH a real name and a CSS instinct gets the real answer above
 // and the orientation here — the reader arriving from CSS still learns that there

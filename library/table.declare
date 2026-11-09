@@ -173,7 +173,7 @@ class Table extends Control [
     // of options (DataGrid, whose rows hold cells, is a grid)
 
     accessibilityRole = listbox,
-    selection: array  = null,   // every selected item, presented order (null = none)
+    selection: array? = null,   // every selected item, presented order (null = none)
 
     // the keyboard position — the item the keyboard stands on
 
