@@ -518,6 +518,16 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
     return !!p && ((ts.isPropertyAccessExpression(p) && p.expression === n) || (ts.isElementAccessExpression(p) && p.expression === n) || (ts.isCallExpression(p) && p.expression === n) || ts.isNonNullExpression(p));
   };
 
+  // An argument is a path only when its root is one: a LOCAL's name (`const c = …;
+  // amt(c)`) names nothing in the tree, and taken as a path it rebased to `this.c`,
+  // an attribute that does not exist, so the callee's reads through it wired to
+  // nothing. Unnameable instead, it reaches the callee's frame as null, which
+  // tracks or drops by the parameter's type (see close()).
+  const argPath = (a: ts.Expression): string | null => {
+    const p = nameablePath(a);
+    return p !== null && locals.has(p.split(/[.[]/, 1)[0]) ? null : p;
+  };
+
   const recordRead = (node: ts.Node, base: ts.Node): void => {
     if (node === base) return;
     reads.add(pathTextOf(node));
@@ -744,7 +754,7 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
             // that name anywhere there is nothing to follow, and either way the
             // call is never refused.)
             if (USER_METHOD_NAMES.has(m) && recv.kind !== ts.SyntaxKind.SuperKeyword && pathTextOf(recv) !== "$base") {
-              calls.push({ kind: "method", name: m, receiver: pathTextOf(recv), args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s), body: bodyPos, builtinName: true });
+              calls.push({ kind: "method", name: m, receiver: pathTextOf(recv), args: s.arguments.map(argPath), projected: isProjected(s), tail: projectionTail(s), body: bodyPos, builtinName: true });
             }
           }
           else {
@@ -762,7 +772,7 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
             // a super call: spelled `super.` in an authored body, `$base.` once
             // resolution has rewritten it — the same call either way
             const viaBase = recv.kind === ts.SyntaxKind.SuperKeyword || pathTextOf(recv) === "$base";
-            calls.push({ kind: "method", name: m, receiver: viaBase ? "this" : pathTextOf(recv), viaBase: viaBase || undefined, args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s), body: bodyPos,
+            calls.push({ kind: "method", name: m, receiver: viaBase ? "this" : pathTextOf(recv), viaBase: viaBase || undefined, args: s.arguments.map(argPath), projected: isProjected(s), tail: projectionTail(s), body: bodyPos,
                          unbacked: (effects === undefined && !onParam) || undefined, at: s.getStart() });
           }
         } else if (ts.isIdentifier(callee)) {
@@ -773,7 +783,7 @@ function extractBody(sf: ts.Node, locals: Set<string>, inlinable?: (receiver: st
             // a bare call is a call on `this` — settled by its receiver, as above
             const effects = LANGUAGE_METHOD_EFFECTS.get(nm);
             if (effects !== undefined) for (const rp of effects) reads.add(rebase(effectPath(rp), "this"));
-            calls.push({ kind: "method", name: nm, receiver: "this", args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s), body: bodyPos,
+            calls.push({ kind: "method", name: nm, receiver: "this", args: s.arguments.map(argPath), projected: isProjected(s), tail: projectionTail(s), body: bodyPos,
                          unbacked: effects === undefined || undefined, at: s.getStart() });
           }
         }
@@ -831,7 +841,7 @@ let USER_METHOD_NAMES = new Set<string>();
 // their base chain, so the summary walk (follow1) resolves a call by
 // (receiver's class, name), and a receiver it cannot resolve goes to the
 // checker's types or the tracking path.
-type MethodEntry = { params: string[]; body: string; returns?: string; pos?: Pos };
+type MethodEntry = { params: string[]; nodeParams: Set<string>; body: string; returns?: string; pos?: Pos };
 let METHODS_OF = new Map<unknown, Map<string, MethodEntry>>();   // element → its declared methods
 let METHOD_EL_ID = new Map<unknown, number>();                   // element → stable summary-key id
 let CLASS_EL = new Map<string, unknown>();                       // class name → its body element
@@ -858,6 +868,19 @@ let NODE_SLOTS = new Set<string>();
  *  chain THROUGH one goes as a chain through a node slot does — the slot read
  *  is the wired edge, the rest rides the tracking path. Name-keyed. */
 let RECORD_SLOTS = new Set<string>();
+/** The program's own class names, for paramMayBeNode. */
+let DECLARED_CLASS_NAMES = new Set<string>();
+
+/** Whether a method parameter of this declared type may hold a view. A read
+ *  through such a parameter reaches a cell that no read at the call site covers,
+ *  so it must be wired or tracked. A data parameter (a schema record, a number,
+ *  an array of records, `object`) holds a value the call site already read, and
+ *  a read through it adds nothing. Unannotated or `any` may be either. */
+function paramMayBeNode(type: string | undefined): boolean {
+  if (type === undefined) return true;
+  const t = type.replace(/\?$/, "").replace(/(\[\])+$/, "").trim();
+  return t === "any" || t === "unknown" || COMPONENT_TAGS.has(t) || DECLARED_CLASS_NAMES.has(t);
+}
 const COMPONENT_TAGS: ReadonlySet<string> = new Set(Object.keys(SCHEMAS));
 
 // Computed `{ }` DECL DEFAULTS (`name: type = { … }`) by name. Unlike a `name =
@@ -1070,11 +1093,15 @@ interface Frame {
   map: Map<string, string | null>;         // parameter → the call site's argument path
   asValue: boolean;                        // named but not called, so no arguments exist
   /** METHOD frames degrade instead of refusing (the phase-4 half-close,
-   *  2026-08-06): a param read whose argument is not a nameable path is
-   *  DROPPED — exactly the pre-close silence, confined to the sites where
-   *  wiring is impossible anyway — while script frames keep their refusal
-   *  (script authors wrote under the strict contract from day one). */
+   *  2026-08-06): a param read whose argument is not a nameable path is not
+   *  refused. Through a data parameter it is dropped: the call site already
+   *  read the value it reaches. Through a parameter that may hold a view
+   *  (nodeParams) it takes the tracking path, since no read at the call site
+   *  covers that view's cells. Script frames keep their refusal (script
+   *  authors wrote under the strict contract from day one). */
   lenient?: boolean;
+  /** The parameters that may hold a view (paramMayBeNode). */
+  nodeParams?: Set<string>;
 }
 
 type Rebased = { ok: true; path: string } | { ok: false; error: DepError };
@@ -1098,7 +1125,7 @@ function rebaseIn(path: string, frame: Frame): Rebased {
 
 /** One callable's own (un-closed) deps, plus what a caller needs to know to
  *  rebase them: the parameter names, and which of those leave through the return. */
-type Summary = BodyDeps & { params: string[] | null; returned: Set<string>; ret: ReturnShape; returns?: string };
+type Summary = BodyDeps & { params: string[] | null; nodeParams?: Set<string>; returned: Set<string>; ret: ReturnShape; returns?: string };
 
 /** The STATIC paths a body hands back — `return this.box` → ["this.box"], and
  *  both arms of `return c ? this.a : this.b`.
@@ -1234,7 +1261,7 @@ function buildMethodSummaries(): Summaries {
   const classNameOf = new Map<unknown, string>();
   for (const [name, el] of CLASS_EL) classNameOf.set(el, name);
   for (const [el, mm] of METHODS_OF) {
-    for (const [name, { params, body, returns, pos }] of mm) {
+    for (const [name, { params, nodeParams, body, returns, pos }] of mm) {
       const key = METHOD_EL_ID.get(el) + ":" + name;
       const sf = parseBody(body, false);
       if (!sf) { ownEl.set(key, { reads: new Set(), calls: [], errors: [], ...NO_PARAMS, ret: NO_RET }); }
@@ -1256,7 +1283,7 @@ function buildMethodSummaries(): Summaries {
             tag = CLASS_BASE.get(tag);
           }
         }
-        ownEl.set(key, { ...d, params, returned: new Set<string>(), ret: returnedPaths(sf, locals, params), returns });
+        ownEl.set(key, { ...d, params, nodeParams, returned: new Set<string>(), ret: returnedPaths(sf, locals, params), returns });
       }
     }
   }
@@ -1335,6 +1362,7 @@ function buildMethodSummaries(): Summaries {
       const m = rebaseIn(r, frame);
       if (m.ok) reads.add(m.path);
       else if (frame.lenient !== true) errors.push(m.error);
+      else if (frame.nodeParams?.has(r.split(/[.[]/, 1)[0])) reads.add(DYNAMIC);
     }
     // An argument path moved one frame out. Unnameable there is not yet an error —
     // it only becomes one if the callee actually reads through that parameter.
@@ -1352,7 +1380,11 @@ function buildMethodSummaries(): Summaries {
         // lenient tier, as a read through it is — refused only in a strict
         // (script) frame, and never for a built-in's name (`iso.split(…)` is
         // String's split, whatever methods the program declares)
-        if (!m.ok) { if (frame.lenient !== true && c.builtinName !== true) errors.push(m.error); continue; }
+        if (!m.ok) {
+          if (frame.lenient !== true && c.builtinName !== true) errors.push(m.error);
+          else if (c.builtinName !== true && frame.nodeParams?.has(c.receiver.split(/[.[]/, 1)[0])) reads.add(DYNAMIC);
+          continue;
+        }
         sub = follow1({ ...c, receiver: m.path, args: c.args.map(out) }, stack, ctx);
       } else if (c.kind === "collection") {
         // an unnameable receiver names no node: nothing to refuse
@@ -1616,7 +1648,7 @@ function buildMethodSummaries(): Summaries {
     const map = new Map<string, string | null>();
     o.params.forEach((p, i) => map.set(p, args === null ? null : (args[i] ?? null)));
     stack.add(tag);
-    const res = close(o, { who: c.name, receiver, map, asValue, lenient: c.kind === "method" }, stack, ctx);
+    const res = close(o, { who: c.name, receiver, map, asValue, lenient: c.kind === "method", nodeParams: o.nodeParams }, stack, ctx);
     stack.delete(tag);
     memo.set(key, res);   // memo holds the UNPROJECTED reads: the tail varies per call site
     const out = withProjection(res);
@@ -1662,6 +1694,7 @@ export function extractProgram(program: Program, oracle: TypeOracle | null = nul
   NODE_SLOTS = new Set();
   RECORD_SLOTS = new Set();
   const DECLARED_CLASSES = new Set(program.classes.map((c) => c.name));
+  DECLARED_CLASS_NAMES = DECLARED_CLASSES;
   const SCHEMA_NAMES = new Set((program.shapes ?? []).map((s) => s.name));
   ({ fns: SCRIPT_FUNCTIONS, mutable: SCRIPT_MUTABLE, classes: SCRIPT_CLASSES } = scriptFunctions(program.scripts.map((s) => s.src)));
   type Owned = { tag: string; name: string | null; attr: string; src: string; offset: number; node: CodeValue; owner: unknown; classRoot: unknown; decl?: boolean };
@@ -1675,7 +1708,7 @@ export function extractProgram(program: Program, oracle: TypeOracle | null = nul
     for (const m of el.methods as Method[]) USER_METHOD_NAMES.add(m.name);
     if ((el.methods as Method[]).length > 0) {
       const mm = new Map<string, MethodEntry>();
-      for (const m of el.methods as Method[]) mm.set(m.name, { params: m.params.map((p) => p.name), body: m.body ?? "", returns: m.returns, pos: m.bodyPos });
+      for (const m of el.methods as Method[]) mm.set(m.name, { params: m.params.map((p) => p.name), nodeParams: new Set(m.params.filter((p) => paramMayBeNode(p.type)).map((p) => p.name)), body: m.body ?? "", returns: m.returns, pos: m.bodyPos });
       METHODS_OF.set(el, mm);
       METHOD_EL_ID.set(el, METHOD_EL_ID.size);
     }

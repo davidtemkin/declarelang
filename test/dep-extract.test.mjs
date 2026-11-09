@@ -617,6 +617,25 @@ test("a call's verdict never depends on a same-named method in an unrelated clas
   }
 });
 
+test("a view reached through an unnameable argument stays live", async () => {
+  // A method reads through a view parameter; the argument is a `? :` or a local,
+  // so no path names the view. The read used to be dropped (verify clean, value
+  // stale); it now takes the tracking path. A local's name is no path either.
+  const src = `class Tile extends View [ amount: number = 1 ]
+    App [ a: Tile [ amount = 1 ], b: Tile [ amount = 2 ], pickA: boolean = true,
+      amt(c: Tile) -> number { return c.amount * 10 },
+      viaLocal(k: number) -> number { const c = k == 0 ? this.a : this.b; return this.amt(c) },
+      ternary: number = { amt(pickA ? a : b) },
+      local: number = { viaLocal(pickA ? 0 : 1) } ]`;
+  const app = instantiate(await compileProgram(src));
+  settle();
+  app.a.amount = 5; settle();
+  assert.deepEqual([app.ternary, app.local], [50, 50]);
+  app.pickA = false; settle();
+  app.b.amount = 7; settle();
+  assert.deepEqual([app.ternary, app.local], [70, 70]);
+});
+
 await chain;
 console.log(`\ndep-extract: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

@@ -529,6 +529,15 @@ function extractBody(sf, locals, inlinable, extraRoots, bodyPos) {
         const p = n.parent;
         return !!p && ((ts.isPropertyAccessExpression(p) && p.expression === n) || (ts.isElementAccessExpression(p) && p.expression === n) || (ts.isCallExpression(p) && p.expression === n) || ts.isNonNullExpression(p));
     };
+    // An argument is a path only when its root is one: a LOCAL's name (`const c = …;
+    // amt(c)`) names nothing in the tree, and taken as a path it rebased to `this.c`,
+    // an attribute that does not exist, so the callee's reads through it wired to
+    // nothing. Unnameable instead, it reaches the callee's frame as null, which
+    // tracks or drops by the parameter's type (see close()).
+    const argPath = (a) => {
+        const p = nameablePath(a);
+        return p !== null && locals.has(p.split(/[.[]/, 1)[0]) ? null : p;
+    };
     const recordRead = (node, base) => {
         if (node === base)
             return;
@@ -794,7 +803,7 @@ function extractBody(sf, locals, inlinable, extraRoots, bodyPos) {
                         // that name anywhere there is nothing to follow, and either way the
                         // call is never refused.)
                         if (USER_METHOD_NAMES.has(m) && recv.kind !== ts.SyntaxKind.SuperKeyword && pathTextOf(recv) !== "$base") {
-                            calls.push({ kind: "method", name: m, receiver: pathTextOf(recv), args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s), body: bodyPos, builtinName: true });
+                            calls.push({ kind: "method", name: m, receiver: pathTextOf(recv), args: s.arguments.map(argPath), projected: isProjected(s), tail: projectionTail(s), body: bodyPos, builtinName: true });
                         }
                     }
                     else {
@@ -814,7 +823,7 @@ function extractBody(sf, locals, inlinable, extraRoots, bodyPos) {
                         // a super call: spelled `super.` in an authored body, `$base.` once
                         // resolution has rewritten it — the same call either way
                         const viaBase = recv.kind === ts.SyntaxKind.SuperKeyword || pathTextOf(recv) === "$base";
-                        calls.push({ kind: "method", name: m, receiver: viaBase ? "this" : pathTextOf(recv), viaBase: viaBase || undefined, args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s), body: bodyPos,
+                        calls.push({ kind: "method", name: m, receiver: viaBase ? "this" : pathTextOf(recv), viaBase: viaBase || undefined, args: s.arguments.map(argPath), projected: isProjected(s), tail: projectionTail(s), body: bodyPos,
                             unbacked: (effects === undefined && !onParam) || undefined, at: s.getStart() });
                     }
                 }
@@ -832,7 +841,7 @@ function extractBody(sf, locals, inlinable, extraRoots, bodyPos) {
                         if (effects !== undefined)
                             for (const rp of effects)
                                 reads.add(rebase(effectPath(rp), "this"));
-                        calls.push({ kind: "method", name: nm, receiver: "this", args: s.arguments.map((a) => nameablePath(a)), projected: isProjected(s), tail: projectionTail(s), body: bodyPos,
+                        calls.push({ kind: "method", name: nm, receiver: "this", args: s.arguments.map(argPath), projected: isProjected(s), tail: projectionTail(s), body: bodyPos,
                             unbacked: effects === undefined || undefined, at: s.getStart() });
                     }
                 }
@@ -909,6 +918,19 @@ let NODE_SLOTS = new Set();
  *  chain THROUGH one goes as a chain through a node slot does — the slot read
  *  is the wired edge, the rest rides the tracking path. Name-keyed. */
 let RECORD_SLOTS = new Set();
+/** The program's own class names, for paramMayBeNode. */
+let DECLARED_CLASS_NAMES = new Set();
+/** Whether a method parameter of this declared type may hold a view. A read
+ *  through such a parameter reaches a cell that no read at the call site covers,
+ *  so it must be wired or tracked. A data parameter (a schema record, a number,
+ *  an array of records, `object`) holds a value the call site already read, and
+ *  a read through it adds nothing. Unannotated or `any` may be either. */
+function paramMayBeNode(type) {
+    if (type === undefined)
+        return true;
+    const t = type.replace(/\?$/, "").replace(/(\[\])+$/, "").trim();
+    return t === "any" || t === "unknown" || COMPONENT_TAGS.has(t) || DECLARED_CLASS_NAMES.has(t);
+}
 const COMPONENT_TAGS = new Set(Object.keys(SCHEMAS));
 // Computed `{ }` DECL DEFAULTS (`name: type = { … }`) by name. Unlike a `name =
 // { … }` ATTRIBUTE (a standing constraint that owns a cell), a computed default has
@@ -1296,7 +1318,7 @@ function buildMethodSummaries() {
     for (const [name, el] of CLASS_EL)
         classNameOf.set(el, name);
     for (const [el, mm] of METHODS_OF) {
-        for (const [name, { params, body, returns, pos }] of mm) {
+        for (const [name, { params, nodeParams, body, returns, pos }] of mm) {
             const key = METHOD_EL_ID.get(el) + ":" + name;
             const sf = parseBody(body, false);
             if (!sf) {
@@ -1325,7 +1347,7 @@ function buildMethodSummaries() {
                         tag = CLASS_BASE.get(tag);
                     }
                 }
-                ownEl.set(key, { ...d, params, returned: new Set(), ret: returnedPaths(sf, locals, params), returns });
+                ownEl.set(key, { ...d, params, nodeParams, returned: new Set(), ret: returnedPaths(sf, locals, params), returns });
             }
         }
     }
@@ -1421,6 +1443,8 @@ function buildMethodSummaries() {
                 reads.add(m.path);
             else if (frame.lenient !== true)
                 errors.push(m.error);
+            else if (frame.nodeParams?.has(r.split(/[.[]/, 1)[0]))
+                reads.add(DYNAMIC);
         }
         // An argument path moved one frame out. Unnameable there is not yet an error —
         // it only becomes one if the callee actually reads through that parameter.
@@ -1443,6 +1467,8 @@ function buildMethodSummaries() {
                 if (!m.ok) {
                     if (frame.lenient !== true && c.builtinName !== true)
                         errors.push(m.error);
+                    else if (c.builtinName !== true && frame.nodeParams?.has(c.receiver.split(/[.[]/, 1)[0]))
+                        reads.add(DYNAMIC);
                     continue;
                 }
                 sub = follow1({ ...c, receiver: m.path, args: c.args.map(out) }, stack, ctx);
@@ -1730,7 +1756,7 @@ function buildMethodSummaries() {
         const map = new Map();
         o.params.forEach((p, i) => map.set(p, args === null ? null : (args[i] ?? null)));
         stack.add(tag);
-        const res = close(o, { who: c.name, receiver, map, asValue, lenient: c.kind === "method" }, stack, ctx);
+        const res = close(o, { who: c.name, receiver, map, asValue, lenient: c.kind === "method", nodeParams: o.nodeParams }, stack, ctx);
         stack.delete(tag);
         memo.set(key, res); // memo holds the UNPROJECTED reads: the tail varies per call site
         const out = withProjection(res);
@@ -1755,6 +1781,7 @@ export function extractProgram(program, oracle = null) {
     NODE_SLOTS = new Set();
     RECORD_SLOTS = new Set();
     const DECLARED_CLASSES = new Set(program.classes.map((c) => c.name));
+    DECLARED_CLASS_NAMES = DECLARED_CLASSES;
     const SCHEMA_NAMES = new Set((program.shapes ?? []).map((s) => s.name));
     ({ fns: SCRIPT_FUNCTIONS, mutable: SCRIPT_MUTABLE, classes: SCRIPT_CLASSES } = scriptFunctions(program.scripts.map((s) => s.src)));
     const constraints = [];
@@ -1771,7 +1798,7 @@ export function extractProgram(program, oracle = null) {
         if (el.methods.length > 0) {
             const mm = new Map();
             for (const m of el.methods)
-                mm.set(m.name, { params: m.params.map((p) => p.name), body: m.body ?? "", returns: m.returns, pos: m.bodyPos });
+                mm.set(m.name, { params: m.params.map((p) => p.name), nodeParams: new Set(m.params.filter((p) => paramMayBeNode(p.type)).map((p) => p.name)), body: m.body ?? "", returns: m.returns, pos: m.bodyPos });
             METHODS_OF.set(el, mm);
             METHOD_EL_ID.set(el, METHOD_EL_ID.size);
         }
