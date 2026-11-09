@@ -41,7 +41,8 @@ App [ Counter [ x = 20, y = 20 ] ]
 
 ## disabled
 Inert: not focusable, no activation, and `hovered`/`pressed` read false, so a
-disabled control never lights up. **Constrain it rather than assigning it**
+disabled control never lights up. It still covers what is beneath it: a press on it reaches
+nothing. **Constrain it rather than assigning it**
 (`disabled = { app.muted }`) — it is ordinary derived state. Concrete controls also
 dim themselves against `provided("theme").disabledOpacity`.
 

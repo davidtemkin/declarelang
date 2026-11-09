@@ -297,7 +297,8 @@ A view that belongs only to some of those places says so with
 condition starts to hold and discards it, with its state, when it ends. `visible` is the
 lighter cousin — the view stays built and keeps its state, and only stops painting and
 taking presses. Use `exists` for a part that should start fresh each time; `visible` for
-one that should come back as it was.
+one that should come back as it was. Fresh means each time the condition starts to hold:
+while it goes on holding, the view and its state stay, whatever else it reads changes.
 
 The condition is any constraint: a mode the person chose, `app.items.failed` when the
 data did not arrive, `app.width < 480`. A state can be driven by `apply()` and `remove()`

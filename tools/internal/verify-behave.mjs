@@ -99,6 +99,22 @@ cfg.compile = async (source, name, dir) => {
 bootHost(cfg);
 </script>`;
 
+  // a file answered whole, or the byte range asked for: media seeks by range
+  // requests, and a server that answers them with the whole file (200) leaves
+  // every seek at the start
+  const send = (req, res, type, body) => {
+    const m = /^bytes=(\d*)-(\d*)$/.exec(req.headers.range ?? "");
+    if (m === null || (m[1] === "" && m[2] === "")) {
+      res.writeHead(200, { "content-type": type, "accept-ranges": "bytes", "content-length": body.length });
+      return res.end(body);
+    }
+    const n = body.length;
+    const start = m[1] === "" ? Math.max(0, n - Number(m[2])) : Number(m[1]);
+    const end = m[1] === "" || m[2] === "" ? n - 1 : Math.min(Number(m[2]), n - 1);
+    if (start > end || start >= n) { res.writeHead(416, { "content-range": `bytes */${n}` }); return res.end(); }
+    res.writeHead(206, { "content-type": type, "accept-ranges": "bytes", "content-range": `bytes ${start}-${end}/${n}`, "content-length": end - start + 1 });
+    return res.end(body.subarray(start, end + 1));
+  };
   const server = http.createServer((req, res) => {
     const pathname = decodeURIComponent(new URL(req.url, "http://x").pathname);
     if (pathname === "/__verify__/compile" && req.method === "POST") {
@@ -125,8 +141,8 @@ bootHost(cfg);
       return res.end(hostPage);
     }
     if (pathname.startsWith(baseHref) && builtFiles.has(pathname.slice(baseHref.length))) {
-      res.writeHead(200, { "content-type": MIME[extname(pathname)] ?? "application/octet-stream" });
-      return res.end(builtFiles.get(pathname.slice(baseHref.length)));
+      const built = builtFiles.get(pathname.slice(baseHref.length));
+      return send(req, res, MIME[extname(pathname)] ?? "application/octet-stream", Buffer.isBuffer(built) ? built : Buffer.from(built));
     }
     const candidates = [];
     if (fixturesDir !== null && pathname.startsWith(baseHref)) {
@@ -136,8 +152,7 @@ bootHost(cfg);
     for (const file of candidates) {
       if (!file.startsWith(ROOT) && (inTree || !file.startsWith(appRoot)) && (fixturesDir === null || !file.startsWith(resolve(fixturesDir)))) continue;
       if (existsSync(file) && statSync(file).isFile()) {
-        res.writeHead(200, { "content-type": MIME[extname(file)] ?? "application/octet-stream" });
-        return res.end(readFileSync(file));
+        return send(req, res, MIME[extname(file)] ?? "application/octet-stream", readFileSync(file));
       }
     }
     res.writeHead(404, { "content-type": "text/plain" });

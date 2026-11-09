@@ -523,6 +523,8 @@ rate as drawn surfaces grow large or change every frame. Bitmaps come in through
 `Image` view: `d.drawImage(pic, …)` takes the view (Canvas2D's three argument shapes),
 paints nothing until `pic.loaded`, and that read is what re-records the drawing when the
 bitmap arrives — a hidden `Image [ visible = false, source = … ]` is the holder idiom.
+**A drawing is not clipped to its box** (`clip = true` on the view clips it), and its text
+is Canvas2D's: `fillText(s, x, y)` puts `y` on the baseline and never wraps.
 
 ```declare-fragment
 gauge: View [ width = 80, height = 80,
@@ -806,7 +808,8 @@ slider freezes its value wherever the finger lifts.
 ## onPointerMove
 The pointer moved over the view — and, once pressed on it, every move **while captured**
 (even outside the box), so a drag handler keeps getting positions. Like every pointer
-event it carries the point both ways: `x`/`y` in this view's own coordinates, and
+event it carries the point both ways: `x`/`y` in this view's own coordinates (its own
+units, whatever scale an ancestor applies), and
 `rootX`/`rootY` in **root** coordinates — the app's own space, the one `viewAt` takes —
 which is the frame a drag reads, because it does not move with the thing being dragged.
 `deltaX`/`deltaY` are the root-space movement since the press, so most drags need nothing
@@ -820,7 +823,10 @@ entry.
 
 ## onPointerOut
 The pointer left the view — the hover-out moment; it also fires when a press is abandoned
-off the box. `hovered` and `pressed` are facts the runtime clears on its own; there is
+off the box. **Over and out belong to the topmost view under the pointer:** moving onto a
+child is leaving its parent, so the parent hears `onPointerOut` there. For hover over a
+whole region, read `hovered`, which stays true while the pointer is over the view's
+children. `hovered` and `pressed` are facts the runtime clears on its own; there is
 nothing to reset here.
 
 ## onHold
@@ -919,7 +925,8 @@ A press — or a scroll — was aimed past this view while its policy (an overla
 
 ## onKeyDown
 A key was pressed while the view holds focus; the event carries the key. For app-wide
-shortcuts use a `Keys` subscription instead — this is for the focused view only. The base
+shortcuts use a `Keys` subscription instead — this is for the focused view only. **Tab and
+Shift-Tab never arrive:** they move focus, to where `tabOrder()` says. The base
 body moves among a `focusScope = stop`'s members on the arrows: take the keys you want
 and hand the rest to `super.onKeyDown(e)`.
 

@@ -62,7 +62,10 @@ surgical alternative to swapping the whole `.value`. A path is a **segments arra
 (`data.set(["cols", 0, "label"], "Mon")` — numbers welcome, no escaping ever) or an
 **RFC 6901 pointer** string (`data.set("/cols/0/label", "Mon")`; against an array, the
 final token `-` appends: `set("/rows/-", v)`). The path's containers must exist (a
-pointed error names the first missing step); the final field may be new.
+pointed error names the first missing step); the final field may be new. **The write
+lands in place:** a record you held from `.value` before it is the same object and shows
+the new field, so keep a copy (`structuredClone`) of anything you mean to compare or
+restore, such as an undo step.
 
 ## insert()
 Splices `v` into the array at `path`, at `index` — every replicated view bound to that array
