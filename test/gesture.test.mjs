@@ -121,6 +121,16 @@ const PAGE_RAW = `App [ fill = #202830,
     parked: View [ x = { app.width + 40 }, y = 100, width = 200, height = 200, fill = #FF0000 ],
     ]`;
 
+// A scrolling pane inside a drag view, and an x-claimed row inside a scrolling
+// pane (docs/system-design/drag.md R9, §8 items 2–3): a pane keeps its own axes.
+const PANES_RAW = `App [ width = 400, height = 400, fill = #202830,
+    owner: View [ x = 0, y = 0, width = 200, height = 300, fill = #444444, onPointerMove(e: PointerEvent) { },
+        pane: View [ x = 10, y = 10, width = 180, height = 200, scrolls = y, View [ width = 10, height = 1000 ] ] ],
+    list: View [ x = 210, y = 0, width = 180, height = 300, scrolls = y,
+        row: View [ width = 180, height = 60, claim = x, fill = #888888, onPointerMove(e: PointerEvent) { } ],
+        View [ y = 60, width = 10, height = 1000 ] ] ]`;
+const panesCompiled = await compile(PANES_RAW);
+assert.deepEqual(panesCompiled.errors, [], "panes fixture compiles clean");
 const claimsCompiled = await compile(CLAIMS_RAW);
 assert.deepEqual(claimsCompiled.errors, [], "claims fixture compiles clean");
 const lockCompiled = await compile(LOCK_RAW);
@@ -356,6 +366,7 @@ const pages = {
   "/dom-walk": pageHtml("DomBackend", walkCompiled),
   "/dom-rot": pageHtml("DomBackend", rotCompiled),
   "/canvas-rot": pageHtml("CanvasBackend", rotCompiled),
+  "/canvas-panes": pageHtml("CanvasBackend", panesCompiled),
 };
 
 const server = http.createServer(async (req, res) => {
@@ -1533,6 +1544,60 @@ await test("a touch whose element leaves the page under the finger still ends: `
   await tp.close();
   await mp.close();
 }
+
+await open("/canvas-panes");
+
+await test("canvas: a pane inside a drag view keeps its own axis — a vertical swipe scrolls the pane", async () => {
+  const r = await page.evaluate(async () => {
+    const canvas = document.querySelector("canvas");
+    const swipe = async (x, y, dx, dy) => {
+      const t = (px, py) => new Touch({ identifier: 3, target: canvas, clientX: px, clientY: py });
+      canvas.dispatchEvent(new TouchEvent("touchstart", { touches: [t(x, y)], changedTouches: [t(x, y)], bubbles: true, cancelable: true }));
+      let prevented = false;
+      for (let i = 1; i <= 8; i++) {
+        const m = t(x + dx * i / 8, y + dy * i / 8);
+        prevented = !canvas.dispatchEvent(new TouchEvent("touchmove", { touches: [m], changedTouches: [m], bubbles: true, cancelable: true })) || prevented;
+        await new Promise((r) => setTimeout(r, 16));
+      }
+      const e = t(x + dx, y + dy);
+      canvas.dispatchEvent(new TouchEvent("touchend", { touches: [], changedTouches: [e], bubbles: true }));
+      await new Promise((r) => setTimeout(r, 300));
+      return prevented;
+    };
+    const pane = window.__app.owner.pane;
+    await swipe(100, 180, 0, -120);
+    return { scrolled: pane.scrollY };
+  });
+  assert.ok(r.scrolled > 0, `the pane scrolled (${r.scrolled})`);
+});
+
+await test("canvas: an x-claimed row in a y pane — a vertical swipe scrolls the pane, a horizontal one is the row's", async () => {
+  const r = await page.evaluate(async () => {
+    const canvas = document.querySelector("canvas");
+    const list = window.__app.list;
+    const swipe = async (x, y, dx, dy) => {
+      const t = (px, py) => new Touch({ identifier: 4, target: canvas, clientX: px, clientY: py });
+      canvas.dispatchEvent(new TouchEvent("touchstart", { touches: [t(x, y)], changedTouches: [t(x, y)], bubbles: true, cancelable: true }));
+      let prevented = false;
+      for (let i = 1; i <= 8; i++) {
+        const m = t(x + dx * i / 8, y + dy * i / 8);
+        prevented = !canvas.dispatchEvent(new TouchEvent("touchmove", { touches: [m], changedTouches: [m], bubbles: true, cancelable: true })) || prevented;
+        await new Promise((r) => setTimeout(r, 16));
+      }
+      const e = t(x + dx, y + dy);
+      canvas.dispatchEvent(new TouchEvent("touchend", { touches: [], changedTouches: [e], bubbles: true }));
+      await new Promise((r) => setTimeout(r, 300));
+      return prevented;
+    };
+    const across = await swipe(250, 30, 80, 0);
+    const acrossScroll = list.scrollY;
+    await swipe(250, 40, 0, -120);
+    return { across, acrossScroll, alongScroll: list.scrollY };
+  });
+  assert.equal(r.across, true, "the horizontal swipe is the row's (the page may not pan it)");
+  assert.equal(r.acrossScroll, 0, "and the pane did not scroll");
+  assert.ok(r.alongScroll > 0, `the vertical swipe scrolled the pane (${r.alongScroll})`);
+});
 
 await browser.close();
 server.close();

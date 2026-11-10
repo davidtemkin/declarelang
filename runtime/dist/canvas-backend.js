@@ -777,7 +777,7 @@ class Compositor {
             // An UNCLAIMED finger over an interior scrolling pane opens the runtime
             // provider's touch session (Mesa physics — drag, momentum, rubber band).
             // The page root is never its target: the page's scroll is the browser's.
-            else if (claim.drag === false && e.touches.length === 1) {
+            else if (claim.drag !== "both" && e.touches.length === 1) {
                 const r = this.canvas.getBoundingClientRect();
                 const t0 = e.touches[0];
                 const pane = this.root.scrollerAt(t0.clientX - r.left, t0.clientY - r.top);
@@ -791,8 +791,23 @@ class Compositor {
                 e.preventDefault();
                 return;
             }
+            // An axis-scoped drag over a scrolling pane: one decision picks the drag
+            // or the pane's session, never both (drag.md R3).
+            const scoped = claim !== null && (claim.drag === "x" || claim.drag === "y");
+            if (scoped && axisVerdict === null && claimStart !== null && e.touches.length === 1) {
+                const t0 = e.touches[0];
+                const dx = Math.abs(t0.clientX - claimStart.x);
+                const dy = Math.abs(t0.clientY - claimStart.y);
+                if (dx + dy >= 4)
+                    axisVerdict = (claim.drag === "x" ? dx >= dy : dy >= dx) ? "ours" : "theirs";
+            }
+            if (scoped && axisVerdict === "ours" && this.scrollLoop.touch !== null) {
+                const t0 = e.touches[0];
+                this.scrollLoop.touchUp(t0.clientX, t0.clientY, e.timeStamp, true);
+                this.scrollLoop.touch = null;
+            }
             // a touch scroll session owns the finger once it moves past the tap slop
-            if (this.scrollLoop.touch !== null && e.touches.length === 1) {
+            if (this.scrollLoop.touch !== null && e.touches.length === 1 && !(scoped && axisVerdict === null)) {
                 const t0 = e.touches[0];
                 if (this.scrollLoop.touchMove(t0.clientX, t0.clientY, e.timeStamp)) {
                     e.preventDefault();
@@ -2320,6 +2335,35 @@ class CanvasSurface {
     claimAt(px, py) {
         const c = { touch: false, pinch: false, drag: false };
         const t = this.hit(px, py);
+        // A scroller between the finger and a drag view keeps its own axes
+        // (docs/system-design/drag.md R9): the drag claims only the axes no
+        // scroller below it scrolls — a pane inside a draggable card still scrolls
+        // by touch, as the DOM's own touch-action does. A scroller counts only on
+        // an axis it has range on now.
+        // The scrollers under the point (a pane takes no input, so the hit walk
+        // never meets it): which axes are kept below a given drag view.
+        const scrollers = [];
+        for (let p = this.scrollerAt(px, py); p !== null; p = p.parent)
+            if (!p.pageRoot && (p.scrolls || p.scrollsX))
+                scrollers.push(p);
+        const keptBelow = (owner) => {
+            const k = { x: false, y: false };
+            for (const p of scrollers) {
+                let inside = false;
+                for (let a = p.parent; a !== null; a = a.parent)
+                    if (a === owner) {
+                        inside = true;
+                        break;
+                    }
+                if (!inside)
+                    continue;
+                if (p.scrolls && p.contentExtent() > p.height + 0.5)
+                    k.y = true;
+                if (p.scrollsX && p.contentExtentX() > p.width + 0.5)
+                    k.x = true;
+            }
+            return k;
+        };
         for (let s = t !== null ? t.key : null; s !== null; s = s.parent) {
             if (s.wants?.wantsTouch === true)
                 c.touch = true;
@@ -2332,7 +2376,11 @@ class CanvasSurface {
             // The INNERMOST drag view's declared axis is the claim's scope
             // (claim-surface.md, D8): first found wins, never widened by an outer.
             if (s.wants?.wantsDrag === true && s.wants?.wantsHold !== true && c.drag === false) {
-                c.drag = s.wants.claimAxis ?? "both";
+                const axis = s.wants.claimAxis ?? "both";
+                const kept = keptBelow(s);
+                const x = (axis === "both" || axis === "x") && !kept.x;
+                const y = (axis === "both" || axis === "y") && !kept.y;
+                c.drag = x && y ? "both" : x ? "x" : y ? "y" : false;
             }
         }
         return c;
