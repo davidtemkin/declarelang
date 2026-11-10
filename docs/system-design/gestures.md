@@ -34,7 +34,7 @@ value is consulted for every touch that starts below it).
 
 | declared | claims | user keeps | realized as |
 |---|---|---|---|
-| `onPointerMove` | single-finger drag | pinch-zoom | `touch-action: pinch-zoom` |
+| a drag event (`onDragStart`/`onDrag`/`onDragEnd`) | single-finger drag | pinch-zoom | `touch-action: pinch-zoom`; every touchmove refused while a drag lives (drag.md R3) |
 | `onHold` + drag handlers | the drag, FROM THE HOLD | pan until the hold; pinch always | no touch-action; hold-capture + non-passive touchmove (scrolling.md) |
 | `onTouchStart/Move/End/Cancel` | every finger | nothing (app owes its own zoom) | `touch-action: none` |
 | `onWheel` | wheel + trackpad pinch | ⌘ +/− only | non-passive `wheel` listener + `preventDefault` |
@@ -58,7 +58,7 @@ Notes, each load-bearing:
   quick taps on a control must not lurch the page (both root values retire it,
   and `manipulation` also kills the legacy 300 ms tap delay).
 - **`pinch-zoom` on a drag claimant is the MINIMUM suppression** for
-  `onPointerMove` to fire at all on touch — without it the browser pans and
+  the drag events to fire at all on touch — without it the browser pans and
   cancels the pointer stream. It is not a policy choice stacked on the claim;
   it *is* the claim.
 - **The scroller value changed** from `pan-y` (which silently forbade pinch —
@@ -80,17 +80,14 @@ declarations alone; nothing propagates and no handler can stop or pass one on:
 |---|---|
 | a press, a click, a double click | the view that takes input under the point |
 | a hold, a context menu, a pinch | the nearest view up the hit chain declaring it |
-| a drag | the pressed view, until the press travels; then the nearest view declaring `onPointerMove`, unless that is the pressed view |
+| a drag | the nearest view declaring a drag event — at the press when the pressed view takes no clicks, else once the press wanders past the threshold (docs/system-design/drag.md R2, R5) |
+| a move, hovering or pressed | the nearest view up the hit chain declaring `onPointerMove` (fixed at the press while one is held) |
 
-The drag row is the DRAG HANDOFF: the claim covers the subtree here as it does
-in `touch-action`. A finger or pen travels at the touch slop; a mouse when it
-leaves the pressed view. The pressed view's release is `canceled`, as when the
-browser takes the finger; the owner hears `pointerDown` at the press origin
-and moves measured from it. Not across the owner's `claim` axis; not on a mouse
-press that began on selectable or editable content; and for an owner that also
-declares `onHold`, at the hold instead (the hold-gated claim's engaged half).
-Each backend resolves the owner (`HitTarget.drag`) in the walk that resolves
-hold and pinch.
+The drag rules — when a drag starts, handoff, touch and pen, pinch and a second contact,
+Escape and focus loss, scrollers and autoscroll — are docs/system-design/drag.md's R1–R9.
+A press is a click or a drag, never both: a press handed to an ancestor's drag ends
+`canceled` for the pressed view, and the owner hears `onDragStart` (never a synthesized
+press).
 
 ## The canvas backend — same contract, one element
 

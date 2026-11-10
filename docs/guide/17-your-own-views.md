@@ -321,17 +321,15 @@ class Knob extends ValueControl [ width = 72, height = 72, cornerRadius = 36, cl
 
     // a drag is one edit, from press to release; dragging up turns it up
     dragging: boolean = false,
-    _y0: number = 0,
     _v0: number = 0,
     onPointerDown() {
         super.onPointerDown()
         if (disabled) return
         dragging = true
-        _y0 = app.pointerY
         _v0 = shown
         beginEdit()
         },
-    onPointerMove() { if (dragging) edit(snap(_v0 + (_y0 - app.pointerY) / 150 * (max - min))) },
+    onDrag(e: PointerEvent) { if (dragging) edit(snap(_v0 - e.deltaY / 150 * (max - min))) },
     onPointerUp() { if (dragging) { dragging = false; endEdit() } },
 
     draw(d: DrawContext) {
@@ -373,7 +371,7 @@ Taken a part at a time:
 - **The drawing** reads `shown`, so the arc follows the finger while a drag is open. Its
   colours come from the theme, so the knob fits any app that themes it.
 - **The drag** is one edit from press to release: `beginEdit()` on the press, `edit` on
-  each move, `endEdit()` on the release. The override of `onPointerDown` calls `super` first,
+  each `onDrag`, `endEdit()` on the release. The override of `onPointerDown` calls `super` first,
   which is what gives the knob focus when it is pressed. `claim = y` keeps a vertical drag
   on the knob instead of scrolling the page under it.
 - **The role.** `accessibilityRole = slider` tells a screen reader what the knob is, and a

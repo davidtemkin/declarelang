@@ -67,12 +67,13 @@ Every pointer handler belongs to one of two layers, and choosing between them is
 whole skill.
 
 The **raw layer** — `onPointerDown`, `onPointerMove`, `onPointerUp` — reports what the
-pointer physically did, the moment it did it. It is for *manipulation*: dragging a card,
-tracking a slider, drawing.
+pointer physically did, the moment it did it: a press, every move (hovering too), a
+release.
 
-The **resolved layer** — `onClick`, `onDblClick`, `onHold` — reports that the user
-*activated* this view. That is a judgment the runtime makes by watching the whole
-gesture, and it is for *commands*: buttons, links, menu items.
+The **resolved layer** — `onClick`, `onDblClick`, `onHold`, and the drag: `onDragStart`,
+`onDrag`, `onDragEnd` — reports what the person *meant*. That is a judgment the runtime
+makes by watching the whole gesture: a click is for *commands* (buttons, links, menu
+items), a drag for *manipulation* (moving a card, sliding a thumb, drawing).
 
 > **`onClick` activates. `onPointerDown` manipulates.**
 
@@ -90,54 +91,65 @@ difference. What the runtime decides:
 - A **hold** is a press that stays in place for half a second. It does not consume the
   gesture: the raw stream continues and the eventual click still fires, so a hold can
   open a menu, start a pick-up, or be ignored.
+- A **drag** is a press that wandered — the click's mirror, never both: it begins at the
+  press on a view that takes no clicks, otherwise once the pointer passes the click
+  threshold. The next section.
 
 ## Dragging
 
-Down, move and up on one view is the whole pattern. The pressed view **captures** the
-pointer: until release, moves and the release come to it even when the pointer travels
-away, so there is no tracking code to write.
+A press either stays put or wanders. If it stays put and lifts, it is a click. If it
+wanders, it is a drag, and the view hears it in three moments:
+
+- **`onDragStart(e)`**: the press has become a drag. `e.x`/`e.y` are where the press began.
+  The place to note where things stood — the card's position, the item's index — and to
+  draw what a drag looks like: lift the item, leave a ghost where it was.
+- **`onDrag(e)`**: every move until release, even outside the view's box — the view
+  **captures** the pointer, so there is no tracking code to write. `e.deltaX`/`e.deltaY` are
+  how far the pointer has gone since the press, so the usual handler is one line. Near the
+  edge of a scrolling pane, the pane moves and `onDrag` keeps arriving.
+- **`onDragEnd(e)`**: released — or taken back, with `canceled` set: Escape pressed, the
+  window losing focus, the system interrupting a touch. The place to commit, or to put
+  things back.
 
 ```declare
 App [ width = 320, height = 160, fill = white,
     card: View [ x = 20, y = 40, width = 120, height = 80, cornerRadius = 10, fill = 0x4C8DFF,
         startX: number = 0,
-        onPointerDown(e: PointerEvent) { startX = x },
-        onPointerMove(e: PointerEvent) { x = Math.max(0, Math.min(180, startX + e.deltaX)) }
+        onDragStart(e: PointerEvent) { startX = x },
+        onDrag(e: PointerEvent) { x = Math.max(0, Math.min(180, startX + e.deltaX)) },
+        onDragEnd(e: DragEndEvent) { if (e.canceled) x = startX }
         ]
     ]
 ```
 
-Two details matter. **Coordinates:** every pointer event carries its point both ways —
-`x`/`y` in the view's own coordinates, and `rootX`/`rootY` in the app's root coordinates —
-plus `deltaX`/`deltaY`, how far the pointer has moved since the press. A drag reads the
-root frame, because it does not move with the thing being dragged; `deltaX` is that frame
-already subtracted, which is why the card above needs only where it started.
-**Interruptions:** on a touch screen the browser may take a gesture back mid-drag to
-scroll. That still arrives as `onPointerUp`, with `canceled` set, so reset your state and
-do not commit:
+How it looks is yours: a drag that follows the pointer, one that moves only in steps
+(`x = Math.round((startX + e.deltaX) / 40) * 40`), a ghost left at the origin while a copy
+moves — the three moments are where you draw it.
 
-```declare-fragment
-onPointerUp(e: PointerUpEvent) {
-    dragging = false                          // always reset
-    if (e.canceled) return                    // but never commit an interrupted drag
-    classroot.commitMove(this.x, this.y)
-    }
-```
+**Drag and click on one view** need no arbitration code: a press is one or the other,
+never both. A view that takes no clicks drags from the moment it is pressed, so it
+follows the pointer from the first pixel. A view that also takes clicks — `onClick`,
+`onDblClick`, `onHold`, a `link` — waits until the press has wandered a few pixels (about 4
+for a mouse, 10 for a finger), so a tap stays a tap, and a press that wandered never clicks.
+Whatever must happen at the press itself — a slider's thumb jumping to the point pressed —
+belongs in `onPointerDown`.
 
-**Drag and click on one view** need no arbitration code. A press that never wanders is a
-tap, and `onClick` fires; a press that wanders is a drag, and `onClick` stays silent. The
-calendar's event blocks open on a tap and move on a drag with exactly this. One habit
-completes it: raw moves start arriving before the click threshold is crossed, so a drag
-that moves its view from the first move will wiggle a few pixels under a sloppy tap.
-Keep a small threshold of your own before the drag becomes visible, and commit on
-release only if it did.
+A drag claims the gesture over the view's whole subtree, so a press that lands on a control
+inside it is the control's while it stays put, and the view's drag once it wanders. On a
+touch screen, a finger moving on a view that drags drags it instead of scrolling the list
+it sits in — so a draggable row in a scrolling list declares `onHold` (a quick swipe still
+scrolls; a press-and-hold picks the row up) or `claim = x` (it drags across, the list
+scrolls along). [Touch and gestures](declare-docs:guide:touch@gesture-claims) is the full
+story.
 
-A drag handler claims the drag over the view's whole subtree, so a press that lands on a
-control inside it and then travels is the view's drag, not the control's; the control
-keeps a press that stays put. On a touch screen, declaring a drag handler also takes that
-finger from the browser over the view — and pairing it with `onHold` moves that to the
-press-and-hold, so a quick swipe still scrolls.
-[Touch and gestures](declare-docs:guide:touch@gesture-claims) is the full story.
+**Give every drag that changes data another way in.** Someone using a keyboard, or a switch,
+or who cannot hold a press while moving, needs to make the same change: arrow keys on the
+focused item, a button or a menu command ("Move to…"), or tap-to-select then tap-to-place.
+
+**Following the pointer without a press** is `onPointerMove`: it hears every move over the
+view, hovering included (`e.down` says whether a press is under way), in the view's own
+coordinates. For the pointer's position as state — a spotlight that trails the cursor
+anywhere on the page — read `app.pointerX`/`pointerY` in a constraint instead.
 
 ## Finding what is under the pointer
 
@@ -158,7 +170,7 @@ attribute; every target derives its look from it.
 
 ```declare-fragment
 // on the dragger
-onPointerMove(e: PointerEvent) { app.dropTarget = app.viewAt(e.rootX, e.rootY) },
+onDrag(e: PointerEvent) { app.dropTarget = app.viewAt(e.rootX, e.rootY) },
 
 // on each target — no handler, just a fact of its own and a look that reads it
 under: boolean = { app.dropTarget == this },

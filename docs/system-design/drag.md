@@ -1,6 +1,6 @@
 # Drag as a resolved gesture — a proposal
 
-**Status: PROPOSAL, revision 10, REVIEWED CLEAN (tenth review, 2026-11-09; its should-fixes applied). Nothing built; awaiting the user's decision to build.**
+**Status: BUILT on branch `drag-events` (2026-11-09), revision 10 as reviewed clean; not merged or released until the user has seen it. Built: R1–R9 in the runtime and both web backends, the library and corpus migrated, the docs (guide 07/09/10/13/17/21, declare.md §8, the reference, gestures.md), the 0.6.6 notes. Not yet: the Mac host's text selection by pressed view (§8 item 1, second half); a pen settled per platform (it follows the touch rules wherever it is not a mouse); R9's scroller range on the canvas and Mac walks (declared axes stand in); keyboard and no-drag paths for window move/resize, Carousel paging and DataGrid column reorder/resize (R8, recorded as gaps); the device tests of §7.**
 The user's direction: "The resolved event sounds like the right path" (2026-11-08); "this is
 worth trying. I think it's right at least" — provided it is clean, consistent with the
 model, and removes no control (2026-11-09); a clean review before building; and no treatment

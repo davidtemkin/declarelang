@@ -680,10 +680,10 @@ close of a settle in which one of them ended different from where it started, on
 `currentValue`) each: for a state change the program must act on, never to
 follow a value (a constraint) or to move one (a Spring).
 
-**Pointer input has two layers.** The **raw** layer — `onPointerDown`/`Move`/`Up`, the multi-finger
-touch family, and `onWheel` — reports what the pointer physically did, immediately: the layer for
-*manipulation*. The **resolved** layer — `onClick`, `onDblClick`, `onHold` — reports what the user
-*meant*, decided after watching the whole gesture: the layer for *commands*.
+**Pointer input has two layers.** The **raw** layer — `onPointerDown`/`Move`/`Up` (every move,
+hover too), the multi-finger touch family, and `onWheel` — reports what the pointer physically did.
+The **resolved** layer — `onClick`, `onDblClick`, `onHold`, and `onDragStart`/`onDrag`/`onDragEnd` —
+reports what the user *meant*, decided by watching the gesture.
 
 *Pointer*, not *mouse*: one handler serves a mouse, a fingertip, and a pen, and it fires at once
 for each — there is no compatibility event here and nothing to fall back to. `onTouch…` is the
@@ -692,18 +692,17 @@ separate multi-finger stream, for when you need the finger list rather than a po
 > **`onClick` activates, `onPointerDown` manipulates.**
 
 Reach for the raw layer to run a command and it misfires on touch, where a finger landing on a
-button may be starting a scroll. Because the runtime resolves the gesture, a wandering pointer is
-a drag and activates nothing, and a view declaring `onDblClick` hears its first click at once,
-its second as `onDblClick`. Every pointer event carries its point both ways: `x`/`y` in the view's own
+button may be starting a scroll. A press is a click or a drag, never both: a view that takes no
+clicks drags from the press, one that does once the press wanders. A view declaring `onDblClick`
+hears its first click at once, its second as `onDblClick`. Every pointer event carries its point both ways: `x`/`y` in the view's own
 coordinates, and `rootX`/`rootY` in **root space** — the frame a drag reads, because it does not move
 with the dragged thing — with `deltaX`/`deltaY` the root-space movement since the press.
 
-One fact a drag handler must not miss: a gesture the browser reclaims — a touch that became a
-scroll — still delivers `onPointerUp`, but with **`e.canceled` true**. Commit on release only when
-it is false, or an interruption reads as a drop.
+One fact a drag handler must not miss: a drag taken back — Escape, a system interruption — ends in
+`onDragEnd` with **`e.canceled` true**. Commit only when it is false.
 
 **The browser owns every gesture until a view claims one — and declaring the handler *is* the
-claim**, taking exactly what that handler needs to fire and nothing more: `onPointerMove` claims the
+claim**, taking exactly what that handler needs to fire and nothing more: a drag event claims the
 single-finger drag over its view and subtree while pinch stays the user's, the raw touch family
 claims every finger (the app then owes its own zoom), `onWheel` claims the wheel stream — trackpad
 pinch included, arriving with `e.pinch` true — and a scrolling view is the opposite move,

@@ -4,7 +4,7 @@
 # Reading the calendar
 
 [Core concepts](declare-docs:guide:what-declare-is) made a promise: that you would end this guide by opening a real calendar
-application — four views, continuous zoom, drag-to-reschedule; <!--stat:calendar.code-->545<!--/stat--> lines of code, about <!--stat:calendar.total-->937<!--/stat--> with its detailed comments — and understanding all of it. This is that chapter. Run the app first:
+application — four views, continuous zoom, drag-to-reschedule; <!--stat:calendar.code-->545<!--/stat--> lines of code, about <!--stat:calendar.total-->939<!--/stat--> with its detailed comments — and understanding all of it. This is that chapter. Run the app first:
 `apps/calendar/calendar.declare` in your running distro, or the **Run Declare
 Calendar** button on the homepage. Switch Month to Week to Day to Year. Drag an
 event somewhere else. Click one open and edit it. Interrupt every transition

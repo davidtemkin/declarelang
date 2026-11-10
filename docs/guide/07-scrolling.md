@@ -267,8 +267,10 @@ the hand holding the pane. If you find yourself writing it, set `scrollAnchor`.
 
 When something being dragged — a card, a row being reordered — reaches the edge of a
 scroller it sits in, the scroller scrolls to reveal more, faster the deeper the pointer goes
-into the edge. You write nothing: while the pointer rests there, your `onPointerMove` hears
-the move again every frame at the same root point, so its local `x`/`y` follow the content
+into the edge — once the drag has travelled toward that edge, so a drag that starts near one
+and moves along it scrolls nothing. You write nothing: while the pointer rests there, your
+`onDrag` hears the move again every frame at the same root point, so its local `x`/`y` follow
+the content, its `deltaX`/`deltaY` grow by what scrolled
 and the dragged thing (or a `viewAt` drop test) keeps up. It stops when the pointer leaves
 the edge, the scroller reaches its end, or the press ends. This scrolling is not the user's
 scroll: `userScrolling` stays false, and the dragged view is never the one kept still.

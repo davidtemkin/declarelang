@@ -122,9 +122,8 @@ by `dt` and takes the clip's word whenever the two disagree: a clip still loadin
 stall, a seek.
 
 Seeking is an assignment to `position`; the clip's own write-backs are not seeks, so they
-never stutter it. A track the person drags takes the press and the drag, and since
-`onPointerMove` also fires when the pointer merely passes over, it seeks only while the
-track is `pressed`.
+never stutter it. A track the person drags seeks on the press (`onPointerDown`, to the
+point pressed) and on each `onDrag`, from `e.x` in its own coordinates.
 
 When only one clip may play at a time, nothing has to stop the others: an id on the App
 names the one playing, and each clip's `playing = { app.playing == clipId }` is a

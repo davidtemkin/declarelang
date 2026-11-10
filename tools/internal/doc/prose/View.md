@@ -798,22 +798,46 @@ gives.
 
 ## onPointerDown
 The pointer pressed on the view — the raw press phase. Prefer `click` (press **and**
-release on the same view) unless you need the phases apart, e.g. to begin a drag.
+release on the same view) for a command, and the drag events for a drag; this is for what
+must happen at the press itself, such as a thumb jumping to the point pressed.
 
 ## onPointerUp
 The pointer released. While a press is captured (it began on this view) `pointerUp` still
-fires **here even if the release lands off the box** — the drag-release guarantee, so a
-slider freezes its value wherever the finger lifts.
+fires **here even if the release lands off the box**. `canceled` is true when the press was
+taken back: the platform took the finger to scroll, or a drag that an ancestor owns took the
+press over.
 
 ## onPointerMove
-The pointer moved over the view — and, once pressed on it, every move **while captured**
-(even outside the box), so a drag handler keeps getting positions. Like every pointer
-event it carries the point both ways: `x`/`y` in this view's own coordinates (its own
-units, whatever scale an ancestor applies), and
-`rootX`/`rootY` in **root** coordinates — the app's own space, the one `viewAt` takes —
-which is the frame a drag reads, because it does not move with the thing being dragged.
-`deltaX`/`deltaY` are the root-space movement since the press, so most drags need nothing
-else: `x = startX + e.deltaX`.
+Every move of the pointer over the view, **hovering included** — and, during a press that
+began over it, every move until release, even outside the box. It goes to the nearest view
+up from the one under the pointer that declares it, so a child that takes clicks does not
+starve a surface that tracks the pointer; `e.down` says whether a press is under way. It
+claims nothing: a drag is `onDragStart`/`onDrag`/`onDragEnd`. Like every pointer event it
+carries the point both ways: `x`/`y` in this view's own coordinates (its own units, whatever
+scale an ancestor applies), and `rootX`/`rootY` in **root** coordinates — the app's own
+space, the one `viewAt` takes. For the pointer's position as a value anywhere on the page,
+read `app.pointerX`/`pointerY` instead.
+
+## onDragStart
+A press has become a drag: one that wandered past the click threshold, or — on a view that
+takes no clicks (`onClick`, `onDblClick`, `onHold`, a `link`) — at the press itself. A press
+is a click or a drag, never both. It goes to the **nearest view that declares a drag
+event**, the pressed view or an ancestor, so a press on a control inside a draggable card
+is the control's while it stays put and the card's drag once it wanders. `e.x`/`e.y` are
+the press point. **Declaring any drag event is the claim:** on a touch screen a finger
+moving on the view drags it instead of scrolling what it sits in — with `onHold` too, only
+after a hold; `claim = x | y` keeps the other axis scrolling.
+
+## onDrag
+Every move of a drag until release, captured — even outside the box. `deltaX`/`deltaY` are
+the pointer's travel since the press in the parent's coordinates, scroll included, so
+`x = startX + e.deltaX` keeps the item under the pointer; near the edge of a scrolling pane
+the pane moves and `onDrag` keeps arriving.
+
+## onDragEnd
+The drag is over: released, or **`canceled`** — Escape, the window losing focus, or the
+system interrupting the gesture. Commit on it only when `canceled` is false, and put things
+back when it is true. Exactly one `onDragEnd` follows every `onDragStart`.
 
 ## onPointerOver
 The pointer entered the view — the hover-in moment. For styling, read the `hovered` fact in
@@ -1197,7 +1221,7 @@ slugs, preorder-first.
 The axis a declared drag claims (`claim = x | y | both`, default `both`): `x` keeps
 vertical pan with the enclosing scroll regime while the drag owns horizontal — a grid
 column's header drag or edge-resize on touch. Scopes an existing drag declaration
-(`onPointerMove`) or a declared `onWheel` — a wheel mostly along the other axis goes on to
+(a drag event) or a declared `onWheel` — a wheel mostly along the other axis goes on to
 the scroller outside; a pinch stays the view's. It never creates either. The guide's
 Gestures chapter has the arbitration.
 
@@ -1277,8 +1301,8 @@ out, every target derives:
 
 ```declare-fragment
 // on the dragger
-onPointerMove(e: PointerEvent) { app.dropTarget = app.viewAt(e.rootX, e.rootY) },
-onPointerUp(e: PointerUpEvent) { if (!e.canceled && app.dropTarget != null) app.dropTarget.accept(this) },
+onDrag(e: PointerEvent) { app.dropTarget = app.viewAt(e.rootX, e.rootY) },
+onDragEnd(e: DragEndEvent) { if (!e.canceled && app.dropTarget != null) app.dropTarget.accept(this) },
 // on each target — no handlers, just a standing relationship
 hovered = { app.dropTarget == this }
 ```
@@ -1286,7 +1310,7 @@ hovered = { app.dropTarget == this }
 The answer is the *deepest* view; when the dragger needs "the card, not its
 label," walk `.parent` up until it is one — a class name is a value in a body, so
 `while (t != null && !(t instanceof Tile)) t = t.parent`, and past the loop `t` is a
-`Tile`. Coordinates are root-space — exactly what `onPointerMove`/`onPointerUp` carry.
+`Tile`. Coordinates are root-space — exactly what `onDrag`/`onDragEnd` carry as `rootX`/`rootY`.
 Because the walk is the honest one, the **drag ghost counts**: pass it as the third
 argument — `app.viewAt(e.rootX, e.rootY, app.ghost)` — and the walk goes past it and
 everything in it, its labels included. (`pointerEvents = "none"` takes one view out,

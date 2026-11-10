@@ -65,7 +65,7 @@ takes exactly what the handler needs in order to fire, and not one gesture more:
 
 | you declare | on a touch screen the browser yields | on the desktop it yields |
 |---|---|---|
-| `onPointerMove` | the single-finger drag over this view | nothing — a mouse drag was always yours |
+| `onDragStart` / `onDrag` / `onDragEnd` | the single-finger drag over this view | nothing — a mouse drag was always yours |
 | `onHold` + the drag handlers | the drag, **from the hold** — a quick swipe still pans | nothing new — the mouse drag was already yours |
 | `onDblClick` | the double tap | nothing — a double click was always yours |
 | `onWheel` | — | the wheel over this view, trackpad pinch included |
@@ -115,12 +115,12 @@ on a carousel's page, or on a map you pan, stays the button's while it stays put
 presses it. Once the finger travels, the drag is the carousel's or the map's, as it would
 be a scrolling page's: the button's press ends with `canceled` set and clicks nothing,
 and the claimant's drag begins at the point the finger landed, so its `deltaX` counts from
-there. A mouse stays the button's while it is inside the button, and is the claimant's once
-it leaves. A control that claims a drag of its own, such as a `Slider` on that map, keeps
-it, being the nearest; a claim on one axis takes only travel along that axis; and a view
-that pairs its drag with `onHold` takes the press at the hold.
+there. A mouse goes the same way: once it has wandered past the click threshold, the press
+is the claimant's drag and no click. A control that claims a drag of its own, such as a
+`Slider` on that map, keeps it, being the nearest; a claim on one axis takes only travel
+along that axis; and a view that pairs its drag with `onHold` takes the press at the hold.
 
-`onClick`, `onPointerDown`, and `onHold` alone claim nothing. A tap coexists with every
+`onClick`, `onPointerDown`, `onPointerMove` and `onHold` alone claim nothing. A tap coexists with every
 browser gesture — that is the resolved layer's whole point — and when the browser
 does take a gesture back mid-flight, `e.canceled` reports it. Everything a claim
 does not name stays with the user: a view that claimed the drag still zooms under
@@ -169,8 +169,8 @@ zoomAbout(x: number, w: number, from: number, fromSpan: number, s: number) {
 line: View [ claim = x,            // sideways is the line's; up and down still scroll the page
     grabStart: number = 0,
     grabSpan: number = 0,
-    onPointerDown(e: PointerEvent) { grabStart = app.start },
-    onPointerMove(e: PointerEvent) { app.start = grabStart - e.deltaX * app.span / this.width },
+    onDragStart(e: PointerEvent) { grabStart = app.start },
+    onDrag(e: PointerEvent) { app.start = grabStart - e.deltaX * app.span / this.width },
     onPinchStart(e: PinchEvent) { grabStart = app.start; grabSpan = app.span },
     onPinch(e: PinchEvent) { app.zoomAbout(e.x, this.width, grabStart, grabSpan, grabSpan / e.scale) },
     // a trackpad pinch zooms; a sideways scroll pans
@@ -202,8 +202,8 @@ claim engages *at the hold*:
 block: View [
     onHold(e: PointerEvent)        { app.liftEvent(:id) },          // the pick-up moment
     onPointerDown(e: PointerEvent) { app.startDrag(:id, e.x, e.y) },
-    onPointerMove(e: PointerEvent) { app.dragMove() },
-    onPointerUp(e: PointerUpEvent) { app.dropDrag(e.rootX, e.rootY) },
+    onDrag(e: PointerEvent)        { app.dragMove() },
+    onDragEnd(e: DragEndEvent)     { app.dropDrag(e.rootX, e.rootY, e.canceled) },
     ]
 ```
 
