@@ -213,6 +213,11 @@ topLevel = true) {
     // pointercancel, and the `e.canceled` contract rode on it; on iOS the
     // takeover fact must be read from the scroll itself.
     let pressId = null;
+    // Contacts that landed while another press was held (a second finger): each
+    // keeps its own raw stream to the view it landed on, and none of them is a
+    // press — it clicks nothing, holds nothing, and never takes the held press
+    // (docs/system-design/drag.md R6). A pinch is still recognized from them.
+    const others = new Map();
     let pressFinger = false;
     let pressEl = null;
     // the last finger lift: where, when, and on what it pressed (trailing, below)
@@ -417,6 +422,33 @@ topLevel = true) {
         for (const k of ["mousedown", "mouseup", "click"])
             onWindow(k, trailing, true);
     }
+    // The pinch recognizer, for a primary press and a second contact alike.
+    const pinchDown = (e, t, p0) => {
+        // The pinch recognizer (compositing.md §II.2): a touch finger landing
+        // under a pinch owner is tracked; the SECOND finger sharing that owner
+        // starts the gesture. Cumulative scale anchors on the starting spread.
+        if (t.pinch !== undefined && e.pointerType === "touch") {
+            pinchPts.set(e.pointerId, { x: p0.x, y: p0.y, owner: t.pinch });
+            if (pinchGesture === null && pinchPts.size >= 2) {
+                const pair = [...pinchPts.entries()].slice(-2);
+                const [[ida, fa], [idb, fb]] = pair;
+                if (fa.owner.key === fb.owner.key) {
+                    const d = Math.hypot(fb.x - fa.x, fb.y - fa.y);
+                    if (d > 0) {
+                        pinchGesture = { owner: fa.owner, a: ida, b: idb, startDist: d, scale: 1 };
+                        const cx = (fa.x + fb.x) / 2;
+                        const cy = (fa.y + fb.y) / 2;
+                        fa.owner.sink("pinchStart", cx, cy, { scale: 1, center: { x: cx, y: cy } });
+                        // two fingers in one gesture: this press is no longer a
+                        // candidate click/hold, and the pointer capture must not drag
+                        disarmHold();
+                        wandered = true;
+                        pinchedPress = true;
+                    }
+                }
+            }
+        }
+    };
     listen("pointerdown", (e) => {
         // a press aimed past an open overlay: its policy first (planes.md §8.1)
         if (topLevel && OUTSIDE_PRESS !== null) {
@@ -431,6 +463,23 @@ topLevel = true) {
                 setTimeout(() => window.removeEventListener("click", stop, true), 1000);
                 return;
             }
+        }
+        // A contact landing while another press is held is not a press (R6): it
+        // keeps its own raw stream and may make a pinch, and the held press goes on.
+        if (held !== null && pressId !== null && e.pointerId !== pressId) {
+            const o = resolve(e);
+            if (o === null)
+                return;
+            others.set(e.pointerId, o);
+            const q = rootPoint !== undefined ? rootPoint(e) : { x: e.clientX, y: e.clientY };
+            if (o.wantsTouch === true) {
+                fingers.set(e.pointerId, { id: e.pointerId, x: q.x, y: q.y });
+                touchSink ??= o;
+                touchSink.sink("touchStart", q.x, q.y, { touches: touchList(), changed: [{ id: e.pointerId, x: q.x, y: q.y }] });
+            }
+            o.sink("pointerDown", q.x, q.y, { deltaX: 0, deltaY: 0 });
+            pinchDown(e, o, q);
+            return;
         }
         const t = resolve(e);
         held = t;
@@ -501,30 +550,7 @@ topLevel = true) {
             // the finger's own press first; a second finger recognized as a pinch
             // then starts it, so onPinchStart has the last word over what the press began
             t.sink("pointerDown", p0.x, p0.y, { deltaX: 0, deltaY: 0 });
-            // The pinch recognizer (compositing.md §II.2): a touch finger landing
-            // under a pinch owner is tracked; the SECOND finger sharing that owner
-            // starts the gesture. Cumulative scale anchors on the starting spread.
-            if (t.pinch !== undefined && e.pointerType === "touch") {
-                pinchPts.set(e.pointerId, { x: p0.x, y: p0.y, owner: t.pinch });
-                if (pinchGesture === null && pinchPts.size >= 2) {
-                    const pair = [...pinchPts.entries()].slice(-2);
-                    const [[ida, fa], [idb, fb]] = pair;
-                    if (fa.owner.key === fb.owner.key) {
-                        const d = Math.hypot(fb.x - fa.x, fb.y - fa.y);
-                        if (d > 0) {
-                            pinchGesture = { owner: fa.owner, a: ida, b: idb, startDist: d, scale: 1 };
-                            const cx = (fa.x + fb.x) / 2;
-                            const cy = (fa.y + fb.y) / 2;
-                            fa.owner.sink("pinchStart", cx, cy, { scale: 1, center: { x: cx, y: cy } });
-                            // two fingers in one gesture: this press is no longer a
-                            // candidate click/hold, and the pointer capture must not drag
-                            disarmHold();
-                            wandered = true;
-                            pinchedPress = true;
-                        }
-                    }
-                }
-            }
+            pinchDown(e, t, p0);
             heldAbove = false;
             const holder = t.hold ?? (t.wantsHold === true ? t : undefined);
             if (holder !== undefined) {
@@ -620,7 +646,23 @@ topLevel = true) {
                 }
             }
         }
-        if (held === null || rootPoint === undefined)
+        if (rootPoint === undefined)
+            return;
+        {
+            const o = others.get(e.pointerId);
+            if (o !== undefined) {
+                const q = rootPoint(e);
+                if (fingers.has(e.pointerId) && touchSink !== null) {
+                    fingers.set(e.pointerId, { id: e.pointerId, x: q.x, y: q.y });
+                    touchSink.sink("touchMove", q.x, q.y, { touches: touchList(), changed: [{ id: e.pointerId, x: q.x, y: q.y }] });
+                }
+                // no raw moves while a pinch is under way (R7), as for the held press
+                if (!pinchedPress)
+                    o.sink("pointerMove", q.x, q.y, { deltaX: 0, deltaY: 0 });
+                return;
+            }
+        }
+        if (held === null || (pressId !== null && e.pointerId !== pressId))
             return;
         const p = rootPoint(e);
         lastX = p.x;
@@ -646,7 +688,32 @@ topLevel = true) {
         if (!pinchedPress)
             held.sink("pointerMove", p.x, p.y, moved(p.x, p.y));
     });
+    // A second contact's lift or cancel: its own stream ends; the held press goes on.
+    const otherEnds = (e, canceled) => {
+        const o = others.get(e.pointerId);
+        if (o === undefined)
+            return false;
+        others.delete(e.pointerId);
+        if (pinchGesture !== null && (e.pointerId === pinchGesture.a || e.pointerId === pinchGesture.b))
+            endPinch();
+        pinchPts.delete(e.pointerId);
+        if (pinchPts.size === 0)
+            pinchedPress = false;
+        const q = rootOf(e);
+        const gone = fingers.get(e.pointerId);
+        if (gone !== undefined) {
+            fingers.delete(e.pointerId);
+            if (touchSink !== null)
+                touchSink.sink(canceled ? "touchCancel" : "touchEnd", q.x, q.y, { touches: touchList(), changed: [gone] });
+            if (fingers.size === 0)
+                touchSink = null;
+        }
+        o.sink("pointerUp", q.x, q.y, { canceled, deltaX: 0, deltaY: 0 });
+        return true;
+    };
     listen("pointerup", (e) => {
+        if (otherEnds(e, false))
+            return;
         // a finger's lift: the browser's trailing mouse events for it follow (see trailing)
         if (e.pointerType === "touch")
             lastTap = { x: e.clientX, y: e.clientY, at: performance.now(), el: pressEl };
@@ -730,6 +797,8 @@ topLevel = true) {
             clearHover();
     });
     listen("pointercancel", (e) => {
+        if (otherEnds(e, true))
+            return;
         if (swallowUp !== null && e.pointerId === swallowUp) {
             swallowUp = null;
             return;

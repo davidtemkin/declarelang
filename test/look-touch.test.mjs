@@ -115,4 +115,31 @@ await test("without --touch a click is a mouse's: the view stays hovered", () =>
   assert.deepEqual(r["app.pad.hovered"], [true]);
 });
 
+// A second finger is not a press (docs/system-design/drag.md R6): landing while
+// another finger drags, it clicks nothing and never takes the drag — the
+// dragged view keeps every move and its release. It used to take the press:
+// the tapped view clicked mid-drag and the drag heard nothing more.
+await test("a second finger during a drag clicks nothing and leaves the drag its moves and release", () => {
+  const two = join(DIR, "two.declare");
+  writeFileSync(two, `App [ width = 400, height = 300,
+    moves: number = 0, ups: number = 0, clicks: number = 0, bdowns: number = 0,
+    a: View [ x = 20, y = 20, width = 150, height = 150, fill = #CCCCCC,
+        onPointerMove(e: PointerEvent) { app.moves = app.moves + 1 },
+        onPointerUp(e: PointerUpEvent) { app.ups = app.ups + 1 } ],
+    b: View [ x = 220, y = 20, width = 150, height = 150, fill = #AAAAAA,
+        onPointerDown(e: PointerEvent) { app.bdowns = app.bdowns + 1 },
+        onClick(e: PointerEvent) { app.clicks = app.clicks + 1 } ] ]`);
+  const js = `(() => { const fire = (type, id, x, y) => document.elementFromPoint(x, y).dispatchEvent(new PointerEvent(type, { pointerId: id, pointerType: "touch", clientX: x, clientY: y, bubbles: true, cancelable: true }));
+    fire("pointerdown", 1, 60, 60); fire("pointermove", 1, 80, 60);
+    fire("pointerdown", 2, 300, 60); fire("pointerup", 2, 300, 60);
+    fire("pointermove", 1, 100, 60); fire("pointerup", 1, 100, 60); return 0 })()`;
+  const r = spawnSync("node", [join(ROOT, "tools/look.mjs"), two, "--touch", "--size", "400x300", "--js", js,
+    "--read", "app.moves", "--read", "app.ups", "--read", "app.clicks", "--read", "app.bdowns"], { cwd: ROOT, encoding: "utf8" });
+  const out = r.stdout + r.stderr;
+  assert.match(out, /app\.clicks = 0/, "the second finger clicks nothing: " + out);
+  assert.match(out, /app\.bdowns = 1/, "it still has its raw press");
+  assert.match(out, /app\.moves = 2/, "the drag keeps both its moves");
+  assert.match(out, /app\.ups = 1/, "and its release");
+});
+
 summarize("look-touch");
