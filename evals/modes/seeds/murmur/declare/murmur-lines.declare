@@ -353,7 +353,7 @@ class VoiceLine extends Line [ inset = [7, 14, 7, 7],
             accessibilityLabel = "Position in voice message",
             claim = x,
             onPointerDown(e: PointerEvent) { classroot.seek(e.x / this.width) },
-            onPointerMove(e: PointerEvent) { if (this.pressed) classroot.seek(e.x / this.width) }
+            onDrag(e: PointerEvent) { classroot.seek(e.x / this.width) }
             ],
         Text [ width = 34, fontSize = 12, fontWeight = medium, numeralWidth = tabular,
             textColor = { classroot.mine ? provided("theme").mineText : provided("theme").textMuted },

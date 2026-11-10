@@ -478,6 +478,7 @@ const ViewSchema: ClassSchema = {
   // InputWants): it takes from the browser exactly what that handler needs
   // to fire, nothing more.
   events: ["click", "dblClick", "hold", "pointerDown", "pointerUp", "pointerMove", "pointerOver", "pointerOut",
+    "dragStart", "drag", "dragEnd",
     "touchStart", "touchMove", "touchEnd", "touchCancel", "wheel",
     "pinchStart", "pinch", "pinchEnd",
     "retire", "contextMenu", "focus", "blur", "outsidePress", "keyDown", "keyUp",
@@ -1516,6 +1517,8 @@ export const EVENT_PAYLOAD: Readonly<Record<string, string>> = {
   pointerDown: "PointerEvent", pointerMove: "PointerEvent",
   pointerOver: "PointerEvent", pointerOut: "PointerEvent",
   pointerUp: "PointerUpEvent",                       // …plus `canceled`
+  // the resolved drag (docs/system-design/drag.md): a press that became a drag
+  dragStart: "PointerEvent", drag: "PointerEvent", dragEnd: "DragEndEvent",
   touchStart: "TouchEvent", touchMove: "TouchEvent",
   touchEnd: "TouchEvent", touchCancel: "TouchEvent",
   pinchStart: "PinchEvent", pinch: "PinchEvent", pinchEnd: "PinchEvent",

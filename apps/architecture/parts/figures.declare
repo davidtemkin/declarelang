@@ -10,9 +10,9 @@ script {
                 "lib": 12.7,
                 "core": 42.3,
                 "view": 12.6,
-                "backend": 15.3,
-                "input": 18.3,
-                "draw": 16.5,
+                "backend": 15.7,
+                "input": 18.8,
+                "draw": 16.4,
                 "anim": 3.2,
                 "text": 5,
                 "boot": 5.6,
@@ -25,17 +25,17 @@ script {
                 "app": 12.5,
                 "lib": 12.7,
                 "core": 41.7,
-                "view": 12.3,
-                "backend": 35.7,
-                "input": 21.8,
-                "draw": 18.2,
+                "view": 12.4,
+                "backend": 36.1,
+                "input": 22.4,
+                "draw": 18.3,
                 "anim": 3.9,
                 "text": 5,
                 "boot": 5.5,
                 "layout": 2.3,
                 "themes": 0.1,
                 "a11y": 3.3,
-                "ker": 15.1
+                "ker": 15.2
             },
             "calMac": {
                 "app": 12.5,
@@ -43,8 +43,8 @@ script {
                 "core": 42.3,
                 "view": 12.6,
                 "backend": 8.7,
-                "input": 18.3,
-                "draw": 16.5,
+                "input": 18.8,
+                "draw": 16.4,
                 "anim": 3.2,
                 "text": 5,
                 "boot": 5.6,
@@ -54,18 +54,18 @@ script {
                 "ker": 0
             },
             "totals": {
-                "calDom": 165.2,
-                "calCanvas": 190.3,
-                "calMac": 140.8
+                "calDom": 166.1,
+                "calCanvas": 191.3,
+                "calMac": 141.3
             }
         },
-        "runtimeKB": 124.8,
+        "runtimeKB": 125.6,
         "kernelKB": 15.2,
         "kernelWasmGzipKB": 12.6,
         "kernelWasmRawKB": 23,
         "kernelLoaderKB": 2.6,
         "layoutKB": 2.3,
-        "canvasCarriesDomBackendKB": 14.8,
+        "canvasCarriesDomBackendKB": 15.2,
         "kernelLines": "1,400",
         "surfaceMethods": 71
     }

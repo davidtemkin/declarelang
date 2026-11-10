@@ -661,8 +661,8 @@ App [ appName = "The Venue", minWidth = 320,
                 shift: number = 0,
                 Spring [ attribute = shift, to = { parent.offset + parent.drag }, stiffness = 260, damping = 30 ],
                 claim = x,
-                onPointerMove(e: PointerEvent) { drag = e.deltaX; shift = offset + e.deltaX },
-                onPointerUp(e: PointerUpEvent) {
+                onDrag(e: PointerEvent) { drag = e.deltaX; shift = offset + e.deltaX },
+                onDragEnd(e: DragEndEvent) {
                     if (!e.canceled && drag < -60) app.ticketAt = Math.min(app.ticketsScreen.count - 1, app.ticketAt + 1)
                     if (!e.canceled && drag > 60) app.ticketAt = Math.max(0, app.ticketAt - 1)
                     drag = 0

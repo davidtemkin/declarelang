@@ -85,7 +85,10 @@ function outOfReach(app: Node): string[] {
   const round = (b: { x: number; y: number; width: number; height: number }): string =>
     `x ${Math.round(b.x)}–${Math.round(b.x + b.width)}, y ${Math.round(b.y)}–${Math.round(b.y + b.height)}`;
   const box = (v: View, stop: View | null = null) => rootFrameBox(v as unknown as InteractionView, undefined, stop as unknown as InteractionView | null);
-  const drags = (v: View): boolean => typeof (v as unknown as { onPointerMove?: unknown }).onPointerMove === "function";
+  const drags = (v: View): boolean => {
+    const h = v as unknown as { onDragStart?: unknown; onDrag?: unknown; onDragEnd?: unknown };
+    return typeof h.onDragStart === "function" || typeof h.onDrag === "function" || typeof h.onDragEnd === "function";
+  };
   const visit = (v: View): void => {
     if (!v.visible) return;   // a hidden view is reached when it is shown, not now
     if (isA(v, "Control") && v.width > 0 && v.height > 0) {

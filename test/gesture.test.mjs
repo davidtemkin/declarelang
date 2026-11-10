@@ -9,7 +9,7 @@
 //   - the app-root DEFAULTS: `manipulation` unclipped (pan + pinch stay the
 //     user's), `pinch-zoom` clipped (a fixed window has no pan to keep), and
 //     the repeal this rung IS — no more unconditional root `none`;
-//   - per-view claims: onPointerMove → pinch-zoom, onTouch* → none, onWheel →
+//   - per-view claims: a drag event → pinch-zoom, onTouch* → none, onWheel →
 //     no touch-action at all (a wheel is not a touch gesture);
 //   - a scroller DELEGATES both axes (`manipulation`) with per-axis
 //     containment: it declares which axis IT scrolls, never that the other
@@ -55,17 +55,17 @@ const CLAIMS_RAW = `App [ width = 640, height = 400, fill = #202830,
     sawY: number = -1,
     drag: View [ x = 20, y = 20, width = 160, height = 100, fill = #334455,
         onPointerDown() { app.sawX = app.pointerX; app.sawY = app.pointerY },
-        onPointerMove(e: PointerEvent) { },
+        onDrag(e: PointerEvent) { },
         ],
     xdrag: View [ x = 200, y = 140, width = 160, height = 100, fill = #38495A, claim = x,
-        onPointerMove(e: PointerEvent) { },
+        onDrag(e: PointerEvent) { },
         ],
     mesa: View [ x = 200, y = 20, width = 160, height = 100, fill = #445566,
         onTouchStart(e: TouchEvent) { },
         ],
     holddrag: View [ x = 20, y = 140, width = 160, height = 100, fill = #405060,
         onHold(e: PointerEvent) { },
-        onPointerMove(e: PointerEvent) { },
+        onDrag(e: PointerEvent) { },
         ],
     zoomer: View [ x = 380, y = 20, width = 200, height = 300, fill = #2E3A45,
         onWheel(e: WheelEvent) { app.wdx = e.deltaX; app.wdy = e.deltaY; app.wpinch = e.pinch },
@@ -94,7 +94,7 @@ const CLAIMS_RAW = `App [ width = 640, height = 400, fill = #202830,
     // drag + pinch composed: the drag keeps its pan claim, the pinch retires
     // pinch-zoom — nothing is left for the browser
     dragpinch: View [ x = 200, y = 260, width = 160, height = 100, fill = #354A58,
-        onPointerMove(e: PointerEvent) { },
+        onDrag(e: PointerEvent) { },
         onPinch(e: PinchEvent) { },
         ],
     ]`;
@@ -124,10 +124,10 @@ const PAGE_RAW = `App [ fill = #202830,
 // A scrolling pane inside a drag view, and an x-claimed row inside a scrolling
 // pane (docs/system-design/drag.md R9, §8 items 2–3): a pane keeps its own axes.
 const PANES_RAW = `App [ width = 400, height = 400, fill = #202830,
-    owner: View [ x = 0, y = 0, width = 200, height = 300, fill = #444444, onPointerMove(e: PointerEvent) { },
+    owner: View [ x = 0, y = 0, width = 200, height = 300, fill = #444444, onDrag(e: PointerEvent) { },
         pane: View [ x = 10, y = 10, width = 180, height = 200, scrolls = y, View [ width = 10, height = 1000 ] ] ],
     list: View [ x = 210, y = 0, width = 180, height = 300, scrolls = y,
-        row: View [ width = 180, height = 60, claim = x, fill = #888888, onPointerMove(e: PointerEvent) { } ],
+        row: View [ width = 180, height = 60, claim = x, fill = #888888, onDrag(e: PointerEvent) { } ],
         View [ y = 60, width = 10, height = 1000 ] ] ]`;
 const panesCompiled = await compile(PANES_RAW);
 assert.deepEqual(panesCompiled.errors, [], "panes fixture compiles clean");
@@ -242,7 +242,7 @@ const TAKEOVER_RAW = `App [ width = 640, height = 400, fill = #202830,
     pane: View [ x = 20, y = 20, width = 300, height = 300, fill = #3A4855, scrolls = y,
         chip: View [ x = 10, y = 10, width = 120, height = 40, fill = #607080,
             onHold(e: PointerEvent) { },
-            onPointerMove(e: PointerEvent) { },
+            onDrag(e: PointerEvent) { },
             onPointerUp(e: PointerUpEvent) {
                 if (e.canceled) app.upCanceled = app.upCanceled + 1;
                 else app.upClean = app.upClean + 1;
@@ -325,8 +325,8 @@ assert.deepEqual(modsCompiled.errors, [], "modifiers fixture compiles clean");
 const HANDOFF_RAW = `App [ width = 640, height = 400, fill = #202830, theme = { SanFrancisco },
     taps: number = 0, panX: number = 0, grab: number = 0, held: number = 0, holdDragged: number = 0,
     surface: View [ x = 0, y = 0, width = 300, height = 200, fill = #334455,
-        onPointerDown() { app.grab = app.panX },
-        onPointerMove(e: PointerEvent) { app.panX = app.grab + e.deltaX },
+        onDragStart() { app.grab = app.panX },
+        onDrag(e: PointerEvent) { app.panX = app.grab + e.deltaX },
         tap: Button [ x = 20, y = 20, width = 80, height = 44, label = "T", onClick() { app.taps = app.taps + 1 } ],
         slider: Slider [ x = 20, y = 120, width = 200 ] ],
     deck: Carousel [ x = 320, y = 0, width = 300, height = 200,
@@ -334,7 +334,7 @@ const HANDOFF_RAW = `App [ width = 640, height = 400, fill = #202830, theme = { 
         View [ fill = #554466 ] ],
     board: View [ x = 0, y = 220, width = 300, height = 160, fill = #443355,
         onHold() { app.held = app.held + 1 },
-        onPointerMove(e: PointerEvent) { app.holdDragged = e.deltaX },
+        onDrag(e: PointerEvent) { app.holdDragged = e.deltaX },
         card: Button [ x = 20, y = 20, width = 80, height = 44, label = "C", onClick() { app.taps = app.taps + 1 } ] ]
     ]`;
 const handoffCompiled = await compile(HANDOFF_RAW);
@@ -653,7 +653,7 @@ await test("canvas: the rotated walk answers the same local point — parity", a
   await tp.close();
 });
 
-await test("dom: onPointerMove claims the drag, keeps pinch — `pinch-zoom`", async () => {
+await test("dom: a drag event claims the drag, keeps pinch — `pinch-zoom`", async () => {
   assert.equal((await styleAt(100, 70)).touchAction, "pinch-zoom");
 });
 
@@ -1530,15 +1530,18 @@ await test("a touch whose element leaves the page under the finger still ends: `
       assert.deepEqual({ holdDragged: s.holdDragged, taps: s.taps }, { holdDragged: 120, taps: 0 }, "the hold is a finger's rule: a mouse never competes with a scroll");
     });
 
-    await test(`${r}: a mouse stays the control's while it is inside it, and drags the claimant once it leaves`, async () => {
+    // A press is a click or a drag, never both (docs/system-design/drag.md R2,
+    // R5): within the threshold it is the Button's click; past it — inside the
+    // Button or out — it is the surface's drag, and no click.
+    await test(`${r}: a mouse press on a control is its click until it wanders, then the claimant's drag`, async () => {
       await load(mp, `/${r}-handoff`);
       const at = await centre(mp, "surface.tap");
       await mouse(mp, at, 3, 0);
-      assert.deepEqual(await read(mp).then(({ taps, panX }) => ({ taps, panX })), { taps: 1, panX: 0 }, "a click inside the Button is the Button's");
+      assert.deepEqual(await read(mp).then(({ taps, panX }) => ({ taps, panX })), { taps: 1, panX: 0 }, "a press within the threshold is the Button's click");
       await mouse(mp, at, 30, 0);
-      assert.equal((await read(mp)).panX, 0, "travel that stays inside the Button moves nothing");
+      assert.deepEqual(await read(mp).then(({ taps, panX }) => ({ taps, panX })), { taps: 1, panX: 30 }, "travel past it, inside the Button, drags the surface and clicks nothing");
       await mouse(mp, at, -100, 0);
-      assert.equal((await read(mp)).panX, -100, "travel out of the Button moves the surface");
+      assert.equal((await read(mp)).panX, -70, "and so does travel out of it");
     });
   }
   await tp.close();

@@ -293,8 +293,8 @@ class YearSurface [ width = 100%, clip = true,
     perDay() -> number { return this.width / app.vSpan },
     dayAtX(x: number) -> number { return app.vEnd - app.vSpan + x / this.perDay() },
 
-    onPointerDown(e: PointerEvent) { grabEnd = app.vEnd; grabSpan = app.vSpan },
-    onPointerMove(e: PointerEvent) { app.handTo(grabEnd - e.deltaX / perDay(), app.vSpan) },
+    onDragStart(e: PointerEvent) { grabEnd = app.vEnd; grabSpan = app.vSpan },
+    onDrag(e: PointerEvent) { app.handTo(grabEnd - e.deltaX / perDay(), app.vSpan) },
     onPinchStart(e: PinchEvent) { grabEnd = app.vEnd; grabSpan = app.vSpan },
     onPinch(e: PinchEvent) {
         // the day that was under the fingers at the start stays under them

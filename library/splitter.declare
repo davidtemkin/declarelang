@@ -76,9 +76,6 @@ Hovered, dragged, or focused from the keyboard — the state the accent line sho
 True from pointer-down until the captured release. `pressed` will not do here: it goes
 false when the pointer leaves the strip, and a drag must survive exactly that.
 
-## _p0
-**Internal.** The root-space pointer position along `axis` at the start of a drag.
-
 ## _v0
 **Internal.** The value at the start of a drag, which the pointer's movement is added to.
 
@@ -90,15 +87,20 @@ restore.
 Claims focus, as every control does, and starts the drag.
 An override calls `super.onPointerDown(e)`.
 
-## onPointerMove
-Moves the divider by the pointer's **root-space** movement since the press, so it keeps up
-with a pointer that has left the strip.
-An override calls `super.onPointerMove(e)`.
-
 ## onPointerUp
-Ends the drag. A drag the browser takes back (`e.canceled`, a touch that became a scroll)
+Ends the press. A press the browser takes back (`e.canceled`, a touch that became a scroll)
 puts the value back where it started.
-An override calls `super.onPointerUp(e)`: it is what ends the drag.
+An override calls `super.onPointerUp(e)`.
+
+## onDrag
+Moves the divider by the pointer's travel since the press, so it keeps up with a pointer
+that has left the strip.
+An override calls `super.onDrag(e)`.
+
+## onDragEnd
+Ends the drag; a canceled one (Escape, a system interruption) puts the value back where it
+started.
+An override calls `super.onDragEnd(e)`: it is what ends the drag.
 
 ## onClick
 Does nothing: a press on the divider that does not move is not a command.
@@ -190,10 +192,9 @@ class Splitter extends Control [
     accessibilityIncrement() { if (!disabled) setTo(value + step) },
     accessibilityDecrement() { if (!disabled) setTo(value - step) },
 
-    // the drag, by root-space movement along the axis
+    // the drag, by the pointer's travel along the axis since the press
 
     dragging: boolean = false,
-    _p0: number = 0,
     _v0: number = 0,
 
     onPointerDown(e: PointerEvent) {
@@ -202,10 +203,13 @@ class Splitter extends Control [
         Focus.focus(this)
         dragging = true
         _v0 = value
-        _p0 = axis == "x" ? e.rootX : e.rootY
         },
-    onPointerMove(e: PointerEvent) { if (dragging) setTo(_v0 + (axis == "x" ? e.rootX : e.rootY) - _p0) },
     onPointerUp(e: PointerUpEvent) {
+        dragging = false
+        if (e.canceled) setTo(_v0)
+        },
+    onDrag(e: PointerEvent) { if (dragging) setTo(_v0 + (axis == "x" ? e.deltaX : e.deltaY)) },
+    onDragEnd(e: DragEndEvent) {
         dragging = false
         if (e.canceled) setTo(_v0)
         },

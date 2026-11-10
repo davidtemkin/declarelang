@@ -117,16 +117,22 @@ export function hitWalk(s: SceneSurface, px: number, py: number): HitTarget | nu
   let pinch: { key: object; sink: InputSink } | undefined;
   let hold: { key: object; sink: InputSink } | undefined;
   let context: { key: object; sink: InputSink } | undefined;
+  let move: { key: object; sink: InputSink } | undefined;
   let drag: HitTarget["drag"];
+  // the scroll axes from the pressed view up to its drag owner (declared: a
+  // scene surface does not carry its range)
+  const kept = { x: false, y: false };
   for (let p: SceneSurface | null = t; p !== null; p = p.parent) {
+    if (drag === undefined && p.pageRoot !== true) { if (p.scrolls) kept.y = true; if (p.scrollsX) kept.x = true; }
     if (p.sink === null) continue;
     if (pinch === undefined && p.wants?.wantsPinch === true) pinch = { key: p, sink: p.sink };
     if (hold === undefined && p.wants?.wantsHold === true) hold = { key: p, sink: p.sink };
     if (context === undefined && p.wants?.wantsContext === true) context = { key: p, sink: p.sink };
+    if (move === undefined && p.wants?.wantsMove === true) move = { key: p, sink: p.sink };
     if (drag === undefined && p.wants?.wantsDrag === true) drag = { key: p, sink: p.sink, axis: p.wants.claimAxis ?? "both", fromHold: p.wants.wantsHold === true };
-    if (pinch !== undefined && hold !== undefined && context !== undefined && drag !== undefined) break;
+    if (pinch !== undefined && hold !== undefined && context !== undefined && drag !== undefined && move !== undefined) break;
   }
-  return { key: t, sink: t.sink!, ...t.wants, pinch, hold, context, drag, x, y, cursor: cursorAt(s, px, py) };
+  return { key: t, sink: t.sink!, ...t.wants, pinch, hold, context, drag, move, kept, x, y, cursor: cursorAt(s, px, py) };
 }
 
 /** The text field a press at a point in `s`'s parent frame lands on: the topmost view there

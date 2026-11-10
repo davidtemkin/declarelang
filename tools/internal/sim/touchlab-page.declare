@@ -8,7 +8,7 @@ ignoreScroll chrome, so the counters stay readable in every screenshot.
 
 Zones, one per contract:
   clicky / dbly / holdy — the resolved layer (click, dblClick, hold).
-  dragy  — an immediate-claim drag (onPointerMove alone): a finger landing
+  dragy  — an immediate-claim drag (a drag event alone): a finger landing
            here is the app's from the first move; the page must not pan.
   dragx  — claim = x on a y-scrolling page: sideways is the app's, down is
            the page's (and arrives as the canceled release).
@@ -53,7 +53,7 @@ App [ width = { app.hostWidth }, height = 1600, fill = 0x101418,
         ],
 
     dragy: View [ x = 12, y = 160, width = 180, height = 70, fill = 0x334455, cornerRadius = 8,
-        onPointerMove(e: PointerEvent)  { app.dragM = app.dragM + 1 },
+        onDrag(e: PointerEvent)         { app.dragM = app.dragM + 1 },
         onPointerUp(e: PointerUpEvent)  {
             if (e.canceled) app.dragC = app.dragC + 1;
             else app.dragUp = app.dragUp + 1;
@@ -61,7 +61,7 @@ App [ width = { app.hostWidth }, height = 1600, fill = 0x101418,
         Text [ x = 10, y = 24, fontSize = 13, textColor = 0xAABBCC, text = "drag (mine)" ]
         ],
     dragx: View [ x = 204, y = 160, width = 180, height = 70, fill = 0x3A4A5A, cornerRadius = 8, claim = x,
-        onPointerMove(e: PointerEvent)  { app.xM = app.xM + 1 },
+        onDrag(e: PointerEvent)         { app.xM = app.xM + 1 },
         onPointerUp(e: PointerUpEvent)  {
             if (e.canceled) app.xC = app.xC + 1;
             else app.xUp = app.xUp + 1;

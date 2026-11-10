@@ -74,9 +74,9 @@ class Seam [ width = 8, y = 0,
     which: string = "a",
     cursor = "col-resize",
     fill = { classroot.hovered || app.seam == classroot.which ? app.c.seamOn : null },
-    onPointerDown() { app.beginSeam(classroot.which) },
-    onPointerMove() { app.moveSeam() },
-    onPointerUp() { app.endSeam() }
+    onDragStart() { app.beginSeam(classroot.which) },
+    onDrag() { app.moveSeam() },
+    onDragEnd() { app.endSeam() }
     ]
 
 
@@ -510,9 +510,9 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
         // title bar — drag handle
 
         bar: View [ width = 100%, height = 34, fill = { app.c.bar },
-            onPointerDown() { app.beginDrag() },
-            onPointerMove() { app.moveDrag() },
-            onPointerUp() { app.endDrag() },
+            onDragStart() { app.beginDrag() },
+            onDrag() { app.moveDrag() },
+            onDragEnd() { app.endDrag() },
             Dot [ x = 13, y = 11 ],
             title: Text [ x = center, y = center, fontSize = 12.5, fontWeight = semibold,
                 textColor = { app.c.text }, text = "Declare Inspector" ],
@@ -816,9 +816,9 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
 
             seamC: View [ x = 0, y = 0, width = 100%, height = 7, cursor = "row-resize",
                 fill = { this.hovered || app.seam == "c" ? app.c.seamOn : null },
-                onPointerDown() { app.beginSeam("c") },
-                onPointerMove() { app.moveSeam() },
-                onPointerUp() { app.endSeam() }
+                onDragStart() { app.beginSeam("c") },
+                onDrag() { app.moveSeam() },
+                onDragEnd() { app.endSeam() }
                 ],
 
             scroll: View [ x = 0, y = 4, width = 100%, height = { parent.height - 42 }, scrolls = y,
@@ -874,21 +874,21 @@ App [ pointerEvents = "none", appName = "Declare Inspector",
 
         edgeR: View [ x = { parent.width - 6 }, y = 34, width = 6, height = { parent.height - 40 },
             cursor = "ew-resize",
-            onPointerDown() { app.beginSize("r") },
-            onPointerMove() { app.moveSize() },
-            onPointerUp() { app.endSize() }
+            onDragStart() { app.beginSize("r") },
+            onDrag() { app.moveSize() },
+            onDragEnd() { app.endSize() }
             ],
         edgeB: View [ x = 0, y = { parent.height - 6 }, width = { parent.width - 14 }, height = 6,
             cursor = "ns-resize",
-            onPointerDown() { app.beginSize("b") },
-            onPointerMove() { app.moveSize() },
-            onPointerUp() { app.endSize() }
+            onDragStart() { app.beginSize("b") },
+            onDrag() { app.moveSize() },
+            onDragEnd() { app.endSize() }
             ],
         grip: View [ x = { parent.width - 14 }, y = { parent.height - 14 }, width = 14, height = 14,
             cursor = "nwse-resize",
-            onPointerDown() { app.beginSize("rb") },
-            onPointerMove() { app.moveSize() },
-            onPointerUp() { app.endSize() },
+            onDragStart() { app.beginSize("rb") },
+            onDrag() { app.moveSize() },
+            onDragEnd() { app.endSize() },
             draw(d: DrawContext) {
                 d.strokeStyle = app.c.faint
                 d.lineWidth = 1

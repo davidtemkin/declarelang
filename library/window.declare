@@ -170,24 +170,24 @@ The theme's dialog shadow; none without a frame.
 **Internal.** Its `height` when a resize began.
 
 ## _moveStart()
-**Internal.** The title bar's press: brings it to the front and notes where it started.
+**Internal.** The title bar's drag begins: brings it to the front and notes where it started.
 
 ## _moveBy()
 **Internal.** Moves it by the pointer's travel since the press, keeping its title bar within
 its parent.
 
 ## _moveEnd()
-**Internal.** The release: an interrupted move puts it back where it started.
+**Internal.** The drag's end: an interrupted move puts it back where it started.
 
 ## _sizeStart()
-**Internal.** A resize edge's press.
+**Internal.** A resize edge's drag begins.
 
 ## _sizeBy()
 **Internal.** Resizes it by the pointer's travel since the press, along the edges the grabbed
 one moves (`"r"`, `"b"` or `"rb"`), no smaller than the minimum.
 
 ## _sizeEnd()
-**Internal.** The release: an interrupted resize puts the size back.
+**Internal.** The drag's end: an interrupted resize puts the size back.
 */
 
 
@@ -286,9 +286,9 @@ class Window [ width = 360, height = 240,
             cornerRadius = { classroot.frame ? [0, 0, classroot.cornerRadius as number, classroot.cornerRadius as number] : classroot.cornerRadius } ],
 
         titleBar: View [ width = 100%, height = { classroot.titleBarHeight }, visible = { classroot.frame },
-            onPointerDown(e: PointerEvent) { classroot._moveStart() },
-            onPointerMove(e: PointerEvent) { classroot._moveBy(e.deltaX, e.deltaY) },
-            onPointerUp(e: PointerUpEvent) { classroot._moveEnd(e.canceled) },
+            onDragStart(e: PointerEvent) { classroot._moveStart() },
+            onDrag(e: PointerEvent) { classroot._moveBy(e.deltaX, e.deltaY) },
+            onDragEnd(e: DragEndEvent) { classroot._moveEnd(e.canceled) },
 
             // leading, or centred where the theme centres a dialog's title
 
@@ -316,21 +316,21 @@ class Window [ width = 360, height = 240,
 
         sizeRight: View [ visible = { classroot.frame && classroot.resizable }, ignoreClip = true, cursor = "ew-resize",
             x = { parent.width - 4 }, y = { classroot.titleBarHeight }, width = 8, height = { parent.height - classroot.titleBarHeight - 12 },
-            onPointerDown(e: PointerEvent) { classroot._sizeStart() },
-            onPointerMove(e: PointerEvent) { classroot._sizeBy("r", e.deltaX, e.deltaY) },
-            onPointerUp(e: PointerUpEvent) { classroot._sizeEnd(e.canceled) }
+            onDragStart(e: PointerEvent) { classroot._sizeStart() },
+            onDrag(e: PointerEvent) { classroot._sizeBy("r", e.deltaX, e.deltaY) },
+            onDragEnd(e: DragEndEvent) { classroot._sizeEnd(e.canceled) }
             ],
         sizeBottom: View [ visible = { classroot.frame && classroot.resizable }, ignoreClip = true, cursor = "ns-resize",
             x = 0, y = { parent.height - 4 }, width = { parent.width - 12 }, height = 8,
-            onPointerDown(e: PointerEvent) { classroot._sizeStart() },
-            onPointerMove(e: PointerEvent) { classroot._sizeBy("b", e.deltaX, e.deltaY) },
-            onPointerUp(e: PointerUpEvent) { classroot._sizeEnd(e.canceled) }
+            onDragStart(e: PointerEvent) { classroot._sizeStart() },
+            onDrag(e: PointerEvent) { classroot._sizeBy("b", e.deltaX, e.deltaY) },
+            onDragEnd(e: DragEndEvent) { classroot._sizeEnd(e.canceled) }
             ],
         sizeGrip: View [ visible = { classroot.frame && classroot.resizable }, ignoreClip = true, cursor = "nwse-resize",
             x = { parent.width - 16 }, y = { parent.height - 16 }, width = 20, height = 20,
-            onPointerDown(e: PointerEvent) { classroot._sizeStart() },
-            onPointerMove(e: PointerEvent) { classroot._sizeBy("rb", e.deltaX, e.deltaY) },
-            onPointerUp(e: PointerUpEvent) { classroot._sizeEnd(e.canceled) },
+            onDragStart(e: PointerEvent) { classroot._sizeStart() },
+            onDrag(e: PointerEvent) { classroot._sizeBy("rb", e.deltaX, e.deltaY) },
+            onDragEnd(e: DragEndEvent) { classroot._sizeEnd(e.canceled) },
             draw(d: DrawContext) {
                 d.strokeStyle = provided("theme").textFaint
                 d.lineWidth = 1

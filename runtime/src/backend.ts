@@ -132,12 +132,13 @@ export type Stretch = "none" | "width" | "height" | "both" | "cover" | "contain"
  *  (input.ts) synthesizes it as "press and release resolved to the same
  *  view", so both backends decide it identically by construction. */
 export type PointerType = "pointerDown" | "pointerUp" | "click" | "dblClick" | "pointerMove" | "pointerOver" | "pointerOut"
+  | "dragStart" | "drag" | "dragEnd"           // the RESOLVED drag: a press that wandered (docs/system-design/drag.md)
   | "hold"                                     // a press held in place — the tap-hold / click-hold fact
   | "contextMenu"                              // the platform's context gesture (right-click / two-finger tap); touch context rides onHold
   | "touchStart" | "touchMove" | "touchEnd" | "touchCancel"    // RAW multi-finger, for an app owning its own gestures
   | "pinchStart" | "pinch" | "pinchEnd"        // the RECOGNIZED two-finger gesture (compositing.md §II.2) — cumulative e.scale, root-space e.center
   | "wheel";                                   // the wheel stream over this view (trackpad pinch included)
-export const POINTER_TYPES: readonly PointerType[] = ["pointerDown", "pointerUp", "click", "dblClick", "pointerMove", "pointerOver", "pointerOut", "hold", "contextMenu", "touchStart", "touchMove", "touchEnd", "touchCancel", "pinchStart", "pinch", "pinchEnd", "wheel"];
+export const POINTER_TYPES: readonly PointerType[] = ["pointerDown", "pointerUp", "click", "dblClick", "pointerMove", "dragStart", "drag", "dragEnd", "pointerOver", "pointerOut", "hold", "contextMenu", "touchStart", "touchMove", "touchEnd", "touchCancel", "pinchStart", "pinch", "pinchEnd", "wheel"];
 
 /** The raw-touch member of the family: declaring one of these is a view's
  *  statement that it owns multi-finger gestures in its subtree (the backend
@@ -171,10 +172,18 @@ export interface InputWants {
   wantsDbl: boolean;
   wantsHold: boolean;
   wantsTouch: boolean;
-  /** Declares `onPointerMove` — claims the single-finger drag over this view
-   *  (a finger that lands here drags instead of panning); pinch stays the
-   *  user's. A mouse drag was never the browser's, so desktop is unchanged. */
+  /** Declares a drag event (`onDragStart`, `onDrag`, `onDragEnd`) — claims the
+   *  single-finger drag over this view (a finger that lands here drags instead
+   *  of panning); pinch stays the user's. A mouse drag was never the browser's,
+   *  so desktop is unchanged (docs/system-design/drag.md R1). */
   wantsDrag: boolean;
+  /** Declares `onPointerMove` — every move, hover included, goes to the nearest
+   *  view up the hit chain that declares it (R7). Claims nothing. */
+  wantsMove: boolean;
+  /** Takes clicks: declares `onClick`, `onDblClick` or `onHold`, or has a `link`
+   *  — a press on it is a click candidate until it wanders, so a drag over it
+   *  starts only past the threshold (R2). */
+  takesClicks: boolean;
   /** The AXIS the drag claim covers (`claim = x | y | both`, D8 RULED
    *  2026-07-30 — claim-surface.md): `both` is today's whole-gesture claim;
    *  `x`/`y` scope it, leaving the CROSS axis to the enclosing regime (a

@@ -30,7 +30,7 @@ class Row extends View [ width = 600, height = 90, fill = #f4f4f4,
         ],
     dlg: Dialog [ title = "Modal", message = "row dialog", buttons = { [{ id: "ok", label: "OK" }] } ],
     handle: View [ x = 300, y = 8, width = 40, height = 40, fill = #8899aa,
-        onPointerMove(e: PointerEvent) { app.drags = app.drags + 1; if (app.drags % 7 == 0) app.seq = app.seq + 1 }
+        onDrag(e: PointerEvent) { app.drags = app.drags + 1; if (app.drags % 7 == 0) app.seq = app.seq + 1 }
         ],
     Markdown [ x = 350, y = 4, width = 240, text = :md ],
     HTMLText [ x = 10, y = 44, width = 280, html = { "<p>row <b>" + app.seq + "</b> <i>html</i></p>" } ],

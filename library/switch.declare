@@ -27,13 +27,13 @@ still scrolls the page.
 True from pointer-down until the release.
 
 ## _dragged
-**Internal.** True once the pointer has moved the thumb during a press, so the release settles on the nearer side and does not toggle.
+**Internal.** True once the press has become a drag, so its end settles on the nearer side and does not toggle.
 
-## _x0
-**Internal.** The root-space pointer x at pointer-down.
+## _dx
+**Internal.** The pointer's travel since the press, while a drag is under way.
 
 ## _grab
-**Internal.** The thumb's rest x at pointer-down, that the pointer delta is applied to.
+**Internal.** The thumb's rest x at pointer-down, that the travel is applied to.
 
 ## _restX()
 **Internal.** The thumb's x at rest for a value.
@@ -45,13 +45,22 @@ True from pointer-down until the release.
 Latches the drag, and keeps Control's focus rule.
 An override calls `super.onPointerDown(e)`.
 
-## onPointerMove
-Marks the press a drag once the pointer has moved.
-An override calls `super.onPointerMove()`.
-
 ## onPointerUp
-Ends a drag on the nearer side, reporting it with `edit` when that changes the value.
-An override calls `super.onPointerUp()`: it is what ends the drag.
+Ends the press.
+An override calls `super.onPointerUp()`.
+
+## onDragStart
+Marks the press a drag: the thumb now follows the pointer.
+An override calls `super.onDragStart(e)`.
+
+## onDrag
+Follows the pointer's travel since the press.
+An override calls `super.onDrag(e)`.
+
+## onDragEnd
+Ends a drag on the nearer side, reporting it with `edit` when that changes the value; a
+canceled drag puts the thumb back.
+An override calls `super.onDragEnd(e)`: it is what ends the drag.
 
 ## width
 A theme with a native switch size says so (`provided("theme").switchWidth`); otherwise 44, the common pill.
@@ -108,10 +117,10 @@ class Switch extends ValueControl [
     claim = x,
     dragging: boolean = false,
     _dragged: boolean = false,
-    _x0: number = 0,
+    _dx: number = 0,
     _grab: number = 0,
     _restX(on: boolean) -> number { return on ? width - _thumb.width - 2 : 2 },
-    _dragX() -> number { return Math.max(2, Math.min(width - _thumb.width - 2, _grab + app.pointerX - _x0)) },
+    _dragX() -> number { return Math.max(2, Math.min(width - _thumb.width - 2, _grab + _dx)) },
 
     onPointerDown(e: PointerEvent) {
         if (disabled) return
@@ -119,12 +128,14 @@ class Switch extends ValueControl [
         Focus.focus(this)
         dragging = true
         _dragged = false
-        _x0 = app.pointerX
+        _dx = 0
         _grab = _restX(checked)
         },
-    onPointerMove() { if (dragging && Math.abs(app.pointerX - _x0) > 3) _dragged = true },
-    onPointerUp() {
-        if (_dragged) {
+    onPointerUp() { dragging = false },
+    onDragStart(e: PointerEvent) { if (!disabled) { _dragged = true; _dx = e.deltaX } },
+    onDrag(e: PointerEvent) { _dx = e.deltaX },
+    onDragEnd(e: DragEndEvent) {
+        if (_dragged && !e.canceled) {
             const on = _dragX() + _thumb.width / 2 > width / 2
             if (on != checked) edit(on)
             }

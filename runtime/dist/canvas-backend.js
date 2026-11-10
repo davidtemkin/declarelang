@@ -128,7 +128,7 @@ import { replay, replayArea, rasterPad, rasterEntryCap, rasterTotalCap, listIsol
 import { applyFilterFallback, ctxFilterSupported, parseFilter } from "./canvas-filter.js";
 import { rasterWorkerAvailable, rasterInWorker } from "./raster-client.js";
 import { onDprChange } from "./dpr.js";
-import { routeInput, holdCaptureActive } from "./input.js";
+import { routeInput, fingerHeldByDrag, SLOP_TOUCH as TOUCH_SLOP } from "./input.js";
 import { hitWalk, wheelWalk, fieldWalk, contentExtentOf, cursorAt } from "./scene-walk.js";
 import { App, View } from "./view.js";
 import { rootToLocal } from "./interaction.js";
@@ -786,20 +786,34 @@ class Compositor {
             }
         }, { passive: false });
         canvas.addEventListener("touchmove", (e) => {
-            // a live hold-capture owns the finger regardless of the touchdown claim
-            if (holdCaptureActive()) {
-                e.preventDefault();
+            // a drag that holds the finger — from its start, or a hold-gated owner's
+            // hold — owns every move until release (drag.md R3)
+            if (fingerHeldByDrag()) {
+                if (e.cancelable)
+                    e.preventDefault();
                 return;
             }
             // An axis-scoped drag over a scrolling pane: one decision picks the drag
             // or the pane's session, never both (drag.md R3).
             const scoped = claim !== null && (claim.drag === "x" || claim.drag === "y");
-            if (scoped && axisVerdict === null && claimStart !== null && e.touches.length === 1) {
+            // R3's one moment and one test: the verdict is taken once the finger has
+            // travelled past the touch threshold, by its dominant axis (a tie is the
+            // claim's); until then — and after, while the event can be cancelled —
+            // a move along the claimed axis is refused to the platform, as the
+            // DOM's native pan-x/pan-y does
+            let along = false;
+            if (scoped && claimStart !== null && e.touches.length === 1) {
                 const t0 = e.touches[0];
                 const dx = Math.abs(t0.clientX - claimStart.x);
                 const dy = Math.abs(t0.clientY - claimStart.y);
-                if (dx + dy >= 4)
-                    axisVerdict = (claim.drag === "x" ? dx >= dy : dy >= dx) ? "ours" : "theirs";
+                along = claim.drag === "x" ? dx >= dy : dy >= dx;
+                if (axisVerdict === null && Math.hypot(dx, dy) > TOUCH_SLOP)
+                    axisVerdict = along ? "ours" : "theirs";
+                // …and a move along a pane's axis waits for the pane's session, not the page
+                if (e.cancelable && axisVerdict === null && (along || this.scrollLoop.touch !== null))
+                    e.preventDefault();
+                else if (along && e.cancelable && this.scrollLoop.touch === null)
+                    e.preventDefault();
             }
             if (scoped && axisVerdict === "ours" && this.scrollLoop.touch !== null) {
                 const t0 = e.touches[0];
@@ -807,7 +821,7 @@ class Compositor {
                 this.scrollLoop.touch = null;
             }
             // a touch scroll session owns the finger once it moves past the tap slop
-            if (this.scrollLoop.touch !== null && e.touches.length === 1 && !(scoped && axisVerdict === null)) {
+            if (this.scrollLoop.touch !== null && e.touches.length === 1 && !(scoped && axisVerdict === null) && axisVerdict !== "ours") {
                 const t0 = e.touches[0];
                 if (this.scrollLoop.touchMove(t0.clientX, t0.clientY, e.timeStamp)) {
                     e.preventDefault();
@@ -830,18 +844,8 @@ class Compositor {
                 e.preventDefault();
                 return;
             }
-            // The AXIS-SCOPED claim (claim-surface.md, D8 RULED): mirror the DOM's
-            // native pan-x/pan-y arbitration — decide ONCE per gesture by the
-            // dominant axis of the first meaningful movement, then latch (the same
-            // one-way rule every claim follows).
-            if (axisVerdict === null && claimStart !== null) {
-                const t0 = e.touches[0];
-                const dx = Math.abs(t0.clientX - claimStart.x);
-                const dy = Math.abs(t0.clientY - claimStart.y);
-                if (dx + dy >= 4)
-                    axisVerdict = (claim.drag === "x" ? dx >= dy : dy >= dx) ? "ours" : "theirs";
-            }
-            if (axisVerdict === "ours")
+            // The AXIS-SCOPED claim (claim-surface.md, D8 RULED), settled above.
+            if (axisVerdict === "ours" && e.cancelable)
                 e.preventDefault();
         }, { passive: false });
         const gestureEnd = (e) => {

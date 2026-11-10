@@ -26,7 +26,7 @@ export function allowedRef(ref) {
 export function isStructural(n) {
     return n.tag === "list" || n.tag === "quote" || n.tag === "rule" || n.tag === "code" || n.tag === "table";
 }
-export const POINTER_TYPES = ["pointerDown", "pointerUp", "click", "dblClick", "pointerMove", "pointerOver", "pointerOut", "hold", "contextMenu", "touchStart", "touchMove", "touchEnd", "touchCancel", "pinchStart", "pinch", "pinchEnd", "wheel"];
+export const POINTER_TYPES = ["pointerDown", "pointerUp", "click", "dblClick", "pointerMove", "dragStart", "drag", "dragEnd", "pointerOver", "pointerOut", "hold", "contextMenu", "touchStart", "touchMove", "touchEnd", "touchCancel", "pinchStart", "pinch", "pinchEnd", "wheel"];
 /** The raw-touch member of the family: declaring one of these is a view's
  *  statement that it owns multi-finger gestures in its subtree (the backend
  *  then stops the browser from claiming them — dom-backend setGestureOwner). */

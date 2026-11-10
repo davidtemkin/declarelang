@@ -288,19 +288,19 @@ await test("a dragged view sizes its container from where it was picked up — n
       View [ width = 200, height = 100 ],
       card: View [ y = 100, width = 80, height = 50,
         sy: number = 0,
-        onPointerDown(e: PointerEvent) { this.sy = this.y },
-        onPointerMove(e: PointerEvent) { this.y = this.sy + e.deltaY },
-        onPointerUp(e: PointerUpEvent) { this.y = 60 } ] ] ]`));
+        onDragStart(e: PointerEvent) { this.sy = this.y },
+        onDrag(e: PointerEvent) { this.y = this.sy + e.deltaY },
+        onDragEnd(e: DragEndEvent) { this.y = 60 } ] ] ]`));
   settle();
   const sink = app.box.card.$inputSink();
   assert.equal(app.box.contentHeight, 150, "before: the card's bottom");
-  sink("pointerDown", 10, 110, { deltaX: 0, deltaY: 0 });
-  sink("pointerMove", 10, 410, { deltaX: 0, deltaY: 300 }); settle();
+  sink("dragStart", 10, 110, { deltaX: 0, deltaY: 0 });
+  sink("drag", 10, 410, { deltaX: 0, deltaY: 300 }); settle();
   assert.equal(app.box.card.y, 400, "the card follows the hand");
   assert.equal(app.box.contentHeight, 150, "dragged far below: the box does not grow after it");
-  sink("pointerMove", 10, 10, { deltaX: 0, deltaY: -100 }); settle();
+  sink("drag", 10, 10, { deltaX: 0, deltaY: -100 }); settle();
   assert.equal(app.box.contentHeight, 150, "dragged up: the box does not collapse under it");
-  sink("pointerUp", 10, 10, { deltaX: 0, deltaY: -100 }); settle();
+  sink("dragEnd", 10, 10, { canceled: false, deltaX: 0, deltaY: -100 }); settle();
   assert.equal(app.box.contentHeight, 110, "the drop counts: the card's new bottom");
   app.discard();
 });
@@ -1525,11 +1525,11 @@ await test("check(): a method named on… that answers no event is an ordinary m
 });
 
 await test("compile: an on… method that answers no event warns, naming the handler one slip away", async () => {
-  const r = await compile(`App [ width = 100, height = 100, onPointerdown(e: PointerEvent) { }, onDay(n: number) -> number { return n } ]`, {});
+  const r = await compile(`App [ width = 100, height = 100, onPointerdown(e: PointerEvent) { }, onTally(n: number) -> number { return n } ]`, {});
   assert.notEqual(r.source, null, r.errors.map((e) => e.message).join("; "));
   const w = r.warnings.map((e) => e.message);
   assert.ok(w.some((m) => /'onPointerDown' is the handler, so 'onPointerdown' never fires/.test(m)), w.join("\n"));
-  assert.ok(w.some((m) => /'onDay' is an ordinary method/.test(m)), w.join("\n"));
+  assert.ok(w.some((m) => /'onTally' is an ordinary method/.test(m)), w.join("\n"));
 });
 
 await test("compile: an on… name the hint table knows is answered from it, before any handler a slip away", async () => {

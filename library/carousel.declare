@@ -35,7 +35,7 @@ The row's sideways displacement in pixels: `-page × width` at rest, the finger'
 during a drag, and the spring's in between. Every page's `x` derives from it.
 
 ## dragging
-True from pointer-down until the release.
+True while a drag is under way.
 
 ## clip
 On: the pages beside the current one are out of view until a drag brings them in.
@@ -43,14 +43,11 @@ On: the pages beside the current one are out of view until a drag brings them in
 ## claim
 `x`: a sideways drag is the carousel's, a vertical one stays the page's.
 
-## _x0
-**Internal.** The root-space pointer x at pointer-down.
-
 ## _o0
-**Internal.** The offset at pointer-down, that the pointer delta is applied to.
+**Internal.** The offset when the drag began, that the pointer's travel is applied to.
 
 ## _lastX
-**Internal.** The pointer x at the last move, for the release speed.
+**Internal.** The pointer's travel at the last move, for the release speed.
 
 ## _lastT
 **Internal.** The time of the last move, in milliseconds.
@@ -63,19 +60,19 @@ few moves: what tells a flick from a slow drag.
 **Internal.** Past the first or last page the drag meets resistance instead of tracking
 the finger: the pull is compressed toward half a page.
 
-## onPointerDown
+## onDragStart
 Latches the drag from wherever the row is, even mid-glide.
-An override calls `super.onPointerDown(e)`.
+An override calls `super.onDragStart(e)`.
 
-## onPointerMove
-Moves the row with the pointer, and keeps the speed.
-An override calls `super.onPointerMove()`.
+## onDrag
+Moves the row with the pointer's travel since the press, and keeps the speed.
+An override calls `super.onDrag(e)`.
 
-## onPointerUp
+## onDragEnd
 Chooses the page — one step for a drag past a third of the width or a flick faster than
-0.4 px/ms, otherwise none — and lets the spring carry the row there. A canceled release
-(the browser reclaimed the gesture) settles back on the current page.
-An override calls `super.onPointerUp(e)`: it is what ends the drag.
+0.4 px/ms, otherwise none — and lets the spring carry the row there. A canceled drag
+(Escape, a system interruption) settles back on the current page.
+An override calls `super.onDragEnd(e)`: it is what ends the drag.
 
 # CarouselLayout
 
@@ -124,7 +121,6 @@ class Carousel extends View [
     _glide: Spring [ attribute = offset, to = { classroot.dragging ? classroot.offset : -classroot.page * classroot.width },
         stiffness = 260, damping = 30, epsilon = 0.4 ],
 
-    _x0: number = 0,
     _o0: number = 0,
     _lastX: number = 0,
     _lastT: number = 0,
@@ -138,24 +134,23 @@ class Carousel extends View [
         return raw
         },
 
-    onPointerDown(e: PointerEvent) {
+    onDragStart(e: PointerEvent) {
         dragging = true
-        _x0 = app.pointerX
         _o0 = offset
-        _lastX = app.pointerX
+        _lastX = e.deltaX
         _lastT = Date.now()
         _v = 0
         },
-    onPointerMove() {
+    onDrag(e: PointerEvent) {
         if (!dragging) return
         const now = Date.now()
         const dt = now - _lastT
-        if (dt > 0) _v = 0.7 * ((app.pointerX - _lastX) / dt) + 0.3 * _v
-        _lastX = app.pointerX
+        if (dt > 0) _v = 0.7 * ((e.deltaX - _lastX) / dt) + 0.3 * _v
+        _lastX = e.deltaX
         _lastT = now
-        offset = _resist(_o0 + app.pointerX - _x0)
+        offset = _resist(_o0 + e.deltaX)
         },
-    onPointerUp(e: PointerUpEvent) {
+    onDragEnd(e: DragEndEvent) {
         if (!dragging) return
         dragging = false
         if (e.canceled) return

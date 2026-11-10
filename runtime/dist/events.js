@@ -40,6 +40,11 @@ export class PointerEvent {
  *  drag must not commit on it. */
 export class PointerUpEvent extends PointerEvent {
 }
+/** `onDragEnd` — the drag is over: released, or taken back (`canceled`) by a
+ *  system interruption, by Escape, or by the window losing focus. Commit on it
+ *  only when `canceled` is false. */
+export class DragEndEvent extends PointerUpEvent {
+}
 /** `onTouchStart` / `onTouchMove` / `onTouchEnd` / `onTouchCancel` — the
  *  multi-finger stream, which is a genuinely different payload from the
  *  single-point one above (this is why the touch handlers keep their own

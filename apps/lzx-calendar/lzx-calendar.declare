@@ -61,9 +61,10 @@ class EventBar [
         textColor = #4B5D6C, text = :title ],
 
     onPointerDown() { app.startDrag(:id) },
-    onPointerMove(e: PointerEvent) { app.dragMove(e.rootX, e.rootY) },
-    onPointerUp()   { app.endDrag() },
-    onClick() { if (!app.dragOccurred) app.selectEvent(:id, this.dayKey) }
+    onPointerUp()   { app.releaseDrag() },
+    onDrag(e: PointerEvent) { app.dragMove(e.rootX, e.rootY) },
+    onDragEnd(e: DragEndEvent) { app.endDrag(e.canceled) },
+    onClick() { app.selectEvent(:id, this.dayKey) }
     ]
 
 
@@ -242,9 +243,10 @@ class TimeEvent [
         textColor = #4B5D6C, width = { parent.width - this.x - 2 }, text = :ev.title ],
 
     onPointerDown() { app.startDrag(evId) },
-    onPointerMove(e: PointerEvent) { app.dragMove(e.rootX, e.rootY) },
-    onPointerUp()   { app.endDrag() },
-    onClick() { if (!app.dragOccurred) app.selectEvent(evId, this.dayKey) }
+    onPointerUp()   { app.releaseDrag() },
+    onDrag(e: PointerEvent) { app.dragMove(e.rootX, e.rootY) },
+    onDragEnd(e: DragEndEvent) { app.endDrag(e.canceled) },
+    onClick() { app.selectEvent(evId, this.dayKey) }
     ]
 
 
@@ -499,7 +501,6 @@ App [ width = 835, height = 600, fill = #1E3A49,
     openTab: number = 0,                  // accordion: 0 Notes / 1 Location / 2 Attendees
     dragId: number = -1,                  // event being dragged, or -1 (SPEC §6)
     dragArmed: boolean = false,           // moved since press → a drag, not a click
-    dragOccurred: boolean = false,        // a drag just finished → swallow the click
     dragOverKey: string = "",             // day cell under the pointer (hilite)
     dragX: number = 0,                    // last pointer position, app-relative
     dragY: number = 0,
@@ -718,7 +719,6 @@ App [ width = 835, height = 600, fill = #1E3A49,
     startDrag(id: number) {
         this.dragId = id
         this.dragArmed = false
-        this.dragOccurred = false
         const e = this.srcEvent(id)          // what the ghost that follows the pointer shows
         this.dragTitle = e != null ? e.title : ""
         this.dragCat = e != null ? e.category : ""
@@ -730,10 +730,9 @@ App [ width = 835, height = 600, fill = #1E3A49,
         this.dragY = ry
         this.dragOverKey = this.dayAtPoint(rx, ry)
         },
-    endDrag() {
+    endDrag(canceled: boolean) {
         if (this.dragId < 0) return
-        if (this.dragArmed) {
-            this.dragOccurred = true
+        if (this.dragArmed && !canceled) {
             const key = this.dayAtPoint(this.dragX, this.dragY)
             if (key != "") this.dropEvent(this.dragId, key)
             }
@@ -741,6 +740,10 @@ App [ width = 835, height = 600, fill = #1E3A49,
         this.dragArmed = false
         this.dragOverKey = ""
         },
+
+    // the press ended without becoming a drag (a click): nothing to drop
+
+    releaseDrag() { if (!this.dragArmed) { this.dragId = -1; this.dragOverKey = "" } },
     dropEvent(id: number, key: string) {
         const e = this.srcEvent(id)
         if (e == null) return

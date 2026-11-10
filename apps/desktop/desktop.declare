@@ -518,7 +518,7 @@ class DeskWindow extends Window [ width = 560, height = 400,
                 ? (app.darkMode ? gradient(0x3B3B40, 0x2E2E32) : gradient(0xFAFAFC, 0xE6E6EA))
                 : provided("theme").background },
         onPointerDown() { classroot.beginDrag() },
-        onPointerMove() { classroot.dragTo() },
+        onDrag() { classroot.dragTo() },
         onPointerUp(e: PointerUpEvent)   { classroot.endDrag(e.canceled) },
 
         // the hold rider: with onHold declared, the bar claims the touch only
@@ -656,7 +656,7 @@ class DeskWindow extends Window [ width = 560, height = 400,
             if ((inT || inB) && !(px < g + c || px >= w - g - c)) hz = ""
             return hz + vz
             },
-        onPointerMove() { if (classroot.sizeMode != "") classroot.moveSize() },
+        onDrag() { if (classroot.sizeMode != "") classroot.moveSize() },
         onPointerDown(e: PointerEvent) { const z = this.zone(e.x, e.y); if (z != "") classroot.beginSize(z) },
         onPointerUp() { classroot.sizeMode = "" },
 
@@ -1104,7 +1104,7 @@ class FilesColumn [ height = 100%, clip = true, fill = { provided("theme").backg
 
     grip: View [ x = { parent.width - 4 }, y = 0, width = 8, height = 100%, cursor = "col-resize",
         onPointerDown() { const w = classroot.win!; w.activateOnPress(); w.cwk = :depth; w.cw0 = parent.width; w.cpx0 = app.pointerX },
-        onPointerMove() { const w = classroot.win!; if (w.cwk == :depth) { const nw = Math.max(150, Math.min(460, w.cw0 + app.pointerX - w.cpx0)); const a = [...w.widths]; a[:depth] = nw; w.widths = a } },
+        onDrag() { const w = classroot.win!; if (w.cwk == :depth) { const nw = Math.max(150, Math.min(460, w.cw0 + app.pointerX - w.cpx0)); const a = [...w.widths]; a[:depth] = nw; w.widths = a } },
         onPointerUp() { classroot.win!.cwk = -1 }
         ]
     ]
@@ -1573,7 +1573,7 @@ class JotWindow extends DeskWindow [ width = 300, height = 250, chrome = false,
     strip: View [ x = 0, y = 0, width = 100%, height = { classroot.barH },
         fill = { classroot.active ? 0xFEEA3D : 0xFEF49C },
         onPointerDown() { classroot.beginDrag() },
-        onPointerMove() { classroot.dragTo() },
+        onDrag() { classroot.dragTo() },
         onPointerUp(e: PointerUpEvent)   { classroot.endDrag(e.canceled) },
         onHold() { classroot.activate() },   // as on the title bar: a touch drag begins at the hold, which also raises
 

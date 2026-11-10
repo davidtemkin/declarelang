@@ -16,7 +16,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const DIR = tempDir("declare-drag-edge-");
 
 const rows = Array.from({ length: 11 }, (_, i) => i === 9
-  ? `            handle: View [ width = 100%, height = 80, fill = #88a, HOLD onPointerMove(e: PointerEvent) { } ],`
+  ? `            handle: View [ width = 100%, height = 80, fill = #88a, HOLD onDrag(e: PointerEvent) { } ],`
   : `            View [ width = 100%, height = 80, fill = ${i % 2 ? "#ccc" : "#ddd"} ],`).join("\n");
 const program = (hold) => `App [ width = 390, height = 600,
     pane: View [ width = 100%, height = 100%, scrolls = y,
@@ -110,7 +110,7 @@ writeFileSync(join(DIR, "sideways.declare"), `App [ width = 400, height = 300,
 writeFileSync(join(DIR, "nested.declare"), `App [ width = 400, height = 300,
     outer: View [ width = 400, height = 300, scrolls = y,
         inner: View [ y = 20, width = 400, height = 200, scrolls = y, scrollStartY = 200,
-            card: View [ x = 40, y = 220, width = 100, height = 40, fill = #888888, onPointerMove(e: PointerEvent) { } ],
+            card: View [ x = 40, y = 220, width = 100, height = 40, fill = #888888, onDrag(e: PointerEvent) { } ],
             View [ width = 10, height = 400 ] ],
         View [ width = 10, height = 1200 ] ] ]`);
 
@@ -122,7 +122,7 @@ await test("a drag that began in an edge's band does not scroll that edge: a sli
 
 writeFileSync(join(DIR, "low.declare"), `App [ width = 400, height = 300,
     pane: View [ width = 400, height = 300, scrolls = y,
-        card: View [ x = 40, y = 255, width = 100, height = 30, fill = #888888, onPointerMove(e: PointerEvent) { } ],
+        card: View [ x = 40, y = 255, width = 100, height = 30, fill = #888888, onDrag(e: PointerEvent) { } ],
         View [ width = 10, height = 1200 ] ] ]`);
 
 await test("a drag that began near an edge and travels toward it scrolls that edge", () => {

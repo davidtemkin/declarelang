@@ -29,7 +29,7 @@ import { backdropEqual, fillEqual, filterList, filtersEqual, insetIsZero, insetL
 import { PINCH_TYPES, POINTER_TYPES, TOUCH_TYPES, allowedRef } from "./backend.js";
 import { Tooltips } from "./tooltips.js";
 import { installScrollAnchor, noteScrollRequest, dropWaitingScroll } from "./scroll-anchor.js";
-import { dragMoved, dragEnded } from "./drag-autoscroll.js";
+import { dragMoved, dragEnded, dragStarted, dragDeltas } from "./drag-autoscroll.js";
 let viewCreator = null;
 export function provideViewCreator(fn) {
     viewCreator = fn;
@@ -1744,19 +1744,23 @@ export class View extends Node {
             // plus whatever fact this kind carries (`canceled`, the finger list).
             // Every sender hands the ROOT point, except a wheel, which each
             // renderer's own walk delivers locally with its root point beside it.
-            const drags = typeof self.onPointerMove === "function";
-            if (drags && type === "pointerDown")
+            // The drag's own behaviours ride the drag events (docs/system-design/
+            // drag.md): the view's place is held from the start, and a drag near a
+            // scroller's edge scrolls it and hears `onDrag` again each frame
+            // (drag-autoscroll.ts).
+            if (type === "dragStart") {
                 this.$pressHome = this.bounds();
-            else if (drags && type === "pointerMove")
-                this.$freezeHome(true);
-            if (handled)
-                fireEvent(this, type, pointerPayload(this, type, x, y, extra));
-            // A DRAG near a scroller's edge scrolls it, and the drag hears its move
-            // again each frame (drag-autoscroll.ts).
-            if (type === "pointerMove" && drags) {
-                dragMoved(this, x, y, extra, (x2, y2, e2) => fireEvent(this, "pointerMove", pointerPayload(this, "pointerMove", x2, y2, e2)));
+                dragStarted(this);
             }
-            else if (type === "pointerUp") {
+            else if (type === "drag")
+                this.$freezeHome(true);
+            const payload = pointerPayload(this, type, x, y, type === "drag" || type === "dragStart" || type === "dragEnd" ? dragDeltas(this, extra) : extra);
+            if (handled)
+                fireEvent(this, type, payload);
+            if (type === "drag") {
+                dragMoved(this, x, y, extra, (x2, y2, e2) => fireEvent(this, "drag", pointerPayload(this, "drag", x2, y2, dragDeltas(this, e2))));
+            }
+            else if (type === "dragEnd") {
                 dragEnded();
                 this.$pressHome = null;
                 this.$freezeHome(false);
@@ -1797,7 +1801,9 @@ export class View extends Node {
             wantsHold: has("hold"),
             wantsTouch: TOUCH_TYPES.some(has),
             wantsPinch: PINCH_TYPES.some(has),
-            wantsDrag: has("pointerMove"),
+            wantsDrag: has("dragStart") || has("drag") || has("dragEnd"),
+            wantsMove: has("pointerMove"),
+            takesClicks: has("click") || has("dblClick") || has("hold") || this.link !== "",
             wantsWheel: has("wheel"),
             claimAxis: this.claim,
             wantsContext: has("contextMenu"),

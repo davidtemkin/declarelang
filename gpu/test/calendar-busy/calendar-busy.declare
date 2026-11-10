@@ -227,7 +227,7 @@ class Ev [ clip = true,
         ],
 
     onPointerDown(e: PointerEvent) { app.drag.start(:id, this.width, this.height, e.x, e.y) },
-    onPointerMove()  { app.drag.follow() },
+    onDrag()         { app.drag.follow() },
     onPointerUp(e: PointerUpEvent)   { app.drag.drop(e.rootX, e.rootY, e.canceled) },
 
     // The hold moves this chip's touch claim to the press-and-hold (a drag view

@@ -36,7 +36,7 @@ await test("a control below a clip that does not scroll is reported; one a scrol
     deck: Carousel [ x = 850, width = 200, height = 100,
         View [ Button [ label = "One" ] ], View [ Button [ label = "Two" ] ] ],
     surface: View [ x = 850, y = 150, width = 200, height = 100, clip = true,
-        onPointerMove(e: PointerEvent) { },
+        onDrag(e: PointerEvent) { },
         View [ width = 600, height = 100, Button [ x = 400, label = "Panned to" ] ] ],
     parked: Button [ x = 5000, label = "Off-stage on purpose" ] ]`);
   assert.equal(r.boot.ok, true, JSON.stringify(r.boot));

@@ -82,7 +82,7 @@ export const fingerHeldByDrag = () => dragFinger || holdCapture;
  *  how a user scrolls. (The calendar hand-rolled exactly the mouse figure for
  *  its drag threshold before the runtime owned this rule.) */
 const SLOP_MOUSE = 4;
-const SLOP_TOUCH = 10;
+export const SLOP_TOUCH = 10;
 /** A second click within this window on the same view is a double-click. */
 const DBL_MS = 400;
 /** A press held this long, in place, is a hold (the tap-hold / click-hold). */
@@ -233,50 +233,88 @@ topLevel = true) {
         hoveredKey = null;
         hoveredSink = null;
     };
-    // ── DRAG HANDOFF ─────────────────────────────────────────────────────────
-    // A drag is claimed by declaring onPointerMove, and the claim covers the
-    // declaring view's subtree — so a press that lands on a control inside it (a
-    // Button on a Carousel's page) and then travels is the claimant's drag, as
-    // hold and pinch already go to their nearest owner. A press that stays put is
-    // the control's. When the press travels, the control's press ends canceled,
-    // as it does when the browser takes a finger for a scroll, and the owner's
-    // drag begins where the press landed: its pointerDown at that point, its moves
-    // measured from it. One owner per gesture, chosen once; nothing propagates.
-    // When it travels: a finger or a pen, past the slop (as a scroll takes it);
-    // a mouse, when it leaves the control (a mouse inside a control is still
-    // pointing at it). Not when the pressed view claims a drag itself (a Slider,
-    // a Switch's thumb: its own nearest owner), not across the owner's axis, not
-    // when a mouse press began on text or a field (that drag selects), and, for
-    // an owner that claims from a hold, at the hold rather than here — for a finger
-    // or a pen only: the hold is there so a swipe still scrolls, and a mouse drag
-    // never competes with scrolling, so a mouse leaving the control hands off at once.
-    const handOff = (from, to) => {
-        dragDecided = true;
-        disarmHold();
-        from.sink("pointerUp", lastX, lastY, { canceled: true, ...moved(lastX, lastY) });
-        held = { key: to.key, sink: to.sink, wantsDrag: true, x: 0, y: 0 };
-        if (pressFinger && to.axis === "both" && !to.fromHold)
-            dragFinger = true;
-        to.sink("pointerDown", pressX, pressY, { deltaX: 0, deltaY: 0 });
-    };
-    const travelled = (under, x, y) => {
+    // ── THE DRAG (docs/system-design/drag.md) ───────────────────────────────
+    // A press is a click or a drag, never both, and nothing is reported as a drag
+    // until it is one. The pressed view keeps the raw press and release; the drag
+    // owner — the pressed view if it declares a drag event, else its nearest
+    // ancestor that does — hears onDragStart, onDrag and onDragEnd. A drag starts
+    // AT THE PRESS when the pressed view takes no clicks (subject, for a finger,
+    // to the owner's axis, its hold and the scrollers between: R3, R9); otherwise
+    // once the press wanders past the threshold — and then the press is no click.
+    // Raw moves go to the nearest view declaring onPointerMove, fixed at the press.
+    let dragOwner = null;
+    let dragging = false; // onDragStart delivered
+    let dragDone = false; // ended early (Escape, focus loss, a pinch): no second onDragEnd
+    let dragAborted = false; // …and taken back (Escape, focus loss)
+    let pressEnded = false; // the pressed view's press already ended (a canceled up)
+    let moveTo = null; // R7's receiver for this press
+    let holdReady = false; // a hold-gated owner's hold fired (touch): the next move drags
+    let kept = { x: false, y: false };
+    const startDrag = (x, y) => {
+        if (dragOwner === null || dragging || dragDone)
+            return;
         const h = held;
-        const to = h?.drag;
-        if (h === null || to === undefined || to.key === h.key || h.wantsDrag === true) {
-            dragDecided = true;
+        // the owner is an ancestor: the pressed view's press ends here (R2)
+        if (h !== null && dragOwner.key !== h.key && !pressEnded) {
+            h.sink("pointerUp", x, y, { canceled: true, ...moved(x, y) });
+            pressEnded = true;
+        }
+        dragging = true;
+        dragDecided = true;
+        holdReady = false;
+        disarmHold();
+        // from here the finger is the drag's whole: the backends refuse the
+        // platform's pan, and a scroll under it is the program's (R3)
+        if (pressFinger)
+            dragFinger = true;
+        dragOwner.sink("dragStart", pressX, pressY, moved(x, y));
+    };
+    const endDrag = (x, y, canceled) => {
+        if (dragOwner === null || !dragging || dragDone)
+            return;
+        dragDone = true;
+        if (canceled)
+            dragAborted = true;
+        dragOwner.sink("dragEnd", x, y, { canceled, ...moved(x, y) });
+    };
+    const resetDrag = () => {
+        dragOwner = null;
+        dragging = false;
+        dragDone = false;
+        dragAborted = false;
+        pressEnded = false;
+        moveTo = null;
+        holdReady = false;
+        kept = { x: false, y: false };
+    };
+    /** A move of the held press, at root (x, y): does the drag start here? */
+    const considerDrag = (x, y) => {
+        if (dragOwner === null || dragging || dragDone || pressAux || pinchedPress)
+            return;
+        if (holdReady) {
+            startDrag(x, y);
+            return;
+        } // after a hold, the first move
+        if (dragDecided || !wandered)
+            return;
+        dragDecided = true;
+        if (!pressFinger) {
+            // mouse rules: a press on selectable or editable text selects (R2)
+            if (pressOnSelectable)
+                return;
+            startDrag(x, y);
             return;
         }
-        if (to.fromHold && pressFinger)
-            return; // a finger's is decided at the hold
-        if (pressFinger ? !wandered : under !== null && under.key === h.key)
+        // touch and pen: a hold-gated owner moved before its hold is the platform's
+        // scroll; an axis — the owner's claim less the scrollers' axes — is judged
+        // once, here, by the dominant axis of the travel (R3's one test)
+        if (dragOwner.fromHold)
             return;
-        dragDecided = true;
-        if (!pressFinger && pressOnSelectable)
-            return;
-        const dx = Math.abs(x - pressX), dy = Math.abs(y - pressY);
-        if ((to.axis === "x" && dx <= dy) || (to.axis === "y" && dy <= dx))
-            return;
-        handOff(h, to);
+        const ax = (dragOwner.axis === "both" || dragOwner.axis === "x") && !kept.x;
+        const ay = (dragOwner.axis === "both" || dragOwner.axis === "y") && !kept.y;
+        const across = Math.abs(x - pressX) >= Math.abs(y - pressY);
+        if ((across && ax) || (!across && ay))
+            startDrag(x, y);
     };
     const listen = (type, handle) => {
         const listener = (e) => {
@@ -435,6 +473,11 @@ topLevel = true) {
                 if (fa.owner.key === fb.owner.key) {
                     const d = Math.hypot(fb.x - fa.x, fb.y - fa.y);
                     if (d > 0) {
+                        // a pinch ends a drag under way, not canceled, before it starts (R6)
+                        if (dragging && !dragDone && dragOwner !== null) {
+                            dragDone = true;
+                            dragOwner.sink("dragEnd", lastX, lastY, { canceled: false, ...moved(lastX, lastY) });
+                        }
                         pinchGesture = { owner: fa.owner, a: ida, b: idb, startDist: d, scale: 1 };
                         const cx = (fa.x + fb.x) / 2;
                         const cy = (fa.y + fb.y) / 2;
@@ -492,10 +535,8 @@ topLevel = true) {
         pressY = p0.y;
         pressId = e.pointerId;
         pressFinger = e.pointerType !== "mouse";
-        {
-            const own = t !== null && t.drag !== undefined && t.drag.key === t.key ? t.drag : undefined;
-            dragFinger = pressFinger && t !== null && t.wantsDrag === true && (own?.axis ?? "both") === "both" && !(own?.fromHold ?? t.wantsHold === true);
-        }
+        dragFinger = false;
+        resetDrag();
         pressEl = typeof Element !== "undefined" && e.target instanceof Element ? e.target : null;
         lastX = p0.x;
         lastY = p0.y;
@@ -551,6 +592,16 @@ topLevel = true) {
             // then starts it, so onPinchStart has the last word over what the press began
             t.sink("pointerDown", p0.x, p0.y, { deltaX: 0, deltaY: 0 });
             pinchDown(e, t, p0);
+            // the drag this press may become (R2, R3, R9)
+            dragOwner = t.drag ?? null;
+            moveTo = t.move ?? null;
+            kept = t.kept ?? { x: false, y: false };
+            if (dragOwner !== null && !pressAux && t.takesClicks !== true && !(pressOnSelectable && !pressFinger)) {
+                if (!pressFinger)
+                    startDrag(p0.x, p0.y);
+                else if (dragOwner.axis === "both" && !dragOwner.fromHold && !kept.x && !kept.y)
+                    startDrag(p0.x, p0.y);
+            }
             heldAbove = false;
             const holder = t.hold ?? (t.wantsHold === true ? t : undefined);
             if (holder !== undefined) {
@@ -566,21 +617,23 @@ topLevel = true) {
                         // The HOLD-GATED claim engages here (see holdCaptureActive): on a
                         // view that also drags, a held touch finger now belongs to the
                         // app — the backends keep the browser's pan out from this moment.
-                        if (touch && target.wantsDrag === true)
-                            holdCapture = true;
                         // held on an ancestor's behalf: the long-press was the gesture, so
                         // the release does not also click the child it began on
                         if (holder.key !== target.key)
                             heldAbove = true;
-                        // …and an ancestor that drags from the hold takes the press now
-                        // (DRAG HANDOFF): the finger is its, and the claim engages
-                        const to = target.drag;
-                        if (!dragDecided && to !== undefined && to.fromHold && to.key === holder.key && to.key !== target.key && target.wantsDrag !== true) {
-                            handOff(target, to);
-                            if (touch)
-                                holdCapture = true;
-                        }
                         holder.sink("hold", lastX, lastY, moved(lastX, lastY));
+                        // a hold-gated drag (touch): the finger is the owner's from here — no
+                        // scroll can take it — and the drag starts at the next move (R3); a
+                        // child's press ends now
+                        const own = dragOwner;
+                        if (touch && own !== null && own.fromHold && own.key === holder.key && !dragging) {
+                            holdCapture = true;
+                            holdReady = true;
+                            if (own.key !== target.key && !pressEnded) {
+                                target.sink("pointerUp", lastX, lastY, { canceled: true, ...moved(lastX, lastY) });
+                                pressEnded = true;
+                            }
+                        }
                     }
                 }, HOLD_MS);
             }
@@ -662,7 +715,15 @@ topLevel = true) {
                 return;
             }
         }
-        if (held === null || (pressId !== null && e.pointerId !== pressId))
+        if (held === null) {
+            // hovering: every move goes to the nearest onPointerMove up the chain (R7)
+            if (t?.move !== undefined) {
+                const q = rootPoint(e);
+                t.move.sink("pointerMove", q.x, q.y, { deltaX: 0, deltaY: 0, down: false });
+            }
+            return;
+        }
+        if (pressId !== null && e.pointerId !== pressId)
             return;
         const p = rootPoint(e);
         lastX = p.x;
@@ -677,16 +738,17 @@ topLevel = true) {
                 disarmHold();
             }
         }
-        if (!dragDecided)
-            travelled(t, p.x, p.y);
+        considerDrag(p.x, p.y);
         if (!pressOnSelectable)
             suppressSelection(true);
         if (held.wantsTouch === true && fingers.has(e.pointerId)) {
             fingers.set(e.pointerId, { id: e.pointerId, x: p.x, y: p.y });
             held.sink("touchMove", p.x, p.y, { touches: touchList(), changed: [{ id: e.pointerId, x: p.x, y: p.y }] });
         }
-        if (!pinchedPress)
-            held.sink("pointerMove", p.x, p.y, moved(p.x, p.y));
+        if (!pinchedPress && moveTo !== null)
+            moveTo.sink("pointerMove", p.x, p.y, { ...moved(p.x, p.y), down: true });
+        if (dragging && !dragDone && !pinchedPress && dragOwner !== null)
+            dragOwner.sink("drag", p.x, p.y, moved(p.x, p.y));
     });
     // A second contact's lift or cancel: its own stream ends; the held press goes on.
     const otherEnds = (e, canceled) => {
@@ -751,9 +813,20 @@ topLevel = true) {
         }
         if (captor !== null) {
             // The presser captured the pointer, so the release goes to IT (root-space
-            // coords) — a drag drops on its owner even released over another view.
+            // coords) — unless its press already ended (a drag took it); then the
+            // drag's end, and a click only for a press that never became a drag.
             const p = rootOf(e);
-            captor.sink("pointerUp", p.x, p.y, { canceled: false, ...moved(p.x, p.y) });
+            const wasDrag = dragging;
+            if (!pressEnded)
+                captor.sink("pointerUp", p.x, p.y, { canceled: dragAborted, ...moved(p.x, p.y) });
+            endDrag(p.x, p.y, false);
+            const clickable = !wasDrag && !pressEnded;
+            resetDrag();
+            if (!clickable) {
+                if (e.pointerType === "touch")
+                    clearHover();
+                return;
+            }
             // Click rule: press and release resolved to the same view, and the
             // pointer never wandered past slop (a moved finger was swiping, whatever
             // it started on). An excursion that returns still counts as wandering —
@@ -831,8 +904,11 @@ topLevel = true) {
         }
         if (captor !== null) {
             const p = rootOf(e);
-            captor.sink("pointerUp", p.x, p.y, { canceled: true, ...moved(p.x, p.y) });
+            if (!pressEnded)
+                captor.sink("pointerUp", p.x, p.y, { canceled: true, ...moved(p.x, p.y) });
+            endDrag(p.x, p.y, true); // a system interruption (R4)
         }
+        resetDrag();
         if (e.pointerType === "touch")
             clearHover();
     });
@@ -887,10 +963,39 @@ topLevel = true) {
                 if (fingers.size === 0)
                     touchSink = null;
             }
-            captor.sink("pointerUp", lastX, lastY, { canceled: true, ...moved(lastX, lastY) });
+            if (!pressEnded)
+                captor.sink("pointerUp", lastX, lastY, { canceled: true, ...moved(lastX, lastY) });
+            resetDrag(); // no drag had started: a started one refuses the pan (R3)
             clearHover();
         };
         onWindow("scroll", scrollListener, true);
+    }
+    // A drag the person abandons: Escape, or the window losing focus, ends it
+    // canceled (R4). Escape is consumed — nothing else hears it (an open Sheet does
+    // not also close). The press goes on until its release, which then clicks
+    // nothing and ends nothing twice.
+    {
+        const escListener = (e) => {
+            if (!alive()) {
+                window.removeEventListener("keydown", escListener, true);
+                return;
+            }
+            if (e.key !== "Escape" || held === null || !dragging || dragDone)
+                return;
+            endDrag(lastX, lastY, true);
+            e.preventDefault();
+            e.stopImmediatePropagation();
+        };
+        onWindow("keydown", escListener, true);
+        const blurListener = () => {
+            if (!alive()) {
+                window.removeEventListener("blur", blurListener);
+                return;
+            }
+            if (held !== null && dragging && !dragDone)
+                endDrag(lastX, lastY, true);
+        };
+        onWindow("blur", blurListener);
     }
     return () => { for (const off of offs.splice(0))
         off(); };

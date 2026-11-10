@@ -615,6 +615,7 @@ const VOCAB_NOTE = {
   MotionCurve: "an easing curve for an `Animator`",
   PointerEvent: "a pointer went down, moved, or a view was clicked",
   PointerUpEvent: "a pointer release — carries **`canceled`**, true when the browser reclaimed the gesture",
+  DragEndEvent: "a drag's end — a release, or taken back (**`canceled`**) by a system interruption, Escape, or the window losing focus",
   TouchEvent: "the multi-finger stream — carries the finger list",
   Touch: "one finger within a `TouchEvent`",
   WheelEvent: "a wheel or trackpad gesture — carries **`pinch`**, true for a trackpad pinch",
@@ -682,7 +683,7 @@ const sharedTypesDoc = (spine) => {
   const cell = (s) => "`" + String(s).replace(/\|/g, "\\|") + "`";
   const note = (n) => (VOCAB_NOTE[n] ? " — " + VOCAB_NOTE[n] : "");
   const iface = (n) => t.interfaces.find((i) => i.name === n);
-  const PAYLOADS = ["PointerEvent", "PointerUpEvent", "WheelEvent", "TouchEvent", "Touch", "KeyEvent", "FocusGeometry", "TooltipEvent", "StreamMessage"];
+  const PAYLOADS = ["PointerEvent", "PointerUpEvent", "DragEndEvent", "WheelEvent", "TouchEvent", "Touch", "KeyEvent", "FocusGeometry", "TooltipEvent", "StreamMessage"];
   const draw = iface("DrawContext");
   const props = (draw?.members ?? []).filter((m) => !m.includes("("));
   const calls = (draw?.members ?? []).filter((m) => m.includes("("));
@@ -783,7 +784,7 @@ const TYPE_GROUPS = [
   ["Values", ["Color", "Fill", "Gradient", "Length", "Percent", "Radius", "Inset", "ClipPath", "Stroke", "BoxStroke", "GlyphOutline",
               "Shadow", "ImageFilter", "FilterList", "Theme", "MotionCurve", "DataCursor", "TextMetrics", "IslandMessage", "IslandNavigation", "DelayHandle", "AccessibilitySettings"]],
   ["Text", ["TextStyle", "TextStyles", "TagStyles", "BlockGeometry", "RichTextLayout"]],
-  ["Event payloads", ["PointerEvent", "PointerUpEvent", "TouchEvent", "Touch", "WheelEvent", "PinchEvent",
+  ["Event payloads", ["PointerEvent", "PointerUpEvent", "DragEndEvent", "TouchEvent", "Touch", "WheelEvent", "PinchEvent",
                       "KeyEvent", "FocusGeometry", "TooltipEvent", "StreamMessage", "ChangeEvent", "ValueChange",
                       "FilesOverEvent", "FilesDropEvent", "ClipboardEvent"]],
   ["Files", ["File", "FilePickOptions"]],

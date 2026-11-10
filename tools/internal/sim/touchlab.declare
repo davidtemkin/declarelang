@@ -53,7 +53,7 @@ App [ width = { app.hostWidth }, height = { app.hostHeight }, fill = 0x101418,
             fill = { this.lifted ? 0xE08030 : 0x3A4450 },
             onClick()                      { this.taps = this.taps + 1 },
             onHold(e: PointerEvent)        { this.lifted = true; this.held = this.held + 1 },
-            onPointerMove(e: PointerEvent) { if (this.lifted) this.drags = this.drags + 1 },
+            onDrag(e: PointerEvent)        { if (this.lifted) this.drags = this.drags + 1 },
             onPointerUp(e: PointerUpEvent) {
                 if (e.canceled) this.gone = this.gone + 1;
                 this.lifted = false;

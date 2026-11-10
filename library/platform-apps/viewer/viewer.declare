@@ -915,9 +915,9 @@ App [ fill = { provided("theme").background },
             dragging: boolean = false,
             fill = { dragging || hovered ? provided("theme").accentSecondary : provided("theme").line },
             drag(y: number) { parent.split = Math.max(120, Math.min(parent.height - 160, y)) },
-            onPointerDown()  { dragging = true },
-            onPointerMove()  { if (dragging) drag(app.pointerY - app.barH) },
-            onPointerUp()    { dragging = false }
+            onDragStart()    { dragging = true },
+            onDrag()         { if (dragging) drag(app.pointerY - app.barH) },
+            onDragEnd()      { dragging = false }
             ],
 
         // the error sandwich: the last recompile's report in full, only while one

@@ -5,9 +5,8 @@ A bounded number by drag. Same value contract as every control — `value` is th
 attribute, **`commit` owns the destination** (default: itself) — and a drag is one
 edit: the thumb is the person's until they let go, committed at every move by default,
 or once at the release with `commitOn = "end"`. Pressing the track jumps to that position (local
-coordinates); the drag then follows the pointer by root-space delta
-(`app.pointerX`), so it survives the pointer leaving the control. Arrow keys
-nudge by `step`.
+coordinates); the drag then follows the pointer by its travel since the press, so it survives
+the pointer leaving the control. Arrow keys nudge by `step`.
 
 ```declare
 col: View [ x = 20, y = 20,
@@ -54,9 +53,6 @@ True from pointer-down until the captured release. **The `pressed` intrinsic
 deliberately will not do here** — it is hit-chain-based, so it goes false the moment the
 pointer leaves the thumb, while a drag must survive exactly that.
 
-## _x0
-**Internal.** The root-space pointer anchor captured at drag start.
-
 ## _v0
 **Internal.** The value at drag start, that the pointer delta is applied to.
 
@@ -76,10 +72,10 @@ under hover and press. The other value of the same token.
 Jumps the value to the pressed position, claims focus, and latches the drag.
 An override calls `super.onPointerDown(e)`.
 
-## onPointerMove
-Tracks the drag by **root-space** pointer delta, so the handle keeps up with a pointer
-that has left the control.
-An override calls `super.onPointerMove()`.
+## onDrag
+Tracks the drag by the pointer's travel since the press, so the handle keeps up with a
+pointer that has left the control.
+An override calls `super.onDrag(e)`.
 
 ## onPointerUp
 Ends the drag.
@@ -145,12 +141,11 @@ class Slider extends ValueControl [
 
     commit(v: number) { value = v },
 
-    // the fraction the visuals share; drag bookkeeping (root-space anchor)
+    // the fraction the visuals share; drag bookkeeping (the value at the press)
 
     // (clamped: a value set past the range is drawn at its end, never past the track)
 
     frac: number = { Math.max(0, Math.min(1, (shown - min) / ((max - min) || 1))) },
-    _x0: number = 0,
     _v0: number = 0,
 
     // The drag latch: the pointer is captured for the gesture, so the drag must
@@ -172,10 +167,9 @@ class Slider extends ValueControl [
         _v0 = quant(min + (max - min) * ((e.x - 9) / (width - 18)))
         beginEdit()
         edit(_v0)
-        _x0 = app.pointerX
         },
     onPointerUp()   { if (dragging) { dragging = false; endEdit() } },
-    onPointerMove() { if (dragging) edit(quant(_v0 + (app.pointerX - _x0) / (width - 18) * (max - min))) },
+    onDrag(e: PointerEvent) { if (dragging) edit(quant(_v0 + e.deltaX / (width - 18) * (max - min))) },
     accessibilityIncrement() { if (!disabled) edit(quant(shown + step)) },
     accessibilityDecrement() { if (!disabled) edit(quant(shown - step)) },
 

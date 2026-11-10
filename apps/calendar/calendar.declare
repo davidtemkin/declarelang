@@ -103,9 +103,10 @@ class Events extends DataSource [ schema = [ events[]: Event ],
 /*
 ## Dragging
 
-A drag in progress: which event, whether the pointer has moved far enough to
-make it a drag, the day under the pointer, and where on the chip it was taken.
-The chip, the cells and the ghost all read it; a drop is one move of the event.
+A drag in progress: which event, whether it has become a drag (the runtime
+decides: a press that wanders, or a hold on touch), the day under the pointer,
+and where on the chip it was taken. The chip, the cells and the ghost all read
+it; a drop is one move of the event.
 */
 
 class Drag extends Node [
@@ -116,20 +117,26 @@ class Drag extends Node [
     grabY: number = 0,
     chipW: number = 0,
     chipH: number = 0,
-    downX: number = 0,
-    downY: number = 0,
+    dragging: boolean = false,
 
     start(id: number, w: number, h: number, gx: number, gy: number) {
         this.id = id; this.chipW = w; this.chipH = h; this.grabX = gx; this.grabY = gy
-        this.moving = false; this.target = ""; this.downX = app.pointerX; this.downY = app.pointerY
+        this.moving = false; this.dragging = false; this.target = ""
+        },
+    begin() {
+        if (id < 0) return
+        dragging = true
+        moving = true
+        target = app.dayAt(app.pointerX, app.pointerY)?.key ?? ""
         },
     follow() {
-        if (id < 0) return
-        if (!moving) {
-            const dx = app.pointerX - downX, dy = app.pointerY - downY
-            if (dx * dx + dy * dy > 16) moving = true
-            }
-        if (moving) target = app.dayAt(app.pointerX, app.pointerY)?.key ?? ""
+        if (id >= 0 && dragging) target = app.dayAt(app.pointerX, app.pointerY)?.key ?? ""
+        },
+
+    // the press ended without becoming a drag (a tap, or a hold let go in place)
+
+    release() {
+        if (!dragging) { id = -1; moving = false; target = "" }
         },
 
     // The chip's hold fired: lift the ghost at once, before any movement. On
@@ -151,7 +158,7 @@ class Drag extends Node [
         const day = app.dayAt(px, py)
         if (moving && !canceled && day != null)
             app.events.move(id, day.y, day.m, day.d, app.blockness > 0.5 ? app.minuteAt(py - grabY) : null)
-        id = -1; moving = false; target = ""
+        id = -1; moving = false; dragging = false; target = ""
         }
     ]
 
@@ -232,8 +239,10 @@ class Ev extends Control [ clip = true,
         ],
 
     onPointerDown(e: PointerEvent) { app.drag.start(:id, this.width, this.height, e.x, e.y) },
-    onPointerMove()  { app.drag.follow() },
-    onPointerUp(e: PointerUpEvent)   { app.drag.drop(e.rootX, e.rootY, e.canceled) },
+    onPointerUp()    { app.drag.release() },
+    onDragStart()    { app.drag.begin() },
+    onDrag()         { app.drag.follow() },
+    onDragEnd(e: DragEndEvent) { app.drag.drop(e.rootX, e.rootY, e.canceled) },
 
     // The hold moves this chip's touch claim to the press-and-hold (a drag view
     // that also holds claims nothing at touchdown) — a quick swipe over a chip

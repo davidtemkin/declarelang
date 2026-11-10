@@ -607,13 +607,13 @@ await test("a start sheet is a drawer at every width, and a swipe back past a qu
     assert.equal(app.nav.width, 320, "its own width, with the context still showing beside it");
     assert.equal(app.nav.height, 700, "the full height");
     assert.equal(Math.round(app.nav.x), 0, "slid in to the start edge");
-    app.nav._grip.onPointerMove({ x: 0, y: 0, deltaX: -60, deltaY: 4 }); settle();
+    app.nav._grip.onDrag({ x: 0, y: 0, deltaX: -60, deltaY: 4 }); settle();
     assert.equal(Math.round(app.nav.x), -60, "it follows a swipe back");
-    app.nav._grip.onPointerUp({ x: 0, y: 0, deltaX: -60, deltaY: 4, canceled: false }); settle();
+    app.nav._grip.onDragEnd({ x: 0, y: 0, deltaX: -60, deltaY: 4, canceled: false }); settle();
     assert.equal(app.nav._dragX, 0, "a short swipe lets it spring back");
     assert.equal(app.open, true);
-    app.nav._grip.onPointerMove({ x: 0, y: 0, deltaX: -120, deltaY: 0 }); settle();
-    app.nav._grip.onPointerUp({ x: 0, y: 0, deltaX: -120, deltaY: 0, canceled: false }); settle();
+    app.nav._grip.onDrag({ x: 0, y: 0, deltaX: -120, deltaY: 0 }); settle();
+    app.nav._grip.onDragEnd({ x: 0, y: 0, deltaX: -120, deltaY: 0, canceled: false }); settle();
     assert.equal(app.open, false, "past a quarter of its width it closes, through input");
     frames(120);
     assert.equal(app.nav._dragX, 0, "and starts clean next time");

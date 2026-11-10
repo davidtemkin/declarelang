@@ -458,7 +458,6 @@ class DataGrid extends Table [
             moved: boolean = false,
             dragX: number = 0,
             x0: number = 0,
-            p0: number = 0,
 
             // the lifted ghost is unmistakably in hand: an accent-edged,
             // shadowed, rounded card floating over its neighbors
@@ -469,30 +468,30 @@ class DataGrid extends Table [
             cornerRadius = { dragging && moved ? 6 : activeHere ? provided("theme").gridCellCornerRadius : 0 },
             opacity = { dragging && moved ? 0.95 : 1 },
 
-            onPointerDown(e: PointerEvent) {
+            // a press that stays put is the click — the sort; one that wanders
+            // drags the column (the runtime tells them apart)
+
+            onClick() { if ((classroot as DataGrid)._isDataGrid === true) (classroot as DataGrid).headerClick(colid) },
+            onDragStart(e: PointerEvent) {
                 if ((classroot as DataGrid)._isDataGrid !== true) return
                 dragging = true
-                moved = false
+                moved = true
                 x0 = this.x
-                dragX = this.x
-                p0 = app.pointerX
+                dragX = this.x + e.deltaX
+                this.raise()
                 },
-            onPointerMove() {
+            onDrag(e: PointerEvent) {
                 if (!dragging) return
-                const dx = app.pointerX - p0
-                if (!moved && Math.abs(dx) > 3) { moved = true; this.raise() }
-                dragX = x0 + dx
-                if (moved) {
-                    (classroot as DataGrid)._dragCol = colid
-                    ;(classroot as DataGrid)._dropAt = (classroot as DataGrid)._dropIndexFor(dragX + :width / 2)
-                    }
+                dragX = x0 + e.deltaX
+                ;(classroot as DataGrid)._dragCol = colid
+                ;(classroot as DataGrid)._dropAt = (classroot as DataGrid)._dropIndexFor(dragX + :width / 2)
                 },
-            onPointerUp() {
+            onDragEnd(e: DragEndEvent) {
                 if (!dragging) return
                 dragging = false
-                if (moved) (classroot as DataGrid)._commitDrop(colid)
-                // an unmoved press is the click — the sort delivery
-                else (classroot as DataGrid).headerClick(colid)
+                moved = false
+                if (!e.canceled) (classroot as DataGrid)._commitDrop(colid)
+                else { (classroot as DataGrid)._dragCol = ""; (classroot as DataGrid)._dropAt = -1 }
                 },
 
             lbl: TextLabel [ x = 8, fontSize = { provided("theme").gridHeaderFontSize }, fontWeight = semibold, wrap = false,
@@ -522,20 +521,21 @@ class DataGrid extends Table [
                 resizing: boolean = false,
                 pid: string = "",
                 w0: number = 0,
-                g0: number = 0,
-                onPointerDown(e: PointerEvent) {
+                onDragStart(e: PointerEvent) {
                     if ((classroot as DataGrid)._isDataGrid !== true) return
                     pid = (classroot as DataGrid)._prevColId(this.parent.colid)
                     if (pid == "") return
                     w0 = (classroot as DataGrid)._colWidthOf(pid)
-                    g0 = app.pointerX
                     resizing = true
                     },
-                onPointerMove() {
+                onDrag(e: PointerEvent) {
                     if (!resizing) return
-                    (classroot as DataGrid).resizeInput(pid, Math.max(40, w0 + app.pointerX - g0))
+                    (classroot as DataGrid).resizeInput(pid, Math.max(40, w0 + e.deltaX))
                     },
-                onPointerUp() { resizing = false }
+                onDragEnd(e: DragEndEvent) {
+                    if (resizing && e.canceled) (classroot as DataGrid).resizeInput(pid, w0)
+                    resizing = false
+                    }
                 ],
 
             hair: View [ width = 1, height = { parent.height - 10 }, y = 5,

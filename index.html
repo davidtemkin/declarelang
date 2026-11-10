@@ -52,9 +52,9 @@
 <h5>Declare Calendar</h5></a>
 <p>It’s the kind of experience you’ll see in the best native apps — a view doesn’t switch so much as become the next one, where motion carries meaning, and everything is fast and interruptible.</p>
 <p>It runs on real data: open an event, drag it to another day, and it’s moved.</p>
-<p>540</p>
-<p>lines of code, plus 214 of comments — four views, zoom, drag and edit</p>
-<p>165 KB</p>
+<p>545</p>
+<p>lines of code, plus 216 of comments — four views, zoom, drag and edit</p>
+<p>166 KB</p>
 <p>over the wire, gzipped — app (structure, logic, styling) and runtime</p>
 <p>0</p>
 <p>lines written by hand — an LLM wrote it</p>
@@ -73,7 +73,7 @@
 <p>→</p></a>
 <a href="apps/desktop/desktop.declare"><img loading="lazy" src="apps/homepage/shots/desktop-dark.webp"></a>
 <p>Windows that drag, resize, layer, and minimize into live dock thumbnails · a magnifying dock · menus that follow focus · the calendar running inside one of them</p>
-<p>3499 lines — 1994 code, 932 comment · 250 KB over the wire · every pixel drawn from shapes, no image assets</p>
+<p>3499 lines — 1994 code, 932 comment · 251 KB over the wire · every pixel drawn from shapes, no image assets</p>
 <a href="apps/desktop/desktop.declare?viewer"><p>View &amp; edit source →</p></a>
 <p>02</p>
 <h2>Declare it. It runs. It stays true.</h2>
@@ -547,7 +547,7 @@ Slider   [ value = { app.volume },
 <h2>Performance</h2>
 <h3>What should I expect in terms of performance — download size and interactive responsiveness?</h3>
 <p>Concretely, measured from the deployed production artifacts:</p>
-<ul><li><strong>Wire size</strong>: the entire Declare calendar — application <em>and</em> runtime — ships at about 165 KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).</li><li><strong>Source size</strong>: the tracker — a million issues, search as you type, editing in place with undo — is 1,507 lines: 982 of code and 251 of comments, and no dependencies. It ships at 183 KB gzipped before its data, which a <code>DataSource</code> fetches at run time.</li><li><strong>Responsiveness</strong>: when you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.</li><li><strong>Finding what's slow</strong>: the profiler (<code>declare-profile</code>, or the Inspector while you use the app) says which of <em>your</em> rules ran, how often and for how long, what each class cost to build, what drawings cost the GPU, and how long each frame took to reach the screen — in the program's own terms, its classes, attributes and source lines, never the runtime's internals. It runs in the browser or the Mac host.</li><li><strong>Startup</strong>: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.</li></ul>
+<ul><li><strong>Wire size</strong>: the entire Declare calendar — application <em>and</em> runtime — ships at about 166 KB gzipped (the homepage reports the live figure, measured from the deployed production artifacts on every commit, which is why it can vary by a kilobyte).</li><li><strong>Source size</strong>: the tracker — a million issues, search as you type, editing in place with undo — is 1,507 lines: 982 of code and 251 of comments, and no dependencies. It ships at 183 KB gzipped before its data, which a <code>DataSource</code> fetches at run time.</li><li><strong>Responsiveness</strong>: when you drag an event, the constraint graph updates exactly what changed and paints — there is no virtual-DOM pass between your gesture and the pixels. Animations ride compositor-native paths (CSS transforms and painted properties on the DOM renderer; direct paint on canvas), so they run at the display's full rate — 120 fps on a ProMotion screen.</li><li><strong>Finding what's slow</strong>: the profiler (<code>declare-profile</code>, or the Inspector while you use the app) says which of <em>your</em> rules ran, how often and for how long, what each class cost to build, what drawings cost the GPU, and how long each frame took to reach the screen — in the program's own terms, its classes, attributes and source lines, never the runtime's internals. It runs in the browser or the Mac host.</li><li><strong>Startup</strong>: precompiled production builds start immediately. The live-compile pages (the editable samples) pay a one-time compiler download on a cold visit; warm visits start in around a tenth of a second. The one honest trade: a framework with no in-browser compiler wins the very first cold load — Declare's production path closes that gap by precompiling.</li></ul>
 <p>Live numbers are on the homepage, measured from the deployed artifacts themselves.</p>
 <h2>Declare and LLMs</h2>
 <h3>What benefits does Declare bring for LLM coding, where a human may never read or write the code?</h3>
@@ -635,7 +635,7 @@ npm start</code></pre>
 <p>components, a store, re-rendering</p>
 <p>Button, Slider, SimpleLayout: the same kind of code as yours</p>
 <p>Runtime</p>
-<p>decides everything below: ~125 KB gz</p>
+<p>decides everything below: ~126 KB gz</p>
 <p>Kernel — C, as WebAssembly or linked natively</p>
 <p>the settle and the geometry rules: 15 KB gzipped, as shipped</p>
 <p>render seam · one interface, 71 methods</p>
@@ -742,13 +742,13 @@ npm start</code></pre>
 <p>Reactive core, instantiation &amp; data</p>
 <p>42.3 KB</p>
 <p>DOM backend</p>
-<p>15.3 KB</p>
+<p>15.7 KB</p>
 <p>View</p>
 <p>12.6 KB</p>
 <p>Input, focus, gestures, scrolling</p>
-<p>18.3 KB</p>
+<p>18.8 KB</p>
 <p>Draw &amp; compositing</p>
-<p>16.5 KB</p>
+<p>16.4 KB</p>
 <p>Springs &amp; animators</p>
 <p>3.2 KB</p>
 <p>Text &amp; fonts</p>
@@ -764,7 +764,7 @@ npm start</code></pre>
 <p>Library</p>
 <p>12.7 KB</p>
 <p>Runtime</p>
-<p>124.7 KB</p>
+<p>125.5 KB</p>
 <p>Kernel</p>
 <p>15.2 KB</p>
 <img loading="lazy" src="apps/homepage/../architecture/resources/desktop-dom.webp">
@@ -809,7 +809,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=b42baef60ac2";
+  import boot from "./bundles/declare-boot.js?v=9553f137b0d9";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().

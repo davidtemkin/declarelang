@@ -364,7 +364,7 @@ class HallOverview [ accessibilityHidden = true,
         this.lens.scrollTo(({ x: ux * p - this.lens.width / 2, y: uy * p - this.lens.height / 2 }))
         },
     onPointerDown(e: PointerEvent) { this.aim(e) },
-    onPointerMove(e: PointerEvent) { this.aim(e) },
+    onDrag(e: PointerEvent) { this.aim(e) },
     draw(d: DrawContext) {
         const u = unit
         const w = app.hall.unitsW

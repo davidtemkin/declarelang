@@ -4,6 +4,7 @@ import type { InputSink } from "./backend.js";
 export declare const holdCaptureActive: () => boolean;
 /** Is a finger held whole by the program's drag right now? */
 export declare const fingerHeldByDrag: () => boolean;
+export declare const SLOP_TOUCH = 10;
 /** A resolved input point: the sink of the view under it, that view's
  *  identity (`key`, for the click pairing — any stable per-view object),
  *  and the point in the view's local space. */
@@ -29,9 +30,26 @@ export interface HitTarget {
      *  gesture belongs to the app, so the router delivers the whole multi-finger
      *  stream and never interprets it. */
     wantsTouch?: boolean;
-    /** True when this view declares `onPointerMove` — its claim on the
+    /** True when this view declares a drag event — its claim on the
      *  single-finger drag (realized by the backend, not the router). */
     wantsDrag?: boolean;
+    /** True when this view declares `onPointerMove` (claims nothing). */
+    wantsMove?: boolean;
+    /** True when this view takes clicks (onClick, onDblClick, onHold, a link). */
+    takesClicks?: boolean;
+    /** The nearest MOVE RECEIVER over this point — the closest view (self
+     *  included) up the hit chain declaring `onPointerMove`: it hears every
+     *  move, hovering, and during a press (fixed at the press). */
+    move?: {
+        key: object;
+        sink: InputSink;
+    };
+    /** The scroll axes kept between the pressed view and its drag owner, both
+     *  included (drag.md R9): a touch drag does not start at the press on them. */
+    kept?: {
+        x: boolean;
+        y: boolean;
+    };
     /** True when this view declares `onWheel` — its claim on the wheel stream
      *  (delivered by the backend directly; wheels never enter this router). */
     wantsWheel?: boolean;
@@ -63,7 +81,7 @@ export interface HitTarget {
         key: object;
         sink: InputSink;
     };
-    /** The nearest DRAG OWNER (onPointerMove), resolved the same way, with the
+    /** The nearest DRAG OWNER (a drag event), resolved the same way, with the
      *  axis it claims and whether it claims from a hold (it declares onHold too).
      *  A press that stays put is the pressed view's; once it travels it is this
      *  owner's, when the owner is not the pressed view itself (DRAG HANDOFF). */

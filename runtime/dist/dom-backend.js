@@ -34,7 +34,7 @@ import { renderClamped } from "./text-clamp.js";
 import { profileHook } from "./reactive.js";
 import { replay, rasterEntryCap, rasterPad, RASTER_MAX_DIM, RASTER_MAX_AREA } from "./draw.js";
 import { onDprChange } from "./dpr.js";
-import { routeInput, holdCaptureActive, fingerHeldByDrag, passesWheel } from "./input.js";
+import { routeInput, fingerHeldByDrag, passesWheel } from "./input.js";
 import { dragScrolling } from "./drag-autoscroll.js";
 import { lockFocusZoom } from "./viewport-lock.js";
 import { observeVisibility, refreshObserved } from "./dom-visibility.js";
@@ -261,12 +261,26 @@ function ruleNoScrollbar(doc) {
     style.textContent = "[data-declare-nobar]{scrollbar-width:none}[data-declare-nobar]::-webkit-scrollbar{display:none}";
     doc.head.appendChild(style);
 }
+/** A scroll pane's touch-action: both axes delegated (`manipulation`, the cross
+ *  axis to the enclosing regime) — unless it is a drag owner or sits inside one,
+ *  where it pans only on its own axes, so its cross-axis pan does not chain past
+ *  the owner's claim (docs/system-design/drag.md R9). Pinch stays the user's
+ *  unless the owner declares the pinch family. */
+function paneTouchAction(el) {
+    const owner = el.dataset.declareDrag !== undefined ? el : el.parentElement?.closest("[data-declare-drag]") ?? null;
+    if (owner === null)
+        return "manipulation";
+    const pans = [el.style.overflowX === "auto" ? "pan-x" : "", el.style.overflowY === "auto" ? "pan-y" : ""].filter(Boolean);
+    const pinch = WANTS.get(owner)?.wantsPinch === true ? "" : "pinch-zoom";
+    return [...pans, pinch].filter(Boolean).join(" ") || "none";
+}
 function watchPinchZoom(doc) {
     if (ZOOM_WATCHED.has(doc) || typeof visualViewport === "undefined" || visualViewport === null)
         return;
     ZOOM_WATCHED.add(doc);
     const style = doc.createElement("style");
-    style.textContent = "html.declare-zoomed [data-declare-scroll]{overscroll-behavior:auto !important;touch-action:auto !important}";
+    // a drag owner's pane, or one inside an owner, keeps its claim while zoomed
+    style.textContent = "html.declare-zoomed [data-declare-scroll]:not([data-declare-drag]):not([data-declare-drag] [data-declare-scroll]){overscroll-behavior:auto !important;touch-action:auto !important}";
     doc.head.appendChild(style);
     const vv = visualViewport;
     const apply = () => { doc.documentElement.classList.toggle("declare-zoomed", vv.scale > 1.02); };
@@ -771,9 +785,17 @@ export class DomBackend {
             }
             if (el === null)
                 return null;
-            let pinch, hold, context;
+            let pinch, hold, context, move;
             let drag;
+            // the scroll axes (with range) from the pressed view up to its drag owner
+            const kept = { x: false, y: false };
             for (let pe = el; pe !== null; pe = pe === rootEl ? null : pe.parentElement) {
+                if (drag === undefined && pe.hasAttribute("data-declare-scroll")) {
+                    if (pe.scrollHeight > pe.clientHeight + 1 && getComputedStyle(pe).overflowY !== "hidden")
+                        kept.y = true;
+                    if (pe.scrollWidth > pe.clientWidth + 1 && getComputedStyle(pe).overflowX !== "hidden")
+                        kept.x = true;
+                }
                 const w = WANTS.get(pe), ps = SINKS.get(pe);
                 if (w === undefined || ps === undefined)
                     continue;
@@ -783,13 +805,15 @@ export class DomBackend {
                     hold = { key: pe, sink: ps };
                 if (context === undefined && w.wantsContext === true)
                     context = { key: pe, sink: ps };
+                if (move === undefined && w.wantsMove === true)
+                    move = { key: pe, sink: ps };
                 if (drag === undefined && w.wantsDrag === true)
                     drag = { key: pe, sink: ps, axis: w.claimAxis ?? "both", fromHold: w.wantsHold === true };
-                if (pinch !== undefined && hold !== undefined && context !== undefined && drag !== undefined)
+                if (pinch !== undefined && hold !== undefined && context !== undefined && drag !== undefined && move !== undefined)
                     break;
             }
             const p = localPoint(el, e.clientX, e.clientY);
-            return { key: el, sink: SINKS.get(el), ...WANTS.get(el), pinch, hold, context, drag, x: p.x, y: p.y };
+            return { key: el, sink: SINKS.get(el), ...WANTS.get(el), pinch, hold, context, drag, move, kept, x: p.x, y: p.y };
         }, (e) => localPoint(rootEl, e.clientX, e.clientY), undefined, !embedded);
         // Tap-to-dismiss for native editable fields. Desktop blurs a focused
         // input/textarea when you press a non-focusable element, but mobile Safari
@@ -2006,7 +2030,7 @@ export class DomSurface {
             ob.overscrollBehavior = ""; // clear any shorthand from a previous axis pair
             ob.overscrollBehaviorX = this.scrollXOn ? "contain" : "auto";
             ob.overscrollBehaviorY = this.scrollYOn ? "contain" : "auto";
-            el.style.touchAction = "manipulation";
+            el.style.touchAction = paneTouchAction(el);
             // A scroll container accepts pointer/wheel events (its children stay
             // inert, so clicks still resolve to the sink under the pointer). Native
             // wheel then drives the box directly: abs children DO register
@@ -2222,19 +2246,34 @@ export class DomSurface {
         // The wheel claim is not a touch-action: it is a non-passive listener that
         // takes the wheel stream — trackpad pinch included, which arrives as
         // ctrlKey wheels — before the browser scrolls the page or zooms it.
-        // The hold-gated drag's live half: while a hold-capture is up (the hold
-        // fired with this finger down), suppress the browser's pan takeover so
-        // the post-hold moves belong to the app. Non-passive by necessity; costs
-        // nothing to views that never declare the pair.
-        const holdGate = sink !== null && wants?.wantsDrag === true && wants?.wantsHold === true;
-        if (holdGate && this.holdGateListener === undefined) {
-            this.holdGateListener = (e) => { if (holdCaptureActive())
+        // A drag's live half (docs/system-design/drag.md R3): from the moment a
+        // drag holds the finger — at its start, or at a hold-gated owner's hold —
+        // until release, every touchmove is refused, pinch and multi-finger pan
+        // included, so no scroll can take a started drag back. Non-passive and in
+        // place before touchstart (the browser decides there whether the sequence's
+        // moves can be canceled); costs nothing to views that declare no drag.
+        const gate = sink !== null && wants?.wantsDrag === true;
+        if (gate && this.holdGateListener === undefined) {
+            this.holdGateListener = (e) => { if (fingerHeldByDrag() && e.cancelable)
                 e.preventDefault(); };
             this.element.addEventListener("touchmove", this.holdGateListener, { passive: false });
         }
-        else if (!holdGate && this.holdGateListener !== undefined) {
+        else if (!gate && this.holdGateListener !== undefined) {
             this.element.removeEventListener("touchmove", this.holdGateListener);
             this.holdGateListener = undefined;
+        }
+        // a drag owner is marked, so a pane that is one, or sits inside one, pans
+        // only on its own axes (paneTouchAction) and a pinch-zoomed page's relaxing
+        // rule leaves the claim alone
+        const wasDrag = this.element.dataset.declareDrag !== undefined;
+        if (gate)
+            this.element.dataset.declareDrag = "1";
+        else
+            delete this.element.dataset.declareDrag;
+        if (gate !== wasDrag) {
+            if (this.element.dataset.declareScroll !== undefined)
+                this.element.style.touchAction = paneTouchAction(this.element);
+            this.element.querySelectorAll("[data-declare-scroll]").forEach((p) => { p.style.touchAction = paneTouchAction(p); });
         }
         // A drag view owns the press's MEANING on itself — immediately, or at the
         // hold. The platform's long-press defaults over text (iOS selection + the

@@ -401,11 +401,15 @@ interface ChangeEvent { readonly changed: readonly ValueChange[] }
  *  scroll amount). \`shift\`, \`ctrl\`, \`alt\` and \`meta\` are the keys held with
  *  it, as a \`KeyEvent\` names them: a Shift-click extends a selection, a
  *  ⌘-click (Ctrl-click off the Mac) adds to one. */
-interface PointerEvent { x: number; y: number; rootX: number; rootY: number; deltaX: number; deltaY: number; shift: boolean; ctrl: boolean; alt: boolean; meta: boolean }
+interface PointerEvent { x: number; y: number; rootX: number; rootY: number; deltaX: number; deltaY: number; shift: boolean; ctrl: boolean; alt: boolean; meta: boolean; down: boolean }
 /** A release, plus the one fact a drag handler must not miss: \`canceled\` is true
  *  when the browser reclaimed the gesture — a touch that became a scroll. Commit on
  *  release only when it is false, or an interruption reads as a drop. */
 interface PointerUpEvent extends PointerEvent { canceled: boolean }
+/** The end of a drag: released, or taken back (\`canceled\`) by a system
+ *  interruption, Escape, or the window losing focus. Commit only when \`canceled\`
+ *  is false. */
+interface DragEndEvent extends PointerUpEvent { canceled: boolean }
 /** The multi-finger stream: every finger down (\`touches\`) and the ones this event
  *  moved (\`changed\`). Declaring a touch handler claims every finger, so the app then
  *  owes its own zoom. */
@@ -647,7 +651,7 @@ export function tsType(t) {
 /** The event-payload type names, writable in a handler's signature. Declared
  *  in the prelude above; the shapes live in the runtime (events.ts, keys.ts,
  *  tip.ts, focus.ts) and this list is what makes them nameable by an author. */
-const PAYLOAD_TYPES = new Set(["PointerEvent", "PointerUpEvent", "TouchEvent", "WheelEvent", "PinchEvent", "Touch", "KeyEvent", "FocusGeometry", "TooltipEvent", "StreamMessage", "File", "FilesOverEvent", "FilesDropEvent", "ClipboardEvent", "FilePickOptions", "DrawContext", "DrawGradient"]);
+const PAYLOAD_TYPES = new Set(["PointerEvent", "PointerUpEvent", "DragEndEvent", "TouchEvent", "WheelEvent", "PinchEvent", "Touch", "KeyEvent", "FocusGeometry", "TooltipEvent", "StreamMessage", "File", "FilesOverEvent", "FilesDropEvent", "ClipboardEvent", "FilePickOptions", "DrawContext", "DrawGradient"]);
 /** A WRITTEN signature type name (`f(w: Window) -> number`) → its TypeScript
  *  type. Two sources, the same two an attribute declaration draws on: the
  *  declarable value vocabulary (`number`, `string`, `array`, `Axis`, …) and the

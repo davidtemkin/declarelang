@@ -239,10 +239,10 @@ class DashWindow [
             classroot.raise(); app.stage.popup.hide()
             },
 
-        // Move events carry root-space coordinates; a window's x/y are
+        // A drag's events carry root-space coordinates; a window's x/y are
         // relative to the stage, hence the parent origin coming off.
 
-        onPointerMove(e: PointerEvent) {
+        onDrag(e: PointerEvent) {
             classroot.x = e.rootX - grabX - classroot.parent.x
             classroot.y = e.rootY - grabY - classroot.parent.y
             },
@@ -318,7 +318,7 @@ class DashWindow [
 
         grip: View [ x = { parent.width - 15 }, width = 15, height = 15,
             cursor = "nwse-resize",
-            onPointerMove(e: PointerEvent) {
+            onDrag(e: PointerEvent) {
                 classroot.width = Math.max(classroot.minW, e.rootX - classroot.parent.x - classroot.x)
                 classroot.height = Math.max(classroot.minH, e.rootY - classroot.parent.y - classroot.y)
                 },

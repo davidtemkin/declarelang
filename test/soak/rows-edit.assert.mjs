@@ -1,7 +1,7 @@
 // rows-edit.assert — real input in Chrome against rows-edit.declare:
 //  1. a TextInput focused and typed into, then rebuilt by a key (F2) while focused
 //  2. a modal Dialog opened in a row, then rows rebuilt under it (no press)
-//  3. a drag whose own onPointerMove rebuilds the rows mid-drag
+//  3. a drag whose own onDrag rebuilds the rows mid-drag
 //  4. plain rebuilds (Markdown, HTMLText, a drawing in each row)
 //   node tools/verify.mjs test/soak/rows-edit.declare --assert test/soak/rows-edit.assert.mjs
 import { meter, soak, STRATA } from "./browser-lib.mjs";
@@ -22,7 +22,7 @@ export default async ({ drive, page }) => {
     await drive.key("F2");
     await drive.wait(50);
   }, { extra: FOCUS, warm: 8, n: 30 });
-  await soak("drag rebuilds the rows from its own onPointerMove", m, async (i) => {
+  await soak("drag rebuilds the rows from its own onDrag", m, async (i) => {
     await drive.press(`app.list.${i % 4}.handle`);
     for (let k = 0; k < 10; k++) await drive.moveBy(3, 2);
     await drive.release();

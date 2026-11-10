@@ -143,6 +143,34 @@ function step() {
     d.redeliver(d.x, d.y, d.extra); // the content moved under a still pointer
     d.frame = raf(step);
 }
+let frame = null;
+/** The parent's scale in root space, read off its box (rotation aside). */
+function scaleOf(p) {
+    if (p === null || p.width <= 0)
+        return 1;
+    const b = p.rootBounds();
+    const k = b.width / p.width;
+    return Number.isFinite(k) && k > 0 ? k : 1;
+}
+/** A drag began on `view`: note its parent's frame and its scrollers' offsets. */
+export function dragStarted(view) {
+    const parent = view.parent instanceof View ? view.parent : null;
+    frame = { view, scale: scaleOf(parent), scrolls: scrollersAround(view).map((s) => ({ s, x: s.scrollX, y: s.scrollY })) };
+}
+/** The payload's deltas, per R4, from the root-space travel the router reports. */
+export function dragDeltas(view, extra) {
+    const rx = typeof extra?.deltaX === "number" ? extra.deltaX : 0;
+    const ry = typeof extra?.deltaY === "number" ? extra.deltaY : 0;
+    const f = frame !== null && frame.view === view ? frame : null;
+    if (f === null)
+        return { ...extra, deltaX: rx, deltaY: ry };
+    let dx = rx / f.scale, dy = ry / f.scale;
+    for (const o of f.scrolls) {
+        dx += o.s.scrollX - o.x;
+        dy += o.s.scrollY - o.y;
+    }
+    return { ...extra, deltaX: dx, deltaY: dy };
+}
 /** A drag move reached `view` at root point (x, y). */
 export function dragMoved(view, x, y, extra, redeliver) {
     if (drag !== null && drag.view !== view)
@@ -164,6 +192,7 @@ export function dragEnded() {
     if (drag !== null && drag.frame !== null)
         caf(drag.frame);
     drag = null;
+    frame = null;
     scrolling = false;
 }
 //# sourceMappingURL=drag-autoscroll.js.map

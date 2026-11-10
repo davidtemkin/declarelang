@@ -139,8 +139,8 @@ class Sheet extends Floating [
 
     _handle: View [ visible = { classroot.presentation == "bottom" }, width = 100%, height = 20, claim = y,
         bar: View [ x = center, y = 7, width = 36, height = 5, cornerRadius = 3, fill = { provided("theme").line } ],
-        onPointerMove(e: PointerEvent) { if (e.deltaY != 0 || classroot._dragY != 0) classroot._dragY = Math.max(0, e.deltaY) },
-        onPointerUp(e: PointerUpEvent) {
+        onDrag(e: PointerEvent) { classroot._dragY = Math.max(0, e.deltaY) },
+        onDragEnd(e: DragEndEvent) {
             if (!e.canceled && classroot._dragY > classroot.height / 4) classroot.close()
             else classroot._dragY = 0
             }
@@ -157,8 +157,8 @@ class Sheet extends Floating [
     // toward the start edge past a quarter of the drawer to put it away
 
     _grip: View [ visible = { classroot.presentation == "start" }, x = { classroot.width - 24 }, y = 0, width = 24, height = 100%, claim = x,
-        onPointerMove(e: PointerEvent) { if (e.deltaX != 0 || classroot._dragX != 0) classroot._dragX = Math.max(0, -e.deltaX) },
-        onPointerUp(e: PointerUpEvent) {
+        onDrag(e: PointerEvent) { classroot._dragX = Math.max(0, -e.deltaX) },
+        onDragEnd(e: DragEndEvent) {
             if (!e.canceled && classroot._dragX > classroot.width / 4) classroot.close()
             else classroot._dragX = 0
             }

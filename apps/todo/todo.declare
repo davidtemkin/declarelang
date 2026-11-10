@@ -376,7 +376,7 @@ class TaskRow extends Line [
         Glyph [ x = { parent.width - 46 }, y = center, iconSize = 22, weight = 2, shape = "important", filled = true, ink = white ]
         ],
 
-    // The line. Declaring `onPointerMove` claims the drag; `claim = x` takes
+    // The line. Declaring the drag events claims the drag; `claim = x` takes
     // only sideways drags, so a finger moving down still scrolls the page.
     // A press that stays put is not a drag and reaches the controls inside.
     // The first 6px are slack, so a sloppy tap doesn't wiggle the row.
@@ -388,11 +388,11 @@ class TaskRow extends Line [
         State [ applied = { classroot.raised }, fill = null ],
         claim = x,
         grab: number = 0,
-        onPointerDown(e: PointerEvent) { grab = classroot.swipe },
-        onPointerMove(e: PointerEvent) {
+        onDragStart(e: PointerEvent) { grab = classroot.swipe },
+        onDrag(e: PointerEvent) {
             if (Math.abs(e.deltaX) > 6) classroot.follow(grab + e.deltaX - Math.sign(e.deltaX) * 6)
             },
-        onPointerUp(e: PointerUpEvent) { classroot.release(e.canceled) },
+        onDragEnd(e: DragEndEvent) { classroot.release(e.canceled) },
         layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
 
         check: TaskCheck [ on = { classroot.done }, tone = { classroot.tone },

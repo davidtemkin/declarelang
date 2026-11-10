@@ -58,7 +58,10 @@ function outOfReach(app) {
     const say = (v, why) => { out.push(`a control may be out of reach — ${pathOf(app, v)} (${declareName(v)}) ${why}`); };
     const round = (b) => `x ${Math.round(b.x)}–${Math.round(b.x + b.width)}, y ${Math.round(b.y)}–${Math.round(b.y + b.height)}`;
     const box = (v, stop = null) => rootFrameBox(v, undefined, stop);
-    const drags = (v) => typeof v.onPointerMove === "function";
+    const drags = (v) => {
+        const h = v;
+        return typeof h.onDragStart === "function" || typeof h.onDrag === "function" || typeof h.onDragEnd === "function";
+    };
     const visit = (v) => {
         if (!v.visible)
             return; // a hidden view is reached when it is shown, not now

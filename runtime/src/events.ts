@@ -45,6 +45,9 @@ export class PointerEvent {
   declare ctrl: boolean;
   declare alt: boolean;
   declare meta: boolean;
+  /** Whether a press is down during this move (a raw `onPointerMove` hears
+   *  every move, hover included). */
+  declare down: boolean;
 }
 
 /** `onMouseUp` — a release, which may be an INTERRUPTION rather than a drop.
@@ -54,6 +57,11 @@ export class PointerEvent {
 export class PointerUpEvent extends PointerEvent {
   declare canceled: boolean;
 }
+
+/** `onDragEnd` — the drag is over: released, or taken back (`canceled`) by a
+ *  system interruption, by Escape, or by the window losing focus. Commit on it
+ *  only when `canceled` is false. */
+export class DragEndEvent extends PointerUpEvent {}
 
 /** `onTouchStart` / `onTouchMove` / `onTouchEnd` / `onTouchCancel` — the
  *  multi-finger stream, which is a genuinely different payload from the
