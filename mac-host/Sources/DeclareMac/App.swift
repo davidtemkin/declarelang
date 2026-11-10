@@ -144,7 +144,10 @@ final class DeclareView: NSView {
         return lines.joined(separator: "\n")
     }
 
-    private func send(_ type: String, _ e: NSEvent) {
+    /// `button` is the DOM's numbering: 0 the primary (left) button, 1 the
+    /// middle, 2 the secondary (right) — what the runtime reads to keep a
+    /// secondary press from activating or dragging anything.
+    private func send(_ type: String, _ e: NSEvent, button: Int = 0) {
         let p = pt(e)
         if ProcessInfo.processInfo.environment["DECLARE_DEBUG_INPUT"] != nil, type != "pointermove" {
             NSLog("[input] %@ model=(%.0f,%.0f) viewH=%.0f", type, p.x, p.y, bounds.height)
@@ -154,7 +157,7 @@ final class DeclareView: NSView {
         // rate the mouse reported (measured p50 5.7ms against a 8.3ms display),
         // so frames landed at arbitrary phases of the refresh — which reads as
         // hesitancy during a slow drag even though every frame was cheap.
-        bridge.call("__declarePointer", [type, Double(p.x), Double(p.y), buttons, mods(e)])
+        bridge.call("__declarePointer", [type, Double(p.x), Double(p.y), buttons, mods(e), button])
         bridge.needsFrame()
     }
 
@@ -229,6 +232,9 @@ final class DeclareView: NSView {
             selecting = flow
         }
         buttons = 1; send("pointerdown", e)
+        // Control-click is the Mac's secondary click: the context menu as well,
+        // as browsers on the Mac deliver it
+        if e.modifierFlags.contains(.control) { send("contextmenu", e, button: 0) }
     }
     override func mouseUp(with e: NSEvent) {
         if barDrag != nil { barRelease(atModel: pt(e)); return }
@@ -254,7 +260,22 @@ final class DeclareView: NSView {
         }
     }
     override func mouseExited(with e: NSEvent) { send("pointerout", e) }
-    override func rightMouseDown(with e: NSEvent) { send("pointerdown", e) }
+    // The secondary and middle buttons: a press, its moves and its release, each
+    // marked with its button — a right-click used to arrive as a LEFT press that
+    // never ended, so the next hover moved as a drag — and the context menu.
+    override func rightMouseDown(with e: NSEvent) {
+        window?.makeFirstResponder(self)
+        buttons |= 2; send("pointerdown", e, button: 2)
+        send("contextmenu", e, button: 2)
+    }
+    override func rightMouseUp(with e: NSEvent) { buttons &= ~2; send("pointerup", e, button: 2) }
+    override func rightMouseDragged(with e: NSEvent) { send("pointermove", e, button: 2) }
+    override func otherMouseDown(with e: NSEvent) {
+        window?.makeFirstResponder(self)
+        buttons |= 4; send("pointerdown", e, button: 1)
+    }
+    override func otherMouseUp(with e: NSEvent) { buttons &= ~4; send("pointerup", e, button: 1) }
+    override func otherMouseDragged(with e: NSEvent) { send("pointermove", e, button: 1) }
 
     override func scrollWheel(with e: NSEvent) {
         let p = pt(e)

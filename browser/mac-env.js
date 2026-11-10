@@ -990,9 +990,10 @@
     return Object.assign(e, props);
   }
   g.__declareHitDebug = false;   // flipped on by the host when DECLARE_DEBUG_HIT is set
-  g.__declarePointer = (type, x, y, buttons, mods) => {
+  // `button`: 0 primary, 1 middle, 2 secondary (the DOM's numbering)
+  g.__declarePointer = (type, x, y, buttons, mods, button = 0) => {
     win.dispatchEvent(ev(type, {
-      clientX: x, clientY: y, pageX: x, pageY: y, button: 0, buttons,
+      clientX: x, clientY: y, pageX: x, pageY: y, button, buttons,
       pointerType: "mouse", pointerId: 1, isPrimary: true, relatedTarget: null,
       shiftKey: !!(mods & 1), metaKey: !!(mods & 2), ctrlKey: !!(mods & 4), altKey: !!(mods & 8),
     }));
