@@ -10,11 +10,21 @@
 // frame at the same root point — its local coordinates follow the content, so
 // the dragged thing and a `viewAt` drop test keep up with no code of their own.
 // It stops when the pointer leaves the band, the range ends, or the press ends.
+//
+// Which scroller, and when (docs/system-design/drag.md R9): an edge scrolls only
+// once the drag has travelled toward it, along its axis, by TOWARD px — a slider
+// low in a pane, dragged sideways, never scrolls the pane; a card near the bottom,
+// dragged down, does. The pane
+// the pointer has been carried into scrolls first (never the dragged view or one
+// inside it), else the nearest scroller holding the dragged view, and the next
+// one out once the nearer has reached the end of its range. The band is measured
+// on the part of a scroller that can be seen, inside every scroller around it.
 // The scroll is the program's motion, not the user's scroll: `userScrolling` stays
 // false, and the anchor never holds the dragged view still (scroll-anchor.ts).
 import { View } from "./view.js";
 const BAND = 48; // px from a scroller's edge where scrolling begins
 const MAX_STEP = 20; // px per frame at the very edge (and beyond it)
+const TOWARD = 12; // px a drag must travel toward an edge, along its axis, before it scrolls
 let drag = null;
 /** The edge scrolling is moving a scroller now (its last step moved it). */
 let scrolling = false;
@@ -24,18 +34,60 @@ export function draggingView() { return drag?.view ?? null; }
  *  finger is then the program's, not the user's (dom-backend watchScrolling)
  *  and not the browser taking the gesture (input.ts takeover). */
 export function dragScrolling() { return scrolling; }
-function scrollerOf(v) {
+/** The scrollers around `v`, nearest first. */
+function scrollersAround(v) {
+    const out = [];
     for (let n = v.parent; n instanceof View; n = n.parent)
         if (n.scrolls !== "none")
-            return n;
-    return null;
+            out.push(n);
+    return out;
 }
-/** How far into an edge band `p` is, signed: negative toward the start. */
-function depth(p, lo, hi) {
+/** Is `v` the dragged view or inside it? */
+function within(v, dragged) {
+    for (let n = v; n instanceof View; n = n.parent)
+        if (n === dragged)
+            return true;
+    return false;
+}
+/** The part of scroller `s` that can be seen: its box, inside every scroller around it. */
+function visible(s) {
+    const b = s.rootBounds();
+    let x0 = b.x, y0 = b.y, x1 = b.x + b.width, y1 = b.y + b.height;
+    for (const o of scrollersAround(s)) {
+        const c = o.rootBounds();
+        x0 = Math.max(x0, c.x);
+        y0 = Math.max(y0, c.y);
+        x1 = Math.min(x1, c.x + c.width);
+        y1 = Math.min(y1, c.y + c.height);
+    }
+    return { x0, y0, x1: Math.max(x0, x1), y1: Math.max(y0, y1) };
+}
+/** The candidates, in order: the pane the pointer is over (not the dragged view
+ *  or inside it) and its scrollers outward, then the scrollers holding the
+ *  dragged view, nearest first — each once. */
+function candidates(d) {
+    const out = [];
+    const add = (v) => { if (!out.includes(v) && !within(v, d.view))
+        out.push(v); };
+    const app = d.view.$root;
+    const under = app !== null && typeof app.viewAt === "function" ? app.viewAt(d.x, d.y, d.view) : null;
+    if (under !== null) {
+        if (under.scrolls !== "none")
+            add(under);
+        for (const s of scrollersAround(under))
+            add(s);
+    }
+    for (const s of scrollersAround(d.view))
+        add(s);
+    return out;
+}
+/** How far into an edge band `p` is, signed: negative toward the start — and 0
+ *  for an edge the drag has not travelled toward from `from`, along this axis. */
+function depth(p, lo, hi, from) {
     const band = Math.min(BAND, (hi - lo) / 4);
-    if (p < lo + band)
+    if (p < lo + band && from - p >= TOWARD)
         return -(lo + band - p) / band;
-    if (p > hi - band)
+    if (p > hi - band && p - from >= TOWARD)
         return (p - (hi - band)) / band;
     return 0;
 }
@@ -50,39 +102,43 @@ const caf = (id) => {
     else
         clearTimeout(id);
 };
+const speed = (v) => Math.sign(v) * Math.ceil(MAX_STEP * Math.min(1, Math.abs(v)) ** 2);
 function step() {
     const d = drag;
     if (d === null)
         return;
     d.frame = null;
     scrolling = false;
-    const s = scrollerOf(d.view);
-    if (s === null || d.view.parent === null)
+    if (d.view.parent === null)
         return;
-    const b = s.rootBounds();
-    const vy = s.scrolls === "y" || s.scrolls === "both" ? depth(d.y, b.y, b.y + b.height) : 0;
-    const vx = s.scrolls === "x" || s.scrolls === "both" ? depth(d.x, b.x, b.x + b.width) : 0;
-    if (vy === 0 && vx === 0)
-        return;
-    let moved = false;
-    if (vy !== 0) {
-        const max = Math.max(0, s.contentHeight - s.height);
-        const next = Math.min(max, Math.max(0, s.scrollY + Math.sign(vy) * Math.ceil(MAX_STEP * Math.min(1, Math.abs(vy)) ** 2)));
-        if (next !== s.scrollY) {
-            s.scrollTo(next);
-            moved = true;
+    let movedY = false, movedX = false;
+    for (const s of candidates(d)) {
+        const b = visible(s);
+        if (!movedY && (s.scrolls === "y" || s.scrolls === "both")) {
+            const v = depth(d.y, b.y0, b.y1, d.sy);
+            if (v !== 0) {
+                const next = Math.min(Math.max(0, s.contentHeight - s.height), Math.max(0, s.scrollY + speed(v)));
+                if (next !== s.scrollY) {
+                    s.scrollTo(next);
+                    movedY = true;
+                }
+            }
         }
-    }
-    if (vx !== 0) {
-        const max = Math.max(0, s.contentWidth - s.width);
-        const next = Math.min(max, Math.max(0, s.scrollX + Math.sign(vx) * Math.ceil(MAX_STEP * Math.min(1, Math.abs(vx)) ** 2)));
-        if (next !== s.scrollX) {
-            s.scrollToX(next);
-            moved = true;
+        if (!movedX && (s.scrolls === "x" || s.scrolls === "both")) {
+            const v = depth(d.x, b.x0, b.x1, d.sx);
+            if (v !== 0) {
+                const next = Math.min(Math.max(0, s.contentWidth - s.width), Math.max(0, s.scrollX + speed(v)));
+                if (next !== s.scrollX) {
+                    s.scrollToX(next);
+                    movedX = true;
+                }
+            }
         }
+        if (movedX && movedY)
+            break;
     }
-    if (!moved)
-        return; // the range ended: nothing more to reveal
+    if (!movedX && !movedY)
+        return; // nothing to reveal in reach
     scrolling = true;
     d.redeliver(d.x, d.y, d.extra); // the content moved under a still pointer
     d.frame = raf(step);
@@ -91,8 +147,12 @@ function step() {
 export function dragMoved(view, x, y, extra, redeliver) {
     if (drag !== null && drag.view !== view)
         dragEnded();
-    if (drag === null)
-        drag = { view, x, y, extra, redeliver, frame: null };
+    if (drag === null) {
+        // the drag began where the press did: the root point less the travel so far
+        const dx = typeof extra?.deltaX === "number" ? extra.deltaX : 0;
+        const dy = typeof extra?.deltaY === "number" ? extra.deltaY : 0;
+        drag = { view, sx: x - dx, sy: y - dy, x, y, extra, redeliver, frame: null };
+    }
     drag.x = x;
     drag.y = y;
     drag.extra = extra;

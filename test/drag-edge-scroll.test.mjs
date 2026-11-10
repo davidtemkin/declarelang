@@ -98,4 +98,45 @@ await test("a quick swipe over a hold-gated card is the platform's scroll; the h
   assert.equal(held.platformScrollUpdates, 0, `the held drag's scrolling was none of the platform's (${JSON.stringify(held)})`);
 });
 
+// Which scroller, and when (docs/system-design/drag.md R9). A drag that began
+// inside an edge's band has not travelled there: a slider low in a pane, dragged
+// sideways, once scrolled the pane away from under itself. And a pane at the end
+// of its range hands the scrolling to the one around it.
+const look = (file, ...args) => spawnSync("node", [join(ROOT, "tools/look.mjs"), join(DIR, file), "--size", "400x300", ...args], { cwd: ROOT, encoding: "utf8" });
+writeFileSync(join(DIR, "sideways.declare"), `App [ width = 400, height = 300,
+    pane: View [ width = 400, height = 300, scrolls = y,
+        Slider [ x = 40, y = 270, width = 300, value = 50, min = 0, max = 100, accessibilityLabel = "Level" ],
+        View [ width = 10, height = 1200 ] ] ]`);
+writeFileSync(join(DIR, "nested.declare"), `App [ width = 400, height = 300,
+    outer: View [ width = 400, height = 300, scrolls = y,
+        inner: View [ y = 20, width = 400, height = 200, scrolls = y, scrollStartY = 200,
+            card: View [ x = 40, y = 220, width = 100, height = 40, fill = #888888, onPointerMove(e: PointerEvent) { } ],
+            View [ width = 10, height = 400 ] ],
+        View [ width = 10, height = 1200 ] ] ]`);
+
+await test("a drag that began in an edge's band does not scroll that edge: a slider dragged sideways stays put", () => {
+  const r = look("sideways.declare", "--press", "app.pane.0", "20,10", "--move", "30,0", "--wait-real", "400",
+    "--move", "30,0", "--wait-real", "400", "--read", "app.pane.scrollY", "--release");
+  assert.match(r.stdout, /app\.pane\.scrollY = 0\b/, r.stdout + r.stderr);
+});
+
+writeFileSync(join(DIR, "low.declare"), `App [ width = 400, height = 300,
+    pane: View [ width = 400, height = 300, scrolls = y,
+        card: View [ x = 40, y = 255, width = 100, height = 30, fill = #888888, onPointerMove(e: PointerEvent) { } ],
+        View [ width = 10, height = 1200 ] ] ]`);
+
+await test("a drag that began near an edge and travels toward it scrolls that edge", () => {
+  const r = look("low.declare", "--press", "app.pane.card", "50,10", "--move", "0,20", "--wait-real", "500", "--read", "app.pane.scrollY", "--release");
+  const y = Number(/app\.pane\.scrollY = (\d+)/.exec(r.stdout)?.[1] ?? 0);
+  assert.ok(y > 50, `the pane scrolled (${y})`);
+});
+
+await test("a pane at the end of its range hands the edge scrolling to the one around it", () => {
+  const r = look("nested.declare", "--press", "app.outer.inner.card", "50,20", "--move", "0,215", "--wait-real", "500",
+    "--read", "app.outer.inner.scrollY", "--read", "app.outer.scrollY", "--release");
+  assert.match(r.stdout, /app\.outer\.inner\.scrollY = 200\b/, r.stdout + r.stderr);
+  const outer = Number(/app\.outer\.scrollY = (\d+)/.exec(r.stdout)?.[1] ?? 0);
+  assert.ok(outer > 50, `the outer pane scrolled (${outer})`);
+});
+
 summarize("drag-edge-scroll");

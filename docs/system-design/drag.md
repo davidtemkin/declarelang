@@ -249,7 +249,8 @@ Carousel paging by drag, and DataGrid column reorder and resize have none (§7).
 - **An owner that is itself a scroller** keeps its scroll axes for touch and pen: its drag
   starts only on travel along an axis it does not scroll.
 - **Autoscroll** moves a scroller on an axis only once the drag has travelled toward that edge
-  along that axis (the pointer moved into the edge band; it did not start there), and, for
+  along that axis — at least 12 px since the press, so a sideways drag low in a pane never
+  scrolls it and a card near the bottom dragged down does — and, for
   touch and pen, only on the owner's claimed axes. The scroller moved is, first, the pane
   under the pointer if the drag has been carried into one (never the owner or a pane inside
   it), else the nearest scroller that contains the owner — then the next one out, once the nearer has reached the end of its range.
