@@ -4,7 +4,7 @@
     "code": 596,
     "comment": 572,
     "blank": 359,
-    "wireGzip": 231072,
+    "wireGzip": 231571,
     "programGzip": 15760
   },
   "calendar": {
@@ -12,7 +12,7 @@
     "code": 540,
     "comment": 214,
     "blank": 176,
-    "wireGzip": 168662,
+    "wireGzip": 169161,
     "programGzip": 12845
   },
   "tracker": {
@@ -20,7 +20,7 @@
     "code": 982,
     "comment": 251,
     "blank": 274,
-    "wireGzip": 186567,
+    "wireGzip": 186984,
     "programGzip": 18484
   },
   "desktop": {
@@ -28,7 +28,7 @@
     "code": 1994,
     "comment": 932,
     "blank": 573,
-    "wireGzip": 255612,
+    "wireGzip": 256070,
     "programGzip": 22664
   },
   "todo": {
@@ -36,7 +36,7 @@
     "code": 662,
     "comment": 236,
     "blank": 177,
-    "wireGzip": 188379,
+    "wireGzip": 188890,
     "programGzip": 21091,
     "codeWithParts": 847
   },
@@ -44,10 +44,10 @@
     "calDom": {
       "app": 12.5,
       "lib": 12.7,
-      "core": 42.4,
+      "core": 42.3,
       "view": 12.6,
-      "backend": 15.4,
-      "input": 17.7,
+      "backend": 15.3,
+      "input": 18.3,
       "draw": 16.5,
       "anim": 3.2,
       "text": 5,
@@ -62,24 +62,24 @@
       "lib": 12.7,
       "core": 41.7,
       "view": 12.3,
-      "backend": 35.5,
-      "input": 21.2,
+      "backend": 35.7,
+      "input": 21.8,
       "draw": 18.2,
       "anim": 3.9,
       "text": 5,
       "boot": 5.5,
       "layout": 2.3,
       "themes": 0.1,
-      "a11y": 3.4,
+      "a11y": 3.3,
       "ker": 15.1
     },
     "calMac": {
       "app": 12.5,
       "lib": 12.7,
-      "core": 42.4,
+      "core": 42.3,
       "view": 12.6,
       "backend": 8.7,
-      "input": 17.7,
+      "input": 18.3,
       "draw": 16.5,
       "anim": 3.2,
       "text": 5,
@@ -90,11 +90,11 @@
       "ker": 0
     },
     "totals": {
-      "calDom": 164.7,
-      "calCanvas": 189.6,
-      "calMac": 140.3
+      "calDom": 165.2,
+      "calCanvas": 190.3,
+      "calMac": 140.8
     },
-    "runtimeKB": 124.3,
+    "runtimeKB": 124.8,
     "kernelWasmGzipKB": 12.6,
     "kernelWasmRawKB": 23,
     "kernelLoaderKB": 2.6,
