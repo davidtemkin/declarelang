@@ -39,7 +39,7 @@ await test("a request that was not sent fails, naming what was", () => {
     await expect.request("POST", "/no-such-endpoint", { body: { title: "Other" } });
   };`);
   assert.notEqual(r.status, 0);
-  assert.match(r.stdout + r.stderr, /sent: POST \/no-such-endpoint → 404/);
+  assert.match(r.stdout + r.stderr, /sent: 1 POST \/no-such-endpoint: POST \/no-such-endpoint → 404 with \{/, "the near miss first, with its body");
 });
 
 // A request the script answers itself (request interception) never reaches a

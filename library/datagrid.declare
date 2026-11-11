@@ -32,7 +32,11 @@ header to sort.
   stored, or chosen by the person, like any records.
 - **A cell** shows its field as text, unless its column names a class: `cell: "DoneCell"`
   draws that class in every row of the column, each copy bound to its own row's record (so
-  `:done` is that row's `done`). Cells in one column can differ by row: the class decides
+  `:done` is that row's `done`). One class can serve several columns: it reads which it is
+  in as `provided("column")` — `{ id, title }` — and the field as `:@[(provided("column").id)]`.
+  A field of your own in a cell answers its keys first: Escape reaches what the cell holds,
+  then the grid's own bindings, and only then leaves the cell; a single-line field's Return
+  runs its `onEnter` before anything else hears it. Cells in one column can differ by row: the class decides
   how to look for its record, with a `State` or a `classFor` inside it.
 - **`edit: true`** makes a column's cells text fields that write the record as you type,
   with a spreadsheet's keys: Enter, F2 or a typed character starts the edit, Up and Down
@@ -738,6 +742,10 @@ Whether it is the grid's active cell while the grid has focus.
 ## _commitOn
 **Internal.** The column's `commitOn`.
 
+## column
+The column this cell is in, as `{ id, title }` — what a cell class shared by several
+columns reads, as `provided("column")`.
+
 ## _fld
 **Internal.** The field its column shows.
 
@@ -775,6 +783,11 @@ class DataGridCell [ x = { :x }, width = { :width }, height = 100%, clip = true,
     _ci: number = { 0 + (:i ?? 0) },
     _fld: string = { "" + :id },
     _commitOn: string = { "" + (:commitOn ?? "") },
+
+    // which column this cell is in, for a cell class shared by several:
+    // `provided("column")` from inside it
+
+    column: object = { { id: "" + :id, title: "" + (:title ?? :id) } },
     _cls: string = { :edit == true ? "DataGridEdit" : ("" + (:cell ?? "")) != "" ? "" + :cell : "DataGridText" },
 
     _kind() -> string { return this._cls == "DataGridEdit" ? "edit" : this._cls == "DataGridText" ? "text" : "own" },

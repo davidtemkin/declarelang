@@ -1391,9 +1391,21 @@ const expect = {
           const matches = requests.filter((q) => q.method === method.toUpperCase()
             && (path instanceof RegExp ? path.test(q.path) : q.path.startsWith(path))
             && (body === undefined || bodyHas(q.body, body)));
-          const said = requests.map((q) => `${q.method} ${q.path}${q.status !== null ? ` → ${q.status}` : ""}`).join(", ") || "none";
-          if (count === undefined ? matches.length === 0 : matches.length !== count)
-            fail(`expected ${count === undefined ? "a" : count} ${method.toUpperCase()} ${path}${body !== undefined ? ` with ${JSON.stringify(body)}` : ""} — sent: ${said}`);
+          if (count === undefined ? matches.length === 0 : matches.length !== count) {
+            // what came closest first — the same call with another body, then the
+            // same verb — and the rest as a count: a run's reads would bury it
+            const M = method.toUpperCase();
+            const atPath = (q) => (path instanceof RegExp ? path.test(q.path) : q.path.startsWith(path));
+            const line = (q, withBody) => `${q.method} ${q.path}${q.status !== null ? ` → ${q.status}` : ""}${withBody && q.body != null ? ` with ${JSON.stringify(q.body).slice(0, 200)}` : ""}`;
+            const near = requests.filter((q) => q.method === M && atPath(q));
+            const sameVerb = requests.filter((q) => q.method === M && !atPath(q));
+            const rest = requests.length - near.length - sameVerb.length;
+            const parts = [];
+            if (near.length > 0) parts.push(`${near.length} ${M} ${path}: ${near.slice(-5).map((q) => line(q, true)).join("; ")}`);
+            if (sameVerb.length > 0) parts.push(`other ${M}s: ${sameVerb.slice(-5).map((q) => line(q, false)).join(", ")}${sameVerb.length > 5 ? ` (and ${sameVerb.length - 5} more)` : ""}`);
+            if (rest > 0) parts.push(`and ${rest} other request${rest == 1 ? "" : "s"}`);
+            fail(`expected ${count === undefined ? "a" : count} ${M} ${path}${body !== undefined ? ` with ${JSON.stringify(body)}` : ""} — sent: ${parts.join(" · ") || "none"}`);
+          }
           step(`request ${method.toUpperCase()} ${path} ✓`);
         },
         /** A profile (drive.profile's answer) kept within a budget. Counts are the
