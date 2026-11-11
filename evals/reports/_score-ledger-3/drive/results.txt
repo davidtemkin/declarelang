@@ -1,3 +1,0 @@
-FAIL  sale_refund  12.3 s  the sale's detail doesn't show the refund of $32.00 (no text with "refund" and the amount beside its lines: "Speckled mug 2 × $32.00 $64.00 Art print A4 1 × $24.00 $24.00")
-      fallbacks: "Refund how many Speckled mug" took no typed digits; set to 1 with the arrow keys
-0 of 1 passed in 23 s
