@@ -14,6 +14,20 @@
         "onBase": "View"
       },
       "comment": "the tooltip singleton \u2014 provided with the library (tooltipLabel = attribute)"
+    },
+    {
+      "class": "ShortcutsPanel",
+      "when": {
+        "labelledKeyBindings": true
+      },
+      "comment": "the hold-\u2318 panel of the shortcuts in force \u2014 provided once the program labels a key binding"
+    },
+    {
+      "class": "ShortcutsPanel",
+      "when": {
+        "tagUsed": "Shortcuts"
+      },
+      "comment": "the hold-\u2318 panel of the shortcuts in force \u2014 provided with Shortcuts"
     }
   ],
   "Gauge": "gauge.declare",
@@ -103,6 +117,12 @@
   "MonthCalendarDay": "datepicker.declare",
   "MonthCalendarArrow": "datepicker.declare",
   "Form": "form.declare",
+  "ShortcutsPanel": "shortcutspanel.declare",
+  "ShortcutsPanelRow": "shortcutspanel.declare",
+  "ShortcutsPanelLine": "shortcutspanel.declare",
+  "ShortcutsPanelHead": "shortcutspanel.declare",
+  "RangeSlider": "rangeslider.declare",
+  "RangeThumb": "rangeslider.declare",
   "SendHold": "floating.declare",
   "ValueControl": "valuecontrol.declare",
   "FieldLayout": "field.declare",

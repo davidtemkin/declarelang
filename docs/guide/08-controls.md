@@ -25,14 +25,15 @@ what the library ships, and what `extends Control` makes yours.
 | [`RadioGroup [ value ]`](declare-docs:RadioGroup) with [`Radio [ choice, label ]`](declare-docs:Radio) children | `value` on the group | one of several |
 | [`ChoiceControl [ value ]`](declare-docs:ChoiceControl) with [`ChoiceItem [ choice ]`](declare-docs:ChoiceItem) children | `value`, or `values` with `multiple` | one of several, or several at once, each item drawn as your own |
 | [`Slider [ value, min, max, step ]`](declare-docs:Slider) | `value: number` | drag or arrow keys |
+| [`RangeSlider [ low, high, min, max, step ]`](declare-docs:RangeSlider) | `low`, `high` | a range on one track — two thumbs that never cross, each a stop of its own; `commit(low, high)` |
 | [`Segmented [ choices, value ]`](declare-docs:Segmented) | the chosen `id` | one of a few, shown at once; set its `width` — segments divide it evenly |
 | [`TabBar [ choices, value ]`](declare-docs:TabBar) | the chosen `id` | a `Segmented` that switches what is shown below it — pages, panes; a screen reader hears tabs |
-| [`Combobox [ items, value ]`](declare-docs:Combobox) | the chosen item | filter as you type |
+| [`Combobox [ items, value ]`](declare-docs:Combobox) | the chosen item | filter as you type; with [`creates`](declare-docs:Combobox.creates), what names no item is offered as new |
 | [`TextInput [ value, placeholder ]`](declare-docs:TextInput) | `value: string` | the text field |
 | [`SearchField [ value, placeholder ]`](declare-docs:SearchField) | `value: string` | a text field for searching: round at both ends, and a search field to a screen reader |
 | [`AppearanceSwitch [ dark ]`](declare-docs:AppearanceSwitch) | `dark: boolean` | light or dark, as one icon |
 | [`TextSizeSwitch [ value ]`](declare-docs:TextSizeSwitch) | the scale, one of its `sizes` | the reading size: a small, a default and a large A |
-| [`Stepper [ value, min, max, step ]`](declare-docs:Stepper) | `value: number` | a number a step at a time, between − and +; a spin button to a screen reader |
+| [`Stepper [ value, min, max, step ]`](declare-docs:Stepper) | `value: number` | a number a step at a time, between − and +, or typed; a spin button to a screen reader |
 | [`DatePicker [ value ]`](declare-docs:DatePicker) | an ISO date string | a field that opens a [`MonthCalendar`](declare-docs:MonthCalendar); the calendar also stands alone |
 | [`Disclosure [ label, open ]`](declare-docs:Disclosure) | `open: boolean` | a section that slides open under the line that names it |
 | [`Tree [ items, value, expanded ]`](declare-docs:Tree) | the selected `id` | an outline whose rows open and close |

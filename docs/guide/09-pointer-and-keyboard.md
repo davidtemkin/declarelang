@@ -324,10 +324,13 @@ A set covers the view it is declared on and is read in the same walk, after that
 already (`key: "Ctrl+N"`), and those are its program's shortcuts, so a program with a menu
 bar declares them once.
 
-Holding ⌘ alone (Ctrl elsewhere) shows the keys in force where focus is: every labelled
-binding and every shortcut, each key once, from the nearest view that binds it.
-[`Keyboard.shortcutsInForce()`](declare-docs:Keyboard.method.shortcutsInForce) lists the same, for a
-panel of your own, and a `KeyListener` hears ⌘ held alone as
+Holding ⌘ alone (Ctrl elsewhere) for a moment shows the keys in force where focus is — the
+[`ShortcutsPanel`](declare-docs:ShortcutsPanel), which a program gets once it labels a binding or
+declares `Shortcuts`: every labelled binding and every shortcut, each key once, from the
+nearest view that binds it, spelled as the person's keyboard spells it. A press of anything
+else, the pointer included, ends the hold. [`Keyboard.shortcutsInForce()`](declare-docs:Keyboard.method.shortcutsInForce)
+lists the same, for a panel of your own (`ShortcutsPanel [ active = false ]` turns the
+library's off), and a `KeyListener` hears ⌘ held alone as
 [`onCommandHeld`](declare-docs:KeyListener.event.commandHeld).
 
 ### Keys the program polls

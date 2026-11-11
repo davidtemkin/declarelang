@@ -93,6 +93,10 @@ export declare function comboOf(e: KeyEvent): string;
 /** A declared spelling, normalized: glyphs or words (`"Cmd+Shift+Z"`), any
  *  order, to the one form comboOf produces. */
 export declare function normalizeCombo(spec: string): string;
+/** A key as the platform says it, for showing (a menu, the hold-⌘ panel): a
+ *  Mac's glyphs in the Mac's order (`"Ctrl+Shift+S"` → `⇧⌘S`), and elsewhere
+ *  the words (`Ctrl+Shift+S`) — what the person sees on their own keyboard. */
+export declare function keyLabel(spec: string): string;
 /** The same press spelled from its physical key (`code`): KeyS → S, Digit1 → 1.
  *  A letter or digit on a non-Latin layout, or under ⌥ on a Mac (⌥A types å),
  *  still matches its binding this way. Null when the code names no letter or digit. */

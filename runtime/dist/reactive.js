@@ -232,6 +232,7 @@ const HOST = {
             // settle() throws the first such error once the settle has finished.
             // Nothing retries: the rule is not re-queued, so a body that throws on
             // every run throws once per settle that wakes it, never in a loop.
+            locate(e, c);
             if (outer.length > 0) {
                 if (pendingError === null)
                     pendingError = e;
@@ -816,6 +817,24 @@ const AFTER_LIMIT = 100;
  *  rule is; set by node-path.ts, which this module cannot import. */
 let addressOf = null;
 export function setAddressOf(f) { addressOf = f; }
+/** Where a rule failed, said on the error itself, once, at the innermost rule
+ *  — the node's place in the program's tree. A failure inside the library's
+ *  own code (a calendar given a date that is not one) otherwise names only the
+ *  library's lines; the place names the program's component it happened in
+ *  (`app.when…`), and so the use site whose values to look at. */
+const LOCATED = Symbol("declare.located");
+function locate(e, c) {
+    if (e === null || typeof e !== "object" || e[LOCATED] === true)
+        return;
+    e[LOCATED] = true;
+    const at = c.owner != null ? addressOf?.(c.owner) ?? null : null;
+    if (at === null || !(e instanceof Error))
+        return;
+    const first = e.message;
+    e.message = `${first} — while working out ${c.label} at ${at}`;
+    if (typeof e.stack === "string" && e.stack.includes(first))
+        e.stack = e.stack.replace(first, e.message);
+}
 /** A standing computation: `compute` runs with read-tracking on, `apply`
  *  lands the result with tracking off (its writes *invalidate* dependents;
  *  they must never register as dependencies). On the tracking path the

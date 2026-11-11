@@ -65,6 +65,25 @@ export function normalizeCombo(spec) {
     const k = KEY_NAMES[rest] ?? (rest.length === 1 ? rest.toUpperCase() : rest);
     return MOD_ORDER.filter((m) => mods.has(m)).join("") + k;
 }
+/** A key as the platform says it, for showing (a menu, the hold-⌘ panel): a
+ *  Mac's glyphs in the Mac's order (`"Ctrl+Shift+S"` → `⇧⌘S`), and elsewhere
+ *  the words (`Ctrl+Shift+S`) — what the person sees on their own keyboard. */
+export function keyLabel(spec) {
+    const c = normalizeCombo(spec);
+    if (KEYS_ON_MAC)
+        return c;
+    let rest = c;
+    const words = [];
+    for (const [g, w] of [["⌃", "Ctrl"], ["⌘", "Ctrl"], ["⌥", "Alt"], ["⇧", "Shift"]]) {
+        if (rest.includes(g)) {
+            if (!words.includes(w))
+                words.push(w);
+            rest = rest.split(g).join("");
+        }
+    }
+    const order = ["Ctrl", "Alt", "Shift"];
+    return [...order.filter((w) => words.includes(w)), rest].join("+");
+}
 /** The same press spelled from its physical key (`code`): KeyS → S, Digit1 → 1.
  *  A letter or digit on a non-Latin layout, or under ⌥ on a Mac (⌥A types å),
  *  still matches its binding this way. Null when the code names no letter or digit. */
@@ -396,7 +415,7 @@ export class KeysService {
                 if (seen.has(c))
                     continue;
                 seen.add(c);
-                out.push({ id: r.id, key: r.key, label: r.label ?? "", enabled: r.enabled !== false,
+                out.push({ id: r.id, key: r.key, keyLabel: keyLabel(r.key), label: r.label ?? "", enabled: r.enabled !== false,
                     origin: typeof owner.title === "string" ? owner.title : "", group: typeof r.menu === "string" ? r.menu : (typeof owner.title === "string" ? owner.title : "") });
             }
         }
@@ -610,6 +629,7 @@ export class KeysService {
             target.removeEventListener("keydown", onDown);
             target.removeEventListener("keyup", onUp);
             target.removeEventListener("blur", onBlur);
+            target.removeEventListener("pointerdown", onPress, true);
         };
         const onDown = (ev) => {
             if (!isAlive())
@@ -655,9 +675,17 @@ export class KeysService {
                 return retire();
             this.clearHeld();
         };
+        // a press while ⌘ is down is a ⌘-click or a ⌘-drag, not a look at the
+        // shortcuts: the hold ends
+        const onPress = () => {
+            if (!isAlive())
+                return retire();
+            this.endCommandHold();
+        };
         target.addEventListener("keydown", onDown);
         target.addEventListener("keyup", onUp);
         target.addEventListener("blur", onBlur);
+        target.addEventListener("pointerdown", onPress, true);
     }
 }
 /** Is the element a native text field — where a key is typing? */

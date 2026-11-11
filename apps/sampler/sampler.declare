@@ -874,7 +874,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
             gridPage: View [ visible = { app.page == "grid" }, width = 100%,
                 accessibilityRole = tabPanel, accessibilityLabel = "DataGrid",
                 layout: SimpleLayout [ axis = y, spacing = 10 ],
-                Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.2, padding = [0, 0, 32, 0],
+                Text [ fontSize = 12, fontWeight = semibold, letterSpacing = 1.2,
                     textColor = { provided("theme").textMuted },
                     text = "DATAGRID — 500 ROWS, WINDOWED; EVERY CELL WRITES THE RECORD" ],
                 grid: DataGrid [ width = 100%, accessibilityLabel = "Tasks",

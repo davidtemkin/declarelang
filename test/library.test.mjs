@@ -312,9 +312,9 @@ await test("DataGrid: no children — rows from items, cells from the columns' r
   const rows = gridRows(app.g);
   assert.equal(rows.length, 3);
   assert.deepEqual(cellTexts(rows[1]), ["1", "Issue 1", "open"], "a cell with no class shows its field as text");
-  assert.ok(app.g._hdr.paintsIn === app.g.parent, "the header paints in the grid's parent, outside the scroll box");
-  assert.equal(app.g._hdr.y, app.g.y - app.g.headerH, "and floats ABOVE the scroll box, in that parent's frame");
-  assert.equal(rows[0].y, 0, "rows start at the box top — the scroll region is rows only");
+  assert.equal(app.g._hdr.y, 0, "the header takes the top of the grid's own box");
+  assert.equal(app.g._hdr.ignoreScroll, true, "pinned there while the rows scroll");
+  assert.equal(rows[0].y, app.g.headerH, "rows begin below it — a layout placing the grid places header and rows together");
 });
 
 await test("DataGrid: header click is a SORT DELIVERY — it names a derivation, data stays the truth", async () => {
@@ -465,7 +465,7 @@ await test("DataGrid: windowing composes — the header offsets the window (the 
   assert.ok(rows.length < 60, "10k rows, a window's worth of instances");
   const first = rows.find((r) => r.tableIndex() === 0);
   assert.ok(first !== undefined);
-  assert.equal(first.y, 0, "row 0 sits at the box top — the header floats above the region");
+  assert.equal(first.y, app.g.headerH, "row 0 sits below the header — its place leads the window");
   assert.deepEqual(cellTexts(first), ["0", "Issue 0"], "cells render in the window");
 });
 
@@ -692,6 +692,70 @@ await test("an icon sits in a row that centers its children, and a use site plac
   const app = instantiate(b.program); settle();
   assert.equal(app.row.arrow.y, 12, "centered in the 40-high row");
   assert.equal(app.alone.y, 42, "centered in the App by its own use");
+});
+
+// ── 2026-11-11: what the Ledger runs built by hand ──────────────────────────
+
+await test("Combobox creates: text that names no item is offered, and asked for, by name", async () => {
+  const app = await boot(`App [ width = 400, height = 300, asked: string = "",
+    c: Combobox [ x = 20, y = 20, creates = true, items = ["Acme", "Globex"],
+      createRequested(t: string) { app.asked = t } ] ]`);
+  const c = app.c;
+  c.query = "Print"; c.filtering = true; c.syncList(); settle();
+  assert.equal(c._offersNew, true, "nothing is called Print");
+  assert.equal(c.list.items.at(-1).id, "new", "the last row offers it");
+  c.query = "acme"; c.syncList(); settle();
+  assert.equal(c._offersNew, false, "an item's own name is no new item");
+  c.open(); c.query = "Printworks"; c.filtering = true; c.syncList(); settle();
+  c.entry.onEnter(); settle();
+  assert.equal(app.asked, "Printworks", "Return with nothing matching asks for it");
+  assert.equal(c.entry.text, "Printworks", "the text stays while the new choice is made");
+});
+
+await test("RangeSlider: two thumbs that never cross, each on a step", async () => {
+  const app = await boot(`App [ width = 400, height = 100, lo: number = 20, hi: number = 100,
+    r: RangeSlider [ min = 0, max = 500, step = 5, accessibilityLabel = "Amount",
+      low = { app.lo }, high = { app.hi }, commit(low: number, high: number) { app.lo = low; app.hi = high } ] ]`);
+  app.r.setHigh(10); settle();
+  assert.deepEqual([app.lo, app.hi], [20, 20], "the high end stops at the low one");
+  app.r.setLow(333); settle();
+  assert.deepEqual([app.lo, app.hi], [20, 20], "and the low end at the high one");
+  app.r.setHigh(333); settle();
+  assert.equal(app.hi, 335, "on a step");
+  app.r._lowThumb.accessibilityIncrement(); settle();
+  assert.equal(app.lo, 25, "each thumb steps on its own");
+  assert.equal(app.r._highThumb.accessibilityLabel, "Maximum amount");
+});
+
+await test("Stepper: digits typed together are one number, held to the range", async () => {
+  const app = await boot(`App [ width = 300, height = 100, n: number = 2,
+    s: Stepper [ min = 1, max = 50, value = { app.n }, accessibilityLabel = "Copies", commit(v: number) { app.n = v } ] ]`);
+  app.s.onKeyDown(KEY("1")); app.s.onKeyDown(KEY("2")); settle();
+  assert.equal(app.n, 12);
+  app.s._typedAt = 0;
+  app.s.onKeyDown(KEY("9")); app.s.onKeyDown(KEY("9")); settle();
+  assert.equal(app.n, 50, "99 is held to max");
+});
+
+await test("DataGrid editInput: an edit goes through it — the default writes, false keeps the record", async () => {
+  const src = (over) => `App [ width = 700, height = 400, sent: string = "",
+    d: Dataset { { "rows": [ { "id": 1, "title": "One" } ] } },
+    g: DataGrid [ width = 600, height = 300, items = { app.d.value.rows },
+      columns = { [ { id: "title", title: "Title", width: 240, edit: true, commitOn: "end" } ] } ${over} ] ]`;
+  const app = await boot(src(""));
+  cellsOf(gridRows(app.g)[0])[0]._drawn().write("Two"); settle();
+  assert.equal(app.d.value.rows[0].title, "Two", "by default it writes");
+  const app2 = await boot(src(`, editInput(record: object, field: string, value: string) -> boolean { app.sent = field + "=" + value; return false }`));
+  cellsOf(gridRows(app2.g)[0])[0]._drawn().write("Two"); settle();
+  assert.equal(app2.sent, "title=Two", "the override hears it");
+  assert.equal(app2.d.value.rows[0].title, "One", "and false keeps the record for the service's answer");
+});
+
+await test("ShortcutsPanel: provided once a program labels a binding — not for the library's own keys", async () => {
+  const has = async (src) => JSON.stringify((await compileProgram(src, { originDir: process.cwd() + "/library" })).program).includes('"ShortcutsPanel"');
+  assert.equal(await has(`App [ Button [ label = "x" ] ]`), false, "a Button's Space and Enter earn nothing");
+  assert.equal(await has(`App [ keyBindings = { [ ({ key: "Ctrl+S", command: "save" }) ] }, save() { } ]`), false, "an unlabelled binding shows nowhere");
+  assert.equal(await has(`App [ keyBindings = { [ ({ key: "Ctrl+S", command: "save", label: "Save" }) ] }, save() { } ]`), true);
 });
 
 summarize("library");

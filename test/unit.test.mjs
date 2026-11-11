@@ -7124,8 +7124,8 @@ await test("keys: listen is IDEMPOTENT per target — a re-mount replaces the wi
   const after1 = registered.length;
   keys.listen(() => true, target);  // the second mount
   keys.listen(() => true, target);  // and a third
-  assert.equal(after1, 3, "one wire = the keydown/keyup/blur trio");
-  assert.equal(registered.length, 3, "re-mounting replaces the liveness probe — it adds NOTHING");
+  assert.equal(after1, 4, "one wire = keydown, keyup, blur, and the pointer press that ends a ⌘ hold");
+  assert.equal(registered.length, 4, "re-mounting replaces the liveness probe — it adds NOTHING");
 });
 
 await test("keys: a replaced liveness probe governs — the newest app owns the wire", () => {

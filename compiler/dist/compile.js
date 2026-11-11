@@ -1094,6 +1094,18 @@ async function compileUnquieted(source, opts, seen) {
         const elUsesAttr = (el, name, onBase) => (el.attrs.some((a) => a.name === name) && (onBase === null || tagDescendsFrom(el.tag, onBase))) ||
             el.children.some((ch) => elUsesAttr(ch, name, onBase));
         const attrUsed = (name, onBase) => elUsesAttr(main.root, name, onBase) || auto.program.classes.some((c) => elUsesAttr(c.body, name, onBase));
+        // The PROGRAM's own: its file and what it includes, never the library the
+        // auto-include brought in — the library's controls bind keys of their own
+        // (a Button's Space), which earn nothing.
+        const libraryFiles = new Set(auto.sourceIds);
+        const ownClasses = () => auto.program.classes.filter((c) => !libraryFiles.has(c.pos.file ?? ""));
+        // `labelledKeyBindings` — a key binding the program labels (`label:` in a
+        // `keyBindings` record): something a panel of shortcuts has to show
+        const elLabelsKeys = (el) => el.attrs.some((a) => a.name === "keyBindings" && a.value.kind === "code" && /\blabel\s*:/.test(a.value.src)) ||
+            el.children.some(elLabelsKeys);
+        const labelledKeys = () => elLabelsKeys(main.root) || ownClasses().some((c) => elLabelsKeys(c.body));
+        // `tagUsed` — the program writes an element of that class
+        const tagUsed = (tag) => treeHas(main.root, tag) || ownClasses().some((c) => treeHas(c.body, tag));
         // The host's own type, not a convenient re-description of it. This cast used
         // to declare `resolveLibrary` SYNCHRONOUS — and when the include seam went
         // async the compiler believed the cast: `lib` became a Promise, `lib.canonical`
@@ -1138,7 +1150,9 @@ async function compileUnquieted(source, opts, seen) {
                     const when = r.when ?? {};
                     const triggered = (typeof when.baseUsed === "string" && auto.program.classes.some((c) => descendsFromNamed(c.name, when.baseUsed))) ||
                         (typeof when.attributeUsed === "string" &&
-                            attrUsed(when.attributeUsed, typeof when.onBase === "string" ? when.onBase : null));
+                            attrUsed(when.attributeUsed, typeof when.onBase === "string" ? when.onBase : null)) ||
+                        (typeof when.tagUsed === "string" && tagUsed(when.tagUsed)) ||
+                        (when.labelledKeyBindings === true && labelledKeys());
                     if (!triggered)
                         continue;
                     if (byName.has(cls) || treeHas(main.root, cls))

@@ -1,7 +1,7 @@
 // The release this compiler is: package.json's version, written here by
 // `release.mjs --scaffold` and held equal to it by test/release.test.mjs. A
 // program's `declareVersion [ "…" ]` is compared with it (migration.md §2.1).
-export const DECLARE_VERSION = "0.6.8";
+export const DECLARE_VERSION = "0.6.9";
 
 /** `"0.6"` → [0, 6, 0, 0]: a release as major.minor.patch.step (the fourth
  *  part a smaller release between patches, 0.6.4.1), a missing part 0. */

@@ -1,0 +1,200 @@
+/*
+# RangeSlider
+
+Two values on one track — the low and the high end of a range: a price from $20 to $100, the
+hours a shop is open. Each end is a thumb of its own: a Tab stop that the arrow keys move, and
+to a screen reader a slider of its own, named for its end. The two never cross.
+
+```declare
+App [ width = 320, height = 100, lo: number = 20, hi: number = 100,
+    RangeSlider [ x = 20, y = 20, min = 0, max = 500, step = 5,
+        accessibilityLabel = "Amount",
+        low = { app.lo }, high = { app.hi },
+        commit(low: number, high: number) { app.lo = low; app.hi = high } ],
+    Text [ x = 20, y = 60, text = { "$" + app.lo + " – $" + app.hi } ]
+    ]
+```
+
+A press on the track moves the nearer thumb there, and a drag carries it. From the keyboard,
+each thumb steps with the arrows, moves a tenth of the range with Page Up and Page Down, and
+goes as far as it can with Home and End — up to the other thumb, never past it.
+
+## low
+The low end of the range.
+
+## high
+The high end of the range.
+
+## min
+The least value the range can reach.
+
+## max
+The greatest value the range can reach.
+
+## step
+How far one arrow press moves a thumb; values land on steps from `min`.
+
+## commit()
+**Where a change goes**, receiving both ends — already within `min` and `max`, on a step, and
+in order. The default writes `low` and `high`; override it to own the destination.
+
+## lowLabel
+What a screen reader calls the low thumb: "Minimum …", after the slider's own name.
+
+## highLabel
+What a screen reader calls the high thumb: "Maximum …", after the slider's own name.
+
+## valueText()
+How a value is said to a screen reader — `"$20"` rather than `20`. The number itself by
+default.
+
+## quant()
+A value held to the range and put on a step.
+
+## setLow()
+Moves the low end, held below the high one.
+
+## setHigh()
+Moves the high end, held above the low one.
+
+## frac()
+Where a value sits along the track, from 0 to 1.
+
+## _grab
+**Internal.** Which thumb a press on the track carries: `"low"` or `"high"`.
+
+## _track
+**Internal.** The track.
+
+## _bar
+**Internal.** The stretch of track between the thumbs.
+
+## _lowThumb
+**Internal.** The low end's thumb.
+
+## _highThumb
+**Internal.** The high end's thumb.
+*/
+
+class RangeSlider [ width = 220, height = 28,
+    low: number = 0,
+    high: number = 100,
+    min: number = 0,
+    max: number = 100,
+    step: number = 1,
+    disabled: boolean = false,
+    lowLabel: string = { "Minimum " + this.accessibilityLabel.toLowerCase() },
+    highLabel: string = { "Maximum " + this.accessibilityLabel.toLowerCase() },
+    accessibilityRole = group,
+    opacity = { disabled ? provided("theme").disabledOpacity : 1 },
+
+    commit(low: number, high: number) { this.low = low; this.high = high },
+    valueText(v: number) -> string { return "" + v },
+
+    quant(v: number) -> number {
+        const q = Math.round((v - min) / step) * step + min
+        return Math.max(min, Math.min(max, q))
+        },
+    setLow(v: number) {
+        const n = Math.min(quant(v), high)
+        if (n != low) commit(n, high)
+        },
+    setHigh(v: number) {
+        const n = Math.max(quant(v), low)
+        if (n != high) commit(low, n)
+        },
+    frac(v: number) -> number { return Math.max(0, Math.min(1, (v - min) / ((max - min) || 1))) },
+
+    // a press on the track: the nearer thumb comes to it, and the drag carries it
+
+    _grab: string = "",
+    _valueAt(x: number) -> number { return min + (max - min) * ((x - 9) / ((width - 18) || 1)) },
+    onPointerDown(e: PointerEvent) {
+        if (disabled) return
+        const v = _valueAt(e.x)
+        _grab = Math.abs(v - low) <= Math.abs(v - high) && !(v > high) ? "low" : "high"
+        if (_grab == "low") { Focus.focus(_lowThumb); setLow(v) }
+        else { Focus.focus(_highThumb); setHigh(v) }
+        },
+    onDrag(e: PointerEvent) {
+        if (_grab == "low") setLow(_valueAt(e.x))
+        else if (_grab == "high") setHigh(_valueAt(e.x))
+        },
+    onPointerUp() { _grab = "" },
+
+    _track: View [ x = 0, y = center, width = { classroot.width }, height = { provided("theme").sliderTrackHeight },
+        cornerRadius = { this.height / 2 }, fill = { provided("theme").trackFill ?? provided("theme").control } ],
+    _bar: View [ y = { classroot._track.y }, height = { classroot._track.height }, cornerRadius = { this.height / 2 },
+        fill = { provided("theme").accent },
+        x = { 9 + (classroot.width - 18) * classroot.frac(classroot.low) },
+        width = { (classroot.width - 18) * (classroot.frac(classroot.high) - classroot.frac(classroot.low)) } ],
+    _lowThumb: RangeThumb [ value = { classroot.low }, min = { classroot.min }, max = { classroot.max }, step = { classroot.step },
+        disabled = { classroot.disabled }, accessibilityLabel = { classroot.lowLabel }, valueText = { classroot.valueText(classroot.low) },
+        x = { (classroot.width - 18) * classroot.frac(classroot.low) },
+        moved(v: number) { classroot.setLow(v) }
+        ],
+    _highThumb: RangeThumb [ value = { classroot.high }, min = { classroot.min }, max = { classroot.max }, step = { classroot.step },
+        disabled = { classroot.disabled }, accessibilityLabel = { classroot.highLabel }, valueText = { classroot.valueText(classroot.high) },
+        x = { (classroot.width - 18) * classroot.frac(classroot.high) },
+        moved(v: number) { classroot.setHigh(v) }
+        ]
+    ]
+
+
+/*
+# RangeThumb
+
+**Internal.** One end of a `RangeSlider`: a slider of its own to the keyboard and to a screen
+reader, moving its end of the range.
+
+## value
+**Internal.** Its end's value.
+
+## min
+**Internal.** The range's least value.
+
+## max
+**Internal.** The range's greatest value.
+
+## step
+**Internal.** One step.
+
+## valueText
+**Internal.** Its value as a screen reader says it.
+
+## moved()
+**Internal.** A key or a step moved it: the RangeSlider moves its end.
+*/
+
+class RangeThumb extends Control [
+    value: number = 0,
+    min: number = 0,
+    max: number = 100,
+    step: number = 1,
+    valueText: string = "",
+
+    // where a step or a key moves it: the RangeSlider says, where it places the thumb
+
+    moved(v: number) { },
+    accessibilityRole = slider,
+    accessibilityValue = { value },
+    accessibilityMin = { min },
+    accessibilityMax = { max },
+    accessibilityStep = { step },
+    accessibilityValueText = { valueText },
+    accessibilityIncrement() { moved(value + step) },
+    accessibilityDecrement() { moved(value - step) },
+    onKeyDown(e: KeyEvent) {
+        const page = Math.max(step, (max - min) / 10)
+        if (disabled || (e.key != "Home" && e.key != "End" && e.key != "PageUp" && e.key != "PageDown")) { super.onKeyDown(e); return }
+        moved(e.key == "Home" ? min : e.key == "End" ? max : value + (e.key == "PageUp" ? page : -page))
+        },
+
+    // a press on a thumb is the track's: the RangeSlider carries the drag
+
+    pointerEvents = "none",
+
+    width = 18, height = 18, y = 5, cornerRadius = 9,
+    fill = { provided("theme").sliderThumbFill ?? provided("theme").surface },
+    stroke = { stroke(1, this.focused ? provided("theme").accent : provided("theme").line) }
+    ]

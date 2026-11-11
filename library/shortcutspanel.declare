@@ -1,0 +1,110 @@
+/*
+# ShortcutsPanel
+
+The keys that do something where the person is, shown when they hold ⌘ (Ctrl elsewhere) on
+its own for a moment, and gone when they let go — the way to find a program's shortcuts
+without a manual. It lists every labelled key binding and every `Shortcuts` record in force
+where focus is, nearest first, each key once, grouped by `group`.
+
+A program gets one without asking once it labels a key binding or declares `Shortcuts`; a
+program with nothing labelled shows nothing. Pressing anything — another key, the pointer
+(a ⌘-click, a ⌘-drag) — ends the hold before the panel shows.
+
+```declare
+App [ width = 400, height = 240, saved: number = 0,
+    keyBindings = { [ ({ key: "Ctrl+S", command: "save", label: "Save", group: "File" }),
+        ({ key: "Ctrl+Shift+S", command: "save", label: "Save a copy", group: "File" }) ] },
+    save() { app.saved = app.saved + 1 },
+    Text [ x = 20, y = 20, text = "Hold ⌘ to see the shortcuts" ]
+    ]
+```
+
+A program that wants none — it has its own help — declares its own with `active = false`:
+`ShortcutsPanel [ active = false ]`.
+
+## active
+Whether holding ⌘ shows the panel. `true` by default.
+
+## shown
+**Read-only in spirit.** The panel is up.
+
+## list
+What it lists: `Keyboard.shortcutsInForce()` as the hold began.
+
+## grouped()
+The list as rows: a heading per group, in the order groups first appear, then its keys.
+
+## rows
+**Internal.** The rows, as the dataset the panel replicates over.
+
+## _hold
+**Internal.** Hears ⌘ held alone, and let go.
+*/
+
+include [ "simplelayout.declare", "spacer.declare" ]
+
+class ShortcutsPanel [ x = center, y = center, width = 340, ignoreLayout = true,
+    active: boolean = true,
+    shown: boolean = false,
+    list: array = [],
+    grouped(list: array) -> array {
+        const groups: string[] = []
+        for (const r of list) if (groups.indexOf("" + (r.group ?? "")) < 0) groups.push("" + (r.group ?? ""))
+        const out: object[] = []
+        for (const g of groups) {
+            out.push(({ kind: "head", text: g == "" ? "Shortcuts" : g }))
+            for (const r of list) if ("" + (r.group ?? "") == g) out.push(({ kind: "line", label: r.label, key: r.keyLabel ?? r.key, enabled: r.enabled }))
+            }
+        return out
+        },
+    rows: Dataset [ contents = { { rows: classroot.grouped(classroot.list) } } ],
+    _hold: KeyListener [ onCommandHeld(on: boolean) {
+        const p = classroot
+        if (on && p.active) { p.list = Keyboard.shortcutsInForce(); p.shown = p.list.length > 0 }
+        else p.shown = false
+        }
+        ],
+
+    visible = { this.shown },
+    padding = [8, 18, 14, 18], cornerRadius = 14,
+    fill = { provided("theme").surface }, shadow = shadow(0, 16, 50, #00000059),
+    accessibilityRole = region, accessibilityLabel = "Keyboard shortcuts",
+    layout: SimpleLayout [ axis = y ],
+    datapath = { this.rows.value },
+    ShortcutsPanelRow [ datapath = :rows[], classFor = { :kind == "head" ? ShortcutsPanelHead : ShortcutsPanelLine } ]
+    ]
+
+
+/*
+# ShortcutsPanelRow
+
+**Internal.** A row of the `ShortcutsPanel`: a heading or a key.
+*/
+
+class ShortcutsPanelRow [ width = 100% ]
+
+/*
+# ShortcutsPanelLine
+
+**Internal.** A key in the `ShortcutsPanel`: what it does, and the key.
+*/
+
+class ShortcutsPanelLine extends ShortcutsPanelRow [ height = 24,
+    layout: SimpleLayout [ axis = x, spacing = 12 ],
+    Text [ y = center, shrinks = true, maxLines = 1, fontSize = 13, text = { "" + :label },
+        textColor = { :enabled == false ? provided("theme").textFaint : provided("theme").text } ],
+    Spacer [ ],
+    Text [ y = center, fontSize = 13, text = { "" + :key }, textColor = { provided("theme").textMuted } ]
+    ]
+
+
+/*
+# ShortcutsPanelHead
+
+**Internal.** A group's heading in the `ShortcutsPanel`.
+*/
+
+class ShortcutsPanelHead extends ShortcutsPanelRow [ height = 28,
+    Text [ y = { parent.height - this.height - 3 }, fontSize = 11, fontWeight = semibold,
+        text = { "" + :text }, textColor = { provided("theme").textMuted } ]
+    ]

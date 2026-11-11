@@ -17,7 +17,7 @@
 // is wired by the runtime entry, not here, keeping this layer independent.
 import { inPointerDispatch } from "./pointer-dispatch.js";
 import { View, fireEvent, setFocusDiscardHook, setKeyDefaultHook, noteFocused } from "./view.js";
-import { Keys, comboOf, comboOfCode, normalizeCombo, commanded, FIELD_CHORDS, KEYS_ON_MAC, setKeyWalk, setInForce } from "./keys.js";
+import { Keys, comboOf, comboOfCode, normalizeCombo, keyLabel, commanded, FIELD_CHORDS, KEYS_ON_MAC, setKeyWalk, setInForce } from "./keys.js";
 import { compileExpr } from "./expr.js";
 import { declareName } from "./declare-name.js";
 import { radiusMax } from "./value.js";
@@ -1371,7 +1371,7 @@ function bindingsInForce() {
                         if (rec.command === null || !predicate(v, rec, "when"))
                             continue;
                         const group = typeof rec.group === "string" ? rec.group : "";
-                        out.push({ id: rec.command, key: rec.key, label: rec.label, enabled: predicate(v, rec, "enabled"), origin: group, group });
+                        out.push({ id: rec.command, key: rec.key, keyLabel: keyLabel(rec.key), label: rec.label, enabled: predicate(v, rec, "enabled"), origin: group, group });
                     }
                 }
             }
@@ -1386,7 +1386,7 @@ function bindingsInForce() {
                             continue;
                         seen.add(spec);
                         const title = typeof set.title === "string" ? set.title : "";
-                        out.push({ id: r.id, key: r.key, label: r.label ?? "", enabled: r.enabled !== false, origin: title, group: typeof r.menu === "string" ? r.menu : title });
+                        out.push({ id: r.id, key: r.key, keyLabel: keyLabel(r.key), label: r.label ?? "", enabled: r.enabled !== false, origin: title, group: typeof r.menu === "string" ? r.menu : title });
                     }
                 }
             }

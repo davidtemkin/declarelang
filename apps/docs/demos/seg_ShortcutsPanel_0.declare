@@ -1,0 +1,7 @@
+App [ width = 400, height = 240,
+    saved: number = 0,
+    keyBindings = { [ ({ key: "Ctrl+S", command: "save", label: "Save", group: "File" }),
+        ({ key: "Ctrl+Shift+S", command: "save", label: "Save a copy", group: "File" }) ] },
+    save() { app.saved = app.saved + 1 },
+    Text [ x = 20, y = 20, text = "Hold ⌘ to see the shortcuts" ]
+    ]

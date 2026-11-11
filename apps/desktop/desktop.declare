@@ -3203,10 +3203,14 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
         const out: object[] = []
         for (const g of groups) {
             out.push(({ kind: "head", text: g == "" ? "Shortcuts" : g }))
-            for (const r of list) if ("" + r.group == g) out.push(({ kind: "line", label: r.label, key: r.key, enabled: r.enabled }))
+            for (const r of list) if ("" + r.group == g) out.push(({ kind: "line", label: r.label, key: r.keyLabel ?? r.key, enabled: r.enabled }))
             }
         return out
         },
+
+    // the desktop shows its own panel, placed under its menu bar: the library's stays off
+
+    ShortcutsPanel [ active = false ],
 
     shortcutPanel: View [ visible = { app.shortcutsShown }, width = 340, x = center,
         y = { Math.max(app.menuBarH + 20, (app.height - this.height) / 2) },

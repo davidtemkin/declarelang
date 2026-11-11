@@ -14,8 +14,8 @@ App [ width = 300, height = 100, copies: number = 2,
     ]
 ```
 
-From the keyboard, Up and Down step it, Page Up and Page Down move ten steps, and Home and End
-go to `min` and `max`. To a screen reader it is a spin button, named at its use site, saying
+From the keyboard, Up and Down step it, Page Up and Page Down move ten steps, Home and End
+go to `min` and `max`, and typing a number sets it. To a screen reader it is a spin button, named at its use site, saying
 its value and range; its adjust gesture steps it the same way. − and + are for the pointer,
 and dim at the ends of the range.
 
@@ -51,7 +51,14 @@ One step down.
 
 ## onKeyDown
 Up and Down step (Control's own keys for a spin button); Page Up and Page Down move ten steps;
-Home and End go to the ends.
+Home and End go to the ends. Digits set the value — typed close together they are one number,
+`1` then `2` twelve — held to `min` and `max`.
+
+## _typed
+**Internal.** The digits typed so far, while they come close together.
+
+## _typedAt
+**Internal.** When the last digit was typed.
 
 ## accessibilityValue
 The value.
@@ -118,8 +125,18 @@ class Stepper extends ValueControl [
         else if (e.key == "PageDown") setTo(value - 10 * step)
         else if (e.key == "Home") setTo(min)
         else if (e.key == "End") setTo(max)
+        else if (e.key.length == 1 && e.key >= "0" && e.key <= "9" && !e.ctrl && !e.meta && !e.alt) {
+            // digits typed close together are one number — "12" is twelve —
+            // held to the range, as a spin button that is typed into
+            const now = Date.now()
+            _typed = (now - _typedAt < 1000 ? _typed : "") + e.key
+            _typedAt = now
+            setTo(Number(_typed))
+            }
         else super.onKeyDown(e)
         },
+    _typed: string = "",
+    _typedAt: number = 0,
 
     width = 120,
     height = { provided("theme").segmentedHeight },

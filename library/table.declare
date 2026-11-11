@@ -297,13 +297,17 @@ class Table extends Control [
 
     showRow(i: number) {
         const inst = this.children.find(c => (c as TableRow)._isTableRow === true && (c as TableRow).tableIndex() == i)
-        if (inst != null) { inst.scrollIntoView("nearest"); return }
+        if (inst != null && _topInset == 0) { inst.scrollIntoView("nearest"); return }
         const some = this.children.find(c => (c as TableRow)._isTableRow === true)
         const unit = some != null && some.height > 0 ? some.height : 24
-        const top = i * unit
-        if (top < this.scrollY) this.scrollTo(top)
-        else if (top + unit > this.scrollY + this.height) this.scrollTo(top + unit - this.height)
+        const top = inst != null ? inst.y : _topInset + i * unit
+        const h = inst != null ? inst.height : unit
+        // what stands pinned over the top of the rows (a grid's header) is not
+        // room to show a row in
+        if (top - _topInset < this.scrollY) this.scrollTo(top - _topInset)
+        else if (top + h > this.scrollY + this.height) this.scrollTo(top + h - this.height)
         },
+    _topInset: number = 0,
 
     onKeyDown(e: KeyEvent) {
         // Tab moves on, through the walk (key-bindings.md); the table's other

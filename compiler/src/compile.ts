@@ -1156,6 +1156,19 @@ async function compileUnquieted(source: string, opts: CompileOptions, seen: { fl
       el.children.some((ch) => elUsesAttr(ch, name, onBase));
     const attrUsed = (name: string, onBase: string | null): boolean =>
       elUsesAttr(main.root, name, onBase) || auto.program.classes.some((c) => elUsesAttr(c.body, name, onBase));
+    // The PROGRAM's own: its file and what it includes, never the library the
+    // auto-include brought in — the library's controls bind keys of their own
+    // (a Button's Space), which earn nothing.
+    const libraryFiles = new Set(auto.sourceIds);
+    const ownClasses = (): typeof auto.program.classes => auto.program.classes.filter((c) => !libraryFiles.has(c.pos.file ?? ""));
+    // `labelledKeyBindings` — a key binding the program labels (`label:` in a
+    // `keyBindings` record): something a panel of shortcuts has to show
+    const elLabelsKeys = (el: Element): boolean =>
+      el.attrs.some((a) => a.name === "keyBindings" && a.value.kind === "code" && /\blabel\s*:/.test(a.value.src)) ||
+      el.children.some(elLabelsKeys);
+    const labelledKeys = (): boolean => elLabelsKeys(main.root) || ownClasses().some((c) => elLabelsKeys(c.body));
+    // `tagUsed` — the program writes an element of that class
+    const tagUsed = (tag: string): boolean => treeHas(main.root, tag) || ownClasses().some((c) => treeHas(c.body, tag));
     // The host's own type, not a convenient re-description of it. This cast used
     // to declare `resolveLibrary` SYNCHRONOUS — and when the include seam went
     // async the compiler believed the cast: `lib` became a Promise, `lib.canonical`
@@ -1189,14 +1202,16 @@ async function compileUnquieted(source: string, opts: CompileOptions, seen: { fl
       if (Array.isArray(rules)) {
         for (const rule of rules) {
           if (rule === null || typeof rule !== "object") continue;
-          const r = rule as { class?: unknown; when?: { baseUsed?: unknown; attributeUsed?: unknown; onBase?: unknown }; comment?: unknown };
+          const r = rule as { class?: unknown; when?: { baseUsed?: unknown; attributeUsed?: unknown; onBase?: unknown; tagUsed?: unknown; labelledKeyBindings?: unknown }; comment?: unknown };
           const cls = typeof r.class === "string" ? r.class : null;
           if (cls === null) continue;
           const when = r.when ?? {};
           const triggered =
             (typeof when.baseUsed === "string" && auto.program.classes.some((c) => descendsFromNamed(c.name, when.baseUsed as string))) ||
             (typeof when.attributeUsed === "string" &&
-              attrUsed(when.attributeUsed, typeof when.onBase === "string" ? when.onBase : null));
+              attrUsed(when.attributeUsed, typeof when.onBase === "string" ? when.onBase : null)) ||
+            (typeof when.tagUsed === "string" && tagUsed(when.tagUsed)) ||
+            (when.labelledKeyBindings === true && labelledKeys());
           if (!triggered) continue;
           if (byName.has(cls) || treeHas(main.root, cls)) continue; // the program provides its own
           const path = manifest[cls];

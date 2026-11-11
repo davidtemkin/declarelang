@@ -54,7 +54,8 @@ library's overlays and focus ring read. With focus outside it, its keys start at
 The keys in force where focus is now — every labelled `keyBindings` record with a key and
 every `Shortcuts` record, each key once, from the nearest view that binds it, walking from
 the focused view out through its program and, for chords, on into the program that hosts it:
-records `{ id, key, label, enabled, origin, group }`. For a binding, `id` is its command and
-`group` its `group`; for a shortcut, `origin` is the declaring set's `title` and `group` the
-menu a menu bar's shortcut sits in (else the origin). What a panel of the available keys
-lists (hold ⌘ in the desktop).
+records `{ id, key, keyLabel, label, enabled, origin, group }`. `keyLabel` is the key as the
+person's keyboard spells it — `⇧⌘S` on a Mac, `Ctrl+Shift+S` elsewhere. For a binding, `id`
+is its command and `group` its `group`; for a shortcut, `origin` is the declaring set's
+`title` and `group` the menu a menu bar's shortcut sits in (else the origin). What the
+`ShortcutsPanel` lists when ⌘ is held.

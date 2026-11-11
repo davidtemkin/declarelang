@@ -13,7 +13,7 @@ App [ width = 440, height = 220,
     d: Dataset { { "rows": [ { "id": 1, "title": "Fix the rail",      "state": "open" },
                              { "id": 2, "title": "Draft the chapter", "state": "done" },
                              { "id": 3, "title": "Measure the grid",  "state": "open" } ] } },
-    DataGrid [ x = 20, y = 50, width = 400, height = 130, selects = "multi",
+    DataGrid [ x = 20, y = 20, width = 400, height = 160, selects = "multi",
         items = { app.d.value.rows },
         columns = { [ { id: "id",    title: "ID",    width: 50 },
                       { id: "title", title: "Title", width: 220 },
@@ -23,10 +23,6 @@ App [ width = 440, height = 220,
 
 Drag a header sideways to reorder; drag the divider between two headers to resize; click a
 header to sort.
-
-The grid's box is its rows — what scrolls — and the header row stands just above it, so
-leave the theme's `gridHeaderHeight` (30) clear above the grid — as the example's `y = 50`
-does; in a layout, a wrapper with that much top `padding`.
 
 - **Items** are records, kept matched to their rows by each record's `id`. Taken from a
   `Dataset`, they are the dataset's own records: an edit made in a cell writes the record,
@@ -40,7 +36,9 @@ does; in a layout, a wrapper with that much top `padding`.
   how to look for its record, with a `State` or a `classFor` inside it.
 - **`edit: true`** makes a column's cells text fields that write the record as you type,
   with a spreadsheet's keys: Enter, F2 or a typed character starts the edit, Up and Down
-  move it a row, Esc puts the text back.
+  move it a row, Esc puts the text back. With `commitOn: "end"` beside it, a cell writes once,
+  when the edit ends (Enter, or leaving the cell), and Esc drops it. Either way the write
+  goes through `editInput`, which a program overrides to send it to a service.
 - **A heading row** is a record with a `heading` field — `{ id: "g1", heading: "Overdue" }` —
   drawn across the full width, with no cells, passed over by selection and the arrow keys.
   `headingClass` names a class of your own to draw it.
@@ -58,7 +56,7 @@ record whose `heading` field is set is a heading row.
 The columns, as records, in their first order: `id` (the field shown, and the column's
 name), `title` (the header; the id when absent), `width` (in pixels; 120 when absent),
 and optionally `cell` (the name of a class drawn in each of the column's cells) or `edit`
-(`true` for text fields). **The column model follows this list**: add, remove or change a
+(`true` for text fields, with `commitOn: "end"` to write once when the edit ends). **The column model follows this list**: add, remove or change a
 record and the grid follows.
 
 ## headingClass
@@ -98,12 +96,27 @@ persist a user's column layout.
 plain values — **nothing measures cells** — so an override is free to clamp, snap, or
 store them.
 
+## editInput()
+An edited cell's text on its way into its record: `editInput(record, field, value)`. The
+default lets it write. To send the change to a service, override it, start the request, and
+return `false` — the record keeps what it had until the service's answer replaces it.
+
+```declare-fragment
+DataGrid [ items = { app.rows.value.rows },
+    columns = { [ { id: "title", title: "Title", width: 240, edit: true, commitOn: "end" } ] },
+    editInput(record: object, field: string, value: string) -> boolean {
+        app.save(record, field, value)
+        return false
+        } ]
+```
+
 ## headerClick()
 Toggles the sort on a column: same column flips direction, a new column starts
 ascending. Routes through `sortInput`.
 
 ## headerH
-The header row's height.
+The header row's height. The header takes the top of the grid's box and stays there; the
+rows begin below it and scroll up under it.
 
 ## selectable()
 `Table`'s, answered here: a heading record is not selectable, every other record is.
@@ -200,6 +213,12 @@ class DataGrid extends Table [
     arrangeInput(ord: array) { order = ord },
     resizeInput(id: string, w: number) { widths = ({ ...(widths ?? ({})), [id]: w }) },
 
+    // an edited cell's text, on its way into the record: the default lets it
+    // write; an override sends it (a PATCH) and returns false to leave the
+    // record as it was until the service's answer replaces it
+
+    editInput(record: object, field: string, value: string) -> boolean { return true },
+
     headerClick(id: string) {
         this.sortInput(id, sortOn == id && sortDir == "asc" ? "desc" : "asc")
         },
@@ -233,7 +252,7 @@ class DataGrid extends Table [
             // low-priority columns and the model omits them entirely
             if (wd <= 0) continue
             out.push({ id: id, title: "" + (c.title ?? id), width: wd, x: x,
-                cell: c.cell != null ? "" + c.cell : "", edit: c.edit == true, i: out.length })
+                cell: c.cell != null ? "" + c.cell : "", edit: c.edit == true, commitOn: c.commitOn == "end" ? "end" : "", i: out.length })
             x = x + wd
             }
         return out
@@ -254,6 +273,12 @@ class DataGrid extends Table [
 
     _rowsData: Dataset [ contents = { { rows: classroot.items ?? [] } } ],
     datapath = { this._rowsData.value },
+
+    // the header row's place at the top of the grid: the rows stack after it,
+    // and scroll up under the header itself (`_hdr`, pinned)
+
+    _hdrSpace: View [ width = 0, height = { classroot.headerH } ],
+    _topInset = { this.headerH },
 
     TableRow [ datapath = :rows[], virtualize = true,
         classFor = { :heading != null ? DataGridHeadingRow : DataGridRow } ],
@@ -408,27 +433,17 @@ class DataGrid extends Table [
         return r != null ? r.width : 0
         },
 
-    // ── the header: chrome above the scroll region. The grid's box is the
-    //    rows' scroll region exactly — the scrollbar spans rows only, no
-    //    row ever slides under the header. A scroller clips at its box, so
-    //    the header paints in the grid's parent (paintsIn — planes.md §3.1)
-    //    and positions in the parent's frame; it stays the grid's member, so
-    //    the column model sees nothing move, and the hit walk finds it among
-    //    the parent's paint guests. ignoreLayout keeps full-mode stacking and
-    //    the kernel's leading anchor off it — rows start at content 0 ────────
+    // ── the header: the top of the grid's own box, pinned while the rows
+    //    scroll (ignoreScroll), drawn over them (it comes after the rows). The
+    //    rows stack after `_hdrSpace`, its place; ignoreLayout keeps the header
+    //    itself out of the stacking. A grid placed by a layout is header and
+    //    rows together, and covers nothing beside it ──────────────────────────
 
     _hdr: View [ height = { classroot.headerH },
-        paintsIn = { classroot.parent },
-        x = { classroot.x },
-        y = { classroot.y - classroot.headerH },
-
-        // painting elsewhere, it leaves the grid's display subtree, so the
-        // grid's own visibility does not reach it through the platform — mirror it
-
-        visible = { classroot.visible },
+        x = 0, y = 0,
         width = { classroot.width },
         ignoreLayout = true,
-        ignoreClip = true,
+        ignoreScroll = true,
         fill = { provided("theme").surface },
         datapath = { classroot._colData.value },
         accessibilityRole = row,
@@ -610,7 +625,7 @@ class DataGridRow extends TableRow [
     // over a null record
 
     _cellData: Dataset [ contents = { { cells: classroot._grid == null ? [] : classroot._grid._colData.value.cols.map((c) =>
-        ({ id: c.id, title: c.title, x: c.x, width: c.width, cell: c.cell, edit: c.edit, i: c.i,
+        ({ id: c.id, title: c.title, x: c.x, width: c.width, cell: c.cell, edit: c.edit, commitOn: c.commitOn, i: c.i,
             row: classroot.rec == null ? [] : [classroot.rec] })) } } ],
 
     cellAt(col: number) -> DataGridCell? {
@@ -720,6 +735,9 @@ Whether it is the grid's active cell while the grid has focus.
 ## _ci
 **Internal.** Its column's place in the column model — what the grid's `activeCol` names.
 
+## _commitOn
+**Internal.** The column's `commitOn`.
+
 ## _fld
 **Internal.** The field its column shows.
 
@@ -756,6 +774,7 @@ class DataGridCell [ x = { :x }, width = { :width }, height = 100%, clip = true,
     _isGridCell: boolean = true,
     _ci: number = { 0 + (:i ?? 0) },
     _fld: string = { "" + :id },
+    _commitOn: string = { "" + (:commitOn ?? "") },
     _cls: string = { :edit == true ? "DataGridEdit" : ("" + (:cell ?? "")) != "" ? "" + :cell : "DataGridText" },
 
     _kind() -> string { return this._cls == "DataGridEdit" ? "edit" : this._cls == "DataGridText" ? "text" : "own" },
@@ -861,7 +880,10 @@ field into the row's record as you type.
 The field edited — its column's id.
 
 ## write()
-Writes a text value into the field.
+Writes a text value into the field — through the grid's `editInput`, which may keep it.
+
+## _grid
+**Internal.** The grid the cell is in.
 
 ## _before
 **Internal.** The text when the edit began, which Esc puts back.
@@ -874,13 +896,18 @@ class DataGridEdit [ width = 100%, height = 100%,
     _isGridEdit: boolean = true,
     field: string = { (parent as DataGridCell)._isGridCell === true ? (parent as DataGridCell)._fld : "" },
     _before: string = "",
-    write(v: string) { :@[(field)] = v },
+    _grid: DataGrid? = { (parent as DataGridCell)._isGridCell === true ? (parent as DataGridCell)._dataGrid : null },
+    write(v: string) {
+        const rec = :@
+        if (_grid == null || _grid.editInput(rec, field, v) !== false) { :@[(field)] = v }
+        },
 
     _ed: TextInput [ x = 4, y = 3, fontSize = { provided("theme").gridFontSize },
         accessibilityLabel = { (classroot.parent as DataGridCell)._isGridCell === true ? "" + (classroot.parent as any).title : "" },
         width = { parent.width - 8 },
         height = { parent.height - 6 },
         value = { "" + (:@[(classroot.field)] ?? "") },
+        commitOn = { (classroot.parent as DataGridCell)._isGridCell === true && (classroot.parent as DataGridCell)._commitOn == "end" ? "end" : "each" },
         onFocus() {
             classroot._before = "" + (:@[(classroot.field)] ?? "")
             const cell = classroot.parent as DataGridCell
@@ -892,7 +919,9 @@ class DataGridEdit [ width = 100%, height = 100%,
             if (cell._isGridCell !== true || cell._row == null || cell._dataGrid == null) super.onKeyDown(e)
             else if (e.key == "ArrowDown" || e.key == "Enter") cell._dataGrid._editStep(cell._row, cell._ci, 1)
             else if (e.key == "ArrowUp") cell._dataGrid._editStep(cell._row, cell._ci, -1)
-            else if (e.key == "Escape") classroot.write(classroot._before)
+            // a cell that commits at the end: Escape drops the edit (the field's own
+            // Escape); one that wrote as it went puts the text back
+            else if (e.key == "Escape") { if (commitOn == "end") super.onKeyDown(e); else classroot.write(classroot._before) }
             else super.onKeyDown(e)
             }
         ]

@@ -257,6 +257,7 @@ const HOST: KernelHost = {
       // settle() throws the first such error once the settle has finished.
       // Nothing retries: the rule is not re-queued, so a body that throws on
       // every run throws once per settle that wakes it, never in a loop.
+      locate(e, c);
       if (outer.length > 0) { if (pendingError === null) pendingError = e; }
       else {
         const p = c.sourcePos;
@@ -771,6 +772,22 @@ const AFTER_LIMIT = 100;
  *  rule is; set by node-path.ts, which this module cannot import. */
 let addressOf: ((o: object) => string | null) | null = null;
 export function setAddressOf(f: (o: object) => string | null): void { addressOf = f; }
+
+/** Where a rule failed, said on the error itself, once, at the innermost rule
+ *  — the node's place in the program's tree. A failure inside the library's
+ *  own code (a calendar given a date that is not one) otherwise names only the
+ *  library's lines; the place names the program's component it happened in
+ *  (`app.when…`), and so the use site whose values to look at. */
+const LOCATED = Symbol("declare.located");
+function locate(e: unknown, c: { owner?: unknown; label: string }): void {
+  if (e === null || typeof e !== "object" || (e as Record<symbol, unknown>)[LOCATED] === true) return;
+  (e as Record<symbol, unknown>)[LOCATED] = true;
+  const at = c.owner != null ? addressOf?.(c.owner as object) ?? null : null;
+  if (at === null || !(e instanceof Error)) return;
+  const first = e.message;
+  e.message = `${first} — while working out ${c.label} at ${at}`;
+  if (typeof e.stack === "string" && e.stack.includes(first)) e.stack = e.stack.replace(first, e.message);
+}
 
 
 /** A standing computation: `compute` runs with read-tracking on, `apply`
