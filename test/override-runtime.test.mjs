@@ -19,6 +19,7 @@ import { SCHEMAS, RichTextSchema } from "../runtime/dist/schema.js";
 import * as reg from "../runtime/dist/registry.js";
 import { Media } from "../runtime/dist/media.js";
 import { Stream } from "../runtime/dist/streams.js";
+import { KeyboardService } from "../runtime/dist/sources.js";
 import { RichText } from "../runtime/dist/rich-text.js";
 import { RUNTIME_METHODS, RUNTIME_FIELDS, runtimeMethodsOf, runtimeFieldsOf } from "../runtime/dist/runtime-methods.js";
 
@@ -215,7 +216,7 @@ App [ width = 1, height = 1, s: Spring [ attribute = x, to = 1 ], onInit() { thi
 
 // ── The table is pinned against the runtime classes ───────────────────────────
 await (async () => {
-  const classes = { ...reg.TAGS, ...reg.LAYOUT_BASES, ...reg.DATA, ...reg.ANIMATORS, ...reg.ANIMATOR_GROUPS, ...reg.SOURCES, ...reg.STATES, Media, Stream, RichText };
+  const classes = { ...reg.TAGS, ...reg.LAYOUT_BASES, ...reg.DATA, ...reg.ANIMATORS, ...reg.ANIMATOR_GROUPS, ...reg.SOURCES, ...reg.STATES, Media, Stream, Keyboard: KeyboardService, RichText };
   const schemas = { ...SCHEMAS, RichText: RichTextSchema };
   // Every function on the prototype chain below Object.prototype, minus
   // `constructor` and `$`-names — the runtime's own rule (instantiate.ts
@@ -271,7 +272,7 @@ await (async () => {
       assert.deepEqual([...runtimeMethodsOf(s)].sort(), [...chainMethods(classes[s])].sort(), `runtimeMethodsOf(${s})`);
     }
     assert.ok(runtimeMethodsOf("Spring").has("start"), "a Spring reaches Animator's start");
-    assert.ok(runtimeMethodsOf("Keys").has("discard"), "a source reaches Node's methods through Source");
+    assert.ok(runtimeMethodsOf("KeyListener").has("discard"), "a source reaches Node's methods through Source");
     assert.equal(runtimeMethodsOf("NotASchema").size, 0);
   });
   await test("every runtime method a program can reach is one the reference documents", () => {

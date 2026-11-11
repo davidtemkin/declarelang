@@ -1153,6 +1153,20 @@ function constructNode(el, outer, ctx, parentEl) {
     // and subclassing replace it; `style` bundles survive only as the `<span
     // class>` run vehicle in RichText.)
     const attrs = mergeAttrs(sources);
+    // `keyBindings` is read layer by layer (key-bindings.md): every source that
+    // declares it keeps its own table, use site first, then each class body from
+    // the leaf down — declaring it adds a layer and never replaces one. The walk
+    // reads them when a key arrives (focus.ts walkKeys); nothing is bound here.
+    if (attrs.has("keyBindings")) {
+        const layers = [];
+        for (let i = sources.length - 1; i >= 0; i--) {
+            for (const a of sources[i].el.attrs)
+                if (a.name === "keyBindings")
+                    layers.push({ attr: a, croot: sources[i].croot });
+        }
+        view.$keyLayers = layers;
+        attrs.delete("keyBindings");
+    }
     // Class-typed provisions (View.layout): the nearest provider wins across
     // class bodies → use site, in either form — the member `layout: SimpleLayout
     // [ … ]` or the cancelling literal `layout = null` (how a use site turns an

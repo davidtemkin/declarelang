@@ -114,7 +114,8 @@ An override calls `super.press()`: it is what runs `onClick` from Space and Ente
 
 ## onClick
 Your handler. Fires after the press is delivered, so the affordance has already
-run — put the work here, not in `press()`.
+run — put the work here, not in `press()`. The base runs `command` when the button has
+one: a button that names a command needs no handler.
 
 ## textColor
 Follows `inkColor`, the button's one ink decision, so the label and the icon can never disagree. Override `inkColor`, not this.
@@ -146,8 +147,11 @@ class Button extends Control [
     gap:  number = 8,
     padH: number = 16,
 
-    onClick() { },
-    press()   { flashPress(); super.press(); onClick() },
+    // a command button's action is its command (Control's `command`): the base
+    // onClick runs it, for a click and for Space and Enter alike
+
+    onClick() { if (command != "") Commands.run(command) },
+    press()   { flashPress(); if (this.menu != null) this.openMenu(); onClick() },
 
     // one ink decision, so a primary button's icon and its label agree
 

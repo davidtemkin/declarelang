@@ -189,7 +189,7 @@ one of the library's palettes, and `provided("theme")` reads it; both have their
   holds an instance.
 
 The platform's own non-visual pieces follow the same rule. A [`Spring`](declare-docs:Spring) driving an
-attribute, a [`Time`](declare-docs:Time) giving the clock, [`Keys`](declare-docs:Keys) hearing the keyboard, a [`DataSource`](declare-docs:DataSource)
+attribute, a [`Time`](declare-docs:Time) giving the clock, a [`KeyListener`](declare-docs:KeyListener) hearing the keyboard, a [`DataSource`](declare-docs:DataSource)
 fetching from a server: each is a member of the node that uses it, created with that
 node and removed with it, so there is nothing to subscribe to and nothing to clean up.
 

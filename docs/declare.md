@@ -15,7 +15,7 @@ them by name. How to work with Declare, and where everything else is, starts at
 [`skill/SKILL.md`](../skill/SKILL.md).*
 
 One boundary makes the rest of this file readable. **Every capitalized tag is a class** — `View`,
-`Text`, and `Image`, but equally `Dataset`, `State`, `Spring`, and `Keys`. The language is the
+`Text`, and `Image`, but equally `Dataset`, `State`, `Spring`, and `KeyListener`. The language is the
 grammar that declares, instantiates, configures, and relates them, and that grammar is what
 follows.
 
@@ -65,7 +65,9 @@ applied to structure, space, data, style, and time.
    tree a screen reader reads, the fields autofill fills) from what you declare: a role, a name,
    a `purpose`. Its elements are not an interface. (§6, §9)
 6. **Events do not bubble.** A handler fires on the node that declares it, and a child reports
-   to its owner by calling a method. (§8)
+   to its owner by calling a method. What reaches up the tree is always a declared lookup:
+   `provided(…)` finds the nearest value an ancestor provides (§9), and a key the nearest
+   binding a view declares (§8).
 7. **Nothing waits.** A program never polls: readiness is a value to constrain on, completion
    an event to take (`onLoad`, `onArrive`, `afterSettle`). Time is only ever an input — a duration to animate over, a frame step to
    integrate by. (§5, §10)
@@ -179,8 +181,8 @@ runs when called. A subclass's method, handlers included, **replaces** the base'
 name, a built-in's own runtime methods (`fetch`, `start`, `scrollTo`) among them; `super.name(args)`
 calls the replaced one, wherever in the body it is written, or never.
 
-**Events from outside the tree come through a member you declare.** `Keys [ onKeyUp(e: KeyEvent) { … } ]`
-gives a node app-wide keyboard handling regardless of focus. There is no subscription syntax and
+**Events from outside the tree come through a member you declare.** `KeyListener [ onKeyUp(e: KeyEvent) { … } ]`
+hears the raw keyboard regardless of focus. There is no subscription syntax and
 nothing to unregister: the source is a child, so it lives and dies with the node that declares it.
 
 **Members are separated by commas**; a trailing one before a closing `]` is legal.
@@ -246,37 +248,23 @@ conditionally:** `exists = { … }` builds it while true and discards it while f
 place (`visible` keeps a hidden view built — a focus sink, a definition read by its parent).
 
 Besides `class`, the top level holds `script`, `include`, `use`, `theme`, `style`, `schema`,
-`ship`, `defaultFlags` and `declareVersion` — the complete set, **in any order**, before or after the root instance;
-`extends` may name a class declared later in the file. **`script { … }`** holds free TypeScript — helpers,
-parsers, whole libraries — and may **`import`** ES modules (a file, or an npm package by bare
-specifier; bundled at compile). **`script [ "file.ts" ]`** is the same block loaded from a
-file, spelled like `include` and tracked like one — edit the file and the program recompiles;
-a constraint may call into script, opaquely (§5). A program may hold **any number of script
-blocks**, inline and files mixed; they share **one scope, in source order** — a later block's
-function calls an earlier one's (or mutates its state) exactly as in a single module. The one
-spelling difference: a file is written module-style (`export` allowed, and optional), while an
-inline block refuses `export` — its top-level names are already visible to every `{ }`.
-Imports resolve at the build toolchain's bundler; the in-browser compile refuses them by name. A script
-runs on every host — a browser, the Mac — so it may use only what all of them provide (the ES
-built-ins, `fetch`, the timers, `URL`, `console`, `performance`); one written for some hosts
-says so, **`script [ host = browser ] { … }`** or `script [ "camera.ts", host = browser ]`
-(`host = [browser, mac]` for several), and is then free to use what those hosts have — the
-compiler refuses an unmarked script's other names, and a host refuses a program carrying a
-script not marked for it, before any of it runs. **`include
-[ "path.declare" ]`** merges another file's top-level declarations, once. **`use [ Name ]`** keeps
-a class the build would otherwise drop, for when your code constructs it by name at runtime
-(`createView`, §7). **`ship [ … ]`** states what a
-self-contained package of the program must carry beyond what its source names — `islands = [ "name", … ]`, the
-programs an `AppIsland` may mount when its `program` is computed; `files = [ "path", … ]`, files it reads that no
-literal names or that live outside its folder; `compiler = true`, it compiles source at run time; `inspector =
-true`, it answers questions about itself in production ([Packaging](declare-docs:guide:packaging)). A
-literal `program = "name"` or `url = "path"` needs no entry, and hosts that carry sources and a compiler read none of it.
-**`defaultFlags [ … ]`** gives the program's own defaults for the platform's flags — `render = canvas`,
-`kernel = js`, `crawler = true`, `accessibility = false`, `lint = false`, `devices = desktop` (these two quiet warnings) — which a request's `?render=` or `declarec --render=` overrides; a
-program has at most one, in any of its files ([Renderers](declare-docs:guide:renderers), [defaultFlags](declare-docs:language:defaultFlags)).
-**`declareVersion [ "0.6.0" ]`** says which release a file was written for; `npx declare-changes
---done` writes it ([declare-changes](declare-docs:operational:changes)), and no program needs it. **`theme Name [ … ]`** and **`style Name [ … ]`** are named records of
-literal values — a token record, and the style of a run of text with no view (§9).
+`ship`, `defaultFlags` and `declareVersion` — the complete set, **in any order**, before or after
+the root instance; `extends` may name a class declared later in the file. **`script { … }`**
+holds free TypeScript — helpers, parsers, whole libraries — and may **`import`** ES modules,
+bundled at compile; **`script [ "file.ts" ]`** is the same block loaded from a file. A program's
+script blocks share **one scope, in source order**, and a constraint may call into script,
+opaquely (§5). A script runs on every host, so it uses only what all of them provide; one
+written for some hosts says so — **`script [ host = browser ] { … }`** — and the compiler refuses
+an unmarked script's host-only names ([Structure](declare-docs:guide:structure)). **`include
+[ "path.declare" ]`** merges another file's top-level declarations, once. **`use [ Name ]`**
+keeps a class the build would otherwise drop, for code that constructs it by name
+(`createView`, §7). **`ship [ … ]`** says what a self-contained package must carry beyond what
+its source names ([Packaging](declare-docs:guide:packaging)); **`defaultFlags [ … ]`** gives the
+program's own defaults for the platform's flags, such as `render = canvas`
+([defaultFlags](declare-docs:language:defaultFlags)); **`declareVersion [ "0.6.0" ]`** says which
+release a file was written for, and no program needs it. **`theme Name [ … ]`** and
+**`style Name [ … ]`** are named records of literal values — a token record, and the style of a
+run of text with no view (§9).
 
 ### `classroot`
 
@@ -680,13 +668,21 @@ close of a settle in which one of them ended different from where it started, on
 `currentValue`) each: for a state change the program must act on, never to
 follow a value (a constraint) or to move one (a Spring).
 
+**A key is looked up outward**, like a provided value: from the focused view through its
+containers to the App, the nearest `keyBindings` record naming it takes it —
+`({ key: "Ctrl+S", command: "save" })` runs that view's method, and a `false` return hands the
+key on; a menu item's or button's `command` is looked up the same way. `keyBindings` is the one
+attribute that adds up across class layers instead of replacing — a use site's records come
+first, its class's still apply — so your bindings never cost a `Button` its Space and Enter. An
+`onKeyDown` hands the keys it doesn't take, Tab included, to `super.onKeyDown(e)`.
+
 **Pointer input has two layers.** The **raw** layer — `onPointerDown`/`Move`/`Up` (every move,
 hover too), the multi-finger touch family, and `onWheel` — reports what the pointer physically did.
 The **resolved** layer — `onClick`, `onDblClick`, `onHold`, and `onDragStart`/`onDrag`/`onDragEnd` —
 reports what the user *meant*, decided by watching the gesture.
 
 *Pointer*, not *mouse*: one handler serves a mouse, a fingertip, and a pen, and it fires at once
-for each — there is no compatibility event here and nothing to fall back to. `onTouch…` is the
+for each — there is no compatibility event and nothing to fall back to. `onTouch…` is the
 separate multi-finger stream, for when you need the finger list rather than a point.
 
 > **`onClick` activates, `onPointerDown` manipulates.**
@@ -713,9 +709,8 @@ game taking **full gesture control**.
 ### Opacity is paint; `visible` is presence
 
 A view at `opacity = 0` is invisible but entirely present — it holds its room in the layout and still
-takes clicks, subtree included, as CSS opacity does. That is a tool, not a trap: a fully
-transparent view is the natural press-catcher — a scrim behind a modal, a hit target larger than
-the mark it serves.
+takes clicks, subtree included, as CSS opacity does: the natural press-catcher, a scrim behind
+a modal.
 
 `visible = false` is the other tool, and it is the stronger one: it removes the view from input
 *and* from its parent's layout and auto-extent. So a fade that should end in absence is
@@ -738,8 +733,7 @@ fill = { hovered ? 0x4169E1 : 0x191970 }   // royalblue when hovered, else midni
 
 On a view that declares `disabled` (every `Control`), both are false while it is disabled, and
 `pressed` is also true during a keyboard press — so a control styles from the same pair.
-Declaring either is a compile error; assigning one is refused at runtime, the same guard §5
-describes. Like `contentWidth`, they are computed for you.
+Declaring or assigning either is refused, the same guard §5 describes.
 
 ## 9. Style
 

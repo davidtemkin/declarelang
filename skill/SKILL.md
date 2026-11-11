@@ -111,7 +111,7 @@ Then check every need in the plan against
     thousand records and a million on demand: one dataset class holds them and makes every
     write; the list is a dataset derived from it, virtualized, with headings as a second
     row class; editing through a draft; menus, shortcuts, undo. It is
-    <!--stat:tracker.code-->982<!--/stat--> lines of code, and worth reading whole.
+    <!--stat:tracker.code-->983<!--/stat--> lines of code, and worth reading whole.
   - **A form people fill in and send** — a sign-up, a checkout, settings that are judged
     before they are saved. → the `SignUp` class in `apps/sampler/sampler.declare` (its
     Forms page), with `docs/guide/14-data.md` § A form beside it.
@@ -186,7 +186,7 @@ build it: the guide section that teaches it, a program that does it, and names t
 | Arranging views; sizes that follow content; one program for phone and desktop; a view that changes with where the user is | `06-layout.md`; `04-structure.md` § A view in each of the user's places | tracker: `SimpleLayout` and `padding` throughout; sampler: `Specimen extends Card`; weather: the App's `desk: State [ applied = { !app.phone } ]` | `SimpleLayout`, `ResponsiveLayout`, `Card`, `padding`, `State` |
 | Scrolling panes; views that stay put while the page scrolls; what is on screen staying still when content above it changes; a log that follows its newest line | `07-scrolling.md` | weather: `HourStrip`'s `scroller` (`scrolls = x`), the App's `pill` and `back` (`ignoreScroll = true`); keeping the reader's place is the default, so the tracker's list has no code for it | `scrolls`, `ignoreScroll`, `scrollTo`, `scrollAnchor` |
 | Buttons, fields, toggles; your own control, with keyboard, focus, hover and pressed built in | `08-controls.md`; `17-your-own-views.md` § View or Control | sampler: every library control; tracker: `Chip`, `Facet`, `RailStat`; calendar: `NavArrow` (each `extends Control`, with `press()`) | `Control`, `Button`, `TextInput`, `Segmented` |
-| Dragging and dropping; keys; keyboard shortcuts | `09-pointer-and-keyboard.md` § Dragging, § Keyboard events, § Keyboard shortcuts | calendar: `Ev` (`onPointerDown`, `onPointerUp`) and its `Drag` class; desktop: `DeskWindow`'s `beginDrag`, and its menu bar's records, whose `key:` fields are the program's shortcuts | `onPointerDown`, `viewAt`, `Keys`, `Shortcuts` |
+| Dragging and dropping; keys, key bindings, commands from menus and buttons; keyboard shortcuts | `09-pointer-and-keyboard.md` § Dragging, § Keyboard events (§ Key bindings, § Commands: menus and buttons, § Keyboard shortcuts) | calendar: `Ev` (`onPointerDown`, `onPointerUp`) and its `Drag` class; desktop: `DeskWindow`'s `beginDrag`, and its menu bar's records, whose `key:` fields are the program's shortcuts | `onPointerDown`, `viewAt`, `keyBindings`, `Commands`, `Shortcuts`, `Keys` |
 | Touch: a drag inside a scrolling page, press and hold; a surface panned and zoomed about the fingers (pinch, drag, wheel) | `10-touch.md` § Gesture claims, § Pan and zoom about the fingers | calendar: `Ev`'s `onHold`; tracker: `IssueRow`'s `onHold` (opens the context menu) | `claim`, `onHold` |
 | Themes, dark mode, a value every descendant reads | `11-paint-and-themes.md` | tracker: `theme Tracker`, the App's `theme = { … }` and `appear: AppearanceSwitch`; calendar: `theme CalendarLight` and `CalendarDark`; sampler: four themes | `theme`, `provided`, `AppearanceSwitch` |
 | Text, fonts, styled runs, views inside a line, Markdown | `12-text.md` | swatchbook: the Type and Rich text sections; desktop: `ViewerWindow` (a Markdown document in a window) | `Text`, `Font`, `style`, `HTMLText`, `Markdown` |
@@ -248,15 +248,16 @@ shows the Declare form.
   `17-your-own-views.md` § View or Control)
 - **An overlay built by hand** — a full-window view with a scrim, shown by a flag; a panel
   positioned from a snapshot of its anchor, with its own flip and clamp; an empty `onClick`
-  to stop presses falling through; Esc handled as a chain of checks in a `Keys` member. A
+  to stop presses falling through; Esc handled as a chain of checks in a `KeyListener` member. A
   full-window view with a scrim is a `Dialog` or a `Sheet`; a panel at a control is a
   `Popover` or a `Menu`, opened with `openFor`. Each closes itself on Esc and on a press past
   it, holds back what is behind it as its kind should, keeps Tab inside while open, and
   animates out before it goes. (`18-overlays.md`)
-- **Shortcuts as a chain of key tests** in a `Keys` member — `if (e.meta && e.key == "s")`.
-  A command with a key is a record in a `Shortcuts` member, or a `key:` on a menu bar item:
-  it gets a label a panel can list, stays out of a text field's typing, and stands down
-  while a menu is open. (`09-pointer-and-keyboard.md` § Keyboard shortcuts)
+- **Keys as a chain of tests** in a `KeyListener` member — `if (e.meta && e.key == "s")`. A key a
+  view answers is a `keyBindings` record on that view (on the App for the whole program), and
+  a command a menu or button also runs is a `command:` on it: it gets a label a panel can
+  list, stays out of a text field's typing, comes after a focused control's own keys, and
+  stands down while a dialog is open. (`09-pointer-and-keyboard.md` § Keyboard events)
 - **Placing everything by hand.** A page's cards, rows and insets are a layout's job; `x` and
   `y` are for a diagram's scene or an overlay. Four tells: a container whose height is
   arithmetic over its children (it sizes from its content);

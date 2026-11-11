@@ -18,7 +18,7 @@ App [ width = 320, height = 220, fill = white,
     sel: number = 0,
     opened: string = "",
     d: Dataset { { "items": [ { "id": 1, "name": "Inbox" }, { "id": 2, "name": "Archive" } ] } },
-    keys: Keys [                                                // app-wide shortcuts, whatever has focus
+    keys: KeyListener [                                                // app-wide shortcuts, whatever has focus
         onKeyDown(e: KeyEvent) {
             if (e.key == "Escape") app.opened = ""
             if (e.code == "KeyN" && e.meta) app.opened = "new"
@@ -33,13 +33,13 @@ App [ width = 320, height = 220, fill = white,
 ```
 
 **Rules**
-- A focused view hears `onKeyDown`/`onKeyUp`: right for keys that belong to one widget.
-  App-wide shortcuts go on a `Keys` member, which hears every key whatever has focus —
-  text fields included, so a single-letter shortcut returns early while a field is typing:
-  `if (app.note.focused) return`.
+- A key walks from the focused view outward to the App, and the nearest `keyBindings`
+  record takes it: a widget binds its own keys, and app-wide keys are bindings on the App —
+  a text field keeps its typing, so a single-letter key never fires while one has focus. A
+  `KeyListener` member hears every raw key whatever has focus, for a game.
 - The event is `KeyEvent`: `key` is the character typed, `code` the physical key (what a
   shortcut wants: `"KeyN"`), and the modifiers are `shift`, `ctrl`, `alt`, `meta`.
-  `Keys.isDown("ShiftLeft")` asks whether a key is held now.
+  `Keyboard.isDown("ShiftLeft")` asks whether a key is held now.
 - Every control is a tab stop already; Tab order is tree order. `focusable = true` makes
   any view one; there is no numeric tab index. A container reorders or gates what Tab
   reaches by overriding `tabOrder()`. A control with members — a radio group, a list — is
@@ -50,7 +50,7 @@ App [ width = 320, height = 220, fill = white,
   `Focus.getFocus()` reads it; restore a saved focus on a later turn, not immediately.
 - The focus ring comes with the library controls; you declare none of it.
 
-**Look up** `Keys`, `KeyEvent`, `Keys.isDown`, `View.focusable`, `View.tabOrder`,
+**Look up** `View.keyBindings`, `KeyListener`, `KeyEvent`, `Keyboard.isDown`, `View.focusable`, `View.tabOrder`,
 `View.focusScope`, `Focus.focus`.
 
 **Examples** `library/table.declare`: arrow-key travel, Shift ranges, ⌘ toggles ·

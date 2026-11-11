@@ -333,11 +333,11 @@ await test('""" text blocks survive byte-exact', () => {
 });
 
 await test("datapaths, two-way binds, source members, lists keep canon spacing", () => {
-  const src = "App [\n    t: TextInput [ text <-> :person.name, fontFamily = [Sans, \"ui\"] ],\n    row: View [ datapath = :items[] ],\n    keys: Keys [ onKeyUp(e) { go(e) } ]\n    ]\n";
+  const src = "App [\n    t: TextInput [ text <-> :person.name, fontFamily = [Sans, \"ui\"] ],\n    row: View [ datapath = :items[] ],\n    keys: KeyListener [ onKeyUp(e) { go(e) } ]\n    ]\n";
   const out = fmt(src);
   // a member carrying a method body breaks across lines (canon); what must
   // survive is the SPACING of each construct, not the line it lands on
-  for (const piece of ["text <-> :person.name", "[Sans, \"ui\"]", "datapath = :items[]", "keys: Keys [ onKeyUp(e) { go(e) }"]) {
+  for (const piece of ["text <-> :person.name", "[Sans, \"ui\"]", "datapath = :items[]", "keys: KeyListener [ onKeyUp(e) { go(e) }"]) {
     if (!out.includes(piece)) throw new Error(`spacing broke: ${piece}\n${out}`);
   }
 });

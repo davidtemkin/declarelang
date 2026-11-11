@@ -94,6 +94,7 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
         window.contentView = view
         view.bridge = bridge
         bridge.onTitle = { [weak self] t in self?.window.title = t.isEmpty ? "Declare" : t }
+        bridge.onKeyAnswer = { [weak self] id, taken in self?.view.keyAnswered(id, taken: taken) }
         bridge.onBootFailed = { [weak self] msg in self?.showError(msg) }
         bridge.onReady = { [weak self] in self?.finishedStarting() }
         // The Inspector mounts asynchronously (compile, then mount), so the

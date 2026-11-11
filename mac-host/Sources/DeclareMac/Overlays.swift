@@ -1296,6 +1296,25 @@ final class EditableOverlay: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
     /// the window's own key-view loop (which knows nothing of the walk — some
     /// presses "ate" the key) and the multiline one inserted a tab character.
     private func traversal(_ sel: Selector) -> Bool {
+        // Escape is the program's too (key-bindings.md): a field's own Escape
+        // cancels its edit, and the walk takes it on to a dialog or sheet
+        if sel == #selector(NSResponder.cancelOperation(_:)) {
+            bridge.call("__declareKey", ["keydown", "Escape", 0, 0])
+            bridge.call("__declareKey", ["keyup", "Escape", 0, 0])
+            bridge.needsFrame()
+            return true
+        }
+        // a chord the field's editor has no command for (⌃X, F5, ⌥⌘K…) reaches
+        // AppKit as `noop:`: it is the program's to bind, as in a browser
+        if sel == Selector(("noop:")), let e = NSApp.currentEvent, e.type == .keyDown {
+            let f = e.modifierFlags
+            let m = (f.contains(.shift) ? 1 : 0) | (f.contains(.command) ? 2 : 0) | (f.contains(.control) ? 4 : 0) | (f.contains(.option) ? 8 : 0)
+            let key = DeclareView.keyName(e)
+            bridge.call("__declareKey", ["keydown", key, m, e.isARepeat ? 1 : 0, DeclareView.keyCode(e.keyCode)])
+            bridge.call("__declareKey", ["keyup", key, m, 0, DeclareView.keyCode(e.keyCode)])
+            bridge.needsFrame()
+            return true
+        }
         let mods: Int
         if sel == #selector(NSResponder.insertTab(_:)) { mods = 0 }
         else if sel == #selector(NSResponder.insertBacktab(_:)) { mods = 1 }   // shift

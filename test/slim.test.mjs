@@ -283,7 +283,7 @@ if (!CHROME) {
   });
 
   await test("…and STAY for a Keys member", async () => {
-    const b = await buildProduction(`App [ width = 200, k: Keys [ onKeyUp(e: KeyEvent) { } ], Text [ text = "x" ] ]`, {});
+    const b = await buildProduction(`App [ width = 200, k: KeyListener [ onKeyUp(e: KeyEvent) { } ], Text [ text = "x" ] ]`, {});
     assert.ok(modsOf(b)["keys.js"] > STUBBED, "the source component is a use");
   });
 

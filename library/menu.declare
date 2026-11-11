@@ -4,9 +4,13 @@
 The record-driven menu: **items are data** — the class arranges; the
 author never composes rows. The standard record covers real OS menus:
 
-    { id, label, key?, icon?, enabled?, checked?, divider?, submenu?, kind?, props?, minWidth? }
+    { id, label, key?, command?, icon?, enabled?, checked?, divider?, submenu?, kind?, props?, minWidth? }
 
 - `key` renders right-aligned — display only; the menu registers no shortcut.
+- `command: "copy"` names a command the row runs instead of reaching `picked()`: it walks
+  from the view a context menu was opened on, else from where the person was working
+  (`Commands.run`), and the first view whose `keyBindings` bind it runs it. As the menu
+  opens, a row whose command no view answers, or answers disabled, is greyed.
 - `icon: "ClassName"` names an icon class for the leading column, and the label
   shifts right to make room — the same vocabulary `Segmented`'s choices use.
   One field covers every mark, including the ones no font gives you; a computed
@@ -52,7 +56,7 @@ App [ width = 320, height = 130,
 ## items
 The rows, as **records — never children**. A menu arranges its own rows, so handing it
 views is not merely discouraged, there is nowhere to put them. The record is
-`{ id, label, key?, icon?, enabled?, checked?, selected?, divider?, submenu?, kind?, props?, minWidth? }`
+`{ id, label, key?, command?, icon?, enabled?, checked?, selected?, divider?, submenu?, kind?, props?, minWidth? }`
 (`selected` is read only in a list of choices, a menu whose role is `listbox`);
 a plain array is fine (no `Dataset` required). Because it is an ordinary attribute it
 can be a constraint — **derive it from `opener` and one menu serves every row of a
@@ -100,9 +104,9 @@ what had it when the menu closes. A `Combobox` turns it off for its list, whose 
 the focus.
 
 ## onKeyDown
-Takes nothing itself: a menu's keys are its rover's, which hears them however the focus
-lies. Declared so that a menu holding the focus inside a group (a menu bar's) is not
-walked by the group's arrows.
+Takes nothing itself but Escape, which it hands on to its bindings (it closes): a menu's
+other keys are its rover's, which hears them however the focus lies. Declared so that a
+menu holding the focus inside a group (a menu bar's) is not walked by the group's arrows.
 
 ## focusFirst()
 Holds the focus on the menu itself, never on a view inside it: the menu names the row
@@ -242,6 +246,27 @@ Enters the roved row's submenu and puts the rover on its first row — ArrowRigh
 ## _pickRow()
 **Internal.** Picks or enters a specific row view.
 
+## _pickItem()
+**Internal.** A picked row: runs its `command` from where commands start, closing the chain
+first; a row without one goes to `pick()`.
+
+## _commandOn()
+**Internal.** Whether a row's command is there to run, as the menu opens: its greying.
+
+## _commandFrom()
+**Internal.** Where this menu's commands start: the view a context menu was opened on, else
+nowhere named (the last focus outside command chrome).
+
+## _menuRoot()
+**Internal.** The chain's root menu.
+
+## _context
+**Internal.** Opened at a point on a view (`openAt`): a context menu, whose commands act on
+that view.
+
+## _commandChrome
+**Internal.** A menu is command chrome: its focus is never where a command starts.
+
 ## _enterRow()
 **Internal.** Enters a specific row's submenu.
 
@@ -270,7 +295,7 @@ include [ "floating.declare" ]
 // a menu row, as data — the checker holds an `items` record to it, so a
 // misspelled field is a compile error, not a row that silently lacks it
 
-schema MenuItemRecord [ id?: string, label?: string, key?: string, icon?: string, enabled?: boolean,
+schema MenuItemRecord [ id?: string, label?: string, key?: string, command?: string, icon?: string, enabled?: boolean,
     checked?: boolean, selected?: boolean, divider?: boolean, submenu?: any, kind?: string, props?: any,
     minWidth?: number ]
 
@@ -292,7 +317,7 @@ class Menu extends Floating [
     // its keys are its rover's (the _keys member below): a menu holding the focus
     // inside a group, as a menu bar's does, is not walked as one of its members
 
-    onKeyDown(e: KeyEvent) { },
+    onKeyDown(e: KeyEvent) { if (e.key == "Escape") super.onKeyDown(e) },
     accessibilityLabel = { this.opener == null ? "" : "" + ((this.opener as any).accessibilityLabel || (this.opener as any).label || "") },   // named for what opened it
 
     // a Floating in the floating layer (floating.declare): it paints above
@@ -401,6 +426,7 @@ class Menu extends Floating [
 
     openAt(v: View, e: PointerEvent) {
         opener = v
+        _context = true
         this.show()
         const p = this.toLayer(v, e.x, e.y)
         this.place(p.x, p.y)
@@ -412,6 +438,7 @@ class Menu extends Floating [
 
     openFor(v: View) {
         opener = v
+        _context = false
         this.show()
         const h = this.expectedHeight()
         const k = (host != null ? host.transformTo(this._screen()).scale : 1) * _baseScale
@@ -539,6 +566,33 @@ class Menu extends Floating [
 
     pickActive() { this._pickRow(this.activeRow) },
 
+    // a row that names a command runs it (key-bindings.md): from the view a
+    // context menu was opened on, else from the last focus outside command
+    // chrome — so a menu's Copy reaches what ⌘C does. A row without one is
+    // delivered to picked(id), as ever.
+
+    _commandChrome: boolean = true,
+    _context: boolean = false,
+
+    _menuRoot() -> Menu { return (isRoot || this.rootMenu == null) ? this : this.rootMenu as Menu },
+
+    _commandFrom() -> View? {
+        const r = this._menuRoot()
+        return r._context ? r.opener : null
+        },
+
+    _commandOn(c: any) -> boolean {
+        if (typeof c != "string" || c == "") return true
+        return Commands.state("" + c, this._commandFrom()) == "on"
+        },
+
+    _pickItem(id: string, c: any) {
+        if (typeof c != "string" || c == "") { this.pick(id); return }
+        const from = this._commandFrom()
+        this._menuRoot().close()
+        Commands.run("" + c, from)
+        },
+
     _pickRow(r: object) {
         if (r == null) return
         if (r.sub) { this.enterSub(); return }
@@ -560,7 +614,7 @@ class Menu extends Floating [
 
     sideways(d: number) { },
 
-    _keys: Keys [
+    _keys: KeyListener [
         onKeyDown(e: KeyEvent) {
             if (!classroot.shown) return
             if (classroot._subShown(classroot.child)) return   // the deeper menu handles
@@ -615,7 +669,7 @@ class Menu extends Floating [
 
             View [ datapath = :rows[], width = 100%,
                 divider:  boolean = { !!:divider },
-                enabled:  boolean = { :enabled != false },
+                enabled:  boolean = { :enabled != false && classroot._commandOn(:command) },
                 sub:      boolean = { !!:submenu },
                 custom:   string  = { typeof :kind == "string" ? "" + :kind : "" },
                 label:    string  = { "" + (:label || "") },
@@ -636,14 +690,14 @@ class Menu extends Floating [
                 // the rover's verbs — written on the row so :id / :submenu
                 // resolve against this row's record
 
-                pickSelf() { classroot.pick("" + :id) },
+                pickSelf() { classroot._pickItem("" + :id, :command) },
                 openSelf() { classroot.openSub(this, :submenu) },
 
                 // a `kind` row owns its own interior interactivity (the Finder
                 // tag-dots idiom): no row-level pick, no row highlight — the
                 // content's elements claim their own clicks (deepest sink wins)
 
-                onClick() { if (enabled && !divider && !sub && custom == "") classroot.pick("" + :id) },
+                onClick() { if (enabled && !divider && !sub && custom == "") classroot._pickItem("" + :id, :command) },
 
                 onInit() {
                     if (custom != "") this.host.createView(custom, ({ datapath: :props }))

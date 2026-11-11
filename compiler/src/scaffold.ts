@@ -466,6 +466,11 @@ interface ClipboardEvent { readonly types: string[]; readonly text: string; read
  *  what the person does, as a browser allows the write only then. Pasting is the person's:
  *  a view reads the clipboard in \`onClipboardPaste\`. */
 declare const Clipboard: { copy(what: string | Record<string, string>): void };
+/** Commands run by name (key-bindings.md): \`run(name)\` walks from the last focus
+ *  outside command chrome — a menu bar, a menu, a command button — outward, and the first
+ *  view whose \`keyBindings\` bind the command runs it; \`state(name)\` says whether one would
+ *  ("on", "off" for greyed, "none"); \`target()\` is where the walk starts. */
+declare const Commands: { run(name: string, from?: unknown): boolean; state(name: string, from?: unknown): "on" | "off" | "none"; target(): any };
 /** What \`FilePicker.pick\` offers: the types (MIME types or extensions), more than one file,
  *  or a whole folder. */
 interface FilePickOptions { accept?: string[]; multiple?: boolean; folder?: boolean }
@@ -758,15 +763,16 @@ function methodSig(m: Method, isClassName: (n: string) => boolean): string {
  *  as Theme). Members the runtime marks `protected` (TweenLayout.laid) are
  *  declared public here: a check-block is a free function, not a subclass
  *  body, so TS's protected rule would reject the legal subclass call. */
-/** The CALLABLE surface of a service that is also a class. `Keys` and
- *  `Focus` name one concept each — the keyboard, the focus service — which a
- *  body can either ASK (`Keys.isDown("KeyA")`, `Focus.focus(this)`) or LISTEN
- *  to (`Keys [ onKeyDown(e) { … } ]`). Emitted as STATIC members of the
- *  generated class so both readings typecheck under the one name; at runtime
- *  they never meet, since a tag and a body identifier are different namespaces
- *  (the body's `Keys` is the injected service object — expr.ts setBodyServices). */
+/** The CALLABLE surface of a service that is also a class. `Focus` names one
+ *  concept — the focus service — which a body can either ASK
+ *  (`Focus.focus(this)`) or LISTEN to (`Focus [ onFocusChange(v) { … } ]`).
+ *  The keyboard splits the two: `Keyboard` is asked (`Keyboard.isDown("KeyA")`,
+ *  an abstract class no tag builds) and a `KeyListener` member listens. Emitted
+ *  as STATIC members of the generated class so the call typechecks; at runtime
+ *  a tag and a body identifier are different namespaces (the body's `Keyboard`
+ *  is the injected service object — expr.ts setBodyServices). */
 export const LANGUAGE_STATICS: Readonly<Record<string, readonly string[]>> = {
-  Keys: [
+  Keyboard: [
     `  static isDown(code: string): boolean;`,
     `  static held(): string[];`,
     // Claim the nav keys (arrows/Space/Home/End/Page) from the browser's
@@ -792,6 +798,8 @@ export const LANGUAGE_STATICS: Readonly<Record<string, readonly string[]>> = {
     `  static holds(v: unknown): boolean;`,
     // an overlay closing gives focus back (Floating's _closing) — internal
     `  static _giveBack(overlay: unknown): void;`,
+    // focus is in a member scope entered inside a stop (TextInput's Escape) — internal
+    `  static _inMember(): boolean;`,
   ],
 };
 

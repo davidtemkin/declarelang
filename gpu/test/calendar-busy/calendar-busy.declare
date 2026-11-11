@@ -685,7 +685,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
        gate on the panel being closed: its text fields own the keyboard while
        an event is being edited (Keys is the raw stream). */
 
-    keys: Keys [
+    keys: KeyListener [
         onKeyUp(e: KeyEvent) {
             if (e.key == "Escape") app.closeDetail()
             else if (app.selectedId < 0 && e.key == "ArrowLeft") app.step(-1)

@@ -1,7 +1,7 @@
 // Table / TableRow (B7 — component-briefs.md §2): the ruled selection model
 // in component form. These tiers drive the protocol seam directly (rowClick /
 // step / onKeyDown with explicit modifier facts) — the gesture-to-modifier
-// wiring itself is one Keys.isDown call, pinned by inspection.
+// wiring itself is one Keyboard.isDown call, pinned by inspection.
 
 import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";

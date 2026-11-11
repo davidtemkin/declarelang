@@ -138,13 +138,13 @@ class FocusRing [
     opacity = 0,
     ignoreLayout = true,                         // it flies to the focused control; a parent's layout never arranges it
 
-    // an overlay owns the keys (an open menu — Keys.navClaim): the ring
+    // an overlay owns the keys (an open menu — Keyboard.navClaim): the ring
     // stands down while it's up — the menu's rover is the focus story, and
     // a page ring poking around a panel reads as chrome fighting chrome
 
     overlayUp: boolean = false,
     _focusInOverlay: boolean = false,
-    _claims: Keys [ onNavClaim(on: boolean) { classroot.overlayUp = on; classroot._noteOverlayFocus() }
+    _claims: KeyListener [ onNavClaim(on: boolean) { classroot.overlayUp = on; classroot._noteOverlayFocus() }
         ],
 
     // where the ring is headed — written by the subscription; the springs chase
@@ -334,7 +334,7 @@ class FocusRing [
     // is shown: the ring stands down only for what lies behind it
 
     _noteOverlayFocus() {
-        const c = Keys._claimant() as View | null
+        const c = Keyboard._claimant() as View | null
         const f = Focus.getFocus() as View | null
         let n = f
         while (n != null && n != c) n = n.parent as View | null

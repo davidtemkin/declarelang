@@ -366,7 +366,7 @@ async function precompileBodies(program, made = {}) {
       if (body !== null && parses(["parent", "classroot"], body)) {
         const src = v.src;
         v.src = "\u0000" + slot("e\u0000" + src, `function(parent, classroot) { ${body} }`);
-        if (/\bKeys\b/.test(r.src)) keyed.add(parseInt(v.src.slice(1), 10));
+        if (/\bKeyboard\b/.test(r.src)) keyed.add(parseInt(v.src.slice(1), 10));
       }
     }
     if (Array.isArray(v.methods)) for (const m of v.methods) {
@@ -376,7 +376,7 @@ async function precompileBodies(program, made = {}) {
       const body = "error" in r ? null : `{ ${r.src}\n }`;
       if (body !== null && parses(["parent", "classroot", "$base", ...params], body)) {
         m.body = "\u0000" + slot("m\u0000" + params.join("\u001f") + "\u0000" + m.body, `function(parent, classroot, $base${params.map((q) => ", " + q).join("")}) { ${body} }`);
-        if (/\bKeys\b/.test(r.src)) keyed.add(parseInt(m.body.slice(1), 10));
+        if (/\bKeyboard\b/.test(r.src)) keyed.add(parseInt(m.body.slice(1), 10));
       }
     }
     for (const k of Object.keys(v)) walk(v[k]);

@@ -58,7 +58,7 @@ name the same thing, the one here is the one the platform means.
 - **dataset class** — a class that extends [`Dataset`](declare-docs:Dataset) or [`DataSource`](declare-docs:DataSource): the data itself, with its
   derivations and rules as members; views bind to it directly. → [Data](declare-docs:guide:data@deriving-summaries-methods-and-a-typed-result)
 - **non-visual child** — a child with no pixels that lives and dies with its node: a
-  [`Dataset`](declare-docs:Dataset), [`DataSource`](declare-docs:DataSource), [`Spring`](declare-docs:Spring), [`Animator`](declare-docs:Animator), [`Time`](declare-docs:Time), [`Keys`](declare-docs:Keys), [`Focus`](declare-docs:Focus), a stream, a
+  [`Dataset`](declare-docs:Dataset), [`DataSource`](declare-docs:DataSource), [`Spring`](declare-docs:Spring), [`Animator`](declare-docs:Animator), [`Time`](declare-docs:Time), [`KeyListener`](declare-docs:KeyListener), [`Focus`](declare-docs:Focus), a stream, a
   class with no view.
 - **classroot** — the instance of the class being defined, reachable from any depth inside
   its body.

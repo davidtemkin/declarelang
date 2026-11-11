@@ -17,7 +17,7 @@ Not forms, and not here: `afterSettle` (a shared function — Types and function
 `onReady` (App's `ready` event — the App page), `draw()` (a method with a reserved name a
 view may define — the View page). The settle itself is a concept the guide teaches. And
 `<-` is not a form: a runtime service is an ordinary member
-(`Keys [ onKeyUp(e) { … } ]`), and the parser recognizes `<-` only to name that spelling.
+(`KeyListener [ onKeyUp(e) { … } ]`), and the parser recognizes `<-` only to name that spelling.
 
 ## app
 
@@ -181,7 +181,7 @@ the base is `Node` — a model class with no box.
 
 `extends` is not a top-level form in its own right: it is part of a `class` declaration.
 The base may be declared later in the file, or in an included one. Any concrete built-in is
-a base — `View`, `Node`, `Layout` and `TweenLayout`, `Dataset`, `Spring`, `Keys`, `State` and
+a base — `View`, `Node`, `Layout` and `TweenLayout`, `Dataset`, `Spring`, `KeyListener`, `State` and
 the rest — as is any class descending from one; only the abstract bases (`Stream`, `Media`)
 are refused.
 
@@ -190,7 +190,7 @@ are refused.
 - The base must be a class: a built-in or a declared one.
   > says: unknown base 'Widget' — a class extends a library class or one declared in this program
   > probe: class Chip extends Widget [ ]\nApp [ Chip [ ] ]
-- Any built-in class is a base — View, Layout, Node, Dataset, Spring, Keys, State alike; only an abstract base (Stream, Media), which no runtime class implements, is refused.
+- Any built-in class is a base — View, Layout, Node, Dataset, Spring, KeyListener, State alike; only an abstract base (Stream, Media, Keyboard), which no runtime class implements, is refused.
   > says: 'Stream' is an abstract base — it names no class to construct; extend one of its concrete members (EventStream, Socket)
   > probe: class S extends Stream [ ]\nApp [ ]
 - A subclass may not take a built-in's name.
@@ -380,7 +380,7 @@ in declaration order — later siblings on top; there is no z-index — and a pa
 `layout:` member arranges them, while one without positions them by their own `x`/`y`.
 
 A child is also how anything that is not a view joins the tree: a `Dataset`, a `Spring`, a
-`Keys` or `Focus` service, a stream. A source of events is a child, so it lives and dies with
+`KeyListener` or `Focus` service, a stream. A source of events is a child, so it lives and dies with
 the node that declares it; there is nothing to subscribe to and nothing to unregister.
 
 ### rules
@@ -463,7 +463,7 @@ method, and the compiler warns, naming the handler when the name is one slip fro
 Nothing bubbles. A handler runs on the node that declares it, for events that node fires;
 a parent that wants a child's click declares the handler on the child (or the child calls
 up through `parent` or `classroot`). Events from outside the tree come through a member you
-declare — a `Keys [ onKeyUp(e: KeyEvent) { … } ]` gives a node app-wide keyboard handling.
+declare — a `KeyListener [ onKeyUp(e: KeyEvent) { … } ]` gives a node app-wide keyboard handling.
 
 ### rules
 
@@ -477,7 +477,7 @@ declare — a `Keys [ onKeyUp(e: KeyEvent) { … } ]` gives a node app-wide keyb
 ### related
 
 forms: method, super, set, child
-classes: View, Keys, Control
+classes: View, KeyListener, Control
 guide: 09-pointer-and-keyboard · Pointer and keyboard
 
 ## super

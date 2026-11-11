@@ -122,7 +122,11 @@ export declare const Diag: {
     accessibilityLabelUnread: (owner: string, pos: Pos) => DeclareError;
     accessibilityRadioAlone: (owner: string, pos: Pos) => DeclareError;
     choiceItemAlone: (owner: string, pos: Pos) => DeclareError;
-    keyDownWithoutSuper: (owner: string, pos: Pos) => DeclareError;
+    bindingCommandMissing: (owner: string, key: string, command: string, pos: Pos) => DeclareError;
+    bindingKeyUnmatchable: (owner: string, key: string, hint: string, pos: Pos) => DeclareError;
+    bindingClipboardKey: (owner: string, key: string, command: string, pos: Pos) => DeclareError;
+    bindingStandardKey: (owner: string, key: string, pos: Pos) => DeclareError;
+    keyDownWithoutSuper: (owner: string, pos: Pos, control?: boolean) => DeclareError;
     accessibilityDrawnFocusable: (owner: string, pos: Pos) => DeclareError;
     afterInValue: (pos: Pos) => DeclareError;
     scriptWrite: (name: string, pos: Pos) => DeclareError;

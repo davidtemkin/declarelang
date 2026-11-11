@@ -62,17 +62,17 @@ let PRE_MAKE = null;
 let PRE_SCRIPTS = [];
 let PRE_KEYED = new Set();
 const PRE_BUILT = new WeakMap();
-/** `keyed` — the slots whose body names `Keys`, which a minified bundle no
+/** `keyed` — the slots whose body names `Keyboard`, which a minified bundle no
  *  longer shows by name (see askingKeys). */
 export function providePrecompiled(make, scripts, keyed = []) {
     PRE_MAKE = make;
     PRE_SCRIPTS = scripts;
     PRE_KEYED = new Set(keyed);
 }
-/** A body that names `Keys` runs as the keyboard's CALLER: while it runs,
- *  `Keys.isDown` knows which node is asking — the program it answers for, and
+/** A body that names `Keyboard` runs as the keyboard's CALLER: while it runs,
+ *  `Keyboard.isDown` knows which node is asking — the program it answers for, and
  *  the view that claims the key (keys.ts). Only these bodies pay for it. */
-const NAMES_KEYS = /\bKeys\b/;
+const NAMES_KEYS = /\bKeyboard\b/;
 function askingKeys(fn) {
     return function (...args) {
         const prev = keysCaller(this !== null && typeof this === "object" ? this : null);

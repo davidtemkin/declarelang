@@ -319,7 +319,7 @@ export class Node {
 // node → teardown callbacks registered by outside machinery (a replicator's
 // standing computations, a service member's unsubscribe). Lived in view.ts
 // keyed by View until the subscription work (2026-07-13): a plain Node can
-// host a runtime service (`nav: Node [ Keys [ onKeyUp(e) { … } ] ]`), so the
+// host a runtime service (`nav: Node [ KeyListener [ onKeyUp(e) { … } ] ]`), so the
 // registry lives at the base. Pay-per-use, module-private; node.ts stays
 // ignorant of who registers.
 const RETIRE = new WeakMap<Node, (() => void)[]>();

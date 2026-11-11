@@ -188,6 +188,12 @@ one moves (`"r"`, `"b"` or `"rb"`), no smaller than the minimum.
 
 ## _sizeEnd()
 **Internal.** The drag's end: an interrupted resize puts the size back.
+## keyBindings
+Escape closes a framed, closable window while focus is inside it; an overlay open inside it
+takes Escape first.
+
+## _keyEscape()
+**Internal.** Escape: `close()`, for a framed, closable, open window.
 */
 
 
@@ -348,14 +354,16 @@ class Window [ width = 360, height = 240,
 
     layer: View [ width = 100%, height = 100%, pointerEvents = "none" ],
 
-    // Esc reaches this only when no overlay holds the keyboard: one open
-    // inside the window takes it first
+    // Esc closes a framed window that holds the focus; an overlay open inside
+    // it is nearer the focus and takes Esc first (key-bindings.md)
 
-    _escKeys: Keys [
-        onKeyDown(e: KeyEvent) {
-            if (e.key == "Escape" && classroot.frame && classroot.closable && classroot.open && Focus.holds(classroot)) classroot.close()
-            }
-        ],
+    keyBindings = { [ ({ key: "Escape", command: "_keyEscape" }) ] },
+
+    _keyEscape(e: KeyEvent) -> boolean {
+        if (!frame || !closable || !open) return false
+        close()
+        return true
+        },
 
     // focus arriving by F6 or a press on a control brings a framed window forward
 

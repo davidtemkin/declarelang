@@ -1,4 +1,4 @@
-The focus service, as a member. Like `Keys`, `Focus` names one concept a program can
+The focus service, as a member. `Focus` names one concept a program can
 **ask** (`Focus.focus(this)`, `Focus.byKeyboard()` — calls from any `{ }` body) or
 **listen to** (a `Focus [ … ]` member).
 
@@ -68,6 +68,11 @@ included. A `Window` answers whether it has the keyboard with it.
 ## _giveBack()
 **Internal.** An overlay closing gives focus back: to what had it when it opened, or, when
 that is gone, to the next Tab stop after its place.
+
+## _inMember()
+**Internal.** Whether focus is inside a member scope entered within a `stop` — an editor in a
+list's or grid's cell. A field's Escape that cancels an edit there hands the key on, so one
+press cancels and leaves the cell.
 
 ## nextRegion()
 Moves focus to the next (`1`) or previous (`-1`) region of the context around the one

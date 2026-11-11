@@ -182,12 +182,23 @@ None of its own: the field is a text field to assistive technology, as the nativ
 The label of the `Field` it sits in, unless set. A field outside a `Field` names itself:
 `accessibilityLabel = "Search"`.
 
-## onKeyDown
+## keyBindings
 Escape while the field shows something not yet committed (under `commitOn = "end"`) cancels
 the edit: nothing is committed, and the field shows the value. Otherwise the key goes on as
 for any control, so Escape in a field inside a dialog closes the dialog. Space and Return
-are the text's (Return is `onEnter`'s), never a `press()`. An override handles its own
-keys and passes the rest on with `super.onKeyDown(e)`.
+are the text's (Return is `onEnter`'s), never a `press()`; every other key without a
+command modifier, and the editing chords, are the field's editor's too. An `onKeyDown`
+override handles its own keys and passes the rest on with `super.onKeyDown(e)`, or Tab
+stops at the field.
+
+## _multi()
+**Internal.** Whether Return is the field's own: a multi-line field's line break. A single-line
+field's Return goes on to what holds it — a dialog's default button.
+
+## _keyEscape()
+**Internal.** Escape: cancels an edit that has something uncommitted; otherwise passes the
+key on. In an editor inside a list's or grid's cell it cancels and passes the key on too, so
+one press cancels and leaves the cell.
 
 ## fill
 The theme's `surface`.
@@ -257,10 +268,16 @@ class TextInput extends ValueControl [
     // field closes on the first press otherwise); Space and Enter are text here,
     // never a press; the rest are any control's
 
-    onKeyDown(e: KeyEvent) {
-        if (e.key == "Escape" && editing && shown !== fieldValue) { cancelEdit(); return }
-        if (e.key == " " || e.key == "Enter") return
-        super.onKeyDown(e)
+    keyBindings = { [ ({ key: "Escape", command: "_keyEscape" }),
+        ({ key: "Space", command: "native" }),
+        ({ key: "Enter", command: "native", when: "_multi" }), ({ key: "Enter", command: null }) ] },
+
+    _multi() -> boolean { return multiline },
+
+    _keyEscape(e: KeyEvent) -> boolean {
+        if (!editing || shown === fieldValue) return false
+        cancelEdit()
+        return !Focus._inMember()
         },
 
     _typed(t: string) {

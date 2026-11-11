@@ -15,7 +15,9 @@ Tracking is the classic desktop behavior: titles do not highlight on mere hover;
 a click opens (and highlights) a title; while any menu is open, moving
 across another title switches to it; clicking the open title closes.
 
-Delivery is the one seam: `picked(id)` — override at the use site.
+Delivery is the one seam: `picked(id)` — override at the use site. An item that names a
+`command` runs it instead, on what the person was working in (`Commands.run`): Edit › Copy
+and ⌘C reach the same view.
 
 A dropped menu paints over the bar's later siblings: the bar raises itself when a menu
 opens (stacking is source order, and `raise()` is the runtime verb for it). A bar nested
@@ -92,6 +94,9 @@ Chrome, never prose: the titles do not select, even inside a `selectable` region
 
 ## height
 From the theme's `menuBarHeight` (25 by default); the titles' size is `menuBarFontSize` (14) and their highlight's corners `menuBarTitleCornerRadius` (6).
+## _commandChrome
+**Internal.** A menu bar is command chrome: its focus is never where a command starts.
+
 */
 
 include [ "menu.declare", "shortcuts.declare" ]
@@ -121,6 +126,11 @@ class MenuBar [
     // the theme's text color. The dropdown menus stay themed.
 
     ink: Color = null,
+
+    // a menu bar is command chrome: Tab to a title and pick, and the command
+    // still reaches what the person was working in (key-bindings.md)
+
+    _commandChrome: boolean = true,
 
     // every item's key: is a shortcut for the whole program (planes.md §9)
 
@@ -173,7 +183,7 @@ class MenuBar [
         if (t != null) this.openMenu(t)
         },
 
-    _keys: Keys [
+    _keys: KeyListener [
         onKeyDown(e: KeyEvent) {
             if (!classroot.menu.shown) return
             if (classroot.menu._subShown(classroot.menu.child)) return

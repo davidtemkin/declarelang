@@ -14,7 +14,7 @@ program must *act* because something crossed into a new state.
 
 ## The clock: `Time`
 
-[`Time`](declare-docs:Time) brings the clock into your program as a member, the way [`Keys`](declare-docs:Keys) brings the
+[`Time`](declare-docs:Time) brings the clock into your program as a member, the way a [`KeyListener`](declare-docs:KeyListener) brings the
 keyboard and [`DataSource`](declare-docs:DataSource) brings a server. Declare one, and the current time becomes a
 set of reactive facts any constraint can derive from:
 

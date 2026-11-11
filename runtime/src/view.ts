@@ -2459,6 +2459,11 @@ export function setFocusDiscardHook(fn: (view: View) => void): void {
 
 /** The focus service's default for a key a view's handlers left alone (the
  *  base `onKeyDown`), registered by focus.ts — the same one-way seam. */
+/** One class layer's `keyBindings` (key-bindings.md): the attribute as written
+ *  and the `classroot` it was written against. A view's layers are kept use
+ *  site first, then each class body from the leaf down (instantiate.ts). */
+export interface KeyLayer { attr: { value: unknown }; croot: View | null }
+
 let keyDefaultHook: ((view: View, e: unknown) => void) | null = null;
 export function setKeyDefaultHook(fn: (view: View, e: unknown) => void): void {
   keyDefaultHook = fn;

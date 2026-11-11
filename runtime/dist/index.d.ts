@@ -57,6 +57,7 @@ export { headingSlug } from "./slug.js";
 export { Keys, KeysService, normalize } from "./keys.js";
 export type { KeyEvent } from "./keys.js";
 export { Focus, FocusService, deliverKeys } from "./focus.js";
+export { Commands } from "./commands.js";
 export { Clipboard, ClipboardEvent, provideClipboardHost, deliverCopy, deliverPaste, takesClipboard, type ClipboardHost } from "./clipboard.js";
 export { FilePicker, provideFilesHost, deliverFiles, type FileRecord, type PickOptions, type FilesHost } from "./files.js";
 import "./services.js";

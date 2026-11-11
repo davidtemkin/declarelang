@@ -9,6 +9,11 @@ type Channel = readonly [member: string, subscribe: (fn: Handler, owner: Node) =
  *  handler this instance actually declares; at discard, drop them all. Nothing
  *  subscribes for a handler nobody wrote — pay-per-use, like every other member
  *  in the language. */
+/** The keyboard as a service (`Keyboard.isDown`): an abstract class, so the
+ *  reference documents it once and no tag or base builds one — the schema's
+ *  runtime twin, for the pin. The keyboard's member is a KeyListener. */
+export declare abstract class KeyboardService extends Node {
+}
 declare abstract class Source extends Node {
     /** The channels this source offers. */
     protected abstract $channels(): readonly Channel[];
@@ -18,7 +23,7 @@ declare abstract class Source extends Node {
      *  by now, which is the first moment we can tell which channels to wire. */
     $autoStart(): void;
 }
-/** The keyboard, as a member: `Keys [ onKeyDown(e) { … }, onKeyUp(e) { … } ]`.
+/** The keyboard, as a member: `KeyListener [ onKeyDown(e) { … }, onKeyUp(e) { … } ]`.
  *  The RAW stream — it fires even while a text field has focus, so gate
  *  app-level shortcuts on app state where that matters. (A focused view's own
  *  `onKeyDown`/`onKeyUp` are the other half: keys belonging to one widget.)

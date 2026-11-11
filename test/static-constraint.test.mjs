@@ -201,7 +201,7 @@ test("a Dataset, DataSource or source subclass's computed default is a rule, as 
     class D extends Dataset [ m: number = { this.value?.n ?? 0 },
       trackChanges = ["m"], onChange(e: ChangeEvent) { app.seenD = app.seenD + 1 } ]
     class S extends DataSource [ m: number = { this.value?.n ?? 0 } ]
-    class K extends Keys [ base: number = 1, twice: number = { this.base * 2 } ]
+    class K extends KeyListener [ base: number = 1, twice: number = { this.base * 2 } ]
     class E extends Node [ ds: Dataset { { "n": 0 } }, m: number = { this.ds.value?.n ?? 0 } ]
     App [ seenD: number = 0,
       d: D { { "n": 0 } }, s: S [ url = "none.json" ], k: K [ ], e: E [ ],

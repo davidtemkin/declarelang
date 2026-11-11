@@ -1563,6 +1563,7 @@ class SearchHit [ width = 100%, cornerRadius = 8,
             }
         else if (e.key == "Enter") app.openResult(classroot.loc)
         else if (e.key == "Escape") app.dismissSearch()
+        else super.onKeyDown(e)
         },
 
     // the row's own content box, trailing space included — so the row
@@ -1908,7 +1909,7 @@ App [ fill = { provided("theme").background }, appName = "Declare Docs",
 
     // ⌘K reaches the search pill from anywhere; Escape unwinds an open search.
 
-    keys: Keys [
+    keys: KeyListener [
         onKeyDown(e: KeyEvent) {
             if ((e.meta || e.ctrl) && e.code == "KeyK") app.openSearch()
             else if (e.key == "Escape" && (app.searchQ != "" || app.searchOpen)) app.dismissSearch()
@@ -2076,6 +2077,7 @@ App [ fill = { provided("theme").background }, appName = "Declare Docs",
             onKeyDown(e: KeyEvent) {
                 if (e.key == "Escape") app.dismissSearch()
                 else if (e.key == "ArrowDown" && app.searchHits.length > 0) app.focusHit(0)
+                else super.onKeyDown(e)
                 }
             ],
 

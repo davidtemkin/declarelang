@@ -23,6 +23,44 @@ export interface KeyEvent {
   alt: boolean;
   meta: boolean;
   repeat: boolean;
+  /** An IME is composing: the key belongs to the composition, not to a binding. */
+  isComposing?: boolean;
+  /** The legacy key code — 229 is Safari's keydown during and just after composition. */
+  keyCode?: number;
+  /** AltGr is down (Windows layouts): the chord types a character. */
+  altGraph?: boolean;
+}
+
+/** One key press on its way through the walk (key-bindings.md): what the walk
+ *  has done with it so far. Read by the base `onKeyDown` and the DOM adapter. */
+export interface KeyDispatch {
+  e: KeyEvent;
+  /** Something took the key: the platform's default is prevented. */
+  prevent: boolean;
+  /** The tables already walked this key (a chord): the base `onKeyDown` does not walk it again. */
+  walked: boolean;
+  /** The focused view's `onKeyDown` reached the base (the walk). */
+  reachedBase: boolean;
+  /** The key skips the tables — composition, or a chord that types into a field. */
+  skipTables: boolean;
+  /** The focus layer took the key in hand (focus.ts deliverKeys): it decides
+   *  whether the walk runs. Without one (a headless service), keyDown walks. */
+  delivered: boolean;
+}
+
+/** The walk (focus.ts walkKeys), injected — keys.ts sits below the view layer.
+ *  `from` null = start where the key starts (the focused view, or an overlay).
+ *  Returns whether something took the key, and whether to prevent its default. */
+export type KeyWalk = (e: KeyEvent, mode: "tables" | "all") => { taken: boolean; prevent: boolean };
+let WALK: KeyWalk | null = null;
+/** The bindings in force where focus is, read along the walk (focus.ts): what
+ *  the hold-⌘ panel lists. Injected, as the walk is. */
+let IN_FORCE: (() => Array<Record<string, unknown>>) | null = null;
+export function setInForce(fn: (() => Array<Record<string, unknown>>) | null): void {
+  IN_FORCE = fn;
+}
+export function setKeyWalk(fn: KeyWalk | null): void {
+  WALK = fn;
 }
 
 type KeyHandler = (e: KeyEvent) => void;
@@ -73,12 +111,15 @@ interface ShortcutOwner {
 
 /** The modifier glyphs in their display order. */
 const MOD_ORDER = ["⌃", "⌥", "⇧", "⌘"];
-const MOD_WORDS: Record<string, string> = { ctrl: "⌃", control: "⌃", alt: "⌥", option: "⌥", opt: "⌥", shift: "⇧", cmd: "⌘", command: "⌘", meta: "⌘" };
+// Spelled the Windows way (key-bindings.md): Ctrl is the command key — ⌘ on a
+// Mac, Ctrl elsewhere — and MacCtrl the Mac's own Control key (⌃).
+const MOD_WORDS: Record<string, string> = { ctrl: "⌘", control: "⌘", macctrl: "⌃", alt: "⌥", option: "⌥", opt: "⌥", shift: "⇧", cmd: "⌘", command: "⌘", meta: "⌘" };
 const KEY_NAMES: Record<string, string> = {
-  ArrowLeft: "←", ArrowRight: "→", ArrowUp: "↑", ArrowDown: "↓", Enter: "↩", Escape: "⎋",
+  ArrowLeft: "←", ArrowRight: "→", ArrowUp: "↑", ArrowDown: "↓", Enter: "↩", Escape: "⎋", Esc: "⎋",
   Backspace: "⌫", Delete: "⌦", Tab: "⇥", " ": "Space",
 };
 const IS_MAC = typeof navigator === "undefined" || /Mac|iPhone|iPad/.test(navigator.platform ?? "");
+export const KEYS_ON_MAC = IS_MAC;
 
 /** A key event as a shortcut's spelling: modifiers in display order, then the
  *  key (a letter upper-cased, a named key by its glyph). ⌘ is the command key:
@@ -108,14 +149,40 @@ export function normalizeCombo(spec: string): string {
   return MOD_ORDER.filter((m) => mods.has(m)).join("") + k;
 }
 
+/** The same press spelled from its physical key (`code`): KeyS → S, Digit1 → 1.
+ *  A letter or digit on a non-Latin layout, or under ⌥ on a Mac (⌥A types å),
+ *  still matches its binding this way. Null when the code names no letter or digit. */
+export function comboOfCode(e: KeyEvent): string | null {
+  const m = /^(?:Key([A-Z])|Digit([0-9]))$/.exec(e.code);
+  if (m === null) return null;
+  return comboOf({ ...e, key: m[1] ?? m[2] });
+}
+
 /** The chords a text field answers itself — select all, the clipboard, undo
  *  and redo, and the caret's command moves. While a field has focus they stay
  *  the field's, whatever a program declares: the Mac's first-responder rule
- *  (a field's editing commands come before the menu's key equivalents). */
-const FIELD_CHORDS = new Set(["⌘A", "⌘C", "⌘X", "⌘V", "⌘Z", "⇧⌘Z", "⌘Y", "⌘←", "⌘→", "⌘↑", "⌘↓", "⇧⌘←", "⇧⌘→", "⇧⌘↑", "⇧⌘↓", "⌥←", "⌥→", "⇧⌥←", "⇧⌥→", "⌥⌫", "⌘⌫"]);
+ *  (a field's editing commands come before the menu's key equivalents). A
+ *  focused text field's table ends with these as `native` (focus.ts). */
+export const FIELD_CHORDS = new Set(["⌘A", "⌘C", "⌘X", "⌘V", "⌘Z", "⇧⌘Z", "⌘Y", "⌘←", "⌘→", "⌘↑", "⌘↓", "⇧⌘←", "⇧⌘→", "⇧⌘↑", "⇧⌘↓", "⌥←", "⌥→", "⇧⌥←", "⇧⌥→", "⌥⌫", "⌘⌫", "⌃A", "⌃E", "⌃K"]);
 
 /** Does a combo carry a command modifier (anything but ⇧)? */
-const commanded = (combo: string): boolean => /[⌃⌥⌘]/.test(combo) || /^F\d+$/.test(combo.replace(/^[⇧]/, ""));
+export const commanded = (combo: string): boolean => /[⌃⌥⌘]/.test(combo) || /^F\d+$/.test(combo.replace(/^[⇧]/, ""));
+
+/** Does this press type a character into a field rather than name a chord —
+ *  AltGr on Windows, ⌥ on a Mac? (key-bindings.md: such keys skip the tables
+ *  while a text field has focus.) */
+export function typesCharacter(e: KeyEvent): boolean {
+  if (e.altGraph === true) return true;
+  if (IS_MAC) return e.alt && !e.meta && !e.ctrl && (e.key.length === 1 || e.key === "Dead");
+  // Windows: Ctrl+Alt that types something other than the key's own letter
+  if (e.ctrl && e.alt && e.key.length === 1 && typeof e.keyCode === "number" && e.keyCode >= 48 && e.keyCode <= 90) {
+    return e.key.toUpperCase() !== String.fromCharCode(e.keyCode);
+  }
+  return false;
+}
+
+/** Is the press part of an IME composition (Safari reports 229 just after)? */
+export const composing = (e: KeyEvent): boolean => e.isComposing === true || e.keyCode === 229;
 let PROGRAMS: KeysPrograms | null = null;
 export function setKeysPrograms(p: KeysPrograms | null): void {
   PROGRAMS = p;
@@ -123,7 +190,7 @@ export function setKeysPrograms(p: KeysPrograms | null): void {
 
 /** The node whose compiled body is running, while it runs a body that names
  *  `Keys` (expr.ts sets it around exactly those bodies): who is asking
- *  `Keys.isDown`. Returns the previous caller, for the body to restore. */
+ *  `Keyboard.isDown`. Returns the previous caller, for the body to restore. */
 let CALLER: object | null = null;
 export function keysCaller(node: object | null): object | null {
   const prev = CALLER;
@@ -167,6 +234,10 @@ interface Chord {
 let keysFocusProbe: (() => boolean) | null = null;
 export function setKeysFocusProbe(fn: () => boolean): void {
   keysFocusProbe = fn;
+}
+/** Does a Declare view hold keyboard focus right now? */
+export function keysFocusHeld(): boolean {
+  return keysFocusProbe !== null && keysFocusProbe();
 }
 
 export class KeysService {
@@ -407,6 +478,7 @@ export class KeysService {
    *  origin, group }`, `origin` being the declaring set's `title` and `group`
    *  the menu a menu bar's shortcut sits in (else the origin). */
   shortcutsInForce(): Array<Record<string, unknown>> {
+    if (IN_FORCE !== null) return IN_FORCE();
     const seen = new Set<string>();
     const out: Array<Record<string, unknown>> = [];
     for (const { owner } of this.ownersHeard()) {
@@ -437,39 +509,51 @@ export class KeysService {
     });
   }
 
-  /** The declared shortcut a key event triggers, if any: the nearest set that
-   *  declares its combo, enabled (ownersHeard — an open overlay's own sets
-   *  only), and none without a command modifier while a field has focus
-   *  (typing is the field's), nor a field's own editing chords (⌘A, ⌘C/X/V,
-   *  ⌘Z — FIELD_CHORDS). */
-  private shortcutFor(e: KeyEvent): { owner: ShortcutOwner; id: string } | null {
-    if (this.shortcutOwners.size === 0 || MODIFIERS.has(e.code)) return null;
-    const combo = comboOf(e);
-    if (PROGRAMS !== null && (!commanded(combo) || FIELD_CHORDS.has(combo)) && PROGRAMS.typing()) return null;
-    for (const { owner } of this.ownersHeard()) {
-      const items = Array.isArray(owner.items) ? owner.items as Array<Record<string, unknown>> : [];
-      const hit = items.find((r) => typeof r?.key === "string" && normalizeCombo(r.key) === combo);
-      if (hit !== undefined) return hit.enabled === false ? null : { owner, id: String(hit.id) };
+  /** The `Shortcuts` sets declared on `view` — each a table the walk reads
+   *  at that view, after the view's own `keyBindings` (key-bindings.md). */
+  _setsOn(view: object): ShortcutOwner[] {
+    const out: ShortcutOwner[] = [];
+    for (const o of this.shortcutOwners) {
+      if (o.$tornDown === true) { this.shortcutOwners.delete(o); continue; }
+      const scope = o.on != null ? o.on : o.parent;
+      if (scope === view) out.push(o);
     }
-    return null;
+    return out;
   }
 
-  /** A key went down. Returns whether a declared shortcut took it — the
-   *  adapter then stops the browser's own use of the chord. */
+  /** The press now being dispatched, while it is (null between presses). */
+  current: KeyDispatch | null = null;
+
+  /** A key went down. Returns whether to prevent the platform's own use of it:
+   *  something took it (key-bindings.md). A chord — a command modifier, or a
+   *  function key — walks the tables first, before any `onKeyDown`, so a
+   *  handler that forgets `super` can't swallow it; a plain key goes to the
+   *  focused view's `onKeyDown`, whose base is the walk. */
   keyDown(e: KeyEvent): boolean {
     this.noteCommandHold(e, true);
     this.dispatching++;
+    const prev = this.current;
+    const d: KeyDispatch = { e, prevent: false, walked: false, reachedBase: false, delivered: false, skipTables: composing(e) || (PROGRAMS !== null && PROGRAMS.typing() && typesCharacter(e)) };
+    this.current = d;
     try {
-      const sc = this.shortcutFor(e);
-      if (sc !== null) {
-        // the shortcut's, and no program's: its release reaches only the runtime
-        this.heldKeys.set(e.code, { e, program: ORPHAN, owned: false });
-        sc.owner.picked(sc.id);
-        return true;
+      if (!d.skipTables && WALK !== null && !MODIFIERS.has(e.code) && commanded(comboOf(e))) {
+        d.walked = true;
+        const r = WALK(e, "tables");
+        if (r.taken) {
+          // the binding's, and no program's: its release reaches only the runtime
+          this.heldKeys.set(e.code, { e, program: ORPHAN, owned: false });
+          return r.prevent;
+        }
       }
       this.keyDownRaw(e);
-      return false;
-    } finally { this.dispatching--; }
+      // no focus layer delivered it: the walk runs from where the key starts
+      if (!d.delivered && !d.walked && !d.skipTables && WALK !== null && !MODIFIERS.has(e.code)) {
+        d.walked = true;
+        const r = WALK(e, "all");
+        if (r.prevent) d.prevent = true;
+      }
+      return d.prevent;
+    } finally { this.current = prev; this.dispatching--; }
   }
 
   /** Whatever a key's handlers do happens while this is true — so focus they
@@ -545,7 +629,7 @@ export class KeysService {
     // On a Mac a key pressed while ⌘ is down sends no key-up of its own (the
     // system keeps it), so ⌘'s release is the last word on it: anything else
     // still held but a modifier was let go then. Without this, ⌘K left K held
-    // for good — Keys.isDown("KeyK") stayed true, and ⌘ alone never armed again.
+    // for good — Keyboard.isDown("KeyK") stayed true, and ⌘ alone never armed again.
     if (IS_MAC && (e.code === "MetaLeft" || e.code === "MetaRight")) {
       for (const code of [...this.heldKeys.keys()]) if (!MODIFIERS.has(code)) this.heldKeys.delete(code);
     }
@@ -604,7 +688,6 @@ export class KeysService {
       target.removeEventListener("keyup", onUp);
       target.removeEventListener("blur", onBlur);
     };
-    const focusHolds = (): boolean => keysFocusProbe !== null && keysFocusProbe();
     const onDown = (ev: KeyboardEvent): void => {
       if (!isAlive()) return retire();
       // Declare owns Tab traversal (Layer 2); stop the browser from also moving its
@@ -618,10 +701,14 @@ export class KeysService {
       // field is a space.
       // (A focused view's own element holds the DOM's focus — accessibility.md
       // §5.2 — and is no native editable, so it counts as the control's too.)
+      // An open overlay owns its navigation keys outright (key-bindings.md):
+      // prevented whether or not it binds them, as before — except while a
+      // native field holds focus, whose text keys stay its own. Every other
+      // key is prevented only when something took it (keyDown's answer).
       if (!isField(document.activeElement)) {
         const nav = ev.key === " " || ev.key === "ArrowUp" || ev.key === "ArrowDown" || ev.key === "ArrowLeft" || ev.key === "ArrowRight";
         const jump = ev.key === "Home" || ev.key === "End" || ev.key === "PageUp" || ev.key === "PageDown";
-        if ((nav && (focusHolds() || this.navClaimed())) || (jump && this.navClaimed())) ev.preventDefault();
+        if ((nav || jump) && this.navClaimed()) ev.preventDefault();
       }
       // A key a shown view of the keyboard program polls is the program's
       // (Rule 2): the browser's own use of it — scrolling, Firefox's quick
@@ -663,6 +750,9 @@ export function normalize(ev: KeyboardEvent): KeyEvent {
     alt: ev.altKey,
     meta: ev.metaKey,
     repeat: ev.repeat,
+    isComposing: ev.isComposing,
+    keyCode: ev.keyCode,
+    altGraph: typeof ev.getModifierState === "function" && ev.getModifierState("AltGraph"),
   };
 }
 

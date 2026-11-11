@@ -1008,11 +1008,15 @@
     : ({ "'": "Quote", "/": "Slash", ",": "Comma", ".": "Period", ";": "Semicolon", "-": "Minus", "=": "Equal",
          "[": "BracketLeft", "]": "BracketRight", "\\": "Backslash", "`": "Backquote",
          Shift: "ShiftLeft", Control: "ControlLeft", Alt: "AltLeft", Meta: "MetaLeft" })[key] ?? key;
-  g.__declareKey = (type, key, mods, repeat, code) => {
+  // `id`: the host posted this key to the walk first (a ⌘ chord) and wants to
+  // know whether the program took it — a key nothing took goes to its menu.
+  g.__declareKey = (type, key, mods, repeat, code, id) => {
     const props = () => ({ key, code: code ?? codeOf(key), repeat: !!repeat,
       shiftKey: !!(mods & 1), metaKey: !!(mods & 2), ctrlKey: !!(mods & 4), altKey: !!(mods & 8) });
-    win.dispatchEvent(ev(type, props()));
+    const e = ev(type, props());
+    win.dispatchEvent(e);
     doc.dispatchEvent(ev(type, props()));
+    if (id && typeof H.keyAnswer === "function") H.keyAnswer(id, !!e.defaultPrevented);
   };
   g.__declareResize = (w, h, scale) => {
     win.innerWidth = w; win.innerHeight = h;

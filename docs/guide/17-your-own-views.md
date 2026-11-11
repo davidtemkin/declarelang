@@ -536,7 +536,8 @@ window — you reach for the same short list its own overlays use:
 | paint above your siblings | `this.raise()` |
 | a view's position in the app's coordinates | `v.rootOrigin()` |
 | move keyboard focus, or save and restore it | [`Focus.focus(v)`](declare-docs:Focus.method.focus) · [`Focus.getFocus()`](declare-docs:Focus.method.getFocus) |
-| take the arrow keys from the page while an overlay is open | [`Keys.navClaim(this, true)`](declare-docs:Keys.method.navClaim) |
+| answer keys, nearest the focus first | [`keyBindings`](declare-docs:View.keyBindings), each key a method of yours |
+| take the arrow keys from the page while an overlay is open | [`Keyboard.navClaim(this, true)`](declare-docs:Keyboard.method.navClaim) |
 | build structure that genuinely cannot be declared | `parent.createView("Name", props)` · `v.discard()` |
 | decide what Tab reaches inside a container | override [`tabOrder()`](declare-docs:View.method.tabOrder), compose [`tabDefault()`](declare-docs:View.method.tabDefault) |
 

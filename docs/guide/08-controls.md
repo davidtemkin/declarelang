@@ -256,7 +256,9 @@ style is yours: views, a layout, and data.
 ## Keyboard focus
 
 Every control is a tab stop. Tab and Shift-Tab move through them in tree order, Space
-and Enter activate, and a click moves focus to what was clicked; a click on anything that
+and Enter activate, and a click moves focus to what was clicked (a button that runs a
+[command](declare-docs:guide:pointer-and-keyboard@commands-menus-and-buttons) leaves it
+where it was); a click on anything that
 can't take focus clears it, and the next Tab starts from where you clicked. A control with members —
 a radio group, a segmented control, a list, a menu bar — is one stop: Tab lands on its
 chosen member and the arrows move among the rest. A focus ring that
@@ -281,8 +283,10 @@ When you need more:
   Some browsers take F6 for themselves, so **Esc then Tab** leaves a region too (Shift-Tab
   goes back), and a program's own command can call
   [`Focus.nextRegion`](declare-docs:Focus.method.nextRegion).
-- A member of a `stop` that wants an arrow for itself handles it in `onKeyDown`, and hands
-  the keys it doesn't want to `super.onKeyDown(e)`.
+- A member of a `stop` that wants an arrow for itself binds it — its own
+  [`keyBindings`](declare-docs:guide:pointer-and-keyboard@key-bindings) come before the
+  stop's — or handles it in `onKeyDown` and hands the rest to `super.onKeyDown(e)`. Where a
+  key goes, and in what order, is in [Keyboard events](declare-docs:guide:pointer-and-keyboard@keyboard-events).
 - Every view carries [`focused`](declare-docs:View.focused), true while it holds focus — a
   fact a constraint reads (`stroke = { focused ? stroke(2, provided("theme").accent) : null }`).
 - [`onFocus`](declare-docs:View.event.focus) and [`onBlur`](declare-docs:View.event.blur)

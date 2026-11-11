@@ -1,9 +1,8 @@
-App [ width = 320, height = 120, fill = white, textColor = black,
-    word: string = "tomato",
-    chip: View [ x = 20, y = 40, padding = 10, cornerRadius = 8, fill = gainsboro, focusable = true,
-        onClipboardCopy(e: ClipboardEvent) { e.put(app.word) },
-        onClipboardPaste(e: ClipboardEvent) { if (e.text.trim() != "") { app.word = e.text.trim() } },
-        Text [ text = { app.word } ]
+App [ width = 520, height = 240,
+    saved: number = 0,
+    keys: Shortcuts [ title = "Notes",
+        items = { [ ({ id: "save", key: "Ctrl+S", label: "Save" }), ({ id: "clear", key: "Ctrl+Shift+K", label: "Clear" }) ] },
+        picked(id: string) { if (id == "save") app.saved = app.saved + 1 }
         ],
-    Text [ x = 20, y = 90, text = "Click the chip, then ⌘C or ⌘V" ]
+    Text [ x = 20, y = 20, text = { "Saved " + app.saved + " times — press ⌘S" } ]
     ]

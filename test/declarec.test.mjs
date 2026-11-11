@@ -646,8 +646,11 @@ await test("buildProduction emits a self-contained bundle in the expected size r
   // 164 → 169 KB (2026-11-07, v0.6.4.1, the user's ruling): copy, cut and paste
   // at a view (clipboard.ts, in every program as files.ts is), tagStyles, rich
   // text alignment, the media echo guard — measured 164.4 KB.
+  // 169 → 176 KB (2026-11-10, the author's ruling, "runtime budget is fine"): the key
+  // walk — class-layered keyBindings, the standard table, overlays' keys as
+  // bindings, menus and buttons as commands — measured 169.7 KB.
   const wire = out.files.reduce((n, f) => n + gzipSync(Buffer.from(f.contents)).length, 0);
-  assert.ok(wire > 20 * 1024 && wire < 169 * 1024,
+  assert.ok(wire > 20 * 1024 && wire < 176 * 1024,
     `unexpected FIRST-LOAD size ${(wire / 1024).toFixed(1)} KB — ` +
     out.files.map((f) => `${f.name} ${(gzipSync(Buffer.from(f.contents)).length / 1024).toFixed(1)}`).join(", "));
 
@@ -670,11 +673,15 @@ await test("buildProduction emits a self-contained bundle in the expected size r
 //   2026-11-01: limit 124 → 129 KB, set by the author. The runtime at 124.0 KB: a
 //   constraint cycle names its whole loop; focus given back when an overlay closes
 //   shows its ring only if it showed on opening.
+//   2026-11-10: limit 129 → 136 KB, the author's ruling ("runtime budget is fine").
+//   The runtime at 131.2 KB: +2.0 KB for the key walk (key-bindings.md step 1 —
+//   class-layered keyBindings, the standard table, chords first); step 2 (menus as
+//   commands, overlays and the clipboard on the walk) is still to land.
 await test("the runtime and the one-file language stay within their budgets", async () => {
   const out = await buildProduction("App [ ]", { name: "empty", originDir: resolve(HERE, "..") });
   assert.ok(out.ok, "build should succeed: " + (out.errors?.map((e) => e.message).join("; ") ?? ""));
   const wire = out.files.reduce((n, f) => n + gzipSync(Buffer.from(f.contents)).length, 0);
-  assert.ok(wire < 129 * 1024, `the runtime is ${(wire / 1024).toFixed(1)} KB on the wire — past its 129 KB budget`);
+  assert.ok(wire < 136 * 1024, `the runtime is ${(wire / 1024).toFixed(1)} KB on the wire — past its 136 KB budget`);
   const words = readFileSync(resolve(HERE, "../docs/declare.md"), "utf8").split(/\s+/).filter(Boolean).length;
   assert.ok(words < 10000, `docs/declare.md is ${words} words — past its 10,000-word budget`);
 });

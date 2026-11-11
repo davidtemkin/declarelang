@@ -59,8 +59,8 @@ const handles = (v, name) => typeof v[name] === "function";
 /** The view a clipboard command goes to in `app`: the focused view or its
  *  nearest ancestor declaring the handler; with nothing focused, the App, if
  *  it does. null when focus is in another program, or nothing takes it. */
-function takerIn(app, handler) {
-    const f = Focus.getFocus();
+function takerIn(app, handler, from = null) {
+    const f = from ?? Focus.getFocus();
     let start = app;
     if (f !== null) {
         let top = f;
@@ -78,13 +78,18 @@ function takerIn(app, handler) {
 }
 /** Is there a view in `app` that takes this command now? (The native host
  *  enables its Edit menu's item by it.) */
-export function takesClipboard(app, kind) {
-    return takerIn(app, kind === "copy" ? "onClipboardCopy" : kind === "cut" ? "onClipboardCut" : "onClipboardPaste") !== null;
+export function takesClipboard(app, kind, from = null) {
+    return takerIn(app, kind === "copy" ? "onClipboardCopy" : kind === "cut" ? "onClipboardCut" : "onClipboardPaste", from) !== null;
+}
+/** Does a host read and write the clipboard itself (the native host)? Only
+ *  then can a Paste picked from a menu read it. */
+export function hasClipboardHost() {
+    return host !== null;
 }
 /** ⌘C or ⌘X: the representations the taker put, or null when no view takes it
  *  or it put nothing (the platform's own copy then goes ahead). */
-export function deliverCopy(app, kind) {
-    const taker = takerIn(app, kind === "copy" ? "onClipboardCopy" : "onClipboardCut");
+export function deliverCopy(app, kind, from = null) {
+    const taker = takerIn(app, kind === "copy" ? "onClipboardCopy" : "onClipboardCut", from);
     if (taker === null)
         return null;
     const e = new ClipboardEvent();

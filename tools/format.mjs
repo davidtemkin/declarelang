@@ -496,7 +496,7 @@ function analyze(tokens) {
         // `<-` subscriptions were removed (2026-07-26 — services are classes
         // now). Still lexed, so the formatter fails with the same pointed
         // message the parser gives rather than a bare shape error.
-        if (tok().kind === "subfrom") fail("'<-' is not a Declare operator — write the source as a class member, e.g. 'Keys [ onKeyDown(e) { … } ]'");
+        if (tok().kind === "subfrom") fail("'<-' is not a Declare operator — write the source as a class member, e.g. 'KeyListener [ onKeyDown(e) { … } ]'");
         if (tok().kind !== "code") fail("expected the method body '{ … }'");
         end = nc[p++];
         kind = "method";

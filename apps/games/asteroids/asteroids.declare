@@ -60,12 +60,12 @@ App [ appName = "Asteroids", fill = black,
 
     controls() -> Controls {
         return {
-            left: Keys.isDown("ArrowLeft") || Keys.isDown("KeyA") || app.pad.isDown("left"),
-            right: Keys.isDown("ArrowRight") || Keys.isDown("KeyS") || app.pad.isDown("right"),
-            thrust: Keys.isDown("ArrowUp") || Keys.isDown("Quote") || app.pad.isDown("thrust"),
-            fire: Keys.isDown("Space") || Keys.isDown("Enter") || app.pad.isDown("fire"),
-            hyperspace: Keys.isDown("ArrowDown") || Keys.isDown("Slash") || app.pad.isDown("hyperspace"),
-            start: Keys.isDown("Enter") || Keys.isDown("Space") || app.pad.isDown("start")
+            left: Keyboard.isDown("ArrowLeft") || Keyboard.isDown("KeyA") || app.pad.isDown("left"),
+            right: Keyboard.isDown("ArrowRight") || Keyboard.isDown("KeyS") || app.pad.isDown("right"),
+            thrust: Keyboard.isDown("ArrowUp") || Keyboard.isDown("Quote") || app.pad.isDown("thrust"),
+            fire: Keyboard.isDown("Space") || Keyboard.isDown("Enter") || app.pad.isDown("fire"),
+            hyperspace: Keyboard.isDown("ArrowDown") || Keyboard.isDown("Slash") || app.pad.isDown("hyperspace"),
+            start: Keyboard.isDown("Enter") || Keyboard.isDown("Space") || app.pad.isDown("start")
             }
         },
 
@@ -80,7 +80,7 @@ App [ appName = "Asteroids", fill = black,
     focusable = true,
     onPointerDown() { Focus.focus(app) },
 
-    keys: Keys [
+    keys: KeyListener [
         onKeyDown(e: KeyEvent) {
             app.restCursor()
             if (e.repeat || e.meta || e.ctrl || e.alt) return

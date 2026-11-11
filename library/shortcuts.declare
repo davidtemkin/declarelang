@@ -3,23 +3,24 @@
 
 Keyboard shortcuts, declared as data: records with the key that triggers each, the label a
 person reads, and the id the action receives. A set covers the view it is declared on and
-everything inside it. A key press is looked up from the focused view outward: the nearest
-set that declares that key takes it, and the press goes no further. The walk goes on past the
-program — a program running in a desktop window reaches the desktop's shortcuts — so a host
-offers its keys to whatever runs inside it without passing anything down.
+everything inside it. A key press is looked up from the focused view outward, in the same
+walk as `keyBindings`: the nearest declaration of the key takes it — a focused control's
+own keys first — and the press goes no further. A chord goes on past the program — a
+program running in a desktop window reaches the desktop's ⌘W — so a host offers its keys to
+whatever runs inside it without passing anything down; a plain key stays the program's.
 
 ```declare
 App [ width = 520, height = 240,
     saved: number = 0,
     keys: Shortcuts [ title = "Notes",
-        items = { [ ({ id: "save", key: "⌘S", label: "Save" }), ({ id: "clear", key: "⇧⌘K", label: "Clear" }) ] },
+        items = { [ ({ id: "save", key: "Ctrl+S", label: "Save" }), ({ id: "clear", key: "Ctrl+Shift+K", label: "Clear" }) ] },
         picked(id: string) { if (id == "save") app.saved = app.saved + 1 }
         ],
     Text [ x = 20, y = 20, text = { "Saved " + app.saved + " times — press ⌘S" } ]
     ]
 ```
 
-A key with a command modifier (⌘, ⌃, ⌥) or a function key works anywhere, except a text
+A key with a command modifier (Ctrl, Alt, MacCtrl) or a function key works anywhere, except a text
 field's own editing chords (⌘A, ⌘C, ⌘X, ⌘V, ⌘Z and the caret moves), which stay the field's
 while it has focus; a plain key (`"?"`) does not fire while a text field has focus — typing
 is the field's. While an open
@@ -29,17 +30,18 @@ not also the browser's (⌘S does not save the page) — except those the browse
 itself, such as ⌘W and ⌘N in Safari, which a label may still show.
 
 A `MenuBar` declares the keys of its items for its whole program: the menu bar is the
-program's shortcut table, and nothing is declared twice. `Keys.shortcutsInForce()` lists what
+program's shortcut table, and nothing is declared twice. `Keyboard.shortcutsInForce()` lists what
 is in force where focus is — a panel of the available shortcuts reads it.
 
 ## items
 The shortcut records: `{ id, key, label }`, and `enabled: false` for one that shows but does
-not fire. `key` is spelled with the modifier glyphs in any order — `"⌘S"`, `"⇧⌘Z"`, `"⌥⌘←"`,
-`"F5"` — or in words, `"Cmd+Shift+Z"`. ⌘ is the command key: ⌘ on a Mac, Ctrl elsewhere.
-A named key is its glyph — ← → ↑ ↓, ↩ (Return), ⎋ (Escape), ⌫ (Backspace), ⌦ (Delete),
-⇥ (Tab), `Space` — or the browser's name for it (`"Enter"`, `"Escape"`, `"ArrowLeft"`). A
-letter takes ⇧ (`"⇧⌘Z"`); a symbol is spelled as the one the keys type, without ⇧ —
-`"⌘}"`, since ⇧] types } — because a press arrives as what it typed.
+not fire. `key` is spelled as `keyBindings` spell it, the Windows way — `"Ctrl+S"`,
+`"Ctrl+Shift+Z"`, `"Alt+Ctrl+ArrowLeft"`, `"F5"`: Ctrl is the command key, ⌘ on a Mac and Ctrl
+elsewhere, Alt is ⌥, and `MacCtrl` is a Mac's Control key. The Mac's glyphs mean the same, in
+any order — `"⌘S"`, `"⇧⌘Z"`. A named key is the browser's name for it (`"Enter"`, `"Escape"`,
+`"ArrowLeft"`) or its glyph — ← → ↑ ↓, ↩, ⎋, ⌫, ⌦, ⇥, `Space`. A letter takes Shift
+(`"Ctrl+Shift+Z"`); a symbol is spelled as the one the keys type, without Shift — `"Ctrl+}"`,
+since Shift+] types } — because a press arrives as what it typed.
 
 ## on
 The view whose subtree the set covers, when that is not the view it is declared on. A
@@ -64,6 +66,6 @@ class Shortcuts extends Node [
     items: ShortcutRecord[] = [],
     on: View? = null,
     title: string = "",
-    onInit() { Keys._declareShortcuts(this) },
+    onInit() { Keyboard._declareShortcuts(this) },
     picked(id: string) { }
     ]

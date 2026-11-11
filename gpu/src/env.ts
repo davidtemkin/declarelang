@@ -272,7 +272,7 @@ export function touch(type: string, p: Record<string, unknown>): void {
 /** A key event from the page; dispatched on window and document, as the browser does. */
 // A key pressed and let go between two frames is held until the next frame has run. On the
 // page a frame falls between the two events of any real press; here both can arrive in one
-// batch of messages, and a program that reads `Keys.isDown` once a frame would never see the
+// batch of messages, and a program that reads `Keyboard.isDown` once a frame would never see the
 // press. So the release of a key that went down since the last tick waits for the tick's
 // callbacks to have run (or 50 ms, for a program asking for no frames).
 const downSinceTick = new Set<string>();

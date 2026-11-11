@@ -16,7 +16,7 @@ App [ width = 900, height = 700,
 
     // a key rebuilds too (Keys is app-wide): the focused field is discarded by it
 
-    Keys [ onKeyDown(e: KeyEvent) { if (e.key == "F2") app.seq = app.seq + 1 }
+    KeyListener [ onKeyDown(e: KeyEvent) { if (e.key == "F2") app.seq = app.seq + 1 }
         ]
     ]
 

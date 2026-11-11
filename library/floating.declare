@@ -15,8 +15,9 @@ It carries, once, what every overlay needs:
 - **Input** — `pressPolicy` and `scrollPolicy` say what a press and a scroll aimed past it do
   while it is open. An outside press that dismisses closes it.
 - **Keys and focus** — while open it holds the keyboard (a key it uses does not also reach
-  the program's `Keys` members); Esc closes the topmost open overlay; one that takes focus
-  focuses its first stop on opening and gives focus back on closing.
+  the program's `KeyListener` members, and the page's bindings stand down); Esc closes the open
+  overlay nearest the focus; one that takes focus focuses its first stop on opening and gives
+  focus back on closing.
 - **Anchoring** — `anchorBox(v)` is a view's box in the overlay's frame, for an overlay that
   opens next to something; `toLayer(v, x, y)` maps a point the same way, through a window
   turned or scaled; `keepOnApp(x, y, w, h)` moves a box back onto the App.
@@ -166,11 +167,18 @@ Called once it is closed — override to act on closing. It runs before focus is
 so focus moved here (to what the closing created) stays where it was put.
 
 ## escape()
-What Esc does when this is the topmost open overlay — closes it; a dialog picks its cancel
-button instead.
+What Esc does when this is the open overlay nearest the focus — closes it; a dialog picks its
+cancel button instead.
+
+## keyBindings
+Escape runs `escape()` while it is shown. Focus inside the overlay walks to it before
+anything outside; with focus outside it (a combobox's list), its keys come to it first.
+
+## _keyEscape()
+**Internal.** Escape: `escape()`, while it is shown.
 
 ## isTop()
-Whether it is the topmost open overlay — the one Esc closes.
+Whether it is the topmost open overlay — a dialog's Return picks its default only when it is.
 
 ## anchorBox()
 A view's box in this overlay's frame: `{ x, y, w, h }`.
@@ -356,7 +364,7 @@ class Floating [
         this._takeProgramTransform()
         present = true
         s.opened(this)
-        if (pressPolicy != "ignore") Keys.navClaim(this, true)
+        if (pressPolicy != "ignore") Keyboard.navClaim(this, true)
         if (takesFocus) {
             _savedFocus = Focus.getFocus()
             _savedParent = _savedFocus != null ? _savedFocus.parent as View | null : null
@@ -388,7 +396,7 @@ class Floating [
 
     _closing() {
         this._strata().closedIt(this)
-        Keys.navClaim(this, false)
+        Keyboard.navClaim(this, false)
         // back to where it was, or where restoresFocusTo says — unless the focus has
         // gone on somewhere since; to the next Tab stop when what had it is gone
         if (_savedFocus != null || restoresFocusTo != null) afterDelay(0, () => {
@@ -408,7 +416,7 @@ class Floating [
         if (!_live) return
         _live = false
         for (const c of app.children) { if ((c as any)._isOverlayStrata === true) (c as any).closedIt(this) }
-        Keys.navClaim(this, false)
+        Keyboard.navClaim(this, false)
         },
 
     isTop() -> boolean { return this._strata().top() == this },
@@ -473,14 +481,14 @@ class Floating [
 
     escape() { this.close() },
 
-    _escKeys: Keys [
-        onKeyDown(e: KeyEvent) {
-            // one Esc closes one overlay: the one on top when the key arrived
-            if (e.key != "Escape" || !classroot.shown) return
-            const s = classroot._strata()
-            if (s.handled === e || s.top() != classroot) return
-            s.handled = e
-            classroot.escape()
-            }
-        ]
+    // Esc closes it: a binding, so the nearest open overlay to the focus takes
+    // it, and one Esc closes one (key-bindings.md)
+
+    keyBindings = { [ ({ key: "Escape", command: "_keyEscape" }) ] },
+
+    _keyEscape(e: KeyEvent) -> boolean {
+        if (!shown) return false
+        escape()
+        return true
+        }
     ]

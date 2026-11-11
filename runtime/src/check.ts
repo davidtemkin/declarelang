@@ -986,10 +986,10 @@ function checkDataNode(el: Element, schema: ClassSchema, errors: DeclareError[],
  *  one base: what unites them is the shape checked below, not an inheritance
  *  relationship. */
 function isSourceSchema(schema: ClassSchema): boolean {
-  return descendsFrom(schema, "Keys") || descendsFrom(schema, "Focus") || descendsFrom(schema, "Tooltips");
+  return descendsFrom(schema, "KeyListener") || descendsFrom(schema, "Focus") || descendsFrom(schema, "Tooltips");
 }
 
-/** A source node (`Keys [ onKeyUp(e) { … } ]`, `EventStream [ onMessage(m) { … } ]`):
+/** A source node (`KeyListener [ onKeyUp(e) { … } ]`, `EventStream [ onMessage(m) { … } ]`):
  *  its own attributes and its handlers, nothing else. Deliberately NOT the
  *  animator path — a source drives no slot, so it has no `attribute`/`to` to
  *  validate. */

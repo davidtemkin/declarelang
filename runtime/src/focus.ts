@@ -17,12 +17,14 @@
 // is wired by the runtime entry, not here, keeping this layer independent.
 
 import { inPointerDispatch } from "./pointer-dispatch.js";
-import { View, fireEvent, setFocusDiscardHook, setKeyDefaultHook, noteFocused } from "./view.js";
-import type { KeyEvent } from "./keys.js";
+import { View, fireEvent, setFocusDiscardHook, setKeyDefaultHook, noteFocused, type KeyLayer } from "./view.js";
+import { Keys, comboOf, comboOfCode, normalizeCombo, commanded, FIELD_CHORDS, KEYS_ON_MAC, setKeyWalk, setInForce, type KeyEvent } from "./keys.js";
+import { compileExpr, type ExprFn } from "./expr.js";
+import { declareName } from "./declare-name.js";
 import { radiusMax } from "./value.js";
 import { isSet, ownerOf, providedRead } from "./attributes.js";
 import type { KeysService } from "./keys.js";
-import { Cell, Constraint, afterSettle } from "./reactive.js";
+import { Cell, Constraint, afterSettle, untracked } from "./reactive.js";
 import { rootFrameBox, rootTransform, type InteractionView } from "./interaction.js";
 import { apply as applyAffine } from "./affine.js";
 import { provideKeyContextTarget } from "./input.js";
@@ -190,6 +192,24 @@ export class FocusService {
    *  arrives (deliverKeys, pressAt). */
   lastInputKeyboard = false;
 
+  /** The last focus outside command chrome (a menu bar, a menu, a command
+   *  button): where a command picked from a menu or run by a button starts its
+   *  walk (key-bindings.md). Kept as focus moves, so nothing depends on a
+   *  menu's focus having been given back. */
+  commandTarget: View | null = null;
+
+  /** Where a command starts now: the command target, or its nearest shown
+   *  ancestor still in the tree when it has gone or been hidden, else the root;
+   *  inside the topmost modal overlay when the target is behind it. */
+  commandStart(): View | null {
+    let t = this.commandTarget;
+    while (t !== null && (t.$root === null || !shownChain(t))) t = t.parent instanceof View ? t.parent : null;
+    if (t === null) t = this.current ?? this.rootView;
+    const c = this.keys?._claimant() ?? null;
+    if (c instanceof View && c.focusScope === "modal" && (t === null || !insideAcross(t, c))) return c;
+    return t;
+  }
+
   /** The key service delivering to this one (deliverKeys) — asked whether a
    *  focus call comes from a key's handler. */
   keys: KeysService | null = null;
@@ -212,6 +232,8 @@ export class FocusService {
     const old = this.current;
     this.current = view;
     if (view !== null) this.startPoint = null;
+    // the command target (key-bindings.md): the last focus outside command chrome
+    if (view !== null && !isChrome(view)) this.commandTarget = view;
     noteFocused(view, this.keyboard);
     this.currentCell.changed();
     if (old !== null) {
@@ -387,6 +409,9 @@ export class FocusService {
     for (let v: View | null = leaf; v !== null; v = parentAcross(v)) if (canFocus(v)) return;
     if (this.current !== null) { this.setKeyboard(false); this.apply(null); }
     this.startPoint = leaf;
+    // a press on nothing: the command target is what was pressed, as the next
+    // Tab starts from it — a command doesn't reach a field the person left
+    if (leaf !== null && !isChrome(leaf)) this.commandTarget = leaf;
   }
 
   /** Tab and Shift-Tab. `past`: an overlay just closed, still on screen while it
@@ -512,6 +537,13 @@ export class FocusService {
     if (t === null || t === view && !canFocus(view)) return false;
     this.apply(t);
     return this.current === t;
+  }
+
+  /** **Internal.** Is focus inside a member scope entered within a `stop` (an
+   *  editor in a grid's cell)? A field's Escape that cancels an edit there hands
+   *  the key on, so one press cancels and leaves. */
+  _inMember(): boolean {
+    return this.current !== null && enteredStop(this.current) !== null;
   }
 
   /** Close the member scope focus has entered inside a `stop` (Esc in a cell's
@@ -981,39 +1013,453 @@ function memberStop(f: View): View | null {
   return null;
 }
 
-/** The base `onKeyDown` (view.ts): in a stop, Right/Down move focus to the
- *  next member and Left/Up to the previous, wrapping, and Home/End to the
- *  first and last — the members in the stop's Tab order, a nested scope one
- *  member. Not with a modifier, and never in a text field (its arrows move the
- *  caret). */
-function arrowDefault(f: View, ev: unknown): void {
+// ── the walk (docs/system-design/key-bindings.md) ───────────────────────────
+//
+// A key walks once from the focused view outward, through each ancestor up to
+// its program's App, then the standard table. At each view it reads that view's
+// table: its `keyBindings` layers (use site, class, superclasses — every layer,
+// nearest first), the `Shortcuts` sets declared on it, then the built-in
+// bindings every view carries. The first binding that is present, matches and
+// is enabled runs its command; a command that returns `false` passes the key on.
+// Past a modal's edge, only the App's `everywhere` bindings and the standard
+// table are read.
+
+/** A binding record as written: `{ key, code, command, args, when, enabled,
+ *  repeat, everywhere }`. */
+type BindingRecord = Record<string, unknown>;
+
+/** What reading a binding did. */
+type Outcome = "absent" | "pass" | "stopView" | { prevent: boolean };
+
+const TAKEN: { prevent: boolean } = { prevent: true };
+const NAV_KEYS = new Set([" ", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
+const NATIVE: { prevent: boolean } = { prevent: false };
+
+/** Each written spec, normalized once: a combo, or `⎋ combo` for a sequence. */
+const SPECS = new Map<string, string | null>();
+function specOf(key: string): string | null {
+  let s = SPECS.get(key);
+  if (s === undefined) {
+    const parts = key.trim().split(/\s+/);
+    if (parts.length === 1) s = normalizeCombo(parts[0]);
+    else if (parts.length === 2 && normalizeCombo(parts[0]) === "⎋") s = "⎋ " + normalizeCombo(parts[1]);
+    else s = null;   // only Escape-first sequences exist (key-bindings.md)
+    SPECS.set(key, s);
+  }
+  return s;
+}
+
+/** The press as the walk matches it. */
+interface Press {
+  e: KeyEvent;
+  combo: string;
+  /** The same press spelled from its physical key, when the layout's letter is
+   *  not Latin or ⌥ is held on a Mac — else null. */
+  byCode: string | null;
+  /** The press completes an armed Escape sequence: sequence bindings match. */
+  sequence: boolean;
+}
+
+function pressOf(e: KeyEvent, sequence: boolean): Press {
+  const combo = comboOf(e);
+  const nonLatin = e.key.length === 1 && /\p{L}/u.test(e.key) && !/[A-Za-z]/.test(e.key);
+  const byCode = nonLatin || (KEYS_ON_MAC && e.alt) ? comboOfCode(e) : null;
+  return { e, combo, byCode, sequence };
+}
+
+function matches(rec: BindingRecord, p: Press): boolean {
+  if (typeof rec.code === "string") return rec.code === p.e.code && !p.e.ctrl && !p.e.alt && !p.e.meta;
+  if (typeof rec.key !== "string") return false;
+  const spec = specOf(rec.key);
+  if (spec === null) return false;
+  if (p.sequence) return spec === "⎋ " + p.combo;
+  return spec === p.combo || (p.byCode !== null && spec === p.byCode);
+}
+
+/** One layer's records, read untracked: a literal table is read once per
+ *  class body and shared (its dependency list is empty); a computed one is
+ *  read when the walk reaches it. */
+const LITERAL_TABLES = new WeakMap<object, readonly BindingRecord[]>();
+const TABLE_FNS = new Map<string, ExprFn | null>();
+function layerRecords(v: View, layer: KeyLayer): readonly BindingRecord[] {
+  const val = layer.attr.value as { kind: string; src?: string; deps?: readonly string[] };
+  if (val.kind !== "code" || typeof val.src !== "string") return [];
+  const cached = LITERAL_TABLES.get(layer.attr);
+  if (cached !== undefined) return cached;
+  let fn = TABLE_FNS.get(val.src);
+  if (fn === undefined) {
+    const c = compileExpr(val.src, `${declareName(v)}.keyBindings`);
+    fn = "error" in c ? null : c.fn;
+    if ("error" in c) console.error(`[Declare] ${declareName(v)}.keyBindings = { … } ${c.error}`);
+    TABLE_FNS.set(val.src, fn);
+  }
+  if (fn === null) return [];
+  let out: unknown;
+  try { out = untracked(() => fn!.call(v, v.parent, layer.croot)); }
+  catch (err) { console.error(`[Declare] ${declareName(v)}.keyBindings threw: ${(err as Error)?.message ?? err}`); return []; }
+  const recs = Array.isArray(out) ? (out as unknown[]).filter((r): r is BindingRecord => r !== null && typeof r === "object") : [];
+  if (val.deps !== undefined && val.deps.length === 0) LITERAL_TABLES.set(layer.attr, recs);
+  return recs;
+}
+
+/** A `when` or `enabled` read: a boolean, or the name of a method of `v`. A
+ *  method that throws counts as false — the binding is absent — said once. */
+const SAID = new WeakSet<object>();
+function predicate(v: View, rec: BindingRecord, field: "when" | "enabled"): boolean {
+  const p = rec[field];
+  if (p === undefined) return true;
+  if (typeof p === "boolean") return p;
+  if (typeof p !== "string") return true;
+  const m = (v as unknown as Record<string, unknown>)[p];
+  if (typeof m !== "function") {
+    if (!SAID.has(rec)) { SAID.add(rec); console.error(`[Declare] ${declareName(v)}: keyBindings ${field} "${p}" names no method`); }
+    return false;
+  }
+  try { return Boolean(untracked(() => (m as () => unknown).call(v))); }
+  catch (err) {
+    if (!SAID.has(rec)) { SAID.add(rec); console.error(`[Declare] ${declareName(v)}: keyBindings ${field} "${p}" threw: ${(err as Error)?.message ?? err}`); }
+    return false;
+  }
+}
+
+/** Read one matching record at `v`. */
+function runRecord(v: View, rec: BindingRecord, p: Press): Outcome {
+  if (!predicate(v, rec, "when")) return "absent";
+  if (rec.command === null) return "stopView";
+  if (!predicate(v, rec, "enabled")) return TAKEN;
+  if (rec.command === "native") return NATIVE;
+  if (rec.repeat === false && p.e.repeat) return TAKEN;
+  const name = rec.command;
+  const fn = typeof name === "string" ? (v as unknown as Record<string, unknown>)[name] : undefined;
+  if (typeof fn !== "function") {
+    if (!SAID.has(rec)) { SAID.add(rec); console.error(`[Declare] ${declareName(v)}: keyBindings command "${String(name)}" names no method`); }
+    return "absent";
+  }
+  const args = Array.isArray(rec.args) ? rec.args : [];
+  let r: unknown;
+  try { r = (fn as (...a: unknown[]) => unknown).call(v, ...args, p.e); }
+  catch (err) { console.error(`[Declare] ${declareName(v)}.${name} threw: ${(err as Error)?.message ?? err}`, err); return TAKEN; }
+  return r === false ? "pass" : TAKEN;
+}
+
+/** The built-in bindings every view carries, last in its table (the floor of
+ *  its class chain). `f` is the focused view. */
+function builtIns(v: View, f: View | null, p: Press): Outcome {
+  const e = p.e;
+  const plain = !e.ctrl && !e.alt && !e.meta;
+  if (v === f) {
+    // a focused text field: its typing and editing chords are its editor's —
+    // Tab, Escape and Enter go on (Enter is the field class's own to bind)
+    if (isTextField(v) && e.key !== "Tab" && e.key !== "Escape" && e.key !== "Enter") {
+      if (!commanded(p.combo) || FIELD_CHORDS.has(p.combo)) return NATIVE;
+    }
+    // a member of a stop: the arrows move among the members
+    if (plain && !e.shift && !isTextField(v) && memberArrow(v, e)) return TAKEN;
+    // Escape closes a member scope entered inside a stop (an editor in a cell)
+    if (e.key === "Escape" && plain && focusOf().leaveMember()) return TAKEN;
+    // Enter on a linked view follows it — the <a> contract's keyboard half
+    // (location.md §0.4); a linked Control presses, then hands Enter on to here
+    if (e.key === "Enter" && plain && !e.shift && v.link !== "") {
+      const app = v.$root as unknown as { followLink?: (ref: string, replace?: boolean) => void };
+      app?.followLink?.(v.link, v.replace);
+      return TAKEN;
+    }
+    // Enter on a region focused as one stop enters it
+    if (e.key === "Enter" && plain && v.focusScope === "region" && focusOf().enter()) return TAKEN;
+  }
+  // a scroller scrolls by its keys; at its edge it passes them on
+  if (plain && v.scrolls !== "none" && !isTextField(v) && scrollKeys(v, e)) return TAKEN;
+  return "absent";
+}
+
+/** One view's table. Null when nothing at `v` took the key. */
+function tableAt(v: View, f: View | null, p: Press, everywhereOnly: boolean): { prevent: boolean } | null {
+  const Focus = focusOf();
+  const layers = (v as unknown as { $keyLayers?: KeyLayer[] }).$keyLayers;
+  if (layers !== undefined) {
+    for (const layer of layers) {
+      for (const rec of layerRecords(v, layer)) {
+        if (everywhereOnly && rec.everywhere !== true) continue;
+        if (!matches(rec, p)) continue;
+        const o = runRecord(v, rec, p);
+        if (o === "absent" || o === "pass") continue;
+        if (o === "stopView") return null;
+        return o;
+      }
+    }
+  }
+  if (everywhereOnly || p.sequence) return null;
+  const keys = Focus.keys ?? Keys;
+  {
+    for (const set of keys._setsOn(v)) {
+      const items = Array.isArray(set.items) ? set.items as BindingRecord[] : [];
+      const hit = items.find((r) => r !== null && typeof r === "object" && matches(r, p));
+      // a disabled shortcut shows in the panel but doesn't take the key
+      if (hit === undefined || hit.enabled === false) continue;
+      // an item that names a command (a MenuBar's): the command walk, from the
+      // command target — the clipboard's keys stay the platform's, so its copy
+      // event fires (key-bindings.md)
+      if (typeof hit.command === "string" && hit.command !== "") {
+        if (hit.command === "copy" || hit.command === "cut" || hit.command === "paste") return NATIVE;
+        if (commandRunner !== null) commandRunner(hit.command);
+        return TAKEN;
+      }
+      set.picked(String(hit.id));
+      return TAKEN;
+    }
+  }
+  const o = builtIns(v, f, p);
+  return o === "absent" || o === "pass" || o === "stopView" ? null : o;
+}
+
+/** The focus service the key now walking was delivered by (deliverKeys) — the
+ *  runtime's own outside a test that builds its own pair. */
+let walkFocus: FocusService | null = null;
+const focusOf = (): FocusService => walkFocus ?? Focus;
+
+/** The standard table: the runtime's, reached once, after the program's App. */
+function standardTable(p: Press): { prevent: boolean } | null {
+  const Focus = focusOf();
+  const e = p.e;
+  if (p.sequence) return null;   // the Escape sequences live in deliverKeys' front end
+  if (e.key === "Tab" && !e.ctrl && !e.alt && !e.meta) {
+    if (e.shift) Focus.prev(); else Focus.next();
+    return TAKEN;
+  }
+  // the region keys move among windows, panes and bars — not while an overlay
+  // holds the keyboard (planes.md §13.3); F6, fixed for now (some browsers take it)
+  if (e.key === "F6" && !e.ctrl && !e.alt && !e.meta && !(Focus.keys ?? Keys).navClaimed()) {
+    Focus.nextRegion(e.shift ? -1 : 1);
+    return TAKEN;
+  }
+  return null;
+}
+
+/** The walk: from `from` (else the focused view, else the keyboard program's
+ *  root) outward. `sequence` matches only Escape-sequence bindings. */
+export function walkKeys(e: KeyEvent, from: View | null = null, sequence = false): { taken: boolean; prevent: boolean } {
+  const Focus = focusOf();
+  const p = pressOf(e, sequence);
+  const f = Focus.getFocus();
+  let v: View | null = from ?? f ?? Focus.getRoot();
+  // while an open overlay holds the keyboard, its keys are its own: a table
+  // outside it stands down, as past a modal's edge (keys.ts _claimant)
+  const keys = Focus.keys ?? Keys;
+  const claim = keys._claimant();
+  const claimant = claim instanceof View ? claim : null;
+  // a key the overlay owns, with focus outside it, starts at the overlay
+  // (with a focus layer wired, deliverKeys starts it there itself)
+  if (from === null && claimant !== null && keys.overlayOwns(e) && !(f !== null && insideAcross(f, claimant))) v = claimant;
+  const start = v;
+  let modal = false;
+  while (v !== null) {
+    // on through an island into its host: a program running in a window
+    // reaches the shortcuts of the program around it (shortcuts.declare)
+    const up: View | null = parentAcross(v);
+    // (the view the walk starts at keeps its own keys: it had them delivered)
+    const outside = modal || (claimant !== null && v !== start && !insideAcross(v, claimant));
+    // past a modal's edge only the App (the program's root) is read, and only
+    // its `everywhere` bindings
+    if (!outside) {
+      const r = tableAt(v, f, p, false);
+      if (r !== null) return { taken: true, prevent: r.prevent };
+    } else if (up === null) {
+      const r = tableAt(v, f, p, true);
+      if (r !== null) return { taken: true, prevent: r.prevent };
+    }
+    if (v.focusScope === "modal") modal = true;
+    // out of an embedded program into its host: a chord goes on — the host's
+    // ⌘W closes the window a program runs in — but a plain key stays the
+    // program's, as a window's plain keys stay in it while ⌘ reaches the menu
+    // bar (key-bindings.md)
+    if (up !== null && !(v.parent instanceof View) && !commanded(p.combo)) break;
+    v = up;
+  }
+  const s = standardTable(p);
+  return s !== null ? { taken: true, prevent: s.prevent } : { taken: false, prevent: false };
+}
+
+/** What the hold-⌘ panel lists (key-bindings.md): every labelled binding with
+ *  a key, and every `Shortcuts` record, in force where focus is — read along
+ *  the walk, nearest first, each key once, at the nearest view that binds it. */
+function bindingsInForce(): Array<Record<string, unknown>> {
+  const focus = focusOf();
+  const keys = focus.keys ?? Keys;
+  const claim = keys._claimant();
+  const claimant = claim instanceof View ? claim : null;
+  const seen = new Set<string>();
+  const out: Array<Record<string, unknown>> = [];
+  // past an embedded program's root only chords reach the host (walkKeys)
+  let chordsOnly = false;
+  const reaches = (spec: string): boolean => !chordsOnly || commanded(spec);
+  const f = focus.getFocus();
+  let v: View | null = f ?? focus.getRoot();
+  const start = v;
+  let modal = false;
+  while (v !== null) {
+    const up: View | null = parentAcross(v);
+    const outside = modal || (claimant !== null && v !== start && !insideAcross(v, claimant));
+    if (!outside || up === null) {
+      const layers = (v as unknown as { $keyLayers?: KeyLayer[] }).$keyLayers;
+      if (layers !== undefined) {
+        for (const layer of layers) {
+          for (const rec of layerRecords(v, layer)) {
+            if (typeof rec.key !== "string" || typeof rec.label !== "string" || rec.label === "") continue;
+            if (outside && rec.everywhere !== true) continue;
+            const spec = specOf(rec.key);
+            if (spec === null || seen.has(spec) || !reaches(spec)) continue;
+            seen.add(spec);
+            if (rec.command === null || !predicate(v, rec, "when")) continue;
+            const group = typeof rec.group === "string" ? rec.group : "";
+            out.push({ id: rec.command, key: rec.key, label: rec.label, enabled: predicate(v, rec, "enabled"), origin: group, group });
+          }
+        }
+      }
+      if (!outside) {
+        for (const set of keys._setsOn(v)) {
+          const items = Array.isArray(set.items) ? set.items as BindingRecord[] : [];
+          for (const r of items) {
+            if (r === null || typeof r !== "object" || typeof r.key !== "string" || r.key === "") continue;
+            const spec = specOf(r.key);
+            if (spec === null || seen.has(spec) || !reaches(spec)) continue;
+            seen.add(spec);
+            const title = typeof set.title === "string" ? set.title : "";
+            out.push({ id: r.id, key: r.key, label: r.label ?? "", enabled: r.enabled !== false, origin: title, group: typeof r.menu === "string" ? r.menu : title });
+          }
+        }
+      }
+    }
+    if (v.focusScope === "modal") modal = true;
+    if (up !== null && !(v.parent instanceof View)) chordsOnly = true;
+    v = up;
+  }
+  return out;
+}
+
+/** Command chrome (key-bindings.md): a view a person uses to run commands on
+ *  something else — a menu bar and its titles, a menu, a command button. Its
+ *  focus is never the command target. */
+function isChrome(v: View): boolean {
+  for (let n: View | null = v; n !== null; n = n.parent instanceof View ? n.parent : null) {
+    if ((n as unknown as { _commandChrome?: unknown })._commandChrome === true) return true;
+  }
+  return false;
+}
+
+/** The verbs a menu command reaches by a method's name alone, with no binding. */
+const STANDARD_VERBS = new Set(["undo", "redo", "selectAll", "delete"]);
+
+/** A command, walked from `from` (else the command target) outward: the first
+ *  view whose table binds it — keyed or keyless — or, for a standard verb, has
+ *  a method of its name. `run` false only asks: is it there, and enabled?
+ *  Returns "none" when no view answers it, else whether it is enabled — and,
+ *  when run, whether the command took it. */
+export function walkCommand(name: string, from: View | null, run: boolean): "none" | "off" | "on" | "taken" {
+  const focus = focusOf();
+  let v: View | null = from ?? focus.commandStart();
+  const claim = (focus.keys ?? Keys)._claimant();
+  const claimant = claim instanceof View ? claim : null;
+  const start = v;
+  let modal = false;
+  while (v !== null) {
+    const up: View | null = parentAcross(v);
+    const outside = modal || (claimant !== null && v !== start && !insideAcross(v, claimant));
+    if (!outside || up === null) {
+      const layers = (v as unknown as { $keyLayers?: KeyLayer[] }).$keyLayers;
+      if (layers !== undefined) {
+        for (const layer of layers) {
+          for (const rec of layerRecords(v, layer)) {
+            if (rec.command !== name) continue;
+            if (outside && rec.everywhere !== true) continue;
+            if (!predicate(v, rec, "when")) continue;
+            if (!predicate(v, rec, "enabled")) return "off";
+            if (!run) return "on";
+            const fn = (v as unknown as Record<string, unknown>)[name];
+            if (typeof fn !== "function") continue;
+            const args = Array.isArray(rec.args) ? rec.args : [];
+            let r: unknown;
+            try { r = (fn as (...a: unknown[]) => unknown).call(v, ...args, null); }
+            catch (err) { console.error(`[Declare] ${declareName(v)}.${name} threw: ${(err as Error)?.message ?? err}`, err); return "taken"; }
+            if (r !== false) return "taken";
+          }
+        }
+      }
+      if (!outside && STANDARD_VERBS.has(name) && typeof (v as unknown as Record<string, unknown>)[name] === "function") {
+        if (!run) return "on";
+        const r = (v as unknown as Record<string, () => unknown>)[name].call(v);
+        if (r !== false) return "taken";
+      }
+    }
+    if (v.focusScope === "modal") modal = true;
+    v = up;
+  }
+  return "none";
+}
+
+/** Runs a MenuBar item's command for its key (keys.ts sets): set by commands.ts,
+ *  which knows the clipboard's path. */
+let commandRunner: ((name: string) => boolean) | null = null;
+export function setCommandRunner(fn: (name: string) => boolean): void {
+  commandRunner = fn;
+}
+
+/** The base `onKeyDown` (view.ts): the walk, from this view. A chord the
+ *  tables already had (keys.ts keyDown), and a key that skips the tables, are
+ *  not walked again. */
+function baseKeyDown(view: View, ev: unknown): void {
   const e = ev as KeyEvent;
-  if (Focus.getFocus() === f && !e.ctrl && !e.alt && !e.meta && scrollKeys(f, e)) return;
-  if (e.ctrl || e.alt || e.meta || e.shift || Focus.getFocus() !== f) return;
+  const Focus = focusOf();
+  const d = (Focus.keys ?? Keys).current;
+  if (d !== null) d.reachedBase = true;
+  if (d !== null && (d.walked || d.skipTables)) return;
+  if (d !== null) d.walked = true;
+  const r = walkKeys(e, view);
+  if (d !== null && r.prevent) d.prevent = true;
+}
+
+/** In a stop, Right/Down move focus to the next member and Left/Up to the
+ *  previous, wrapping, and Home/End to the first and last — the members in the
+ *  stop's Tab order, a nested scope one member. True when focus moved. */
+function memberArrow(f: View, e: KeyEvent): boolean {
+  const Focus = focusOf();
   const d = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
-  if (d === 0 && e.key !== "Home" && e.key !== "End") return;
-  if (isTextField(f)) return;
+  if (d === 0 && e.key !== "Home" && e.key !== "End") return false;
   const s = memberStop(f);
-  if (s === null) return;
+  if (s === null) return false;
   const seq = sequence(s).filter((x) => canFocus(x.view));
   const i = entryIndex(seq, f);
-  if (i < 0 || seq.length < 2 && d !== 0) return;
+  if (i < 0 || seq.length < 2 && d !== 0) return false;
   const n = e.key === "Home" ? 0 : e.key === "End" ? seq.length - 1 : (i + d + seq.length) % seq.length;
-  if (n === i) return;
+  if (n === i) return false;
   Focus.land(seq[n].view);   // as Tab lands: keyboard focus, revealed
   // the stop hears where an arrow took the focus (a RadioGroup checks it)
   (s as unknown as { _arrowed?: (to: View) => void })._arrowed?.(seq[n].view);
+  return true;
 }
 
-/** The keys a focused bare scroller (bareScroller) takes: a line with the arrows,
- *  a page with Page Up/Down and Space (Shift-Space back), the ends with Home and
- *  End — along the axis it scrolls. True when the key scrolled it. */
+/** The keys a scroller binds (key-bindings.md): a line with the arrows, a page
+ *  with Page Up/Down and Space (Shift-Space back), the ends with Home and End —
+ *  along the axis it scrolls. A key the focused view inside doesn't take walks
+ *  up to the nearest scroller. At its edge a scroller passes the key on, so an
+ *  outer one takes it, as browsers chain. True when the key scrolled it. */
 const LINE = 40;
 function scrollKeys(f: View, e: KeyEvent): boolean {
-  if (f.scrolls === "none" || !bareScroller(f)) return false;
+  if (f.scrolls === "none") return false;
   const v = f.scrolls !== "x", h = f.scrolls !== "y";
   const page = (v ? f.height : f.width) * 0.9;
   const by = (d: number): void => { if (v) f.scrollTo(f.scrollY + d); else f.scrollToX(f.scrollX + d); };
+  const fwd = e.key === "ArrowDown" || e.key === "ArrowRight" || e.key === "PageDown" || e.key === "End" || (e.key === " " && !e.shift);
+  const back = e.key === "ArrowUp" || e.key === "ArrowLeft" || e.key === "PageUp" || e.key === "Home" || (e.key === " " && e.shift);
+  if (!fwd && !back) return false;
+  const vert = e.key === "ArrowDown" || e.key === "ArrowUp" ? true : e.key === "ArrowLeft" || e.key === "ArrowRight" ? false : v;
+  if ((vert && !v) || (!vert && !h)) return false;
+  const at = vert ? f.scrollY : f.scrollX;
+  if (back && at <= 0) return false;
+  if (fwd) {
+    let far = 0;
+    for (const c of f.children) if (c instanceof View && c.visible) far = Math.max(far, vert ? c.y + c.height : c.x + c.width);
+    if (at >= far - (vert ? f.height : f.width) - 0.5) return false;
+  }
   switch (e.key) {
     case "ArrowDown": if (!v) return false; f.scrollTo(f.scrollY + LINE); return true;
     case "ArrowUp": if (!v) return false; f.scrollTo(f.scrollY - LINE); return true;
@@ -1128,14 +1574,27 @@ export function deliverKeys(keys: KeysService, focus: FocusService): () => void 
   // The way out that every browser leaves to the page (CodeMirror's rule).
   let escArmed = false;
   const offDown = keys.onKeyDown((e) => {
+    const was = walkFocus;
+    walkFocus = focus;
+    try { deliverDown(e); } finally { walkFocus = was; }
+  });
+  const deliverDown = (e: KeyEvent): void => {
+    if (keys.current !== null) keys.current.delivered = true;
     if (!/^(Shift|Control|Alt|Meta)(Left|Right)?$/.test(e.code)) focus.lastInputKeyboard = true;
     // a modifier going down on its own (Shift, for Shift-Tab) keeps it armed
     const lone = /^(Shift|Control|Alt|Meta)(Left|Right)?$/.test(e.code);
     const armed = escArmed;
     if (!lone) escArmed = false;
-    if (e.code === "Tab" && armed && !e.ctrl && !e.alt && !e.meta && !keys.navClaimed() && focus.inRegion()) {
-      focus.nextRegion(e.shift ? -1 : 1);
-      return;
+    // Escape then Tab (key-bindings.md): a view that binds the sequence takes
+    // it; otherwise, in a region, the standard table's region move
+    if (e.code === "Tab" && armed && !e.ctrl && !e.alt && !e.meta) {
+      const r = walkKeys(e, null, true);
+      if (r.taken) { if (keys.current !== null && r.prevent) keys.current.prevent = true; return; }
+      if (!keys.navClaimed() && focus.inRegion()) {
+        if (keys.current !== null) keys.current.prevent = true;
+        focus.nextRegion(e.shift ? -1 : 1);
+        return;
+      }
     }
     if (e.code === "Escape" && !e.repeat && !keys.navClaimed()) escArmed = true;
     if (e.code === "Tab") {
@@ -1156,39 +1615,42 @@ export function deliverKeys(keys: KeysService, focus: FocusService): () => void 
         else focus.next(c);
         return;
       }
-      if (e.shift) focus.prev();
-      else focus.next();
-      return;
-    }
-    // the region keys move among windows, panes and bars — not while an
-    // overlay holds the keyboard (planes.md §13.3)
-    // — F6, fixed for now; some browsers take it (conventions-record.md)
-    if (e.key === "F6" && !keys.navClaimed()) {
-      focus.nextRegion(e.shift ? -1 : 1);
-      return;
+      // otherwise Tab is an ordinary key: the focused view's onKeyDown, then
+      // the walk, whose standard table moves focus (key-bindings.md)
     }
     // an open overlay owns the navigation keys: they are not also the focused
     // view's when focus is outside it (a menu roves while focus stays on its
     // opener) — focus inside it (a dialog's field, a popover's slider) keeps
     // its keys (keys.ts overlayOwns)
-    if (keys.overlayOwns(e) && !focus.focusInClaimant(keys)) return;
+    if (keys.overlayOwns(e) && !focus.focusInClaimant(keys)) {
+      // …they walk from the overlay itself: its own bindings (Esc) take them
+      const c = keys._claimant();
+      const d0 = keys.current;
+      if (c instanceof View && (d0 === null || (!d0.walked && !d0.skipTables))) {
+        if (d0 !== null) d0.walked = true;
+        const r = walkKeys(e, c);
+        if (d0 !== null && r.prevent) d0.prevent = true;
+      }
+      return;
+    }
+    const d = keys.current;
     const f = focus.getFocus();
     if (f !== null) {
-      // Enter on a region focused as one stop enters it
-      if (e.code === "Enter" && f.focusScope === "region" && focus.enter()) return;
-      // Enter on a focused LINKED view follows the reference — the <a>
-      // contract's keyboard half (location.md §0.4). The handler still fires
-      // (coexistence rule: handler, then follow — same order as a click).
+      // the focused view's handler, whose base is the walk (key-bindings.md):
+      // a region's Enter, a link's Enter and a member scope's Escape are
+      // bindings every view carries, read last in its table
       fireEvent(f, "keyDown", e);
-      if (e.code === "Enter" && f.link !== "") {
-        const app = f.$root as unknown as { followLink?: (ref: string, replace?: boolean) => void };
-        app?.followLink?.(f.link, f.replace);
-      }
-      // Esc closes a member scope entered inside a stop — after the focused
-      // view has had it (an editor cancels its edit first)
-      if (e.code === "Escape" && focus.getFocus() === f) focus.leaveMember();
+      // a handler that didn't hand the key on (no super) keeps today's rule:
+      // the navigation keys are not also the page's while a control, not a
+      // text field, has focus
+      if (d !== null && !d.reachedBase && !isTextField(f) && NAV_KEYS.has(e.key)) d.prevent = true;
+    } else if (d === null || (!d.walked && !d.skipTables)) {
+      // nothing focused: the walk starts at the program's root
+      if (d !== null) d.walked = true;
+      const r = walkKeys(e);
+      if (d !== null && r.prevent) d.prevent = true;
     }
-  });
+  };
   const offUp = keys.onKeyUp((e) => {
     if (e.code === "Tab") return;
     if (keys.overlayOwns(e) && !focus.focusInClaimant(keys)) return;
@@ -1215,4 +1677,6 @@ provideKeyContextTarget(() => { const f = Focus.getFocus(); return f === null ? 
 // that is being torn down. One-directional — focus.ts imports view.ts, not the
 // reverse — so no import cycle.
 setFocusDiscardHook((view) => Focus.noteDiscarded(view));
-setKeyDefaultHook(arrowDefault);
+setKeyDefaultHook(baseKeyDown);
+setKeyWalk((e) => walkKeys(e));
+setInForce(bindingsInForce);

@@ -2232,8 +2232,6 @@ let focusDiscardHook = null;
 export function setFocusDiscardHook(fn) {
     focusDiscardHook = fn;
 }
-/** The focus service's default for a key a view's handlers left alone (the
- *  base `onKeyDown`), registered by focus.ts — the same one-way seam. */
 let keyDefaultHook = null;
 export function setKeyDefaultHook(fn) {
     keyDefaultHook = fn;

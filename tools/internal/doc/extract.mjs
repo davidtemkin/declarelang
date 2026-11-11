@@ -44,7 +44,7 @@ const TARGETS = [                                        // the documented class
   "View", "App", "Text", "Font", "FontFace", "Image", "Media", "Video", "Audio", "RichText", "Markdown", "HTMLText", "DOMIsland", "NativeText",
   "Layout", "TweenLayout",
   "Dataset", "DataSource",
-  "Animator", "AnimatorGroup", "Spring", "Time", "Keys", "Focus", "Tooltips",
+  "Animator", "AnimatorGroup", "Spring", "Time", "KeyListener", "Keyboard", "Focus", "Tooltips",
   "Stream", "EventStream", "Socket",
   "State", "Node",
 ];
@@ -401,8 +401,8 @@ const INSTANTIABLE = new Set([TAGS, LAYOUTS, DATA, ANIMATORS, SOURCES, ANIMATOR_
 //      `protected` (Layout.laid, TweenLayout.laid) is absent even though the
 //      scaffold declares it public for check blocks — a subclass's `place()`
 //      cannot be written without it.
-//   2. A service STATIC (`Focus.focus`, `Keys.isDown`) is not an instance method
-//      of anything, so it is in no class's METHODS at all. `Focus` and `Keys`
+//   2. A service STATIC (`Focus.focus`, `Keyboard.isDown`) is not an instance method
+//      of anything, so it is in no class's METHODS at all. `Focus` and `Keyboard`
 //      published their events and nothing else.
 // So membership here MAKES a method @api — prose describes a member, it should
 // not decide whether the member exists. `test/docs.test.mjs` then requires prose
@@ -1010,7 +1010,7 @@ const CLASS_GROUPS = [
   ["Data",          ["Dataset", "DataSource", "Stream", "EventStream", "Socket"]],
   ["Tables",        ["Table", "TableRow", "DataGrid", "DataGridRow", "DataGridHeadingRow", "DataGridHeading", "DataGridCell", "DataGridText", "DataGridEdit"]],
   ["Motion and state", ["Animator", "AnimatorGroup", "Spring", "State", "Time"]],
-  ["Services",      ["Keys", "Shortcuts", "Focus", "Tooltips"]],
+  ["Services",      ["KeyListener", "Keyboard", "Shortcuts", "Focus", "Tooltips"]],
   ["Embedding",     ["DOMIsland", "AppIsland", "boot", "observe", "Tenant", "IslandHandle"]],
   ["Themes",        ["SanFrancisco", "SanFranciscoDark", "Cupertino", "CupertinoDark", "MountainView", "MountainViewDark", "Redmond", "RedmondDark", "ThemeDefaults"]],
   ["Icons",         ["Icon", "IconHost", "ArrowIcon", "ChevronIcon", "CheckIcon", "CloseIcon", "PlusIcon", "MinusIcon", "LightbulbIcon", "SunIcon", "MoonIcon", "AutoIcon", "TextSizeIcon", "TextSmallIcon", "TextMediumIcon", "TextLargeIcon"]],

@@ -341,14 +341,14 @@ final class ControlChannel {
             bridge.needsFrame()
             return "ok"
         case "nativekey":
-            // `nativekey down|up|flags <keyCode> [chars] [flags-hex]` — a real
+            // `nativekey down|up|flags|equiv <keyCode> [chars] [flags-hex]` — a real
             // NSEvent handed to the view's own keyDown / keyUp / flagsChanged,
             // so the host's reading of a keystroke (its key and code tables,
             // modifier sides) is tested as the keyboard drives it, without the
             // app having to be frontmost. `flags` carries the raw modifier
             // flags, device side bits included (0x20102 = left Shift down).
             guard a.count > 2, let v = view, let k = UInt16(a[2]) else {
-                return "usage: nativekey down|up|flags <keyCode> [chars] [flags-hex]"
+                return "usage: nativekey down|up|flags|equiv <keyCode> [chars] [flags-hex]"
             }
             let type: NSEvent.EventType = a[1] == "up" ? .keyUp : a[1] == "flags" ? .flagsChanged : .keyDown
             let ch = a.count > 3 ? (a[3] == "space" ? " " : a[3]) : ""
@@ -363,7 +363,16 @@ final class ControlChannel {
             switch type {
             case .keyUp: v.keyUp(with: e)
             case .flagsChanged: v.flagsChanged(with: e)
-            default: v.keyDown(with: e)
+            default:
+                // `nativekey equiv …`: the path AppKit takes for a key
+                // equivalent — the window's views first, then the main menu,
+                // then keyDown — so the walk-first ⌘ path is tested as a
+                // keyboard drives it, without the app frontmost
+                if a[1] == "equiv" {
+                    if v.window?.performKeyEquivalent(with: e) == true { return "ok: view" }
+                    if NSApp.mainMenu?.performKeyEquivalent(with: e) == true { return "ok: menu" }
+                }
+                v.keyDown(with: e)
             }
             return "ok"
         case "trace":

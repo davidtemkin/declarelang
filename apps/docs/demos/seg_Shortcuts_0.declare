@@ -1,7 +1,7 @@
 App [ width = 520, height = 240,
     saved: number = 0,
     keys: Shortcuts [ title = "Notes",
-        items = { [ ({ id: "save", key: "⌘S", label: "Save" }), ({ id: "clear", key: "⇧⌘K", label: "Clear" }) ] },
+        items = { [ ({ id: "save", key: "Ctrl+S", label: "Save" }), ({ id: "clear", key: "Ctrl+Shift+K", label: "Clear" }) ] },
         picked(id: string) { if (id == "save") app.saved = app.saved + 1 }
         ],
     Text [ x = 20, y = 20, text = { "Saved " + app.saved + " times — press ⌘S" } ]

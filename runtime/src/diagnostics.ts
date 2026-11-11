@@ -452,8 +452,18 @@ export const Diag = {
     err(code4(4032), `${owner} is a radio outside a RadioGroup — a screen reader hears no "one of N", and the arrows do not move between the choices. Make the radios the direct children of a RadioGroup; or, drawn as your own, make them ChoiceItems, the direct children of a ChoiceControl`, pos),
   choiceItemAlone: (owner: string, pos: Pos): DeclareError =>
     err(code4(4036), `${owner} is a ChoiceItem outside a ChoiceControl — it has no control to read what is chosen from, or to deliver its choice to. Make the items the direct children of a ChoiceControl`, pos),
-  keyDownWithoutSuper: (owner: string, pos: Pos): DeclareError =>
-    err(code4(4031), `onKeyDown on ${owner} replaces Control's own — Space and Enter no longer press it, and the arrows no longer move in its group. Hand on the keys you do not take: else super.onKeyDown(e)`, pos),
+  bindingCommandMissing: (owner: string, key: string, command: string, pos: Pos): DeclareError =>
+    err(code4(4037), `keyBindings on ${owner} binds ${key} to "${command}", which is no method of ${owner} — the key would do nothing. Declare ${command}() on it, or fix the name`, pos),
+  bindingKeyUnmatchable: (owner: string, key: string, hint: string, pos: Pos): DeclareError =>
+    err(code4(4038), `keyBindings on ${owner}: "${key}" is a key no press can match — ${hint}`, pos),
+  bindingClipboardKey: (owner: string, key: string, command: string, pos: Pos): DeclareError =>
+    err(code4(4039), `keyBindings on ${owner} binds ${key} to "${command}" — taking the clipboard's key stops the platform's copy event, so a text field and a page selection no longer copy. Answer the clipboard in onClipboardCopy, onClipboardCut or onClipboardPaste, and leave ${key} to them`, pos),
+  bindingStandardKey: (owner: string, key: string, pos: Pos): DeclareError =>
+    err(code4(4040), `keyBindings on ${owner} binds ${key}, a key of the standard table, without everywhere: true — inside an open sheet or dialog the App's binding stands down and ${key} goes back to the standard table, so it acts one way outside and another inside. Add everywhere: true, or bind it on a view nearer the focus`, pos),
+  keyDownWithoutSuper: (owner: string, pos: Pos, control = true): DeclareError =>
+    err(code4(4031), control
+      ? `onKeyDown on ${owner} replaces Control's own — Space and Enter no longer press it, the arrows no longer move in its group, and Tab no longer moves on. Hand on the keys you do not take: else super.onKeyDown(e)`
+      : `onKeyDown on ${owner} keeps every key — Tab no longer moves on from it, and its key bindings and its containers' never see one. Hand on the keys you do not take: else super.onKeyDown(e); a view that means every key says takesAllKeys = true`, pos),
   accessibilityDrawnFocusable: (owner: string, pos: Pos): DeclareError =>
     err(code4(4018), `${owner} draws itself and takes the focus, but has no accessibilityRole — what it draws is pixels, not anything a screen reader can read. Give it the role it plays and the facts that role reads, or make it a Control`, pos),
   afterInValue: (pos: Pos): DeclareError =>

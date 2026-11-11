@@ -245,7 +245,7 @@ Every app in apps/ now starts under ?render=gpu. What was added for them:
   worker, the page carrying out the verbs; deep links, Back and Forward. Scroll places per
   entry are not kept yet.
 - **Keys**: a key pressed and released between two frames is held until the next frame has
-  run, so a program reading `Keys.isDown` once a frame sees it.
+  run, so a program reading `Keyboard.isDown` once a frame sees it.
 - **Scrollbars**: a whole-page app's is the browser's (the window scrolls). An inner pane's is
   the fallback overlay bar (scroll.rs, the same numbers as canvas-backend.ts's `BAR`): under
   a mouse the Mac's — hidden at rest, a 6 px thumb while the pane moves, fading 500 ms after

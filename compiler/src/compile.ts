@@ -768,12 +768,46 @@ function idiomDiagnostics(
       }
     }
 
-    // 4031 — an onKeyDown on a Control that never hands on to the control's own:
-    // Space and Enter stop pressing it, and the arrows stop moving in its group,
-    // in silence (the handler replaces, it does not add).
-    if (receiving !== undefined && descendsFrom(receiving, "Control")) {
-      for (const m of el.methods) {
-        if (m.name === "onKeyDown" && !/\bsuper\s*\.\s*onKeyDown\s*\(/.test(m.body)) warnings.push(Diag.keyDownWithoutSuper(decl !== undefined ? decl.name : el.tag, m.pos));
+    // 4031 — an onKeyDown that never hands a key on (key-bindings.md): the base
+    // onKeyDown is the walk, so every key it doesn't take stops there — Tab no
+    // longer moves on, and the view's bindings (a Control's Space, Enter and
+    // arrows) and its containers' never see a key, in silence. A view that
+    // means every key says so: `takesAllKeys = true`.
+    if (receiving !== undefined && descendsFrom(receiving, "View")) {
+      const levels = [el, ...chainBodies(decl !== undefined ? decl.base : el.tag)];
+      const takesAll = levels.some((b) => b.attrs.some((x) => x.name === "takesAllKeys" && x.value.kind === "ident" && (x.value as { name: string }).name === "true"));
+      if (!takesAll) {
+        for (const m of el.methods) {
+          if (m.name === "onKeyDown" && !/\bsuper\s*\.\s*onKeyDown\s*\(/.test(m.body)) warnings.push(Diag.keyDownWithoutSuper(decl !== undefined ? decl.name : el.tag, m.pos, descendsFrom(receiving, "Control")));
+        }
+      }
+    }
+
+    // 4037–4040 — a written key table's records (key-bindings.md): a command
+    // that names no method, a key no press can match, the clipboard's keys
+    // taken from the platform, a standard key bound on the App without
+    // `everywhere`. Read from the record literals as written; a table computed
+    // at run time is read when it runs.
+    for (const a of el.attrs) {
+      if (a.name !== "keyBindings" || a.value.kind !== "code") continue;
+      const owner = decl !== undefined ? decl.name : el.name ?? el.tag;
+      const levels = [el, ...chainBodies(decl !== undefined ? decl.base : el.tag)];
+      const methods = new Set(levels.flatMap((b) => b.methods.map((m) => m.name)));
+      const isApp = el.tag === "App" || (decl !== undefined && decl.name === "App");
+      for (const rec of (a.value as { src: string }).src.split("({").slice(1)) {
+        const body = rec.slice(0, rec.indexOf("})") < 0 ? rec.length : rec.indexOf("})"));
+        const key = /\bkey\s*:\s*"([^"]*)"/.exec(body)?.[1];
+        const cmd = /\bcommand\s*:\s*"([^"]*)"/.exec(body)?.[1];
+        const shown = key !== undefined ? `"${key}"` : "a command";
+        if (cmd !== undefined && cmd !== "native" && !methods.has(cmd) && !RUNTIME_METHODS_VIEW.has(cmd)) warnings.push(Diag.bindingCommandMissing(owner, shown, cmd, a.pos));
+        if (key === undefined) continue;
+        const parts = key.trim().split(/\s+/);
+        if (parts.length > 2 || (parts.length === 2 && !/^(Escape|Esc|⎋)$/i.test(parts[0]))) warnings.push(Diag.bindingKeyUnmatchable(owner, key, "a sequence starts with Escape (\"Escape Tab\"); no other sequence exists", a.pos));
+        const last = parts[parts.length - 1];
+        const m = /^(?:.*[+-])?([^+\-]|[+-])$/.exec(last);
+        if (/(^|[+-])shift[+-]/i.test(last) && m !== null && /[^A-Za-z0-9]/.test(m[1])) warnings.push(Diag.bindingKeyUnmatchable(owner, key, `a symbol is spelled as the one the keys type, without Shift — "Ctrl+}" for Ctrl+Shift+]`, a.pos));
+        if (/^(ctrl|cmd|command|⌘)[+-]?[cxv]$/i.test(last.replace(/\s/g, "")) && cmd !== undefined && cmd !== "native" && cmd !== "copy" && cmd !== "cut" && cmd !== "paste") warnings.push(Diag.bindingClipboardKey(owner, key, cmd, a.pos));
+        if (isApp && /^((shift[+-])?(tab|f6)|⇧?⇥)$/i.test(last) && parts.length === 1 && !/\beverywhere\s*:\s*true/.test(body)) warnings.push(Diag.bindingStandardKey(owner, key, a.pos));
       }
     }
 
@@ -895,7 +929,10 @@ const ES_GLOBALS = new Set([
 // in a handler is the service, never a member to resolve. `afterSettle` and
 // `tint` are the function-shaped entries; the built-in theme presets are in
 // scope by name (`SanFrancisco`, `CupertinoDark`, …), so a body names one.
-const RUNTIME_SERVICES = new Set(["Focus", "Keys", "FilePicker", "Clipboard", "Inspect", "Accessibility", "afterSettle", "activeTone", ...THEME_PRESET_NAMES]);
+/** View's own runtime methods a key binding may name as its command. */
+const RUNTIME_METHODS_VIEW = new Set(["scrollTo", "scrollToX", "scrollIntoView", "focus", "blur", "bringToFront", "sendToBack", "raise"]);
+
+const RUNTIME_SERVICES = new Set(["Focus", "Keyboard", "FilePicker", "Clipboard", "Commands", "Inspect", "Accessibility", "afterSettle", "activeTone", ...THEME_PRESET_NAMES]);
 
 /** Every name the runtime binds in a { } body's own scope (expr.ts SCOPE): the
  *  value constructors, the literal-lowering helper, the services and presets.

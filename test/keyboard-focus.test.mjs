@@ -3,7 +3,7 @@
 // islands — over one keyboard. Pins:
 //   - nothing focused: the top-level program has the keyboard;
 //   - focus on an island hands it to the island's tenant; focus on a host view, back;
-//   - Keys.isDown answers for the asking body's program;
+//   - Keyboard.isDown answers for the asking body's program;
 //   - a key held when the keyboard moves is released to the program that had it,
 //     and is no program's after;
 //   - focusing an island whose tenant already holds focus leaves focus there;
@@ -27,8 +27,8 @@ async function boot(src) {
 
 const HOST = `App [ width = 200, height = 100,
     downs: number = 0,
-    keys: Keys [ onKeyDown(e: KeyEvent) { app.downs = app.downs + 1 } ],
-    held() -> boolean { return Keys.isDown("KeyA") },
+    keys: KeyListener [ onKeyDown(e: KeyEvent) { app.downs = app.downs + 1 } ],
+    held() -> boolean { return Keyboard.isDown("KeyA") },
     isl: DOMIsland [ width = 50, height = 50, focusable = true ],
     btn: View [ x = 60, width = 10, height = 10, focusable = true ],
     ]`;
@@ -36,14 +36,14 @@ const HOST = `App [ width = 200, height = 100,
 const TENANT = `App [ width = 50, height = 50,
     downs: number = 0,
     ups: number = 0,
-    keys: Keys [
+    keys: KeyListener [
         onKeyDown(e: KeyEvent) { app.downs = app.downs + 1 },
         onKeyUp(e: KeyEvent) { app.ups = app.ups + 1 }
         ],
-    held() -> boolean { return Keys.isDown("KeyA") },
-    shift() -> boolean { return Keys.isDown("ShiftLeft") },
+    held() -> boolean { return Keyboard.isDown("KeyA") },
+    shift() -> boolean { return Keyboard.isDown("ShiftLeft") },
     game: View [ width = 10, height = 10, focusable = true,
-        thrust() -> boolean { return Keys.isDown("KeyQ") }
+        thrust() -> boolean { return Keyboard.isDown("KeyQ") }
         ],
     ]`;
 
@@ -80,7 +80,7 @@ await test("focus on an island hands the keyboard to its tenant, and a host view
   done();
 });
 
-await test("Keys.isDown answers for the asking body's program", async () => {
+await test("Keyboard.isDown answers for the asking body's program", async () => {
   const { host, tenant, done } = await pair();
   Focus.focus(host.isl);
   Keys.keyDown(key("KeyA"));

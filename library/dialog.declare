@@ -147,6 +147,14 @@ them.
 ## escape()
 Esc picks the cancel button (`pickCancel`).
 
+## keyBindings
+Return picks the default button when it reaches the dialog: a focused control that takes
+Return (a button presses itself) and a multi-line field (a line break) keep it first; a
+single-line field hands it on to here.
+
+## _keyEnter()
+**Internal.** Return: `pickDefault()`, unless the focused view takes Return itself.
+
 ## focusFirst()
 On opening, focus goes to your content's first control when it has one, else to the
 default button.
@@ -311,11 +319,13 @@ class Dialog extends Floating [
         return typeof f.press == "function"
         },
 
-    _enterKeys: Keys [
-        onKeyDown(e: KeyEvent) {
-            if (classroot.shown && classroot.isTop() && e.key == "Enter" && !classroot._returnTaken()) classroot.pickDefault()
-            }
-        ],
+    keyBindings = { [ ({ key: "Enter", command: "_keyEnter" }) ] },
+
+    _keyEnter(e: KeyEvent) -> boolean {
+        if (!shown || !isTop() || _returnTaken()) return false
+        pickDefault()
+        return true
+        },
 
     // buttons → Button instances through the internal derived dataset. The
     // "stack" arrangement reorders: the default on top, cancel at the bottom

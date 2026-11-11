@@ -955,7 +955,7 @@ class HelpSearch [ height = 40,
 /*
 ## ShortcutRow, ShortcutLine, ShortcutHead — the hold-⌘ panel's rows
 
-The panel lists `Keys.shortcutsInForce()` — what a key press would do where focus is now,
+The panel lists `Keyboard.shortcutsInForce()` — what a key press would do where focus is now,
 nearest declaration first, a hosted program's own and the desktop's alike — grouped by the
 menu each sits in. A heading and a shortcut are two kinds of record, so two classes.
 */
@@ -1175,6 +1175,7 @@ class ListColumn extends FilesColumn [
                     else if (e.key == "ArrowRight" && :hasKids) { w.selPath = "" + :at; afterSettle(() => w.focusColumn(classroot.colDepth + 1)) }
                     else if (e.key == "ArrowLeft") w.focusColumn(classroot.colDepth - 1)
                     else if (e.key == "Enter") { if (:hasKids) app.launcher.openFolderWindow("" + :at, this); else w.openLeaf(this.item(), this) }
+                    else super.onKeyDown(e)
                     },
                 ringed: boolean = { classroot.win!.ctxAt == "" + :at && classroot.win!.rowMenu.shown },
                 hl: View [ x = 4, y = 2, width = { parent.width - 8 }, height = { classroot.win!.rowH - 4 }, cornerRadius = 5,
@@ -2942,7 +2943,7 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     onInit() { this.docsModel.fetch() },
     onReady() { app.launcher.openWelcome(); app.launcher.newFiles() },
 
-    keys: Keys [
+    keys: KeyListener [
         onKeyDown(e: KeyEvent) {
             if (e.key == "`" && !e.meta && !e.repeat) { app.wallpaper.seed = app.wallpaper.seed + 1; return }   // cycle the wallpaper
             if (e.key == "r" && !e.meta && !e.repeat) { app.tiltSeed = app.tiltSeed + 1; return }   // the tilt egg: every window springs to a random lean
@@ -3188,8 +3189,8 @@ App [ appName = "Declare Desktop", scrolls = none,   // a fixed stage: overflow 
     shortcutsShown: boolean = false,
     shortcutList: array = [],
     shortcutData: Dataset [ contents = { { rows: app.panelRows(app.shortcutList) } } ],
-    cmdHold: Keys [ onCommandHeld(on: boolean) {
-        if (on) app.shortcutList = Keys.shortcutsInForce()
+    cmdHold: KeyListener [ onCommandHeld(on: boolean) {
+        if (on) app.shortcutList = Keyboard.shortcutsInForce()
         app.shortcutsShown = on
         }
         ],

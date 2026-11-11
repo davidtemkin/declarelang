@@ -2,7 +2,7 @@
 // non-visual member you put in a tree whose handlers are called by something
 // OUTSIDE the tree: the keyboard, the focus service, the tip service.
 //
-//     keys: Keys [ onKeyUp(e) { if (e.key == "Escape") classroot.close() } ],
+//     keys: KeyListener [ onKeyUp(e) { if (e.key == "Escape") classroot.close() } ],
 //
 // WHY CLASSES, not a `<-` operator. The language rules that an event is just
 // a function-typed member that gets called when the thing happens — the `on`
@@ -14,15 +14,15 @@
 // ordinary registry classes, so the ones an app never mentions are dropped
 // from its bundle like any other class. (Measured caveat, so nobody repeats
 // an over-claim: that shakes out these thin WRAPPERS only. The SERVICES they
-// wrap ship regardless — boot.ts wires Keys, index.ts injects Keys/Focus into
-// body scope for `Keys.isDown(…)`, view.ts uses Tooltips, text-input.ts uses Focus.
+// wrap ship regardless — boot.ts wires Keys, index.ts injects Keyboard/Focus into
+// body scope for `Keyboard.isDown(…)`, view.ts uses Tooltips, text-input.ts uses Focus.
 // Gating those on program facts, the way slim-draw gates the paint vocabulary,
 // is a separate and unclaimed win.)
 //
 // LIFETIME is the node's, exactly as the operator's was: handlers subscribe at
 // init and unsubscribe when the node is discarded, so there is nothing for an
 // author to clean up. FAN-OUT is by instance: a menu, a dialog, and a menubar
-// each holding their own `Keys` member all hear the keyboard at once — which an
+// each holding their own `KeyListener` member all hear the keyboard at once — which an
 // App-level event could never express, and which is why these are members
 // rather than one global handler.
 
@@ -42,6 +42,11 @@ type Channel = readonly [member: string, subscribe: (fn: Handler, owner: Node) =
  *  handler this instance actually declares; at discard, drop them all. Nothing
  *  subscribes for a handler nobody wrote — pay-per-use, like every other member
  *  in the language. */
+/** The keyboard as a service (`Keyboard.isDown`): an abstract class, so the
+ *  reference documents it once and no tag or base builds one — the schema's
+ *  runtime twin, for the pin. The keyboard's member is a KeyListener. */
+export abstract class KeyboardService extends Node {}
+
 abstract class Source extends Node {
   /** The channels this source offers. */
   protected abstract $channels(): readonly Channel[];
@@ -66,7 +71,7 @@ abstract class Source extends Node {
   }
 }
 
-/** The keyboard, as a member: `Keys [ onKeyDown(e) { … }, onKeyUp(e) { … } ]`.
+/** The keyboard, as a member: `KeyListener [ onKeyDown(e) { … }, onKeyUp(e) { … } ]`.
  *  The RAW stream — it fires even while a text field has focus, so gate
  *  app-level shortcuts on app state where that matters. (A focused view's own
  *  `onKeyDown`/`onKeyUp` are the other half: keys belonging to one widget.)

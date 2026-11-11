@@ -23,7 +23,7 @@ for (const [kind, decl] of Object.entries(KINDS)) {
   model: Dataset [ contents = { ({ rows: [0, 1, 2, 3].map((i) => ({ k: "r" + i + "." + app.seq })) }) } ],
   list: View [ width = 400, datapath = { app.model.value }, layout: SimpleLayout [ axis = y ],
     Row [ datapath = :rows[] ] ],
-  Keys [ onKeyDown(e: KeyEvent) { app.keys = app.keys + 1 } ],
+  KeyListener [ onKeyDown(e: KeyEvent) { app.keys = app.keys + 1 } ],
   keys: number = 0 ]
 class Row extends View [ height = 30, width = 100%, focusable = true, Text [ text = :k ], ${decl} ]`;
   const r = await build(src);

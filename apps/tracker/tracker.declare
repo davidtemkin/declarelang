@@ -1116,7 +1116,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
             }
         ],
 
-    keys: Keys [
+    keys: KeyListener [
         onKeyDown(e: KeyEvent) {
             // Escape unwinds the innermost layer first: the open editor, then
             // a selection, then the query, then the facet filters. Anything
@@ -1167,6 +1167,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                 onKeyDown(e: KeyEvent) {
                     if (e.key == "ArrowDown") app.stepHit(1)
                     else if (e.key == "ArrowUp") app.stepHit(-1)
+                    else super.onKeyDown(e)
                     }
                 ],
             hitCount: Text [ y = center, fontSize = 11, wrap = false, visible = { app.query != "" },

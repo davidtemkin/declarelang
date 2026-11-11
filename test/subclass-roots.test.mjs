@@ -162,7 +162,7 @@ App [ width = 100, height = 100,
 // ── Keys / Focus / Tooltips ────────────────────────────────────────────────────────
 await (async () => {
   const app = await build(`
-class Hot extends Keys [ count: number = 0, last: string = "",
+class Hot extends KeyListener [ count: number = 0, last: string = "",
     onKeyDown(e: KeyEvent) { count = count + 1; last = e.key } ]
 class Watch extends Focus [ moves: number = 0, onFocusChange(v: View) { moves = moves + 1 } ]
 class Tips extends Tooltips [ seen: number = 0, onTooltip(e: TooltipEvent) { seen = seen + 1 } ]
@@ -270,7 +270,7 @@ App [ width = 1, height = 1, r: Rows { [1] } ]`), []);
   await test("a built-in family node takes inline declarations like a view (the §5 one-off subclass)", async () => {
     const app = await build(`App [ width = 1, height = 1,
       v: View [ width = 10, s: Spring [ attribute = x, to = 1, tag: string = "t" ] ],
-      k: Keys [ hits: number = 0, onKeyDown(e: KeyEvent) { hits = hits + 1 } ] ]`);
+      k: KeyListener [ hits: number = 0, onKeyDown(e: KeyEvent) { hits = hits + 1 } ] ]`);
     assert.equal(app.v.s.tag, "t");
     Keys.keyDown(KEY("b"));
     settle();

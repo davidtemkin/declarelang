@@ -3,7 +3,7 @@ export declare function setBodyServices(services: Record<string, unknown>): void
  *  what a build that precompiles bodies (declarec) must put in scope too. */
 export declare function bodyScopeNames(): string[];
 type PreMake = ($d: Record<string, unknown>, $s: Record<string, unknown>) => readonly unknown[];
-/** `keyed` — the slots whose body names `Keys`, which a minified bundle no
+/** `keyed` — the slots whose body names `Keyboard`, which a minified bundle no
  *  longer shows by name (see askingKeys). */
 export declare function providePrecompiled(make: PreMake, scripts: readonly (() => unknown)[], keyed?: readonly number[]): void;
 /** Run `build` with `scope` as the active script scope. */

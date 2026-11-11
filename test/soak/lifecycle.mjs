@@ -33,7 +33,7 @@ const CASES = {
   timeFrame: [`acc: number = 0, Time [ tick = frame, onTick(dt: number) { classroot.acc = classroot.acc + dt } ]`, null],
   timeMs: [`acc: number = 0, Time [ tick = 30, onTick(dt: number) { classroot.acc = classroot.acc + 1 } ]`, null],
   timeFacts: [`clock: Time [ tick = second ], Text [ text = { "" + classroot.clock.second } ]`, null],
-  keys: [`n: number = 0, Keys [ onKeyDown(e: KeyEvent) { classroot.n = classroot.n + 1 } ]`, null],
+  keys: [`n: number = 0, KeyListener [ onKeyDown(e: KeyEvent) { classroot.n = classroot.n + 1 } ]`, null],
   afterDelay: [`n: number = 0, go() { afterDelay(60000, () => { this.n = 1 }) }`, (v) => v.go()],
   afterDelayShort: [`n: number = 0, go() { afterDelay(5, () => { this.n = this.n + 1 }) }`, (v) => v.go()],
   dataSource: [`src: DataSource [ url = "http://soak.invalid/slow.json" ], Text [ text = { classroot.src.loaded ? "y" : "n" } ]`, (v) => v.src.fetch()],

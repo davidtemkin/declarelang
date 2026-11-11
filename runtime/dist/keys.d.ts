@@ -10,7 +10,38 @@ export interface KeyEvent {
     alt: boolean;
     meta: boolean;
     repeat: boolean;
+    /** An IME is composing: the key belongs to the composition, not to a binding. */
+    isComposing?: boolean;
+    /** The legacy key code — 229 is Safari's keydown during and just after composition. */
+    keyCode?: number;
+    /** AltGr is down (Windows layouts): the chord types a character. */
+    altGraph?: boolean;
 }
+/** One key press on its way through the walk (key-bindings.md): what the walk
+ *  has done with it so far. Read by the base `onKeyDown` and the DOM adapter. */
+export interface KeyDispatch {
+    e: KeyEvent;
+    /** Something took the key: the platform's default is prevented. */
+    prevent: boolean;
+    /** The tables already walked this key (a chord): the base `onKeyDown` does not walk it again. */
+    walked: boolean;
+    /** The focused view's `onKeyDown` reached the base (the walk). */
+    reachedBase: boolean;
+    /** The key skips the tables — composition, or a chord that types into a field. */
+    skipTables: boolean;
+    /** The focus layer took the key in hand (focus.ts deliverKeys): it decides
+     *  whether the walk runs. Without one (a headless service), keyDown walks. */
+    delivered: boolean;
+}
+/** The walk (focus.ts walkKeys), injected — keys.ts sits below the view layer.
+ *  `from` null = start where the key starts (the focused view, or an overlay).
+ *  Returns whether something took the key, and whether to prevent its default. */
+export type KeyWalk = (e: KeyEvent, mode: "tables" | "all") => {
+    taken: boolean;
+    prevent: boolean;
+};
+export declare function setInForce(fn: (() => Array<Record<string, unknown>>) | null): void;
+export declare function setKeyWalk(fn: KeyWalk | null): void;
 type KeyHandler = (e: KeyEvent) => void;
 /** What the keyboard needs to know about the program tree, injected by
  *  services.ts (keys.ts sits below the view layer and stays node-free). A
@@ -43,6 +74,18 @@ export interface KeysPrograms {
      *  modifier is the field's, not a shortcut. */
     typing(): boolean;
 }
+/** A declared set of shortcuts (library `Shortcuts`): records with a `key`
+ *  (`"⌘S"`, `"⇧⌘Z"`, `"F5"`), an `id` and a `label`, covering the subtree of
+ *  `on` (else its parent), and `picked(id)` the action. */
+interface ShortcutOwner {
+    items?: unknown;
+    on?: unknown;
+    title?: unknown;
+    parent?: unknown;
+    $tornDown?: boolean;
+    picked(id: string): void;
+}
+export declare const KEYS_ON_MAC: boolean;
 /** A key event as a shortcut's spelling: modifiers in display order, then the
  *  key (a letter upper-cased, a named key by its glyph). ⌘ is the command key:
  *  Meta on a Mac, Control elsewhere. */
@@ -50,9 +93,29 @@ export declare function comboOf(e: KeyEvent): string;
 /** A declared spelling, normalized: glyphs or words (`"Cmd+Shift+Z"`), any
  *  order, to the one form comboOf produces. */
 export declare function normalizeCombo(spec: string): string;
+/** The same press spelled from its physical key (`code`): KeyS → S, Digit1 → 1.
+ *  A letter or digit on a non-Latin layout, or under ⌥ on a Mac (⌥A types å),
+ *  still matches its binding this way. Null when the code names no letter or digit. */
+export declare function comboOfCode(e: KeyEvent): string | null;
+/** The chords a text field answers itself — select all, the clipboard, undo
+ *  and redo, and the caret's command moves. While a field has focus they stay
+ *  the field's, whatever a program declares: the Mac's first-responder rule
+ *  (a field's editing commands come before the menu's key equivalents). A
+ *  focused text field's table ends with these as `native` (focus.ts). */
+export declare const FIELD_CHORDS: Set<string>;
+/** Does a combo carry a command modifier (anything but ⇧)? */
+export declare const commanded: (combo: string) => boolean;
+/** Does this press type a character into a field rather than name a chord —
+ *  AltGr on Windows, ⌥ on a Mac? (key-bindings.md: such keys skip the tables
+ *  while a text field has focus.) */
+export declare function typesCharacter(e: KeyEvent): boolean;
+/** Is the press part of an IME composition (Safari reports 229 just after)? */
+export declare const composing: (e: KeyEvent) => boolean;
 export declare function setKeysPrograms(p: KeysPrograms | null): void;
 export declare function keysCaller(node: object | null): object | null;
 export declare function setKeysFocusProbe(fn: () => boolean): void;
+/** Does a Declare view hold keyboard focus right now? */
+export declare function keysFocusHeld(): boolean;
 export declare class KeysService {
     /** The held keys (LZX's downKeysHash) — what is pressed right now, each
      *  with the program it was pressed in. */
@@ -163,14 +226,16 @@ export declare class KeysService {
      *  its own, and the shortcuts it declares are those keys: a form in a sheet
      *  keeps its own, while the page's behind it stand down. */
     private ownersHeard;
-    /** The declared shortcut a key event triggers, if any: the nearest set that
-     *  declares its combo, enabled (ownersHeard — an open overlay's own sets
-     *  only), and none without a command modifier while a field has focus
-     *  (typing is the field's), nor a field's own editing chords (⌘A, ⌘C/X/V,
-     *  ⌘Z — FIELD_CHORDS). */
-    private shortcutFor;
-    /** A key went down. Returns whether a declared shortcut took it — the
-     *  adapter then stops the browser's own use of the chord. */
+    /** The `Shortcuts` sets declared on `view` — each a table the walk reads
+     *  at that view, after the view's own `keyBindings` (key-bindings.md). */
+    _setsOn(view: object): ShortcutOwner[];
+    /** The press now being dispatched, while it is (null between presses). */
+    current: KeyDispatch | null;
+    /** A key went down. Returns whether to prevent the platform's own use of it:
+     *  something took it (key-bindings.md). A chord — a command modifier, or a
+     *  function key — walks the tables first, before any `onKeyDown`, so a
+     *  handler that forgets `super` can't swallow it; a plain key goes to the
+     *  focused view's `onKeyDown`, whose base is the walk. */
     keyDown(e: KeyEvent): boolean;
     /** Whatever a key's handlers do happens while this is true — so focus they
      *  move is keyboard focus (focus.ts `focus()`, the web's :focus-visible rule

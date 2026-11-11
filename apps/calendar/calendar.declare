@@ -256,7 +256,7 @@ class Ev extends Control [ clip = true,
     // closing the panel gives focus back here (closeDetail)
 
     onKeyDown(e: KeyEvent) {
-        if (e.repeat || (e.key != "Enter" && e.key != " ")) return
+        if (e.repeat || (e.key != "Enter" && e.key != " ")) { super.onKeyDown(e); return }
         app.openedFrom = this
         app.selectEvent(:id, dayKey(:y, :m, :d))
         afterSettle(() => Focus.focus(app.panel.ev.title))
@@ -733,7 +733,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
        gate on the panel being closed: its text fields own the keyboard while
        an event is being edited (Keys is the raw stream). */
 
-    keys: Keys [
+    keys: KeyListener [
         onKeyUp(e: KeyEvent) {
             if (e.key == "Escape") app.closeDetail()
             // the arrows page the calendar — not while the view tabs rove with them

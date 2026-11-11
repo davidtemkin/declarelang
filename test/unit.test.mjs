@@ -7667,12 +7667,12 @@ await test("focus: a field discarded inside a panel that then hides — Tab star
   assert.equal(Focus.getFocus(), app.b, "Tab goes on from where the panel stands");
 });
 
-await test("focus: keyboard delivery — Tab traverses, other keys reach the focused view", async () => {
+await test("focus: keyboard delivery — every key reaches the focused view; Tab handed on traverses", async () => {
   Focus.reset();
   globalThis.__k = [];
   const app = buildProgram(await compiled(`${TALLY}App [ width = 100, height = 100,
-    a: View [ focusable = true, onKeyDown(e: KeyEvent) { note("__k", "a:" + e.code) } ],
-    b: View [ focusable = true, onKeyDown(e: KeyEvent) { note("__k", "b:" + e.code) } ],
+    a: View [ focusable = true, onKeyDown(e: KeyEvent) { note("__k", "a:" + e.code); super.onKeyDown(e) } ],
+    b: View [ focusable = true, onKeyDown(e: KeyEvent) { note("__k", "b:" + e.code); super.onKeyDown(e) } ],
   ]`));
   Focus.setRoot(app);
   Focus.focus(app.a);
@@ -7681,9 +7681,10 @@ await test("focus: keyboard delivery — Tab traverses, other keys reach the foc
   K.keyDown(kev("KeyH"));
   assert.deepEqual(globalThis.__k, ["a:KeyH"], "a key reaches the focused view");
   K.keyDown(kev("Tab"));
-  assert.equal(Focus.getFocus(), app.b, "Tab is consumed by traversal, not delivered");
+  assert.deepEqual(globalThis.__k, ["a:KeyH", "a:Tab"], "Tab reaches the focused view too (key-bindings.md)…");
+  assert.equal(Focus.getFocus(), app.b, "…and, handed on, moves focus");
   K.keyDown(kev("KeyJ"));
-  assert.deepEqual(globalThis.__k, ["a:KeyH", "b:KeyJ"], "keys follow focus");
+  assert.deepEqual(globalThis.__k, ["a:KeyH", "a:Tab", "b:KeyJ"], "keys follow focus");
 });
 
 await test("focus: discarding the focused subtree clears focus, and Tab goes on from where it was", async () => {
@@ -8032,7 +8033,7 @@ async function compileAndBoot(src) {
 await test("sources: a Keys member wires at init and unsubscribes at discard", async () => {
   const { Keys } = await import("../runtime/dist/index.js");
   const app = await compileAndBoot(`App [ width = 100, height = 100, n: number = 0,
-    nav: Keys [ onKeyUp(e: KeyEvent) { if (e.key == "ArrowDown") app.n = app.n + 1 } ],
+    nav: KeyListener [ onKeyUp(e: KeyEvent) { if (e.key == "ArrowDown") app.n = app.n + 1 } ],
     ]`);
   Keys.keyUp(KEY_DOWN_ARROW);
   assert.equal(app.n, 1, "the handler ran with the KeyEvent payload");
@@ -8044,8 +8045,8 @@ await test("sources: a Keys member wires at init and unsubscribes at discard", a
 await test("sources: fan-out is by INSTANCE — two Keys members both hear the keyboard", async () => {
   const { Keys } = await import("../runtime/dist/index.js");
   const app = await compileAndBoot(`App [ width = 100, height = 100, a: number = 0, b: number = 0,
-    k1: Keys [ onKeyDown(e: KeyEvent) { app.a = app.a + 1 } ],
-    k2: Keys [ onKeyDown(e: KeyEvent) { app.b = app.b + 1 } ],
+    k1: KeyListener [ onKeyDown(e: KeyEvent) { app.a = app.a + 1 } ],
+    k2: KeyListener [ onKeyDown(e: KeyEvent) { app.b = app.b + 1 } ],
     ]`);
   Keys.keyDown(KEY_DOWN_ARROW);
   assert.equal(app.a, 1, "first listener");
@@ -8055,7 +8056,7 @@ await test("sources: fan-out is by INSTANCE — two Keys members both hear the k
 await test("sources: nothing subscribes for a handler nobody declared", async () => {
   const { Keys } = await import("../runtime/dist/index.js");
   const app = await compileAndBoot(`App [ width = 100, height = 100, n: number = 0,
-    quiet: Keys [ ],
+    quiet: KeyListener [ ],
     ]`);
   Keys.keyDown(KEY_DOWN_ARROW);   // must not throw: an empty source is inert
   assert.equal(app.n, 0, "pay-per-use, like every other member");
@@ -8069,15 +8070,15 @@ await test("sources: the `<-` operator is GONE, and the error names the rewrite"
 });
 
 await test("sources: a handler the source does not call is warned of — it never fires", async () => {
-  const r = await compile(`App [ width = 100, height = 100, k: Keys [ onWheel(e: WheelEvent) { } ] ]`, {});
+  const r = await compile(`App [ width = 100, height = 100, k: KeyListener [ onWheel(e: WheelEvent) { } ] ]`, {});
   assert.notEqual(r.source, null, r.errors.map((e) => e.message).join("; "));
-  assert.ok(r.warnings.some((e) => /Keys has no 'onWheel' event/.test(e.message)), r.warnings.map((e) => e.message).join("\n"));
+  assert.ok(r.warnings.some((e) => /KeyListener has no 'onWheel' event/.test(e.message)), r.warnings.map((e) => e.message).join("\n"));
 });
 
-await test("sources: `Keys` is both a component and a callable service, under one name", async () => {
+await test("sources: the keyboard is a KeyListener member and a callable Keyboard service", async () => {
   const r = await compile(`App [ width = 100, height = 100,
     down: boolean = false,
-    k: Keys [ onKeyDown(e: KeyEvent) { app.down = Keys.isDown("Space") } ],
+    k: KeyListener [ onKeyDown(e: KeyEvent) { app.down = Keyboard.isDown("Space") } ],
     ]`, {});
   assert.notEqual(r.source, null, "ask AND listen in one program: " + r.errors.map((e) => e.message).join("; "));
 });
@@ -8086,7 +8087,7 @@ await test("sources: a source member does not collide with `<->` lexing", async 
   const r = await compile(`App [ width = 100, height = 100,
     d: Dataset { { "title": "x" } },
     card: View [ datapath = { app.d.value }, f: TextInput [ accessibilityLabel = "Title", value <-> :title ] ],
-    nav: Keys [ onKeyUp(e: KeyEvent) { app.d.set(["title"], e.key) } ],
+    nav: KeyListener [ onKeyUp(e: KeyEvent) { app.d.set(["title"], e.key) } ],
     ]`, {});
   assert.notEqual(r.source, null, "the two-way arrow still lexes: " + r.errors.map((e) => e.message).join("; "));
 });

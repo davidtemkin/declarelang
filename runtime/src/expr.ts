@@ -85,7 +85,7 @@ let PRE_MAKE: PreMake | null = null;
 let PRE_SCRIPTS: readonly (() => unknown)[] = [];
 let PRE_KEYED: ReadonlySet<number> = new Set();
 const PRE_BUILT = new WeakMap<object, readonly unknown[]>();
-/** `keyed` — the slots whose body names `Keys`, which a minified bundle no
+/** `keyed` — the slots whose body names `Keyboard`, which a minified bundle no
  *  longer shows by name (see askingKeys). */
 export function providePrecompiled(make: PreMake, scripts: readonly (() => unknown)[], keyed: readonly number[] = []): void {
   PRE_MAKE = make;
@@ -93,10 +93,10 @@ export function providePrecompiled(make: PreMake, scripts: readonly (() => unkno
   PRE_KEYED = new Set(keyed);
 }
 
-/** A body that names `Keys` runs as the keyboard's CALLER: while it runs,
- *  `Keys.isDown` knows which node is asking — the program it answers for, and
+/** A body that names `Keyboard` runs as the keyboard's CALLER: while it runs,
+ *  `Keyboard.isDown` knows which node is asking — the program it answers for, and
  *  the view that claims the key (keys.ts). Only these bodies pay for it. */
-const NAMES_KEYS = /\bKeys\b/;
+const NAMES_KEYS = /\bKeyboard\b/;
 function askingKeys<F extends (this: unknown, ...args: never[]) => unknown>(fn: F): F {
   return function (this: unknown, ...args: never[]): unknown {
     const prev = keysCaller(this !== null && typeof this === "object" ? this : null);

@@ -171,7 +171,7 @@ export function makeRouter(program: Program, mode: RouteMode = "all", unrouted?:
     // the families instantiate builds on their own path (instantiate.ts
     // construct); everything else — a view, and a faceless Node, Time or model
     // class — is built as a view is
-    const node = state || ["Dataset", "Animator", "AnimatorGroup", "Keys", "Focus", "Tooltips", "Stream", "Layout"].some((f) => descendsFrom(eff, f));
+    const node = state || ["Dataset", "Animator", "AnimatorGroup", "KeyListener", "Focus", "Tooltips", "Stream", "Layout"].some((f) => descendsFrom(eff, f));
     for (const a of el.attrs) {
       if (state && attrType(eff, a.name) === null) routeOverride(a, owner);
       else if (node) routeNodeAttr(a, eff);

@@ -8,7 +8,7 @@ const CASES = {
   "a view reading hovered": `App [ width = 200, height = 100, View [ width = 10, height = 10, fill = { hovered ? 0xff0000 : 0x0000ff } ] ]`,
   "a Button": `App [ width = 200, height = 100, Button [ label = "b" ] ]`,
   "a Shortcuts member": `App [ width = 200, height = 100, Shortcuts [ items = { [ ({ id: "s", key: "⌘S", label: "S" }) ] } ] ]`,
-  "a Keys member": `App [ width = 200, height = 100, Keys [ onKeyDown(e: KeyEvent) { } ] ]`,
+  "a Keys member": `App [ width = 200, height = 100, KeyListener [ onKeyDown(e: KeyEvent) { } ] ]`,
   "an open Popover": `App [ width = 200, height = 100, v: View [ width = 10, height = 10 ], p: Popover [ anchorTo = { app.v }, Text [ text = "x" ] ], onReady() { app.p.show() } ]`,
   "a State applied over a binding": `App [ width = 200, height = 100, w: number = 10, View [ width = { app.w }, height = 10, State [ applied = true, width = 50 ] ] ]`,
   "a child reading visibleRect": `App [ width = 200, height = 100, v: View [ width = 10, height = 10, Text [ text = { "" + parent.visibleRect.width } ] ] ]`,

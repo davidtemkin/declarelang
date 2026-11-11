@@ -1,4 +1,5 @@
 import { View } from "./view.js";
+import { type KeyEvent } from "./keys.js";
 import type { KeysService } from "./keys.js";
 /** The focused control's live silhouette, root-space — what the follower
  *  (below) computes and onGeometry subscribers receive. `root` lets a ring
@@ -108,6 +109,15 @@ export declare class FocusService {
     /** Was the person's last input a key (true) or a press (false)? Set as each
      *  arrives (deliverKeys, pressAt). */
     lastInputKeyboard: boolean;
+    /** The last focus outside command chrome (a menu bar, a menu, a command
+     *  button): where a command picked from a menu or run by a button starts its
+     *  walk (key-bindings.md). Kept as focus moves, so nothing depends on a
+     *  menu's focus having been given back. */
+    commandTarget: View | null;
+    /** Where a command starts now: the command target, or its nearest shown
+     *  ancestor still in the tree when it has gone or been hidden, else the root;
+     *  inside the topmost modal overlay when the target is behind it. */
+    commandStart(): View | null;
     /** The key service delivering to this one (deliverKeys) — asked whether a
      *  focus call comes from a key's handler. */
     keys: KeysService | null;
@@ -181,6 +191,10 @@ export declare class FocusService {
      *  how an overlay that takes focus takes it on opening. False when it holds
      *  nothing to focus. */
     focusIn(view: View): boolean;
+    /** **Internal.** Is focus inside a member scope entered within a `stop` (an
+     *  editor in a grid's cell)? A field's Escape that cancels an edit there hands
+     *  the key on, so one press cancels and leaves. */
+    _inMember(): boolean;
     /** Close the member scope focus has entered inside a `stop` (Esc in a cell's
      *  editor, in a list row's controls): focus goes back to the stop. True when
      *  it did. Esc never leaves a region (planes.md §13.3). */
@@ -227,6 +241,19 @@ export declare class FocusService {
  *  Home and End scroll it. A scroller that holds anything focusable is not: Tab
  *  reaches into it, and what it focuses is revealed. */
 export declare function bareScroller(v: View): boolean;
+/** The walk: from `from` (else the focused view, else the keyboard program's
+ *  root) outward. `sequence` matches only Escape-sequence bindings. */
+export declare function walkKeys(e: KeyEvent, from?: View | null, sequence?: boolean): {
+    taken: boolean;
+    prevent: boolean;
+};
+/** A command, walked from `from` (else the command target) outward: the first
+ *  view whose table binds it — keyed or keyless — or, for a standard verb, has
+ *  a method of its name. `run` false only asks: is it there, and enabled?
+ *  Returns "none" when no view answers it, else whether it is enabled — and,
+ *  when run, whether the command took it. */
+export declare function walkCommand(name: string, from: View | null, run: boolean): "none" | "off" | "on" | "taken";
+export declare function setCommandRunner(fn: (name: string) => boolean): void;
 export declare function deliverKeys(keys: KeysService, focus: FocusService): () => void;
 /** The runtime's focus service (LZX's lz.Focus). */
 export declare const Focus: FocusService;

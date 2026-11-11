@@ -25,10 +25,13 @@ export interface ClipboardHost {
 export declare function provideClipboardHost(h: ClipboardHost | null): void;
 /** Is there a view in `app` that takes this command now? (The native host
  *  enables its Edit menu's item by it.) */
-export declare function takesClipboard(app: View, kind: "copy" | "cut" | "paste"): boolean;
+export declare function takesClipboard(app: View, kind: "copy" | "cut" | "paste", from?: View | null): boolean;
+/** Does a host read and write the clipboard itself (the native host)? Only
+ *  then can a Paste picked from a menu read it. */
+export declare function hasClipboardHost(): boolean;
 /** ⌘C or ⌘X: the representations the taker put, or null when no view takes it
  *  or it put nothing (the platform's own copy then goes ahead). */
-export declare function deliverCopy(app: View, kind: "copy" | "cut"): Record<string, string> | null;
+export declare function deliverCopy(app: View, kind: "copy" | "cut", from?: View | null): Record<string, string> | null;
 /** ⌘V: the clipboard's representations and files, to the view that takes it.
  *  Returns whether one did. */
 export declare function deliverPaste(app: View, data: Record<string, string>, files?: readonly FileRecord[]): boolean;

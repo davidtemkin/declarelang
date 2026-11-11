@@ -114,7 +114,18 @@ there is one. A value control delivers through `input` from here and **never wri
 own value directly**, which is what lets a constrained control avoid fighting its
 constraint.
 On a control with a `menu`, an override calls `super.press()`: the base is what opens it
-from the keyboard.
+from the keyboard. On a control with a `command`, the base runs it.
+
+## command
+The name of a command this control runs when pressed — a command button: `Bold`, `Copy`.
+The command walks from the last focus outside command chrome outward, as a key does, and
+the first view whose `keyBindings` bind it runs it (`Commands.run`), so the button acts on
+the field or document the person was working in. A pointer press on it doesn't take the
+focus; it stays in the Tab order, and pressed from the keyboard it acts on the focus it
+came from.
+
+## _commandChrome
+**Internal.** A command button is command chrome: its focus is never where a command starts.
 
 ## focusShape()
 The focus silhouette the ring hugs, `{ x, y, w, h, rad }` in this control's own
@@ -135,21 +146,32 @@ Clears `focusVisible`.
 An override calls `super.onBlur()`, or `focusVisible` outlives the focus.
 
 ## onPointerDown
-Claims focus, clears the `:focus-visible` channel, and opens `menu` if there is one —
+Claims focus (not on a command button), clears the `:focus-visible` channel, and opens `menu` if there is one —
 menus open on **press**, not release, as the platform does. **An override calls
 `super.onPointerDown()`**, or clicking the control strands the keyboard elsewhere. An
 override may take the event, `onPointerDown(e: PointerEvent)`, for where the press landed
 (`e.x`, `e.y`, in the control's own coordinates) and the keys held with it.
 
-## onKeyDown
+## keyBindings
 Space and Enter run `press()`; ArrowDown opens `menu`. On a `slider`, the arrow keys
 run `accessibilityIncrement()` and `accessibilityDecrement()` — the methods a screen
 reader's adjust gesture calls, which the `slider` role requires a control to have — so
 the keyboard and assistive technology move the value by one path; on a `spinButton`, Up and
-Down do the same. Ignores auto-repeat for activation, not for the arrows.
-An override handles its own keys and passes the rest on with `super.onKeyDown(e)`, or the
-control loses Space, Enter and its arrows.
+Down do the same. Ignores auto-repeat for activation, not for the arrows. A disabled
+control passes every key on. A use site's or subclass's own `keyBindings` add to these,
+nearest first; an `onKeyDown` override handles its own keys and passes the rest on with
+`super.onKeyDown(e)`, or the control loses Space, Enter and its arrows.
 
+## _keyPress()
+**Internal.** Space and Enter: `press()`, unless the control is disabled or the key
+repeats. On a linked control, Enter then goes on, so the link is followed too.
+
+## _keyMenu()
+**Internal.** ArrowDown: opens `menu`, when there is one.
+
+## _keyAdjust()
+**Internal.** The arrows of a `slider`, and Up and Down of a `spinButton`: one step up or
+down, by the accessibility methods.
 
 ## onClick
 A click runs `press()` unless the control is disabled — so a control that overrides
@@ -234,7 +256,17 @@ class Control [
 
     // the activation seam — concrete controls override; pointer and keyboard both land here
 
-    press() { if (this.menu != null) this.openMenu() },
+    press() {
+        if (this.menu != null) this.openMenu()
+        else if (command != "") Commands.run(command)
+        },
+
+    // a command button runs a command on what the person was working in
+    // (key-bindings.md): the command walks from the last focus outside command
+    // chrome, and a press on the button doesn't take the focus from it
+
+    command: string = "",
+    _commandChrome: boolean = { command != "" },
 
     // the control's focus silhouette — override to ring something other than
     // the whole bounds (a Radio rings its dot). null = bounds + cornerRadius.
@@ -272,7 +304,7 @@ class Control [
     onPointerDown(e?: PointerEvent) {
         if (disabled) return
         focusVisible = false
-        Focus.focus(this)
+        if (command == "") Focus.focus(this)
         if (this.menu != null) this.openMenu()
         },
 
@@ -281,12 +313,30 @@ class Control [
 
     // A slider's arrows step it, by the same methods a screen reader calls.
 
-    onKeyDown(e: KeyEvent) {
-        if (!disabled && !e.repeat && (e.key == "Enter" || e.key == " ")) press()
-        else if (!disabled && !e.repeat && e.key == "ArrowDown" && this.menu != null) this.openMenu()
-        else if (!disabled && accessibilityRole == "slider" && e.key.startsWith("Arrow")) (this as any)[e.key == "ArrowRight" || e.key == "ArrowUp" ? "accessibilityIncrement" : "accessibilityDecrement"]()
-        else if (!disabled && accessibilityRole == "spinButton" && (e.key == "ArrowUp" || e.key == "ArrowDown")) (this as any)[e.key == "ArrowUp" ? "accessibilityIncrement" : "accessibilityDecrement"]()
-        else super.onKeyDown(e)
+    keyBindings = { [
+        ({ key: "Enter", command: "_keyPress" }), ({ key: "Space", command: "_keyPress" }),
+        ({ key: "ArrowDown", command: "_keyMenu" }),
+        ({ key: "ArrowRight", command: "_keyAdjust", args: [1] }), ({ key: "ArrowUp", command: "_keyAdjust", args: [1] }),
+        ({ key: "ArrowLeft", command: "_keyAdjust", args: [-1] }), ({ key: "ArrowDown", command: "_keyAdjust", args: [-1] }) ] },
+
+    _keyPress(e: KeyEvent) -> boolean {
+        if (disabled || e.repeat) return false
+        press()
+        return !(e.key == "Enter" && link != "")
+        },
+
+    _keyMenu(e: KeyEvent) -> boolean {
+        if (disabled || e.repeat || this.menu == null) return false
+        this.openMenu()
+        return true
+        },
+
+    _keyAdjust(d: number, e: KeyEvent) -> boolean {
+        if (disabled) return false
+        if (accessibilityRole != "slider" && !(accessibilityRole == "spinButton" && (e.key == "ArrowUp" || e.key == "ArrowDown"))) return false
+        const step = (this as any)[d > 0 ? "accessibilityIncrement" : "accessibilityDecrement"]
+        step.call(this)
+        return true
         },
 
     // a click activates, through the same seam as the keyboard; a control whose

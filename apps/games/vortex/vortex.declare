@@ -364,9 +364,9 @@ App [ appName = "Vortex", fontFamily = ["Menlo", "Consolas", "monospace"],
 
     /* ## The keyboard
        Discrete keys arrive as events; held keys (spin, fire) are read in the
-       frame step with `Keys.isDown`. */
+       frame step with `Keyboard.isDown`. */
 
-    keys: Keys [ onKeyDown(e: KeyEvent) { if (!e.repeat) app.press(e.code) }
+    keys: KeyListener [ onKeyDown(e: KeyEvent) { if (!e.repeat) app.press(e.code) }
         ],
 
     press(code: string) {
@@ -392,7 +392,7 @@ App [ appName = "Vortex", fontFamily = ["Menlo", "Consolas", "monospace"],
         else if ((code == "ArrowDown" || code == "KeyZ") && mode == "play") superzap()
         },
 
-    held(codes: string[]) -> boolean { return codes.some((c) => Keys.isDown(c)) },
+    held(codes: string[]) -> boolean { return codes.some((c) => Keyboard.isDown(c)) },
 
     /* ## Play */
 

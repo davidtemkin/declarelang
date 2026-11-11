@@ -1,6 +1,7 @@
 /** For the refusal above: the concrete members an abstract base's would-be
  *  subclass should extend instead. */
 export const ABSTRACT_CONCRETE: Readonly<Record<string, string>> = {
+  Keyboard: "KeyListener",
   Media: "Video, Audio",
   Stream: "EventStream, Socket",
 };
@@ -11,7 +12,7 @@ export const ABSTRACT_CONCRETE: Readonly<Record<string, string>> = {
  *  concrete members). Every other schema is a base a program class may
  *  extend. A test pins this set against the registry (SCHEMAS − REGISTRY_NAMES),
  *  so it cannot drift when a class joins either table. */
-export const ABSTRACT_SCHEMAS: ReadonlySet<string> = new Set(["Media", "Stream"]);
+export const ABSTRACT_SCHEMAS: ReadonlySet<string> = new Set(["Keyboard", "Media", "Stream"]);
 // Class schemas — the typed-attribute declarations of the built-in
 // classes, shared by the checker (check.ts) and the runtime bridge
 // (instantiate.ts). A schema is pure data: the class's name, its base
@@ -361,6 +362,13 @@ const ViewSchema: ClassSchema = {
     // (focus-place.md) — on an overlay, as it closes
     restoresFocusTo: { kind: "class", of: "View" },
     focusScope: enumType("FocusScope", "none", "stop", "capture", "region", "modal"),
+    // The view's key bindings (key-bindings.md): records `{ key, command, … }` a
+    // key walking from the focused view outward reads here. Every class layer's
+    // table is read, nearest first — declaring it adds a layer, never replaces one.
+    keyBindings: { kind: "array" },
+    // This view's `onKeyDown` means every key (a game, a terminal): it hands
+    // nothing on to `super`, and says so — the missing-super check stands down.
+    takesAllKeys: { kind: "boolean" },
     // Accessibility (docs/system-design/accessibility.md §3): what the view IS to
     // assistive technology. `accessibilityRole` is a token from a closed
     // vocabulary, fixed for the view's life, and a CONTRACT the compiler checks
@@ -1290,10 +1298,10 @@ const TimeSchema: ClassSchema = {
 // The runtime SERVICES as classes (sources.ts): non-visual members whose
 // handlers are called from outside the tree. Each declares the events it calls;
 // a handler for one it doesn't is the ordinary typo'd-handler error. Fan-out is
-// by instance — a menu, a dialog, and a menubar each holding a `Keys` member
-// all hear the keyboard at once.
+// by instance — a menu, a dialog, and a menubar each holding a `KeyListener`
+// member all hear the keyboard at once.
 const KeysSchema: ClassSchema = {
-  name: "Keys",
+  name: "KeyListener",
   base: NodeSchema,   // via the abstract Source (sources.ts)
   attrs: {},
   // navClaim: an overlay took (true) / released (false) the navigation keys
@@ -1301,6 +1309,15 @@ const KeysSchema: ClassSchema = {
   // commandHeld: the command key held alone for a moment (true), then let go
   // or joined (false) — when a panel of the shortcuts in force shows.
   events: ["keyDown", "keyUp", "navClaim", "commandHeld"],
+};
+
+// The keyboard as a service a body asks (`Keyboard.isDown("ShiftLeft")`): no
+// member, nothing to declare — abstract, so the reference documents it once
+// and a tag or a base names `KeyListener` instead (key-bindings.md).
+const KeyboardSchema: ClassSchema = {
+  name: "Keyboard",
+  base: NodeSchema,
+  attrs: {},
 };
 
 const FocusSchema: ClassSchema = {
@@ -1444,7 +1461,8 @@ export const SCHEMAS: Readonly<Record<string, ClassSchema>> = {
   Time: TimeSchema,
   Font: FontSchema,
   FontFace: FaceSchema,
-  Keys: KeysSchema,
+  KeyListener: KeysSchema,
+  Keyboard: KeyboardSchema,
   Focus: FocusSchema,
   Tooltips: TooltipsSchema,
   // Stream — the abstract base EventStream/Socket extend (url/active/retry +

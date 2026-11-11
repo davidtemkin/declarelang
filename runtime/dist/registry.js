@@ -66,7 +66,7 @@ export const ANIMATORS = { Animator, Spring };
  *  checking applies, and because being ordinary classes is what lets an app
  *  that never listens drop the service code entirely (slim-registry). */
 export const SOURCES = {
-    Keys: KeysSource,
+    KeyListener: KeysSource,
     Focus: FocusSource,
     Tooltips: TooltipsSource,
     // the stream family (streams.ts) — `Stream` itself is schema-only
@@ -110,7 +110,7 @@ export const REGISTRY_MANIFEST = [
     { name: "DataSource", table: "DATA", module: "data.js", export: "DataSource" },
     { name: "Animator", table: "ANIMATORS", module: "animator.js", export: "Animator" },
     { name: "Spring", table: "ANIMATORS", module: "spring.js", export: "Spring" },
-    { name: "Keys", table: "SOURCES", module: "sources.js", export: "KeysSource" },
+    { name: "KeyListener", table: "SOURCES", module: "sources.js", export: "KeysSource" },
     { name: "Focus", table: "SOURCES", module: "sources.js", export: "FocusSource" },
     { name: "Tooltips", table: "SOURCES", module: "sources.js", export: "TooltipsSource" },
     { name: "EventStream", table: "SOURCES", module: "streams.js", export: "EventStream" },

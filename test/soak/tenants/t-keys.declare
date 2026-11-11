@@ -2,7 +2,7 @@
 
 App [ width = 200, height = 100,
     n: number = 0,
-    Keys [ onKeyDown(e: KeyEvent) { app.n = app.n + 1 }
+    KeyListener [ onKeyDown(e: KeyEvent) { app.n = app.n + 1 }
         ],
     Time [ tick = 200,
         onTick(dt: number) { app.n = app.n + 1 }

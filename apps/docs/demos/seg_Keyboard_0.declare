@@ -1,0 +1,4 @@
+App [ width = 260, height = 100, fill = white, textColor = black,
+    Text [ x = 20, y = 30, fontSize = 20,
+        text = { Keyboard.isDown("ShiftLeft") ? "Shift is down" : "Hold Shift" } ]
+    ]

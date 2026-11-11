@@ -957,7 +957,7 @@ App [ theme = { { ...SanFrancisco, ...MarketMap } }, fill = { provided("theme").
 
     // Escape dismisses the stage, same as its close box
 
-    keys: Keys [
+    keys: KeyListener [
         onKeyUp(e: KeyEvent) { if (e.key == "Escape" && app.stageOpen) app.closeGroup() }
         ],
 

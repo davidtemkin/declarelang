@@ -678,6 +678,41 @@ and inside it Tab wraps and never leaves — a window, a pane; F6 and Shift-F6 m
 regions. `modal`: Tab wraps inside and never leaves; a dialog is one. Every scope remembers
 what last had focus inside it.
 
+## keyBindings
+The keys this view answers, as records: `{ key, command }`, and optionally `label`, `group`,
+`args`, `when`, `enabled`, `repeat` and `everywhere` — `label` and `group` are what the
+hold-⌘ panel shows. A key walks from the focused view outward —
+the view, then each container, out to the App — and the first binding that matches takes it:
+the nearest one wins, so a focused slider's arrows come before an App's. `command` names a
+method of this view; it gets `args` first, then the key event, and returning `false` hands
+the key on to the next binding out. Every class layer's table is read, nearest first — a use
+site's, then its class's, then each superclass's — so declaring `keyBindings` adds keys to a
+class's own and never takes them away; a record with `command: null` removes one, and the
+key walks on.
+
+`key` is spelled the Windows way, `"Ctrl+S"`, `"Ctrl+Shift+Z"`, `"Alt+ArrowLeft"`,
+`"Enter"`, `"Escape"`, `"Tab"`, `"Space"`: on a Mac, Ctrl is ⌘ and Alt is ⌥, and `MacCtrl`
+is its Control key. The Mac's glyphs are accepted too (`"⌘S"`). `code` matches a physical
+key instead, whatever the layout (`{ code: "KeyW", command: "forward" }`), and `"Escape Tab"`
+is a sequence. `when` names a method that says whether the binding is there at all; `enabled`
+(`false`, or such a method) keeps it but takes the key and does nothing; `repeat: false`
+takes a held key's repeats without running; `everywhere: true` lets an App's binding reach
+past an open sheet or dialog, which otherwise holds the page's keys back. `command: "native"`
+gives the key to the platform: a text field's typing is its editor's this way.
+
+```declare-fragment
+editor: View [ focusable = true,
+    keyBindings = { [ ({ key: "Ctrl+B", command: "bold", label: "Bold" }),
+        ({ key: "Escape", command: "clearAndPass" }) ] },
+    bold() { app.bolded = !app.bolded },
+    clearAndPass() { app.query = ""; return false } ]
+```
+
+## takesAllKeys
+This view's `onKeyDown` means every key — a game, a terminal — and hands none on to
+`super.onKeyDown(e)`. Saying so is what quiets the warning an `onKeyDown` without `super`
+draws. Keys with Ctrl, Alt or a function key still reach the bindings first.
+
 ## accessibilityRole
 What this view **is** to a screen reader and to every platform's accessibility API — a word,
 written once, fixed for the view's life (a `{ }` role is a compile error). It is also a
@@ -948,11 +983,13 @@ A press — or a scroll — was aimed past this view while its policy (an overla
 `pressPolicy`, `scrollPolicy`) asked to hear it: the cue for an overlay to close.
 
 ## onKeyDown
-A key was pressed while the view holds focus; the event carries the key. For app-wide
-shortcuts use a `Keys` subscription instead — this is for the focused view only. **Tab and
-Shift-Tab never arrive:** they move focus, to where `tabOrder()` says. The base
-body moves among a `focusScope = stop`'s members on the arrows: take the keys you want
-and hand the rest to `super.onKeyDown(e)`.
+A key was pressed while the view holds focus; the event carries the key, Tab included. Its
+base body is the walk: the key goes on to this view's `keyBindings`, then each container's,
+out to the App and the standard table, where Tab moves focus. Take the keys you want and
+hand the rest to `super.onKeyDown(e)` — a key you neither take nor hand on stops here, Tab
+too. A key with Ctrl, Alt or a function key reaches the bindings first and arrives here only
+when none takes it, so a forgotten `super` can't swallow Ctrl+S. For a key that should work
+wherever focus is, bind it on the App (`keyBindings`); a `KeyListener` member hears every raw key.
 
 ## onKeyUp
 A key was released while the view holds focus — the partner of `keyDown`.
@@ -1401,8 +1438,10 @@ The default traversal list — visible children in source order. **The thing a `
 override calls** when it wants the ordinary answer under a condition of its own.
 
 ## onKeyDown()
-The base body of every view's key handler: inside a `focusScope = stop`, the arrows move to
-the next or previous member and Home and End to the ends. **The thing an `onKeyDown`
+The base body of every view's key handler: the walk — this view's `keyBindings`, then each
+container's, then the standard table. Built into every view's table: inside a
+`focusScope = stop`, the arrows move to the next or previous member and Home and End to the
+ends; a scroller scrolls by its keys until it reaches its edge. **The thing an `onKeyDown`
 override hands keys to** when it does not take them:
 
 ```declare-fragment

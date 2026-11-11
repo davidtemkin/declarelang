@@ -184,6 +184,10 @@ final class Bridge {
     var firstCommitAt: CFAbsoluteTime = 0
     let startedAt = CFAbsoluteTimeGetCurrent()
     var onTitle: ((String) -> Void)?
+    /// A ⌘ chord posted to the walk first (DeclareView.performKeyEquivalent)
+    /// has been answered: `taken` false = nothing in the program took it, so
+    /// the host's own menu may (key-bindings.md).
+    var onKeyAnswer: ((Int, Bool) -> Void)?
     /// The Inspector's open state, pushed from JS when it changes.
     var onInspector: ((Bool) -> Void)?
     var onBootFailed: ((String) -> Void)?
@@ -457,6 +461,13 @@ final class Bridge {
         host.setObject({ [weak self] (title: String) in
             DispatchQueue.main.async { self?.onTitle?(title) }
         } as @convention(block) (String) -> Void, forKeyedSubscript: "setTitle")
+
+        // A key the host posted with an id (a ⌘ chord, the walk first): did the
+        // program take it? Answered after the fact — the host never waits on the
+        // runtime, which itself waits on main for rich-text layout.
+        host.setObject({ [weak self] (id: Int, taken: Bool) in
+            DispatchQueue.main.async { self?.onKeyAnswer?(id, taken) }
+        } as @convention(block) (Int, Bool) -> Void, forKeyedSubscript: "keyAnswer")
 
         // HISTORY, from the program to the window — the pair mirror's two
         // outward verbs (see onHistoryEntry / onHistorySquare).

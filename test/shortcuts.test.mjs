@@ -56,7 +56,7 @@ await test("the nearest declaration of a key takes it; the press goes no further
         f: View [ width = 50, height = 20, focusable = true ] ],
     other: View [ x = 250, width = 50, height = 20, focusable = true ],
     heard: number = 0,
-    keys: Keys [ onKeyDown(e: KeyEvent) { if (e.meta) app.heard = app.heard + 1 } ]
+    keys: KeyListener [ onKeyDown(e: KeyEvent) { if (e.meta) app.heard = app.heard + 1 } ]
     ]`);
   Focus.focus(app.pane.f); settle();
   assert.equal(press("s", { meta: true }), true, "a declared chord is taken");

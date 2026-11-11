@@ -86,7 +86,7 @@ App [ appName = "Stargate", fill = black,
     // the arcade's controls, on the keyboard or the touch screen
 
     controls() -> Controls {
-        const down = (key: string, button: string) => (Keys.isDown(key) && key != app.heldBack) || app.pad.isDown(button)
+        const down = (key: string, button: string) => (Keyboard.isDown(key) && key != app.heldBack) || app.pad.isDown(button)
         return { up: down("KeyQ", "up"), down: down("KeyA", "down"), thrust: down("Quote", "thrust"), reverse: down("KeyZ", "reverse"),
             fire: down("Enter", "fire"), smartBomb: down("Slash", "smartBomb"), hyperspace: down("Space", "hyperspace"),
             inviso: down("Semicolon", "inviso") }
@@ -98,7 +98,7 @@ App [ appName = "Stargate", fill = black,
 
     paused: boolean = false,
     heldBack: string = "",
-    keys: Keys [
+    keys: KeyListener [
         onKeyDown(e: KeyEvent) {
             app.restCursor()
             if (e.repeat || e.meta || e.ctrl || e.alt) return

@@ -142,7 +142,7 @@ await test("on a scrolled page, a press inside an open drawer is inside it, howe
 await test("one Esc closes the top overlay and reaches no Keys member of the program; the next reaches it", async () => {
   const app = await boot(`App [ width = 600, height = 400,
     escs: number = 0,
-    keys: Keys [ onKeyDown(e: KeyEvent) { if (e.key == "Escape") app.escs = app.escs + 1 } ],
+    keys: KeyListener [ onKeyDown(e: KeyEvent) { if (e.key == "Escape") app.escs = app.escs + 1 } ],
     opener1: Button [ x = 20, y = 20, label = "Anchor" ],
     dlg: Dialog [ title = "Outer", Button [ label = "Inner" ] ],
     pop: Popover [ anchorTo = { app.opener1 }, Button [ label = "In the popover" ] ]

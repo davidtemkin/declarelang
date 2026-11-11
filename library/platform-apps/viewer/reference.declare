@@ -12,7 +12,7 @@ script {
         "Combobox", "ContextMenu", "Control", "DOMIsland", "DataGrid", "DataGridCell", "DataGridEdit", "DataGridHeading",
         "DataGridHeadingRow", "DataGridRow", "DataGridText", "DataSource", "Dataset", "DatePicker", "Dialog", "Disclosure",
         "Divider", "EventStream", "Field", "FieldLayout", "Floating", "Focus", "FocusRing", "Font",
-        "FontFace", "Form", "Gauge", "HTMLText", "Icon", "IconHost", "Image", "Keys",
+        "FontFace", "Form", "Gauge", "HTMLText", "Icon", "IconHost", "Image", "KeyListener",
         "Layout", "LightbulbIcon", "Markdown", "Menu", "MenuBar", "MinusIcon", "MonthCalendar", "MonthCalendarArrow",
         "MonthCalendarDay", "MoonIcon", "NativeText", "Node", "OverlayStrata", "PlusIcon", "Popover", "ProgressBar",
         "Radio", "RadioGroup", "ResponsiveLayout", "SearchField", "Segmented", "SegmentedItem", "Sheet", "Shortcuts",

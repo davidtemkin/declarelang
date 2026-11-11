@@ -19,7 +19,7 @@ Bottom-up, each layer a client of the one below — and each useful on its own:
 **DOM is the kernel reference** (LZX's `LzKeyboardKernel` is itself a thin wrapper over DOM `keydown`/`keyup`). Keys always originate from the DOM host — canvas included — so the service normalizes ONE DOM source regardless of backend. The service is LZX-shaped on top of the raw events:
 
 - **Events:** `onKeyDown` / `onKeyUp`, carrying the physical `code` (`KeyboardEvent.code`), the produced `key`, and modifier flags (shift/ctrl/alt/meta). No `keypress` (deprecated).
-- **Held-key set** (LZX's `downKeysHash` / `isKeyDown`): `Keys.isDown(code)` answers what is pressed *right now* — the "key bitmap". Cleared on blur of the whole app (so a key held across a focus-out doesn't stick).
+- **Held-key set** (LZX's `downKeysHash` / `isKeyDown`): `Keyboard.isDown(code)` answers what is pressed *right now* — the "key bitmap". Cleared on blur of the whole app (so a key held across a focus-out doesn't stick).
 - **Chords** (LZX's `callOnKeyCombo`): register a handler for a combination (`["control","a"]`), built on the held-set.
 - **Delivery:** the global stream fires on `Keys` (focus-independent), AND the focused view receives the same events (Layer 2) — so a field edits while a global shortcut still works.
 

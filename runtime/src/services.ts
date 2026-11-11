@@ -1,5 +1,5 @@
 // The runtime services usable INSIDE `{ }` bodies — `Focus.focus(this)` in a
-// click handler, `Keys.isDown("Shift")` in a constraint, `SanFrancisco`
+// click handler, `Keyboard.isDown("Shift")` in a constraint, `SanFrancisco`
 // in a style. Injecting them is a SIDE EFFECT, and this module exists to be
 // the smallest thing that carries it.
 //
@@ -33,6 +33,7 @@ import { pressOutside, scrollOutside, contextOf, inside as insideAcross, leafAcr
 import type { InteractionView } from "./interaction.js";
 import { FilePicker } from "./files.js";
 import { Clipboard } from "./clipboard.js";
+import { Commands } from "./commands.js";
 import { Inspect } from "./inspect-service.js";
 import { Accessibility } from "./accessibility-service.js";
 import { afterSettle } from "./reactive.js";
@@ -70,7 +71,7 @@ setOutsidePressHook(
     return false;
   },
   (x, y, rx, ry) => { const root = Focus.getRoot(); return root !== null && scrollOutside(root, x, y, rx, ry); });
-setBodyServices({ Focus, Keys, FilePicker, Clipboard, Inspect, Accessibility, afterSettle, activeTone, measureText, escapeHtml, ...THEME_PRESETS });
+setBodyServices({ Focus, Keyboard: Keys, FilePicker, Clipboard, Commands, Inspect, Accessibility, afterSettle, activeTone, measureText, escapeHtml, ...THEME_PRESETS });
 // A focused island is not a control: what its program claims, it claims itself.
 setKeysFocusProbe(() => { const f = Focus.getFocus(); return f !== null && !("$tenant" in f); });
 

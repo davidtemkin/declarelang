@@ -856,7 +856,7 @@ App [ appName = "To-do", minWidth = 320,
             else if (id == "undo") app.undo()
             }
         ],
-    keys: Keys [ onKeyDown(e: KeyEvent) { if (e.key == "Escape" && !app.adding) app.openId = 0 }
+    keys: KeyListener [ onKeyDown(e: KeyEvent) { if (e.key == "Escape" && !app.adding) app.openId = 0 }
         ],
 
     // Views used from far away get one name each here, so only these lines
@@ -969,7 +969,7 @@ App [ appName = "To-do", minWidth = 320,
                 value = { app.query },
                 commit(v: string) { app.query = v },
                 onKeyDown(e: KeyEvent) {
-                    if (e.key != "Escape") return
+                    if (e.key != "Escape") { super.onKeyDown(e); return }
                     if (app.query == "") { app.closeSearch() } else { app.query = "" }
                     },
                 onBlur() { if (app.query == "") app.searchOpen = false }

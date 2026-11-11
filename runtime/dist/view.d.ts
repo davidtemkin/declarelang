@@ -998,6 +998,17 @@ export interface NativeHostLike {
 export declare function setNativeTextHook(fn: (view: View) => NativeHostLike | null): void;
 export declare function setCenterMovedHook(fn: (view: View, axis: "x" | "y") => void): void;
 export declare function setFocusDiscardHook(fn: (view: View) => void): void;
+/** The focus service's default for a key a view's handlers left alone (the
+ *  base `onKeyDown`), registered by focus.ts — the same one-way seam. */
+/** One class layer's `keyBindings` (key-bindings.md): the attribute as written
+ *  and the `classroot` it was written against. A view's layers are kept use
+ *  site first, then each class body from the leaf down (instantiate.ts). */
+export interface KeyLayer {
+    attr: {
+        value: unknown;
+    };
+    croot: View | null;
+}
 export declare function setKeyDefaultHook(fn: (view: View, e: unknown) => void): void;
 export declare function noteFocused(now: View | null, byKeyboard?: boolean): void;
 /** A node's address for an error message: its authored-name path up the tree

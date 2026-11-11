@@ -8,7 +8,7 @@ App [ width = 300, height = 200,
     keys: Shortcuts [ items = { [ ({ id: "save", key: "⌘S", label: "Save" }) ] },
         picked(id: string) { app.n = app.n + 1 }
         ],
-    Keys [ onKeyDown(e: KeyEvent) { app.n = app.n + 1 }
+    KeyListener [ onKeyDown(e: KeyEvent) { app.n = app.n + 1 }
         ],
     clock: Time [ tick = 100,
         onTick(dt: number) { app.n = app.n + 1 }

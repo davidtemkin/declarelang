@@ -87,7 +87,7 @@ App [ appName = "Tempest", fill = black,
     // turn or a shot held to go on carries on at once (as in Asteroids and Stargate).
 
     tapped: string[] = [],
-    keys: Keys [
+    keys: KeyListener [
         onKeyDown(e: KeyEvent) {
             if (e.repeat || e.meta || e.ctrl || e.alt) return
             if (app.paused) { app.paused = false; if (e.key == "Escape") return }
@@ -104,7 +104,7 @@ App [ appName = "Tempest", fill = black,
         const tapped = app.tapped
         app.tapped = []
         const down = (button: string, ...keys: string[]) =>
-            app.pad.isDown(button) || tapped.includes(button) || keys.some((k) => Keys.isDown(k) || tapped.includes(k))
+            app.pad.isDown(button) || tapped.includes(button) || keys.some((k) => Keyboard.isDown(k) || tapped.includes(k))
         const pressed = (...keys: string[]) => keys.some((k) => tapped.includes(k))
         let turn = (down("right", "ArrowRight", "KeyS") ? 6 : 0) - (down("left", "ArrowLeft", "KeyA") ? 6 : 0)
         if (app.game.phase == "choosing") turn = this.chooseTurn(Math.sign(turn), pressed("ArrowRight", "KeyS", "ArrowLeft", "KeyA", "right", "left"))

@@ -308,8 +308,46 @@ final class DeclareView: NSView {
 
     // ── keyboard ────────────────────────────────────────────────────────────
 
+    /// ⌘ chords the walk has been offered and not yet answered (keyAnswered).
+    private var pendingKeys: [Int: NSEvent] = [:]
+    private var keySeq = 0
+
+    /// THE WALK GOES FIRST (key-bindings.md). AppKit offers a ⌘ chord to the
+    /// view hierarchy (this) before the main menu; the program's bindings get it
+    /// first, as in a browser. The host never waits on the runtime: the key is
+    /// posted, AppKit is told it was handled, and a key nothing in the program
+    /// took comes back (keyAnswered) and is replayed to the menu. Quit, Close,
+    /// Hide and Minimize stay the host's, ahead of the walk. A native field's
+    /// own editing chords are its own (its nil-targeted Edit commands).
+    override func performKeyEquivalent(with e: NSEvent) -> Bool {
+        guard e.type == .keyDown, e.modifierFlags.contains(.command), bridge != nil else { return super.performKeyEquivalent(with: e) }
+        let k = Self.keyName(e).lowercased()
+        let plain = e.modifierFlags.intersection([.shift, .option, .control]).isEmpty
+        if plain && ["q", "w", "h", "m"].contains(k) { return false }
+        guard let fr = window?.firstResponder as? NSView, fr === self || fr.isDescendant(of: self) else { return super.performKeyEquivalent(with: e) }
+        if fr !== self && ["a", "c", "x", "v", "z"].contains(k) { return false }
+        // ⌘C over a live selection in a drawn flow copies it (no text view holds it)
+        if plain && k == "c", let text = bridge.tree?.allFlows().first(where: { $0.selectedText != nil })?.selectedText {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+            return true
+        }
+        keySeq += 1
+        pendingKeys[keySeq] = e
+        bridge.call("__declareKey", ["keydown", Self.keyName(e), mods(e), e.isARepeat ? 1 : 0, Self.keyCode(e.keyCode), keySeq])
+        bridge.needsFrame()
+        return true
+    }
+
+    /// The program answered a posted ⌘ chord: one it didn't take goes on to
+    /// the host's menu, as it would have without the walk.
+    func keyAnswered(_ id: Int, taken: Bool) {
+        guard let e = pendingKeys.removeValue(forKey: id) else { return }
+        if !taken { _ = NSApp.mainMenu?.performKeyEquivalent(with: e) }
+    }
+
     override func keyDown(with e: NSEvent) {
-        if e.modifierFlags.contains(.control), Self.keyName(e).lowercased() == "t" {
+        if Self.debugHooks, e.modifierFlags.contains(.control), Self.keyName(e).lowercased() == "t" {
             // A key event carries no mouse location — ask the window where the
             // pointer actually is.
             let win = window?.mouseLocationOutsideOfEventStream ?? .zero
@@ -318,26 +356,25 @@ final class DeclareView: NSView {
             bridge?.call("__declareTraceHit", [Double(p.x), Double(p.y)])
             return
         }
-        if e.modifierFlags.contains(.control), Self.keyName(e).lowercased() == "d" {
+        if Self.debugHooks, e.modifierFlags.contains(.control), Self.keyName(e).lowercased() == "d" {
             bridge?.tree?.dumpFlows()
             bridge?.tree?.dumpText(ProcessInfo.processInfo.environment["DECLARE_DUMP_TEXT"] ?? "Desktop")
-            return
-        }
-        // ⌘C over a live selection copies it. The flow is drawn rather than
-        // hosted in an NSTextView, so this is the responder that has to do it.
-        if e.modifierFlags.contains(.command), Self.keyName(e).lowercased() == "c",
-           let flow = bridge?.tree?.allFlows().first(where: { $0.selectedText != nil }),
-           let text = flow.selectedText {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(text, forType: .string)
             return
         }
         let key = Self.keyName(e)
         bridge.call("__declareKey", ["keydown", key, mods(e), e.isARepeat ? 1 : 0, Self.keyCode(e.keyCode)])
         bridge.needsFrame()
-        // Let ⌘-shortcuts reach the menu bar as well.
-        if e.modifierFlags.contains(.command) { super.keyDown(with: e) }
     }
+
+    /// ⌃T (trace the hit under the pointer) and ⌃D (dump the drawn text) are
+    /// the host's debugging hooks: a debug build's, or DECLARE_DEBUG_KEYS=1.
+    static let debugHooks: Bool = {
+        #if DEBUG
+        return true
+        #else
+        return ProcessInfo.processInfo.environment["DECLARE_DEBUG_KEYS"] == "1"
+        #endif
+    }()
     // ── the Edit menu's Copy, Cut and Paste ───────────────────────────────────
     //
     // Reached when no text view is first responder (a field keeps its own). A
@@ -434,7 +471,7 @@ final class DeclareView: NSView {
 
     /// The Mac's virtual key code → `KeyboardEvent.code`: the PHYSICAL key, by
     /// its place on a US keyboard, whatever the layout prints on it — the names
-    /// a browser gives (Chromium's table), so `Keys.isDown("KeyA")` is the same
+    /// a browser gives (Chromium's table), so `Keyboard.isDown("KeyA")` is the same
     /// key on every host.
     static func keyCode(_ k: UInt16) -> String {
         Self.codes[k] ?? "Unidentified"

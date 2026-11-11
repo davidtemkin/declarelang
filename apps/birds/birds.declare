@@ -337,7 +337,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
 
     // Esc closes a bird's page — the same follow as its close box
 
-    pageKeys: Keys [ onKeyUp(e: KeyEvent) { if (e.key == "Escape" && app.bird != null) app.followLink("#") }
+    pageKeys: KeyListener [ onKeyUp(e: KeyEvent) { if (e.key == "Escape" && app.bird != null) app.followLink("#") }
         ],
 
     page: View [ x = { app.colX }, y = 84, width = { app.colW }, visible = { app.bird != null },

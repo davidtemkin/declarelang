@@ -185,16 +185,163 @@ as the third argument, `app.viewAt(e.rootX, e.rootY, ghost)`, and the walk skips
 
 ## Keyboard events
 
-A focused view receives `onKeyDown` and `onKeyUp` — right for keys that belong to one
-widget. For keys the whole app hears regardless of focus, add a [`Keys`](declare-docs:Keys) member (a
-command with a label — Save, Find — is a [shortcut](#keyboard-shortcuts), below). Like
-a [`Dataset`](declare-docs:Dataset) or a [`Spring`](declare-docs:Spring), it is a child with no pixels, and it lives as long as the node
-that declares it:
+A key goes to the view that has keyboard focus (how focus moves is in
+[Controls](declare-docs:guide:controls@keyboard-focus)) and from there outward — the view,
+its container, that one's container, out to the App — and the first view that binds the key
+takes it. After the App come the standard keys: Tab and Shift-Tab move focus, and F6 moves
+between regions (Esc then Tab too, where a browser keeps F6 for itself). A key nothing takes
+is left to the browser, which may scroll the page with it. So:
+
+- **The nearest view wins.** A focused slider's arrows come before an arrow the App binds;
+  a pane can give ⌘F a meaning of its own while the rest of the program keeps the App's.
+- **A text field keeps its typing** and its editing keys — ⌘A, ⌘C, ⌘X, ⌘V, ⌘Z and the
+  caret's moves — as text fields do everywhere. Tab, Escape and Enter go on from it.
+- **An open sheet or dialog holds the page's keys back.** With focus inside one, the walk
+  ends at it: the page's ⌘S doesn't save behind a sheet, while Tab still moves within it.
+  An open menu or list takes its own keys — the arrows, Enter, Escape.
+- **A key with Ctrl, Alt or a function key** reaches the bindings before any `onKeyDown`,
+  below, so a handler can't swallow ⌘S by mistake.
+- **A program in an [`AppIsland`](declare-docs:AppIsland)** — one in each of a desktop's
+  windows — keeps its plain keys, while a chord it doesn't take goes on to the program around
+  it: the desktop's ⌘W closes the window.
+
+### Key bindings
+
+A view says which keys it answers with `keyBindings`: records naming a key and the method
+it runs.
+
+```declare
+App [ width = 320, height = 140, fill = white, textColor = black,
+    n: number = 0,
+    counter: View [ x = 20, y = 20, width = 280, height = 60, focusable = true,
+        keyBindings = { [ ({ key: "ArrowUp", command: "bump", args: [1] }),
+            ({ key: "ArrowDown", command: "bump", args: [-1] }),
+            ({ key: "Escape", command: "reset" }) ] },
+        bump(d: number) { app.n = app.n + d },
+        reset() { app.n = 0 },
+        Text [ x = 10, y = 18, fontSize = 20, text = { `n = ${app.n}` } ] ]
+    ]
+```
+
+Click the counter, then use the arrows and Escape. `command` names a method of the view the
+table is on; `args`, when there are any, come before the key event it is given. The library's
+controls answer their keys the same way — a `Button`'s Space and Enter are bindings — and a
+class's table and a use site's add up: a use site's bindings come first, the class's are
+still there, and a binding with `command: null` takes an inherited key away.
+
+A command that does its part and returns `false` hands the key on to whatever would have
+had it next — a search field that clears on Escape, then lets Escape close the sheet it is
+in. When the next step is one you know, call it: a cell whose Tab saves the cell, then calls
+`Focus.next()`.
+
+Keys are spelled the Windows way — `"Ctrl+S"`, `"Ctrl+Shift+Z"`, `"Alt+ArrowLeft"`,
+`"Enter"`, `"Space"` — and on a Mac Ctrl is ⌘ and Alt is ⌥ (`MacCtrl` is its Control key);
+the Mac's glyphs, `"⌘S"`, are accepted too. A typed symbol is written as it is typed:
+`"Ctrl+}"`, not `"Ctrl+Shift+]"`. A binding can also say:
+
+- `code: "KeyW"` — the physical key, whatever the layout (a game's WASD);
+- `when: "methodName"` — the binding is there only while that method says so;
+- `enabled: false` (or a method's name) — shown greyed, it takes the key and does nothing;
+- `repeat: false` — a held key's repeats are taken but don't run it again;
+- `label` and `group` — what the [hold-⌘ panel](#keyboard-shortcuts) shows;
+- `everywhere: true` — an App binding that still reaches past an open sheet or dialog;
+- `command: "native"` — the platform's own use of the key, as a text field's typing is.
+
+`"Escape Tab"` is a sequence: a view that binds it takes Esc then Tab, the way out of a
+region, for itself — a terminal does.
+
+### Handling a key in code
+
+A focused view also receives `onKeyDown` and `onKeyUp`, for keys that need code rather than a
+name. The base `onKeyDown` is the walk itself, so an override takes the keys it wants and
+hands the rest on — Tab included:
+
+```declare-fragment
+grid: View [ focusable = true,
+    rows: number = 0,
+    onKeyDown(e: KeyEvent) {
+        if (e.key == "ArrowUp" && e.shift) rows = rows + 1
+        else super.onKeyDown(e)
+        } ]
+```
+
+The event carries `key` (`"ArrowUp"`, `"Escape"`, `"a"`), `code`, and the modifier flags. A
+key neither taken nor handed on stops at the view, so an `onKeyDown` without `super` draws a
+warning. A view that really takes every key — a game, a terminal — says so with
+`takesAllKeys = true`.
+
+### Commands: menus and buttons
+
+A menu item or a button can run a **command** instead of an action of its own: a name,
+looked up the way a key is. `({ label: "Bold", key: "Ctrl+B", command: "bold" })` in a
+menu, or `Button [ label = "B", command = "bold" ]`, walks from where the person was
+working — the last view focused that isn't a menu bar, a menu or a command button — outward,
+and the first view whose `keyBindings` bind `bold` runs it. A binding with no key, `({
+command: "bold" })`, says a view answers the command without a key of its own.
+
+```declare
+App [ width = 420, height = 200, fill = white, textColor = black,
+    bolded: boolean = false,
+    bar: View [ x = 20, y = 20, width = 380, height = 36,
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        Button [ label = "Bold", command = "bold" ],
+        Button [ label = "Clear", command = "clear" ] ],
+    editor: View [ x = 20, y = 70, width = 380, height = 100, focusable = true, fill = 0xF4F4F4,
+        keyBindings = { [ ({ key: "Ctrl+B", command: "bold" }), ({ command: "clear" }) ] },
+        bold() { app.bolded = !app.bolded },
+        clear() { app.bolded = false },
+        Text [ x = 10, y = 10, text = { app.bolded ? "Bold is on — click here, then a button" : "Bold is off — click here, then a button" } ] ]
+    ]
+```
+
+So a menu's Bold and Ctrl+B reach the same view, and a button doesn't take the focus from
+what it acts on. As a menu opens, an item whose command no view answers is greyed. A
+context menu's commands act on the view it was opened on. `copy`, `cut` and `paste` reach a
+view's `onClipboardCopy`, `onClipboardCut` and `onClipboardPaste`, as the keys do
+([Copy, cut and paste](#copy-cut-and-paste)); a Paste picked with the mouse can't read the
+clipboard in a browser, so it is greyed there. Code can run one too: `Commands.run("bold")`.
+
+### Keyboard shortcuts
+
+A [`Shortcuts`](declare-docs:Shortcuts) member is the same kind of table spelled as data
+delivered by id: records with the key, the label a person reads, and the id its `picked`
+receives — useful when the commands are themselves data.
+
+```declare
+App [ width = 520, height = 240,
+    saved: number = 0,
+    keys: Shortcuts [ title = "Notes",
+        items = { [ ({ id: "save", key: "Ctrl+S", label: "Save" }), ({ id: "clear", key: "Ctrl+Shift+K", label: "Clear" }) ] },
+        picked(id: string) { if (id == "save") app.saved = app.saved + 1 }
+        ],
+    Text [ x = 20, y = 20, text = { "Saved " + app.saved + " times — press ⌘S" } ]
+    ]
+```
+
+A set covers the view it is declared on and is read in the same walk, after that view's own
+`keyBindings`. A shortcut that fires is not also a `KeyListener` event, and not also the browser's
+(⌘S does not save the page). A [`MenuBar`](declare-docs:MenuBar)'s items carry their keys
+already (`key: "Ctrl+N"`), and those are its program's shortcuts, so a program with a menu
+bar declares them once.
+
+Holding ⌘ alone (Ctrl elsewhere) shows the keys in force where focus is: every labelled
+binding and every shortcut, each key once, from the nearest view that binds it.
+[`Keyboard.shortcutsInForce()`](declare-docs:Keyboard.method.shortcutsInForce) lists the same, for a
+panel of your own, and a `KeyListener` hears ⌘ held alone as
+[`onCommandHeld`](declare-docs:KeyListener.event.commandHeld).
+
+### Keys the program polls
+
+A game reads the keyboard rather than answering keys: a [`KeyListener`](declare-docs:KeyListener)
+member hears every key down and up wherever focus is, and
+[`Keyboard.isDown("ShiftLeft")`](declare-docs:Keyboard.method.isDown) asks about any key at any
+moment. Like a [`Dataset`](declare-docs:Dataset) or a [`Spring`](declare-docs:Spring), a
+`KeyListener` is a child with no pixels, and it lives as long as the node that declares it:
 
 ```declare
 App [ width = 240, height = 100, fill = white, textColor = black,
     n: number = 0,
-    keys: Keys [
+    keys: KeyListener [
         onKeyUp(e: KeyEvent) {
             if (e.key == "ArrowUp") { app.n = app.n + 1 }
             else if (e.key == "ArrowDown") { app.n = app.n - 1 }
@@ -204,66 +351,22 @@ App [ width = 240, height = 100, fill = white, textColor = black,
     ]
 ```
 
-Click the preview, then use the arrow keys. The event carries `key` (`"ArrowUp"`,
-`"Escape"`, `"a"`), `code`, and modifier flags. `Keys` hears every key, even while a text
-field has focus, so gate single-key handling on app state where that matters. A pointer
-event carries the keys held with it, by the same names — `e.shift`, `e.meta`, `e.ctrl`,
-`e.alt` — so a click decides from its own event whether it extends a selection (Shift) or
-adds to one (⌘, Ctrl off the Mac). [`Keys.isDown("ShiftLeft")`](declare-docs:Keys.method.isDown)
-asks about any key at any moment. Several `Keys` members all hear the keyboard; each lives
-with its owner.
-Keyboard focus itself is in [Controls](declare-docs:guide:controls@keyboard-focus).
+Click the preview, then use the arrow keys. A `KeyListener` hears every key, even while a text field
+has focus, so gate single-key handling on app state where that matters; it is not part of
+the walk, and takes nothing from it. A key a view polls with `Keyboard.isDown` is the program's
+while that view is shown: the browser's own use of it stands down — Space and the arrows
+don't scroll the page, a letter doesn't start the browser's find — unless Command, Control or
+Option is held, or a text field has focus. A pointer event carries the keys held with it, by
+the same names — `e.shift`, `e.meta`, `e.ctrl`, `e.alt` — so a click decides from its own
+event whether it extends a selection (Shift) or adds to one (⌘, Ctrl off the Mac).
 
-A key a view polls with `Keys.isDown` is the program's while that view is shown: the
-browser's own use of the key stands down — Space and the arrows don't scroll the page, a
-letter doesn't start the browser's find — unless Command, Control or Option is held, or a
-text field has focus. A game reads its keys with `Keys.isDown` and gets exactly this.
-
-When a page runs more than one program — another program in an
-[`AppIsland`](declare-docs:AppIsland), as a desktop runs one in each window — the
-keyboard goes where focus is. Focus on a view gives it to that view's program; focus on
-an island gives it to the program inside; with nothing focused, the outer program has it.
-Only that program's `Keys` members hear keys, and its `Keys.isDown` alone answers yes. A
-host hands a program the keyboard by focusing its island (a focusable island, and
-`onPointerDown() { Focus.focus(this) }`), and a program can take it by focusing one of
-its own views. A key held as the keyboard moves on is released, for the program that
-had it.
-
-### Keyboard shortcuts
-
-A command a person can also pick — Save, New, Find — is a shortcut, and a shortcut is
-**data**: a [`Shortcuts`](declare-docs:Shortcuts) member holds records with the key, the
-label a person reads, and the id its `picked` receives.
-
-```declare
-App [ width = 520, height = 240,
-    saved: number = 0,
-    keys: Shortcuts [ title = "Notes",
-        items = { [ ({ id: "save", key: "⌘S", label: "Save" }), ({ id: "clear", key: "⇧⌘K", label: "Clear" }) ] },
-        picked(id: string) { if (id == "save") app.saved = app.saved + 1 }
-        ],
-    Text [ x = 20, y = 20, text = { "Saved " + app.saved + " times — press ⌘S" } ]
-    ]
-```
-
-A set covers the view it is declared on. A press is looked up from the focused view outward,
-and the nearest set that declares the key takes it — so a pane can give ⌘F a meaning of its
-own while the rest of the program keeps the App's. The walk goes on past the program: a
-program in an island reaches its host's shortcuts. A shortcut that fires is not also a
-`Keys` event, and not also the browser's (⌘S does not save the page). A plain key (`"?"`)
-stands down while a text field has focus. While an open menu, dialog or sheet holds the
-keyboard, its keys are its own: the shortcuts declared inside it are in force — a form in a
-sheet declares its own `Shortcuts`, and they work while it is open — and every set outside it
-stands down, as do the keys the overlay itself uses (Esc, and a menu's arrows).
-
-A [`MenuBar`](declare-docs:MenuBar)'s items carry their keys already (`key: "⌘N"`), and
-those are its program's shortcuts, so a program with a menu bar declares them once.
-[`Keys.shortcutsInForce()`](declare-docs:Keys.method.shortcutsInForce) lists what is in force
-where focus is, for a panel of them, and a `Keys` member hears ⌘ held alone as
-[`onCommandHeld`](declare-docs:Keys.event.commandHeld).
-
-`Keys` stays the channel for keys that are not commands: a game's arrows, a key held to
-extend a selection.
+When a page runs more than one program, the keyboard goes where focus is: focus on a view
+gives it to that view's program, focus on an island to the program inside, and with nothing
+focused the outer program has it. Only that program's `KeyListener` members hear keys, and its
+`Keyboard.isDown` alone answers yes. A host hands a program the keyboard by focusing its island (a
+focusable island, and `onPointerDown() { Focus.focus(this) }`), and a program can take it by
+focusing one of its own views. A key held as the keyboard moves on is released, for the
+program that had it.
 
 ## Files dropped on a view
 
@@ -274,7 +377,7 @@ light it while they are over it. What a file is, and what to do with one, is in
 
 ## Copy, cut and paste
 
-⌘C, ⌘X and ⌘V — and the Edit menu — go to the focused view if it declares
+⌘C, ⌘X and ⌘V — and an Edit menu's `copy`, `cut` and `paste` commands — go to the focused view if it declares
 [`onClipboardCopy`](declare-docs:View.event.clipboardCopy), [`onClipboardCut`](declare-docs:View.event.clipboardCut) or
 [`onClipboardPaste`](declare-docs:View.event.clipboardPaste), or else to its nearest ancestor that does; with
 nothing focused, to the App. A text field keeps them for itself, as text fields do everywhere.
@@ -306,6 +409,7 @@ where it arrives.
 
 **What you can now do:** style from hover and press, route behavior by calling methods,
 choose between the raw and resolved layers, let one view carry a drag and a click, find
-what is under the pointer, handle keys, declare shortcuts, take the person's files, and copy and paste.
+what is under the pointer, bind keys and run commands from menus and buttons, declare
+shortcuts, read the keyboard for a game, take the person's files, and copy and paste.
 
 [Next: **Touch and gestures** →](declare-docs:guide:touch)

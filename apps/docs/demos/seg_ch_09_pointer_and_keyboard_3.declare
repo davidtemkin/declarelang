@@ -1,8 +1,14 @@
-App [ width = 520, height = 240,
-    saved: number = 0,
-    keys: Shortcuts [ title = "Notes",
-        items = { [ ({ id: "save", key: "⌘S", label: "Save" }), ({ id: "clear", key: "⇧⌘K", label: "Clear" }) ] },
-        picked(id: string) { if (id == "save") app.saved = app.saved + 1 }
+App [ width = 420, height = 200, fill = white, textColor = black,
+    bolded: boolean = false,
+    bar: View [ x = 20, y = 20, width = 380, height = 36,
+        layout: SimpleLayout [ axis = x, spacing = 8 ],
+        Button [ label = "Bold", command = "bold" ],
+        Button [ label = "Clear", command = "clear" ]
         ],
-    Text [ x = 20, y = 20, text = { "Saved " + app.saved + " times — press ⌘S" } ]
+    editor: View [ x = 20, y = 70, width = 380, height = 100, focusable = true, fill = 0xF4F4F4,
+        keyBindings = { [ ({ key: "Ctrl+B", command: "bold" }), ({ command: "clear" }) ] },
+        bold() { app.bolded = !app.bolded },
+        clear() { app.bolded = false },
+        Text [ x = 10, y = 10, text = { app.bolded ? "Bold is on — click here, then a button" : "Bold is off — click here, then a button" } ]
+        ]
     ]
