@@ -331,8 +331,14 @@ Four facts make this work without choreography:
   JSON, so a validation message can be shown next to the field it names. The reply's
   headers are in [`responseHeaders`](declare-docs:DataSource.responseHeaders), refusals' included — a paging link, a rate limit's
   `retry-after`. `fetch()` does return a promise, but the flags and `onLoad` are the
-  idiom; a later `fetch()` on the same source supersedes an earlier one, which is stopped,
-  and `clear()` stops one in flight.
+  idiom; a later `fetch()` on the same source supersedes an earlier one, and `clear()`
+  stops one in flight.
+- **A failure says why, and whether a write went through.** [`failure`](declare-docs:DataSource.failure) is one of a closed
+  set: `rejected` (the server said no), `networkError`, `offline`, `timedOut`, `serverError`,
+  `unreadable` (the server said yes, but its reply couldn't be read), `unsent`. After
+  `rejected` nothing was done; after `unreadable` it was; after the rest a write's outcome is
+  unknown, so a program checks before sending it again. A request that goes silent for
+  [`timeout`](declare-docs:DataSource.timeout) seconds (60) is given up.
 - **A source's value is the server's.** Each successful `fetch()` replaces it. When the
   user edits what was loaded and the source fetches again — on a timer, a changing `url`,
   `autoFetch` — copy it into a `Dataset` in `onLoad` and edit that — the working copy — so a
@@ -404,8 +410,10 @@ true and `url` is not empty; a new URL closes and reopens; a removed node takes 
 connection with it. Messages are strings and nothing accumulates unless a handler writes
 it somewhere; [`last`](declare-docs:Stream.last) holds the most recent message, so `text = { feed.last }` is a
 complete ticker. [`status`](declare-docs:Stream.status) reports the connection (`"connecting"`, `"open"`, `"retrying"`,
-`"failed"`, `"closed"`), and `retry = 2` re-dials two seconds after a loss the platform
-will not repair — the whole policy is that one number. A stream that labels its events
+`"failed"`, `"closed"`), and `retry = 2` re-dials after a loss the platform will not
+repair — two seconds at first, longer after each failure in a row, never after a refusal.
+[`connectTimeout`](declare-docs:Stream.connectTimeout) and [`idleTimeout`](declare-docs:Stream.idleTimeout) give up a connection that never opens, or that has
+gone silent. A stream that labels its events
 (most AI APIs do) must list them: `listenTo = ["delta", "done"]`.
 
 A stream can also be the reply to a request — an AI model's answer, arriving as it is
@@ -587,7 +595,9 @@ entry) is its own view class, and it **exists only while it is open** — built 
 opens and discarded once it has closed, keyed on the sheet's `present`
 ([Open as state](declare-docs:guide:overlays@open-as-state)). Its fields are its own
 attributes, so every opening starts from its defaults, with nothing to reset. A sheet is a
-boundary for forms: the `Form` goes inside it.
+boundary for forms: the `Form` goes inside it. While the form sends through its source, the
+sheet's own ways of closing — Escape, a press outside, a swipe — wait for the answer, which
+would otherwise land nowhere; the program's own `close()` doesn't wait.
 
 A value the form suggests until the person sets it is a **computed default**: the
 address below follows the title, character by character, until the person writes an

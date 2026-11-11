@@ -343,5 +343,74 @@ await test("a stream may declare attributes of its own, like any node", async ()
   app.discard();
 });
 
+console.log("\nstreams — failures, timeouts and the retry rule");
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+await test("a connection that never opens is given up after connectTimeout: timedOut, then the retry rule", async () =>
+  await withStubs(async (s) => {
+    const app = await build(`App [ ws: Socket [ url = "wss://x.test", connectTimeout = 0.05, retry = 1 ] ]`);
+    await sleep(80); settle();
+    assert.equal(s.conns[0].closed, true, "the hung dial is closed");
+    assert.equal(app.ws.failure, "timedOut");
+    assert.equal(app.ws.status, "retrying");
+    app.discard();
+  }));
+
+await test("an open connection that goes silent past idleTimeout is lost", async () =>
+  await withStubs(async (s) => {
+    const app = await build(`App [ ws: Socket [ url = "wss://x.test", idleTimeout = 0.05 ] ]`);
+    s.last().cb.open(); settle();
+    await sleep(30); s.last().cb.message({ data: "x", type: "message", id: "" }); settle();
+    await sleep(30); settle();
+    assert.equal(app.ws.status, "open", "a message kept it alive");
+    await sleep(60); settle();
+    assert.equal(app.ws.failure, "timedOut");
+    assert.equal(app.ws.status, "failed", "no retry declared");
+    app.discard();
+  }));
+
+await test("a close names its code; a policy close is not retried, a restart is", async () =>
+  await withStubs(async (s) => {
+    const app = await build(`App [ ws: Socket [ url = "wss://x.test", retry = 1 ] ]`);
+    s.last().cb.open(); settle();
+    s.last().cb.end("policy", true, { code: 1008, reason: "policy", failure: "rejected" }); settle();
+    assert.equal(app.ws.closeCode, 1008);
+    assert.equal(app.ws.failure, "rejected");
+    assert.equal(app.ws.status, "failed", "the same no is not asked for again");
+    const b = await build(`App [ ws: Socket [ url = "wss://x.test", retry = 1 ] ]`);
+    s.last().cb.open(); settle();
+    s.last().cb.end("restart", true, { code: 1012, failure: "serverError" }); settle();
+    assert.equal(b.ws.status, "retrying");
+    app.discard(); b.discard();
+  }));
+
+await test("onClose runs before the retry: turning active off there stops it (an app's own close code)", async () =>
+  await withStubs(async (s) => {
+    const app = await build(`App [ ws: Socket [ url = "wss://x.test", retry = 0.01,
+        onClose() { if (this.closeCode == 4401) this.active = false } ] ]`);
+    s.last().cb.open(); settle();
+    s.last().cb.end("", true, { code: 4401, reason: "expired" }); settle();
+    await sleep(40); settle();
+    assert.equal(s.conns.length, 1, "no redial");
+    assert.equal(app.ws.closeReason, "expired");
+    app.discard();
+  }));
+
+await test("the retry delay grows with each failure", async () =>
+  await withStubs(async (s) => {
+    const app = await build(`App [ ws: Socket [ url = "wss://x.test", retry = 0.02 ] ]`);
+    const waitFor = async (n) => { const t = Date.now(); while (s.conns.length < n && Date.now() - t < 1000) await sleep(2); return Date.now() - t; };
+    s.last().cb.end("down", true); settle();
+    const first = await waitFor(2);
+    s.last().cb.end("down", true); settle();
+    await waitFor(3);
+    s.last().cb.end("down", true); settle();
+    const third = await waitFor(4);
+    assert.ok(first <= 30, `first wait ${first} ms within retry`);
+    assert.ok(third >= 35, `third wait ${third} ms has grown`);
+    app.discard();
+  }));
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

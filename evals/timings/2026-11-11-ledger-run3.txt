@@ -1,0 +1,43 @@
+# eval-ledger-3
+total 44.7 min · 172 turns · output 236927 tokens (thinking 67433)
+phases: reading 6.3 · writing 0.1 · checking 38.3 min
+tool time 10.4 min · model time 34.3 min
+tools:
+  verify    46×   7.55 min  (median 3.9 s)
+  look      23×   2.41 min  (median 5.8 s)
+  help      16×   0.29 min  (median 0.9 s)
+  bash      35×   0.13 min  (median 0.0 s)
+  read      20×   0.03 min  (median 0.0 s)
+model turns, by what came before:
+  after bash     35×   8.34 min  (median 4.5 s)
+  after help     16×   6.66 min  (median 5.3 s)
+  after write    12×   6.43 min  (median 22.9 s)
+  after verify   46×   6.19 min  (median 6.1 s)
+  after image    18×   2.87 min  (median 8.1 s)
+  after look     22×   2.65 min  (median 4.6 s)
+  after read     20×   0.93 min  (median 1.6 s)
+  after edit      1×   0.02 min  (median 0.9 s)
+app: 10 .declare files, 3576 non-blank lines · 66 snapshots changed them: 4683 lines added, 583 removed
+verify results mentioning accessibility: 6
+diagnostic codes, by tool results reporting them: DECLARE2000 8, DECLARE4025 6, DECLARE1002 6, DECLARE7001 4, DECLARE6001 4, DECLARE4035 2, DECLARE3005 1, DECLARE4002 1, DECLARE4032 1, DECLARE2006 1, DECLARE3006 1, DECLARE4019 1, DECLARE4000 1
+inside the agent's verify and look calls:
+   5.91 min    57×  R5 behavior, in all
+   4.97 min    57×  script: the assert script, in all
+   3.89 min   171×  drive.waitReal
+   2.06 min    84×  compile (R1–R3)
+   1.12 min   101×  page: load, compile in the page and boot
+   0.73 min    57×  open: the app loaded and arrived, in all
+   0.59 min    44×  R4 boot, in all
+   0.47 min   127×  drive.click
+   0.32 min   126×  drive.settleMotion
+   0.29 min   174×  check: scrolling come to rest
+   0.15 min   101×  page: a new page
+   0.14 min   157×  drive.key
+   0.09 min    48×  end: layout questions at the end of the script
+   0.05 min     7×  drive.selectAll
+   0.05 min    57×  drive.tab
+   0.04 min    48×  end: the network quiet after the script
+   0.03 min   101×  end: the browser context released
+   0.03 min   174×  check: the layout questions
+   0.03 min    28×  drive.type
+   0.02 min   101×  chrome: a browser (shared between calls)

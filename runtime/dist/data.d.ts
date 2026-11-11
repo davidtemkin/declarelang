@@ -107,6 +107,12 @@ type Transport = (url: string, init?: RequestInit) => Promise<Response>;
  *  Returns the PREVIOUS transport so a scoped caller can restore it. */
 export declare function provideTransport(fn: Transport): Transport;
 export declare function setAppDataBase(root: object, base: string | null): void;
+/** Why a request failed — DataSource.failure, and a Stream's. A closed set, so
+ *  `onError` can tell retry from report, and a write's caller whether it was
+ *  carried out: not for `unsent`, `rejected`; unknown for `offline`,
+ *  `networkError`, `timedOut`, `serverError`; yes for `unreadable` (the server
+ *  said yes; its reply could not be read). */
+export type RequestFailureKind = "none" | "unsent" | "offline" | "networkError" | "timedOut" | "rejected" | "serverError" | "unreadable";
 export declare class DataSource extends Dataset {
     url: string;
     /** What the bytes ARE: "json" (the default — parsed, `:path` navigable),
@@ -135,6 +141,11 @@ export declare class DataSource extends Dataset {
      *  hyphen is subtraction, so it cannot be a token); FETCH_CREDENTIALS maps it
      *  back, as `blend` does for CSS's color-dodge. */
     credentials: "omit" | "sameOrigin" | "include";
+    /** Seconds a request may go with nothing arriving before it is given up
+     *  (`failure` = timedOut); 0 = no limit. */
+    timeout: number;
+    /** Why the last request failed — a closed set (RequestFailureKind). */
+    failure: RequestFailureKind;
     /** Request HEADERS — a plain record, `{ "x-api-key": "…" }`, merged over the
      *  ones this source sets for itself (a JSON body's `Content-Type`, which an
      *  explicit entry may override). REACTIVE like any other slot, which is the
@@ -191,6 +202,8 @@ export declare class DataSource extends Dataset {
     /** The request in flight, to stop when a newer one supersedes it or clear()
      *  drops it — so a stale reply is not merely ignored but never downloaded. */
     private inFlight;
+    /** Whether the request in flight is a write — not stopped when superseded. */
+    private inFlightWrite;
     /** The fetch init from `method`/`body`/`credentials`. A GET with
      *  `credentials` unset (or `sameOrigin`, its own default) sends neither —
      *  a bare url, unchanged from before `credentials` existed. A non-GET
@@ -206,6 +219,17 @@ export declare class DataSource extends Dataset {
     private autoCalling;
     /** The request itself. */
     private $request;
+    /** The reply's body, as `format` says. Read as a stream where the platform
+     *  gives one, each chunk resetting the silence timer; a reply that says it is
+     *  JSON and isn't — an HTML error page served with 200 — is `invalid`, the
+     *  server having answered, not the network having failed. */
+    private $readBody;
+    /** Discarded with a request in flight: a read is stopped (nothing is left
+     *  to show it); a write is not — it may already be carried out — but its
+     *  answer has nowhere to land, and the program never learns it. Said, in a
+     *  dev build: a save that lives inside what closes (a sheet, a screen) is
+     *  the shape that loses it. */
+    $teardown(): void;
     /** As if never fetched (the doc's "back to the entry screen —
      *  declaratively"): no document, so `loaded` drops; no request, no failure. */
     clear(): void;

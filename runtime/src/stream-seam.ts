@@ -24,6 +24,8 @@ export interface StreamMessage {
 export interface StreamHandle {
   close(): void;
   send?(text: string): void;
+  /** Bytes sent but not yet on the wire (a WebSocket's bufferedAmount). */
+  buffered?(): number;
 }
 
 /** What a factory calls back into the runtime. `end` reports the connection
@@ -34,7 +36,18 @@ export interface StreamHandle {
 export interface StreamCallbacks {
   open(): void;
   message(m: StreamMessage): void;
-  end(error: string, final: boolean): void;
+  end(error: string, final: boolean, how?: StreamEnd): void;
+  /** Something arrived that is not a message (an SSE `:` comment, a
+   *  keep-alive): the connection is alive. */
+  alive?(): void;
+}
+
+/** What is known about a connection going down: why, as the closed set a
+ *  DataSource uses, and a WebSocket's close code and reason. */
+export interface StreamEnd {
+  failure?: "unsent" | "offline" | "networkError" | "timedOut" | "rejected" | "serverError" | "unreadable";
+  code?: number;
+  reason?: string;
 }
 
 export type EventSourceFactory = (
@@ -94,8 +107,10 @@ function browserEventSource(url: string, listen: readonly string[], cb: StreamCa
   es.onerror = () => {
     // CONNECTING = the platform is retrying (its own backoff, Last-Event-ID
     // resume): not final, and not a fact for the error channel — §3 says
-    // onError reports terminal failures, not each retry.
-    if (es.readyState === EventSource.CLOSED) cb.end(`the server closed the stream at ${url}`, true);
+    // onError reports terminal failures, not each retry. CLOSED: EventSource
+    // does not say why (a refusal, a wrong content type and a dead network
+    // look alike), so it is a network error unless the platform is offline.
+    if (es.readyState === EventSource.CLOSED) cb.end(`the server closed the stream at ${url}`, true, { failure: offlineNow() ? "offline" : "networkError" });
     else cb.end("", false);
   };
   return { close: () => es.close() };
@@ -111,9 +126,35 @@ function browserSocket(url: string, cb: StreamCallbacks): StreamHandle {
   };
   // onerror carries no detail and onclose always follows with it — one
   // termination report, not two.
-  ws.onclose = (e) =>
-    cb.end(e.wasClean ? "" : (e.reason !== "" ? e.reason : `connection lost (code ${e.code})`), true);
-  return { close: () => ws.close(), send: (t) => ws.send(t) };
+  ws.onclose = (e) => {
+    const how = socketEnd(e.code, e.reason, e.wasClean);
+    cb.end(how.failure === undefined ? "" : (e.reason !== "" ? e.reason : `connection ${how.failure === "rejected" ? "refused" : "lost"} (code ${e.code})`), true, how);
+  };
+  return { close: () => ws.close(), send: (t) => ws.send(t), buffered: () => ws.bufferedAmount };
+}
+
+/** Is the platform saying it is offline? A hint only (`false` is not proof of
+ *  a connection): used to name a failure, never to refuse to try. */
+export function offlineNow(): boolean {
+  return (globalThis as { navigator?: { onLine?: boolean } }).navigator?.onLine === false;
+}
+
+/** A WebSocket close, classified. 1000/1001 are clean ends (the server
+ *  finished, or is going away — reconnect); 1012/1013 a restart and "try again
+ *  later" (the server's trouble); 1002/1003/1007/1008/1009/1010 the server
+ *  refusing what was sent or who sent it — retrying the same thing changes
+ *  nothing; 1011 a server error; 1006 (no close frame, the only code a
+ *  refused or broken connection ever gets in a browser) the network.
+ *  4000–4999 are the application's own (an expired token, a rate limit): no
+ *  failure is named; `onClose` reads `closeCode` and decides. */
+export function socketEnd(code: number, reason: string, clean: boolean): StreamEnd {
+  const out = (failure?: StreamEnd["failure"]): StreamEnd => ({ code, reason, ...(failure !== undefined ? { failure } : {}) });
+  if (code === 1000 || code === 1001) return out();
+  if (code >= 4000 && code <= 4999) return out();
+  if (code === 1002 || code === 1003 || code === 1007 || code === 1008 || code === 1009 || code === 1010) return out("rejected");
+  if (code === 1011 || code === 1012 || code === 1013 || code === 1014) return out("serverError");
+  if (clean) return out();
+  return out(offlineNow() ? "offline" : "networkError");
 }
 
 // No default `request`: the fetch-based reader lives with the classes

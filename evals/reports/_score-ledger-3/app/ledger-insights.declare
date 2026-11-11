@@ -1,0 +1,307 @@
+/*
+# Ledger: Insights and Budgets
+
+Insights is the filtered data as charts, one tab each: a measure over time,
+income against expenses with the running total, where the money went by
+category, and what each product earned. Each says in one sentence what it
+shows, can be read as a table, and opens its records from any figure.
+
+Budgets is a monthly amount per expense category, for the month in the date
+filter: what is budgeted, spent and left, a bar with a marker for where
+spending should be by today, and the state in words.
+*/
+
+class InsightsScreen [ scrolls = y, padding = { app.phone ? [8, 12, 24, 12] : [4, 20, 32, 20] },
+    layout: SimpleLayout [ axis = y, spacing = 14 ],
+    FilteredNote [ ],
+    tabs: TabBar [ width = { app.phone ? parent.width : 560 }, accessibilityLabel = "Insights",
+        value = { app.insightTab },
+        choices = { [ ({ id: "trends", label: "Trends" }), ({ id: "money", label: "Income vs expenses" }),
+            ({ id: "breakdown", label: "Breakdown" }), ({ id: "products", label: "Products" }) ] },
+        input(v: string) { app.insightTab = v }
+        ],
+    trends: TrendsTab [ visible = { app.insightTab == "trends" } ],
+    money: MoneyTab [ visible = { app.insightTab == "money" } ],
+    breakdown: BreakdownTab [ visible = { app.insightTab == "breakdown" } ],
+    products: ProductsTab [ visible = { app.insightTab == "products" } ]
+    ]
+
+
+// Periods over the range at the chosen granularity, and the comparison's.
+
+class PeriodsReader extends Node [
+    on: boolean = true,
+    cur: DataSource [ autoFetch = true, schema = Periods,
+        url = { !classroot.on ? "" : app.endpoint("/api/aggregates/periods", app.query + "&by=" + app.by) } ],
+    was: DataSource [ autoFetch = true, schema = Periods,
+        url = { !classroot.on || app.cmpRange == null ? "" : app.endpoint("/api/aggregates/periods", app.queryFor(app.cmpRange) + "&by=" + app.by) } ],
+
+    // a period that hasn't started yet has nothing to draw
+
+    periods: Period[] = { (this.cur.value?.periods ?? []).filter((p) => p.start <= app.today) },
+    before: Period[] = { app.cmpRange == null ? [] : (this.was.value?.periods ?? []).slice(0, this.periods.length) },
+
+    // honest charts: a period axis needs at least two periods with anything in them
+
+    tooLittle: boolean = { this.cur.loaded && this.periods.filter((p) => p.net.count > 0).length < 2 }
+    ]
+
+
+class Granularity [
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    Text [ fontSize = 12.5, textColor = { provided("theme").textMuted }, text = "By" ],
+    Segmented [ width = 280, height = { app.touchFirst ? 44 : 30 }, accessibilityLabel = "Granularity",
+        value = { app.by },
+        choices = { [ ({ id: "day", label: "Days" }), ({ id: "week", label: "Weeks" }), ({ id: "month", label: "Months" }), ({ id: "quarter", label: "Quarters" }) ] },
+        input(v: string) { app.byChoice = v }
+        ]
+    ]
+
+
+class TrendsTab [ width = 100%,
+    data: PeriodsReader [ on = { app.screen == "insights" && app.insightTab == "trends" } ],
+    m: string = { app.trendMeasure },
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    controls: View [ width = 100%,
+        layout: WrappingLayout [ spacing = 12, rowSpacing = 8, align = center ],
+        Segmented [ width = { app.phone ? parent.width : 520 }, height = { app.touchFirst ? 44 : 30 }, accessibilityLabel = "Measure",
+            value = { app.trendMeasure },
+            choices = { [ ({ id: "revenue", label: "Revenue" }), ({ id: "expenses", label: "Expenses" }), ({ id: "net", label: "Net profit" }),
+                ({ id: "margin", label: "Gross margin %" }), ({ id: "sales", label: "Sales" }) ] },
+            input(v: string) { app.trendMeasure = v }
+            ],
+        Granularity [ ]
+        ],
+    frame: ChartFrame [ title = { app.fig.measureLabel(classroot.m) + " over time" }, source = { classroot.data.cur },
+        note = { app.fig.trendSentence(classroot.m, classroot.data.periods, app.by) },
+        tooLittle = { classroot.data.tooLittle },
+        partialNote = { app.fig.partialNote(classroot.data.periods, app.by) },
+        Legend [ series = { classroot.frame.chart.series } ],
+        chart: TimeChart [ width = 100%, height = 300, visible = { !classroot.frame.asTable },
+            chartName = { app.fig.measureLabel(classroot.m) + " over time" },
+            by = { app.by }, unit = { app.fig.unitOf(classroot.m) }, vs = { app.cmpName },
+            slots = { app.fig.slotsOf(classroot.data.periods) },
+            series = { app.fig.trendSeries(classroot.m, classroot.data.periods, classroot.data.before) },
+            open(si: number, pi: number) {
+                const p = si == 0 ? classroot.data.periods[pi] : classroot.data.before[pi]
+                if (p != null) app.openPeriodFigure(p, classroot.m)
+                },
+            takeRange(from: string, to: string) { app.setRange(from, to) }
+            ],
+        FigureTable [ visible = { classroot.frame.asTable },
+            heads = { ["Period", app.fig.measureLabel(classroot.m), "Comparison", "Change"] },
+            rows = { app.fig.trendRows(classroot.m, classroot.data.periods, classroot.data.before, app.by) },
+            open(si: number, pi: number) {
+                const p = si == 0 ? classroot.data.periods[pi] : classroot.data.before[pi]
+                if (p != null) app.openPeriodFigure(p, classroot.m)
+                }
+            ]
+        ]
+    ]
+
+
+class MoneyTab [ width = 100%,
+    data: PeriodsReader [ on = { app.screen == "insights" && app.insightTab == "money" } ],
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    Granularity [ ],
+    frame: ChartFrame [ title = "Income vs expenses", source = { classroot.data.cur },
+        note = { app.fig.breakEvenSentence(classroot.data.periods, app.by) },
+        tooLittle = { classroot.data.tooLittle },
+        partialNote = { app.fig.partialNote(classroot.data.periods, app.by) },
+        Legend [ series = { classroot.frame.chart.series } ],
+        chart: TimeChart [ width = 100%, height = 320, visible = { !classroot.frame.asTable },
+            chartName = "Income vs expenses, with net profit and its running total",
+            by = { app.by }, vs = { app.cmpName },
+            slots = { app.fig.slotsOf(classroot.data.periods) },
+            series = { app.fig.moneySeries(classroot.data.periods, true, classroot.data.before, 0) },
+            open(si: number, pi: number) { classroot.openFigure(si, pi) },
+            takeRange(from: string, to: string) { app.setRange(from, to) }
+            ],
+        FigureTable [ visible = { classroot.frame.asTable },
+            heads = ["Period", "Revenue", "Expenses", "Net profit", "Running total"],
+            rows = { app.fig.runningRows(classroot.data.periods, app.by) },
+            open(si: number, pi: number) { classroot.openFigure(si, pi) }
+            ]
+        ],
+
+    // the running total's records run from the start of the range to the period's end
+
+    openFigure(si: number, pi: number) {
+        const p = data.periods[pi]
+        if (p == null) return
+        if (si == 3) app.drill(({ ...app.rangePatch(app.range.from, p.to), kinds: app.filters.kinds }))
+        else app.openPeriodFigure(p, ["revenue", "expenses", "net"][si])
+        }
+    ]
+
+
+class BreakdownTab [ width = 100%,
+    on: boolean = { app.screen == "insights" && app.insightTab == "breakdown" },
+    side: "expense" | "income" = "expense",
+    cur: DataSource [ autoFetch = true, schema = CatAggs,
+        url = { !classroot.on ? "" : app.endpoint("/api/aggregates/categories", app.query + "&side=" + classroot.side) } ],
+    was: DataSource [ autoFetch = true, schema = CatAggs,
+        url = { !classroot.on || app.cmpRange == null ? "" : app.endpoint("/api/aggregates/categories", app.queryFor(app.cmpRange) + "&side=" + classroot.side) } ],
+    rows: Dataset [ schema = [ rows[]: Share ], contents = { { rows: app.fig.breakdown(classroot.cur.value?.categories ?? [], classroot.was.value?.categories ?? [], app.cmpRange != null) } } ],
+    total: number = { this.cur.value?.total.amount ?? 0 },
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    Segmented [ width = 240, height = { app.touchFirst ? 44 : 30 }, accessibilityLabel = "Side",
+        value = { classroot.side },
+        choices = { [ ({ id: "expense", label: "Expenses" }), ({ id: "income", label: "Income" }) ] },
+        input(v: string) { classroot.side = v == "income" ? "income" : "expense" }
+        ],
+    frame: ChartFrame [ title = { classroot.side == "expense" ? "Expenses by category" : "Income by category" }, source = { classroot.cur },
+        note = { app.fig.categorySentence(classroot.cur.value?.categories ?? [], classroot.side) },
+        tooLittle = { classroot.cur.loaded && (classroot.cur.value?.categories ?? []).length == 0 },
+        tooLittleSays = "Nothing in this range to break down.",
+        total: Text [ width = 100%, fontSize = 13, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+            text = { "Total " + money(classroot.total) + " · " + count(classroot.cur.value?.total.count ?? 0) + " transactions" + (app.cmpRange != null ? " · changes " + app.compareLabel.replace("vs ", "against the ") : "") } ],
+        bars: Table [ width = 100%, height = { Math.min(this.contentHeight, 520) }, visible = { !classroot.frame.asTable },
+            accessibilityLabel = { classroot.frame.title },
+            datapath = { classroot.rows.value },
+            activateRequested() { const r = this.active as Share; if (r != null) classroot.openRow(r.id) },
+            BreakdownRow [ datapath = :rows[],
+                press() { classroot.openRow(:id) }
+                ]
+            ],
+        FigureTable [ visible = { classroot.frame.asTable }, heads = ["Category", "Amount", "Share", "Change", "Transactions"],
+            rows = { (classroot.rows.value?.rows ?? []).map((r, i) => ({ id: r.id, label: r.label,
+                cells: [({ text: money(r.amount), si: 0, pi: i, open: true }), ({ text: Math.round(r.share) + "%", si: 0, pi: i, open: false }),
+                    ({ text: r.change == "" ? "—" : r.change, si: 0, pi: i, open: false }), ({ text: count(r.count), si: 0, pi: i, open: true })] })) },
+            open(si: number, pi: number) { const r = (classroot.rows.value?.rows ?? [])[pi]; if (r != null) classroot.openRow(r.id) }
+            ]
+        ],
+    openRow(id: string) { app.openCategory([id], side) }
+    ]
+
+
+class BreakdownRow extends TableRow [ height = 40, padding = [0, 8, 0, 8], cornerRadius = 6,
+    accessibilityLabel = { :label + ", " + money(:amount) + ", " + Math.round(:share) + "% of the total" + (:change != "" ? ", " + :change : "") + ", " + count(:count) + " transactions" },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    Text [ width = { app.phone ? 110 : 170 }, fontSize = 13, wrap = false, maxLines = 1, text = :label ],
+    track: View [ flexes = true, height = 14,
+        View [ height = 14, cornerRadius = 3, width = { Math.max(3, parent.width * (:frac ?? 0)) }, fill = { app.toneOf(:tone) } ]
+        ],
+    Money [ width = 100, fontSize = 13, cents = :amount ],
+    Text [ width = 44, fontSize = 12.5, textAlign = right, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+        text = { Math.round(:share) + "%" } ],
+    Text [ visible = { !app.phone }, width = 90, fontSize = 12, textAlign = right, wrap = false, textColor = { provided("theme").textMuted },
+        text = :change ],
+    press() { },
+    onClick(e: PointerEvent) { super.onClick(e); this.press() }
+    ]
+
+
+class ProductsTab [ width = 100%,
+    on: boolean = { app.screen == "insights" && app.insightTab == "products" },
+    src: DataSource [ autoFetch = true, schema = ProdAggs,
+        url = { !classroot.on ? "" : app.endpoint("/api/aggregates/products", app.query) } ],
+    sortCol: number = 2,
+    sortDesc: boolean = true,
+    sorted: ProdAgg[] = { app.sortProducts(this.src.value?.products ?? [], this.sortCol, this.sortDesc) },
+    layout: SimpleLayout [ axis = y, spacing = 12 ],
+    frame: ChartFrame [ title = "Products", source = { classroot.src },
+        note = { classroot.sorted.length == 0 ? "" : app.productSentence(classroot.src.value?.products ?? []) },
+        tooLittle = { classroot.src.loaded && classroot.sorted.length == 0 },
+        tooLittleSays = "No products sold in this range.",
+        canToggle = false,
+        FigureTable [ sortable = true, sortCol = { classroot.sortCol }, sortDesc = { classroot.sortDesc },
+            heads = ["Product", "Units sold", "Revenue", "Cost", "Margin", "Margin %"],
+            headClick(i: number) {
+                if (classroot.sortCol == i) classroot.sortDesc = !classroot.sortDesc
+                else { classroot.sortCol = i; classroot.sortDesc = i != 0 }
+                },
+            rows = { classroot.sorted.map((p, i) => ({ id: p.productId ?? "none", label: app.books.productName(p.productId ?? null),
+                cells: [({ text: count(p.units), si: 0, pi: i, open: true }), ({ text: money(p.revenue), si: 0, pi: i, open: true }),
+                    ({ text: money(p.cost), si: 0, pi: i, open: true }), ({ text: money(p.margin), si: 0, pi: i, open: true }),
+                    ({ text: p.marginPercent == null ? "—" : pct(p.marginPercent, false), si: 0, pi: i, open: true })] })) },
+            open(si: number, pi: number) { const p = classroot.sorted[pi]; if (p != null) app.openProduct(p.productId ?? "none") }
+            ]
+        ]
+    ]
+
+
+// ── Budgets ─────────────────────────────────────────────────────────────
+
+class BudgetsScreen [ scrolls = y, padding = { app.phone ? [8, 12, 24, 12] : [4, 20, 32, 20] },
+    on: boolean = { app.screen == "budgets" },
+    month: string = { app.budgetMonth },
+    src: DataSource [ autoFetch = true, schema = Budgets,
+        url = { !classroot.on ? "" : app.endpoint("/api/budgets", "month=" + classroot.month + "&" + filterQuery(app.parts(app.filters, app.range) as FilterParts, false)) } ],
+    lastMonth: DataSource [ autoFetch = true, schema = CatAggs,
+        url = { !classroot.on ? "" : app.endpoint("/api/aggregates/categories", "side=expense&from=" + addMonths(classroot.month + "-01", -1) + "&to=" + addDays(classroot.month + "-01", -1)) } ],
+    spent: DataSource [ autoFetch = true, schema = CatAggs,
+        url = { !classroot.on ? "" : app.endpoint("/api/aggregates/categories", "side=expense&from=" + classroot.month + "-01&to=" + monthEnd(classroot.month + "-01") + "&" + filterQuery(app.parts(app.filters, app.range) as FilterParts, false)) } ],
+    rows: Dataset [ contents = { { rows: app.budgetRows(classroot.src.value?.budgets ?? [], classroot.spent.value?.categories ?? [], classroot.month) } } ],
+    unbudgeted: number = { app.books.expenseCategories().length - (this.src.value?.budgets ?? []).length },
+    layout: SimpleLayout [ axis = y, spacing = 14 ],
+    FilteredNote [ ],
+    head: View [ width = 100%,
+        layout: WrappingLayout [ spacing = 12, rowSpacing = 8, align = center ],
+        Text [ fontSize = 20, fontWeight = semibold, text = { "Budgets for " + monthLong(Number(classroot.month.slice(5))) + " " + classroot.month.slice(0, 4) } ],
+        Spacer [ ],
+        Button [ label = "Start from last month’s spending", visible = { classroot.unbudgeted > 0 },
+            onClick() { app.budgetsFromLastMonth(classroot.month, classroot.lastMonth.value?.categories ?? [], classroot.src.value?.budgets ?? []) }
+            ]
+        ],
+    Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted },
+        text = "A monthly amount for any expense category. Type an amount and press Return to move down the list; clear it to stop budgeting that category." ],
+    failed: View [ visible = { app.books.budgetFailed }, width = 100%, padding = [8, 12, 8, 12], cornerRadius = 8, fill = { provided("theme").badTint },
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        Text [ flexes = true, fontSize = 13, textColor = { provided("theme").bad }, text = "A budget wasn’t saved." ],
+        Button [ label = "Retry", height = 28,
+            onClick() { app.books.retryBudget() }
+            ]
+        ],
+    list: Panel [ source = { classroot.src }, padding = [6, 18, 10, 18],
+        form: Form [ width = 100%, enterMoves = true,
+            datapath = { classroot.rows.value },
+            layout: SimpleLayout [ axis = y ],
+            BudgetRow [ datapath = :rows[], month = { classroot.month } ]
+            ]
+        ]
+    ]
+
+
+class BudgetRow [ width = 100%, padding = [12, 0, 12, 0],
+    month: string = "",
+    stroke = { [null, null, stroke(1, provided("theme").line), null] },
+    has: boolean = { :amount != null },
+    standing: string = { app.fig.budgetStanding(:amount ?? null, :spent ?? 0, :pace ?? 0) },
+    words: string = { app.fig.budgetWords(this.standing, :amount ?? null, :spent ?? 0, :pace ?? 0) },
+    tone: Color = { provided("theme")[app.fig.standingTone(this.standing)] },
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    top: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+        View [ width = 9, height = 9, cornerRadius = 5, fill = { app.toneOf("cat:" + :colour) } ],
+        Text [ flexes = true, fontSize = 14, fontWeight = medium, wrap = false, maxLines = 1, text = :name ],
+        Text [ fontSize = 13, fontWeight = semibold, wrap = false, textColor = { classroot.tone }, text = { classroot.words } ],
+        amount: TextInput [ width = 110, height = 30, textAlign = right, name = { "budget-" + :id },
+            accessibilityLabel = { :name + " monthly budget in dollars" }, placeholder = "No budget",
+            commitOn = "end",
+            value = { :amount == null ? "" : moneyInput(:amount) },
+            admit(t: string) -> string | null { return /^\$?[\d,]*(\.\d{0,2})?$/.test(t) ? t : null },
+            commit(t: string) {
+                const cents = parseMoney(t)
+                if ((cents ?? null) != (:amount ?? null) && (cents == null || cents > 0)) app.books.setBudget(classroot.month, :id, cents)
+                }
+            ]
+        ],
+    bar: View [ visible = { classroot.has }, width = 100%, height = 10, cornerRadius = 5, fill = { provided("theme").sunken },
+        accessibilityHidden = true,
+        View [ height = 10, cornerRadius = 5, fill = { classroot.tone },
+            width = { parent.width * Math.min(1, (:spent ?? 0) / Math.max(1, :amount ?? 1)) } ],
+
+        // where spending should be by today
+
+        View [ visible = { (:paceFrac ?? 0) > 0 && (:paceFrac ?? 0) < 1 }, width = 2, height = 16, y = -3, cornerRadius = 1,
+            x = { parent.width * (:paceFrac ?? 0) - 1 }, fill = { provided("theme").text } ]
+        ],
+    figures: Control [ visible = { classroot.has || :spent > 0 }, height = 22, cornerRadius = 4,
+        accessibilityLabel = { "Spent " + money(:spent) + (classroot.has ? " of " + money(:amount) + ", " + money(:amount - :spent) + " left" : "") + ". Opens the transactions." },
+        fill = { hovered ? provided("theme").hover : null },
+        press() { app.openBudget(classroot.month, :id) },
+        TextLabel [ fontSize = 12.5, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+            text = { "Spent " + money(:spent) + (classroot.has ? " of " + money(:amount) + " · " + (:amount - :spent >= 0 ? money(:amount - :spent) + " left" : money(:spent - :amount) + " over") + " · expected by today " + money(:pace) : "") } ]
+        ]
+    ]

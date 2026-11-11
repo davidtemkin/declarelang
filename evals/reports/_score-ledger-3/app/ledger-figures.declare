@@ -1,0 +1,236 @@
+/*
+# Ledger: the figures, shaped for showing
+
+`Figures` turns what the service answered into what the screens draw: a
+chart's series, a table's rows, the one plain sentence each chart says, the
+top few of a list with the rest as one line. It holds no state and makes no
+request; every method is a function of what it is handed, read through by
+the constraints that call it.
+*/
+
+// One category's line in the breakdown.
+
+schema Share [ id: string, label: string, amount: number, count: number, share: number, frac: number, tone: string, change: string ]
+
+
+class Figures extends Node [
+
+    // ── periods
+
+    slotsOf(ps: Period[]) -> Slot[] { return ps.map((p) => ({ period: p.period, from: p.from, to: p.to, partial: p.partial })) },
+
+    measureLabel(m: string) -> string {
+        return m == "revenue" ? "Revenue" : m == "expenses" ? "Expenses" : m == "net" ? "Net profit"
+            : m == "margin" ? "Gross margin" : m == "sales" ? "Number of sales" : m == "running" ? "Net profit, running total" : m
+        },
+    figure(p: Period, m: string) -> number {
+        if (m == "revenue") return p.revenue.amount
+        if (m == "expenses") return p.expenses.amount
+        if (m == "net") return p.net.amount
+        if (m == "margin") return p.grossMargin.percent ?? 0
+        if (m == "sales") return p.sales.count
+        return 0
+        },
+    countOf(p: Period, m: string) -> number {
+        if (m == "revenue") return p.revenue.count
+        if (m == "expenses") return p.expenses.count
+        if (m == "net") return p.net.count
+        if (m == "margin") return p.grossMargin.count
+        if (m == "sales") return p.sales.count
+        return 0
+        },
+    unitOf(m: string) -> "money" | "percent" | "count" { return m == "margin" ? "percent" : m == "sales" ? "count" : "money" },
+    fmt(m: string, v: number) -> string { return m == "margin" ? pct(v, false) : m == "sales" ? count(v) : money(v) },
+
+    // Revenue and Expenses as bars, Net profit as a line; and, for Insights,
+    // the running total of net profit that says when the range broke even.
+
+    // `was` is what each period is compared with: the comparison range's
+    // periods (shift 0), or the same list a period back (shift 1); NaN where
+    // there is nothing to compare with
+
+    wasOf(ps: Period[], was: Period[], shift: number, m: string) -> number[] {
+        return ps.map((p, i) => { const w = was[i - shift]; return w == null ? NaN : this.figure(w, m) })
+        },
+    moneySeries(ps: Period[], running: boolean, was: Period[], shift: number) -> Series[] {
+        const out: Series[] = [
+            ({ id: "revenue", label: "Revenue", kind: "bar", tone: "income", values: ps.map((p) => p.revenue.amount), counts: ps.map((p) => p.revenue.count),
+                was: this.wasOf(ps, was, shift, "revenue") }),
+            ({ id: "expenses", label: "Expenses", kind: "bar", tone: "expense", values: ps.map((p) => p.expenses.amount), counts: ps.map((p) => p.expenses.count),
+                was: this.wasOf(ps, was, shift, "expenses") }),
+            ({ id: "net", label: "Net profit", kind: "line", tone: "netLine", values: ps.map((p) => p.net.amount), counts: ps.map((p) => p.net.count),
+                was: this.wasOf(ps, was, shift, "net") })
+            ]
+        if (running) {
+            let sum = 0, n = 0
+            out.push(({ id: "running", label: "Net profit, running total", kind: "line", tone: "accent",
+                values: ps.map((p) => { sum = sum + p.net.amount; return sum }),
+                counts: ps.map((p) => { n = n + p.net.count; return n }) }))
+            }
+        return out
+        },
+
+    // One measure over time, with the comparison period alongside, dashed.
+
+    trendSeries(m: string, ps: Period[], was: Period[]) -> Series[] {
+        const vs = was.map((p) => this.figure(p, m))
+        const out: Series[] = [({ id: m, label: this.measureLabel(m), kind: "line", tone: m == "expenses" ? "expense" : m == "revenue" ? "income" : "accent",
+            values: ps.map((p) => this.figure(p, m)), counts: ps.map((p) => this.countOf(p, m)),
+            was: this.wasOf(ps, was, 0, m) })]
+        if (was.length > 0) out.push(({ id: "compare", label: "Comparison period", kind: "dashed", tone: "compare",
+            values: vs.slice(0, ps.length), counts: was.slice(0, ps.length).map((p) => this.countOf(p, m)) }))
+        return out
+        },
+
+    periodRows(ps: Period[], by: string, ms: string[]) -> TableRowData[] {
+        return ps.map((p, pi) => ({ id: p.period, label: periodName(p.period, by, app.today) + (p.partial ? " (so far)" : ""),
+            cells: ms.map((m, si) => ({ text: this.fmt(m, this.figure(p, m)), si: si, pi: pi, open: true })) }))
+        },
+    runningRows(ps: Period[], by: string) -> TableRowData[] {
+        let sum = 0
+        return ps.map((p, pi) => {
+            sum = sum + p.net.amount
+            return ({ id: p.period, label: periodName(p.period, by, app.today) + (p.partial ? " (so far)" : ""),
+                cells: [({ text: money(p.revenue.amount), si: 0, pi: pi, open: true }), ({ text: money(p.expenses.amount), si: 1, pi: pi, open: true }),
+                    ({ text: money(p.net.amount), si: 2, pi: pi, open: true }), ({ text: money(sum), si: 3, pi: pi, open: true })] })
+            })
+        },
+    trendRows(m: string, ps: Period[], was: Period[], by: string) -> TableRowData[] {
+        return ps.map((p, pi) => {
+            const w = was[pi]
+            const v = this.figure(p, m)
+            return ({ id: p.period, label: periodName(p.period, by, app.today) + (p.partial ? " (so far)" : ""),
+                cells: [({ text: this.fmt(m, v), si: 0, pi: pi, open: true }),
+                    ({ text: w == null ? "—" : this.fmt(m, this.figure(w, m)), si: 1, pi: pi, open: w != null }),
+                    ({ text: w == null ? "—" : changeWords(v, this.figure(w, m), m == "margin"), si: 0, pi: pi, open: false })] })
+            })
+        },
+
+    // ── one plain sentence per chart
+
+    highest(ps: Period[], m: string, by: string) -> string {
+        const full = ps.filter((p) => this.countOf(p, m) > 0 || this.figure(p, m) != 0)
+        if (full.length == 0) return ""
+        const top = full.reduce((a, b) => this.figure(b, m) > this.figure(a, m) ? b : a)
+        return periodName(top.period, by, app.today) + " (" + this.fmt(m, this.figure(top, m)) + ")"
+        },
+    incomeSentence(ps: Period[]) -> string {
+        if (ps.length == 0) return ""
+        const net = ps.reduce((n, p) => n + p.net.amount, 0)
+        return "Expenses were highest in " + this.highest(ps, "expenses", "month") + "; net profit over the twelve months was " + money(net) + "."
+        },
+    trendSentence(m: string, ps: Period[], by: string) -> string {
+        const h = this.highest(ps, m, by)
+        if (h == "") return "Nothing to show for this range."
+        const lowP = ps.filter((p) => !p.partial).reduce((a, b) => a == null || this.figure(b, m) < this.figure(a, m) ? b : a, null as Period | null)
+        const at = by == "day" ? " on " : " in "
+        return this.measureLabel(m) + " was highest" + at + h + (lowP != null ? " and lowest" + at + periodName(lowP.period, by, app.today) + " (" + this.fmt(m, this.figure(lowP, m)) + ")" : "") + "."
+        },
+    breakEvenSentence(ps: Period[], by: string) -> string {
+        if (ps.length == 0) return ""
+        let sum = 0
+        let firstNeg = false
+        let evenAt = ""
+        for (const p of ps) {
+            const before = sum
+            sum = sum + p.net.amount
+            if (sum < 0) firstNeg = true
+            if (evenAt == "" && before < 0 && sum >= 0) evenAt = periodName(p.period, by, app.today)
+            }
+        if (sum < 0) return "Net profit over the range is " + money(sum) + ": not yet broken even."
+        if (evenAt != "") return "Broke even " + (by == "day" ? "on " : "in ") + evenAt + "; net profit over the range is " + money(sum) + "."
+        return firstNeg ? "Net profit over the range is " + money(sum) + "." : "In profit from the start; net profit over the range is " + money(sum) + "."
+        },
+    partialNote(ps: Period[], by: string) -> string {
+        const p = ps.find((x) => x.partial)
+        return p == null ? "" : "* " + periodName(p.period, by, app.today) + " isn’t over yet, so it is drawn lighter."
+        },
+
+    // ── categories, products, customers
+
+    categorySentence(cs: CatAgg[], side: string) -> string {
+        if (cs.length == 0) return ""
+        const total = cs.reduce((n, c) => n + c.amount, 0)
+        const top = cs[0]
+        return app.books.categoryName(top.categoryId ?? null) + " was the largest " + (side == "expense" ? "expense" : "source of income") + ": "
+            + money(top.amount) + (total > 0 ? " (" + Math.round(top.amount / total * 100) + "%)" : "") + "."
+        },
+    catTone(id: string?) -> string { return id == null ? "warn" : "cat:" + (app.books.category(id)?.colour ?? 10) },
+
+    // the largest few, and the rest as one line
+
+    topCategories(cs: CatAgg[], n: number) -> array {
+        const sorted = [...cs].sort((a, b) => b.amount - a.amount)
+        const top = sorted.slice(0, n)
+        const rest = sorted.slice(n)
+        const peak = Math.max(1, ...sorted.map((c) => c.amount))
+        const rows = top.map((c) => ({ id: c.categoryId ?? "none", label: app.books.categoryName(c.categoryId ?? null), amount: c.amount, count: c.count,
+            frac: c.amount / peak, tone: this.catTone(c.categoryId ?? null), ids: [c.categoryId ?? "none"] }))
+        if (rest.length > 0) {
+            const amt = rest.reduce((s, c) => s + c.amount, 0)
+            rows.push(({ id: "rest", label: "Other categories (" + rest.length + ")", amount: amt, count: rest.reduce((s, c) => s + c.count, 0),
+                frac: amt / peak, tone: "compare", ids: rest.map((c) => c.categoryId ?? "none") }))
+            }
+        return rows
+        },
+    topProducts(ps: ProdAgg[], n: number) -> array {
+        const top = [...ps].sort((a, b) => b.revenue - a.revenue).slice(0, n)
+        const peak = Math.max(1, ...top.map((p) => p.revenue))
+        return top.map((p) => ({ id: p.productId ?? "none", pid: p.productId ?? "none", label: app.books.productName(p.productId ?? null),
+            amount: p.revenue, units: p.units, frac: p.revenue / peak }))
+        },
+    topContacts(cs: ContactAgg[]) -> array {
+        const peak = Math.max(1, ...cs.map((c) => c.amount))
+        return cs.map((c) => ({ id: c.contactId ?? "none", cid: c.contactId ?? "none",
+            label: c.contactId == null ? "No customer named (market sales)" : c.contactName ?? app.books.contactName(c.contactId),
+            amount: c.amount, count: c.count, frac: c.amount / peak }))
+        },
+
+    // the breakdown: each category's amount, share and change
+
+    breakdown(cs: CatAgg[], was: CatAgg[], comparing: boolean) -> Share[] {
+        const total = cs.reduce((n, c) => n + c.amount, 0)
+        const peak = Math.max(1, ...cs.map((c) => Math.abs(c.amount)))
+        return [...cs].sort((a, b) => b.amount - a.amount).map((c) => {
+            const w = was.find((x) => (x.categoryId ?? null) == (c.categoryId ?? null))
+            return ({ id: c.categoryId ?? "none", label: app.books.categoryName(c.categoryId ?? null), amount: c.amount, count: c.count,
+                share: total > 0 ? c.amount / total * 100 : 0, frac: Math.abs(c.amount) / peak, tone: this.catTone(c.categoryId ?? null),
+                change: !comparing ? "" : w == null ? "new" : changeWords(c.amount, w.amount, false) })
+            })
+        },
+
+    // ── a budget in words: "On track", "$40 over pace", "Over by $120"
+
+    budgetStanding(amount: number?, spent: number, pace: number) -> string {
+        if (amount == null) return "none"
+        if (spent > amount) return "over"
+        if (spent - pace > 100) return "ahead"
+        return "ok"
+        },
+    budgetWords(standing: string, amount: number?, spent: number, pace: number) -> string {
+        if (standing == "none") return spent > 0 ? money(spent) + " spent, no budget" : "No budget"
+        if (standing == "over") return "Over by " + dollars(Math.round((spent - (amount ?? 0)) / 100) * 100)
+        if (standing == "ahead") return dollars(Math.round((spent - pace) / 100) * 100) + " over pace"
+        return "On track"
+        },
+    standingTone(standing: string) -> string {
+        return standing == "over" ? "bad" : standing == "ahead" ? "warn" : standing == "ok" ? "good" : "textMuted"
+        },
+
+    // ── what needs attention
+
+    attentionItems(uncat: number, bs: Budget[]) -> array {
+        const out = []
+        if (uncat > 0) out.push(({ id: "uncat", kind: "uncat", ref: "", level: "warn",
+            title: count(uncat) + " uncategorised transaction" + (uncat == 1 ? "" : "s"),
+            detail: "Give " + (uncat == 1 ? "it" : "them") + " a category so every total is complete." }))
+        for (const b of bs) {
+            const name = app.books.categoryName(b.categoryId)
+            if (b.spent > b.amount) out.push(({ id: "b:" + b.categoryId, kind: "budget", ref: b.categoryId, level: "bad",
+                title: name + " is over budget", detail: "Over by " + money(b.spent - b.amount) + " — " + money(b.spent) + " of " + money(b.amount) + " this month" }))
+            else if (b.spent >= b.amount * 0.85) out.push(({ id: "b:" + b.categoryId, kind: "budget", ref: b.categoryId, level: "warn",
+                title: name + " is near its budget", detail: money(b.spent) + " of " + money(b.amount) + " spent this month (" + Math.round(b.spent / b.amount * 100) + "%)" }))
+            }
+        return out
+        }
+    ]

@@ -1165,9 +1165,10 @@ function builtIns(v: View, f: View | null, p: Press): Outcome {
     // Enter on a region focused as one stop enters it
     if (e.key === "Enter" && plain && v.focusScope === "region" && focusOf().enter()) return TAKEN;
   }
-  // Escape closes a member scope entered inside a stop (an editor in a cell) — at
-  // the member, the stop's child, so what the member holds binds Escape first
-  if (e.key === "Escape" && plain && f !== null && parentAcross(v) !== null && parentAcross(v) === enteredStop(f) && focusOf().leaveMember()) return TAKEN;
+  // Escape closes a member scope entered inside a stop (an editor in a cell) —
+  // the stop's own default, after its bindings: what the member holds, and the
+  // stop itself, bind Escape first
+  if (e.key === "Escape" && plain && f !== null && v !== f && v === enteredStop(f) && focusOf().leaveMember()) return TAKEN;
   // a scroller scrolls by its keys; at its edge it passes them on
   if (plain && v.scrolls !== "none" && !isTextField(v) && scrollKeys(v, e)) return TAKEN;
   return "absent";

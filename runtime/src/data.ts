@@ -794,6 +794,16 @@ const FETCH_CREDENTIALS: Record<string, RequestCredentials> = {
   omit: "omit", sameOrigin: "same-origin", include: "include",
 };
 
+/** Why a request failed — DataSource.failure, and a Stream's. A closed set, so
+ *  `onError` can tell retry from report, and a write's caller whether it was
+ *  carried out: not for `unsent`, `rejected`; unknown for `offline`,
+ *  `networkError`, `timedOut`, `serverError`; yes for `unreadable` (the server
+ *  said yes; its reply could not be read). */
+export type RequestFailureKind = "none" | "unsent" | "offline" | "networkError" | "timedOut" | "rejected" | "serverError" | "unreadable";
+class RequestFailure extends Error {
+  constructor(readonly kind: RequestFailureKind, message: string) { super(message); }
+}
+
 export class DataSource extends Dataset {
   declare url: string;
   /** What the bytes ARE: "json" (the default — parsed, `:path` navigable),
@@ -822,6 +832,11 @@ export class DataSource extends Dataset {
    *  hyphen is subtraction, so it cannot be a token); FETCH_CREDENTIALS maps it
    *  back, as `blend` does for CSS's color-dodge. */
   declare credentials: "omit" | "sameOrigin" | "include";
+  /** Seconds a request may go with nothing arriving before it is given up
+   *  (`failure` = timedOut); 0 = no limit. */
+  declare timeout: number;
+  /** Why the last request failed — a closed set (RequestFailureKind). */
+  declare failure: RequestFailureKind;
   /** Request HEADERS — a plain record, `{ "x-api-key": "…" }`, merged over the
    *  ones this source sets for itself (a JSON body's `Content-Type`, which an
    *  explicit entry may override). REACTIVE like any other slot, which is the
@@ -897,6 +912,8 @@ export class DataSource extends Dataset {
   /** The request in flight, to stop when a newer one supersedes it or clear()
    *  drops it — so a stale reply is not merely ignored but never downloaded. */
   private inFlight: AbortController | null = null;
+  /** Whether the request in flight is a write — not stopped when superseded. */
+  private inFlightWrite = false;
 
   /** The fetch init from `method`/`body`/`credentials`. A GET with
    *  `credentials` unset (or `sameOrigin`, its own default) sends neither —
@@ -975,15 +992,47 @@ export class DataSource extends Dataset {
     const url = appResolve(this.$root, this.url);
     setBound(this, "loading", true);
     setBound(this, "failed", false);
+    setBound(this, "failure", "none");
     setBound(this, "error", null);
     setBound(this, "statusCode", 0);
     setBound(this, "errorBody", null);
     setBound(this, "responseHeaders", null);
-    this.inFlight?.abort();
+    const write = (this.method || "GET").toUpperCase() !== "GET";
+    // the request this one supersedes: a read is stopped; a write is not —
+    // stopping it would not un-send it — but its answer will land nowhere
+    if (this.inFlight !== null) {
+      if (this.inFlightWrite) console.warn(`[Declare] ${sourceLabel(this)} was asked again while its ${(this.method || "GET").toUpperCase()} was in flight — the earlier request may still be carried out, but its answer is lost`);
+      else this.inFlight.abort();
+    }
     const ctl = typeof AbortController === "function" ? new AbortController() : null;
     this.inFlight = ctl;
-    const init = this.$requestInit();
+    this.inFlightWrite = write;
+    // THE SILENCE TIMER. `timeout` is how long the request may go with nothing
+    // arriving — no connection, no headers, a gap while the body streams in —
+    // not its total time, so a large reply on a slow line that keeps arriving
+    // never times out (URLSession's request timeout, OkHttp's read timeout).
+    // It races every wait rather than trusting the abort alone: a transport
+    // that ignores the signal (a test stub, a host bridge) would otherwise hang
+    // the request — and a Form's `pending` — forever.
+    const limit = typeof this.timeout === "number" && this.timeout > 0 ? this.timeout : 0;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let stall: (e: RequestFailure) => void = () => {};
+    const stalled = new Promise<never>((_, reject) => { stall = reject; });
+    stalled.catch(() => {});
+    const quiet = (): void => {
+      if (timer !== null) clearTimeout(timer);
+      if (limit === 0) return;
+      timer = setTimeout(() => {
+        timer = null;
+        ctl?.abort();
+        stall(new RequestFailure("timedOut", `no answer from ${url} for ${limit} s${write ? " — it may or may not have been carried out" : ""}`));
+      }, limit * 1000);
+    };
+    const waiting = <T>(p: Promise<T>): Promise<T> => { p.catch(() => {}); return Promise.race([p, stalled]); };
+    let sent = false;
+    let answered = false;   // a 2xx arrived: a write was carried out, whatever happens to the reply
     try {
+      const init = this.$requestInit();
       // a body holding the person's files goes as a form, a file in each file
       // part (files.ts); its multipart Content-Type is the platform's to set
       if (init?.method !== undefined && this.body != null) {
@@ -997,10 +1046,35 @@ export class DataSource extends Dataset {
           }
         }
       }
-      const res = await transport(url, ctl === null ? init : { ...init, signal: ctl.signal });
+      // a request the platform can't make — a malformed address, a header or
+      // method it refuses — fails here, before anything leaves: `unsent`. (On a
+      // page only: headless, a relative address has no base to resolve against.)
+      const loc = (globalThis as { location?: { href?: string } }).location?.href;
+      if (typeof Request === "function" && typeof loc === "string") {
+        try { new Request(new URL(url, loc), init); }
+        catch (e) { throw new RequestFailure("unsent", `the request to ${url} could not be made — ${(e as Error).message}`); }
+      }
+      sent = true;
+      quiet();
+      const res = await waiting(transport(url, ctl === null ? init : { ...init, signal: ctl.signal }));
+      quiet();
       if (seq === this.seq) {
         setBound(this, "statusCode", res.status);
         setBound(this, "responseHeaders", headerRecord(res.headers));
+      }
+      // 304: what was asked is unchanged (an If-None-Match the app sent) — the
+      // value stands, and that is an arrival
+      if (res.status === 304) {
+        if (timer !== null) clearTimeout(timer);
+        if (seq !== this.seq) return;
+        if (this.inFlight === ctl) this.inFlight = null;
+        setBound(this, "loading", false);
+        const h = (this as unknown as Record<string, unknown>)["onLoad"];
+        if (typeof h === "function") {
+          try { h.call(this); }
+          catch (e) { console.error(`[Declare] onLoad on ${sourceLabel(this)} threw: ${(e as Error)?.message ?? e}`, e); }
+        }
+        return;
       }
       if (!res.ok) {
         // The BODY of a refusal is the part that says why — the field that
@@ -1012,17 +1086,16 @@ export class DataSource extends Dataset {
         // the real failure — an unreadable body must still report `HTTP 404`,
         // never `res.text is not a function`.
         let raw = "";
-        try { raw = typeof res.text === "function" ? await res.text() : ""; } catch { raw = ""; }
+        try { raw = typeof res.text === "function" ? await waiting(res.text()) : ""; } catch { raw = ""; }
         const body = parseProblem(raw);
         if (seq === this.seq) setBound(this, "errorBody", body);
-        throw new Error(`HTTP ${res.status} for ${url}`);
+        // a 4xx is the server's decision (a write was not carried out); a 5xx —
+        // a gateway's 502/503/504 among them — is the server failing, and a
+        // write's outcome is not known
+        throw new RequestFailure(res.status >= 500 ? "serverError" : "rejected", `HTTP ${res.status} for ${url}`);
       }
-      // 204/205 succeed with no body by definition; parsing one as JSON threw,
-      // and a successful DELETE landed in `.failed`.
-      const value: unknown = res.status === 204 || res.status === 205 ? null
-        : this.format === "text" ? await res.text()
-        : this.format === "bytes" ? new Uint8Array(await res.arrayBuffer())
-        : await res.json();
+      answered = true;
+      const value = await this.$readBody(res, quiet, waiting);
       if (seq !== this.seq) return; // superseded
       if (this.inFlight === ctl) this.inFlight = null;
       // Validate on receipt (B4, language §9): malformed data lands in
@@ -1030,8 +1103,9 @@ export class DataSource extends Dataset {
       // layers into a binding. Schema presence is the only switch.
       if (this.schema !== null && this.format === "json") {
         const err = validateDoc(value, this.schema);
-        if (err !== null) throw new Error(`the response does not match the schema — ${err}`);
+        if (err !== null) throw new RequestFailure("unreadable", `the response does not match the schema — ${err}`);
       }
+      if (timer !== null) clearTimeout(timer);
       noteOrigin(`${sourceLabel(this)} arrived`, this);
       setBound(this, "value", value);
       setBound(this, "loading", false);
@@ -1050,11 +1124,27 @@ export class DataSource extends Dataset {
         }
       }
     } catch (e) {
+      if (timer !== null) clearTimeout(timer);
       if (seq !== this.seq) return; // superseded (or stopped by clear()): nothing to report
-      if (ctl !== null && ctl.signal.aborted) return; // stopped by a newer request: not a failure
+      // stopped by a newer request: not a failure — but a timeout aborts too
+      if (ctl !== null && ctl.signal.aborted && !(e instanceof RequestFailure && e.kind === "timedOut")) return;
       if (this.inFlight === ctl) this.inFlight = null;
+      // WHY, as a closed set: what the program can do next differs by kind,
+      // and for a write, whether it was carried out (DataSource.failure)
+      // after a 2xx, whatever went wrong went wrong with the reply: the server
+      // said yes (`unreadable`); a network failure while the platform says it
+      // is offline is `offline` — decided now, not before sending, since
+      // `navigator.onLine` is only a hint (a VPN, a service worker, a LAN server)
+      const offline = (globalThis as { navigator?: { onLine?: boolean } }).navigator?.onLine === false;
+      const kind: RequestFailureKind = answered ? "unreadable"
+        : e instanceof RequestFailure ? e.kind
+        : !sent ? "unsent"
+        : offline ? "offline" : "networkError";
       noteOrigin(`${sourceLabel(this)} failed`, this);
-      setBound(this, "error", e instanceof Error ? e.message : String(e));
+      const said = e instanceof Error ? e.message : String(e);
+      setBound(this, "error", answered && !(e instanceof RequestFailure && e.kind === "unreadable")
+        ? `the reply from ${url} could not be read (${said}) — the request itself was carried out` : said);
+      setBound(this, "failure", kind);
       setBound(this, "failed", true);
       setBound(this, "loading", false);
       // the failure EVENT (`onError`), onLoad's mirror: once per failed fetch,
@@ -1069,6 +1159,61 @@ export class DataSource extends Dataset {
         }
       }
     }
+  }
+
+  /** The reply's body, as `format` says. Read as a stream where the platform
+   *  gives one, each chunk resetting the silence timer; a reply that says it is
+   *  JSON and isn't — an HTML error page served with 200 — is `invalid`, the
+   *  server having answered, not the network having failed. */
+  private async $readBody(res: Response, quiet: () => void, waiting: <T>(p: Promise<T>) => Promise<T>): Promise<unknown> {
+    // 204/205 succeed with no body by definition; parsing one as JSON threw,
+    // and a successful DELETE landed in `.failed`.
+    if (res.status === 204 || res.status === 205) return null;
+    const stream = (res as { body?: { getReader?: () => ReadableStreamDefaultReader<Uint8Array> } | null }).body;
+    let bytes: Uint8Array | null = null;
+    if (stream != null && typeof stream.getReader === "function") {
+      const reader = stream.getReader();
+      const chunks: Uint8Array[] = [];
+      let size = 0;
+      for (;;) {
+        const { done, value } = await waiting(reader.read());
+        quiet();
+        if (done) break;
+        if (value !== undefined) { chunks.push(value); size += value.byteLength; }
+      }
+      bytes = new Uint8Array(size);
+      let at = 0;
+      for (const c of chunks) { bytes.set(c, at); at += c.byteLength; }
+    }
+    if (this.format === "bytes") return bytes ?? new Uint8Array(await waiting(res.arrayBuffer()));
+    const text = bytes !== null ? new TextDecoder().decode(bytes) : typeof res.text === "function" ? await waiting(res.text()) : null;
+    if (this.format === "text") return text;
+    if (text === null) {
+      // a transport with no body stream and no text (a stub): its own json()
+      try { return await waiting(res.json()); }
+      catch (e) { if (e instanceof SyntaxError) throw new RequestFailure("unreadable", `the reply is not JSON — ${e.message}`); throw e; }
+    }
+    if (text.trim() === "") return null;   // a 200 or 202 that says nothing
+    try { return JSON.parse(text); }
+    catch (e) { throw new RequestFailure("unreadable", `the reply is not JSON — ${(e as Error).message}`); }
+  }
+
+  /** Discarded with a request in flight: a read is stopped (nothing is left
+   *  to show it); a write is not — it may already be carried out — but its
+   *  answer has nowhere to land, and the program never learns it. Said, in a
+   *  dev build: a save that lives inside what closes (a sheet, a screen) is
+   *  the shape that loses it. */
+  override $teardown(): void {
+    if (this.inFlight !== null) {
+      this.seq++;   // whatever comes back lands nowhere
+      if ((this.method || "GET").toUpperCase() !== "GET") {
+        console.warn(`[Declare] ${sourceLabel(this)} was removed while its ${(this.method || "GET").toUpperCase()} was in flight — the request may still be carried out, but its answer is lost: onLoad and onError will not run. Keep a write's source where it outlives what it sends from (a sheet, a screen).`);
+      } else {
+        this.inFlight.abort();
+      }
+      this.inFlight = null;
+    }
+    super.$teardown();
   }
 
   /** As if never fetched (the doc's "back to the entry screen —
@@ -1119,6 +1264,9 @@ defineAttributes(DataSource, {
   statusCode: { def: 0 },
   errorBody: { def: null },
   responseHeaders: { def: null },
+  // seconds a request may go with nothing arriving; 0 = no limit
+  timeout: { def: 60 },
+  failure: { def: "none" },
 });
 
 /** Turn a `datapath = { expr }` result into a place. The value must be a

@@ -1,0 +1,422 @@
+/*
+# Ledger: the charts
+
+What every chart does, written once:
+
+- **Every number opens its records.** A chart doesn't know what its marks
+  mean; it calls `open(series, period)`, and the screen that placed it says
+  what filter makes that figure (ledger.declare's `drill`).
+- **Pointing at (or focusing) a mark** shows its period, series, value, the
+  change against the comparison period and how many transactions it covers.
+- **The keyboard**: a chart is one stop; the arrows move between periods and
+  series, each point is announced as a sentence, Enter opens its records.
+- **Dragging across** a time chart selects a range and offers it as the date
+  filter (`takeRange`).
+- **Motion**: when the figures change, the marks move from the old values to
+  the new on one spring (`t`), so the eye can see what changed; standing
+  still when the person asks for less motion.
+- The y-axis starts at zero; axis labels are compact, values in full; a
+  period that isn't over is drawn lighter and said to be partial.
+
+A series names its colour as a theme token (`tone = "income"`), so the chart
+follows the theme, and a category keeps its colour everywhere.
+*/
+
+schema Series [ id: string, label: string, kind: "bar" | "line" | "dashed", tone: string,
+    values[]: number, counts[]: number, was[]?: number ]
+schema Slot [ period: string, from: string, to: string, partial: boolean ]
+
+
+// ── A chart over time ───────────────────────────────────────────────────
+
+class TimeChart extends Control [ height = 260, claim = x,
+    by: string = "month",
+    slots: Slot[] = [],
+    series: Series[] = [],
+    unit: "money" | "percent" | "count" = "money",
+    vs: string = "",                         // what the comparison is called: "Oct"
+    open(si: number, pi: number) { },        // the screen says what a mark's records are
+    takeRange(from: string, to: string) { },
+
+    // what a screen reader hears when it arrives, and how to use it
+
+    accessibilityRole = group,
+    accessibilityHint = "Arrow keys move between periods and series; Enter opens the transactions.",
+
+    // ── the figures, moving from the old to the new
+
+    shownSeries: Series[] = [],
+    before: number[][] = [],
+    t: number = 1,
+    Spring [ attribute = t, to = 1, stiffness = 170, damping = 26 ],
+    trackChanges = ["series"],
+    onChange() {
+        before = this.valuesNow()
+        t = app.still ? 1 : 0
+        },
+    valuesNow() -> number[][] {
+        return this.series.map((s, i) => s.values.map((v, j) => this.lerp(i, j)))
+        },
+    lerp(si: number, pi: number) -> number {
+        const to = this.series[si]?.values[pi] ?? 0
+        const from = this.before[si]?.[pi] ?? to
+        const k = Math.max(0, Math.min(1, this.t))
+        return from + (to - from) * k
+        },
+
+    // ── geometry
+
+    padL: number = 56,
+    padR: number = 12,
+    padT: number = 12,
+    padB: number = 28,
+    plotW: number = { Math.max(10, this.width - this.padL - this.padR) },
+    plotH: number = { Math.max(10, this.height - this.padT - this.padB) },
+    n: number = { this.slots.length },
+    slotW: number = { this.plotW / Math.max(1, this.n) },
+    bars: Series[] = { this.series.filter((s) => s.kind == "bar") },
+
+    // the scale: from zero (or below, when something is negative) to a nice top
+
+    extent: number[] = { niceExtent(this.series.flatMap((s) => s.values)) },
+    yOf(v: number) -> number {
+        const lo = this.extent[0], hi = this.extent[1]
+        return this.padT + this.plotH * (1 - (v - lo) / ((hi - lo) || 1))
+        },
+    xOf(pi: number) -> number { return this.padL + this.slotW * (pi + 0.5) },
+    fmtAxis(v: number) -> string { return unit == "money" ? compactMoney(v) : unit == "percent" ? Math.round(v) + "%" : count(v) },
+    fmtValue(v: number) -> string { return unit == "money" ? money(v) : unit == "percent" ? pct(v, false) : count(v) },
+
+    // ── where the person is: a mark, by pointer or keyboard
+
+    hoverP: number = -1,
+    keyP: number = -1,
+    activeS: number = 0,
+    pointing: boolean = { this.hovered && this.hoverP >= 0 },
+    activeP: number = { this.pointing ? this.hoverP : this.focused ? Math.max(0, this.keyP) : -1 },
+    onMark: boolean = { this.activeP >= 0 && this.activeP < this.n },
+    showTip: boolean = { this.onMark && this.series.length > 0 && !this.dragging },
+
+    indexAt(x: number) -> number {
+        const i = Math.floor((x - padL) / slotW)
+        return i < 0 || i >= n ? -1 : i
+        },
+    onPointerMove(e: PointerEvent) { hoverP = this.indexAt(e.x) },
+    onFocus() { if (keyP < 0) keyP = Math.max(0, n - 1); this.say() },
+    onBlur() { keyP = -1 },
+    press() { if (activeP >= 0) this.open(activeS, activeP) },
+    onClick(e: PointerEvent) {
+        const i = this.indexAt(e.x)
+        if (i < 0) return
+        // the mark under the pointer: the bar it is over, else the nearest line
+        this.open(this.seriesAt(i, e.x, e.y), i)
+        },
+    seriesAt(pi: number, x: number, y: number) -> number {
+        const bs = bars
+        if (bs.length > 0) {
+            const gw = slotW * 0.72, bw = gw / bs.length
+            const b = Math.floor((x - (xOf(pi) - gw / 2)) / bw)
+            if (b >= 0 && b < bs.length) return series.indexOf(bs[b])
+            }
+        let best = 0, dist = 1e9
+        series.forEach((s, i) => { const d = Math.abs(yOf(this.lerp(i, pi)) - y); if (d < dist) { dist = d; best = i } })
+        return best
+        },
+
+    onKeyDown(e: KeyEvent) {
+        const plain = !e.meta && !e.ctrl && !e.alt
+        if (!plain || n == 0) { super.onKeyDown(e); return }
+        let p = Math.max(0, keyP), s = activeS
+        if (e.key == "ArrowRight") p = Math.min(n - 1, p + 1)
+        else if (e.key == "ArrowLeft") p = Math.max(0, p - 1)
+        else if (e.key == "ArrowDown") s = (s + 1) % series.length
+        else if (e.key == "ArrowUp") s = (s - 1 + series.length) % series.length
+        else if (e.key == "Home") p = 0
+        else if (e.key == "End") p = n - 1
+        else { super.onKeyDown(e); return }
+        keyP = p
+        activeS = s
+        hoverP = -1
+        this.say()
+        },
+
+    // "March 2026, Expenses, $4,120.00, up 6% from February, 87 transactions"
+
+    sentence(si: number, pi: number) -> string {
+        const s = series[si], slot = slots[pi]
+        if (s == null || slot == null) return ""
+        const v = s.values[pi] ?? 0
+        const parts = [periodName(slot.period, by, app.today) + (slot.partial ? " (so far)" : ""), s.label, this.fmtValue(v)]
+        const was = s.was?.[pi]
+        if (was != null && !Number.isNaN(was)) parts.push(changeWords(v, was, unit == "percent") + (vs != "" ? " from " + vs : ""))
+        const c = s.counts[pi]
+        if (c != null) parts.push(count(c) + " transaction" + (c == 1 ? "" : "s"))
+        return parts.join(", ")
+        },
+    say() { if (keyP >= 0) Accessibility.announce(this.sentence(activeS, keyP)) },
+    chartName: string = "",
+    spoken: string = { this.activeP >= 0 ? this.sentence(this.activeS, this.activeP) : "" },
+    accessibilityLabel = { this.chartName + (this.spoken != "" ? ". " + this.spoken : "") },
+
+    // ── dragging across: a range, offered as the date filter
+
+    dragging: boolean = false,
+    dragA: number = -1,
+    dragB: number = -1,
+    onDragStart(e: PointerEvent) { dragging = true; dragA = this.indexAt(e.x - e.deltaX); dragB = dragA },
+    onDrag(e: PointerEvent) { if (dragging) dragB = Math.max(0, Math.min(n - 1, Math.floor((e.x - padL) / slotW))) },
+    onDragEnd(e: DragEndEvent) {
+        dragging = false
+        if (e.canceled || dragA < 0 || dragB == dragA) { dragA = -1; dragB = -1 }
+        },
+    pickLo: number = { Math.min(this.dragA, this.dragB) },
+    pickHi: number = { Math.max(this.dragA, this.dragB) },
+    picking: boolean = { this.dragA >= 0 && this.dragB >= 0 && this.dragA != this.dragB },
+
+    // ── the drawing
+
+    draw(d: DrawContext) {
+        const th = provided("theme")
+        const lo = this.extent[0], hi = this.extent[1]
+        // grid lines and y labels
+        d.lineWidth = 1
+        for (const v of niceTicks(lo, hi)) {
+            const y = Math.round(this.yOf(v)) + 0.5
+            d.strokeStyle = v == 0 ? th.lineStrong : th.line
+            d.beginPath(); d.moveTo(this.padL, y); d.lineTo(d.w - this.padR, y); d.stroke()
+            const s = this.fmtAxis(v)
+            const m = measureText(s, ({ fontSize: 11 }))
+            d.fillText(s, this.padL - 8 - m.width, y + 4, ({ fontSize: 11, textColor: th.textMuted }))
+            }
+        // the range being dragged across
+        if (this.picking) {
+            d.fillStyle = th.selection
+            d.fillRect(this.padL + this.slotW * this.pickLo, this.padT, this.slotW * (this.pickHi - this.pickLo + 1), this.plotH)
+            }
+        // the active period's column
+        if (this.activeP >= 0 && this.activeP < this.n) {
+            d.fillStyle = th.hover
+            d.fillRect(this.padL + this.slotW * this.activeP, this.padT, this.slotW, this.plotH)
+            }
+        const zero = this.yOf(Math.max(lo, Math.min(hi, 0)))
+        // bars, grouped per period
+        const bs = this.bars
+        const gw = this.slotW * 0.72, bw = gw / Math.max(1, bs.length)
+        bs.forEach((s) => {
+            const si = this.series.indexOf(s)
+            this.slots.forEach((slot, pi) => {
+                const v = this.lerp(si, pi)
+                const x = this.xOf(pi) - gw / 2 + bw * bs.indexOf(s)
+                const y = this.yOf(v)
+                d.globalAlpha = slot.partial ? 0.45 : 1
+                d.fillStyle = th[s.tone] ?? th.accent
+                const top = Math.min(y, zero), h = Math.max(Math.abs(zero - y), v == 0 ? 0 : 1.5)
+                d.beginPath(); d.roundRect(x + 1, top, Math.max(1, bw - 2), h, Math.min(3, bw / 3)); d.fill()
+                if (this.activeP == pi && this.activeS == si) {
+                    d.globalAlpha = 1
+                    d.strokeStyle = th.text
+                    d.lineWidth = 1.5
+                    d.beginPath(); d.roundRect(x + 0.5, top - 0.5, Math.max(1, bw - 1), h + 1, 3); d.stroke()
+                    }
+                })
+            })
+        d.globalAlpha = 1
+        // lines: solid, or dashed for the comparison period
+        this.series.forEach((s, si) => {
+            if (s.kind == "bar") return
+            d.strokeStyle = th[s.tone] ?? th.text
+            d.lineWidth = s.kind == "dashed" ? 1.6 : 2.2
+            d.setLineDash(s.kind == "dashed" ? [5, 4] : [])
+            d.lineJoin = "round"
+            d.beginPath()
+            this.slots.forEach((slot, pi) => { const x = this.xOf(pi), y = this.yOf(this.lerp(si, pi)); if (pi == 0) d.moveTo(x, y); else d.lineTo(x, y) })
+            d.stroke()
+            d.setLineDash([])
+            if (s.kind == "line") {
+                this.slots.forEach((slot, pi) => {
+                    const on = this.activeP == pi && this.activeS == si
+                    d.fillStyle = slot.partial ? th.partialFill : th[s.tone] ?? th.text
+                    d.strokeStyle = th[s.tone] ?? th.text
+                    d.lineWidth = 1.6
+                    d.beginPath(); d.arc(this.xOf(pi), this.yOf(this.lerp(si, pi)), on ? 5 : this.n > 40 ? 0 : 3, 0, Math.PI * 2); d.fill(); d.stroke()
+                    })
+                }
+            })
+        // x labels: as many as fit
+        const every = Math.max(1, Math.ceil(46 / this.slotW))
+        this.slots.forEach((slot, pi) => {
+            if ((this.n - 1 - pi) % every != 0) return
+            const s = periodTick(slot.period, this.by) + (slot.partial ? "*" : "")
+            const m = measureText(s, ({ fontSize: 11 }))
+            d.fillText(s, this.xOf(pi) - m.width / 2, d.h - 8, ({ fontSize: 11, textColor: slot.partial ? th.textFaint : th.textMuted }))
+            })
+        },
+
+    // ── the tip: what the active mark is
+
+    tip: View [ visible = { classroot.showTip }, padding = [8, 10, 8, 10], cornerRadius = 8,
+        fill = { provided("theme").tooltipFill }, shadow = { shadow(0, 4, 12, 0x00000030) },
+        x = { Math.max(0, Math.min(classroot.width - this.width, classroot.xOf(classroot.activeP) + 14)) },
+        y = 4,
+        accessibilityHidden = true,
+        layout: SimpleLayout [ axis = y, spacing = 3 ],
+        Text [ fontSize = 12, fontWeight = semibold, wrap = false, textColor = { provided("theme").tooltipTextColor },
+            text = { classroot.showTip ? periodName(classroot.slots[classroot.activeP].period, classroot.by, app.today) + (classroot.slots[classroot.activeP].partial ? " · so far" : "") : "" } ],
+        lines: View [ datapath = { classroot.tipData.value },
+            layout: SimpleLayout [ axis = y, spacing = 2 ],
+            TipLine [ datapath = :rows[] ]
+            ],
+        Text [ fontSize = 11, wrap = false, textColor = { provided("theme").tooltipTextColor }, opacity = 0.7,
+            text = "Click to see the transactions" ]
+        ],
+    tipData: Dataset [ contents = { { rows: classroot.tipRows(classroot.activeP, classroot.activeS) } } ],
+    tipRows(pi: number, on: number) -> array {
+        if (pi < 0) return []
+        return series.map((s, si) => ({ id: s.id, label: s.label, tone: s.tone, on: si == on,
+            value: this.fmtValue(s.values[pi] ?? 0),
+            change: s.was?.[pi] == null || Number.isNaN(s.was[pi]) ? "" : changeWords(s.values[pi] ?? 0, s.was[pi], unit == "percent"),
+            count: s.counts[pi] == null ? "" : count(s.counts[pi]) + " tx" }))
+        },
+
+    // ── the offer, after a drag
+
+    offer: View [ visible = { classroot.picking && !classroot.dragging }, x = { classroot.padL }, y = 4,
+        padding = [6, 6, 6, 12], cornerRadius = 8, fill = { provided("theme").surface },
+        stroke = { stroke(1, provided("theme").accent) }, shadow = { shadow(0, 4, 12, 0x00000025) },
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Text [ fontSize = 12.5, wrap = false,
+            text = { classroot.picking ? periodName(classroot.slots[classroot.pickLo].period, classroot.by, app.today) + " – " + periodName(classroot.slots[classroot.pickHi].period, classroot.by, app.today) : "" } ],
+        Button [ label = "Use as date filter", height = 28, primary = true,
+            onClick() {
+                const c = classroot
+                c.takeRange(c.slots[c.pickLo].from, c.slots[c.pickHi].to)
+                c.dragA = -1
+                c.dragB = -1
+                }
+            ],
+        IconButton [ shape = "close", accessibilityLabel = "Cancel",
+            press() { classroot.dragA = -1; classroot.dragB = -1 }
+            ]
+        ]
+    ]
+
+
+class TipLine [
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    View [ width = 8, height = 8, cornerRadius = 2, fill = { provided("theme")[:tone] ?? provided("theme").accent } ],
+    Text [ fontSize = 12, wrap = false, fontWeight = { :on ? "semibold" : "normal" }, textColor = { provided("theme").tooltipTextColor },
+        text = { :label + "  " + :value } ],
+    Text [ visible = { :change != "" }, fontSize = 11, wrap = false, textColor = { provided("theme").tooltipTextColor }, opacity = 0.75,
+        text = { :change } ],
+    Text [ visible = { :count != "" }, fontSize = 11, wrap = false, textColor = { provided("theme").tooltipTextColor }, opacity = 0.6,
+        text = { :count } ]
+    ]
+
+
+// The key under a chart: a swatch and a name per series. Colour is never
+// the only carrier: a dashed series is drawn dashed here too.
+
+class Legend [ width = 100%,
+    datapath = { this.items.value },
+    series: Series[] = [],
+    items: Dataset [ contents = { { rows: classroot.series.map((s) => ({ id: s.id, label: s.label, tone: s.tone, kind: s.kind })) } } ],
+    layout: WrappingLayout [ spacing = 14, rowSpacing = 6, align = center ],
+    View [ datapath = :rows[],
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        View [ width = 14, height = 10,
+            draw(d: DrawContext) {
+                const ink = provided("theme")[:tone] ?? provided("theme").text
+                if (:kind == "bar") { d.fillStyle = ink; d.beginPath(); d.roundRect(2, 0, 10, 10, 2); d.fill(); return }
+                d.strokeStyle = ink
+                d.lineWidth = 2
+                d.setLineDash(:kind == "dashed" ? [3, 2] : [])
+                d.beginPath(); d.moveTo(0, 5); d.lineTo(14, 5); d.stroke()
+                }
+            ],
+        Text [ fontSize = 12, wrap = false, textColor = { provided("theme").textMuted }, text = :label ]
+        ]
+    ]
+
+
+// ── A chart's frame: title, one plain sentence, the chart, and its table ─
+//
+// The table holds everything the chart shows, and every cell opens its
+// records too. `rows` are the table's lines; the screen builds them.
+
+class ChartFrame extends Panel [
+    canToggle: boolean = true,
+    tooLittle: boolean = false,               // too little data to draw honestly
+    tooLittleSays: string = "There isn’t enough data in this range to chart. Try a longer date range.",
+    partialNote: string = "",
+    canTable = { this.canToggle && !this.tooLittle },
+    empty: Text [ visible = { classroot.tooLittle }, width = 100%, padding = [24, 0, 24, 0], textAlign = center, fontSize = 13.5,
+        textColor = { provided("theme").textMuted }, text = { classroot.tooLittleSays } ],
+    foot: Text [ visible = { classroot.partialNote != "" && !classroot.tooLittle }, width = 100%, fontSize = 12,
+        textColor = { provided("theme").textFaint }, text = { classroot.partialNote } ]
+    ]
+
+
+// A table of what a chart shows: one row per period (or category, or
+// product), one column per figure. Each figure is a control: it opens its
+// records.
+
+schema TableRowData [ id: string, label: string, cells[]: [ text: string, si: number, pi: number, open: boolean ] ]
+
+class FigureTable [ width = 100%,
+    heads: string[] = [],
+    rows: TableRowData[] = [],
+    open(si: number, pi: number) { },
+    sortable: boolean = false,
+    sortCol: number = -1,
+    sortDesc: boolean = true,
+    headClick(i: number) { },
+    headData: Dataset [ contents = { { rows: classroot.heads.map((h, i) => ({ id: "h" + i, label: h })) } } ],
+    bodyData: Dataset [ contents = { { rows: classroot.rows } } ],
+    accessibilityRole = grid,
+    layout: SimpleLayout [ axis = y ],
+    head: View [ width = 100%, height = 30, datapath = { classroot.headData.value },
+        stroke = { [null, null, stroke(1, provided("theme").line), null] },
+        layout: SimpleLayout [ axis = x, align = center ],
+        HeadCell [ datapath = :rows[], flexes = { rowIndex == 0 ? 2 : 1 }, index = { rowIndex },
+            sortable = { classroot.sortable }, sortedHere = { classroot.sortCol == rowIndex }, desc = { classroot.sortDesc },
+            press() { if (classroot.sortable) classroot.headClick(rowIndex) }
+            ]
+        ],
+    body: View [ width = 100%, height = { Math.min(this.contentHeight, 420) }, scrolls = y, datapath = { classroot.bodyData.value },
+        layout: SimpleLayout [ axis = y ],
+        View [ datapath = :rows[], width = 100%, height = 34,
+            stroke = { [null, null, stroke(1, provided("theme").line), null] },
+            accessibilityRole = row,
+            layout: SimpleLayout [ axis = x, align = center ],
+            Text [ flexes = 2, fontSize = 13, wrap = false, maxLines = 1, padding = [0, 8, 0, 8], text = :label, accessibilityRole = cell ],
+            FigureCell [ datapath = :cells[], flexes = true,
+                press() { classroot.open(:si, :pi) }
+                ]
+            ]
+        ]
+    ]
+
+
+class HeadCell extends Control [ height = 28, padding = [0, 8, 0, 8], cornerRadius = 4,
+    index: number = 0,
+    sortable: boolean = false,
+    sortedHere: boolean = false,
+    desc: boolean = true,
+    focusable = { this.sortable },
+    accessibilityRole = columnHeader,
+    accessibilitySort = { !this.sortable || !this.sortedHere ? "none" : this.desc ? "descending" : "ascending" },
+    fill = { this.sortable && hovered ? provided("theme").hover : null },
+    TextLabel [ width = 100%, fontSize = 12, fontWeight = semibold, wrap = false, textAlign = { classroot.index == 0 ? "left" : "right" },
+        textColor = { classroot.sortedHere ? provided("theme").text : provided("theme").textMuted },
+        text = { :label + (classroot.sortedHere ? (classroot.desc ? " ↓" : " ↑") : "") } ]
+    ]
+
+
+class FigureCell extends Control [ height = 30, cornerRadius = 5, padding = [0, 8, 0, 8],
+    accessibilityRole = cell,
+    accessibilityLabel = { :text + (:open ? ", opens its transactions" : "") },
+    disabled = { !(:open ?? false) },
+    fill = { hovered ? provided("theme").hover : null },
+    TextLabel [ width = 100%, fontSize = 13, wrap = false, numeralWidth = tabular, textAlign = right,
+        textColor = { (:open ?? false) ? provided("theme").linkColor : provided("theme").text }, text = :text ]
+    ]

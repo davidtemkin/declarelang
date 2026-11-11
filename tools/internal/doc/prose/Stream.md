@@ -35,9 +35,53 @@ Reconnect policy, **visible in the declaration**: seconds to wait before re-dial
 the connection is lost and the platform won't bring it back on its own — a `Socket`'s
 unexpected close, an `EventStream`'s terminal failure. `0` (the default) means no retry:
 the stream lands in `status = "failed"` and the app decides. A declared retry keeps trying
-while `active` is true, at a **fixed** interval — no invisible backoff, no give-up count.
+while `active` is true, with no give-up count, by this rule:
+
+- **The wait grows.** The first is `retry` seconds; each failure in a row doubles it, up to
+  a minute, and each wait is drawn from its upper half, so the clients a server restart
+  dropped together don't all return in the same second. A connection that then stays open
+  ten seconds starts the count over.
+- **A refusal is not retried** — the server saying no (`failure = rejected`: a WebSocket's
+  policy close, an event stream's 4xx) or answering with something that is not a stream
+  (`unreadable`): asking again asks for the same no.
+- **Offline, it waits the longest; back online, it dials at once** — after a moment's
+  jitter — and so it does when the page is shown again after being in the background.
+- `onClose` runs before a retry is scheduled: a program that reads `closeCode` there (its
+  own 4000–4999, an expired session) and turns `active` off stops it.
+
 A structural failure (the factory itself refuses — headless extraction, a missing host
 service) never loops, whatever `retry` says.
+
+## connectTimeout
+Seconds to wait for the connection to open before giving it up (`failure = timedOut`, then
+the `retry` rule). The platform has no limit of its own: a dial into a network that drops
+packets can wait minutes. 30 by default; `0` waits without limit.
+
+## idleTimeout
+Seconds an open connection may go with nothing arriving before it is taken for dead and
+closed (`failure = timedOut`, then the `retry` rule). A link left half-open — after the
+computer slept, or the network changed — looks open and delivers nothing, and nothing else
+notices. `0` (the default) is off. Set it a little longer than the server's own heartbeat:
+the page sees neither a WebSocket's pings nor (from the platform's `EventSource`) an event
+stream's `:` comments, so the server must send real messages; an `EventStream` that is the
+reply to a request does count its comments.
+
+## failure
+Why the last connection failed — the closed set a `DataSource` uses: `offline` or
+`networkError` (it could not be reached, or it broke; a browser tells a WebSocket's refusal
+apart from neither), `timedOut` (`connectTimeout` or `idleTimeout`), `rejected` (a policy
+close, an event stream's 4xx), `serverError` (an event stream's 5xx, a WebSocket's 1011–1014),
+`unreadable` (a reply that is not an event stream), `unsent` (the connection could not be
+made at all); `none` while all is well. **Read-only.**
+
+## closeCode
+The last close's code — a WebSocket's (`1000` a normal end, `1001` going away, `1006` lost
+with no word, `1008` refused by policy, `1012` restarting, 4000–4999 the server's own); `0`
+before any. **Read-only.** Read it in `onClose` to decide what an application's own code
+means.
+
+## closeReason
+The text that came with the last close, `""` when none. **Read-only.**
 
 ## status
 The connection lifecycle as **one fact**: `"closed"`,

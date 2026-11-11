@@ -144,8 +144,21 @@ as new rather than wrong. An override may name the body's shape with a schema of
 own — `refusedWith(body: Refusal)` — and read its fields with no cast.
 
 ## failedMessage
-What `error` says when the request failed with nothing readable — no reply at all, or a
-reply that is not a refusal. Say it in the program's own words.
+What `error` says when the request could not be made at all (`failure = unsent`), or the
+server refused without saying why — nothing was sent, or nothing was done. Say it in the
+program's own words.
+
+## uncertainMessage
+What `error` says when no answer came — the server failed, the network broke, or nothing
+arrived for the source's `timeout` (`failure` = `serverError`, `networkError`, `timedOut`):
+the send may or may not have been carried out, so it says so rather than "nothing was saved".
+
+## offlineMessage
+What `error` says when the send failed while the platform says it is offline.
+
+## unreadableMessage
+What `error` says when the server said yes but its reply could not be read (`failure =
+unreadable`): the send *was* carried out — sending again would do it twice.
 
 ## _members
 **Internal.** The controls in the form, counted or not. Kept by the controls themselves.
@@ -219,6 +232,9 @@ class Form [
 
     source: DataSource? = null,
     failedMessage: string = "That didn't go through, and nothing was saved. Try again.",
+    uncertainMessage: string = "No answer came back, so this may or may not have been saved. Check before trying again.",
+    offlineMessage: string = "You seem to be offline, so this may not have gone through. Once you're back online, check before trying again.",
+    unreadableMessage: string = "That went through, but the reply couldn't be read. Reload to see the result.",
 
     _members: any[] = [],
     _join(c: any) { if (!_members.includes(c)) _members = [..._members, c] },
@@ -388,15 +404,39 @@ class Form [
         trackChanges = ["pend"],
         onChange(e: ChangeEvent) { classroot._heard() }
         ],
+
+    // the overlay this form sits in waits for the answer while it sends — a
+    // form with a source only: one with no source ends `pending` itself, and
+    // the timeout that guarantees an answer is the source's
+
+    _overlay: any = { provided("_sendHold", null) },
+    _holding() { if (_overlay != null) _overlay.hold(this, pending && source != null) },
     _heard() {
+        this._holding()
         if (source == null && submitted && !pending) _landed()
         },
     _ended() {
         // a later send stopped this one: that one ends it
         if (!_sending || (source as any).loading) return
         _sending = false
-        if ((source as any).failed) _refused((source as any).errorBody ?? null)
-        else _succeeded()
+        const src = source as any
+        if (!src.failed) {
+            // stopped by the program (`clear()`), not answered: nothing landed
+            if (src.statusCode == 0) return
+            _succeeded()
+            return
+            }
+        // what to say depends on why — and on whether it went through
+        const why = source?.failure
+        if (why == "rejected") _refused(src.errorBody ?? null)
+        else this._failedAs(why == "unreadable" ? unreadableMessage
+            : why == "offline" ? offlineMessage
+            : why == "unsent" ? failedMessage
+            : uncertainMessage)
+        },
+    _failedAs(message: string) {
+        this.refuse([({ name: "", message: message })])
+        afterSettle(() => this.showProblems())
         },
     _refused(body: any) {
         refusedWith(body)

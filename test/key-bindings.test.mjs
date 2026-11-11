@@ -248,6 +248,21 @@ await test("ledger-2: in an editor entered inside a stop, what the row holds bin
   assert.equal(Focus.getFocus(), app.list, "nothing in the row binds it: Escape leaves the row for the list");
 });
 
+await test("ledger-3: the stop's own Escape binding comes before leaving the row; a Control doesn't press for a key from inside it", async () => {
+  const app = await boot(`App [ width = 400, height = 300,
+    got: string = "",
+    list: View [ width = 300, height = 200, focusScope = stop, focusable = true,
+        keyBindings = { [ ({ key: "Escape", command: "cancel" }) ] },
+        cancel() { app.got = app.got + "cancel;" },
+        row1: Control [ width = 300, height = 40, press() { app.got = app.got + "press;" },
+            f: TextInput [ width = 100, accessibilityLabel = "Cell" ] ] ] ]`);
+  Focus.focus(app.list.row1.f); settle();
+  press("Enter", { code: "Enter" });
+  assert.equal(app.got, "", "Enter from the field doesn't press the row around it");
+  press("Escape", { code: "Escape" });
+  assert.equal(app.got, "cancel;", "the list's own Escape");
+});
+
 await test("a one-line field's Enter in a Dialog presses the default; a focused button presses itself", async () => {
   const app = await boot(`App [ width = 500, height = 400,
     got: string = "",

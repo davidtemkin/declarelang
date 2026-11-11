@@ -141,7 +141,7 @@ class Sheet extends Floating [
         bar: View [ x = center, y = 7, width = 36, height = 5, cornerRadius = 3, fill = { provided("theme").line } ],
         onDrag(e: PointerEvent) { classroot._dragY = Math.max(0, e.deltaY) },
         onDragEnd(e: DragEndEvent) {
-            if (!e.canceled && classroot._dragY > classroot.height / 4) classroot.close()
+            if (!e.canceled && classroot._dragY > classroot.height / 4 && !classroot._waitsOnSend()) classroot.close()
             else classroot._dragY = 0
             }
         ],
@@ -159,7 +159,7 @@ class Sheet extends Floating [
     _grip: View [ visible = { classroot.presentation == "start" }, x = { classroot.width - 24 }, y = 0, width = 24, height = 100%, claim = x,
         onDrag(e: PointerEvent) { classroot._dragX = Math.max(0, -e.deltaX) },
         onDragEnd(e: DragEndEvent) {
-            if (!e.canceled && classroot._dragX > classroot.width / 4) classroot.close()
+            if (!e.canceled && classroot._dragX > classroot.width / 4 && !classroot._waitsOnSend()) classroot.close()
             else classroot._dragX = 0
             }
         ]

@@ -801,8 +801,12 @@ const SCENARIOS = {
     ctx.observed.words = words[0].slice(0, 140);
     // over by the right amount, when over
     if (b.remaining < 0 && /over by \$([\d,.]+)/i.test(words[0])) {
-      const said = parseMoney(/over by (\$[\d,.]+)/i.exec(words[0])[1]);
-      if (said !== -b.remaining) throw new Error(`Budgets says Over by ${money(said)}; the service says over by ${money(-b.remaining)}`);
+      // in words, whole dollars are fine (the brief's own "Over by $120"): a
+      // figure written without cents is held to the dollar, one with cents to the cent
+      const raw = /over by (\$[\d,.]+)/i.exec(words[0])[1];
+      const said = parseMoney(raw);
+      const ok = /\.\d\d$/.test(raw) ? said === -b.remaining : Math.abs(said + b.remaining) < 100;
+      if (!ok) throw new Error(`Budgets says Over by ${raw}; the service says over by ${money(-b.remaining)}`);
     }
   },
 

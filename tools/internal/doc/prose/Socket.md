@@ -28,3 +28,10 @@ apply: Button [ label = "Apply", disabled = { !app.live.open },
 
 What arrives lands in the data (`app.store.apply`), and every view reading it follows —
 the socket never touches a view.
+
+## bufferedAmount
+Bytes `send` has queued that are not yet on the wire — it grows on a slow link, and a
+program sending often can hold off while it does. **Read-only.** A message still queued
+when the connection drops is lost, and one sent just before has an unknown outcome, as a
+write that timed out does: a protocol that must not lose one says so in its own messages
+(an acknowledgement the server sends back).

@@ -1,0 +1,20 @@
+{
+  "app": "http://127.0.0.1:8290/evals/reports/_score-ledger-3/app/ledger.declare",
+  "results": [
+    {
+      "name": "sale_refund",
+      "pass": false,
+      "reason": "the sale's detail doesn't show the refund of $32.00 (no text with \"refund\" and the amount beside its lines: \"Speckled mug 2 × $32.00 $64.00 Art print A4 1 × $24.00 $24.00\")",
+      "ms": 12281,
+      "fallbacks": [
+        "\"Refund how many Speckled mug\" took no typed digits; set to 1 with the arrow keys"
+      ],
+      "observed": {
+        "products": "Speckled mug ×2, Art print A4 ×1",
+        "refundFields": "Refund how many Speckled mug=0; Refund how many Art print A4=0"
+      },
+      "screenshot": "evals/reports/_score-ledger-3/drive/sale_refund.png"
+    }
+  ],
+  "notes": []
+}

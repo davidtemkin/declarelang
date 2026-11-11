@@ -1,0 +1,339 @@
+/*
+# Ledger: the filters
+
+One set of filters shapes every screen. They live on the App (`app.filters`,
+one `Filter` record, replaced whole on every change); this file is how a
+person sets them: the date range with its presets, arrows and comparison;
+the search; kind, category, contact and amount, each in a popover; and the
+chips that say what is on, each with its ×.
+
+Every control here writes through the App's verbs (`setFilter`, `toggleIn`,
+`setPreset`, `stepRange`), so a filter set here, in a chart's drill-down or
+from a "needs attention" item is the same change.
+*/
+
+// ── The date range: ◀ November 2026 ▾ ▶, and what it is compared with ──
+
+class RangeControl [
+    layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+    prev: IconButton [ shape = "left", accessibilityLabel = "Previous period", tooltipLabel = "Previous period  [",
+        press() { app.shiftRange(-1) }
+        ],
+    pick: PillButton [ glyph = "calendar", label = { app.rangeName }, minWidth = 150,
+        accessibilityLabel = { "Date range, " + app.rangeName },
+        press() { app.rangePop.showFor(this) }
+        ],
+    next: IconButton [ shape = "right", accessibilityLabel = "Next period", tooltipLabel = "Next period  ]",
+        press() { app.shiftRange(1) }
+        ],
+    cmp: PillButton [ visible = { !app.phone }, label = { app.compareLabel }, menu = { app.compareMenu },
+        accessibilityLabel = { "Compare with: " + app.compareLabel } ]
+    ]
+
+
+// The presets, and two dates of your own.
+
+class RangePicker [ width = 330,
+    from: string = { app.range.from },
+    to: string = { app.range.to },
+    bad: boolean = { this.from == "" || this.to == "" || this.from > this.to },
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    Text [ fontSize = 12, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "DATE RANGE" ],
+    presets: View [ width = 100%, datapath = { app.presets.value },
+        layout: WrappingLayout [ columns = 2, spacing = 6, rowSpacing = 6 ],
+        PresetButton [ datapath = :rows[], flexes = true ]
+        ],
+    Text [ fontSize = 12, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "BETWEEN TWO DATES" ],
+    dates: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        DatePicker [ width = 145, accessibilityLabel = "From", value = { classroot.from },
+            commit(v: string) { classroot.from = v }
+            ],
+        Text [ textColor = { provided("theme").textMuted }, text = "–" ],
+        DatePicker [ width = 145, accessibilityLabel = "To", value = { classroot.to },
+            commit(v: string) { classroot.to = v }
+            ]
+        ],
+    Button [ label = "Use these dates", primary = true, disabled = { classroot.bad },
+        onClick() { app.setRange(classroot.from, classroot.to); app.rangePop.close() }
+        ]
+    ]
+
+
+class PresetButton extends Control [ height = 32, cornerRadius = 7, padding = [0, 10, 0, 10],
+    on: boolean = { app.filters.preset == :id },
+    accessibilityRole = toggle,
+    accessibilityPressed = { on },
+    fill = { on ? provided("theme").controlSelected : hovered ? provided("theme").hover : provided("theme").sunken },
+    press() { app.setPreset(:id); app.rangePop.close() },
+    TextLabel [ fontSize = 13, wrap = false, fontWeight = { classroot.on ? "semibold" : "normal" },
+        textColor = { classroot.on ? provided("theme").accent : provided("theme").text }, text = :label ]
+    ]
+
+
+// ── The filter row: search, then a button per filter ────────────────────
+
+class FilterButtons [
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    kind: PillButton [ glyph = "filter", label = { app.kindLabel }, on = { app.filters.kinds.length > 0 },
+        press() { app.kindPop.showFor(this) }
+        ],
+    cat: PillButton [ label = { app.catLabel }, on = { app.filters.cats.length > 0 },
+        press() { app.catPop.showFor(this) }
+        ],
+    who: PillButton [ label = { app.contactLabel }, on = { app.filters.contacts.length > 0 },
+        press() { app.contactPop.showFor(this) }
+        ],
+    amt: PillButton [ label = { app.amountLabel }, on = { app.filters.min != null || app.filters.max != null },
+        press() { app.amountPop.showFor(this) }
+        ]
+    ]
+
+
+// A checkbox line in a filter popover: a name, a colour, a count.
+
+class FilterOption extends Control [ width = 100%, height = { app.phone ? 44 : 30 }, cornerRadius = 6, padding = [0, 8, 0, 6],
+    label: string = "",
+    hint: string = "",
+    on: boolean = false,
+    tone: Color? = null,
+    accessibilityRole = checkbox,
+    accessibilityChecked = { on },
+    accessibilityLabel = { label + (hint != "" ? ", " + hint : "") },
+    fill = { hovered ? provided("theme").hover : null },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    box: View [ width = 16, height = 16, cornerRadius = 4,
+        fill = { classroot.on ? provided("theme").accent : null },
+        stroke = { classroot.on ? null : stroke(1.2, provided("theme").lineStrong) },
+        Glyph [ visible = { classroot.on }, x = center, y = center, shape = "check", iconSize = 11, weight = 2,
+            ink = { provided("theme").accentTextColor } ]
+        ],
+    dot: View [ visible = { classroot.tone != null }, width = 8, height = 8, cornerRadius = 4, fill = { classroot.tone } ],
+    TextLabel [ flexes = true, fontSize = 13, wrap = false, maxLines = 1, text = { classroot.label } ],
+    TextLabel [ fontSize = 12, wrap = false, numeralWidth = tabular, textColor = { provided("theme").textMuted }, text = { classroot.hint } ]
+    ]
+
+
+class KindFilter [ width = 220,
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Text [ fontSize = 12, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "KIND" ],
+    FilterOption [ label = "Sales", on = { app.filters.kinds.includes("sale") },
+        press() { app.toggleIn("kinds", "sale") }
+        ],
+    FilterOption [ label = "Refunds", on = { app.filters.kinds.includes("refund") },
+        press() { app.toggleIn("kinds", "refund") }
+        ],
+    FilterOption [ label = "Expenses", on = { app.filters.kinds.includes("expense") },
+        press() { app.toggleIn("kinds", "expense") }
+        ]
+    ]
+
+
+// Categories, several at once, each with how many transactions it would
+// have under the other filters.
+
+class CategoryFilter [ width = 280,
+    counts: DataSource [ autoFetch = true, schema = CatCounts,
+        url = { app.endpoint("/api/aggregates/category-counts", app.queryWith("cats")) } ],
+    countOf(id: string?) -> number { return (this.counts.value?.categories ?? []).find((c) => (c.categoryId ?? null) == id)?.count ?? 0 },
+    rows: array = { [({ id: "none", name: "Uncategorised", colour: -1 }),
+        ...app.books.categories().filter((c) => !c.archived || this.countOf(c.id) > 0)] },
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Text [ fontSize = 12, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "CATEGORY" ],
+    opts: Dataset [ contents = { { rows: classroot.rows } } ],
+    list: View [ width = 100%, height = { Math.min(360, classroot.rows.length * (app.phone ? 44 : 30)) }, scrolls = y,
+        datapath = { classroot.opts.value },
+        layout: SimpleLayout [ axis = y, spacing = 0 ],
+        FilterOption [ datapath = :rows[],
+            label = :name,
+            hint = { count(classroot.countOf(:id == "none" ? null : :id)) },
+            tone = { (:colour ?? -1) < 0 ? provided("theme").warn : provided("theme").cats[:colour] },
+            on = { app.filters.cats.includes(:id) },
+            press() { app.toggleIn("cats", :id) }
+            ]
+        ]
+    ]
+
+
+// Contacts: type part of a name to add one; each chosen one can be removed.
+
+class ContactFilter [ width = 280,
+    choices: array = { app.books.contacts().map((c) => ({ id: c.id, label: c.name })) },
+    chosen: array = { app.filters.contacts.map((id) => ({ id: id, label: id == "none" ? "No contact" : app.books.contactName(id) })) },
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    Text [ fontSize = 12, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "CONTACT" ],
+    Combobox [ width = 100%, placeholder = "Type a name…", accessibilityLabel = "Add a contact",
+        items = { classroot.choices }, value = null,
+        commit(v: object) { const c = v as Choice; if (c != null && !app.filters.contacts.includes(c.id)) app.toggleIn("contacts", c.id) }
+        ],
+    FilterOption [ label = "No contact", on = { app.filters.contacts.includes("none") },
+        press() { app.toggleIn("contacts", "none") }
+        ],
+    named: Dataset [ contents = { { rows: classroot.chosen.filter((c) => c.id != "none") } } ],
+    picked: View [ width = 100%, datapath = { classroot.named.value },
+        layout: WrappingLayout [ spacing = 6, rowSpacing = 6 ],
+        FilterChip [ datapath = :rows[], label = :label,
+            remove() { app.toggleIn("contacts", :id) }
+            ]
+        ]
+    ]
+
+
+// ── Amount: a two-handled slider over a histogram, and exact fields ─────
+
+class AmountFilter [ width = 340,
+    layout: SimpleLayout [ axis = y, spacing = 10 ],
+    Text [ fontSize = 12, fontWeight = semibold, textColor = { provided("theme").textMuted }, text = "AMOUNT" ],
+    slider: AmountSlider [ width = 100% ],
+    fields: View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        lo: TextInput [ width = 110, accessibilityLabel = "Minimum amount in dollars", placeholder = "No minimum",
+            commitOn = "end", value = { app.filters.min == null ? "" : moneyInput(app.filters.min) },
+            admit(t: string) -> string | null { return /^\$?[\d,]*(\.\d{0,2})?$/.test(t) ? t : null },
+            commit(t: string) { app.setAmount(parseMoney(t), app.filters.max ?? null) }
+            ],
+        Text [ textColor = { provided("theme").textMuted }, text = "to" ],
+        hi: TextInput [ width = 110, accessibilityLabel = "Maximum amount in dollars", placeholder = "No maximum",
+            commitOn = "end", value = { app.filters.max == null ? "" : moneyInput(app.filters.max) },
+            admit(t: string) -> string | null { return /^\$?[\d,]*(\.\d{0,2})?$/.test(t) ? t : null },
+            commit(t: string) { app.setAmount(app.filters.min ?? null, parseMoney(t)) }
+            ],
+        Spacer [ ],
+        Button [ label = "Any", height = 30,
+            onClick() { app.setAmount(null, null) }
+            ]
+        ]
+    ]
+
+
+// The track: a histogram of the transactions under the other filters, one
+// bar per bucket (buckets grow with the amount, so the scale does too), the
+// chosen range lit, friendly labels under it, and two handles that never
+// cross. Each handle is a control of its own, named for what it sets.
+
+class AmountSlider [ height = 112,
+    hist: DataSource [ autoFetch = true, schema = Amounts,
+        url = { app.endpoint("/api/aggregates/amounts", app.queryWith("amount")) } ],
+    lo: number = { app.filters.min ?? 0 },
+    hi: number? = { app.filters.max ?? null },
+    loPos: number = { amountPos(this.lo) },
+    hiPos: number = { this.hi == null ? 1 : amountPos(this.hi) },
+    trackW: number = { this.width - 16 },
+
+    setLo(v: number?) {
+        const n = v ?? 0
+        const top = hi == null ? 500000 : (amountStep(hi, -1) ?? 0)
+        app.setAmount(Math.min(n, top) == 0 ? null : Math.min(n, top), hi)
+        },
+    setHi(v: number?) {
+        const floor = amountStep(lo, 1)
+        app.setAmount(lo == 0 ? null : lo, v == null ? null : Math.max(v, floor ?? v))
+        },
+
+    bars: View [ x = 8, y = 0, width = { classroot.trackW }, height = 56,
+        accessibilityHidden = true,
+        draw(d: DrawContext) {
+            const b = classroot.hist.value?.buckets ?? []
+            if (b.length == 0) return
+            const peak = Math.max(1, ...b.map((x) => x.count))
+            const w = d.w / b.length
+            b.forEach((x, i) => {
+                const lit = x.max == null ? classroot.hi == null : (x.max > classroot.lo && (classroot.hi == null || x.min < classroot.hi))
+                d.fillStyle = lit ? provided("theme").accent : provided("theme").line
+                const h = x.count == 0 ? 0 : Math.max(2, (d.h - 2) * Math.sqrt(x.count / peak))
+                d.fillRect(i * w + 1, d.h - h, w - 2, h)
+                })
+            }
+        ],
+    track: View [ x = 8, y = 62, width = { classroot.trackW }, height = 4, cornerRadius = 2, fill = { provided("theme").line } ],
+    span: View [ y = 62, height = 4, cornerRadius = 2, fill = { provided("theme").accent },
+        x = { 8 + classroot.loPos * classroot.trackW },
+        width = { Math.max(0, (classroot.hiPos - classroot.loPos) * classroot.trackW) } ],
+    ticks: View [ x = 8, y = 82, width = { classroot.trackW }, height = 16,
+        accessibilityHidden = true,
+        draw(d: DrawContext) {
+            const ink = provided("theme").textMuted
+            for (const v of amountTicks()) {
+                const x = amountPos(v) * d.w
+                d.fillStyle = provided("theme").lineStrong
+                d.fillRect(x, 0, 1, 4)
+                const s = compactMoney(v)
+                const m = measureText(s, ({ fontSize: 11 }))
+                d.fillText(s, Math.max(0, Math.min(d.w - m.width, x - m.width / 2)), 15, ({ fontSize: 11, textColor: ink }))
+                }
+            }
+        ],
+    minHandle: AmountHandle [ pos = { classroot.loPos }, amount = { classroot.lo }, trackW = { classroot.trackW },
+        accessibilityLabel = "Minimum amount",
+        accessibilityValueText = { classroot.lo == 0 ? "No minimum" : dollars(classroot.lo) },
+        set(p: number) { classroot.setLo(amountAt(Math.min(p, classroot.hiPos))) },
+        nudge(dir: number, big: boolean) { classroot.setLo(big ? amountAt(classroot.loPos + dir / 18) : amountStep(classroot.lo, dir)) }
+        ],
+    maxHandle: AmountHandle [ pos = { classroot.hiPos }, amount = { classroot.hi ?? 500000 }, trackW = { classroot.trackW },
+        accessibilityLabel = "Maximum amount",
+        accessibilityValueText = { classroot.hi == null ? "No maximum" : dollars(classroot.hi) },
+        set(p: number) { classroot.setHi(amountAt(Math.max(p, classroot.loPos))) },
+        nudge(dir: number, big: boolean) { classroot.setHi(big ? amountAt(classroot.hiPos + dir / 18) : amountStep(classroot.hi, dir)) }
+        ]
+    ]
+
+
+class AmountHandle extends Control [ width = 22, height = 22, cornerRadius = 11, y = 53, claim = x,
+    pos: number = 0,
+    amount: number = 0,
+    trackW: number = 100,
+    accessibilityValue = { amount },
+    accessibilityMin = 0,
+    accessibilityMax = 500000,
+    x = { 8 + this.pos * this.trackW - 11 },
+    set(p: number) { },
+    nudge(dir: number, big: boolean) { },
+    accessibilityRole = slider,
+    fill = { provided("theme").surface },
+    stroke = { stroke(1.5, hovered || pressed || this.dragging ? provided("theme").accent : provided("theme").lineStrong) },
+    shadow = { shadow(0, 1, 3, 0x00000030) },
+    dragging: boolean = false,
+    _p0: number = 0,
+    onPointerDown() { super.onPointerDown(); dragging = true; _p0 = pos },
+    onDrag(e: PointerEvent) { if (dragging) this.set(Math.max(0, Math.min(1, _p0 + e.deltaX / trackW))) },
+    onPointerUp() { dragging = false },
+    accessibilityIncrement() { this.nudge(1, false) },
+    accessibilityDecrement() { this.nudge(-1, false) },
+    onKeyDown(e: KeyEvent) {
+        if (e.key == "PageUp") this.nudge(1, true)
+        else if (e.key == "PageDown") this.nudge(-1, true)
+        else if (e.key == "Home") this.set(0)
+        else if (e.key == "End") this.set(1)
+        else super.onKeyDown(e)
+        }
+    ]
+
+
+// ── What is on: a chip per filter, each with its × ──────────────────────
+
+class FilterChips [
+    chipData: Dataset [ contents = { { rows: app.chips } } ],
+    datapath = { this.chipData.value },
+    layout: WrappingLayout [ spacing = 6, rowSpacing = 6, align = center ],
+    FilterChip [ datapath = :rows[], label = :label,
+        remove() { app.removeChip(:id) }
+        ],
+    clear: Control [ height = 28, padding = [0, 8, 0, 8], cornerRadius = 7,
+        fill = { hovered ? provided("theme").hover : null },
+        press() { app.clearAll() },
+        TextLabel [ fontSize = 12.5, fontWeight = medium, textColor = { provided("theme").accent }, text = "Clear all" ]
+        ]
+    ]
+
+
+// The line every screen shows while non-date filters are on, so a filtered
+// figure is never read as the whole.
+
+class FilteredNote [ width = 100%, visible = { app.filtered }, padding = [8, 12, 8, 12], cornerRadius = 8,
+    fill = { provided("theme").warnTint },
+    layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+    accessibilityRole = status,
+    Glyph [ shape = "filter", iconSize = 13, ink = { provided("theme").warn } ],
+    Text [ flexes = true, fontSize = 13, textColor = { provided("theme").text },
+        text = { "Filtered — these figures count only " + app.filterSentence + "." } ]
+    ]

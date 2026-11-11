@@ -193,7 +193,11 @@ Escape closes a framed, closable window while focus is inside it; an overlay ope
 takes Escape first.
 
 ## _keyEscape()
-**Internal.** Escape: `close()`, for a framed, closable, open window.
+**Internal.** Escape: `close()`, for a framed, closable, open window — waiting instead while
+a `Form` inside is sending through its source (`SendHold`).
+
+## _sendHold
+**Internal.** What a `Form` inside, while it sends, holds the window's Escape with.
 */
 
 
@@ -359,8 +363,14 @@ class Window [ width = 360, height = 240,
 
     keyBindings = { [ ({ key: "Escape", command: "_keyEscape" }) ] },
 
+    // a Form inside sending holds Escape until its answer (SendHold)
+
+    _sendHolder: SendHold [ open = { classroot.open } ],
+    _sendHold: any = { this._sendHolder },
+
     _keyEscape(e: KeyEvent) -> boolean {
         if (!frame || !closable || !open) return false
+        if (this._sendHolder.waits()) return true
         close()
         return true
         },

@@ -1,0 +1,267 @@
+/*
+# Ledger: Overview
+
+In five seconds: how are we doing this period, and what needs attention?
+
+Each panel reads its own figures from the service, built from the shared
+filter, and every figure opens the records behind it. The headline figures
+compare the part of the period that has happened with the same stretch of
+the comparison period (a month in progress against the same days of the
+month before), and their sparklines are the last twelve months.
+*/
+
+class OverviewScreen [ scrolls = y, padding = { app.phone ? [8, 12, 24, 12] : [4, 20, 32, 20] },
+
+    // read only while it is the screen: a hidden screen asks for nothing
+
+    on: boolean = { app.screen == "overview" },
+    ask(path: string, q: string) -> string { return this.on ? app.endpoint(path, q) : "" },
+
+    // the twelve months up to the end of the range, for the sparklines and the
+    // income-vs-expenses chart
+
+    endMonth: string = { monthStart(app.range.to < app.today ? app.range.to : app.today) },
+    trailing: Range = { { from: addMonths(this.endMonth, -11), to: monthEnd(this.endMonth) } },
+
+    trend: DataSource [ autoFetch = true, schema = Periods,
+        url = { classroot.ask("/api/aggregates/periods", app.queryFor(classroot.trailing) + "&by=month") } ],
+    now: DataSource [ autoFetch = true, schema = Periods,
+        url = { classroot.ask("/api/aggregates/periods", app.queryFor(elapsed(app.range, app.today)) + "&by=month") } ],
+    prior: DataSource [ autoFetch = true, schema = Periods,
+        url = { app.cmpRange == null ? "" : classroot.ask("/api/aggregates/periods", app.queryFor(app.cmpRange) + "&by=month") } ],
+    cats: DataSource [ autoFetch = true, schema = CatAggs,
+        url = { classroot.ask("/api/aggregates/categories", app.query + "&side=expense") } ],
+    prods: DataSource [ autoFetch = true, schema = ProdAggs,
+        url = { classroot.ask("/api/aggregates/products", app.query) } ],
+    custs: DataSource [ autoFetch = true, schema = ContactAggs,
+        url = { classroot.ask("/api/aggregates/contacts", app.query + "&side=income&limit=5") } ],
+    recent: DataSource [ autoFetch = true, schema = TxnPage,
+        url = { classroot.ask("/api/transactions", app.query + "&limit=6") } ],
+
+    // what needs attention is about the books, not the filter: every
+    // uncategorised transaction, and this month's budgets
+
+    uncat: DataSource [ autoFetch = true, schema = Summary,
+        url = { classroot.ask("/api/summary", "category=none") } ],
+    budgets: DataSource [ autoFetch = true, schema = Budgets,
+        url = { classroot.ask("/api/budgets", "month=" + app.today.slice(0, 7)) } ],
+
+    nowT: PeriodTotal? = { this.now.value?.total ?? null },
+    priorT: PeriodTotal? = { app.cmpRange == null ? null : this.prior.value?.total ?? null },
+    months: Period[] = { this.trend.value?.periods ?? [] },
+
+    layout: SimpleLayout [ axis = y, spacing = 16 ],
+
+    FilteredNote [ ],
+    welcome: Welcome [ visible = { app.noBooks }, width = 100% ],
+
+    // ── the four figures
+
+    kpis: View [ width = 100%,
+        layout: WrappingLayout [ columns = { app.phone ? 2 : 4 }, spacing = 12, rowSpacing = 12 ],
+        Kpi [ flexes = true, label = "Revenue", measure = "revenue", source = { classroot.now },
+            value = { classroot.nowT?.revenue.amount ?? 0 }, was = { classroot.priorT?.revenue.amount ?? null },
+            spark = { classroot.months.map((p) => p.revenue.amount) }, tone = "income" ],
+        Kpi [ flexes = true, label = "Expenses", measure = "expenses", source = { classroot.now }, goodWhenUp = false,
+            value = { classroot.nowT?.expenses.amount ?? 0 }, was = { classroot.priorT?.expenses.amount ?? null },
+            spark = { classroot.months.map((p) => p.expenses.amount) }, tone = "expense" ],
+        Kpi [ flexes = true, label = "Net profit", measure = "net", source = { classroot.now },
+            value = { classroot.nowT?.net.amount ?? 0 }, was = { classroot.priorT?.net.amount ?? null },
+            spark = { classroot.months.map((p) => p.net.amount) }, tone = "netLine" ],
+        Kpi [ flexes = true, label = "Gross margin", measure = "margin", source = { classroot.now }, percent = true,
+            value = { classroot.nowT?.grossMargin.percent ?? 0 },
+            was = { classroot.priorT == null ? null : classroot.priorT.grossMargin.percent ?? null },
+            spark = { classroot.months.map((p) => p.grossMargin.percent ?? 0) }, tone = "accent" ]
+        ],
+
+    // ── income vs expenses, and what needs attention
+
+    middle: View [ width = 100%,
+        layout: ResponsiveLayout [ gap = 16, plan = { [
+            ({ from: 980, flow: "row", share: ({ money: 66, attention: 34 }) }),
+            ({ from: 0, flow: "stack", share: ({ money: 100, attention: 100 }) }) ] } ],
+        money: ChartFrame [ title = "Income vs expenses", source = { classroot.trend },
+            note = { app.fig.incomeSentence(classroot.months) },
+            tooLittle = { classroot.months.length == 0 },
+            partialNote = { app.fig.partialNote(classroot.months, "month") },
+            Legend [ series = { classroot.middle.money.moneyChart.series } ],
+            moneyChart: TimeChart [ width = 100%, visible = { !classroot.middle.money.asTable }, by = "month",
+                chartName = "Income vs expenses, month by month",
+                slots = { app.fig.slotsOf(classroot.months) },
+                vs = "the month before",
+                series = { app.fig.moneySeries(classroot.months, false, classroot.months, 1) },
+                open(si: number, pi: number) { app.openPeriodFigure(classroot.months[pi], this.series[si].id) },
+                takeRange(from: string, to: string) { app.setRange(from, to) }
+                ],
+            FigureTable [ visible = { classroot.middle.money.asTable }, heads = ["Month", "Revenue", "Expenses", "Net profit"],
+                rows = { app.fig.periodRows(classroot.months, "month", ["revenue", "expenses", "net"]) },
+                open(si: number, pi: number) { app.openPeriodFigure(classroot.months[pi], ["revenue", "expenses", "net"][si]) }
+                ]
+            ],
+        attention: Panel [ title = "Needs attention", source = { classroot.uncat },
+            AttentionList [ uncategorised = { classroot.uncat.value?.count ?? 0 },
+                budgets = { classroot.budgets.value?.budgets ?? [] } ]
+            ]
+        ],
+
+    // ── where the money went, what sold, who bought
+
+    lists: View [ width = 100%,
+        layout: ResponsiveLayout [ gap = 16, plan = { [
+            ({ from: 980, flow: "row", share: ({ byCat: 34, topProducts: 33, topCustomers: 33 }) }),
+            ({ from: 0, flow: "stack", share: ({ byCat: 100, topProducts: 100, topCustomers: 100 }) }) ] } ],
+        byCat: Panel [ title = "Expenses by category", source = { classroot.cats },
+            note = { app.fig.categorySentence(classroot.cats.value?.categories ?? [], "expense") },
+            empty: Text [ visible = { (classroot.cats.value?.categories ?? []).length == 0 }, fontSize = 13,
+                textColor = { provided("theme").textMuted }, text = "No expenses in this range." ],
+            list: View [ width = 100%, datapath = { classroot.catTop.value },
+                layout: SimpleLayout [ axis = y, spacing = 2 ],
+                BarRow [ datapath = :rows[], label = :label, cents = :amount, frac = :frac, tone = :tone,
+                    sub = { count(:count) + " tx" },
+                    press() { app.openCategory(:ids, "expense") }
+                    ]
+                ]
+            ],
+        topProducts: Panel [ title = "Top products", source = { classroot.prods },
+            empty: Text [ visible = { (classroot.prods.value?.products ?? []).length == 0 }, fontSize = 13,
+                textColor = { provided("theme").textMuted }, text = "No sales in this range." ],
+            list: View [ width = 100%, datapath = { classroot.prodTop.value },
+                layout: SimpleLayout [ axis = y, spacing = 2 ],
+                BarRow [ datapath = :rows[], label = :label, cents = :amount, frac = :frac, tone = "income",
+                    sub = { count(:units) + " sold" },
+                    press() { app.openProduct(:pid) }
+                    ]
+                ]
+            ],
+        topCustomers: Panel [ title = "Top customers", source = { classroot.custs },
+            empty: Text [ visible = { (classroot.custs.value?.contacts ?? []).length == 0 }, fontSize = 13,
+                textColor = { provided("theme").textMuted }, text = "No sales in this range." ],
+            list: View [ width = 100%, datapath = { classroot.custTop.value },
+                layout: SimpleLayout [ axis = y, spacing = 2 ],
+                BarRow [ datapath = :rows[], label = :label, cents = :amount, frac = :frac, tone = "accent",
+                    sub = { count(:count) + " tx" },
+                    press() { app.openContact(:cid, ["sale", "refund"]) }
+                    ]
+                ]
+            ]
+        ],
+
+    recentPanel: Panel [ title = "Recent transactions", source = { classroot.recent },
+        empty: Text [ visible = { (classroot.recent.value?.rows ?? []).length == 0 }, fontSize = 13,
+            textColor = { provided("theme").textMuted }, text = "Nothing recorded in this range yet." ],
+        list: View [ width = 100%, datapath = { classroot.recent.value },
+            layout: SimpleLayout [ axis = y ],
+            RecentRow [ datapath = :rows[] ]
+            ],
+        Text [ fontSize = 13.5, fontWeight = medium, textColor = { provided("theme").linkColor }, text = "See all transactions →",
+            link = "#transactions" ]
+        ],
+
+    // the lists' rows, ready to draw: the top few, and the rest as "Other"
+
+    catTop: Dataset [ contents = { { rows: app.fig.topCategories(classroot.cats.value?.categories ?? [], 5) } } ],
+    prodTop: Dataset [ contents = { { rows: app.fig.topProducts(classroot.prods.value?.products ?? [], 5) } } ],
+    custTop: Dataset [ contents = { { rows: app.fig.topContacts(classroot.custs.value?.contacts ?? []) } } ]
+    ]
+
+
+// One headline figure: its value, its change, the last twelve months.
+// Pressing it opens its trend in Insights.
+
+class Kpi extends Control [ cornerRadius = 12, padding = [14, 16, 12, 16], minWidth = 150,
+    label: string = "",
+    measure: string = "revenue",
+    value: number = 0,
+    was: number? = null,
+    percent: boolean = false,
+    goodWhenUp: boolean = true,
+    spark: number[] = [],
+    tone: string = "accent",
+    source: DataSource? = null,
+    shownValue: string = { this.percent ? pct(this.value, false) : money(this.value) },
+    accessibilityLabel = { this.label + ", " + this.shownValue + ". Opens its trend." },
+    fill = { hovered ? provided("theme").hover : provided("theme").card },
+    stroke = { stroke(1, provided("theme").line) },
+    opacity = { (this.source?.loading ?? false) && (this.source?.loaded ?? false) ? provided("theme").dim : 1 },
+    press() { app.openTrend(this.measure) },
+    layout: SimpleLayout [ axis = y, spacing = 4 ],
+    Text [ fontSize = 13, fontWeight = medium, textColor = { provided("theme").textMuted }, text = { classroot.label } ],
+    Text [ fontSize = { app.phone ? 20 : 24 }, fontWeight = semibold, numeralWidth = tabular, wrap = false,
+        text = { (classroot.source?.loaded ?? false) ? classroot.shownValue : "—" } ],
+    Delta [ now = { classroot.value }, was = { classroot.was }, points = { classroot.percent },
+        goodWhenUp = { classroot.goodWhenUp }, vs = { app.cmpName } ],
+    Spark [ width = 100%, height = 28, values = { classroot.spark }, tone = { provided("theme")[classroot.tone] } ]
+    ]
+
+
+// A row of a top-five list: a name, an amount, a small bar; it opens its
+// records.
+
+class BarRow extends Control [ width = 100%, height = { app.phone ? 52 : 44 }, cornerRadius = 6, padding = [4, 6, 4, 6],
+    label: string = "",
+    sub: string = "",
+    cents: number = 0,
+    frac: number = 0,
+    tone: string = "accent",
+    accessibilityLabel = { this.label + ", " + money(this.cents) + ", " + this.sub },
+    fill = { hovered ? provided("theme").hover : null },
+    layout: SimpleLayout [ axis = y, spacing = 4 ],
+    View [ width = 100%,
+        layout: SimpleLayout [ axis = x, spacing = 6, align = baseline ],
+        Text [ flexes = true, fontSize = 13, wrap = false, maxLines = 1, text = { classroot.label } ],
+        Text [ fontSize = 11.5, wrap = false, textColor = { provided("theme").textFaint }, text = { classroot.sub } ],
+        Money [ fontSize = 13, cents = { classroot.cents } ]
+        ],
+    MiniBar [ width = 100%, frac = { classroot.frac }, tone = { app.toneOf(classroot.tone) } ]
+    ]
+
+
+// What needs attention: uncategorised transactions, and budgets over or
+// near their limit. Each opens exactly those records.
+
+class AttentionList [ width = 100%,
+    uncategorised: number = 0,
+    budgets: Budget[] = [],
+    items: Dataset [ contents = { { rows: app.fig.attentionItems(classroot.uncategorised, classroot.budgets) } } ],
+    datapath = { this.items.value },
+    layout: SimpleLayout [ axis = y, spacing = 6 ],
+    clear: View [ visible = { (classroot.items.value?.rows ?? []).length == 0 }, width = 100%, padding = [18, 0, 18, 0],
+        layout: SimpleLayout [ axis = y, spacing = 6, align = center ],
+        Glyph [ shape = "check", iconSize = 22, weight = 2, ink = { provided("theme").good } ],
+        Text [ fontSize = 14, fontWeight = medium, text = "All caught up." ]
+        ],
+    AttentionItem [ datapath = :rows[] ]
+    ]
+
+
+class AttentionItem extends Control [ width = 100%, cornerRadius = 8, padding = [10, 12, 10, 12],
+    accessibilityLabel = { :title + ". " + :detail },
+    fill = { hovered ? provided("theme").hover : :level == "bad" ? provided("theme").badTint : provided("theme").warnTint },
+    press() { app.openAttention(:kind, :ref ?? "") },
+    layout: SimpleLayout [ axis = x, spacing = 10, align = center ],
+    Glyph [ shape = "alert", iconSize = 15, ink = { :level == "bad" ? provided("theme").bad : provided("theme").warn } ],
+    View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ width = 100%, fontSize = 13.5, fontWeight = semibold, text = :title ],
+        Text [ width = 100%, fontSize = 12.5, textColor = { provided("theme").textMuted }, text = :detail ]
+        ],
+    Glyph [ shape = "right", iconSize = 12, ink = { provided("theme").textMuted } ]
+    ]
+
+
+class RecentRow extends Control [ width = 100%, height = 48, padding = [0, 6, 0, 6], cornerRadius = 6,
+    accessibilityLabel = { (:description ?? "") + ", " + money(:inFilter ?? 0) },
+    fill = { hovered ? provided("theme").hover : null },
+    press() { app.showTransaction(:id) },
+    layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
+    Text [ width = 64, fontSize = 12.5, wrap = false, numeralWidth = tabular, textColor = { provided("theme").textMuted },
+        text = { shortDate(:date ?? "", app.today) } ],
+    View [ flexes = true,
+        layout: SimpleLayout [ axis = y, spacing = 1 ],
+        Text [ width = 100%, fontSize = 13.5, wrap = false, maxLines = 1, text = { (:description ?? "") == "" ? "(no description)" : :description } ],
+        Text [ width = 100%, fontSize = 12, wrap = false, maxLines = 1, textColor = { provided("theme").textMuted }, text = { :contactName ?? "No contact" } ]
+        ],
+    CatChip [ visible = { !app.phone }, categoryId = { :categoryId ?? null }, split = { :split?.parts ?? 0 } ],
+    Money [ width = 110, fontSize = 13.5, cents = { :inFilter ?? 0 },
+        textColor = { (:inFilter ?? 0) < 0 ? provided("theme").text : provided("theme").good } ]
+    ]

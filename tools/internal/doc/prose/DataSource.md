@@ -123,10 +123,15 @@ it; they set `failed` and `error`, and fire `onError`. **You usually do not need
 point. Reach for `onLoad` only when arrival must cause something a constraint cannot express —
 focusing the first result, chaining a follow-up fetch, announcing to a screen reader.
 
+A source removed while its write is in flight — inside a sheet that closed, a screen the
+person left — hears no answer: the write may still be carried out, but neither `onLoad` nor
+`onError` runs. Keep a write's source where it outlives what sends from it.
+
 
 ## onError
-`onLoad`'s mirror: fires once each time a fetch fails, after `failed`, `error`, `statusCode`
-and `errorBody` are set. **Showing the failure is not this:** a constraint on `failed` does
+`onLoad`'s mirror: fires once each time a fetch fails, after `failed`, `failure`, `error`,
+`statusCode` and `errorBody` are set. Read `failure` to choose: try a read again after
+`timedOut` or `networkError`, report a `rejected` one. **Showing the failure is not this:** a constraint on `failed` does
 that. Reach for it when a failure must cause something, such as sending the next write of a
 queue, retrying, or moving focus, so that work following a reply has a handler for each
 outcome: `onLoad` for success, `onError` for failure.
@@ -161,6 +166,36 @@ request is refused — move focus to the field the server named, put back what i
 down — declare `trackChanges = ["failed"]` and an `onChange` on the source, and act when
 `failed` is true. Each refusal is a change, a second one included, since every `fetch()`
 clears it first.
+
+## failure
+Why the last request failed, as one of a closed set — what to do next differs by kind, and
+for a write (`method` other than GET), so does whether it was carried out:
+
+| `failure` | what happened | a write was |
+|---|---|---|
+| `none` | nothing failed | — |
+| `unsent` | the request could not be made: a malformed address, a header or method the platform refuses | not carried out |
+| `rejected` | the server said no: a 4xx, with `statusCode` and `errorBody` saying why | not carried out |
+| `serverError` | the server failed: a 5xx, a gateway's 502, 503 or 504 among them | **unknown** |
+| `networkError` | no answer came: the address could not be reached, the connection broke, a secure connection could not be made, or the browser blocked it (a cross-origin reply without the headers that allow it, mixed content) | **unknown** |
+| `offline` | as `networkError`, while the platform says it is offline | **unknown** |
+| `timedOut` | nothing arrived for `timeout` seconds | **unknown** |
+| `unreadable` | the server said yes (a 2xx), but the reply could not be used: not JSON when JSON was asked for — an HTML page served with 200 — or not matching `schema`, or it stopped arriving | **carried out** |
+
+An unknown outcome is said as one: don't send a write again blindly, check first, since the
+server may already have done it — unless it is safe to repeat. A browser hides why a
+network error happened, and hides a refusal's status from a cross-origin reply that does not
+allow it, so a server's no can arrive as `networkError`. A reply of 200 that carries an error
+list (a GraphQL server's `errors`) is a success here: catch it with `schema` or in `onLoad`.
+A 202 means the server accepted the work, not that it is done.
+
+## timeout
+How many seconds a request may go with **nothing arriving** before it is given up as
+`timedOut` — no connection, no reply, or a gap while the reply streams in. It is silence,
+not total time: a large reply that keeps arriving never times out. 60 by default; `0` waits
+without limit, for a long poll. A page can't see an upload's progress, so for a write the
+wait includes sending the body and the server's work: a large upload or a slow operation
+sets a longer `timeout`.
 
 ## error
 Why the last fetch failed, as one line — an HTTP status, a transport message, or the

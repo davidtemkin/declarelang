@@ -1133,6 +1133,10 @@ const DatasetSchema: ClassSchema = {
 const literalUnion = (...members: readonly string[]): AttrType =>
   ({ kind: "enum", name: members.map((m) => JSON.stringify(m)).join(" | "), tokens: [...members] });
 
+// Why a request or a connection failed — DataSource.failure and Stream.failure
+// share the one vocabulary (data.ts RequestFailureKind).
+const REQUEST_FAILURE = enumType("RequestFailure", "none", "unsent", "offline", "networkError", "timedOut", "rejected", "serverError", "unreadable");
+
 const DataSourceSchema: ClassSchema = {
   name: "DataSource",
   base: DatasetSchema,
@@ -1159,6 +1163,11 @@ const DataSourceSchema: ClassSchema = {
     // endpoints that ARE most real GraphQL/REST services were unreachable
     // through this class until it existed (field report, 2026-09-04).
     headers: { kind: "object" },
+    // Seconds a request may go with NOTHING arriving (no connection, no
+    // headers, a gap in the body) before it is given up as `timedOut`; 0 = no
+    // limit. Silence, not total time: a large reply that keeps arriving never
+    // times out (data.ts $request).
+    timeout: { kind: "number" },
     // ── the lifecycle, read-only (see the note above DatasetSchema) ────────
     // Two kinds of fact. `loaded` is about the VALUE: a document is present,
     // and stays present through a refetch. `loading` and `failed` are about
@@ -1173,12 +1182,16 @@ const DataSourceSchema: ClassSchema = {
     // `statusCode` is 0 until a reply arrives (distinct from every real code),
     // `errorBody` is the refusal's payload, parsed when it is JSON.
     error: { kind: "string" },
+    // WHY the last request failed, as a closed set — what to do next differs
+    // by kind, and so does whether a write was carried out (data.ts
+    // RequestFailureKind)
+    failure: REQUEST_FAILURE,
     statusCode: { kind: "number" },
     errorBody: { kind: "object" },
     // the reply's headers, names lowercased; null before a reply
     responseHeaders: { kind: "object" },
   },
-  readOnly: ["loaded", "loading", "failed", "error", "statusCode", "errorBody", "responseHeaders"],
+  readOnly: ["loaded", "loading", "failed", "failure", "error", "statusCode", "errorBody", "responseHeaders"],
   // fired when a fetch lands, after value+flags settle — the imperative
   // arrival hook (constraints keep deriving from .loaded); `error` its mirror,
   // when a fetch fails, after failed/error/statusCode are set
@@ -1355,8 +1368,17 @@ const StreamSchema: ClassSchema = {
     error: { kind: "string" },
     last: { kind: "string" },
     open: { kind: "boolean" },
+    // seconds to wait for the connection to open (0 = no limit), and seconds
+    // an open connection may go with nothing arriving before it is taken for
+    // dead (0 = off) — streams.ts
+    connectTimeout: { kind: "number" },
+    idleTimeout: { kind: "number" },
+    // why the last connection failed, and the last close's code and reason
+    failure: REQUEST_FAILURE,
+    closeCode: { kind: "number" },
+    closeReason: { kind: "string" },
   },
-  readOnly: ["status", "error", "last", "open"],
+  readOnly: ["status", "error", "last", "open", "failure", "closeCode", "closeReason"],
   events: ["message", "open", "close", "error"],
 };
 
@@ -1384,7 +1406,9 @@ const EventStreamSchema: ClassSchema = {
 const SocketSchema: ClassSchema = {
   name: "Socket",
   base: StreamSchema,
-  attrs: {},
+  // bytes sent and not yet on the wire (streams.ts Socket.bufferedAmount)
+  attrs: { bufferedAmount: { kind: "number" } },
+  readOnly: ["bufferedAmount"],
 };
 
 // State (docs/system-design/states.md) — a twin-table class like Animator:

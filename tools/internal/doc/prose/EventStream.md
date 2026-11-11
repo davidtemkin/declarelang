@@ -7,13 +7,16 @@ A stream that is the **reply to a request** — an AI model's answer arriving wo
 from a POST — declares the request as a `DataSource` does: `method`, `body`, `headers`,
 `credentials`. It is one request, and its reply is read as it arrives; the stream closes
 when the reply ends (`onClose`), and a refusal fails it with the status and what the
-server said. A request is not sent again on its own — declare `retry` to ask again after
-a loss.
+server said (`failure` = `rejected` for a 4xx, `serverError` for a 5xx). A reply that is
+not `text/event-stream` — a sign-in page, a proxy's notice — is `unreadable`, not read as
+events. A request is not sent again on its own — declare `retry` to ask again after a loss.
 
 A plain GET — none of the four — keeps the platform's `EventSource` machinery
 **verbatim**: it retries on its own (honoring the server's `retry:` hint) and resumes with
 `Last-Event-ID`, during which `status` reads `"retrying"` and no error is reported;
-`retry`/`onError` concern only **terminal** failure — the platform giving up.
+`retry`/`onError` concern only **terminal** failure — the platform giving up. It does not
+say why it gave up — a refusal, a wrong content type and a dead network look alike to the
+page — so that failure is `networkError`.
 
 A declared stream **holds a live connection** for as long as it is `active` and its node
 lives — every open tab is one held server connection (browsers cap ~6 per host over

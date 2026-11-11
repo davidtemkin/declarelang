@@ -16,6 +16,17 @@ export declare abstract class Stream extends Node {
     /** The most recent message's data — the zero-handler tier (`text = { feed.last }`).
      *  Read-only. */
     last: string;
+    /** Seconds to wait for the connection to open before giving it up
+     *  (`failure` = timedOut); 0 = no limit. */
+    connectTimeout: number;
+    /** Seconds with nothing arriving on an open connection before it is taken
+     *  for dead (a half-open link after sleep or a network change); 0 = off. */
+    idleTimeout: number;
+    /** Why the last connection failed — the closed set a DataSource uses. */
+    failure: string;
+    /** The last close's code (a WebSocket's; 0 when none) and reason. */
+    closeCode: number;
+    closeReason: string;
     /** The boolean view of `status`, like DataSource.loaded: four names, one
      *  fact, never in disagreement. */
     get open(): boolean;
@@ -35,6 +46,13 @@ export declare abstract class Stream extends Node {
      *  the initial binding evaluations must not connect — autoStart syncs once,
      *  with the settled initial values (zero churn by construction). */
     private wired;
+    /** Consecutive failed attempts — the retry delay grows with it, and resets
+     *  once a connection has stayed open STABLE_MS. */
+    private attempts;
+    private openedAt;
+    private heardAt;
+    private connectTimer;
+    private idleTimer;
     constructor();
     /** Construction-complete (instantiate.ts initTree — the hook every source
      *  uses): handlers and initial attribute values are all in place. */
@@ -49,6 +67,17 @@ export declare abstract class Stream extends Node {
      *  and a non-empty `url` say so ("" = detached, the AppIsland idiom). */
     private $sync;
     private $connect;
+    /** Nothing has arrived for `idleTimeout`: checked against when something
+     *  last did, so a timer a background tab held back late is not a false
+     *  alarm, and one that fires early just re-arms. */
+    private $armIdle;
+    /** Given up by a timeout: close the handle and go down as a failure. */
+    private $lost;
+    private $clearTimers;
+    /** Back from the background, or back online: an idle check that a held-back
+     *  timer missed runs now, and a stream waiting to retry dials soon — after
+     *  a jittered moment, so every client does not reconnect in the same second. */
+    $resume(_online: boolean): void;
     /** The connection went down (the factory's `end`). Not final = the
      *  platform repairs it itself (SSE native retry): just "retrying". Final =
      *  the handle is dead; a declared `retry` schedules the reconnect, else
@@ -90,5 +119,11 @@ export declare class Socket extends Stream {
     protected $dial(cb: StreamCallbacks): StreamHandle;
     /** A call you make; `onMessage` is it calling you. On a socket that is not
      *  open: a reported error, not a silent queue (§5). */
+    /** Bytes sent and not yet on the wire — growing on a slow link. Refreshed
+     *  after each send() and while it drains; a message still queued when the
+     *  connection drops is lost, its outcome unknown. Read-only. */
+    bufferedAmount: number;
+    private drainTimer;
+    private $refreshBuffered;
     send(text: string): void;
 }

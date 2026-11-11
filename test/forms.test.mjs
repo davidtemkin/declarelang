@@ -276,6 +276,57 @@ await test("a Form with a source: the service's refusal reaches it, though submi
   } finally { provideTransport(prev); }
 });
 
+await test("a Form says what a failure means for what was sent: no answer, or an unreadable yes", async () => {
+  const { provideTransport } = await import("../runtime/dist/data.js");
+  const run = async (transport) => {
+    const prev = provideTransport(transport);
+    try {
+      const app = await boot(`App [ width = 400, height = 300,
+        save: DataSource [ url = "/api/save", method = "POST", body = { { a: 1 } }, timeout = 0.05 ],
+        f: Form [ source = { app.save } ] ]`);
+      app.f.submit(); settle();
+      for (let i = 0; i < 40 && app.f.error === ""; i++) { await new Promise((r) => setTimeout(r, 10)); settle(); }
+      return app.f;
+    } finally { provideTransport(prev); }
+  };
+  const silent = await run(() => new Promise(() => {}));
+  assert.equal(silent.error, silent.uncertainMessage, "silence: may or may not have been saved");
+  assert.equal(silent.pending, false, "and pending ends");
+  const html = await run(async () => ({ ok: true, status: 200, text: async () => "<html>", json: async () => { throw new SyntaxError("x"); } }));
+  assert.equal(html.error, html.unreadableMessage, "a yes whose reply can't be read");
+});
+
+await test("ledger-3: a sheet whose form is sending waits on its own dismissals; the program can still close it", async () => {
+  const { provideTransport } = await import("../runtime/dist/data.js");
+  let release;
+  const prev = provideTransport(() => new Promise((r) => { release = () => r({ ok: true, status: 201, text: async () => "{}" }); }));
+  try {
+    const app = await boot(`App [ width = 600, height = 500,
+      save: DataSource [ url = "/api/save", method = "POST", body = { { a: 1 } } ],
+      sh: Sheet [ f: Form [ source = { app.save } ] ] ]`);
+    app.sh.show(); settle();
+    app.sh.f.submit(); settle();
+    for (let i = 0; i < 20 && release === undefined; i++) { await new Promise((r) => setTimeout(r, 5)); settle(); }
+    assert.equal(app.sh._sendHold.held, true, "held while sending");
+    app.sh._keyEscape({ key: "Escape", repeat: false }); settle();
+    app.sh.onOutsidePress(); settle();
+    assert.equal(app.sh.shown, true, "Escape and a press outside wait");
+    release();
+    for (let i = 0; i < 20 && app.sh._sendHold.held; i++) { await new Promise((r) => setTimeout(r, 5)); settle(); }
+    app.sh._keyEscape({ key: "Escape", repeat: false }); settle();
+    assert.equal(app.sh.shown, false, "answered: Escape closes");
+    // the program's own close never waits
+    release = undefined;
+    app.sh.show(); settle();
+    app.sh.f.submit(); settle();
+    for (let i = 0; i < 20 && release === undefined; i++) { await new Promise((r) => setTimeout(r, 5)); settle(); }
+    app.sh.close(); settle();
+    assert.equal(app.sh.shown, false, "close() from the program closes");
+    assert.equal(app.sh._sendHold.held, false, "and lets go of the hold");
+    release();
+  } finally { provideTransport(prev); }
+});
+
 summarize("forms");
 // an attached app keeps its timers (the focus ring's, a tooltip's): end here
 process.exit(process.exitCode ?? 0);

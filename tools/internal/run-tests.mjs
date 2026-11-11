@@ -62,6 +62,7 @@ const SUITE = [
   "test/row-lifetime.test.mjs",    // what a virtualized list drops as it scrolls is collected (nothing the runtime keeps holds it)
   "test/dataschema.test.mjs",
   "test/datasource-failure.test.mjs",
+  "test/request-failures.test.mjs",   // why a request failed (failure), and its silence timeout
   "test/table.test.mjs",
   "test/library.test.mjs",
   "test/overlays.test.mjs",        // overlays by kind, windows, hosted programs (planes.md §3, §8, §11, §12)

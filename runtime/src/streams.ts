@@ -33,7 +33,7 @@
 
 import { Node, onDiscard } from "./node.js";
 import { defineAttributes, setBound } from "./attributes.js";
-import { currentStreams, defaultEventSource, type StreamCallbacks, type StreamHandle, type StreamRequest } from "./stream-seam.js";
+import { currentStreams, defaultEventSource, offlineNow, type StreamCallbacks, type StreamEnd, type StreamHandle, type StreamRequest } from "./stream-seam.js";
 import { declareName } from "./declare-name.js";
 
 // ── The classes ───────────────────────────────────────────────────────────
@@ -54,6 +54,17 @@ export abstract class Stream extends Node {
   /** The most recent message's data — the zero-handler tier (`text = { feed.last }`).
    *  Read-only. */
   declare last: string;
+  /** Seconds to wait for the connection to open before giving it up
+   *  (`failure` = timedOut); 0 = no limit. */
+  declare connectTimeout: number;
+  /** Seconds with nothing arriving on an open connection before it is taken
+   *  for dead (a half-open link after sleep or a network change); 0 = off. */
+  declare idleTimeout: number;
+  /** Why the last connection failed — the closed set a DataSource uses. */
+  declare failure: string;
+  /** The last close's code (a WebSocket's; 0 when none) and reason. */
+  declare closeCode: number;
+  declare closeReason: string;
 
   /** The boolean view of `status`, like DataSource.loaded: four names, one
    *  fact, never in disagreement. */
@@ -78,9 +89,19 @@ export abstract class Stream extends Node {
    *  the initial binding evaluations must not connect — autoStart syncs once,
    *  with the settled initial values (zero churn by construction). */
   private wired = false;
+  /** Consecutive failed attempts — the retry delay grows with it, and resets
+   *  once a connection has stayed open STABLE_MS. */
+  private attempts = 0;
+  private openedAt = 0;
+  private heardAt = 0;
+  private connectTimer: ReturnType<typeof setTimeout> | null = null;
+  private idleTimer: ReturnType<typeof setTimeout> | null = null;
 
   constructor() {
     super();
+    LIVE.add(this);
+    onDiscard(this, () => LIVE.delete(this));
+    watchLifecycle();
     // Lifetime is the node's: a discarded stream closes its connection, so a
     // torn-down subtree cannot keep one alive. Quiet — no handlers fire into
     // a tree being discarded.
@@ -127,19 +148,28 @@ export abstract class Stream extends Node {
     const cb: StreamCallbacks = {
       open: () => {
         if (gen !== this.gen) return;
+        this.$clearTimers();
         this.wasOpen = true;
+        this.openedAt = this.heardAt = Date.now();
         setBound(this, "error", "");
+        setBound(this, "failure", "none");
         setBound(this, "status", "open");
+        this.$armIdle();
         this.$fire("onOpen");
       },
       message: (m) => {
         if (gen !== this.gen) return;
+        this.heardAt = Date.now();
         setBound(this, "last", m.data);
         this.$fire("onMessage", m);
       },
-      end: (error, final) => {
+      alive: () => {
         if (gen !== this.gen) return;
-        this.$ended(error, final);
+        this.heardAt = Date.now();
+      },
+      end: (error, final, how) => {
+        if (gen !== this.gen) return;
+        this.$ended(error, final, how);
       },
     };
     try {
@@ -150,36 +180,108 @@ export abstract class Stream extends Node {
       // straight to "failed", never a retry loop (§3).
       this.handle = null;
       setBound(this, "error", e instanceof Error ? e.message : String(e));
+      setBound(this, "failure", "unsent");
       setBound(this, "status", "failed");
       this.$fire("onError");
+      return;
     }
+    // a connection that never opens is given up, not waited on forever
+    if (this.connectTimeout > 0) {
+      this.connectTimer = setTimeout(() => {
+        this.connectTimer = null;
+        if (gen !== this.gen) return;
+        this.$lost(`no connection to ${this.url} after ${this.connectTimeout} s`);
+      }, this.connectTimeout * 1000);
+    }
+  }
+
+  /** Nothing has arrived for `idleTimeout`: checked against when something
+   *  last did, so a timer a background tab held back late is not a false
+   *  alarm, and one that fires early just re-arms. */
+  private $armIdle(): void {
+    if (this.idleTimer !== null) clearTimeout(this.idleTimer);
+    this.idleTimer = null;
+    if (!(this.idleTimeout > 0) || this.status !== "open") return;
+    const gen = this.gen;
+    const due = this.heardAt + this.idleTimeout * 1000 - Date.now();
+    this.idleTimer = setTimeout(() => {
+      this.idleTimer = null;
+      if (gen !== this.gen || this.status !== "open") return;
+      if (Date.now() - this.heardAt >= this.idleTimeout * 1000) this.$lost(`nothing from ${this.url} for ${this.idleTimeout} s`);
+      else this.$armIdle();
+    }, Math.max(0, due));
+  }
+
+  /** Given up by a timeout: close the handle and go down as a failure. */
+  private $lost(error: string): void {
+    const h = this.handle;
+    this.gen++;
+    this.handle = null;
+    try { h?.close(); } catch { /* best-effort */ }
+    this.$ended(error, true, { failure: "timedOut" }, true);
+  }
+
+  private $clearTimers(): void {
+    if (this.connectTimer !== null) { clearTimeout(this.connectTimer); this.connectTimer = null; }
+    if (this.idleTimer !== null) { clearTimeout(this.idleTimer); this.idleTimer = null; }
+  }
+
+  /** Back from the background, or back online: an idle check that a held-back
+   *  timer missed runs now, and a stream waiting to retry dials soon — after
+   *  a jittered moment, so every client does not reconnect in the same second. */
+  $resume(_online: boolean): void {
+    if (this.status === "open") { if (this.idleTimeout > 0) this.$armIdle(); return; }
+    if (this.status !== "retrying" || this.timer === null || !this.active) return;
+    clearTimeout(this.timer);
+    this.timer = setTimeout(() => { this.timer = null; this.$sync(); }, Math.random() * 1000);
   }
 
   /** The connection went down (the factory's `end`). Not final = the
    *  platform repairs it itself (SSE native retry): just "retrying". Final =
    *  the handle is dead; a declared `retry` schedules the reconnect, else
    *  the stream rests at "failed" (a failure) or "closed" (a clean end). */
-  private $ended(error: string, final: boolean): void {
+  private $ended(error: string, final: boolean, how?: StreamEnd, bumped = false): void {
+    this.$clearTimers();
+    if (how?.code !== undefined) {
+      setBound(this, "closeCode", how.code);
+      setBound(this, "closeReason", how.reason ?? "");
+    }
     if (error !== "") {
       setBound(this, "error", error);
+      setBound(this, "failure", how?.failure ?? (offlineNow() ? "offline" : "networkError"));
       this.$fire("onError");
     }
     if (!final) {
       setBound(this, "status", "retrying");
       return;
     }
-    this.gen++;
+    if (!bumped) this.gen++;
     this.handle = null;
+    // a connection that stayed up a while was a success: the next loss
+    // starts the retry delay over
+    if (this.wasOpen && Date.now() - this.openedAt >= STABLE_MS) this.attempts = 0;
     if (this.wasOpen) {
       this.wasOpen = false;
+      // onClose runs before any retry is scheduled: a program that reads
+      // `closeCode` (its own 4000–4999, an expired session) and turns
+      // `active` off there stops the retry
       this.$fire("onClose");
     }
-    if (this.retry > 0 && this.active) {
+    // a refusal — the server saying no, or answering with something that is
+    // not a stream — is not retried: asking again asks for the same no
+    const refused = how?.failure === "rejected" || how?.failure === "unreadable";
+    if (this.retry > 0 && this.active && !refused) {
       setBound(this, "status", "retrying");
+      // the delay grows from `retry` (doubling, to a minute at most), with
+      // jitter so clients a restart dropped together do not return together;
+      // offline, it waits the longest — and coming back online dials at once
+      const base = Math.min(this.retry * 2 ** this.attempts, RETRY_CAP_S);
+      const wait = offlineNow() ? RETRY_CAP_S : base / 2 + Math.random() * base / 2;
+      this.attempts++;
       this.timer = setTimeout(() => {
         this.timer = null;
         this.$sync();
-      }, this.retry * 1000);
+      }, wait * 1000);
     } else {
       setBound(this, "status", error !== "" ? "failed" : "closed");
     }
@@ -189,6 +291,7 @@ export abstract class Stream extends Node {
    *  nothing may run into a tree being torn down. */
   private $drop(quiet: boolean): void {
     this.gen++;
+    this.$clearTimers();
     if (this.timer !== null) {
       clearTimeout(this.timer);
       this.timer = null;
@@ -227,7 +330,34 @@ defineAttributes(Stream as never, {
   status: { def: "closed" },
   error: { def: "" },
   last: { def: "" },
+  connectTimeout: { def: 30 },
+  idleTimeout: { def: 0, push: (s: unknown) => (s as unknown as { $armIdle(): void }).$armIdle() },
+  failure: { def: "none" },
+  closeCode: { def: 0 },
+  closeReason: { def: "" },
 } as never);
+
+/** A connection that stays open this long was a success: the retry delay
+ *  starts over after it. */
+const STABLE_MS = 10_000;
+/** The longest a retry waits, in seconds — and how long it waits while offline. */
+const RETRY_CAP_S = 60;
+
+/** Every live stream, for the page's lifecycle: back online, or shown again
+ *  from the background or the back-forward cache. */
+const LIVE = new Set<Stream>();
+let lifecycleWatched = false;
+function watchLifecycle(): void {
+  if (lifecycleWatched) return;
+  lifecycleWatched = true;
+  const g = globalThis as { addEventListener?: (t: string, f: (e: unknown) => void) => void; document?: { visibilityState?: string } };
+  if (typeof g.addEventListener !== "function") return;
+  g.addEventListener("online", () => { for (const s of LIVE) s.$resume(true); });
+  g.addEventListener("pageshow", () => { for (const s of LIVE) s.$resume(false); });
+  g.addEventListener("visibilitychange", () => {
+    if (g.document?.visibilityState === "visible") for (const s of LIVE) s.$resume(false);
+  });
+}
 
 /** SSE (`text/event-stream`), receive-only. A plain GET keeps the platform's
  *  EventSource verbatim — its retry (the server's `retry:` hint) and
@@ -301,15 +431,32 @@ export class Socket extends Stream {
 
   /** A call you make; `onMessage` is it calling you. On a socket that is not
    *  open: a reported error, not a silent queue (§5). */
+  /** Bytes sent and not yet on the wire — growing on a slow link. Refreshed
+   *  after each send() and while it drains; a message still queued when the
+   *  connection drops is lost, its outcome unknown. Read-only. */
+  declare bufferedAmount: number;
+  private drainTimer: ReturnType<typeof setTimeout> | null = null;
+  private $refreshBuffered(): void {
+    const n = this.handle?.buffered?.() ?? 0;
+    if (n !== this.bufferedAmount) setBound(this, "bufferedAmount", n);
+    if (this.drainTimer !== null) clearTimeout(this.drainTimer);
+    this.drainTimer = n > 0 ? setTimeout(() => { this.drainTimer = null; this.$refreshBuffered(); }, 250) : null;
+  }
+
   send(text: string): void {
     if (this.open && this.handle?.send !== undefined) {
       this.handle.send(text);
+      this.$refreshBuffered();
       return;
     }
     setBound(this, "error", "send(…) on a socket that is not open — nothing was sent (gate on .open, or send from onOpen)");
     this.$fire("onError");
   }
 }
+
+defineAttributes(Socket as never, {
+  bufferedAmount: { def: 0 },
+} as never);
 
 /** The request stream over fetch (the seam's `request` when a host gives none): the reply's body read chunk by chunk and
  *  parsed as server-sent events (the WHATWG event-stream format: `data:` lines
@@ -328,10 +475,17 @@ function requestStreamOverFetch(url: string, req: StreamRequest, listen: readonl
     if (!res.ok) {
       let said = "";
       try { said = (await res.text()).trim().slice(0, 300); } catch { said = ""; }
-      cb.end(`HTTP ${res.status} for ${url}${said !== "" ? ` — ${said}` : ""}`, true);
+      cb.end(`HTTP ${res.status} for ${url}${said !== "" ? ` — ${said}` : ""}`, true, { failure: res.status >= 500 ? "serverError" : "rejected" });
       return;
     }
-    if (res.body === null) { cb.end(`no reply body from ${url}`, true); return; }
+    // a 200 that is not an event stream — a sign-in page, a proxy's notice —
+    // is no stream at all: said, not read as one
+    const replied = res.headers?.get?.("content-type") ?? "";
+    if (replied !== "" && !/^text\/event-stream\b/i.test(replied)) {
+      cb.end(`the reply from ${url} is ${replied.split(";")[0]}, not an event stream`, true, { failure: "unreadable" });
+      return;
+    }
+    if (res.body === null) { cb.end(`no reply body from ${url}`, true, { failure: "unreadable" }); return; }
     cb.open();
     const reader = res.body.getReader();
     const decoder = new TextDecoder();
@@ -345,7 +499,7 @@ function requestStreamOverFetch(url: string, req: StreamRequest, listen: readonl
         data = []; type = "";
         return;
       }
-      if (l.startsWith(":")) return;                                // a comment
+      if (l.startsWith(":")) { cb.alive?.(); return; }             // a comment — a keep-alive
       const colon = l.indexOf(":");
       const field = colon < 0 ? l : l.slice(0, colon);
       let value = colon < 0 ? "" : l.slice(colon + 1);
@@ -369,7 +523,7 @@ function requestStreamOverFetch(url: string, req: StreamRequest, listen: readonl
     if (!closed) cb.end("", true);
   })().catch((e: unknown) => {
     if (closed) return;
-    cb.end(e instanceof Error ? e.message : String(e), true);
+    cb.end(e instanceof Error ? e.message : String(e), true, { failure: offlineNow() ? "offline" : "networkError" });
   });
   return { close: () => { closed = true; ctl.abort(); } };
 }

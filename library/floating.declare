@@ -166,12 +166,18 @@ An override calls `super.close()`. Work for every closing belongs in `closed()`:
 Called once it is closed — override to act on closing. It runs before focus is given back,
 so focus moved here (to what the closing created) stays where it was put.
 
+## _sendHold
+**Internal.** What a `Form` inside, while it sends through its source, holds the overlay's
+own ways of closing with — `SendHold`.
+
 ## escape()
 What Esc does when this is the open overlay nearest the focus — closes it; a dialog picks its
 cancel button instead.
 
 ## keyBindings
-Escape runs `escape()` while it is shown. Focus inside the overlay walks to it before
+Escape runs `escape()` while it is shown — and, while a `Form` inside is sending through its
+source, waits for the answer instead, as a press outside and a swipe do. The program's own
+`close()` never waits. Focus inside the overlay walks to it before
 anything outside; with focus outside it (a combobox's list), its keys come to it first.
 
 ## _keyEscape()
@@ -212,6 +218,9 @@ App's.
 
 ## onOutsidePress
 An outside press (or, with `scrollPolicy = "dismiss"`, an outside scroll) asked it to close.
+It closes — unless a `Form` inside is sending through its source: then it waits for the
+answer (which would otherwise land nowhere), saying "Still sending" once to a screen reader.
+An override that closes regardless says so by calling `close()`.
 
 ## _savedFocus
 **Internal.** The view that had focus when it opened, given focus back when it closes.
@@ -259,6 +268,14 @@ class Floating [
 
     _form: any = null,
     _field: any = null,
+
+    // the overlay a Form inside it holds open while it sends: its own ways of
+    // closing — Escape, a press outside, a swipe — wait for the answer, which
+    // would otherwise land nowhere (key-bindings.md; data: DataSource.failure)
+
+    _sendHolder: SendHold [ open = { classroot.shown } ],
+    _sendHold: any = { this._sendHolder },
+    _waitsOnSend() -> boolean { return this._sendHolder.waits() },
 
     _notice: boolean = false,
     shown: boolean = false,
@@ -477,7 +494,7 @@ class Floating [
         return ({ x: x + p1.x - p0.x, y: y + p1.y - p0.y })
         },
 
-    onOutsidePress() { this.close() },
+    onOutsidePress() { if (!this._waitsOnSend()) this.close() },
 
     escape() { this.close() },
 
@@ -488,7 +505,48 @@ class Floating [
 
     _keyEscape(e: KeyEvent) -> boolean {
         if (!shown) return false
+        if (this._waitsOnSend()) return true
         escape()
         return true
         }
+    ]
+
+
+/*
+# SendHold
+
+**Internal.** What an overlay (a `Floating` — `Sheet`, `Dialog`, `Popover` — or a `Window`)
+holds while a `Form` inside it is sending through its `source`: the overlay's own ways of
+closing — Escape, a press outside, a swipe — wait for the answer, which would otherwise
+land nowhere. The program's own `close()` never waits, and closing lets go.
+
+## hold()
+**Internal.** A form inside starts (`on`) or ends sending.
+
+## waits()
+**Internal.** A dismissal asks: true while held, saying "Still sending" once.
+*/
+
+class SendHold extends Node [
+    open: boolean = false,
+    holds: any[] = [],
+    held: boolean = { this.holds.length > 0 },
+    _told: boolean = false,
+    hold(by: any, on: boolean) {
+        const was = holds.includes(by)
+        if (on && !was) holds = [...holds, by]
+        else if (!on && was) holds = holds.filter((h) => h !== by)
+        if (holds.length == 0) _told = false
+        },
+    waits() -> boolean {
+        if (!held) return false
+        if (!_told) { _told = true; Accessibility.announce("Still sending") }
+        return true
+        },
+
+    // closed (by the program — its own ways wait), what held it lets go: a
+    // form discarded mid-send holds nothing the next time it opens
+
+    trackChanges = ["open"],
+    onChange(e: ChangeEvent) { if (!open) { holds = []; _told = false } }
     ]

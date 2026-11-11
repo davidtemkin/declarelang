@@ -1,0 +1,310 @@
+/*
+# Ledger: the look and the small parts
+
+The two themes, the drawn icons, and the pieces every screen is made of: the
+panel that frames a figure (and says when it is loading, slow or failed), the
+category chip, money in a column, a sparkline, a small bar.
+
+Every colour is a theme token. A category's colour is `cats[colour]`: the
+service gives each category a stable index, so a category is the same colour
+on every chart, chip and bar.
+*/
+
+// ── Colours ─────────────────────────────────────────────────────────────
+
+theme LedgerLight [
+    background = #F6F5F2, surface = #FFFFFF, card = #FFFFFF, sunken = #EFEEEA,
+    line = #E4E2DC, lineStrong = #CFCCC4, hover = #F1F0EC,
+    text = #1C1D1F, textMuted = #66686D, textFaint = #8D8F94,
+    accent = #1F6F5C, accentHovered = #1A5F4F, accentPressed = #154E41, accentTextColor = #FFFFFF,
+    linkColor = #1F6F5C,
+    controlSelected = #E3EEEA,
+    good = #1E8250, bad = #C93A30, warn = #B7740C, goodTint = #E3F2EA, badTint = #FBE9E7, warnTint = #FBF1DE,
+    income = #2E8C6A, expense = #DB7B4A, netLine = #1C1D1F, compare = #9A9CA1, partialFill = #F6F5F2,
+    selection = #DCEBE5, hit = #0E6B55, dim = 0.45,
+    gridRowHeight = 48, gridFontSize = 13, gridHeaderFontSize = 12,
+    cats = [#2E8C6A, #3F7FD1, #8C6BD4, #D1873B, #C9A227, #4BA3B5, #C2557A, #5B6CD6, #D45F4C, #7A8F3A, #8B8F98, #A47552],
+    catTints = [#E2F1EB, #E4EDF9, #EEE8F8, #F9EDE1, #F7F0DA, #E2F1F4, #F7E5EC, #E8EAF9, #F9E6E3, #EDF1E1, #EEEFF1, #F2EAE3]
+    ]
+
+
+theme LedgerDark [
+    background = #141517, surface = #1D1E21, card = #1D1E21, sunken = #18191B,
+    line = #2D2F33, lineStrong = #44464C, hover = #25272A,
+    text = #EDEDEF, textMuted = #A3A5AB, textFaint = #7D8086,
+    accent = #4CC09C, accentHovered = #5ED0AC, accentPressed = #3BA684, accentTextColor = #0E1A16,
+    linkColor = #5ED0AC,
+    controlSelected = #20352E,
+    good = #4CC38A, bad = #FF7A6E, warn = #E7A94A, goodTint = #193126, badTint = #3A1F1C, warnTint = #362A15,
+    income = #4CB892, expense = #E8925F, netLine = #EDEDEF, compare = #7D8086, partialFill = #141517,
+    selection = #21372F, hit = #6FE0BC, dim = 0.45,
+    gridRowHeight = 48, gridFontSize = 13, gridHeaderFontSize = 12,
+    cats = [#4CB892, #6EA4EC, #A98CEB, #E8A15C, #D9B84A, #62BCCD, #E07A9D, #8190EE, #EC7D6B, #9DB45A, #9EA2AB, #C49372],
+    catTints = [#1B3029, #1C2A3D, #29223A, #3A2B1D, #353019, #183238, #3A2029, #22263F, #3B221F, #2A3220, #2A2C30, #33281F]
+    ]
+
+
+// The search's matching words, in rich text.
+
+style Hit [ fontWeight = semibold ]
+
+// ── Icons: one pen, on the 16-unit grid ─────────────────────────────────
+
+class Glyph extends Icon [
+    shape: string = "",
+    draw(d: DrawContext) {
+        d.scale(unit, unit)
+        d.strokeStyle = ink
+        d.fillStyle = ink
+        d.lineWidth = weight / unit
+        d.lineCap = "round"
+        d.lineJoin = "round"
+        d.beginPath()
+        if (shape == "left") { d.moveTo(10, 3); d.lineTo(5, 8); d.lineTo(10, 13); d.stroke() }
+        else if (shape == "right") { d.moveTo(6, 3); d.lineTo(11, 8); d.lineTo(6, 13); d.stroke() }
+        else if (shape == "down") { d.moveTo(4, 6); d.lineTo(8, 10); d.lineTo(12, 6); d.stroke() }
+        else if (shape == "close") { d.moveTo(4, 4); d.lineTo(12, 12); d.moveTo(12, 4); d.lineTo(4, 12); d.stroke() }
+        else if (shape == "plus") { d.moveTo(8, 3); d.lineTo(8, 13); d.moveTo(3, 8); d.lineTo(13, 8); d.stroke() }
+        else if (shape == "search") { d.arc(7, 7, 4.5, 0, 6.3); d.moveTo(10.4, 10.4); d.lineTo(13.5, 13.5); d.stroke() }
+        else if (shape == "calendar") {
+            d.roundRect(2.5, 3.5, 11, 10, 1.8); d.moveTo(2.5, 6.8); d.lineTo(13.5, 6.8)
+            d.moveTo(5.5, 2); d.lineTo(5.5, 4.5); d.moveTo(10.5, 2); d.lineTo(10.5, 4.5); d.stroke()
+            }
+        else if (shape == "filter") { d.moveTo(2.5, 4); d.lineTo(13.5, 4); d.moveTo(4.5, 8); d.lineTo(11.5, 8); d.moveTo(6.5, 12); d.lineTo(9.5, 12); d.stroke() }
+        else if (shape == "export") { d.moveTo(8, 2.5); d.lineTo(8, 10); d.moveTo(5, 5.5); d.lineTo(8, 2.5); d.lineTo(11, 5.5); d.moveTo(3, 9); d.lineTo(3, 13.5); d.lineTo(13, 13.5); d.lineTo(13, 9); d.stroke() }
+        else if (shape == "columns") { d.roundRect(2.5, 3, 11, 10, 1.5); d.moveTo(6.2, 3); d.lineTo(6.2, 13); d.moveTo(9.8, 3); d.lineTo(9.8, 13); d.stroke() }
+        else if (shape == "check") { d.moveTo(3, 8.5); d.lineTo(6.5, 12); d.lineTo(13, 4.5); d.stroke() }
+        else if (shape == "alert") { d.arc(8, 8, 6, 0, 6.3); d.moveTo(8, 4.8); d.lineTo(8, 8.8); d.stroke(); d.beginPath(); d.arc(8, 11.2, 0.9, 0, 6.3); d.fill() }
+        else if (shape == "up") { d.moveTo(8, 3); d.lineTo(13, 12); d.lineTo(3, 12); d.closePath(); d.fill() }
+        else if (shape == "downTri") { d.moveTo(8, 13); d.lineTo(13, 4); d.lineTo(3, 4); d.closePath(); d.fill() }
+        else if (shape == "trash") {
+            d.moveTo(2.5, 4); d.lineTo(13.5, 4); d.moveTo(6, 4); d.lineTo(6.5, 2); d.lineTo(9.5, 2); d.lineTo(10, 4)
+            d.moveTo(3.8, 4); d.lineTo(4.6, 14); d.lineTo(11.4, 14); d.lineTo(12.2, 4); d.stroke()
+            }
+        else if (shape == "overview") { d.roundRect(2, 2, 5, 5, 1.2); d.roundRect(9, 2, 5, 5, 1.2); d.roundRect(2, 9, 5, 5, 1.2); d.roundRect(9, 9, 5, 5, 1.2); d.stroke() }
+        else if (shape == "list") { for (const y of [4, 8, 12]) { d.moveTo(5.5, y); d.lineTo(13.5, y) } d.stroke(); d.beginPath(); for (const y of [4, 8, 12]) { d.moveTo(3.3, y); d.arc(2.6, y, 0.8, 0, 6.3) } d.fill() }
+        else if (shape == "chart") { d.moveTo(2.5, 13.5); d.lineTo(13.5, 13.5); d.moveTo(4.5, 11); d.lineTo(4.5, 8); d.moveTo(8, 11); d.lineTo(8, 4); d.moveTo(11.5, 11); d.lineTo(11.5, 6.5); d.stroke() }
+        else if (shape == "budget") { d.arc(8, 8, 5.8, 0, 6.3); d.moveTo(8, 8); d.lineTo(8, 2.2); d.moveTo(8, 8); d.lineTo(12.5, 11.5); d.stroke() }
+        else if (shape == "dot") { d.arc(8, 8, 3, 0, 6.3); d.fill() }
+        }
+    ]
+
+
+// ── The panel: a card that frames one figure ────────────────────────────
+//
+// It is handed the source its figure comes from, and says what that source
+// is doing, so no figure has to: a refresh dims the old figure (it stays,
+// in shape, until the new one lands), a slow one says it is still working,
+// a failure says so in place with Retry. Content goes in `body`.
+
+class Panel [ width = 100%, cornerRadius = 12, padding = [16, 18, 18, 18],
+    fill = { provided("theme").card }, stroke = { stroke(1, provided("theme").line) },
+    defaultPlacement = body,
+    title: string = "",
+    note: string = "",                // the plain sentence under the title
+    source: DataSource? = null,
+
+    // a chart's panel can show its figures as a table instead
+
+    canTable: boolean = false,
+    asTable: boolean = false,
+
+    layout: SimpleLayout [ axis = y, spacing = 6 ],
+    head: View [ width = 100%, visible = { classroot.title != "" },
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Text [ flexes = true, fontSize = 15, fontWeight = semibold, wrap = false, maxLines = 1, text = { classroot.title } ],
+        Segmented [ visible = { classroot.canTable }, width = 132, height = { app.touchFirst ? 44 : 28 }, accessibilityLabel = "Show as",
+            value = { classroot.asTable ? "table" : "chart" },
+            choices = { [ ({ id: "chart", label: "Chart" }), ({ id: "table", label: "Table" }) ] },
+            input(v: string) { classroot.asTable = v == "table" }
+            ]
+        ],
+    noteText: Text [ width = 100%, visible = { classroot.note != "" }, fontSize = 13,
+        textColor = { provided("theme").textMuted }, text = { classroot.note } ],
+    status: SourceStatus [ source = { classroot.source } ],
+    body: View [ width = 100%, padding = [6, 0, 0, 0],
+        opacity = { (classroot.source?.loading ?? false) && (classroot.source?.loaded ?? false) ? provided("theme").dim : 1 },
+        layout: SimpleLayout [ axis = y, spacing = 10 ]
+        ]
+    ]
+
+
+// What a source is doing, said in place: still working after a second and a
+// half, or failed, with Retry. The rest of the screen goes on working.
+
+class SourceStatus [ width = 100%, visible = { this.slow || this.failed },
+    source: DataSource? = null,
+    loading: boolean = { this.source?.loading ?? false },
+    failed: boolean = { (this.source?.failed ?? false) && !this.loading },
+    slow: boolean = false,
+    trackChanges = ["loading"],
+    onChange() {
+        if (!loading) { slow = false; return }
+        afterDelay(1500, () => { if (this.loading) this.slow = true })
+        },
+    accessibilityRole = status, accessibilityLive = polite,
+    layout: SimpleLayout [ axis = y ],
+    working: Text [ visible = { classroot.slow && !classroot.failed }, fontSize = 12.5, textColor = { provided("theme").textMuted },
+        text = "Still working — the books are taking a moment to answer…" ],
+    problem: View [ width = 100%, visible = { classroot.failed }, padding = [8, 10, 8, 10], cornerRadius = 8,
+        fill = { provided("theme").badTint },
+        layout: SimpleLayout [ axis = x, spacing = 8, align = center ],
+        Glyph [ shape = "alert", iconSize = 14, ink = { provided("theme").bad } ],
+        Text [ flexes = true, fontSize = 13, textColor = { provided("theme").bad },
+            text = { (classroot.source?.loaded ?? false) ? "Couldn’t refresh this; what you see may be out of date." : "Couldn’t load this." } ],
+        Button [ label = "Retry", height = 28,
+            onClick() { classroot.source?.fetch() }
+            ]
+        ]
+    ]
+
+
+// ── Money ───────────────────────────────────────────────────────────────
+
+// An amount in a column: tabular figures, right-aligned, a true minus.
+
+class Money extends Text [ wrap = false, numeralWidth = tabular, textAlign = right,
+    cents: number = 0,
+    text = { money(classroot.cents) }
+    ]
+
+
+// A change against the comparison period, in words and a mark: "▲ 12% vs
+// Oct". `goodWhenUp` says which way is good (an increase in expenses is the
+// unfavourable one); `neutral` draws it without a verdict.
+
+class Delta [ height = 18,
+    now: number = 0,
+    was: number? = null,
+    points: boolean = false,          // a percentage figure changes in points, not percent
+    goodWhenUp: boolean = true,
+    neutral: boolean = false,
+    vs: string = "",
+    known: boolean = { this.was != null && (this.points || this.was != 0) },
+    change: number = { this.was == null ? 0 : this.points ? this.now - this.was : (this.now - this.was) / Math.abs(this.was) * 100 },
+    up: boolean = { this.change > 0.05 },
+    down: boolean = { this.change < -0.05 },
+    good: boolean = { (this.up && this.goodWhenUp) || (this.down && !this.goodWhenUp) },
+    bad: boolean = { (this.down && this.goodWhenUp) || (this.up && !this.goodWhenUp) },
+    verdict: string = { !this.neutral && this.good ? "good" : !this.neutral && this.bad ? "bad" : "textMuted" },
+    tone: Color = { provided("theme")[this.verdict] },
+    way: string = { this.up ? "Up " : this.down ? "Down " : "Unchanged " },
+    words: string = { !this.known ? "no comparison" : (this.points ? pct(this.change, true).replace("%", " pts") : pct(this.change, true)) + (this.vs != "" ? " vs " + this.vs : "") },
+    accessibilityLabel = { !this.known ? "No comparison" : this.way + this.words.replace("+", "").replace("−", "") },
+    layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
+    mark: Glyph [ visible = { classroot.known && (classroot.up || classroot.down) }, iconSize = 9,
+        shape = { classroot.up ? "up" : "downTri" }, ink = { classroot.tone } ],
+    Text [ fontSize = 12.5, wrap = false, numeralWidth = tabular, textColor = { classroot.tone }, text = { classroot.words } ]
+    ]
+
+
+// ── Categories ──────────────────────────────────────────────────────────
+
+// A category as a coloured chip: "Software", "Split (3)", or "Uncategorised"
+// marked as needing attention.
+
+class CatChip [ height = 22, cornerRadius = 11, padding = [0, 9, 0, 7],
+    categoryId: string? = null,
+    split: number = 0,
+    tint: Color = { app.tintOf(app.books.colourOf(this.categoryId)) },
+    ink: Color = { app.toneOf("cat:" + app.books.colourOf(this.categoryId)) },
+    attention: boolean = { this.categoryId == null && this.split == 0 },
+    label: string = { this.split > 0 ? "Split (" + this.split + ")" : app.books.categoryName(this.categoryId) },
+    fill = { this.tint },
+    State [ applied = { classroot.split > 0 }, fill = { provided("theme").sunken } ],
+    State [ applied = { classroot.attention }, fill = { provided("theme").warnTint } ],
+    layout: SimpleLayout [ axis = x, spacing = 5, align = center ],
+    dot: View [ visible = { !classroot.attention }, width = 7, height = 7, cornerRadius = 4,
+        fill = { classroot.split > 0 ? provided("theme").textFaint : classroot.ink } ],
+    warn: Glyph [ visible = { classroot.attention }, shape = "alert", iconSize = 11, ink = { provided("theme").warn } ],
+    TextLabel [ fontSize = 12, wrap = false, fontWeight = medium,
+        textColor = { classroot.attention ? provided("theme").warn : provided("theme").text }, text = { classroot.label } ]
+    ]
+
+
+// ── Small marks ─────────────────────────────────────────────────────────
+
+// A sparkline of the last periods, the latest point marked.
+
+class Spark [ height = 30,
+    values: number[] = [],
+    tone: Color = gray,
+    accessibilityHidden = true,
+    draw(d: DrawContext) {
+        const v = this.values
+        if (v.length < 2) return
+        const lo = Math.min(...v, 0), hi = Math.max(...v, 0)
+        const span = hi - lo || 1
+        const x = (i: number) => 2 + i * (d.w - 4) / (v.length - 1)
+        const y = (n: number) => 3 + (d.h - 6) * (1 - (n - lo) / span)
+        d.strokeStyle = this.tone
+        d.lineWidth = 1.6
+        d.lineJoin = "round"
+        d.beginPath()
+        v.forEach((n, i) => { if (i == 0) d.moveTo(x(i), y(n)); else d.lineTo(x(i), y(n)) })
+        d.stroke()
+        d.fillStyle = this.tone
+        d.beginPath()
+        d.arc(x(v.length - 1), y(v[v.length - 1]), 2.6, 0, Math.PI * 2)
+        d.fill()
+        }
+    ]
+
+
+// A small horizontal bar, as long as its share of the largest.
+
+class MiniBar [ height = 6, cornerRadius = 3,
+    frac: number = 0,
+    tone: Color = gray,
+    fill = { provided("theme").sunken },
+    View [ height = 6, cornerRadius = 3, width = { Math.max(3, parent.width * Math.max(0, Math.min(1, classroot.frac))) },
+        fill = { classroot.tone } ]
+    ]
+
+
+// A round icon button.
+
+class IconButton extends Control [ width = { app.tap }, height = { app.tap }, cornerRadius = 8,
+    shape: string = "",
+    tone: Color = { provided("theme").textMuted },
+    fill = { pressed ? provided("theme").sunken : hovered ? provided("theme").hover : null },
+    Glyph [ x = center, y = center, iconSize = 15, weight = 1.7, shape = { classroot.shape }, ink = { classroot.tone } ]
+    ]
+
+
+// A quiet button: a label (and maybe a glyph) that opens a popover or menu.
+
+class PillButton extends Control [ height = { app.tap }, cornerRadius = 8, padding = [0, 10, 0, 10],
+    label: string = "",
+    glyph: string = "",
+    on: boolean = false,
+    chevron: boolean = true,
+    fill = { pressed ? provided("theme").sunken : hovered ? provided("theme").hover : null },
+    stroke = { stroke(1, provided("theme").line) },
+    State [ applied = { classroot.on }, fill = { provided("theme").controlSelected }, stroke = { stroke(1, provided("theme").accent) } ],
+    layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+    Glyph [ visible = { classroot.glyph != "" }, shape = { classroot.glyph }, iconSize = 14, weight = 1.6,
+        ink = { classroot.on ? provided("theme").accent : provided("theme").textMuted } ],
+    TextLabel [ fontSize = 13, fontWeight = medium, wrap = false,
+        textColor = { classroot.on ? provided("theme").accent : provided("theme").text }, text = { classroot.label } ],
+    Glyph [ visible = { classroot.chevron }, shape = "down", iconSize = 11, weight = 1.6, ink = { provided("theme").textMuted } ]
+    ]
+
+
+// A filter chip: what it filters by, and an × that removes it.
+
+class FilterChip [ height = 28, cornerRadius = 14, padding = [0, 4, 0, 11],
+    label: string = "",
+    tone: Color = { provided("theme").accent },
+    remove() { },
+    fill = { provided("theme").controlSelected },
+    layout: SimpleLayout [ axis = x, spacing = 2, align = center ],
+    TextLabel [ fontSize = 12.5, fontWeight = medium, wrap = false, maxLines = 1, textColor = { provided("theme").text },
+        text = { classroot.label } ],
+    remover: Control [ width = 24, height = 24, cornerRadius = 12,
+        accessibilityLabel = { "Remove " + classroot.label },
+        fill = { hovered ? provided("theme").hover : null },
+        press() { classroot.remove() },
+        Glyph [ x = center, y = center, shape = "close", iconSize = 10, weight = 1.8, ink = { provided("theme").textMuted } ]
+        ]
+    ]
