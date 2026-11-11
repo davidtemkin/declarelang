@@ -24,6 +24,10 @@ App [ width = 440, height = 220,
 Drag a header sideways to reorder; drag the divider between two headers to resize; click a
 header to sort.
 
+The grid's box is its rows — what scrolls — and the header row stands just above it, so
+leave the theme's `gridHeaderHeight` (30) clear above the grid — as the example's `y = 50`
+does; in a layout, a wrapper with that much top `padding`.
+
 - **Items** are records, kept matched to their rows by each record's `id`. Taken from a
   `Dataset`, they are the dataset's own records: an edit made in a cell writes the record,
   and everything that reads it follows.
@@ -601,10 +605,13 @@ class DataGridRow extends TableRow [
     // writes lands in the record
 
     // the row's cells as a dataset: for each column, its place and what it draws, with
-    // the row's record — the record itself, so a cell's write lands in it
+    // the row's record — the record itself, so a cell's write lands in it. A row
+    // presenting no record (parked) draws nothing: a cell class is never built
+    // over a null record
 
     _cellData: Dataset [ contents = { { cells: classroot._grid == null ? [] : classroot._grid._colData.value.cols.map((c) =>
-        ({ id: c.id, title: c.title, x: c.x, width: c.width, cell: c.cell, edit: c.edit, i: c.i, row: [classroot.rec] })) } } ],
+        ({ id: c.id, title: c.title, x: c.x, width: c.width, cell: c.cell, edit: c.edit, i: c.i,
+            row: classroot.rec == null ? [] : [classroot.rec] })) } } ],
 
     cellAt(col: number) -> DataGridCell? {
         return (this._cells.children.find((c) => (c as DataGridCell)._isGridCell === true && (c as DataGridCell)._ci == col) ?? null) as DataGridCell | null

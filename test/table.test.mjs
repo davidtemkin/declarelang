@@ -178,4 +178,26 @@ await test("written members: rows ARE the members (the RadioGroup practice); sel
   assert.deepEqual(app.t.selection, [app.t.b, app.t.c]);
 });
 
+await test("ledger-2: a DataGrid cell class is never built over a row with no record", async () => {
+  const src = `schema Row [ id: string, title: string ]
+    class TitleCell [ width = 100%, height = 100%, r: Row = { :@ }, lab: Text [ text = { classroot.r.title } ] ]
+    App [ width = 400, height = 300, all: boolean = true,
+      d: Dataset { { "rows": [ { "id": "1", "title": "One" }, { "id": "2", "title": "Two" } ] } },
+      g: DataGrid [ y = 40, width = 300, height = 200,
+        items = { app.all ? app.d.value.rows : [] },
+        columns = { [ { id: "title", title: "Title", width: 200, cell: "TitleCell" } ] } ] ]`;
+  const b = await compileProgram(src, { originDir: process.cwd() + "/library", stripPos: false });
+  assert.equal(b.errors.length, 0, b.errors.map((e) => e.message).join("; "));
+  const threw = [];
+  const was = console.error;
+  console.error = (m) => { threw.push(String(m)); };
+  try {
+    const app = instantiate(b.program);
+    settle();
+    app.all = false; settle();
+    app.all = true; settle();
+  } finally { console.error = was; }
+  assert.deepEqual(threw.filter((m) => /TitleCell.*threw/.test(m)), [], "no cell finished over a null record");
+});
+
 summarize("table");

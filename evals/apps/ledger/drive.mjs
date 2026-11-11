@@ -121,7 +121,7 @@ const money = (cents) => `$${(Math.abs(cents) / 100).toLocaleString("en-US", { m
 const parseMoney = (s) => { const m = /([−-])?\s*\$\s?([\d,]+(?:\.\d+)?)/.exec(s); return m ? Math.round(Number(m[2].replace(/,/g, "")) * 100) * (m[1] ? -1 : 1) : null; };
 
 // ── the page, by role and name ──────────────────────────────────────────────
-const ACTION_ROLES = new Set(["button", "link", "menuitem", "tab", "option", "radio", "checkbox", "switch", "row", "gridcell", "listitem", "cell", "treeitem", "menuitemradio", "menuitemcheckbox", "togglebutton", "img", "graphics-symbol"]);
+const ACTION_ROLES = new Set(["button", "link", "menuitem", "tab", "option", "radio", "checkbox", "switch", "row", "gridcell", "listitem", "cell", "treeitem", "menuitemradio", "menuitemcheckbox", "togglebutton", "img", "image", "graphics-symbol"]);
 const FIELD_ROLES = new Set(["textbox", "searchbox", "combobox", "spinbutton", "TextField", "slider"]);
 // The whole tree, less the unnamed wrappers: puppeteer's "interesting only" prunes whatever sits
 // inside a control and can't take focus — a listbox's options, a combobox's choices — which a
@@ -213,8 +213,11 @@ async function setNumber(page, ctx, el, n) {
   if ((await now()) !== n) throw new Error(`the field "${el.node.name}" can't be set to ${n} by typing or the arrow keys`);
   ctx.fallback(`"${el.node.name}" took no typed digits; set to ${n} with the arrow keys`);
 }
-const bodyText = (page) => page.evaluate(() => document.body.innerText.replace(/\s+/g, " "));
-const allText = async (page) => `${await bodyText(page)} | ${(await nodes(page)).map((n) => `${n.name ?? ""} ${n.value ?? ""}`).join(" | ")}`;
+// Text as read: runs of space are one space, and invisible joiners (a word joiner keeping a
+// minus sign with its number) are not there.
+const plainText = (s) => s.replace(/[​-‍⁠﻿]/g, "").replace(/\s+/g, " ");
+const bodyText = (page) => page.evaluate(() => document.body.innerText).then(plainText);
+const allText = async (page) => plainText(`${await bodyText(page)} | ${(await nodes(page)).map((n) => `${n.name ?? ""} ${n.value ?? ""}`).join(" | ")}`);
 async function seeText(page, text, timeout = FIND_MS) {
   const until = Date.now() + timeout;
   for (;;) {
@@ -346,12 +349,14 @@ const SCENARIOS = {
         const ad = a.getAttribute("aria-activedescendant");
         if (ad && byId(ad)) said.push(byId(ad).getAttribute("aria-label") ?? byId(ad).textContent);
         for (const id of (a.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean)) said.push(byId(id)?.textContent ?? "");
+        // or what it said aloud: a live region's latest announcement
+        for (const r of document.querySelectorAll('[aria-live]:not([aria-live="off"]), [role="status"], [role="alert"]')) said.push(r.textContent ?? "");
         return said.join(" | ");
       });
       // where the walk starts: a period's mark in the tree, else the chart itself, named for its title
       const period = new RegExp(`${d.monthName}\\b[^|]*\\b(revenue|expenses|net profit|income)\\b[^|]*\\$`, "i");
       const start = await maybe(find(page, (n) => !["StaticText", "heading"].includes(n.role) && named(n, period), { timeout: 2500 }))
-        ?? await maybe(find(page, (n) => ["application", "img", "figure", "graphics-document", "group", "grid", "list"].includes(n.role) && named(n, /income vs\.? expenses/i), { timeout: 2500 }));
+        ?? await maybe(find(page, (n) => ["application", "img", "image", "figure", "graphics-document", "group", "grid", "list"].includes(n.role) && named(n, /income vs\.? expenses/i), { timeout: 2500 }));
       if (start) {
         await start.handle.evaluate((e) => e.focus());   // an <svg> chart too, which puppeteer's focus() refuses
         await sleep(150);

@@ -554,7 +554,7 @@ Slider   [ value = { app.volume },
 <h3>The calendar says "0 lines written by hand." What did that actually involve?</h3>
 <p>A person directed; a model wrote. The calendar was built by describing what was wanted and letting an LLM write the Declare — every line — with the compiler in the loop: each attempt was compiled and type-checked, the diagnostics steered the next revision, and the running app was the judge. The person's work was product work — deciding what the calendar should be, reviewing behavior, and pushing back — not typing code. That's the workflow the language is designed around: the human owns intent, the model owns the text, and the toolchain keeps the text honest.</p>
 <h3>How can Declare, with no training data to speak of, be useful to an LLM — or compete with billions of lines of training corpus?</h3>
-<p>Two ways. First, the language is small enough that its <em>entire definition</em> fits in a model's context window — one file, <a href="https://github.com/davidtemkin/declarelang/blob/main/docs/declare.md">docs/declare.md</a>, about 21,000 tokens: a small fraction of a modern context window. A model doesn't need to have trained on a language it can hold the complete spec of while writing; recent research (cited in the essay on this site) shows models write never-before-seen languages competently from a spec in context. Second, most of what an LLM writes in a Declare program <em>is</em> covered by billions of lines of training data — the logic is ordinary TypeScript. Only the small declarative shell is new, and it's regular enough to learn from the spec. For agent workflows, the repository ships the same knowledge as an installable agent skill (<a href="https://github.com/davidtemkin/declarelang/tree/main/skill">skill/</a> — auto-discovered by Claude Code, usable as plain instructions by any coding agent).</p>
+<p>Two ways. First, the language is small enough that its <em>entire definition</em> fits in a model's context window — one file, <a href="https://github.com/davidtemkin/declarelang/blob/main/docs/declare.md">docs/declare.md</a>, about 20,000 tokens: a small fraction of a modern context window. A model doesn't need to have trained on a language it can hold the complete spec of while writing; recent research (cited in the essay on this site) shows models write never-before-seen languages competently from a spec in context. Second, most of what an LLM writes in a Declare program <em>is</em> covered by billions of lines of training data — the logic is ordinary TypeScript. Only the small declarative shell is new, and it's regular enough to learn from the spec. For agent workflows, the repository ships the same knowledge as an installable agent skill (<a href="https://github.com/davidtemkin/declarelang/tree/main/skill">skill/</a> — auto-discovered by Claude Code, usable as plain instructions by any coding agent).</p>
 <h3>What does Declare do to optimize for reliability and correctness of LLM-generated code?</h3>
 <ul><li><strong>Mandatory type-checking</strong> — every <code>{ }</code> body, every compile, no opt-out; the checker is held to zero false positives across the repository's own corpus (every app, library class, and documentation example it ships), so an error always means something is actually wrong.</li><li><strong>Diagnostics that name the fix</strong> — messages are written to steer the <em>next</em> attempt, including "did you mean" guidance for common instincts from other frameworks (e.g., reaching for a CSS property).</li><li><strong>No magic</strong> — Declare consistently chooses predictability over cleverness: dependencies are extracted statically, events don't bubble, there's one way to say most things. Code that looks right <em>is</em> right more often, and code that's wrong fails loudly.</li><li><strong>Verification tooling</strong> — a <code>verify</code> command compiles, type-checks, boots the program in a real browser at laptop and phone sizes, and drives it with real input, so an agent can prove its output works before handing it back.</li></ul>
 <h3>Does it work? What's the evidence?</h3>
@@ -747,7 +747,7 @@ npm start</code></pre>
 <p>Input, focus, gestures, scrolling</p>
 <p>21.7 KB</p>
 <p>Draw &amp; compositing</p>
-<p>16.4 KB</p>
+<p>16.5 KB</p>
 <p>Springs &amp; animators</p>
 <p>3.2 KB</p>
 <p>Text &amp; fonts</p>
@@ -763,7 +763,7 @@ npm start</code></pre>
 <p>Library</p>
 <p>13.0 KB</p>
 <p>Runtime</p>
-<p>128.9 KB</p>
+<p>129.0 KB</p>
 <p>Kernel</p>
 <p>15.2 KB</p>
 <img loading="lazy" src="apps/homepage/../architecture/resources/desktop-dom.webp">
@@ -808,7 +808,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=d46b918bec23";
+  import boot from "./bundles/declare-boot.js?v=38135d05132b";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().

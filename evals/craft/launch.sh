@@ -5,7 +5,8 @@
 #
 #   evals/craft/launch.sh [--stack NAME] <app> <run-dir> <model-id> [commit] [port]
 #     --stack NAME  a comparison run on another platform (e.g. React): no Declare
-#                   download, and the prompt names the platform — nothing else changes
+#                   download; the prompt names the platform and asks for the checking
+#                   Declare's SKILL asks for — nothing else changes
 #     app       a folder under evals/apps/ holding brief.md and api/ (cadence, murmur, …)
 #     run-dir   created fresh, OUTSIDE every repo (e.g. ~/Code/eval-cadence-7)
 #     model-id  an exact model id (claude-opus-5-5) — never an alias, which moves
@@ -79,8 +80,13 @@ cat > "$LOGS/prompt.txt" <<EOF
 You have just downloaded the Declare distribution into \`declarelang/\`. Declare is a UI language not in your training data; that repository is the only source of truth and documents itself. Start at its README.md. Build the app described in \`task/brief.md\`.$SVC_LINE
 EOF
 else
+# the second paragraph is the checking the Declare distribution's SKILL asks for (§ Checking
+# and looking), said for any platform and naming no tool, so both runs are asked for the
+# same verification
 cat > "$LOGS/prompt.txt" <<EOF
 Build the app described in \`task/brief.md\` as a $STACK application.$SVC_LINE
+
+Check your work as you go, in a real browser. Look at it at milestones — once the whole app first runs, and after a change to what people see — with a screenshot, at a laptop's size and, where the app is used on a phone, at a phone's. Check each thing the brief says the app must do (its "What done looks like", where it has one) as a flow, with a script that drives the running app as a person does — pressing, typing, waiting — and ends by asserting what it should have done: what is shown, and what was sent to the service. Keep the scripts and run them again after a change. Before you hand it over, use it once as a person would: scroll a long list from end to end, drag its scrollbar, resize the window, switch to dark mode and to touch.
 EOF
 fi
 

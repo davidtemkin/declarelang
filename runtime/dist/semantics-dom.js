@@ -274,8 +274,12 @@ function again(v, item) {
     afterSettle(() => { AGAIN.set(item, n + 1); RULE_OF.get(v)?.run(); });
 }
 function install(v) {
-    if (RULES.has(v))
+    // handed again (a view shown after it was built, now on its real surface):
+    // its rule runs again against the element it has now
+    if (RULES.has(v)) {
+        RULE_OF.get(v)?.run();
         return;
+    }
     RULES.add(v);
     // the surface is the view's NOW: a view shown after it was built trades its
     // stand-in for a real surface (which replays what the stand-in kept), and the

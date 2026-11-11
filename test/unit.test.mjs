@@ -3645,6 +3645,9 @@ await test("a class-body layout expands per instance; the use site overrides or 
   const cancelled = await buildL(src("layout = null"));
   assert.equal(cancelled.s.children[1].y, 0, "layout = null turns the inherited arrangement off");
   assert.equal(cancelled.s.layout, null);
+  // ledger-2: another class-typed attribute set at the use site is not a cancel
+  const other = await buildL(src("restoresFocusTo = null"));
+  assert.equal(other.s.children[1].y, 12, "restoresFocusTo = null leaves the layout alone");
 });
 
 await test("two instances of one class stack independently", async () => {

@@ -1185,8 +1185,10 @@ function constructNode(el, outer, ctx, parentEl) {
     let placedLayout = null;
     let placing = false;
     for (const s of sources) {
+        // `layout = null` cancels; another class-typed attribute (`restoresFocusTo`,
+        // a program's `editor: Editor?`) set beside it leaves the layout alone
         for (const a of s.el.attrs) {
-            if (a.route === "class" && !placing)
+            if (a.route === "class" && a.name === "layout" && !placing)
                 layoutEl = null;
         }
         for (const c of s.el.children) {

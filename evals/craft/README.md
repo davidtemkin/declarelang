@@ -44,9 +44,15 @@ as a user would.
 ## The comparison run
 
 `launch.sh --stack React <app> <run-dir> <model-id>` runs the same brief on another
-platform: no Declare download, and a prompt of two sentences — build `task/brief.md` as a
-React application; the service is described in `task/api/API.md`, running on its port, not
-to be modified. Everything else — model, tools, web, brief, service, reports — is the same.
+platform: no Declare download, and a prompt that says to build `task/brief.md` as a React
+application, with the service described in `task/api/API.md`, running on its port, not to
+be modified. Its second paragraph asks for the checking Declare's SKILL asks for (§ Checking
+and looking), naming no tool: screenshots at milestones, a scripted flow per thing the
+brief requires that asserts what is shown and what was sent, the scripts kept and rerun,
+and one use as a person would before handing over. Without it the Declare run is asked for
+verification the comparison run is not, and its time and its resilience are measured
+against a run that did less. Runs before 2026-11-11 had the two-sentence prompt alone.
+Everything else — model, tools, web, brief, service, reports — is the same.
 The briefs name no technology, so one brief serves every platform.
 
 ## Watching a run

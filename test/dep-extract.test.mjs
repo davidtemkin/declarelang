@@ -636,6 +636,24 @@ test("a view reached through an unnameable argument stays live", async () => {
   assert.deepEqual([app.ternary, app.local], [70, 70]);
 });
 
+test("ledger-2: an override written inside another class reads through its own classroot, and stays live", async () => {
+  // A class's constraint calls `this.check(…)`; one use site, inside class Ed,
+  // overrides it with a call on Ed (its classroot). That was refused as an
+  // unresolved call on the receiver, pointing into the base class.
+  const src = `class Checked extends View [ text: string = "abcd",
+      problem: string = { this.check(this.text) },
+      check(v: string) -> string { return "" } ]
+    class Ed extends View [ limit: number = 3,
+      tooLong(v: string) -> string { return v.length > this.limit ? "long" : "" },
+      f: Checked [ check(v: string) -> string { return classroot.tooLong(v) } ] ]
+    App [ e: Ed [ ] ]`;
+  const app = instantiate(await compileProgram(src));
+  settle();
+  assert.equal(app.e.f.problem, "long");
+  app.e.limit = 10; settle();
+  assert.equal(app.e.f.problem, "", "the classroot's limit is read");
+});
+
 await chain;
 console.log(`\ndep-extract: ${pass} passed, ${fail} failed`);
 if (fail > 0) process.exit(1);

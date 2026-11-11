@@ -228,6 +228,26 @@ await test("Escape then Tab: a view that binds the sequence takes it", async () 
   assert.equal(Focus.getFocus(), app.other, "a plain Tab still moves on");
 });
 
+await test("ledger-2: in an editor entered inside a stop, what the row holds binds Escape before the row is left", async () => {
+  const app = await boot(`App [ width = 400, height = 300,
+    got: string = "",
+    list: View [ width = 300, height = 200, focusScope = stop, focusable = true,
+        row1: View [ width = 300, height = 40,
+            editor: View [ width = 200, height = 30,
+                keyBindings = { [ ({ key: "Escape", command: "cancel" }) ] },
+                cancel() { app.got = app.got + "cancel;" },
+                f: View [ width = 100, height = 20, focusable = true ] ] ],
+        row2: View [ y = 50, width = 300, height = 40,
+            g: View [ width = 100, height = 20, focusable = true ] ] ] ]`);
+  Focus.focus(app.list.row1.editor.f); settle();
+  press("Escape", { code: "Escape" });
+  assert.equal(app.got, "cancel;", "the editor's own Escape");
+  assert.equal(Focus.getFocus(), app.list.row1.editor.f, "it didn't also leave the row");
+  Focus.focus(app.list.row2.g); settle();
+  press("Escape", { code: "Escape" });
+  assert.equal(Focus.getFocus(), app.list, "nothing in the row binds it: Escape leaves the row for the list");
+});
+
 await test("a one-line field's Enter in a Dialog presses the default; a focused button presses itself", async () => {
   const app = await boot(`App [ width = 500, height = 400,
     got: string = "",

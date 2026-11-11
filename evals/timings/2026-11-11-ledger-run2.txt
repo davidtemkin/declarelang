@@ -1,0 +1,42 @@
+# eval-ledger-2
+total 52.3 min · 222 turns · output 260094 tokens (thinking 74430)
+phases: reading 5.5 · writing 1.1 · checking 45.7 min
+tool time 12.5 min · model time 39.8 min
+tools:
+  look      44×   5.20 min  (median 7.1 s)
+  bash      82×   3.93 min  (median 2.1 s)
+  verify    19×   3.04 min  (median 2.6 s)
+  help      14×   0.31 min  (median 1.0 s)
+  read      31×   0.02 min  (median 0.0 s)
+model turns, by what came before:
+  after bash     81×  12.65 min  (median 4.5 s)
+  after read     31×   6.02 min  (median 2.9 s)
+  after help     14×   5.60 min  (median 5.9 s)
+  after image    19×   4.07 min  (median 11.4 s)
+  after look     44×   3.83 min  (median 4.9 s)
+  after write    12×   3.75 min  (median 12.5 s)
+  after verify   19×   3.61 min  (median 6.0 s)
+app: 10 .declare files, 3785 non-blank lines · 72 snapshots changed them: 4799 lines added, 431 removed
+verify results mentioning accessibility: 1
+diagnostic codes, by tool results reporting them: DECLARE4025 8, DECLARE2000 6, DECLARE6001 6, DECLARE7001 3, DECLARE1002 3, DECLARE4002 3, DECLARE3005 2, DECLARE4035 1, DECLARE2006 1, DECLARE3006 1, DECLARE4000 1, DECLARE5001 1, DECLARE4023 1
+inside the agent's verify and look calls:
+   5.88 min    95×  R5 behavior, in all
+   4.44 min    95×  script: the assert script, in all
+   3.12 min   131×  compile (R1–R3)
+   1.81 min   161×  page: load, compile in the page and boot
+   1.69 min    70×  drive.waitReal
+   1.10 min    95×  open: the app loaded and arrived, in all
+   1.04 min    66×  R4 boot, in all
+   1.00 min   603×  check: scrolling come to rest
+   0.85 min   319×  drive.settleMotion
+   0.63 min   212×  drive.settleData
+   0.49 min    93×  locator.click
+   0.25 min   285×  drive.key
+   0.23 min   161×  page: a new page
+   0.16 min   297×  locator: wait a tick for it
+   0.13 min    72×  end: layout questions at the end of the script
+   0.10 min   603×  check: the layout questions
+   0.09 min    25×  drive.clickAt
+   0.09 min    24×  drive.click
+   0.07 min    42×  drive.wait
+   0.06 min    55×  drive.type

@@ -12,7 +12,7 @@ script {
                 "view": 12.6,
                 "backend": 15.7,
                 "input": 21.7,
-                "draw": 16.4,
+                "draw": 16.5,
                 "anim": 3.2,
                 "text": 5,
                 "boot": 5.6,
@@ -34,7 +34,7 @@ script {
                 "boot": 5.5,
                 "layout": 2.3,
                 "themes": 0.1,
-                "a11y": 3.3,
+                "a11y": 3.4,
                 "ker": 15.2
             },
             "calMac": {
@@ -44,7 +44,7 @@ script {
                 "view": 12.6,
                 "backend": 8.7,
                 "input": 21.7,
-                "draw": 16.4,
+                "draw": 16.5,
                 "anim": 3.2,
                 "text": 5,
                 "boot": 5.6,
@@ -55,7 +55,7 @@ script {
             },
             "totals": {
                 "calDom": 169.8,
-                "calCanvas": 195,
+                "calCanvas": 195.1,
                 "calMac": 145
             }
         },

@@ -246,6 +246,19 @@ await test("an open modal leaves the rest of its app inert, and closing it gives
   assert.deepEqual(a, { colInert: true, dialogInert: false, after: false });
 });
 
+await test("a DOM focus on a view first shown after it was built reaches the focus service", async () => {
+  const a = await page.evaluate(async () => {
+    const { app, el, ready, rt } = window.__t;
+    app.open = true; await ready();
+    el(app.dlg.ok).focus();                         // a screen reader's focus move, onto the shown dialog's button
+    await ready();
+    const followed = rt.Focus.getFocus() === app.dlg.ok;
+    app.open = false; await ready();
+    return followed;
+  });
+  assert.equal(a, true);
+});
+
 
 await test("an announcement reaches a live region, without moving the focus", async () => {
   const a = await page.evaluate(async () => {

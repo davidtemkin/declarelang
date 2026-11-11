@@ -29,6 +29,8 @@ export class DeferredSurface {
     setVirtualExtent(...a) { this.keep("setVirtualExtent", a); }
     scrollToY(...a) { this.keep("scrollToY", a); }
     scrollToX(...a) { this.keep("scrollToX", a); }
+    /** Was the view told what it is to assistive technology while it waited? */
+    get keptSemantics() { return this.kept?.has("setSemantics") ?? false; }
     /** Hand what was kept to the surface that replaces this one. */
     replayInto(s) {
         if (this.kept === null)

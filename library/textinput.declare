@@ -189,7 +189,8 @@ for any control, so Escape in a field inside a dialog closes the dialog. Space a
 are the text's (Return is `onEnter`'s), never a `press()`; every other key without a
 command modifier, and the editing chords, are the field's editor's too. An `onKeyDown`
 override handles its own keys and passes the rest on with `super.onKeyDown(e)`, or Tab
-stops at the field.
+stops at the field. Return reaches it only after the edit has ended and `onEnter` has run:
+what Return does belongs in `onEnter`.
 
 ## _multi()
 **Internal.** Whether Return is the field's own: a multi-line field's line break. A single-line

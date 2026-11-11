@@ -35,6 +35,8 @@ export class DeferredSurface implements Surface {
   scrollToY(...a: unknown[]): void { this.keep("scrollToY", a); }
   scrollToX(...a: unknown[]): void { this.keep("scrollToX", a); }
   declare setSemantics?: (...a: unknown[]) => void;
+  /** Was the view told what it is to assistive technology while it waited? */
+  get keptSemantics(): boolean { return this.kept?.has("setSemantics") ?? false; }
   /** Hand what was kept to the surface that replaces this one. */
   replayInto(s: Surface): void {
     if (this.kept === null) return;

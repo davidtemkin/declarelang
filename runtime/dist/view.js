@@ -1223,7 +1223,12 @@ export class View extends Node {
         }
         // what reached the stand-in outside the flush (a row's place, a scroll
         // request), in its latest form
+        const annotated = stand.keptSemantics;
         stand.replayInto(s);
+        // the annotator learns the view's element now it has one, so focus the
+        // platform gives that element (a screen reader's) reaches the view
+        if (annotated && annotator !== null)
+            annotator(this);
         this.$applyTravel();
     }
     /** A view held detached takes its place, its parent having come in. */

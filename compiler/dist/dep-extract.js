@@ -1392,6 +1392,16 @@ function buildMethodSummaries() {
             }
         return into;
     };
+    const readsThroughClassroot = (s) => {
+        const via = (p) => p != null && (p === "classroot" || p.startsWith("classroot.") || p.startsWith("classroot["));
+        for (const r of s.reads)
+            if (via(r))
+                return true;
+        for (const c of s.calls)
+            if ((c.kind === "method" || c.kind === "collection") && via(c.receiver))
+                return true;
+        return false;
+    };
     const instanceOverridesOf = (cls, name, into) => {
         const family = familyOf(cls);
         for (const [el, mm] of METHODS_OF) {
@@ -1603,7 +1613,10 @@ function buildMethodSummaries() {
                     if (cls !== undefined) {
                         const keys = new Set([homeKey]);
                         overridesOf(cls, c.name, keys);
-                        instanceOverridesOf(cls, c.name, keys);
+                        const atUseSites = new Set();
+                        instanceOverridesOf(cls, c.name, atUseSites);
+                        for (const k of atUseSites)
+                            keys.add(k);
                         if (keys.size > 1) {
                             const reads = new Set();
                             const errors = [];
@@ -1611,6 +1624,13 @@ function buildMethodSummaries() {
                                 const s2 = ownEl.get(k);
                                 if (s2 === undefined)
                                     continue;
+                                // an override written at a use site inside another class: its
+                                // `classroot` is THAT class's instance, which no path from this
+                                // receiver names — what it reads through it is found at run time
+                                if (atUseSites.has(k) && readsThroughClassroot(s2)) {
+                                    reads.add(DYNAMIC);
+                                    continue;
+                                }
                                 const sub = followSummary(s2, k, c, stack, ctx);
                                 for (const r of sub.reads)
                                     reads.add(r);

@@ -8,6 +8,8 @@ export declare class DeferredSurface implements Surface {
     scrollToY(...a: unknown[]): void;
     scrollToX(...a: unknown[]): void;
     setSemantics?: (...a: unknown[]) => void;
+    /** Was the view told what it is to assistive technology while it waited? */
+    get keptSemantics(): boolean;
     /** Hand what was kept to the surface that replaces this one. */
     replayInto(s: Surface): void;
     setX(): void;
