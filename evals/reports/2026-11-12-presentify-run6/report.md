@@ -103,6 +103,29 @@ numbers step with the arrows, apply on Return or leaving, and revert on Escape
 
 ## Findings for the platform
 
+> **Resolved after filing (2026-11-12, 35fcb37a, not yet released): all nine, each from its repro in `audit/`.**
+> - **B2:** a stop's arrow, Home and End movement is now the stop's own default, after its
+>   bindings and its members' (as Escape's already was). A binding that returns `false` hands
+>   the key on to the movement. The `focusScope` reference and guide 08 now point to
+>   `keyBindings`, since an ancestor's `onKeyDown` never hears a member's keys.
+> - **B3:** menus show a key as the person's keyboard spells it, through the new
+>   `Keyboard.keyLabel()`, which a program's own tooltips and sheets can call too.
+> - **B1:** a derived Dataset remembers the records it refers to, so a datapath finds one there
+>   once its own dataset has moved on.
+> - **B7:** R5 fails on a runtime error, as R4 does.
+> - **B4:** a layout check at a rest point waits until motion is at rest, and is reported under
+>   the step it was deferred from.
+> - **B5:** a Dialog whose row of buttons doesn't fit stacks them, default on top.
+> - **B6:** `height = null` is told that the attribute can't be unset.
+> - **B8:** the held clock's `Date.now()` is whole milliseconds.
+> - **B9:** `page.mouse.dblclick` in assert scripts, and `declare-look --hover`.
+>
+> Regression tests cover B1 (`cursor-reach`), B2 (`key-matrix`), B3 (`library`) and B5 (`overlays`).
+> Not done:
+> - `drive.hover` still refuses a view that only reacts to hover;
+> - the two silent wrong types (a declared `textColor` shadowing the provided one, and
+>   `focusShape()` returning a view) would be new diagnostics, and wait for a ruling.
+
 The audit's nine defects (B1–B9, each with a repro in `audit/`) are in **Audit** below. In
 short:
 
