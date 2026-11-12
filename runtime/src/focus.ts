@@ -19,6 +19,8 @@
 import { inPointerDispatch } from "./pointer-dispatch.js";
 import { View, fireEvent, setFocusDiscardHook, setKeyDefaultHook, noteFocused, type KeyLayer } from "./view.js";
 import { Keys, comboOf, comboOfCode, normalizeCombo, keyLabel, commanded, FIELD_CHORDS, KEYS_ON_MAC, setKeyWalk, setInForce, type KeyEvent } from "./keys.js";
+/** Classes whose focusShape() was said to return no box (said once each). */
+const BAD_SHAPE = new WeakSet<object>();
 import { compileExpr, type ExprFn } from "./expr.js";
 import { declareName } from "./declare-name.js";
 import { radiusMax } from "./value.js";
@@ -288,7 +290,17 @@ export class FocusService {
       (): FocusGeometry | null => {
         const root = rootOf(v);
         const fsFn = (v as unknown as { focusShape?: () => { x: number; y: number; w: number; h: number; rad: number } | null }).focusShape;
-        const fs = typeof fsFn === "function" ? fsFn.call(v) : null;
+        let fs = typeof fsFn === "function" ? fsFn.call(v) : null;
+        // a shape of any other form (a view, a box missing a side) draws no ring:
+        // said, naming the method, and the ring falls back to the bounds
+        if (fs != null && !(["x", "y", "w", "h"] as const).every((k) => Number.isFinite((fs as Record<string, unknown>)[k]))) {
+          if (!BAD_SHAPE.has(v.constructor)) {
+            BAD_SHAPE.add(v.constructor);
+            console.error(`[Declare] ${declareName(v)}.focusShape() returned ${fs instanceof View ? "a view" : JSON.stringify(fs)?.slice(0, 80) ?? String(fs)} — it returns the box the ring hugs, { x, y, w, h, rad } in the control's own coordinates, or null for its bounds`);
+          }
+          fs = null;
+        }
+        if (fs !== null && !Number.isFinite(fs.rad)) fs = { ...fs, rad: 0 };
         const rect = fs !== null ? { x: fs.x, y: fs.y, w: fs.w, h: fs.h } : undefined;
         const cr = radiusMax(v.cornerRadius);   // the ring follows the largest corner
         const radLocal = fs ? fs.rad : (cr > 0 ? cr : 4);

@@ -1532,6 +1532,21 @@ await test("compile: an on… method that answers no event warns, naming the han
   assert.ok(w.some((m) => /'onTally' is an ordinary method/.test(m)), w.join("\n"));
 });
 
+await test("compile: onChange on a node that tracks nothing warns that it never runs (DECLARE4041); one that tracks is quiet", async () => {
+  const r = await compile(`App [ width = 100, height = 100, n: number = 0,
+    a: TextInput [ accessibilityLabel = "A", onChange() { app.n = 1 } ],
+    b: TextInput [ accessibilityLabel = "B", trackChanges = ["value"], onChange() { app.n = 2 } ] ]`, {});
+  const w = r.warnings.filter((e) => /DECLARE4041|never runs: it fires for the values named in trackChanges/.test(e.message));
+  assert.equal(w.length, 1, r.warnings.map((e) => e.message).join("\n"));
+});
+
+await test("compile: a text face declared on a container with another type is refused; with its own type it provides", async () => {
+  const bad = await compile(`App [ width = 100, height = 100, v: View [ textColor: string = "mixed", Text [ text = "a" ] ] ]`, {});
+  assert.ok(bad.errors.some((e) => /'textColor' declared here provides it to every text inside/.test(e.message)), bad.errors.map((e) => e.message).join("; "));
+  const good = await compile(`App [ width = 100, height = 100, v: View [ textColor: Color = 0x336699, Text [ text = "a" ] ] ]`, {});
+  assert.deepEqual(good.errors.map((e) => e.message), []);
+});
+
 await test("compile: an on… name the hint table knows is answered from it, before any handler a slip away", async () => {
   // onInput is two edits from onInit; what its author meant is a value control's commit
   const r = await compile(`App [ width = 100, height = 100, s: string = "", TextInput [ accessibilityLabel = "Name", onInput(v: string) { app.s = v } ] ]`, {});

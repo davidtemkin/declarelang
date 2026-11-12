@@ -1,7 +1,7 @@
 {
  "meta": {
   "version": 1,
-  "buildId": "e244e2f19706",
+  "buildId": "c416c3e5f5a7",
   "note": "THE single documentation model — one walkable data structure for every documented element. Read by the docs app, the desktop's embedded docs, the link registry, the eval harness, and any agent. extract.mjs writes the doc tree (reference/roots/tree/guide/tenets) here; this tool augments the SAME file in place with spine/links/meta. One file, no intermediate.",
   "pipeline": {
    "assembledFrom": [
@@ -4537,6 +4537,7 @@
     "DECLARE4038",
     "DECLARE4039",
     "DECLARE4040",
+    "DECLARE4041",
     "DECLARE5000",
     "DECLARE5001",
     "DECLARE5002",
@@ -5324,33 +5325,37 @@
     "message": "… — an attribute value is one expression, not statements; move the logic into a method and call it (e.g. { classroot.compute() })",
     "at": "expr.ts:363"
    },
+   "E9CD6AE": {
+    "message": "[Declare] ….focusShape() returned … — it returns the box the ring hugs, { x, y, w, h, rad } in the control's own coordinates, or null for its bounds",
+    "at": "focus.ts:299"
+   },
    "E553948": {
     "message": "[Declare] …",
-    "at": "focus.ts:889"
+    "at": "focus.ts:901"
    },
    "E72E6C8": {
     "message": "[Declare] ….keyBindings = { … } …",
-    "at": "focus.ts:1111"
+    "at": "focus.ts:1123"
    },
    "EC0EB8D": {
     "message": "[Declare] ….keyBindings threw: …",
-    "at": "focus.ts:1117"
+    "at": "focus.ts:1129"
    },
    "E5906FB": {
     "message": "[Declare] …: keyBindings … \"…\" names no method",
-    "at": "focus.ts:1133"
+    "at": "focus.ts:1145"
    },
    "EE3CEE9": {
     "message": "[Declare] …: keyBindings … \"…\" threw: …",
-    "at": "focus.ts:1138"
+    "at": "focus.ts:1150"
    },
    "E529697": {
     "message": "[Declare] …: keyBindings command \"…\" names no method",
-    "at": "focus.ts:1153"
+    "at": "focus.ts:1165"
    },
    "EC073B5": {
     "message": "[Declare] ….… threw: …",
-    "at": "focus.ts:1159"
+    "at": "focus.ts:1171"
    },
    "E4D43BA": {
     "message": "… — \"…\" and \"…\" each have one",
@@ -5938,71 +5943,75 @@
    },
    "E20143A": {
     "message": "'…' is a built-in class — a class of the program can't take its name; rename yours",
-    "at": "program-schema.ts:100"
+    "at": "program-schema.ts:102"
    },
    "E654A76": {
     "message": "there is already a class named '…'",
-    "at": "program-schema.ts:104"
+    "at": "program-schema.ts:106"
    },
    "EEFFA5E": {
     "message": "'…' and '…' extend each other (an inheritance cycle) — the chain can never reach a built-in; break the loop",
-    "at": "program-schema.ts:121"
+    "at": "program-schema.ts:123"
    },
    "EAB5AC7": {
     "message": "unknown base '…' — a class extends a library class or one declared in this program",
-    "at": "program-schema.ts:136"
+    "at": "program-schema.ts:138"
    },
    "E723064": {
     "message": "'…' is an abstract base — it names no class to construct; extend one of its concrete members (…)",
-    "at": "program-schema.ts:153"
+    "at": "program-schema.ts:155"
    },
    "E4178A5": {
     "message": "class … contains itself — a class may not appear inside its own body (directly or through another class)",
-    "at": "program-schema.ts:203"
+    "at": "program-schema.ts:205"
    },
    "E509399": {
     "message": "'…' is a scope noun (language §11) — it cannot be declared",
-    "at": "program-schema.ts:372"
+    "at": "program-schema.ts:374"
    },
    "EB56E00": {
     "message": "'…' is a value constructor (gradient, stroke, shadow, colorStop, frost, radialGradient, conicGradient) — it cannot be a member name",
-    "at": "program-schema.ts:375"
+    "at": "program-schema.ts:377"
    },
    "E3CA15D": {
     "message": "'…' is … — it cannot be declared; choose another name",
-    "at": "program-schema.ts:379"
+    "at": "program-schema.ts:381"
    },
    "E3379CD": {
     "message": "'key' is replication metadata — 'key = …' where an element is used names a replicated record's identity, so an attribute called 'key' could never be set; choose another name ('field', 'code', 'name')",
-    "at": "program-schema.ts:384"
+    "at": "program-schema.ts:386"
    },
    "E2E319C": {
     "message": "'…' is a built-in read-only intrinsic of … — it is computed for you; choose another name for your derived value",
-    "at": "program-schema.ts:392"
+    "at": "program-schema.ts:394"
    },
    "E045FC1": {
     "message": "… already has an attribute '…' — a declaration introduces a new one; write '… = …' to set the existing one",
-    "at": "program-schema.ts:397"
+    "at": "program-schema.ts:399"
    },
    "EC438D3": {
     "message": "unknown type '…' — a declared attribute's type is one of …, a class, a declared schema, a literal union ('\"open\" | \"closed\"'), or a function type '(a: T) -> R' — and a class, schema or View that may be empty ends in '?' ('Menu?')",
-    "at": "program-schema.ts:404"
+    "at": "program-schema.ts:406"
+   },
+   "E625525": {
+    "message": "'…' declared here provides it to every text inside, which reads it as a … — declared …, it would give them that instead. To provide it, declare it as the text reads it; for a value of your own, choose another name",
+    "at": "program-schema.ts:417"
    },
    "EFF2D69": {
     "message": "….…: a percent default would resolve against each instance's parent — set it per instance until percent defaults are designed",
-    "at": "program-schema.ts:423"
+    "at": "program-schema.ts:436"
    },
    "EFF1284": {
     "message": "— to seed from data, write a { } default: …: … = { :… }",
-    "at": "program-schema.ts:464"
+    "at": "program-schema.ts:477"
    },
    "EE781B4": {
     "message": "— a default that reads a value is a { } constraint: …: … = { …(…) }",
-    "at": "program-schema.ts:470"
+    "at": "program-schema.ts:483"
    },
    "E9A507E": {
     "message": "….…'s default expects …, got ……",
-    "at": "program-schema.ts:473"
+    "at": "program-schema.ts:486"
    },
    "E8612CE": {
     "message": "[Declare] …… threw: …",
@@ -128863,7 +128872,7 @@
      "subtitle": "",
      "kind": "reference",
      "label": "Reference",
-     "doc": "# Diagnostic codes\n\n*Every compiler diagnostic carries a `DECLARE####` code, and its message names the fix. `npx declare-help DECLARE4001` answers one code in full.*\n\n## Syntax\n\n| code | what it means |\n|---|---|\n| `DECLARE1001` | the parser rejected a token or shape |\n| `DECLARE1002` | a value body wrapped whole in parentheses — { expr } says it (hint) |\n\n## Structure\n\n| code | what it means |\n|---|---|\n| `DECLARE2000` | structural error (unclassified) |\n| `DECLARE2001` | unknown class tag |\n| `DECLARE2002` | a name is declared more than once |\n| `DECLARE2003` | a member is placed where its node-kind forbids it |\n| `DECLARE2004` | a name violates the member namespace |\n| `DECLARE2005` | a Spring drives an attribute its view also binds — the target belongs in the Spring's to |\n| `DECLARE2006` | a class declares an accessibilityRole whose contract it does not meet |\n| `DECLARE2007` | accessibilityRole written as a { } value — a role is a word, fixed for the view's life |\n| `DECLARE2008` | declareVersion names a release newer than this compiler |\n| `DECLARE2009` | declareVersion names an earlier release — declare-changes lists what changed since (warning) |\n\n## Values and types\n\n| code | what it means |\n|---|---|\n| `DECLARE3000` | type/value error (unclassified) |\n| `DECLARE3001` | a value does not fit its attribute's type |\n| `DECLARE3002` | a percent with no axis to resolve against |\n| `DECLARE3003` | a malformed datapath |\n| `DECLARE3004` | an attribute is set twice |\n| `DECLARE3005` | a text field's size sits under the iOS focus-zoom line (warning) |\n| `DECLARE3006` | a datapath { } is a literal — a fresh value no Dataset holds |\n\n## Names and scope\n\n| code | what it means |\n|---|---|\n| `DECLARE4000` | name-resolution error (unclassified) |\n| `DECLARE4001` | a bare name resolves to nothing in scope |\n| `DECLARE4002` | a bare name shadows an outer member (warning) |\n| `DECLARE4003` | a body writes a script { } variable (a body holds a copy — state lives on a node) |\n| `DECLARE4004` | a body names a host global (document, window, process, …) — the Declare way is named |\n| `DECLARE4005` | a bare enum token inside { } — the quoted form is named |\n| `DECLARE4006` | a per-frame Time's onTick ignores dt — polling, not integration (warning) |\n| `DECLARE4007` | a { } reads the ambient clock (Date.now(), new Date()) — a stopped clock (warning) |\n| `DECLARE4008` | no 'shows' name matches the initial location — every screen starts hidden (warning) |\n| `DECLARE4010` | a class is named like a rich-text tag — that tag builds this class inside content (warning) |\n| `DECLARE4011` | a constraint centers a box by hand — x = center says it (hint) |\n| `DECLARE4012` | an Animator nothing ever starts — no 'started', no start() call (warning) |\n| `DECLARE4013` | a press() override on a Button — the click runs onClick, not this (warning) |\n| `DECLARE4019` | a method named on… that answers no event of its class — an ordinary method (warning) |\n| `DECLARE4016` | a Control with no accessibilityRole (warning) |\n| `DECLARE4017` | a view whose role needs a name has none (warning) |\n| `DECLARE4018` | a drawn, focusable view with no accessibilityRole (warning) |\n| `DECLARE4020` | a control inside a control — interactive inside interactive (warning) |\n| `DECLARE4021` | a view clipped to zero size to hide what a screen reader still reads (warning) |\n| `DECLARE4022` | a control that shows it is chosen and reports no state (warning) |\n| `DECLARE4023` | rowIndex read on a view that is not replicated — its own, never the row's (warning) |\n| `DECLARE4024` | a write to a dataset that computes its value with contents (warning) |\n| `DECLARE4026` | sibling toggles that each turn on for one value of the same thing — one of several, said as separate toggles (warning) |\n| `DECLARE4028` | a State's own member read bare in an override value, which runs on the view |\n| `DECLARE4029` | a method in a State that the State does not have — a State cannot change the view's methods |\n| `DECLARE4030` | a size range beside a size the view states itself, where it bounds nothing (warning) |\n| `DECLARE4032` | a radio whose parent is no RadioGroup — no group to be one of (warning) |\n| `DECLARE4033` | a browser script that looks up elements in the page — the views belong to the runtime (warning) |\n| `DECLARE4035` | an accessibilityLabel on a view with no role — nothing reads it (warning) |\n| `DECLARE4034` | colorWithAlpha given an alpha between 0 and 1 — the alpha is a byte, 0 to 255 (warning) |\n| `DECLARE4031` | an onKeyDown on a Control that never calls super.onKeyDown — Space, Enter and the arrows stop (warning) |\n| `DECLARE4027` | a control hidden from a screen reader that the keyboard still reaches (warning) |\n| `DECLARE4025` | a constraint whose decisions are nested three deep, or one condition with four or more parts (warning) |\n| `DECLARE4014` | afterDelay() in a { } value — a value computes and never waits |\n| `DECLARE4015` | a class, schema, theme or style takes a name TypeScript's standard library or Declare's own types declare |\n\n## Files and includes\n\n| code | what it means |\n|---|---|\n| `DECLARE5000` | include/module error (unclassified) |\n| `DECLARE5001` | two included files declare the same class |\n| `DECLARE5002` | an include path cannot be found |\n| `DECLARE5003` | an included library has a tree root |\n\n## Type checking\n\n| code | what it means |\n|---|---|\n| `DECLARE6000` | typecheck error (unclassified) |\n| `DECLARE6001` | a { } body fails the TypeScript typecheck |\n\n## Constraints\n\n| code | what it means |\n|---|---|\n| `DECLARE7000` | constraint dependency error (unclassified) |\n| `DECLARE7001` | a { } constraint cannot be statically analyzed (residue) |",
+     "doc": "# Diagnostic codes\n\n*Every compiler diagnostic carries a `DECLARE####` code, and its message names the fix. `npx declare-help DECLARE4001` answers one code in full.*\n\n## Syntax\n\n| code | what it means |\n|---|---|\n| `DECLARE1001` | the parser rejected a token or shape |\n| `DECLARE1002` | a value body wrapped whole in parentheses — { expr } says it (hint) |\n\n## Structure\n\n| code | what it means |\n|---|---|\n| `DECLARE2000` | structural error (unclassified) |\n| `DECLARE2001` | unknown class tag |\n| `DECLARE2002` | a name is declared more than once |\n| `DECLARE2003` | a member is placed where its node-kind forbids it |\n| `DECLARE2004` | a name violates the member namespace |\n| `DECLARE2005` | a Spring drives an attribute its view also binds — the target belongs in the Spring's to |\n| `DECLARE2006` | a class declares an accessibilityRole whose contract it does not meet |\n| `DECLARE2007` | accessibilityRole written as a { } value — a role is a word, fixed for the view's life |\n| `DECLARE2008` | declareVersion names a release newer than this compiler |\n| `DECLARE2009` | declareVersion names an earlier release — declare-changes lists what changed since (warning) |\n\n## Values and types\n\n| code | what it means |\n|---|---|\n| `DECLARE3000` | type/value error (unclassified) |\n| `DECLARE3001` | a value does not fit its attribute's type |\n| `DECLARE3002` | a percent with no axis to resolve against |\n| `DECLARE3003` | a malformed datapath |\n| `DECLARE3004` | an attribute is set twice |\n| `DECLARE3005` | a text field's size sits under the iOS focus-zoom line (warning) |\n| `DECLARE3006` | a datapath { } is a literal — a fresh value no Dataset holds |\n\n## Names and scope\n\n| code | what it means |\n|---|---|\n| `DECLARE4000` | name-resolution error (unclassified) |\n| `DECLARE4001` | a bare name resolves to nothing in scope |\n| `DECLARE4002` | a bare name shadows an outer member (warning) |\n| `DECLARE4003` | a body writes a script { } variable (a body holds a copy — state lives on a node) |\n| `DECLARE4004` | a body names a host global (document, window, process, …) — the Declare way is named |\n| `DECLARE4005` | a bare enum token inside { } — the quoted form is named |\n| `DECLARE4006` | a per-frame Time's onTick ignores dt — polling, not integration (warning) |\n| `DECLARE4007` | a { } reads the ambient clock (Date.now(), new Date()) — a stopped clock (warning) |\n| `DECLARE4008` | no 'shows' name matches the initial location — every screen starts hidden (warning) |\n| `DECLARE4010` | a class is named like a rich-text tag — that tag builds this class inside content (warning) |\n| `DECLARE4011` | a constraint centers a box by hand — x = center says it (hint) |\n| `DECLARE4012` | an Animator nothing ever starts — no 'started', no start() call (warning) |\n| `DECLARE4013` | a press() override on a Button — the click runs onClick, not this (warning) |\n| `DECLARE4019` | a method named on… that answers no event of its class — an ordinary method (warning) |\n| `DECLARE4016` | a Control with no accessibilityRole (warning) |\n| `DECLARE4017` | a view whose role needs a name has none (warning) |\n| `DECLARE4018` | a drawn, focusable view with no accessibilityRole (warning) |\n| `DECLARE4020` | a control inside a control — interactive inside interactive (warning) |\n| `DECLARE4021` | a view clipped to zero size to hide what a screen reader still reads (warning) |\n| `DECLARE4022` | a control that shows it is chosen and reports no state (warning) |\n| `DECLARE4023` | rowIndex read on a view that is not replicated — its own, never the row's (warning) |\n| `DECLARE4024` | a write to a dataset that computes its value with contents (warning) |\n| `DECLARE4026` | sibling toggles that each turn on for one value of the same thing — one of several, said as separate toggles (warning) |\n| `DECLARE4028` | a State's own member read bare in an override value, which runs on the view |\n| `DECLARE4029` | a method in a State that the State does not have — a State cannot change the view's methods |\n| `DECLARE4030` | a size range beside a size the view states itself, where it bounds nothing (warning) |\n| `DECLARE4032` | a radio whose parent is no RadioGroup — no group to be one of (warning) |\n| `DECLARE4033` | a browser script that looks up elements in the page — the views belong to the runtime (warning) |\n| `DECLARE4035` | an accessibilityLabel on a view with no role — nothing reads it (warning) |\n| `DECLARE4034` | colorWithAlpha given an alpha between 0 and 1 — the alpha is a byte, 0 to 255 (warning) |\n| `DECLARE4031` | an onKeyDown on a Control that never calls super.onKeyDown — Space, Enter and the arrows stop (warning) |\n| `DECLARE4041` | an onChange on a node that tracks nothing — it never runs (warning) |\n| `DECLARE4027` | a control hidden from a screen reader that the keyboard still reaches (warning) |\n| `DECLARE4025` | a constraint whose decisions are nested three deep, or one condition with four or more parts (warning) |\n| `DECLARE4014` | afterDelay() in a { } value — a value computes and never waits |\n| `DECLARE4015` | a class, schema, theme or style takes a name TypeScript's standard library or Declare's own types declare |\n\n## Files and includes\n\n| code | what it means |\n|---|---|\n| `DECLARE5000` | include/module error (unclassified) |\n| `DECLARE5001` | two included files declare the same class |\n| `DECLARE5002` | an include path cannot be found |\n| `DECLARE5003` | an included library has a tree root |\n\n## Type checking\n\n| code | what it means |\n|---|---|\n| `DECLARE6000` | typecheck error (unclassified) |\n| `DECLARE6001` | a { } body fails the TypeScript typecheck |\n\n## Constraints\n\n| code | what it means |\n|---|---|\n| `DECLARE7000` | constraint dependency error (unclassified) |\n| `DECLARE7001` | a { } constraint cannot be statically analyzed (residue) |",
      "preview": "Every compiler diagnostic carries a DECLARE code, and its message names the fix. npx declare-help DECLARE4001 answers one code in full. Syntax code what it means ------ DECLARE1001 the parser rejected a token or shape DECLARE1002 a value bo…"
     },
     {

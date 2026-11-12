@@ -11,7 +11,7 @@ script {
                 "core": 43.9,
                 "view": 12.6,
                 "backend": 15.7,
-                "input": 21.9,
+                "input": 22,
                 "draw": 16.5,
                 "anim": 3.2,
                 "text": 5,
@@ -27,7 +27,7 @@ script {
                 "core": 43.3,
                 "view": 12.4,
                 "backend": 36.1,
-                "input": 25.4,
+                "input": 25.5,
                 "draw": 18.3,
                 "anim": 3.9,
                 "text": 5,
@@ -43,7 +43,7 @@ script {
                 "core": 43.9,
                 "view": 12.6,
                 "backend": 8.7,
-                "input": 21.9,
+                "input": 22,
                 "draw": 16.5,
                 "anim": 3.2,
                 "text": 5,
@@ -54,12 +54,12 @@ script {
                 "ker": 0
             },
             "totals": {
-                "calDom": 171.6,
-                "calCanvas": 196.8,
-                "calMac": 146.8
+                "calDom": 171.7,
+                "calCanvas": 197,
+                "calMac": 146.9
             }
         },
-        "runtimeKB": 130.4,
+        "runtimeKB": 130.5,
         "kernelKB": 15.2,
         "kernelWasmGzipKB": 12.6,
         "kernelWasmRawKB": 23,

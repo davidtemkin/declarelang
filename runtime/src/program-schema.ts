@@ -25,6 +25,8 @@ export { coerceToken };
 /** The default (no schemas declared) — one shared frozen set. */
 const EMPTY_SHAPES: ReadonlySet<string> = new Set();
 import { validateExpr, CONSTRUCTOR_NAMES, FILTER_FN_NAMES } from "./expr.js";
+/** The text face a container provides by declaring it (schema.ts FACE_ATTRS). */
+const PROVIDED_FACE: readonly string[] = ["textColor", "fontSize", "fontFamily", "fontWeight", "letterSpacing"];
 
 /** The scope nouns of language §11 — never legal as member or parameter names.
  *  `app` is the running-App noun (compiles to `this.$root`); reserving it here
@@ -403,6 +405,17 @@ export function checkDecl(
     return err(
       diag`unknown type '${d.type.replace(/\s*\?$/, "")}' — a declared attribute's type is one of ${DECLARED_TYPE_NAMES.join(", ")}, a class, a declared schema, a literal union ('"open" | "closed"'), or a function type '(a: T) -> R' — and a class, schema or View that may be empty ends in '?' ('Menu?')`,
       d.typePos
+    );
+  }
+  // A text-face value (textColor, fontSize…) declared on a container PROVIDES it
+  // to every text inside — providing is just holding a value. Declared with
+  // another type, it provides that: a string `textColor` every field and label
+  // below then paints with, as nothing (Presentify run 6).
+  const face = PROVIDED_FACE.includes(d.name) ? attrType(TextSchema, d.name) : null;
+  if (face !== null && face.kind !== type.kind && !(type.kind === "string" && (face.kind === "enum" || face.kind === "font"))) {
+    return err(
+      diag`'${d.name}' declared here provides it to every text inside, which reads it as a ${face.kind} — declared ${d.type}, it would give them that instead. To provide it, declare it as the text reads it; for a value of your own, choose another name`,
+      d.pos
     );
   }
   const errT = (message: string, pos: Pos): CheckedDecl => ({ ok: false, error: new DeclareError(message, pos), type });

@@ -786,7 +786,7 @@ bootHost(cfg);
       // returned in place of the centre (clickAt: a day on a drawn chart).
       // `drag`: a finger's drag over a view that takes no presses is the scroll of
       // the pane holding it, so reaching that pane there is reaching the view
-      const reach = async (path, at = null, { drag = false } = {}) => {
+      const reach = async (path, at = null, { drag = false, hover = false } = {}) => {
         const spot = () => at === null ? center(path) : pointIn(path, at.x, at.y);
         // A TARGET STILL MOVING is aimed at where it will be, not where it was: a
         // native smooth scroll, or a scroll request that lands a frame later,
@@ -819,8 +819,9 @@ bootHost(cfg);
         // one that pinned chrome covers is scrolled clear of it first, as a person would
         // pressAt: where a real press goes, past views that take none (a
         // container's box over a control is not in its way)
-        const reaches = () => page.evaluate((p, x, y) => {
-          const d = window.__declare, at = (d.pressAt ?? d.at)(x, y);
+        // (a hover goes to the topmost view there, whether or not it takes presses)
+        const reaches = () => page.evaluate((p, x, y, hov) => {
+          const d = window.__declare, at = ((hov ? null : d.pressAt) ?? d.at)(x, y);
           if (at === null) return { ok: false, path: null };
           const t = d.find(p), h = d.find(at.path);
           const inside = (a, b) => { for (let n = a; n != null; n = n.parent) if (n === b) return true; return false; };
@@ -828,7 +829,7 @@ bootHost(cfg);
           // is the pane it is clipped by there — not a press that reaches it
           const clipped = t !== null && h !== null && h !== t && inside(t, h) && h.scrolls !== undefined && h.scrolls !== "none";
           return { ok: t !== null && h !== null && !clipped && (inside(h, t) || inside(t, h)), path: at.path, clipped };
-        }, path, c.x, c.y);
+        }, path, c.x, c.y, hover);
         const reachesFor = async () => { const h = await reaches(); return drag && touching() && h.clipped ? { ...h, ok: true, clipped: false } : h; };
         let hit = await reachesFor();
         // below its pane's fold, though on the screen: scrolled into its pane, as a person would
@@ -1068,7 +1069,7 @@ bootHost(cfg);
         },
         /** The pointer brought over the view, and left there: what hovered answers. */
         async hover(path) {
-          const c = await reach(path);
+          const c = await reach(path, null, { hover: true });
           step(`hover ${path}`);
           await page.mouse.move(c.x, c.y);
           await landed();

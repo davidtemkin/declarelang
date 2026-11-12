@@ -126,6 +126,7 @@ export declare const Diag: {
     bindingKeyUnmatchable: (owner: string, key: string, hint: string, pos: Pos) => DeclareError;
     bindingClipboardKey: (owner: string, key: string, command: string, pos: Pos) => DeclareError;
     bindingStandardKey: (owner: string, key: string, pos: Pos) => DeclareError;
+    changeTracksNothing: (owner: string, pos: Pos) => DeclareError;
     keyDownWithoutSuper: (owner: string, pos: Pos, control?: boolean) => DeclareError;
     accessibilityDrawnFocusable: (owner: string, pos: Pos) => DeclareError;
     afterInValue: (pos: Pos) => DeclareError;

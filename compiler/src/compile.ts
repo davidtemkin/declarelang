@@ -718,6 +718,15 @@ function idiomDiagnostics(
       }
     }
 
+    // 4041 — an onChange at a use site whose node, and every class it is made
+    // from, tracks nothing: change events fire only for trackChanges, so the
+    // handler can never run (a class body is left alone — a use site may name
+    // what it tracks)
+    if (decl === undefined && el.methods.some((m) => m.name === "onChange")) {
+      const tracks = [el, ...chainBodies(el.tag)].some((b) => b.attrs.some((a) => a.name === "trackChanges") || b.decls.some((d) => d.name === "trackChanges"));
+      if (!tracks) warnings.push(Diag.changeTracksNothing(el.tag, el.methods.find((m) => m.name === "onChange")!.pos));
+    }
+
     // 4030 — minWidth/maxWidth (or the heights) beside a width the view states
     // itself, at the same level, where nothing in its class reads the range
     // (Window's resize and Menu's own width do): a range bounds a size a layout
