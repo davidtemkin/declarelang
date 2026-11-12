@@ -63,4 +63,30 @@ await test("a write the script intercepts is reported as intercepted, not as sen
   assert.match(r.stdout, /intercepted 1 write in the page \(POST \/no-such-endpoint \(answered by the script\)\) — none reached the service/);
 });
 
+await test("drive.download answers the file a press saves; drive.chooseFiles picks files in the dialog a press opens", () => {
+  const dir = tempDir("declare-verify-files-");
+  writeFileSync(join(dir, "save.ts"), `export function saveText(name: string, text: string): void {
+  const url = URL.createObjectURL(new Blob([text], { type: "text/csv" }))
+  const a = document.createElement("a"); a.href = url; a.download = name
+  document.body.appendChild(a); a.click(); a.remove()
+}`);
+  const app = join(dir, "files.declare");
+  writeFileSync(app, `script [ "save.ts", host = browser ]
+App [ width = 400, height = 200, got: string = "",
+    save: Button [ x = 20, y = 20, label = "Export", onClick() { saveText("rows.csv", "a,b\\n1,2\\n") } ],
+    open: Button [ x = 20, y = 70, label = "Open", onClick() { FilePicker.pick({ accept: [".txt"] }).then((fs) => { app.got = fs.map((f) => f.name + ":" + f.size).join(",") }) } ] ]`);
+  const f = join(dir, "flow.mjs");
+  writeFileSync(f, `export default async ({ drive, expect }) => {
+    const file = await drive.download(() => drive.click("app.save"));
+    if (file.name !== "rows.csv" || file.text !== "a,b\\n1,2\\n") throw new Error(JSON.stringify(file));
+    await drive.chooseFiles([{ name: "notes.txt", text: "hello" }], () => drive.click("app.open"));
+    await drive.settleData();
+    await expect.attr("app", "got", "notes.txt:5");
+    let said = ""; try { await drive.download(() => drive.wait(10), { timeout: 500 }); } catch (e) { said = e.message; }
+    if (!/nothing was downloaded/.test(said)) throw new Error("no download was not said: " + said);
+  };`);
+  const r = spawnSync(process.execPath, [join(ROOT, "tools/verify.mjs"), app, "--assert", f, "--rung=5", "--no-boot"], { cwd: ROOT, encoding: "utf8" });
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+});
+
 summarize("verify-requests");

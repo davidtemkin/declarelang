@@ -10,7 +10,8 @@
 import { withLocators, parseChord, pressChord } from "./verify-locators.mjs";
 import http from "node:http";
 import { spawnSync } from "node:child_process";
-import { readFileSync, writeFileSync, existsSync, statSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync, statSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join, resolve, dirname, extname, relative } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { sharedChrome } from "./chrome.mjs";
@@ -1122,15 +1123,17 @@ bootHost(cfg);
          *  a part of a drawn control (a step of a scale, a day of a chart) that
          *  is not a view of its own. Reached as `click` reaches the view, at that
          *  point: one some other view covers there is said, not pressed.
-         *  `{ modifiers: ["Shift"] }` holds keys down through it, as `click`'s does. */
+         *  `{ modifiers: ["Shift"] }` holds keys down through it, and `{ button:
+         *  "right" }` presses another button, as `click`'s do. */
         async clickAt(path, x, y, o = {}) {
-          const odd = Object.keys(o).filter((k) => k !== "modifiers");
-          if (odd.length > 0) throw new VerifyAssertion(`drive.clickAt(…, { ${odd.join(", ")} }): not an option — modifiers`);
+          const odd = Object.keys(o).filter((k) => k !== "modifiers" && k !== "button");
+          if (odd.length > 0) throw new VerifyAssertion(`drive.clickAt(…, { ${odd.join(", ")} }): not an option — modifiers, button`);
           const p = await reach(path, { x, y });
           const mods = (o.modifiers ?? []).map((m) => parseChord(m + "+x").mods[0]);
-          step(`${mods.length ? mods.join("+") + "+" : ""}${touching() ? "tap" : "click"} ${path} at (${x}, ${y})`);
+          step(`${mods.length ? mods.join("+") + "+" : ""}${o.button && o.button !== "left" ? o.button + "-" : ""}${touching() ? "tap" : "click"} ${path} at (${x}, ${y})`);
           for (const m of mods) await page.keyboard.down(m);
-          await press(p.x, p.y);
+          if ((o.button ?? "left") === "left" || touching()) await press(p.x, p.y);
+          else { await page.mouse.click(p.x, p.y, { button: o.button }); await landed(); }
           for (const m of [...mods].reverse()) await page.keyboard.up(m);
         },
         /** A double-click as a person makes one — what `onDblClick` answers —
@@ -1361,6 +1364,63 @@ bootHost(cfg);
           await atRest();
         },
         async settleData() { step("settleData"); await quiet(); await atRest(); },
+        /** Run `fn` — the press that saves a file — and answer the file the
+         *  program gave the person, as the browser saved it: `{ name, size,
+         *  text }` (`text` read as UTF-8). Waits up to `timeout` ms of real time
+         *  for the file; none is said, never taken for an empty one. */
+        async download(fn, { timeout = 5000 } = {}) {
+          const dir = mkdtempSync(join(tmpdir(), "declare-download-"));
+          const s = await page.browser().target().createCDPSession();
+          try {
+            const ctx = page.browserContext().id;
+            await s.send("Browser.setDownloadBehavior", { behavior: "allowAndName", downloadPath: dir, eventsEnabled: true, ...(ctx ? { browserContextId: ctx } : {}) });
+            let name = null;
+            const done = new Promise((res, rej) => {
+              s.on("Browser.downloadWillBegin", (e) => { name = e.suggestedFilename; });
+              s.on("Browser.downloadProgress", (e) => {
+                if (e.state === "completed") res(e.guid);
+                else if (e.state === "canceled") rej(new VerifyAssertion("drive.download: the browser cancelled the download"));
+              });
+            });
+            await fn();
+            let timer;
+            const guid = await Promise.race([done, new Promise((_, rej) => { timer = setTimeout(() => rej(new VerifyAssertion(`drive.download: nothing was downloaded within ${timeout} ms of what the function did`)), timeout); })]).finally(() => clearTimeout(timer));
+            const bytes = readFileSync(join(dir, guid));
+            step(`downloaded "${name}" (${bytes.length} bytes)`);
+            await landed();
+            return { name, size: bytes.length, text: bytes.toString("utf8") };
+          } finally {
+            await s.send("Browser.setDownloadBehavior", { behavior: "default", ...(page.browserContext().id ? { browserContextId: page.browserContext().id } : {}) }).catch(() => {});
+            await s.detach().catch(() => {});
+            rmSync(dir, { recursive: true, force: true });
+          }
+        },
+        /** Run `fn` — the press that opens a file dialog — and choose `files` in
+         *  it, as a person picks them: each a path (from where declare-verify
+         *  runs, or absolute) or `{ name, text }` made up in the script. */
+        async chooseFiles(files, fn) {
+          const list = Array.isArray(files) ? files : [files];
+          const dir = mkdtempSync(join(tmpdir(), "declare-choose-"));
+          try {
+            const paths = list.map((f) => {
+              if (typeof f === "string") return resolve(f);
+              if (f == null || typeof f.name !== "string") throw new VerifyAssertion("drive.chooseFiles: each file is a path or { name, text }");
+              const at = join(dir, f.name);
+              writeFileSync(at, f.text ?? "");
+              return at;
+            });
+            for (const at of paths) if (!existsSync(at)) throw new VerifyAssertion(`drive.chooseFiles: no file at ${at}`);
+            const chooser = page.waitForFileChooser({ timeout: 5000 }).catch(() => null);
+            await fn();
+            const c = await chooser;
+            if (c === null) throw new VerifyAssertion("drive.chooseFiles: no file dialog opened from what the function did");
+            step(`choose ${list.map((f) => typeof f === "string" ? f : f.name).join(", ")}`);
+            await c.accept(paths);
+            await landed();
+          } finally {
+            rmSync(dir, { recursive: true, force: true });
+          }
+        },
         /** Assign an attribute on a live node — the write twin of the asserts'
          *  find-based read. An assignment, so constraints fire exactly as a
          *  handler's write would; a { }-owned slot refuses exactly as it should. */

@@ -33,21 +33,21 @@ const PAGE_HINTS = {
   waitForURL: "read where the program is with expect.attr(\"app\", \"location\", …), or expect(page).toHaveURL(…)",
   waitForLoadState: "drive.settleData() waits for the program's requests; drive.settleMotion() for its motion",
   waitForTimeout: "drive.wait(ms) moves the page's clock",
-  waitForEvent: "settle with drive.settleData() / drive.settleMotion(), then assert",
+  waitForEvent: "settle with drive.settleData() / drive.settleMotion(), then assert; a file the program saves is drive.download(fn), a file dialog drive.chooseFiles(files, fn)",
   frameLocator: "frames are not driven here",
   route: "--fixtures <dir> answers the program's requests from files",
   unroute: "--fixtures <dir> answers the program's requests from files",
   context: "each run is a context of its own; drive.device() loads the page on another device",
   pause: "a script runs to its end; check a value with expect.attr, or look at the page with declare-look",
   dragAndDrop: "drive.drag(path, dx, dy) drags as a finger or a mouse does",
-  setInputFiles: "file pickers are not driven here",
+  setInputFiles: "drive.chooseFiles(files, fn) chooses files in the dialog the press opens",
   getByLabelText: "getByLabel",
 };
 
 /** Playwright's Locator members this one does not have. */
 const LOCATOR_HINTS = {
   dragTo: "drive.drag(path, dx, dy) drags as a finger or a mouse does",
-  setInputFiles: "file pickers are not driven here",
+  setInputFiles: "drive.chooseFiles(files, fn) chooses files in the dialog the press opens",
   highlight: "take a picture with locator.screenshot() or page.screenshot()",
   elementHandle: "evaluate(fn) runs fn on the element",
   elementHandles: "evaluateAll(fn) runs fn on all of them",

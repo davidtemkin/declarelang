@@ -231,6 +231,11 @@ async function controlFor(page, title, re) {
   if (own) return own;
   const card = await find(page, (n) => named(n, new RegExp(title, "i")) && n.role !== "StaticText", { what: `the presentation ${title}` });
   const cb = await card.handle.boundingBox();
+  // a card's actions may show only under the pointer, as a person with a mouse finds them
+  await page.mouse.move(cb.x + cb.width / 2, cb.y + cb.height / 2);
+  await sleep(300);
+  const shown = await maybe(control(page, new RegExp(`(?:${re.source}).*${title}|${title}.*(?:${re.source})`, "i"), { timeout: 800 }));
+  if (shown) return shown;
   let best = null;
   for (const n of (await nodes(page)).filter((x) => ACTION_ROLES.has(x.role) && named(x, re))) {
     let h = await n.elementHandle();
@@ -521,7 +526,9 @@ const SCENARIOS = {
   async present_and_return(page) {
     await openPresentation(page, "Field notes from the coast");
     await press(page, await thumb(page, 1));
-    await press(page, await control(page, /^(present|play|slide ?show|start (the )?presentation)\b/i));
+    // the button a person presses; a menu of the same name (a menu bar's Present) is the fallback
+    const PRESENT = /^(present|play|slide ?show|start (the )?presentation)\b/i;
+    await press(page, (await maybe(find(page, (n) => n.role === "button" && named(n, PRESENT) && !n.disabled, { timeout: 2000 }))) ?? await control(page, PRESENT));
     await sleep(800);
     await page.keyboard.press("ArrowRight"); await sleep(400);
     await page.keyboard.press("Space"); await sleep(400);

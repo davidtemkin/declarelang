@@ -324,6 +324,19 @@ A set covers the view it is declared on and is read in the same walk, after that
 already (`key: "Ctrl+N"`), and those are its program's shortcuts, so a program with a menu
 bar declares them once.
 
+Not every key a program declares reaches it. What runs a program keeps some keys for itself,
+before any page or program hears them. A browser keeps the keys that manage its own windows
+and tabs — new window, new tab, close tab, reopen tab, switch tab, quit (⌘N, ⌘T, ⌘W, ⌘Q on a
+Mac; Ctrl+N, Ctrl+T, Ctrl+W, Ctrl+Tab elsewhere) — and the operating system keeps its own,
+such as switching apps (⌘Tab) or Spotlight (⌘Space). This is true of every web page, and a
+binding for one of them is simply never run. Everything else — ⌘S, ⌘P, ⌘F, the arrows
+— reaches the program first, and the browser's own use of it stands down when a binding
+takes it. Declare's Mac app keeps fewer: ⌘Q, ⌘W, ⌘H and ⌘M are its own, and while a text
+field has focus, the field keeps its editing keys (⌘A, ⌘C, ⌘X, ⌘V, ⌘Z); every other ⌘ key
+goes to the program first, and to the app's menu only when nothing in the program takes it.
+So choose keys a person can actually press where the program runs, and give every command a
+way in from the screen as well.
+
 Holding ⌘ alone (Ctrl elsewhere) for a moment shows the keys in force where focus is — the
 [`ShortcutsPanel`](declare-docs:ShortcutsPanel), which a program gets once it labels a binding or
 declares `Shortcuts`: every labelled binding and every shortcut, each key once, from the
