@@ -963,7 +963,7 @@ export const LANGUAGE_API = {
     State: [`  apply(): void;`, `  remove(): void;`, `  toggle(): void;`],
     // viewExtent: the alignment BAND — the arranged view's own extent on an
     // axis, or 0 when that extent is measured from the laid children (layout.ts).
-    Layout: [`  view: View;`, `  laid(): View[];`, `  refuseBaseline(child: View): void;`, `  refuseStackBaseline(): void;`, `  contentExtent(size: "width" | "height"): number;`, `  viewExtent(size: "width" | "height"): number;`, `  sizedByContent(child: View, size: "width" | "height"): boolean;`], // view: runtime `View | null`, non-null by the time any body runs
+    Layout: [`  view: View;`, `  laid(): View[];`, `  refuseBaseline(child: View): void;`, `  refuseStackBaseline(): void;`, `  contentExtent(size: "width" | "height"): number;`, `  viewExtent(size: "width" | "height"): number;`, `  sizedByContent(child: View, size: "width" | "height"): boolean;`, `  sizedByChildren(size: "width" | "height"): boolean;`], // view: runtime `View | null`, non-null by the time any body runs
     TweenLayout: [`  laid(): View[];`, `  retarget(animate: boolean): void;`],
 };
 /** One attribute member. A length-typed slot is the read/write ASYMMETRY the

@@ -92,8 +92,8 @@ child's range by the runtime, so a strategy of your own honours ranges without c
 **`stretch` fills only what the content decides.** `stretch: { h: 80 }` in a box makes
 that child 80 tall **only if its content would otherwise decide its height**; a child that
 states a height keeps it, and nothing is refused. It is how a row of your own fills
-itself: stretch to `viewExtent("height")` when that is not 0 (the row's own height, a
-scrolling pane held to the page), else to the tallest child. Measure the tallest by each
+itself: stretch to `viewExtent("height")` unless `sizedByChildren("height")` (the row's
+own height, a scrolling pane held to the page), else to the tallest child. Measure the tallest by each
 child's content (`contentHeight`), never its height, or the line holds itself up once the
 tallest shrinks. A view sized from its children is as large as what its layout placed,
 stretched children included.
@@ -171,9 +171,18 @@ Fold it in with `Math.max(line, this.viewExtent(size))` to centre or end-align: 
 that sizes itself from its children the answer is 0 and the line stands (and the two agree
 anyway — an aligned run's extent *is* its widest child); on a view that was told its size
 the band is the box the author drew, which is what `align = center` has always meant. To
-stretch, the band when it is not 0 replaces the line, so a child larger than the view is
-held to it. The read is tracked, so a
+stretch, the band replaces the line on a view that has a size of its own — ask
+`sizedByChildren(size)`, since a band of 0 can be either — so a child larger than the view
+is held to it. The read is tracked, so a
 parent that resizes re-places its aligned children.
+
+## sizedByChildren()
+Whether the arranged view's extent on `"width"` or `"height"` is measured from the very
+children this layout places: it states no size on that axis, or the size it states reads
+them (`width = { this.contentWidth + 16 }`). There `viewExtent` answers 0 and the line
+stands. A view given its size — a literal, a percent, a `{ }` that reads no laid child,
+another layout's allocation — answers false, even while that size is 0: a column 100% of a
+window not yet measured, or a drawer closed to nothing, still has a band, and it is 0.
 
 ## attachTo()
 Attaches this strategy to a view. Setting a `layout:` member does it for you; a strategy

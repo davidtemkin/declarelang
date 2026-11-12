@@ -1,0 +1,12 @@
+// d11 control: the same with visible = false written as a literal — clean.
+App [ ready: boolean = false,
+    onInit() { afterSettle(() => { app.ready = true }) },
+    hall: View [ width = 100%, height = { app.height - 60 },
+        layout: SimpleLayout [ axis = y, align = stretch ],
+        side: View [ height = 120 ],
+        pane: View [ flexes = true, scrolls = both,
+            map: View [ x = { Math.max(0, (parent.width - this.width) / 2) }, width = { app.ready ? 1500 : 0 }, height = 600 ]
+            ],
+        bar: View [ visible = false, width = 100, height = 60 ]
+        ]
+    ]

@@ -4,7 +4,7 @@
     "code": 596,
     "comment": 572,
     "blank": 359,
-    "wireGzip": 239253,
+    "wireGzip": 239258,
     "programGzip": 16058
   },
   "calendar": {
@@ -12,7 +12,7 @@
     "code": 545,
     "comment": 216,
     "blank": 178,
-    "wireGzip": 175676,
+    "wireGzip": 175684,
     "programGzip": 13215
   },
   "tracker": {
@@ -20,15 +20,15 @@
     "code": 983,
     "comment": 251,
     "blank": 274,
-    "wireGzip": 194233,
-    "programGzip": 19384
+    "wireGzip": 194341,
+    "programGzip": 19457
   },
   "desktop": {
     "total": 3504,
     "code": 1996,
     "comment": 933,
     "blank": 575,
-    "wireGzip": 264846,
+    "wireGzip": 264861,
     "programGzip": 23517
   },
   "todo": {
@@ -36,8 +36,8 @@
     "code": 662,
     "comment": 237,
     "blank": 177,
-    "wireGzip": 196128,
-    "programGzip": 21968,
+    "wireGzip": 196223,
+    "programGzip": 22017,
     "codeWithParts": 847
   },
   "calendarParts": {
@@ -52,7 +52,7 @@
       "anim": 3.2,
       "text": 5,
       "boot": 5.6,
-      "layout": 2.3,
+      "layout": 2.4,
       "themes": 0.2,
       "a11y": 3.4,
       "ker": 15.2
@@ -84,7 +84,7 @@
       "anim": 3.2,
       "text": 5,
       "boot": 5.6,
-      "layout": 2.3,
+      "layout": 2.4,
       "themes": 0.2,
       "a11y": 0.8,
       "ker": 0

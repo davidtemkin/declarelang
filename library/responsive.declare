@@ -431,7 +431,7 @@ class ResponsiveLayout extends Layout [
             if (onBaseline && typeof b == "number") lineBase = Math.max(lineBase, b)
         }
         if (al == "center" || al == "end") line = Math.max(line, this.viewExtent(crossSize))
-        else if (al == "stretch") { const band = this.viewExtent(crossSize); if (band > 0) line = band }
+        else if (al == "stretch" && !this.sizedByChildren(crossSize)) line = this.viewExtent(crossSize)
         const across = (c) => {
             let o = 0
             if (al == "center") o = (line - crossExt(c)) / 2

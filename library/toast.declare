@@ -15,7 +15,8 @@ App [ width = 520, height = 260,
 ```
 
 ## message
-The text it shows.
+The text it shows: one line while it fits, and wrapped when it is longer, at most 480 wide
+and always within the screen.
 
 ## action
 The optional action record, `{ id, label }`, or null.
@@ -140,7 +141,13 @@ class Toast extends Floating [
 
     _row: View [ padding = [10, 12, 10, 16],
         layout: SimpleLayout [ axis = x, spacing = 14, align = center ],
-        Text [ fontSize = { provided("theme").toastFontSize }, wrap = false,
+
+        // one line while it fits; a longer message wraps rather than leave the
+        // screen — at most 480 wide, and within the screen's margins beside
+        // its action
+
+        Text [ fontSize = { provided("theme").toastFontSize },
+            wrapWidth = { Math.max(120, Math.min(480, classroot._hostW - 48 - 28 - (classroot._row.act.visible ? classroot._row.act.width + 14 : 0))) },
             textColor = { provided("theme").tooltipTextColor },
             text = { classroot.message } ],
 

@@ -1,0 +1,6 @@
+// What app.width is as a laptop-sized boot begins (Venue 30, d11's "[y]").
+App [ log: string = "",
+    onInit() { app.log = "init " + app.width; afterSettle(() => { app.log = app.log + ", after first settle " + app.width }) },
+    onChange(e: ChangeEvent) { if (e.changed.some((c) => c.name == "width")) app.log = app.log + ", width -> " + app.width },
+    Text [ text = { app.log } ]
+    ]

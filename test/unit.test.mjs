@@ -2619,6 +2619,57 @@ await test("align: the LINE is the band when the view measures these very childr
   } finally { app.discard(); }
 });
 
+// A band of 0 is still a band. A column `width = 100%` of a window not yet
+// measured is 0 wide; stretch took that 0 for "no band" and fell back to the
+// line, the widest child's content — and a pane re-centring what it holds
+// (`x = { (parent.width - this.width) / 2 }`) has a content that follows its own
+// stretched width, so the line halved itself towards 0 and never landed: a
+// constraint cycle at boot once a sibling's `{ }` visible took its 100 away
+// (Venue 30). Stretch now asks `sizedByChildren`, not the number.
+await test("align = stretch: a view given a size of 0 stretches to 0 — a hidden sibling and a re-centring pane do not cycle", async () => {
+  const r = await compile(`App [ width = 800, height = 600, show: boolean = true, hw: number = 0,
+      hall: View [ width = { app.hw }, height = 400,
+        layout: SimpleLayout [ axis = y, align = stretch ],
+        pane: View [ flexes = true,
+          map: View [ x = { Math.max(0, (parent.width - this.width) / 2) }, width = 0, height = 600 ] ],
+        bar: View [ visible = { app.show }, width = 100, height = 60 ] ],
+      col: View [ x = 0, y = 450, layout: SimpleLayout [ axis = y, align = stretch ],
+        a: View [ height = 20, View [ width = 90, height = 10 ] ], b: View [ width = 40, height = 20 ] ],
+    ]`, {});
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  const app = settleHeadless(r.program);
+  try {
+    assert.equal(app.hall.layout.sizedByChildren("width"), false, "a `{ }` reading no laid child gives the column its size");
+    assert.equal(app.hall.pane.width, 0, "the band is 0, and stretch fills it");
+    app.show = false; settle();
+    assert.equal(app.hall.pane.width, 0, "the sibling hides: still the band, no cycle");
+    app.hw = 300; settle();
+    assert.equal(app.hall.pane.width, 300, "the band grows and the pane follows it");
+    assert.equal(app.hall.pane.map.x, 150);
+    assert.equal(app.col.layout.sizedByChildren("width"), true, "a column with no width measures its children");
+    assert.equal(app.col.a.width, 90, "…so its line stands: the content-sized child stretches to the widest");
+  } finally { app.discard(); }
+});
+
+await test("a constraint cycle through a layout's stretch names the stretched size in its loop", async () => {
+  // a column sized from its children, stretching a pane whose content follows
+  // the pane's own width: the author's loop (layout-ownership.md §4 — a read
+  // through another attribute is not seen), so the message must say where it is
+  const r = await compile(`App [ width = 800, height = 600, show: boolean = true,
+      hall: View [ height = 400, layout: SimpleLayout [ axis = y, align = stretch ],
+        pane: View [ flexes = true,
+          map: View [ x = { Math.max(0, (parent.width - this.width) / 2) }, width = 0, height = 600 ] ],
+        bar: View [ visible = { app.show }, width = 100, height = 60 ] ],
+    ]`, {});
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  const app = settleHeadless(r.program);
+  try {
+    app.show = false;
+    assert.throws(() => settle(), (e) => /constraint cycle/.test(e.message)
+      && /The loop: .*View\.width \(stretched by View's SimpleLayout\[y\]\) \(at app\.hall\.pane\)/.test(e.message), "the loop names the pane's width");
+  } finally { app.discard(); }
+});
+
 await test("align: a child sized wider than the band keeps the line — it never hangs out both sides", async () => {
   const r = await compile(`App [ width = 400, height = 200,
       narrow: View [ x = 0, y = 0, width = 80, height = 100,

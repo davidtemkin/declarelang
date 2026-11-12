@@ -232,7 +232,7 @@ class SimpleLayout extends Layout [
             // a view with a cross size of its own: center and end work in it, and
             // stretch fills it — a scroller held to the page, not grown to its content
             if (al == "center" || al == "end") line = Math.max(line, this.viewExtent(crossSize))
-            else if (al == "stretch") { const band = this.viewExtent(crossSize); if (band > 0) line = band }
+            else if (al == "stretch" && !this.sizedByChildren(crossSize)) line = this.viewExtent(crossSize)
         }
 
         let pos = 0

@@ -376,6 +376,9 @@ export default async function boot(cfg) {
         .then(async (r) => ({ res: r, source: await r.text() }))
         .then((x) => { sSource.end(); return x; }),
     ]);
+    // a program that isn't there is said as that, not compiled: a 404's own page
+    // read as Declare reported "unexpected character" at a line no one wrote
+    if (!res.ok) return failed(`no program at ${mainUrl.pathname} — the server answered ${res.status}${res.status === 404 ? " (not found): check the path; a program in a folder of its own is <folder>/<name>.declare" : ""}`, mainUrl.href);
     pageSource = source;
     const sCompile = perfStage("compile");
     const out = onServer

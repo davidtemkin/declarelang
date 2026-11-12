@@ -23,7 +23,10 @@ this kind always says `extends Node`.
 ## datapath
 The data cursor: the place in a dataset this node and its descendants read and write
 relative to. Written as a `:path` (extending the inherited cursor), a `{ }` expression
-yielding a place (`datapath = { app.d.value.tasks[app.pick] }`), or null. The nearest
+yielding a place (`datapath = { app.d.value.tasks[app.pick] }`), or null. A place, not a
+value: the expression reaches into a dataset as it stands, so a record copied into an
+attribute, or one the code built, is not one — for records you compute, derive a `Dataset`
+(`contents = { … }`) and point into it. The nearest
 ancestor-or-self cursor wins, so a Node class with its own `datapath` stands on that
 record, and views inside it read the same one. A `:path` ending in `[]` replicates — and
 only a view replicates; on any other node that form is a compile error naming the

@@ -249,6 +249,15 @@ export declare abstract class Layout extends Node implements LayoutStrategy {
      *  imperative write — which re-places on the next child change like any
      *  other untracked fact the arrangement rearms on. */
     viewExtent(size: "width" | "height"): number;
+    /** Is the arranged view's extent on `size` measured from the very children
+     *  this strategy lays — the case where `viewExtent` answers 0 because reading
+     *  the extent would be the forbidden cycle? Asked apart from the band because
+     *  0 is also a real band: a view given its size (`width = 100%` of a window
+     *  not yet measured, a drawer closed to 0) has a band of 0, and a stretch
+     *  that took that 0 for "no band" fell back to the line — the widest child's
+     *  content — so a child whose content follows its own stretched size (a
+     *  scroller re-centring what it holds) chased itself through the line. */
+    sizedByChildren(size: "width" | "height"): boolean;
     private stackReported;
     refuseStackBaseline(): void;
     protected $claim(child: View, slot: string, k: Constraint): void;

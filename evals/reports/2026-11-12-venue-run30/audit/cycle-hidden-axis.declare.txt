@@ -1,0 +1,12 @@
+// d11 variant: axis = { app.width >= 820 ? "x" : "y" }. At 1280x800 the loop is still named [y]:
+// app.width is 0 until after the first settle (width-log.declare), so the narrow arrangement runs first.
+App [ ready: boolean = false,
+    onInit() { afterSettle(() => { app.ready = true }) },
+    hall: View [ width = 100%, height = 400,
+        layout: SimpleLayout [ axis = { app.width >= 820 ? "x" : "y" }, align = stretch ],
+        pane: View [ flexes = true,
+            map: View [ x = { Math.max(0, (parent.width - this.width) / 2) }, width = { app.ready ? 1500 : 0 }, height = 600 ]
+            ],
+        bar: View [ visible = { false }, width = 100, height = 60 ]
+        ]
+    ]

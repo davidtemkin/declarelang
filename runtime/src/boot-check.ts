@@ -372,7 +372,9 @@ function layoutChecks(app: Node, { touch = false, realText = false, skip = [] }:
     // control is no target (nothing presses it), so it is not one too small
     if (touch && isA(v, "Control") && (v as unknown as { disabled?: unknown }).disabled !== true
         && shown !== null && !passes && inView && v.width > 0 && v.height > 0
-        && (shown.width < 44 || shown.height < 44) && fresh("small", pathOf(app, v))) touchSmall.push(`${pathOf(app, v)} ${size1(shown.width)}×${size1(shown.height)}`);
+        // (a twentieth of a point short is a scale's rounding, not a smaller target: the
+        // finding says sizes to that precision, so it never names a 44 × 44 as too small)
+        && (shown.width < 43.95 || shown.height < 43.95) && fresh("small", pathOf(app, v))) touchSmall.push(`${pathOf(app, v)} ${size1(shown.width)}×${size1(shown.height)}`);
     const across = scrollsAcross || v.scrolls === "x" || v.scrolls === "both";
     for (const c of v.children) if (c instanceof View) visit(c, across);
   };

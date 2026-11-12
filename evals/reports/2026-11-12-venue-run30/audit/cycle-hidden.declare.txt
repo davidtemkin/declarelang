@@ -1,0 +1,13 @@
+// Venue 30, d11. A stretch layout loops when a sibling of a re-centring scroller is hidden
+// by a { } visible. Visible, or visible = false as a literal, or exists = { true } beside it:
+// clean (cycle-hidden-*.declare). R4: "constraint cycle: View's SimpleLayout[y] (at app.hall)…"
+App [ ready: boolean = false,
+    onInit() { afterSettle(() => { app.ready = true }) },
+    hall: View [ width = 100%, height = 400,
+        layout: SimpleLayout [ axis = y, align = stretch ],
+        pane: View [ flexes = true,
+            map: View [ x = { Math.max(0, (parent.width - this.width) / 2) }, width = { app.ready ? 1500 : 0 }, height = 600 ]
+            ],
+        bar: View [ visible = { false }, width = 100, height = 60 ]
+        ]
+    ]

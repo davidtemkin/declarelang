@@ -464,40 +464,48 @@ export class Layout extends Node {
      *  imperative write — which re-places on the next child change like any
      *  other untracked fact the arrangement rearms on. */
     viewExtent(size) {
+        if (this.view === null || this.sizedByChildren(size))
+            return 0;
+        // The band is the CONTENT box: a padded column centres its children in the
+        // room left between its insets, not in the whole view.
+        return this.contentExtent(size);
+    }
+    /** Is the arranged view's extent on `size` measured from the very children
+     *  this strategy lays — the case where `viewExtent` answers 0 because reading
+     *  the extent would be the forbidden cycle? Asked apart from the band because
+     *  0 is also a real band: a view given its size (`width = 100%` of a window
+     *  not yet measured, a drawer closed to 0) has a band of 0, and a stretch
+     *  that took that 0 for "no band" fell back to the line — the widest child's
+     *  content — so a child whose content follows its own stretched size (a
+     *  scroller re-centring what it holds) chased itself through the line. */
+    sizedByChildren(size) {
         const v = this.view;
         if (v === null)
-            return 0;
+            return false;
         const owner = ownerOf(v, size);
         if (owner === null) {
             // Unset and unowned: auto-extent measures these very children the moment
             // it installs, and attach order is not ours to assume.
-            if (!isSet(v, size))
-                return 0;
+            return !isSet(v, size);
         }
-        else if (owner.isAutoExtent && owner.isNative) {
+        if (owner.isAutoExtent && owner.isNative) {
             // The view's own AUTO-EXTENT owns it, as a KERNEL rule: it measures these
             // very children by definition, and it reads them through the structure
             // words of its own body, not through dependency edges `readsAny` could
             // see (reactive.ts isAutoExtent). The JavaScript form needs no special
             // case — its reads are tracked edges like any other rule's.
-            return 0;
+            return true;
         }
-        else {
-            // Owned — by `{ this.contentWidth + 16 }`, by a percent,
-            // by the grandparent's own layout, by `{ parent.width }`. Only the ones
-            // that READ a laid child close the loop; ask the constraint itself, in
-            // kernel cell ids: a child's geometry lives in the kernel's table and
-            // has no JS cell (see attributes.ts cellIdsOf).
-            const ids = new Set();
-            for (const c of this.laid())
-                for (const id of cellIdsOf(c))
-                    ids.add(id);
-            if (owner.readsAny(ids))
-                return 0;
-        }
-        // The band is the CONTENT box: a padded column centres its children in the
-        // room left between its insets, not in the whole view.
-        return this.contentExtent(size);
+        // Owned — by `{ this.contentWidth + 16 }`, by a percent,
+        // by the grandparent's own layout, by `{ parent.width }`. Only the ones
+        // that READ a laid child close the loop; ask the constraint itself, in
+        // kernel cell ids: a child's geometry lives in the kernel's table and
+        // has no JS cell (see attributes.ts cellIdsOf).
+        const ids = new Set();
+        for (const c of this.laid())
+            for (const id of cellIdsOf(c))
+                ids.add(id);
+        return owner.readsAny(ids);
     }
     stackReported = false;
     refuseStackBaseline() {
@@ -805,6 +813,10 @@ export class Layout extends Node {
                 });
                 pass.arrangedBy = arranger;
                 pass.owner = this.view; // the arranged view, not its first child: where a message says it is
+                // what the pass writes besides the positions: the sizes read their boxes
+                // through `placed`, so a cycle's loop (reactive.ts cycleLoop) can follow
+                // a size back to the pass that computed it
+                pass.targetCell = placed.cellId();
                 for (const c of passClaims) {
                     this.$claim(c.child, c.slot, pass);
                     installed.push({ child: c.child, slot: c.slot, k: pass });
@@ -813,7 +825,10 @@ export class Layout extends Node {
             }
             for (const c of sizeClaims) {
                 const axis = c.slot;
-                const k = new Constraint(`${label} → ${declareName(c.child)}.${c.slot}${c.stretch ? " (stretch)" : ""}`, () => {
+                const k = new Constraint(
+                // the slot first, then who gives it: a cycle's loop joins labels with
+                // arrows, and an arrow inside one read as a step of the loop
+                `${declareName(c.child)}.${c.slot} (${c.stretch ? "stretched" : "sized"} by ${label})`, () => {
                     placed.track();
                     const b = boxes[c.i];
                     if (c.stretch)

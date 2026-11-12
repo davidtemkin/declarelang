@@ -225,9 +225,9 @@ const schemaOf = (cls) => ownKey(SPINE.schemas, cls) ?? ownKey(SPINE.librarySche
 
 /** The inheritance chain of a class, itself first — from the tree when it is
  *  documented there, from the schema spine's base links otherwise. */
-function chainOf(cls) {
+function chainOf(cls, { withNode = false } = {}) {
   const t = TREE.get(cls);
-  if (t?.chain) return t.chain.filter((c) => c !== "Node");
+  if (t?.chain) return withNode ? t.chain : t.chain.filter((c) => c !== "Node");
   const out = [];
   for (let c = cls; c !== null && schemaOf(c) !== null; c = schemaOf(c).base) out.push(c);
   return out;
@@ -237,7 +237,7 @@ function chainOf(cls) {
  *  walking the chain — the compiler's own candidate pool (check.ts attrNames). */
 function memberNames(cls) {
   const out = new Set();
-  for (const c of chainOf(cls)) {
+  for (const c of chainOf(cls, { withNode: true })) {
     const s = schemaOf(c);
     if (s === null) continue;
     for (const a of Object.keys(s.attrs)) out.add(a);
@@ -251,7 +251,8 @@ function memberNames(cls) {
 function findMember(cls, member) {
   const event = member.startsWith("on") && member.length > 2
     ? member.charAt(2).toLowerCase() + member.slice(3) : null;
-  for (const c of chainOf(cls)) {
+  // what a class inherits from Node (datapath, id, onInit) is answered under it too
+  for (const c of chainOf(cls, { withNode: true })) {
     for (const id of [`${c}.${member}`, `${c}.method.${member}`, ...(event ? [`${c}.event.${event}`, `${c}.on.${event}`] : [])]) {
       if (REF[id]) return REF[id];
     }

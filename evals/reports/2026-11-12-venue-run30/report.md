@@ -4,8 +4,7 @@
 (10.2 min).** The fastest Venue run recorded. A **lighter report** (ruled 2026-11-12): the run was
 the validation run for 0.6.10 (Popover never modal, the Return rule, the keyboard and focus
 fixes) and turned up no platform defect that stopped it; figures, scores, the open items from
-the account, the account verbatim and the names ledger. No line-by-line idiom review or full
-audit.
+the account, the account verbatim and the names ledger. No line-by-line idiom review; the deep audit was added after filing.
 
 ## Figures
 
@@ -24,16 +23,17 @@ Timing record: `evals/timings/2026-11-12-venue-run30.txt`.
 ## What 0.6.10 was checked against here
 
 - **The Return rule in a form:** the keyboard-only desk purchase passes; Return pressed twice
-  sends one order. Mid-run the agent saw Return on the country picker not submit: in a form with
-  `enterMoves`, the first Return picks the country and the second submits, once — the rule as
-  designed (checked with a repro), not a defect.
+  sends one order. Mid-run the agent said Return on the country picker didn't submit. The audit
+  (below) found Return was pressed in Postal code, and `enterMoves` moved focus on to Country,
+  as documented; Return in Country with a value chosen submits one order. (This report first
+  said "the first Return picks the country" — wrong.)
 - **The phone purchase** (`phone_guest_pays`) passes with the never-modal Popover.
 - **R5's real-input checks** paid off: a press on a seat would have landed on the hall overview
   covering it (account d15) — the agent moved the overview before any grader saw it.
 
 ## Open items from the account (not audited)
 
-- **A constraint-cycle message that misleads** (d11, ~10 min): it named `SimpleLayout[y]` at a
+- **A constraint-cycle message that misleads** (d11; the audit puts it at about 1.5 min, not ~10): it named `SimpleLayout[y]` at a
   laptop size whose axis was `x`, named neither the child nor the attribute, and a
   `visible = false` child still looped (by design a hidden child keeps its size; the message
   could say so). Worth an audit: the cycle report's naming.
@@ -41,8 +41,191 @@ Timing record: `evals/timings/2026-11-12-venue-run30.txt`.
   `shows` (d10), left unresolved — a possible false positive, or a docs gap on dynamic places.
 - **Gaps it worked around** (g): a toast that wraps; a "focus the member for record X" helper
   for a grid; a light select that autofill can fill.
-- **Reference gap:** one grep of `library/themes` for theme tokens (after `declare-help "theme
-  tokens"`).
+- **Reference gaps:** five library reads, not one (the audit's table); `declare-help` had the
+  answer for four.
+
+> **Audited after filing (2026-11-12, deep audit added by ruling): see Audit below.** The cycle
+> (d11) is a platform layout bug, not the agent's.
+
+## Audit
+
+**Effort.**
+
+| | Wall time | Turns | Output tokens | of which thinking |
+|---|---|---|---|---|
+| Build | 23.2 min | 108 | 113.6k | 42.0k |
+| Account (resumed) | — | — | 12.9k | — |
+
+The build stream has 107 tool calls. Below, `#n` is the n-th call in the build. The per-obstacle figures are output tokens summed over the turns that obstacle took, and wall time is taken from the calls' timestamps. Both are approximate.
+
+The repros are in `/private/tmp/claude-503/-Users-temkin-Code-declare-overlay/6a505da1-0494-4b83-acec-f4d7f2048458/scratchpad/v30-audit/`. Each was run from `~/Code/Declare` at HEAD (9c6817d4). The fixes made since dfebb414 (`35fcb37a`) touch `runtime/src/{check,data,focus,keys}.ts` and the docs. They do not touch layout, reactive, `toast.declare`, the link check or `Form`. So every result below applies to dfebb414 as well, unless stated otherwise. The `venue-live/` repros run the delivered program against my own service on port 8461 (`--seed=1`). That service has since been stopped.
+
+### Platform defects: correct code refused, or a correct program laid out wrong
+
+**B1. A stretch layout loops when one child is hidden by a `{ }` `visible`. The cycle message then points away from the cause.** (account d11)
+
+- **Repro.** `cycle-hidden.declare`, 11 lines, has the following:
+  - an App with `ready` flipped by `afterSettle`;
+  - `hall` with `SimpleLayout [ axis = y, align = stretch ]`;
+  - a flexing `pane` holding `map: View [ x = { Math.max(0, (parent.width - this.width) / 2) }, width = { app.ready ? 1500 : 0 } ]`;
+  - a sibling `bar: View [ visible = { false }, width = 100, height = 60 ]`.
+
+  R4 gives: `boot: constraint cycle: View's SimpleLayout[y] (at app.hall) re-evaluated 100 times in one update`.
+- **Controls, each clean:**
+  - the same bar visible;
+  - `visible = false` written as a literal (`cycle-hidden-literal.declare`);
+  - `exists = { true }` added beside `visible = { false }` (`cycle-hidden-exists.declare`);
+  - the bar with no width of its own (`height = 60` only);
+  - `align = start`;
+  - the map with a constant width.
+
+  Correct code loops only because the hidden state is written as a constraint. `06-layout.md` says "a hidden child leaves the flow: it takes no room and leaves no gap". Only a hidden child that *flexes* keeps its size, and the seat bar did not flex.
+- **In the run, bisected on the delivered program** (copy in `work/venue-cycle-as-built`, then `work/bis/*`):
+  - **What it needs:** the map's centring `x`, and the map's width changing after the first settle (`app.hall.loaded ? 1500 : 0` is enough).
+  - **What doesn't matter:** the `side` panel's contents, `scrolls`, the inner `flexes`, the `width = 100%` Text and the Button.
+  - **What the bar needs:** its own width, either stated or from a child View. A bar holding only a Text was clean.
+- **The account's judgement is wrong.** It reads: "my code was probably wrong … the parent-sizes-from-child-sized-from-parent loop". The flexing child with a 100% Text is irrelevant: a bare hidden `View [ width = 100 ]` loops the same way. The agent's fix, `exists = { !app.wide }`, works for the same reason `exists = { true }` does. It was not an insight into the loop.
+- **The message has three faults:**
+  - **It names neither child.** `cycleLoop()` (`reactive.ts:107`, the "The loop: …" clause added in e8126333) found nothing to print here.
+  - **"[y]" at a laptop size, where the axis is `x`.** The label is accurate for the moment of the loop. `width-log.declare` shows `app.width` is `0` through `onInit` and the first settle, in R4 and in `declare-look` alike: `app.log = "init 0, after first settle 0"`, then `app.width = 1280`. So `wide` is false, and the narrow, y-axis arrangement is live when the data lands.
+    - `cycle-hidden-axis.declare` (`axis = { app.width >= 820 ? "x" : "y" }`) loops at 1280×800 as `[y]`.
+    - The same with the axis held on `x` (a constant `true` flag) is clean.
+
+    The message does not say that the loop happened before the window's size arrived. Unsure whether a zero-width first settle is intended; nothing in `App.width`'s help says so.
+  - **It says nothing about hiding.** That was the agent's best clue, from its bisect at #68 (`visible = { false }`, still looping).
+- **Cost in the run.** From #66 (03:06:44) to the fix at #74 (03:08:14): **about 1.5 min**, nine boots and about 5k output tokens, some of which was moving the bar.
+  - **The account overstates it.** It says "about five verify runs, ~10 minutes", and the report repeats "~10 min".
+  - **Where it failed first.** The first failure was the **phone** boot (#66, #67 with `--phone`), not "the 1280×800 boot" as the account says. The desk boot failed too (#70).
+  - **What it left in the program.** The seat bar is built only on phones (`venue.declare:671`). That is a reasonable design anyway.
+
+**B2. The library `Toast` runs off a phone's screen with a sentence-long message.** (account d17, g1)
+
+- **Repro.** `toast-long.declare` (and `toast-long.png`) sends one `say()` of 90 characters at `--phone`. The result is `layout app.toast runs past the window's right edge at 390 wide (it ends at 464)`.
+- **Cause.** The toast is centred and its text is `wrap = false` (`library/toast.declare:143`), with no width limit.
+- **What the help says.** "A short message", and nothing about one line or a width limit.
+- **The verify layout check did its job.**
+- **Cost.** About 1k tokens and 15 s (#77–#79). The agent's move to an in-place `Notice` banner is arguably the better design for a seat lost while deciding. A toast that can leave the screen is still a library gap.
+
+**B3 (tool, minor; found in the audit, not by the agent). A touch-target finding reports a size that is not too small.**
+
+- **What happens.** `declare-look venue-live/venue.declare --phone --set app.location=p01 --wait-real 1500 --call 'app.toggleSeat("ORCH-A-7")' --call 'app.toggleSeat("ORCH-A-7")' --set app.location=p05 --wait-real 1500` prints `layout after settleMotion: 2 control(s) smaller than 44 × 44 … seats.86 44×44, seats.87 44×44`.
+- **What the views read.** `--read` gives `width = 44`, `height = 44`, `scale = 1`, and the DOM boxes are 44×44.
+- **What's unclear.** The size it measured is not the size it prints. That is probably a mid-spring measurement printed with the settled size, but I'm unsure of the cause.
+- **No cost in the run.**
+
+### Docs and messages (not defects, but they cost the agent)
+
+**D1. DECLARE4000's fix for a place no `shows` declares** (account d10, left unresolved).
+
+- **The warning is right.** "Book another performance" writes `app.location = ""` in `onClick`, so the crawl has no edge. It fired on that one button throughout (#37 to #107: lines 633, 663, 665, 698, 718, 734, 744 and 747 as the file grew).
+- **The account is wrong that it was "also on PerfRow's press".** PerfRow goes through `openPerformance()`, and neither that nor `press()` on the hall's back Control is checked (`location-onclick-warn.declare`, `work/link-d.declare`).
+- **The agent's worry was half right.** The hint says `Declare 'link = "#…"'`. For the run's places (`p01`…), the literal `link = "#p01"` is a **compile error**: `'#p01' names no declared destination or anchor [DECLARE2000]` (`location-link-literal-refused.declare`).
+- **What works** (`location-link-fix.declare`, checked with `declare-look`, location `p01` and then `""`):
+  - `link = { "#" + id }`, a data-driven reference that the crawl checks;
+  - `link = "#"` for home.
+
+  `View.link` documents the data-driven form, but the warning's hint leads to the refused literal.
+- **Verdict:** docs and message unclear. The hint could say: "for a place your program parses, `link = { "#" + … }`, or `"#"` for the initial place".
+
+**D2. Focus falls to `<body>` when the focused view is hidden** (account d18).
+
+- **Repro.** `venue-live/no-focus-heading/` is the delivered program without `afterSettle(app.focusHeading)`. Run with `venue-live/focus-after-choose.mjs`: after Return on "Fri 13 Nov, 7:30pm", `document.activeElement` is `BODY`. With the agent's `focusHeading` it is the hall's heading.
+- **The account's finding is right in fact, but not how it found it.** The keyboard test's failures (#80, #82: `Tab never reached a seat`) were the script tabbing before data had loaded; #83's trace already had `focusHeading` in place. The agent added it pre-emptively, and it was needed.
+- **The docs.** They don't say where focus goes when its view hides; the todo app's `afterSettle(() => Focus.focus(…))` is the only model.
+- **Verdict:** docs gap. Unsure whether the platform should move the focus itself.
+
+**D3. ChoiceItem's role** (account a, d16).
+
+- `declare-help ChoiceItem.accessibilityRole` gives `default option`, and `ChoiceControl --all` says "A screen reader hears a list of options … `RadioGroup` is a `ChoiceControl` with the radio's look and words".
+- `19-accessibility.md`, which the agent read whole, says only that it "gives them their role".
+- The brief does not require radios; the agent's own test did.
+- **Verdict:** the docs had the answer in help. The guide could name the role. The DECLARE4032 warning that followed is right, and so is the move to `RadioGroup`.
+
+**D4. EventStream's transport** (d20). `EventStream --all` says a plain GET keeps `EventSource`, and "none of the four" (`method`, `body`, `headers`, `credentials`) implies otherwise a `fetch`. The stream declares `credentials = include`. That is documented, but only by implication. The agent did not read `--all`.
+
+### Every refusal, finding and changed behaviour
+
+**Compile (R1–R3), #33–#37: about 25 s, 1.9k tokens.**
+
+| # | Written | Platform said | Verdict |
+|---|---|---|---|
+| 33 | `class Section` beside `schema Section` | DECLARE5001: declared twice | Agent's code wrong. Clear. |
+| 34 | `schema Card` | DECLARE5000: a library class; rename, "as 'VenueCard'" | Agent's code wrong. Clear. |
+| 35 | `pane: View = null` | DECLARE2000: write `View?` | Agent's code wrong. |
+| 35 | `Spacer [ visible, height = 120 ]` in a SimpleLayout | DECLARE2000: a Spacer flexes; use a View | Agent's code wrong. Excellent message. |
+| 36 | `fontWeight = { … ? bold : regular }` | DECLARE4005: quote inside `{ }` | Agent's code wrong (declare.md says so). |
+| 36 | `classroot.count` in the App | DECLARE4003 | Agent's code wrong. |
+| 36, 46 | `rowIndex` in TicketCard, then in TierPrice's dot | DECLARE4023 warning | Real bugs both times. Excellent. |
+| 36 | `stage` from three nested `? :` | DECLARE4025 lint | Fair; split into named facts. |
+| 36–47 | `{ ({ … }) }` | DECLARE1002 hint | Harmless. |
+| 37–107 | `onClick() { …; app.location = "" }` | DECLARE4000 | Warning correct; hint misleads (D1). Left in. |
+
+The account says the first boot came "after six fix rounds". It took four rounds, five verify runs in all.
+
+**Boot, layout and behaviour.**
+
+| # | Written | Platform said or showed | Verdict |
+|---|---|---|---|
+| 41–43 | The desk hall at a 27 px pitch | Screenshot: too tall | Agent's design. Redesigned into the side panel (#46). |
+| 47 | Phone seats at 40, back controls at 32 | `declare-look --phone`: "35 control(s) smaller than 44 × 44" | Correct finding, from declare-look, not R4 as the account says. Fixed (#58). |
+| 52 | Back to seats at 32 | `app.checkout.0 101×32` | Correct finding. Fixed. |
+| 52–57 | `TextInput [ padding = [0, …, 0, 12] ]`, card number | Screenshot: field about 18 px high | Agent's code wrong. `TextInput.padding` says an auto-height field counts its insets. Became `Entry` with a stated height. |
+| 87 | Brand chip `x = { parent.width - this.width - 10 }` in a padded field | Overlap, seen in a screenshot | Agent's code wrong. 06 says `x` is from the content box. |
+| 59 | Overview floating over the seat pane | R5: a press at seat 10 "would land on app.hallScreen.overview" | Correct finding, and the most valuable one. Overview moved into the header. |
+| 66–74 | Hidden seat bar in the hall's stretch layout | R4: constraint cycle, `SimpleLayout[y]` | **Platform** (B1). |
+| 64, 74 | `ChoiceControl` of `ChoiceItem`s; the test wants `radio` | R5: no radio "Visa ending 4242" | Agent's test assumption; D3. |
+| 77 | `accessibilityRole = radio` on the ChoiceItems | DECLARE4032: a radio outside a RadioGroup | Correct warning. Became `RadioGroup` (#78). |
+| 77 | `app.toast.say(<90-character sentence>)` | layout: toast ends at 477 at 390 wide | **Library** (B2). Became `Notice`. |
+| 80, 82 | Keyboard script, Tab before the list had loaded | `Tab never reached a seat:` | Test code wrong (timing). The focus fix added alongside was needed anyway (D2). |
+| 84–85 | Enter after typing the postal code | No order; `Sent to …` not found | **Test code wrong, and the account misreads it** (see d19 below). |
+| 87–88 | Tab before the hall had loaded | `Tab never reached a seat` | Test code wrong (timing). |
+| 89 | One Tab after the postal code expected to reach Pay | `went to: INPUT\|combobox\|Country` | Test code wrong. |
+| 99–100 | `EventSource` stubbed to silence the stream | The sale arrived live; `Pay $78.00` not found | Test code wrong (D4). It exposed a real gap: no notice at checkout, which the agent then added. |
+| 39 | `npm start` on 8200 | Port taken; names the next port | Good message. |
+
+**d19, the Combobox Enter: not a platform problem.**
+
+- **The script typed eight values after Email**, ending with the postal code, and then pressed Enter. `/tmp/shots/kb-before.png`, the agent's own, shows **Postal code** focused. `kb-after.png` shows Country focused and nothing sent: `enterMoves` moved Return from Postal code to the next field, as documented.
+- **The account says Enter was pressed on Country** and guesses at object identity in `app.countries`. Both are wrong.
+- **The report's gloss doesn't fit either.** It says "the first Return picks the country and the second submits". Return was never pressed in Country.
+- **Check.** `venue-live/kb-enter-on-country.mjs` tabs into Country (value United States, list closed) and presses Return once. R5 passes, and one order is sent.
+
+### Reads of library/ and runtime/ source (reference gaps)
+
+The report says "one grep of `library/themes`". There were **five** reads of `library/` and none of `runtime/`. One app example was also read: `apps/sampler` SignUp, #18.
+
+| # | Read | Looking for | Did declare-help or the docs have it? |
+|---|---|---|---|
+| 29 | `grep -A30 "SanFrancisco \[" library/themes/*.declare` | The preset's values, to spread under its own theme | Yes: `declare-help SanFrancisco` lists its values. |
+| 56 | `grep height\|fontSize\|padding library/textinput.declare`; `grep height library/combobox.declare` | Why the card field collapsed; field heights | Yes: `TextInput.padding` ("An auto-sized field … counts the top and bottom insets in its height"). The grep hit that very prose. `Combobox.height` is in help too. |
+| 75 | `grep accessibilityRole library/choicecontrol.declare` | ChoiceItem's role | Yes, in help (`ChoiceItem.accessibilityRole`, `ChoiceControl --all`); not in the guide (D3). |
+| 76 | `grep … library/radiogroup.declare` | Radio's label and role | Yes: `declare-help RadioGroup`, `Radio`. |
+| 78 | `grep width\|maxWidth\|wrap library/toast.declare` | Why the toast does not wrap | No: help says only "a short message" (B2). |
+
+### Where the account is wrong, against the stream
+
+- **d11, cost:** about 1.5 min and nine boots, not "~10 minutes" over "about five verify runs". The first failure was the phone boot, not "the 1280×800 boot".
+- **d11, judgement:** the platform is wrong, not the agent's code (B1). The 100% Text and the flexing child play no part.
+- **d10:** the warning fired on one site, "Book another performance". It did not fire on PerfRow's press.
+- **d19:** Enter was pressed in Postal code, not in Country. `enterMoves` behaved as documented, and the identity guess is wrong.
+- **d18:** "found by the keyboard test" is loose. The test failed for timing, and the fix went in before any trace showed focus lost. The underlying fact is right (D2).
+- **c3, d12:** the 44×44 finding came from `declare-look --phone`, not R4.
+- **c:** "after six fix rounds": it took four.
+- **(a) "Toast doesn't wrap … learned from a layout finding":** right. "Nothing I read said so": right (B2).
+
+### On the report's open items
+
+- **d11** is a platform defect (B1), and the report's gloss "by design a hidden child keeps its size" does not apply: that rule covers a hidden child that *flexes*. Worth fixing:
+  - the loop itself;
+  - the message, which should name the children and the loop, and say when a boot settles at width 0 before the window's size.
+- **d10** is a message gap (D1), not a false positive.
+- **(g) gaps:**
+  - **A toast that wraps:** real (B2).
+  - **Focusing a grid member by record:** real. Nothing maps a record to its replicated view. `childViews.find` is fine on a block that is not virtualized, and the hall is not.
+  - **A light select that autofill fills:** real but minor. Only `TextInput`, `NativeText` and `Combobox` take `purpose` (`declare-help purpose`), so Combobox was the right pick.
+  - **A busy indicator:** `ProgressBar [ indeterminate ]` exists, but there is no spinner or ring.
+
+*Audit effort: about 0.25M tokens of my own context, mostly bisecting B1. Repro runs ~60 `declare-verify`/`declare-look` calls.*
 
 ## The agent's account, verbatim
 

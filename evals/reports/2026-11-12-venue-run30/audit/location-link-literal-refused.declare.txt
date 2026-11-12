@@ -1,0 +1,8 @@
+// Venue 30, d10: the literal fix the DECLARE4000 hint names, for a place no shows declares — refused.
+App [ location = "",
+    perf: string = { /^p\d+$/.test(app.location) ? app.location : "" },
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    Button [ label = "Fri 13 Nov", link = "#p01" ],
+    Text [ visible = { app.perf != "" }, text = { "Performance " + app.perf } ],
+    Button [ label = "Book another performance", link = "#" ]
+    ]

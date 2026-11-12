@@ -36,7 +36,7 @@ export const RUNTIME_METHODS = {
     RichText: [],
     Markdown: [],
     HTMLText: [],
-    Layout: ["attachTo", "rearm", "laid", "place", "contentExtent", "refuseBaseline", "viewExtent", "refuseStackBaseline", "sizedByContent"],
+    Layout: ["attachTo", "rearm", "laid", "place", "contentExtent", "refuseBaseline", "viewExtent", "refuseStackBaseline", "sizedByContent", "sizedByChildren"],
     TweenLayout: ["retarget"],
     Dataset: ["read", "set", "insert", "removeAt", "move"],
     DataSource: ["fetch", "clear"],

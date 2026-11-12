@@ -1,0 +1,8 @@
+// Venue 30, d10: places p01…p20 are the program’s own (no shows); a button goes home.
+App [ location = "",
+    perf: string = { /^p\d+$/.test(app.location) ? app.location : "" },
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    Button [ label = "Fri 13 Nov", onClick() { app.location = "p01" } ],
+    Text [ visible = { app.perf != "" }, text = { "Performance " + app.perf } ],
+    Button [ label = "Book another performance", onClick() { app.location = "" } ]
+    ]

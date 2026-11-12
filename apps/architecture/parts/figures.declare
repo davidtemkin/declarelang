@@ -16,7 +16,7 @@ script {
                 "anim": 3.2,
                 "text": 5,
                 "boot": 5.6,
-                "layout": 2.3,
+                "layout": 2.4,
                 "themes": 0.2,
                 "a11y": 3.4,
                 "ker": 15.2
@@ -48,7 +48,7 @@ script {
                 "anim": 3.2,
                 "text": 5,
                 "boot": 5.6,
-                "layout": 2.3,
+                "layout": 2.4,
                 "themes": 0.2,
                 "a11y": 0.8,
                 "ker": 0
@@ -64,7 +64,7 @@ script {
         "kernelWasmGzipKB": 12.6,
         "kernelWasmRawKB": 23,
         "kernelLoaderKB": 2.6,
-        "layoutKB": 2.3,
+        "layoutKB": 2.4,
         "canvasCarriesDomBackendKB": 15.2,
         "kernelLines": "1,400",
         "surfaceMethods": 71

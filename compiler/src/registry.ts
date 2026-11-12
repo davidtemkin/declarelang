@@ -208,7 +208,7 @@ export function checkReferences(program: Program, reg: LinkRegistry): { errors: 
       for (const m of el.methods) {
         if (m.name === "onClick" && /\bapp\.location\s*=(?!=)/.test(m.body)) {
           warnings.push(new DeclareError(
-            `onClick writes app.location on a view with no 'link' — the crawler cannot see this edge. Declare 'link = "#…"' (the handler may stay for side effects; it runs before the follow)`,
+            `onClick writes app.location on a view with no 'link' — the crawler cannot see this edge. Declare the link: 'link = "#name"' for a place a view declares with 'shows', or 'link = { "#" + id }' for one the program reads itself (the handler may stay for side effects; it runs before the follow)`,
             m.pos));
           break;
         }

@@ -1,0 +1,5 @@
+// Venue 30, g1: a toast with a sentence-long message on a phone.
+App [
+    onInit() { afterSettle(() => { app.toast.say("Orchestra, row C, seat 4 has just been taken by someone else, so it has left your choice.") }) },
+    toast: Toast [ duration = 60000 ]
+    ]

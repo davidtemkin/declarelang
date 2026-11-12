@@ -267,6 +267,11 @@ await test("no foreign-name hint denies a name the language actually has", () =>
   assert.match(help("zIndex").out, /is not a Declare name/);
 });
 
+await test("a member a class inherits from Node is answered under the class (View.datapath, Button.onInit)", () => {
+  assert.match(help("View.datapath").out, /^Node\.datapath — attribute/);
+  assert.match(help("Button.onInit").out, /^Node\.event\.init — event/);
+});
+
 await test("--example returns the guide's own code, labelled, and a miss exits 1", () => {
   const r = help("DataSource.method", "--example");
   assert.equal(r.code, 0);

@@ -1,0 +1,11 @@
+// d11 control: the same with exists = { true } beside visible = { false } — clean.
+App [ ready: boolean = false,
+    onInit() { afterSettle(() => { app.ready = true }) },
+    hall: View [ width = 100%, height = 400,
+        layout: SimpleLayout [ axis = y, align = stretch ],
+        pane: View [ flexes = true,
+            map: View [ x = { Math.max(0, (parent.width - this.width) / 2) }, width = { app.ready ? 1500 : 0 }, height = 600 ]
+            ],
+        bar: View [ exists = { true }, visible = { false }, width = 100, height = 60 ]
+        ]
+    ]

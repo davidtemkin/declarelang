@@ -247,7 +247,7 @@ export function explain(node, attr) {
         const held = hi > 0 && given >= hi ? `, held at its ${maxName}` : lo > 0 && given <= lo ? `, held at its ${minName}` : "";
         const run = lay.axis === "x" ? "row" : lay.axis === "y" ? "column" : "run";
         const by = kindName(lay);
-        if (/\(stretch\)$/.test(owner.label))
+        if (owner.fillsContent)
             return `${by} stretched it to ${given}: as large as the largest child across the ${run}; its content is ${natural}${held}`;
         const f = v.flexes, weight = f === true ? 1 : typeof f === "number" ? f : 0;
         if (weight > 0)

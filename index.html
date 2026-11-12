@@ -709,7 +709,7 @@ npm start</code></pre>
 <p>Continuity — a view becoming the next one rather than being replaced by it — is the part of good native software that is usually bespoke. Here is what makes it ordinary at run time. A <code>Spring</code> is an attribute with a target; each frame it writes its next value, and that write is a settle like any other — the same graph, the same kernel, the same dependency order. Nothing about animation is special-cased. Because geometry arithmetic runs as bytecode, a frame that only moves things — most frames of most animations — completes inside the kernel, in WebAssembly, and never enters JavaScript. Because a settle is one indivisible step, a new target arriving mid-flight is simply the next write: the spring retargets from wherever it is, and every value that read it follows. Interruptibility isn’t a feature of the animation system; it is what a reactive graph does when you write to it. And a layout is re-derived in the same settle, so an arrangement can travel as one thing — the calendar’s four views are one surface under a moving rectangle, and each frame of that zoom is a settle over the same few hundred kernel bodies.</p>
 <p>04</p>
 <h2>Layout and hit-testing</h2>
-<p>Open a Declare page in the browser’s element inspector and every view is there — a <code>div</code> per view, nested to mirror the tree — with its position and size written on it as inline style and no layout CSS anywhere. That is not a shortcut. It is the division of labor: every box is decided before the host hears about it, by one of three things. Arithmetic over slots (<code>x = { parent.width - 40 }</code>) runs in the kernel. A layout is a library class with one method, <code>place()</code>, returning a box per child — 2.3 KB of runtime applies it. An unset width is the bounding box of the visible children, kept current as a rule over the geometry table. Text is the one place the host contributes a number: it measures glyph widths. Wrapping, line count and the resulting height are the runtime’s, so a paragraph breaks into the same lines on every renderer.</p>
+<p>Open a Declare page in the browser’s element inspector and every view is there — a <code>div</code> per view, nested to mirror the tree — with its position and size written on it as inline style and no layout CSS anywhere. That is not a shortcut. It is the division of labor: every box is decided before the host hears about it, by one of three things. Arithmetic over slots (<code>x = { parent.width - 40 }</code>) runs in the kernel. A layout is a library class with one method, <code>place()</code>, returning a box per child — 2.4 KB of runtime applies it. An unset width is the bounding box of the visible children, kept current as a rule over the geometry table. Text is the one place the host contributes a number: it measures glyph widths. Wrapping, line count and the resulting height are the runtime’s, so a paragraph breaks into the same lines on every renderer.</p>
 <p>Because the runtime placed every box, it can answer the inverse question — what is under this point? — and that answer decides hover, press, whether a gesture was a click, and where a drag lands. The scene below computes none of it. Each view is reporting its own <code>hovered</code> fact, kept true by the same walk that routes a press. Try the rotated card’s corners, the invisible glass, the badge, and the child the pane’s clip cuts off: the walk runs in reverse paint order and stops at the first view that has declared an interest in the pointer.</p>
 <p>Card</p>
 <p>Plain. Declares onClick.</p>
@@ -763,7 +763,7 @@ npm start</code></pre>
 <p>Library</p>
 <p>13.4 KB</p>
 <p>Runtime</p>
-<p>130.3 KB</p>
+<p>130.4 KB</p>
 <p>Kernel</p>
 <p>15.2 KB</p>
 <img loading="lazy" src="apps/homepage/../architecture/resources/desktop-dom.webp">
@@ -808,7 +808,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=ab4b3f202940";
+  import boot from "./bundles/declare-boot.js?v=79927e5b4c1a";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().

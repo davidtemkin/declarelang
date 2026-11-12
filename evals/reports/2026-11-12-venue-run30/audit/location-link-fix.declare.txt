@@ -1,0 +1,8 @@
+// Venue 30, d10: the fix the warning asks for, for places the program parses itself.
+App [ location = "",
+    perf: string = { /^p\d+$/.test(app.location) ? app.location : "" },
+    layout: SimpleLayout [ axis = y, spacing = 8 ],
+    go: Button [ label = "Fri 13 Nov", link = { "#" + "p01" } ],
+    Text [ visible = { app.perf != "" }, text = { "Performance " + app.perf } ],
+    home: Button [ label = "Book another performance", link = "#", onClick() { app.waypoint = "" } ]
+    ]
