@@ -1,0 +1,9 @@
+// A title field: shows the saved title, commits on leaving or Return, and the
+// commit tidies what was typed.
+App [ width = 400, height = 120, fill = white, textColor = black,
+    title: string = "Untitled presentation",
+    field: TextInput [ x = 10, y = 10, width = 300, accessibilityLabel = "Title", commitOn = "end",
+        value = { app.title },
+        commit(t: string) { app.title = t.trim() == "" ? "Untitled presentation" : t.trim() } ],
+    Button [ x = 10, y = 60, label = "Other" ]
+    ]

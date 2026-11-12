@@ -230,6 +230,7 @@ await test("Menu: a long list caps at the viewport and its body scrolls (the rov
   assert.ok(app.m._panel.height <= 260 - 8, "the panel caps at the viewport");
   assert.equal(app.m._panel.body.scrolls, "y", "…and the body is the scroller");
   assert.ok(app.m._panel.body.contentHeight > app.m._panel.body.height, "content overflows into the scroll");
+  app.m.close(); // release the nav claim — Keys is a process singleton
 });
 
 await test("Menu: the ruled COLUMN model — check space always, icon column iff icons, ONE text edge", async () => {
@@ -283,6 +284,19 @@ await test("Combobox: the list lives at the APP layer — it paints over the com
   c.pickIndex(0);
   settle();
   assert.equal(c.list.shown, false);
+});
+
+await test("Menu: a row's key shows as the person's keyboard spells it (Keyboard.keyLabel)", async () => {
+  const { Keys } = await import("../runtime/dist/keys.js");
+  const app = await boot(`App [ width = 400, height = 300,
+    m: Menu [ items = { [ ({ id: "g", label: "Group", key: "Ctrl+G" }) ] } ],
+    btn: View [ x = 50, y = 10, width = 120, height = 30 ] ]`);
+  app.m.openFor(app.btn); settle();
+  const shown = [];
+  const walk = (v) => { if (typeof v.text === "string" && v.text !== "" && v.visible) shown.push(v.text); for (const c of v.childViews ?? []) walk(c); };
+  walk(app.m);
+  assert.deepEqual(shown, ["Group", Keys.keyLabel("Ctrl+G")]);
+  app.m.close();
 });
 
 // ── DataGrid ──────────────────────────────────────────────────────────────

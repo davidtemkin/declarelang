@@ -771,6 +771,7 @@ export const LANGUAGE_STATICS = {
         // resolved set where focus is, for a panel that lists them
         `  static _declareShortcuts(owner: object): void;`,
         `  static shortcutsInForce(): any[];`,
+        `  static keyLabel(key: string): string;`,
     ],
     Focus: [
         `  static focus(v: unknown): void;`,

@@ -1,0 +1,8 @@
+// A dialog with three answers, open at start.
+App [ width = 1280, height = 800, fill = white, textColor = black,
+    ask: Dialog [ title = "This slide was changed in another window",
+        message = "Someone saved a different version of this slide since you opened it. Nothing is saved over theirs until you choose.",
+        shown = true,
+        buttons = { [ ({ id: "later", label: "Decide later", cancel: true }), ({ id: "mine", label: "Keep mine" }),
+            ({ id: "theirs", label: "Use their version", default: true }) ] } ]
+    ]

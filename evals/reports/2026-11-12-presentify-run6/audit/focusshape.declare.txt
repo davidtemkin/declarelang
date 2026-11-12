@@ -1,0 +1,6 @@
+// A control rings only its picture: focusShape() returns the picture view.
+App [ width = 300, height = 200, fill = white, textColor = black,
+    card: Control [ x = 20, y = 20, width = 200, height = 140, accessibilityLabel = "Card",
+        focusShape() -> object { return this.pic },
+        pic: View [ width = 200, height = 100, fill = 0xDDDDDD ] ]
+    ]

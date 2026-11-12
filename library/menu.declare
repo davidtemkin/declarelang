@@ -6,7 +6,7 @@ author never composes rows. The standard record covers real OS menus:
 
     { id, label, key?, command?, icon?, enabled?, checked?, divider?, submenu?, kind?, props?, minWidth? }
 
-- `key` renders right-aligned — display only; the menu registers no shortcut.
+- `key` renders right-aligned, as the person's keyboard spells it (`Ctrl+X` shows `⌘X` on a Mac — `Keyboard.keyLabel`) — display only; the menu registers no shortcut.
 - `command: "copy"` names a command the row runs instead of reaching `picked()`: it walks
   from the view a context menu was opened on, else from where the person was working
   (`Commands.run`), and the first view whose `keyBindings` bind it runs it. As the menu
@@ -771,7 +771,7 @@ class Menu extends Floating [
                     x = { parent.width - this.width - 16 },        // the key column ends 16pt from the edge (measured)
                     visible = { !parent.divider && !parent.sub && :key != null },
                     textColor = { (parent.hot || classroot.activeRow == parent) ? ((provided("theme").menuHighlightTextColor ?? provided("theme").accentTextColor)) : provided("theme").textMuted },
-                    text = { "" + (:key || "") } ],
+                    text = { :key ? Keyboard.keyLabel("" + :key) : "" } ],
 
                 // The cascade arrow, from the shared set — a chevron turned
                 // right, so it agrees with every other disclosure mark in the

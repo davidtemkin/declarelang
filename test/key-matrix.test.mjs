@@ -314,4 +314,21 @@ await test("a row deleted from its own confirm dialog: focus lands on the row af
   app.discard();
 });
 
+await test("a stop's own arrow binding runs before its movement; returning false lets the focus move on", async () => {
+  const app = await boot(`App [ width = 400, height = 300, moved: number = 0, shown: number = 0,
+    list: View [ focusScope = stop, layout: SimpleLayout [ axis = y ],
+      keyBindings = { [ ({ key: "ArrowDown", command: "down" }), ({ key: "End", command: "toEnd" }) ] },
+      down() { app.moved = app.moved + 1; return false },
+      toEnd() { app.shown = 3 },
+      a: Button [ label = "One" ], b: Button [ label = "Two" ], c: Button [ label = "Three" ] ] ]`);
+  Focus.focus(app.list.a); settle();
+  press(KEYS.ArrowDown);
+  assert.equal(app.moved, 1, "the stop's binding ran");
+  assert.equal(Focus.getFocus(), app.list.b, "…and passed the key on to the movement");
+  press({ key: "End", code: "End" });
+  assert.equal(app.shown, 3, "a binding that takes the key");
+  assert.equal(Focus.getFocus(), app.list.b, "…keeps the focus where it was");
+  app.discard();
+});
+
 summarize("key-matrix");

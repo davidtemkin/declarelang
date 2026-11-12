@@ -118,7 +118,15 @@ this.
 ## arrangement
 How the buttons lay out, elected by `provided("theme").dialogButtonLayout`: `"end"` (a right-aligned
 row), `"stack"` (full-width buttons stacked, Cupertino-style, default on top), or `"fill"`
-(equal-width buttons filling the row). **Platform structure is data, not a fork.**
+(equal-width buttons filling the row). **Platform structure is data, not a fork.** A row too
+wide for the dialog stacks instead, as every platform's alert does.
+
+## _stackData
+**Internal.** The buttons in the stack's order: the default on top, cancel at the bottom.
+
+## _laid
+**Internal.** The arrangement the buttons are laid out in: `arrangement`, or `"stack"` when a
+row would be wider than the dialog.
 
 ## centered
 Whether the title and message are centre-aligned, elected by `provided("theme").dialogTextAlign`.
@@ -289,7 +297,7 @@ class Dialog extends Floating [
         if (!shown) return
         if (Focus.focusIn(this._col.content)) return   // your content's first control, when it has one
         const b = this._col.btns
-        const kids = this._kidsOf(this.arrangement == "stack" ? b.stackInner : b.rowInner)
+        const kids = this._kidsOf(this._laid == "stack" ? b.stackInner : b.rowInner)
         const d = kids.find((k) => k.primary)
         if (d != null || kids.length > 0) Focus.focus(d != null ? d : kids[kids.length - 1])
         else if (!Focus.focusIn(this)) this._holdFocusItself()
@@ -334,9 +342,13 @@ class Dialog extends Floating [
     arrangement: string = { provided("theme").dialogButtonLayout },
     centered: boolean = { provided("theme").dialogTextAlign == "center" },
 
-    _data: Dataset [ contents = { { b: classroot.arrangement == "stack"
-        ? [...(classroot.buttons || [])].sort((p, q) => (q.default ? 1 : q.cancel ? -1 : 0) - (p.default ? 1 : p.cancel ? -1 : 0))
-        : classroot.buttons || [] } } ],
+    // the row's buttons in authored order; the stack's with the default on top
+    // and cancel at the bottom. A row too wide for the dialog stacks, as every
+    // platform's alert does — so the row is measured even while it is hidden
+
+    _data: Dataset [ contents = { { b: classroot.buttons || [] } } ],
+    _stackData: Dataset [ contents = { { b: [...(classroot.buttons || [])].sort((p, q) => (q.default ? 1 : q.cancel ? -1 : 0) - (p.default ? 1 : p.cancel ? -1 : 0)) } } ],
+    _laid: string = { this.arrangement != "stack" && this._col.btns.rowInner.contentWidth > this._col.btns.width + 0.5 ? "stack" : this.arrangement },
 
     // the dimming behind the panel — paint only; the dialog's `block` policy is
     // what stops presses aimed past it
@@ -378,12 +390,12 @@ class Dialog extends Floating [
             ],
 
         btns: View [ width = 100%, visible = { (classroot.buttons || []).length > 0 },
-            height = { classroot.arrangement == "stack" ? this.stackInner.height : this.rowInner.height },
+            height = { classroot._laid == "stack" ? this.stackInner.height : this.rowInner.height },
 
             // two arrangements, one visible — layout attributes are
             // literal-only (the surface), so the axes are two containers
 
-            rowInner: View [ visible = { classroot.arrangement != "stack" },
+            rowInner: View [ visible = { classroot._laid != "stack" },
                 height = { this.contentHeight },
 
                 // "end": the buttons' own width — each its label's, at least 86
@@ -401,10 +413,10 @@ class Dialog extends Floating [
                     ]
                 ],
 
-            stackInner: View [ visible = { classroot.arrangement == "stack" },
+            stackInner: View [ visible = { classroot._laid == "stack" },
                 height = { this.contentHeight }, width = 100%,
                 layout: SimpleLayout [ axis = y, spacing = 8 ],
-                datapath = { classroot._data.value },
+                datapath = { classroot._stackData.value },
                 Button [ datapath = :b[], label = { "" + :label },
                     width = 100%,
                     primary = { !!:default },

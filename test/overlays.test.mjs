@@ -627,4 +627,14 @@ await test("a start sheet is a drawer at every width, and a swipe back past a qu
   }
 });
 
+await test("a Dialog whose row of buttons is wider than it stacks them, default on top; two short ones stay a row", async () => {
+  const app = await boot(`App [ width = 1280, height = 800,
+    wide: Dialog [ title = "Changed elsewhere", buttons = { [ ({ id: "later", label: "Decide later", cancel: true }), ({ id: "mine", label: "Keep mine" }), ({ id: "both", label: "Keep both" }), ({ id: "merge", label: "Merge" }), ({ id: "theirs", label: "Use theirs", default: true }) ] } ],
+    narrow: Dialog [ title = "Delete?", buttons = { [ ({ id: "no", label: "Cancel", cancel: true }), ({ id: "yes", label: "Delete", default: true }) ] } ] ]`);
+  app.wide.show(); app.narrow.show(); settle(); await turns();
+  assert.equal(app.wide._laid, "stack", "five buttons (86 each without real text) are wider than the dialog: they stack");
+  assert.equal(app.wide._col.btns.stackInner.childViews[0].primary, true, "the default on top");
+  assert.equal(app.narrow._laid, app.narrow.arrangement, "two short ones keep the theme's arrangement");
+});
+
 summarize("overlays");

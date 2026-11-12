@@ -1209,9 +1209,6 @@ function builtIns(v, f, p) {
             if (!commanded(p.combo) || FIELD_CHORDS.has(p.combo))
                 return NATIVE;
         }
-        // a member of a stop: the arrows move among the members
-        if (plain && !e.shift && !isTextField(v) && memberArrow(v, e))
-            return TAKEN;
         // Enter on a linked view follows it — the <a> contract's keyboard half
         // (location.md §0.4); a linked Control presses, then hands Enter on to here
         if (e.key === "Enter" && plain && !e.shift && v.link !== "") {
@@ -1223,6 +1220,11 @@ function builtIns(v, f, p) {
         if (e.key === "Enter" && plain && v.focusScope === "region" && focusOf().enter())
             return TAKEN;
     }
+    // the arrows move among a stop's members — the stop's own default, after its
+    // bindings: what the member and the views between bind first, then the stop
+    // itself (a list that moves what is shown as its rows change), then this
+    if (plain && !e.shift && f !== null && v !== f && !isTextField(f) && v === memberStop(f) && memberArrow(f, e))
+        return TAKEN;
     // Escape closes a member scope entered inside a stop (an editor in a cell) —
     // the stop's own default, after its bindings: what the member holds, and the
     // stop itself, bind Escape first

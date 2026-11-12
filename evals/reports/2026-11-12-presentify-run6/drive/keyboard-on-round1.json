@@ -1,0 +1,14 @@
+[
+  {
+    "name": "tab_through_the_parts",
+    "pass": false,
+    "error": "Tab never reached the slide, within a few Tabs of the list (the list one stop) (passed: generic \"Slide 1\", button \"New slide\", button \"Background colour: #0E3B43\", button \"All presentations\", textbox \"Presentation title\")",
+    "ms": 6270
+  },
+  {
+    "name": "slide_list_keys",
+    "pass": false,
+    "error": "End: focus on generic \"Slide 2\"",
+    "ms": 4944
+  }
+]

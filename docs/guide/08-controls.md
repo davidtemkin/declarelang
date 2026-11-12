@@ -286,7 +286,9 @@ When you need more:
   [`Focus.nextRegion`](declare-docs:Focus.method.nextRegion).
 - A member of a `stop` that wants an arrow for itself binds it — its own
   [`keyBindings`](declare-docs:guide:pointer-and-keyboard@key-bindings) come before the
-  stop's — or handles it in `onKeyDown` and hands the rest to `super.onKeyDown(e)`. Where a
+  stop's — or handles it in `onKeyDown` and hands the rest to `super.onKeyDown(e)`. The stop
+  itself binds an arrow the same way, before its own movement: a list whose shown item follows
+  the rows binds ArrowDown and returns `false` to let the focus move on too. Where a
   key goes, and in what order, is in [Keyboard events](declare-docs:guide:pointer-and-keyboard@keyboard-events).
 - Every view carries [`focused`](declare-docs:View.focused), true while it holds focus — a
   fact a constraint reads (`stroke = { focused ? stroke(2, provided("theme").accent) : null }`).

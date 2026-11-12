@@ -243,6 +243,10 @@ bootHost(cfg);
           const i = thrown.push(t.slice("[Declare] ".length)) - 1;
           m.args()[1]?.evaluate((e) => e?.stack ?? "").then((st) => { thrown[i] += programFrames(st); }, () => {});
         }
+        // every other error the runtime reports — a value it could not use, a
+        // binding naming no method — fails a flow as it fails the boot (R4):
+        // a view built after boot meets the same rule
+        else if (t.startsWith("[Declare] ")) thrown.push(t.slice("[Declare] ".length).split("\n")[0]);
       });
       // THE REQUESTS THE PROGRAM MAKES — its DataSources, streams and sockets,
       // not the page's own scripts, styles, fonts and pictures — in order, with
@@ -320,11 +324,12 @@ bootHost(cfg);
         // platform's own processes — the user's scroll going quiet — run on it.
         const RealDate = globalThis.Date, base = RealDate.now();
         const ProgramDate = function (...a) {
-          if (!new.target) return new RealDate(base + now).toString();
-          return a.length === 0 ? new RealDate(base + now) : new RealDate(...a);
+          if (!new.target) return new RealDate(Math.floor(base + now)).toString();
+          return a.length === 0 ? new RealDate(Math.floor(base + now)) : new RealDate(...a);
         };
         ProgramDate.prototype = RealDate.prototype;
-        ProgramDate.now = () => base + now;
+        // whole milliseconds, as a browser's Date.now() always is (frames step `now` by fractions)
+        ProgramDate.now = () => Math.floor(base + now);
         ProgramDate.parse = RealDate.parse;
         ProgramDate.UTC = RealDate.UTC;
         globalThis.Date = ProgramDate;
@@ -508,6 +513,7 @@ bootHost(cfg);
       // device, and remembers which of the program's own classes were built.
       const checks = [];
       const reported = new Set(check?.skip ?? []);
+      let deferredAt = null;
       const checkHere = async (where) => {
         if (check === null) return;
         try {
@@ -539,6 +545,13 @@ bootHost(cfg);
             };
             requestAnimationFrame(frame);
           })));
+          // MOTION STILL IN FLIGHT: a place the network rested (settleData) can
+          // be mid-transition — a panel growing over the list it replaces covers
+          // it only on the way. What the screen comes to is asked at the next
+          // rest, or at the script's end
+          // (said under the step it was deferred from)
+          if (where !== "at the end of the script" && await page.evaluate(() => window.__declare?.clock?.settling === true).catch(() => false)) { deferredAt ??= where; return; }
+          if (deferredAt !== null) { where = deferredAt; deferredAt = null; }
           const r = await timing.time("check: the layout questions", () => page.evaluate((o) => window.__declare?.bootCheck?.(o) ?? null, { touch, realText: true, classes: check.classes ?? [], skip: [...reported] }));
           if (r !== null) {
             for (const k of r.flagged ?? []) reported.add(k);

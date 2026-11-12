@@ -488,6 +488,10 @@ export class KeysService {
     return out.sort((a, b) => a.depth - b.depth);
   }
 
+  /** A key as the person's keyboard spells it: `⇧⌘S` on a Mac, `Ctrl+Shift+S`
+   *  elsewhere — the same spelling the shortcuts panel and menus show. */
+  keyLabel(key: string): string { return keyLabel(String(key ?? "")); }
+
   /** The shortcuts in force where focus is now, nearest declaration of each
    *  key first — what a hold-⌘ panel lists: `{ id, key, label, enabled,
    *  origin, group }`, `origin` being the declaring set's `title` and `group`

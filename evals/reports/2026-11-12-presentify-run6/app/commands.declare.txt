@@ -1,0 +1,308 @@
+/*
+# Presentify: commands and their keys
+
+Every command the editor has, once, as records: its id, the words a person
+reads, its key, and whether it can run now. Everything that shows a command
+reads them here, so a key is the same wherever the command appears:
+
+- the menu bar (`TopBar`), whose items' keys are the program's shortcuts —
+  the menu bar *is* the shortcut table, and nothing is declared twice;
+- the right-click menus on the slide and the slide list, and the toolbar's
+  Arrange menu, which pick their rows from the same records by id;
+- each button's tooltip ("Undo  ⌘Z"), through `tip(id)`;
+- the Keyboard Shortcuts sheet (Help › Keyboard Shortcuts, ⌘/), which lists
+  the menus as they are, and the hold-⌘ panel the library shows.
+
+Keys are spelled the Windows way, as `keyBindings` spell them: `Ctrl` is ⌘ on
+a Mac, `Alt` is ⌥. They follow the desktop tools people already know
+(Keynote for arranging, Figma for aligning, Google Slides for text), kept off
+the few chords a browser keeps for itself (⌘N, ⌘T, ⌘W, ⇧⌘] …). A plain or
+Shift-letter key (V, ⇧R) stands down while a text field has the focus, and a
+text field keeps its own ⌘A, ⌘C, ⌘V, ⌘Z and caret keys, so a key always does
+what the person means where they are.
+
+`run(id)` does each one. Keys that only mean something in one place — the
+arrows on the slide, Home and End in the slide list, Escape in a field — are
+that place's own `keyBindings`, and the sheet lists them too (`extras`).
+*/
+
+schema Cmd [ id?: string, label?: string, key?: string, enabled?: boolean, checked?: boolean, divider?: boolean,
+    command?: string ]
+schema CmdMenu [ id: string, label: string, items[]: Cmd ]
+
+script [ host = browser ] {
+    // A key as this keyboard spells it: ⇧⌘Z on a Mac, Ctrl+Shift+Z elsewhere.
+    const MAC = /Mac|iPhone|iPad/.test(navigator.platform ?? "")
+    function keyText(spec: string): string {
+        if (spec == "") return ""
+        const parts = spec.split("+")
+        let key = parts.pop() ?? ""
+        const has = (m: string) => parts.some((p) => p.toLowerCase() == m)
+        const names: Record<string, string> = MAC
+            ? { Enter: "↩", Escape: "Esc", Backspace: "⌫", Delete: "⌦", ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→", Home: "Home", End: "End", Space: "Space" }
+            : { Enter: "Enter", Escape: "Esc", Backspace: "Backspace", Delete: "Delete", ArrowUp: "↑", ArrowDown: "↓", ArrowLeft: "←", ArrowRight: "→", Home: "Home", End: "End", Space: "Space" }
+        key = names[key] ?? key.toUpperCase()
+        if (MAC) return (has("macctrl") ? "⌃" : "") + (has("alt") ? "⌥" : "") + (has("shift") ? "⇧" : "") + (has("ctrl") ? "⌘" : "") + key
+        const words: string[] = []
+        if (has("ctrl") || has("macctrl")) words.push("Ctrl")
+        if (has("alt")) words.push("Alt")
+        if (has("shift")) words.push("Shift")
+        return [...words, key].join("+")
+    }
+    }
+
+class CommandTable extends Node [
+    // What the commands act on, named once.
+
+    ed: Editor = { app.ed },
+    texts: boolean = { this.ed.selLeaves.some((e) => e.kind == "text") },
+    count: number = { app.doc.slides().length },
+    tool: string = { this.ed.tool },
+
+    // As the menus show them, each key spelled as this keyboard spells it.
+
+    menus: CmdMenu[] = { this.spell(this.written) },
+    written: CmdMenu[] = { [
+        ({ id: "file", label: "File", items: [
+            ({ id: "newDeck", label: "New Presentation", key: "Ctrl+Alt+N" }),
+            ({ id: "home", label: "All Presentations", key: "Ctrl+Alt+O" }),
+            ({ divider: true }),
+            ({ id: "rename", label: "Rename…", key: "Ctrl+Alt+R" }),
+            ({ id: "save", label: "Save Now", key: "Ctrl+S" }) ] }),
+        ({ id: "edit", label: "Edit", items: [
+            ({ id: "undo", label: app.history.undoLabel, key: "Ctrl+Z", enabled: app.history.canUndo }),
+            ({ id: "redo", label: app.history.redoLabel, key: "Ctrl+Shift+Z", enabled: app.history.canRedo }),
+            ({ divider: true }),
+            ({ id: "cut", label: "Cut", key: "Ctrl+X", command: "cut", enabled: this.ed.has }),
+            ({ id: "copy", label: "Copy", key: "Ctrl+C", command: "copy", enabled: this.ed.has }),
+            ({ id: "paste", label: "Paste", key: "Ctrl+V", command: "paste" }),
+            ({ id: "duplicate", label: "Duplicate", key: "Ctrl+D", enabled: this.ed.has }),
+            ({ id: "delete", label: "Delete", key: "Backspace", enabled: this.ed.has }),
+            ({ divider: true }),
+            ({ id: "selectAll", label: "Select All", key: "Ctrl+A" }),
+            ({ id: "selectNext", label: "Select Next", key: "Alt+ArrowRight", enabled: this.ed.els.length > 0 }),
+            ({ id: "selectPrev", label: "Select Previous", key: "Alt+ArrowLeft", enabled: this.ed.els.length > 0 }),
+            ({ id: "addNext", label: "Add Next to Selection", key: "Alt+Shift+ArrowRight", enabled: this.ed.els.length > 0 }),
+            ({ id: "editText", label: "Edit Text", key: "Enter", enabled: this.ed.single?.kind == "text" }),
+            ({ id: "deselect", label: "Deselect", key: "Escape", enabled: this.ed.has || this.ed.editingId != "" }) ] }),
+        ({ id: "insert", label: "Insert", items: [
+            ({ id: "insertRect", label: "Rectangle", key: "Shift+R" }),
+            ({ id: "insertEllipse", label: "Ellipse", key: "Shift+O" }),
+            ({ id: "insertLine", label: "Line", key: "Shift+L" }),
+            ({ id: "insertText", label: "Text Box", key: "Shift+T" }),
+            ({ divider: true }),
+            ({ id: "newSlide", label: "New Slide", key: "Ctrl+Enter" }) ] }),
+        ({ id: "tools", label: "Tools", items: [
+            ({ id: "toolSelect", label: "Select", key: "V", checked: this.tool == "select" }),
+            ({ id: "toolRect", label: "Rectangle", key: "R", checked: this.tool == "rect" }),
+            ({ id: "toolEllipse", label: "Ellipse", key: "O", checked: this.tool == "ellipse" }),
+            ({ id: "toolLine", label: "Line", key: "L", checked: this.tool == "line" }),
+            ({ id: "toolText", label: "Text", key: "T", checked: this.tool == "text" }) ] }),
+        ({ id: "format", label: "Format", items: [
+            ({ id: "bold", label: "Bold", key: "Ctrl+B", enabled: this.texts }),
+            ({ id: "italic", label: "Italic", key: "Ctrl+I", enabled: this.texts }),
+            ({ divider: true }),
+            ({ id: "bigger", label: "Bigger", key: "Ctrl+=", enabled: this.texts }),
+            ({ id: "smaller", label: "Smaller", key: "Ctrl+-", enabled: this.texts }),
+            ({ divider: true }),
+            ({ id: "textLeft", label: "Align Text Left", key: "Ctrl+Shift+L", enabled: this.texts }),
+            ({ id: "textCenter", label: "Centre Text", key: "Ctrl+Shift+E", enabled: this.texts }),
+            ({ id: "textRight", label: "Align Text Right", key: "Ctrl+Shift+R", enabled: this.texts }) ] }),
+        ({ id: "arrange", label: "Arrange", items: this.arrangeWritten }),
+        ({ id: "slide", label: "Slide", items: [
+            ({ id: "newSlide", label: "New Slide", key: "Ctrl+Enter" }),
+            ({ id: "duplicateSlide", label: "Duplicate Slide", key: "Ctrl+Shift+D" }),
+            ({ id: "deleteSlide", label: "Delete Slide", key: "Ctrl+Shift+Backspace", enabled: this.count > 1 }),
+            ({ divider: true }),
+            ({ id: "slideUp", label: "Move Slide Up", key: "Alt+ArrowUp", enabled: this.ed.slideIndex > 0 }),
+            ({ id: "slideDown", label: "Move Slide Down", key: "Alt+ArrowDown", enabled: this.ed.slideIndex < this.count - 1 }),
+            ({ divider: true }),
+            ({ id: "prevSlide", label: "Previous Slide", key: "Ctrl+ArrowUp", enabled: this.ed.slideIndex > 0 }),
+            ({ id: "nextSlide", label: "Next Slide", key: "Ctrl+ArrowDown", enabled: this.ed.slideIndex < this.count - 1 }) ] }),
+        ({ id: "present", label: "Present", items: [
+            ({ id: "presentHere", label: "Present from This Slide", key: "Ctrl+Alt+P" }),
+            ({ id: "presentStart", label: "Present from the Start", key: "Ctrl+Alt+Shift+P" }) ] }),
+        ({ id: "help", label: "Help", items: [
+            ({ id: "shortcuts", label: "Keyboard Shortcuts", key: "Ctrl+/" }) ] })
+        ] },
+
+    arrangeItems: Cmd[] = { this.spell([({ id: "arrange", label: "Arrange", items: this.arrangeWritten })])[0].items },
+    arrangeWritten: Cmd[] = { [
+        ({ id: "group", label: "Group", key: "Ctrl+G", enabled: this.ed.canGroup }),
+        ({ id: "ungroup", label: "Ungroup", key: "Ctrl+Shift+G", enabled: this.ed.canUngroup }),
+        ({ divider: true }),
+        ({ id: "front", label: "Bring to Front", key: "Ctrl+Shift+F", enabled: this.ed.has }),
+        ({ id: "forward", label: "Bring Forward", key: "Ctrl+Alt+Shift+F", enabled: this.ed.has }),
+        ({ id: "backward", label: "Send Backward", key: "Ctrl+Alt+Shift+B", enabled: this.ed.has }),
+        ({ id: "back", label: "Send to Back", key: "Ctrl+Shift+B", enabled: this.ed.has }),
+        ({ divider: true }),
+        ({ id: "left", label: "Align Left Edges", key: "Alt+A", enabled: this.ed.canAlign }),
+        ({ id: "center", label: "Align Centres", key: "Alt+H", enabled: this.ed.canAlign }),
+        ({ id: "right", label: "Align Right Edges", key: "Alt+D", enabled: this.ed.canAlign }),
+        ({ id: "top", label: "Align Tops", key: "Alt+W", enabled: this.ed.canAlign }),
+        ({ id: "middle", label: "Align Middles", key: "Alt+V", enabled: this.ed.canAlign }),
+        ({ id: "bottom", label: "Align Bottoms", key: "Alt+S", enabled: this.ed.canAlign }),
+        ({ divider: true }),
+        ({ id: "spaceH", label: "Distribute Horizontally", key: "Alt+Shift+H", enabled: this.ed.canDistribute }),
+        ({ id: "spaceV", label: "Distribute Vertically", key: "Alt+Shift+V", enabled: this.ed.canDistribute })
+        ] },
+
+    // Keys that belong to one place, for the sheet: they are that place's own.
+
+    extras: CmdMenu[] = { this.spell(this.extrasWritten) },
+    extrasWritten: CmdMenu[] = { [
+        ({ id: "onSlide", label: "On the slide", items: [
+            ({ label: "Move the selection", key: "ArrowRight" }),
+            ({ label: "Move it by ten", key: "Shift+ArrowRight" }),
+            ({ label: "Edit a text box, or add the shape in hand", key: "Enter" }),
+            ({ label: "Stop editing, then deselect", key: "Escape" }),
+            ({ label: "Menu for the selection", key: "Shift+F10" }) ] }),
+        ({ id: "inList", label: "In the slide list", items: [
+            ({ label: "Previous or next slide", key: "ArrowUp" }),
+            ({ label: "First slide", key: "Home" }),
+            ({ label: "Last slide", key: "End" }),
+            ({ label: "Delete the slide", key: "Backspace" }),
+            ({ label: "Menu for the slide", key: "Shift+F10" }) ] }),
+        ({ id: "inFields", label: "In the inspector", items: [
+            ({ label: "A number up or down", key: "ArrowUp" }),
+            ({ label: "Up or down by ten", key: "Shift+ArrowUp" }),
+            ({ label: "Apply", key: "Enter" }),
+            ({ label: "Put back what was there", key: "Escape" }) ] }),
+        ({ id: "presenting", label: "Presenting", items: [
+            ({ label: "Next slide", key: "Space" }),
+            ({ label: "Previous slide", key: "ArrowLeft" }),
+            ({ label: "First or last slide", key: "Home" }),
+            ({ label: "End the presentation", key: "Escape" }) ] })
+        ] },
+
+    // ── reading the records
+
+    spell(ms: CmdMenu[]) -> CmdMenu[] {
+        return ms.map((m) => ({ ...m, items: m.items.map((c) => c.key == null ? c : ({ ...c, key: keyText(c.key) })) }))
+        },
+
+    all: Cmd[] = { this.menus.flatMap((m) => m.items).filter((c) => c.id != null) },
+    find(id: string) -> Cmd? { return this.all.find((c) => c.id == id) ?? null },
+    keyOf(id: string) -> string { return this.find(id)?.key ?? "" },
+
+    // A tooltip: what it does, then its key.
+
+    tip(id: string, words: string) -> string {
+        const k = this.keyOf(id)
+        return k == "" ? words : words + "   " + k
+        },
+
+    // Rows for a menu of the commands named: their records as they stand now.
+
+    rows(ids: string[]) -> Cmd[] {
+        return ids.map((id) => id == "-" ? ({ divider: true }) : ({ ...this.find(id), command: undefined }))
+        },
+
+    // ── doing them
+
+    run(id: string) {
+        const ed = app.ed
+        const cur = ed.currentId
+        switch (id) {
+            case "newDeck": app.goHome(); app.newDeck(); break
+            case "home": app.goHome(); break
+            case "rename": app.renameHere(); break
+            case "save": app.saver.flush(); break
+            case "undo": app.history.undo(); break
+            case "redo": app.history.redo(); break
+            case "cut": ed.cut(); break
+            case "copy": ed.copy(); break
+            case "paste": ed.paste(ed.clip); break
+            case "duplicate": ed.duplicate(); break
+            case "delete": ed.deleteSel(); break
+            case "selectAll": ed.selectAll(); break
+            case "selectNext": ed.cycle(1, false); break
+            case "selectPrev": ed.cycle(-1, false); break
+            case "addNext": ed.cycle(1, true); break
+            case "editText": { const e = ed.single; if (e != null && e.kind == "text") ed.editText(e.id); break }
+            case "deselect": ed.escape(); break
+            case "insertRect": ed.insertCentered("rect"); break
+            case "insertEllipse": ed.insertCentered("ellipse"); break
+            case "insertLine": ed.insertCentered("line"); break
+            case "insertText": ed.insertCentered("text"); break
+            case "toolSelect": app.tool("select"); break
+            case "toolRect": app.tool("rect"); break
+            case "toolEllipse": app.tool("ellipse"); break
+            case "toolLine": app.tool("line"); break
+            case "toolText": app.tool("text"); break
+            case "bold": ed.toggleBold(); break
+            case "italic": ed.toggleItalic(); break
+            case "bigger": ed.stepText(1); break
+            case "smaller": ed.stepText(-1); break
+            case "textLeft": ed.setWords("Align", ({ align: "left" })); break
+            case "textCenter": ed.setWords("Align", ({ align: "center" })); break
+            case "textRight": ed.setWords("Align", ({ align: "right" })); break
+            case "group": ed.group(); break
+            case "ungroup": ed.ungroup(); break
+            case "front": case "forward": case "backward": case "back": ed.order(id); break
+            case "left": case "center": case "right": case "top": case "middle": case "bottom": ed.align(id); break
+            case "spaceH": ed.distribute(true); break
+            case "spaceV": ed.distribute(false); break
+            case "newSlide": ed.addSlide(); break
+            case "duplicateSlide": ed.duplicateSlide(cur); break
+            case "deleteSlide": ed.deleteSlide(cur); break
+            case "slideUp": ed.moveSlide(cur, ed.slideIndex - 1); break
+            case "slideDown": ed.moveSlide(cur, ed.slideIndex + 1); break
+            case "prevSlide": ed.step(-1); break
+            case "nextSlide": ed.step(1); break
+            case "presentHere": app.present(false); break
+            case "presentStart": app.present(true); break
+            case "shortcuts": app.showKeys = true; break
+        }
+        }
+    ]
+
+
+// The Keyboard Shortcuts sheet: every menu as it is, each command with its
+// key, then the keys of each place. It slides in beside the work and leaves
+// it as it was.
+
+class KeysSheet extends Sheet [ edge = "end", accessibilityLabel = "Keyboard shortcuts",
+    View [ width = 340,
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        head: View [ width = 100%, padding = [0, 0, 8, 0],
+            layout: SimpleLayout [ axis = x, align = center ],
+            Text [ flexes = true, fontFamily = { app.brandFace }, fontSize = 22, fontWeight = 750,
+                textColor = { provided("theme").text }, text = "Keyboard shortcuts" ],
+            IconTool [ shape = "close", label = "Close", tooltipLabel = "Close   Esc",
+                press() { app.showKeys = false }
+                ]
+            ],
+        Text [ width = 100%, fontSize = 13, textColor = { provided("theme").textMuted },
+            text = "Every command is also in the menus, with its key beside it. Hold ⌘ for a moment to see the keys for where you are." ],
+        groups: View [ width = 100%, datapath = { app.keysData.value },
+            layout: SimpleLayout [ axis = y ],
+            KeyGroup [ datapath = :menus[] ]
+            ]
+        ]
+    ]
+
+
+class KeyGroup [ width = 100%, padding = [16, 0, 4, 0],
+    layout: SimpleLayout [ axis = y, spacing = 2 ],
+    Text [ fontSize = 11, fontWeight = 700, letterSpacing = 0.8, textTransform = uppercase,
+        accessibilityRole = heading, textColor = { provided("theme").textMuted }, text = :label ],
+    KeyRow [ datapath = :items[] ]
+    ]
+
+
+class KeyRow [ width = 100%, height = 26,
+    visible = { (:divider ?? false) == false },
+    layout: SimpleLayout [ axis = x, align = center ],
+    Text [ flexes = true, fontSize = 13.5, wrap = false, maxLines = 1, textColor = { provided("theme").text }, text = { :label ?? "" } ],
+    Keycap [ keys = { :key ?? "" } ]
+    ]
+
+
+class Keycap [ height = 22, cornerRadius = 6, padding = [0, 7, 0, 7],
+    keys: string = "",
+    fill = { provided("theme").well },
+    stroke = { [null, null, stroke(1.5, provided("theme").lineStrong), null] },
+    TextLabel [ fontSize = 12.5, fontWeight = 600, letterSpacing = 0.6, numeralWidth = tabular,
+        textColor = { provided("theme").text }, text = { classroot.keys } ]
+    ]

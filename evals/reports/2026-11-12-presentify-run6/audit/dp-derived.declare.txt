@@ -1,0 +1,15 @@
+// A derived Dataset holds an object first read from another dataset. The
+// source then moves on (its value replaced); the derived one still holds it.
+App [ width = 320, height = 120, fill = white, textColor = black,
+    src: Dataset { { "s": { "n": 1 } } },
+    held: object? = null,
+    copy: Dataset [ contents = { ({ slide: app.held }) } ],
+    onInit() { app.held = app.src.value.s },
+    // A: datapath = an expression reaching into the derived dataset
+    a: View [ y = 10, datapath = { app.copy.value?.slide ?? null },
+        Text [ text = { "A n=" + (:n ?? "-") } ] ],
+    // B: datapath = the derived dataset's root, then a :path
+    b: View [ y = 40, datapath = { app.copy.value },
+        View [ datapath = :slide, Text [ text = { "B n=" + (:n ?? "-") } ] ] ],
+    moveOn() { app.src.set(["s"], ({ n: 2 })) }
+    ]

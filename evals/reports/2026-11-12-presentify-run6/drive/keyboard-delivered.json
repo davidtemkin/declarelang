@@ -1,0 +1,56 @@
+[
+  {
+    "name": "tab_through_the_parts",
+    "pass": true,
+    "error": null,
+    "ms": 6376
+  },
+  {
+    "name": "slide_list_keys",
+    "pass": true,
+    "error": null,
+    "ms": 7305
+  },
+  {
+    "name": "add_shape_by_keyboard",
+    "pass": true,
+    "error": null,
+    "ms": 7208
+  },
+  {
+    "name": "edit_and_arrange_keys",
+    "pass": true,
+    "error": null,
+    "ms": 10309
+  },
+  {
+    "name": "keys_follow_the_focus",
+    "pass": true,
+    "error": null,
+    "ms": 6959
+  },
+  {
+    "name": "escape_reverts_a_field",
+    "pass": true,
+    "error": null,
+    "ms": 11215
+  },
+  {
+    "name": "delete_dialog_by_keyboard",
+    "pass": true,
+    "error": null,
+    "ms": 36259
+  },
+  {
+    "name": "shortcuts_are_shown",
+    "pass": true,
+    "error": null,
+    "ms": 4921
+  },
+  {
+    "name": "keyboard_only_deck",
+    "pass": true,
+    "error": null,
+    "ms": 40253
+  }
+]

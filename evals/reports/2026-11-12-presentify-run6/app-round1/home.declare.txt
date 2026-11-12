@@ -1,0 +1,276 @@
+/*
+# Presentify: the presentations
+
+The first screen: every presentation, newest first, each with its title,
+when it was last changed and a picture of its first slide. One opens with a
+press (it grows from its card into the editor); a new one starts with the
+button in the corner; a card's menu renames or deletes one, deleting only
+once the person has said so.
+
+`Home` holds the list from the service and the few requests made from here.
+*/
+
+class Home extends Node [
+    api: string = "http://127.0.0.1:8360/api",
+    decks: DataSource [ url = { classroot.api + "/decks" }, schema = DeckList, timeout = 10 ],
+    list: DeckSummary[] = { this.decks.value?.decks ?? [] },
+    refresh() { this.decks.fetch() },
+    onInit() { this.decks.fetch() },
+
+    // The writes made from the list: one at a time.
+
+    op: DataSource [ timeout = 15,
+        job: string = "",
+        renaming: string = "",
+        newTitle: string = "",
+        onLoad() {
+            if (this.job == "create") {
+                const r = this.value as { deck: Deck, slides: ServerSlide[] }
+                app.opened(r.deck, r.slides)
+            } else if (this.job == "find") {
+                // the deck's version, then the rename
+                const d = this.value as Deck
+                this.job = "rename"
+                this.url = classroot.api + "/decks/" + d.id
+                this.method = "PATCH"
+                this.body = ({ version: d.version, title: this.newTitle })
+                this.fetch()
+                return
+            } else {
+                classroot.refresh()
+            }
+            this.job = ""
+            },
+        onError() {
+            const j = this.job
+            this.job = ""
+            app.toast.say(j == "create" ? "Couldn't make a presentation: the service didn't answer. Try again."
+                : j == "delete" ? "Couldn't delete it: the service didn't answer. Nothing was deleted."
+                : "Couldn't rename it: the service didn't answer.")
+            classroot.refresh()
+            }
+        ],
+    busy: boolean = { this.op.loading },
+    create() {
+        if (op.loading) return
+        op.job = "create"
+        op.url = api + "/decks"
+        op.method = "POST"
+        op.body = ({ title: "Untitled presentation" })
+        op.fetch()
+        },
+    rename(id: string, title: string) {
+        const t = title.trim()
+        if (t == "") return
+        op.job = "find"
+        op.newTitle = t
+        op.url = api + "/decks/" + id
+        op.method = "GET"
+        op.body = null
+        op.fetch()
+        },
+    remove(id: string) {
+        op.job = "delete"
+        op.url = api + "/decks/" + id
+        op.method = "DELETE"
+        op.body = null
+        op.fetch()
+        }
+    ]
+
+
+// A presentation's card: the picture of its first slide, its title and when
+// it changed. The picture is read from the service, and read again whenever
+// the presentation has changed since.
+
+class DeckCard [ width = 100%, height = { this.width * 0.5625 + 74 },
+    deckId: string = { :id ?? "" },
+    title: string = { :title ?? "" },
+    shownTitle: string = { this.title == "" ? "Untitled presentation" : this.title },
+    onContextMenu(e: PointerEvent) { app.deckMenu.open(this, e) },
+    lit: boolean = { this.hovered || this.open.focused || this.more.focused },
+    lift: number = 0,
+    Spring [ attribute = lift, to = { classroot.lit ? 1 : 0 }, stiffness = 420, damping = 30 ],
+
+    thumb: DataSource [ timeout = 10, autoFetch = true,
+        url = { app.home.api + "/slides/" + (:thumbnailSlideId ?? "") + "?at=" + encodeURIComponent(:updatedAt ?? "") } ],
+
+    // The card itself opens the presentation: its picture, title and date.
+
+    open: Control [ width = 100%, height = 100%,
+        accessibilityLabel = { classroot.shownTitle },
+        tooltipLabel = { classroot.shownTitle },
+        press() { app.openDeck(classroot.deckId, this.pic) },
+        focusShape() -> object { return this.pic },
+        pic: View [ width = 100%, height = { this.width * 0.5625 }, cornerRadius = 12, clip = true,
+            y = { -3 * classroot.lift },
+            fill = { provided("theme").surface },
+            stroke = { stroke(1, classroot.lit ? provided("theme").lineStrong : provided("theme").line) },
+            shadow = { shadow(0, 2 + 10 * classroot.lift, 6 + 18 * classroot.lift, 0x1E1B2E1C) },
+            SlideView [ visible = { classroot.thumb.loaded }, scale = { parent.width / 1280 }, pivotX = 0, pivotY = 0,
+                datapath = { classroot.thumb.value } ],
+
+            // the picture on its way: plain paper
+
+            View [ visible = { !classroot.thumb.loaded }, width = 100%, height = 100%,
+                fill = { provided("theme").well } ]
+            ],
+        words: View [ y = { parent.width * 0.5625 + 12 }, width = { parent.width - 32 },
+            layout: SimpleLayout [ axis = y, spacing = 3 ],
+            Text [ width = 100%, fontSize = 15, fontWeight = 650, maxLines = 1, wrap = true,
+                textColor = { provided("theme").text }, text = { classroot.shownTitle } ],
+            Text [ width = 100%, fontSize = 12.5, textColor = { provided("theme").textMuted }, maxLines = 1,
+                text = { ago(:updatedAt ?? "", app.clock.now) + "  ·  " + (:slideCount ?? 0) + ((:slideCount ?? 0) == 1 ? " slide" : " slides") } ]
+            ]
+        ],
+
+    // Rename or delete: beside the title, shown while the card is under the pointer.
+
+    more: Control [ x = { parent.width - 26 }, y = { parent.width * 0.5625 + 10 }, width = 26, height = 24, cornerRadius = 6,
+        accessibilityLabel = { "More for " + classroot.shownTitle }, tooltipLabel = "Rename or delete",
+        opacity = { classroot.lit ? 1 : 0 },
+        fill = { hovered ? provided("theme").pressedFill : null },
+        press() { app.deckMenu.openFor(classroot) },
+        Glyph [ x = center, y = center, iconSize = 14, shape = "more", ink = { provided("theme").textMuted } ]
+        ]
+    ]
+
+
+// Cards in as many columns as fit, each at least 240 wide.
+
+class CardGrid extends Layout [
+    gap: number = 28,
+    place() {
+        const w = this.contentExtent("width")
+        const cols = Math.max(1, Math.floor((w + this.gap) / (240 + this.gap)))
+        const cw = (w - this.gap * (cols - 1)) / cols
+        let rowH = 0
+        const kids = this.laid()
+        const boxes = kids.map((c, i) => ({ x: (i % cols) * (cw + this.gap), y: 0, w: cw }))
+        const out = []
+        let y = 0
+        for (let i = 0; i < kids.length; i += cols) {
+            rowH = 0
+            for (let j = i; j < Math.min(kids.length, i + cols); j++) rowH = Math.max(rowH, cw * 0.5625 + 74)
+            for (let j = i; j < Math.min(kids.length, i + cols); j++) out.push(({ ...boxes[j], y: y }))
+            y += rowH + this.gap
+        }
+        return out
+        }
+    ]
+
+
+class HomeScreen [ fill = { provided("theme").background }, scrolls = y,
+    layout: SimpleLayout [ axis = y ],
+
+    // Under an open presentation, the list is out of the keyboard's way.
+
+    tabOrder() -> View[] { return app.open ? [] : this.tabDefault() },
+
+    bar: View [ width = 100%, height = 72, padding = [0, 40, 0, 36],
+        layout: SimpleLayout [ axis = x, align = center ],
+        Wordmark [ ],
+        Spacer [ ],
+        newBtn: Pill [ label = "New presentation", shape = "plus", primary = true,
+            disabled = { app.home.busy },
+            tooltipLabel = "Start a new presentation (⌘N)",
+            press() { app.newDeck() }
+            ]
+        ],
+
+    body: View [ width = 100%, padding = [8, 40, 60, 40],
+        layout: SimpleLayout [ axis = y, spacing = 22 ],
+
+        hello: View [ width = 100%,
+            layout: SimpleLayout [ axis = x, align = baseline ],
+            Text [ flexes = true, fontFamily = { app.brandFace }, fontSize = 34, fontWeight = 750, letterSpacing = -0.8,
+                textColor = { provided("theme").text }, text = "Your presentations" ],
+            Text [ visible = { app.home.decks.loaded }, fontSize = 13, textColor = { provided("theme").textMuted },
+                text = { app.home.list.length + (app.home.list.length == 1 ? " presentation" : " presentations") } ]
+            ],
+
+        // the list, once it has arrived
+
+        grid: View [ width = 100%, visible = { app.home.list.length > 0 },
+            datapath = { app.home.decks.value },
+            layout: CardGrid [ ],
+            DeckCard [ datapath = :decks[] ]
+            ],
+
+        // still arriving
+
+        waiting: View [ width = 100%, visible = { !app.home.decks.loaded && !app.home.decks.failed },
+            layout: CardGrid [ ],
+            Skeleton [ ],
+            Skeleton [ ],
+            Skeleton [ ]
+            ],
+
+        // nothing yet
+
+        empty: EmptyState [ width = 100%, visible = { app.home.decks.loaded && app.home.list.length == 0 } ],
+
+        // the service isn't answering
+
+        down: View [ width = 100%, padding = [60, 0, 0, 0], visible = { app.home.decks.failed && !app.home.decks.loaded },
+            layout: SimpleLayout [ axis = y, spacing = 12, align = center ],
+            View [ width = 56, height = 56, cornerRadius = 28, fill = { provided("theme").dangerSoft },
+                Glyph [ x = center, y = center, iconSize = 26, shape = "offline", ink = { provided("theme").danger } ]
+                ],
+            Text [ fontFamily = { app.brandFace }, fontSize = 22, fontWeight = 700, textColor = { provided("theme").text },
+                text = "Can't reach your presentations" ],
+            Text [ width = 380, textAlign = center, fontSize = 14, textColor = { provided("theme").textMuted },
+                text = "The presentation service isn't answering. Your work is kept there, so nothing is lost; try again in a moment." ],
+            Pill [ label = "Try again",
+                press() { app.home.refresh() }
+                ]
+            ]
+        ]
+    ]
+
+
+class Skeleton [ height = { this.width * 0.5625 + 74 },
+    View [ width = 100%, height = { parent.width * 0.5625 }, cornerRadius = 12, fill = { provided("theme").well },
+        opacity = 0.8 ],
+    View [ y = { parent.width * 0.5625 + 14 }, width = 60%, height = 14, cornerRadius = 7, fill = { provided("theme").well } ],
+    View [ y = { parent.width * 0.5625 + 38 }, width = 35%, height = 11, cornerRadius = 6, fill = { provided("theme").well } ]
+    ]
+
+
+// No presentations yet: a small scene, and the one thing to do.
+
+class EmptyState [ padding = [40, 0, 0, 0],
+    layout: SimpleLayout [ axis = y, spacing = 14, align = center ],
+    scene: View [ width = 240, height = 150,
+        draw(d: DrawContext) {
+            const t = provided("theme")
+            // three slides fanned out, the front one with a play mark
+            const card = (cx: number, cy: number, a: number, fill: Color) => {
+                d.save(); d.translate(cx, cy); d.rotate(a)
+                d.beginPath(); d.roundRect(-70, -40, 140, 80, 10); d.fillStyle = fill; d.fill()
+                d.restore()
+            }
+            card(84, 82, -0.22, t.sparkSoft)
+            card(156, 80, 0.2, t.accentSoft)
+            d.save(); d.translate(120, 74)
+            d.shadowBlur = 18; d.shadowOffsetY = 8; d.shadowColor = 0x1E1B2E30
+            d.beginPath(); d.roundRect(-78, -45, 156, 90, 12); d.fillStyle = t.surface; d.fill()
+            d.shadowBlur = 0; d.shadowOffsetY = 0
+            d.beginPath(); d.roundRect(-60, -28, 64, 9, 4.5); d.fillStyle = t.text; d.fill()
+            d.beginPath(); d.roundRect(-60, -12, 44, 6, 3); d.fillStyle = t.lineStrong; d.fill()
+            d.beginPath(); d.arc(36, 8, 22, 0, Math.PI * 2); d.fillStyle = t.accent; d.fill()
+            d.beginPath(); d.moveTo(30, -2); d.lineTo(46, 8); d.lineTo(30, 18); d.closePath(); d.fillStyle = 0xFFFFFF; d.fill()
+            d.beginPath(); d.roundRect(-60, 18, 50, 12, 6); d.fillStyle = t.butter; d.fill()
+            d.restore()
+            d.beginPath(); d.arc(206, 22, 7, 0, Math.PI * 2); d.fillStyle = t.spark; d.fill()
+            d.beginPath(); d.arc(30, 128, 4, 0, Math.PI * 2); d.fillStyle = t.mint; d.fill()
+            }
+        ],
+    Text [ fontFamily = { app.brandFace }, fontSize = 24, fontWeight = 750, textColor = { provided("theme").text },
+        text = "Your first presentation starts here" ],
+    Text [ width = 360, textAlign = center, fontSize = 14, textColor = { provided("theme").textMuted },
+        text = "Make one, give it a name, and draw on its first slide. Everything you do is saved as you go." ],
+    Pill [ label = "New presentation", shape = "plus", primary = true,
+        press() { app.newDeck() }
+        ]
+    ]

@@ -59,3 +59,8 @@ person's keyboard spells it — `⇧⌘S` on a Mac, `Ctrl+Shift+S` elsewhere. Fo
 is its command and `group` its `group`; for a shortcut, `origin` is the declaring set's
 `title` and `group` the menu a menu bar's shortcut sits in (else the origin). What the
 `ShortcutsPanel` lists when ⌘ is held.
+
+## keyLabel()
+A key as the person's keyboard spells it, from the way a binding writes it: `Ctrl+Shift+S` is
+`⇧⌘S` on a Mac and stays `Ctrl+Shift+S` elsewhere. Menus and the `ShortcutsPanel` show keys
+this way; a tooltip or a sheet of your own that names a key calls it, so all of them agree.

@@ -1920,6 +1920,8 @@ export function checkAttr(schema: ClassSchema, attr: Attr): CheckedAttr {
       attr.value.kind === "ident" && (attr.value.name === "true" || attr.value.name === "false");
     const hint = scrollsBool
       ? ` — scrolls is an axis now: ${attr.value.kind === "ident" && attr.value.name === "true" ? "'scrolls = y' is the old 'scrolls = true'" : "'scrolls = none' is the old 'scrolls = false'"}`
+      : attr.value.kind === "ident" && (attr.value.name === "null" || attr.value.name === "undefined")
+        ? ` — ${attr.name} can't be unset: leave it out to keep the value it has, or give it one`
       : attr.value.kind === "ident" && type.kind !== "enum"
         ? ` — write { ${attr.value.name} } to read it in a constraint${type.kind === "string" ? `, or "${attr.value.name}" for the literal text` : ""}`
         : "";

@@ -247,10 +247,20 @@ function adoptTree(data: Dataset, v: unknown, path: string[]): unknown {
   return adoptUnder(data, v, { data, up: null, key: "", at: path });
 }
 
+/** The derived datasets that refer to a record another dataset owns — where
+ *  the record is still found once its own dataset has moved on (toCursor). */
+const REFERRERS = new WeakMap<object, WeakRef<Dataset>[]>();
+function noteReferrer(v: object, data: Dataset): void {
+  const list = REFERRERS.get(v) ?? [];
+  if (!list.some((r) => r.deref() === data)) list.push(new WeakRef(data));
+  REFERRERS.set(v, list);
+}
+
 /** adoptTree's walk: `place` is the tag `v` takes if it is this dataset's. */
 function adoptUnder(data: Dataset, v: unknown, place: Tag): unknown {
   v = unwrapValue(v);
-  if (!isContainer(v) || foreign(data, v)) return v;
+  if (!isContainer(v)) return v;
+  if (foreign(data, v)) { noteReferrer(v, data); return v; }
   TAGS.set(v, place);
   for (const k of Object.keys(v)) {
     const c = v[k], raw = adoptUnder(data, c, { data, up: place, key: k });
@@ -1294,6 +1304,16 @@ export function toCursor(v: unknown, context: string): Cursor | null {
   if (resolveTracked(tag.data, path) !== v) {
     const healed = locateByIdentity(unwrapValue(tag.data.value), v, []);
     if (healed === null) {
+      // its own dataset moved on; a derived dataset that holds it is its place now
+      for (const ref of REFERRERS.get(v) ?? []) {
+        const d = ref.deref();
+        if (d === undefined) continue;
+        const at = locateByIdentity(unwrapValue(d.value), v, []);
+        if (at === null) continue;
+        TAGS.set(v, { data: d, up: null, key: "", at });
+        resolveTracked(d, at);
+        return d.$cursorAt(at);
+      }
       throw new DeclareError(`${context}: this value is no longer anywhere in its dataset`);
     }
     tag.at = path = healed;

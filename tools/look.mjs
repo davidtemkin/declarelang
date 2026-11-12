@@ -36,6 +36,7 @@ options
 actions, run in the order written (each may repeat)
   --click PATH                 press the view at PATH
   --dblclick PATH              double-click the view at PATH (a double tap with --touch)
+  --hover PATH                 bring the pointer over the view at PATH and leave it there
   --click-at PATH X,Y          press at (X, Y) inside it, from its top-left — a part of a
                                drawn control that is not a view of its own
   --drag PATH DX,DY            press it, move by (DX, DY) pixels, release (a finger's
@@ -118,6 +119,7 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === "--scrollbars") scrollbars = true;
   else if (a === "--click") actions.push({ kind: "click", path: arg() });
   else if (a === "--dblclick") actions.push({ kind: "dblclick", path: arg() });
+  else if (a === "--hover") actions.push({ kind: "hover", path: arg() });
   else if (a === "--click-at") {
     const path = arg(), at = arg().split(",").map(Number);
     if (at.length !== 2 || at.some((n) => !Number.isFinite(n))) fail(`--click-at ${path} ${argv[i]}: write the point as X,Y inside the view, e.g. 40,12`);
@@ -191,6 +193,7 @@ const step = (x) => {
     case "hold": return `await drive.hold(${p}, ${x.ms});${rest}`;
     case "drag": return `await drive.drag(${p}, ${x.dx}, ${x.dy});${rest}`;
     // a held drag is looked at as it stands: no settle between its steps
+    case "hover": return `await drive.hover(${p});${rest}`;
     case "press": return x.x === undefined ? `await drive.press(${p});` : `await drive.press(${p}, ${x.x}, ${x.y});`;
     case "move": return `await drive.moveBy(${x.dx}, ${x.dy});`;
     case "release": return `await drive.release();${rest}`;

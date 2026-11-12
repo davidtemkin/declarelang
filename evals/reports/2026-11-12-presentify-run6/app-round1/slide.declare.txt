@@ -1,0 +1,126 @@
+/*
+# Presentify: a slide, drawn
+
+One class draws a slide wherever one appears — the slide being edited, each
+picture in the slide list, a presentation's card, and presenting — so they
+cannot differ. A `SlideView` is always 1280 × 720 points inside; whoever
+places it sets its `scale`.
+
+Its datapath is a slide record (`background`, `elements`). Each element is
+a view of the class for its kind, chosen by `classFor`; a group is a view
+that holds its children the same way, at any depth. None of them takes the
+pointer: the editor works out what a press hits from the geometry itself
+(model.declare), which is how a thin line or the inside of a ring can be
+aimed at precisely.
+*/
+
+class SlideView [ width = 1280, height = 720, clip = true, pointerEvents = "none",
+    // The element being typed into is hidden here while the field over it shows
+    // the same words (editor.declare).
+
+    hideId: string = "",
+
+    // The slide being edited reports how tall its text has grown, so the box
+    // the service keeps matches what is shown. Pictures of the slide don't.
+
+    measures: boolean = false,
+    fill = { hex(:background ?? "#FFFFFF") },
+    Mark [ datapath = :elements[], classFor = { :kind == "rect" ? RectMark : :kind == "ellipse" ? EllipseMark : :kind == "line" ? LineMark : :kind == "text" ? TextMark : GroupMark } ]
+    ]
+
+
+// Every element's view. `elId` is the element's id, so a mark can tell
+// whether it is the one hidden for typing.
+
+class Mark [ pointerEvents = "none",
+    elId: string = { :id ?? "" },
+    opacity = { provided("hideId") == classroot.elId ? 0 : 1 }
+    ]
+
+
+class BoxMark extends Mark [ x = { :x ?? 0 }, y = { :y ?? 0 }, width = { :width ?? 0 } ]
+
+class RectMark extends BoxMark [ height = { :height ?? 0 },
+    fill = { hex(:fill) },
+
+    // A radius beyond half the shorter side would only repeat that half: fully round ends.
+
+    cornerRadius = { Math.min(:cornerRadius ?? 0, Math.min(this.width, this.height) / 2) },
+    stroke = { :stroke == null ? null : stroke(:stroke.width, hex(:stroke.color)) }
+    ]
+
+
+class EllipseMark extends BoxMark [ height = { :height ?? 0 },
+    paint: Color = { hex(:fill) },
+    ink: Color = { :stroke == null ? null : hex(:stroke.color) },
+    weight: number = { :stroke?.width ?? 0 },
+    draw(d: DrawContext) {
+        // The outline sits inside the box, as a rectangle's does.
+        const inset = weight / 2
+        if (paint != null) {
+            d.beginPath()
+            d.ellipse(d.w / 2, d.h / 2, d.w / 2, d.h / 2, 0, 0, Math.PI * 2)
+            d.fillStyle = paint
+            d.fill()
+        }
+        if (ink != null && weight > 0) {
+            d.beginPath()
+            d.ellipse(d.w / 2, d.h / 2, Math.max(0.1, d.w / 2 - inset), Math.max(0.1, d.h / 2 - inset), 0, 0, Math.PI * 2)
+            d.lineWidth = weight
+            d.strokeStyle = ink
+            d.stroke()
+        }
+        }
+    ]
+
+
+// A line's view is its bounding box, grown by its width so its round ends show.
+
+class LineMark extends Mark [
+    pad: number = { (:stroke?.width ?? 2) / 2 + 1 },
+    x = { Math.min(:x1 ?? 0, :x2 ?? 0) - this.pad },
+    y = { Math.min(:y1 ?? 0, :y2 ?? 0) - this.pad },
+    width = { Math.abs((:x2 ?? 0) - (:x1 ?? 0)) + this.pad * 2 },
+    height = { Math.abs((:y2 ?? 0) - (:y1 ?? 0)) + this.pad * 2 },
+    ax: number = { (:x1 ?? 0) - this.x },
+    ay: number = { (:y1 ?? 0) - this.y },
+    bx: number = { (:x2 ?? 0) - this.x },
+    by: number = { (:y2 ?? 0) - this.y },
+    ink: Color = { hex(:stroke?.color ?? "#1F2328") },
+    weight: number = { :stroke?.width ?? 2 },
+    draw(d: DrawContext) {
+        d.beginPath()
+        d.moveTo(ax, ay)
+        d.lineTo(bx, by)
+        d.lineWidth = weight
+        d.lineCap = "round"
+        d.strokeStyle = ink
+        d.stroke()
+        }
+    ]
+
+
+// Text wraps within its box's width and is as tall as its lines. The box
+// the service keeps is "as last laid out": the slide being edited writes it
+// back when its words or width change (`Editor.measured`).
+
+class TextMark extends BoxMark [
+    words: Text [ width = 100%, lineHeight = 1.2,
+        text = { (:text?.content ?? "") == "" ? " " : (:text?.content ?? "") },
+        fontFamily = { :text?.font ?? "Helvetica Neue" },
+        fontSize = { :text?.size ?? 32 },
+        fontWeight = { :text?.weight ?? 400 },
+        italic = { :text?.italic ?? false },
+        textColor = { hex(:text?.color ?? "#1F2328") },
+        textAlign = { :text?.align ?? "left" } ],
+    laidHeight: number = { this.words.height },
+    trackChanges = ["laidHeight"],
+    onChange() { if (provided("measures")) app.ed.measured(this.elId, this.laidHeight) }
+    ]
+
+
+// A group has no box of its own: its children keep their slide positions.
+
+class GroupMark extends Mark [ width = 100%, height = 100%,
+    Mark [ datapath = :children[], classFor = { :kind == "rect" ? RectMark : :kind == "ellipse" ? EllipseMark : :kind == "line" ? LineMark : :kind == "text" ? TextMark : GroupMark } ]
+    ]

@@ -1,0 +1,10 @@
+// A panel keeps a fact of its own about the selection's text colour, as a
+// string, under the name textColor. Its fields and labels go invisible.
+App [ width = 300, height = 160, fill = white, textColor = black,
+    panel: View [ x = 10, y = 10, width = 260,
+        textColor: string = { "mixed" },
+        layout: SimpleLayout [ axis = y, spacing = 8 ],
+        Text [ text = "A label" ],
+        TextInput [ width = 200, value = "typed" ],
+        Checkbox [ label = "Keep proportions" ] ]
+    ]

@@ -1,0 +1,598 @@
+/*
+# Presentify: editing
+
+`Editor` is where the person is in the open presentation — the slide, the
+selection, the tool, the text being typed into — and every verb that changes
+it. Views call these verbs and read these facts; none of them edits the
+slides any other way.
+
+Coordinates here are slide points. The stage (editor.declare) turns a pointer
+into points before it calls in, so nothing here knows the slide's scale.
+
+Every verb that changes the slides is one undo step: `change(label, …)` for a
+change that is over at once, or `History.begin()` at a press and `end` at the
+release for one that takes a while (a drag, a run of typing).
+*/
+
+class Editor extends Node [
+
+    // ── where the person is
+
+    currentId: string = "",
+    sel: string[] = [],
+    scope: string = "",            // a group opened by a double-click: selection is among its children
+    tool: "select" | "rect" | "ellipse" | "line" | "text" = "select",
+    editingId: string = "",        // the text box being typed into
+    hoverId: string = "",
+
+    // ── what follows from it
+
+    slide: SlideRec? = { app.doc.slide(this.currentId) },
+    slideIndex: number = { app.doc.indexOf(this.currentId) },
+    els: El[] = { this.slide?.elements ?? [] },
+    scopeEls: El[] = { siblingsOf(this.els, this.scope) },
+    selEls: El[] = { this.scopeEls.filter((e) => this.sel.includes(e.id)) },
+    selLeaves: El[] = { leaves(this.selEls) },
+    selBox: Box? = { unionOf(this.selEls) },
+    single: El? = { this.selEls.length == 1 ? this.selEls[0] : null },
+    editing: El? = { this.editingId == "" ? null : findEl(this.els, this.editingId) },
+    has: boolean = { this.selEls.length > 0 },
+    canGroup: boolean = { this.selEls.length >= 2 },
+    canUngroup: boolean = { this.selEls.some((e) => e.kind == "group") },
+    canAlign: boolean = { this.selEls.length >= 2 },
+    canDistribute: boolean = { this.selEls.length >= 3 },
+
+    // ── a gesture under way
+
+    mode: "" | "move" | "marquee" | "draw" | "resize" | "end1" | "end2" | "radius" = "",
+    marquee: Box? = null,
+    guides: Guides = { ({ v: [], h: [] }) },
+    _pressId: string = "",
+    _px: number = 0,
+    _py: number = 0,
+    _orig: El[] = [],
+    _box: Box = { ({ x: 0, y: 0, w: 0, h: 0 }) },
+    _base: string[] = [],
+    _handle: string = "",
+    _drawn: string = "",
+    reflow: string[] = [],         // text boxes whose height follows their words just now
+    clip: El[] = [],
+    _pastes: number = 0,
+
+    // How near, in points, a pointer must come to snap or to hit; the stage
+    // sets the scale it is shown at, so both stay a few pixels on screen.
+
+    k: number = 1,
+    reach: number = { 6 / this.k },
+    slack: number = { 4 / this.k },
+
+    // ── writing
+
+    writeAll(els: El[]) { app.doc.setElements(currentId, els); app.saver.poke() },
+    writeScope(list: El[]) { this.writeAll(withSiblings(els, scope, list)) },
+
+    // Puts changed versions of elements back where they are, by id, at any depth.
+
+    writeEach(changed: El[]) {
+        const byId: Record<string, El> = {}
+        for (const c of changed) byId[c.id] = c
+        this.writeAll(mapEls(els, (e) => byId[e.id] ?? e))
+        },
+    change(label: string, fn: () => void) {
+        app.history.begin()
+        fn()
+        app.history.end(label)
+        },
+
+    // ── arriving: a slide, a selection
+
+    go(id: string) {
+        if (id == currentId || app.doc.slide(id) == null) return
+        this.finishWork()
+        currentId = id
+        sel = []
+        scope = ""
+        app.probe.sid = app.saver.sids[id] ?? ""
+        afterSettle(() => { if (app.probe.sid != "") app.probe.fetch() })
+        },
+
+    // Where an undo or redo leaves the person.
+
+    arrive(current: string, s: string[], sc: string) {
+        editingId = ""
+        mode = ""
+        currentId = app.doc.slide(current) != null ? current : (app.doc.slides()[0]?.id ?? "")
+        const ids = allIds(app.doc.elementsOf(currentId))
+        scope = ids.includes(sc) ? sc : ""
+        sel = s.filter((i) => ids.includes(i))
+        },
+    reset() { currentId = ""; sel = []; scope = ""; editingId = ""; tool = "select"; mode = ""; clip = clip },
+
+    select(ids: string[]) { sel = ids },
+    selectAll() { this.finishText(); sel = scopeEls.map((e) => e.id) },
+
+    // Escape: leave the text, then the group, then the selection.
+
+    escape() -> boolean {
+        if (editingId != "") { this.finishText(); return true }
+        if (tool != "select") { tool = "select"; return true }
+        if (scope != "") { sel = [scope]; scope = ""; return true }
+        if (sel.length > 0) { sel = []; return true }
+        return false
+        },
+    finishWork() {
+        this.finishText()
+        if (mode != "") this.dragEnd(true)
+        },
+
+    // ── the pointer on the slide (points)
+
+    hover(px: number, py: number) { hoverId = tool == "select" ? hitTop(scopeEls, px, py, slack) : "" },
+
+    press(px: number, py: number, add: boolean) {
+        _px = px
+        _py = py
+        _pressId = ""
+        if (tool != "select") return
+        if (editingId != "") {
+            if (hitTop([editing!], px, py, 0) != "") return
+            this.finishText()
+        }
+        let id = hitTop(scopeEls, px, py, slack)
+        if (id == "" && scope != "") {
+            // a press outside the open group closes it
+            scope = ""
+            id = hitTop(els, px, py, slack)
+        }
+        _pressId = id
+        if (id == "") { if (!add) sel = []; return }
+        if (add) sel = sel.includes(id) ? sel.filter((s) => s != id) : [...sel, id]
+        else if (!sel.includes(id)) sel = [id]
+        },
+
+    click(px: number, py: number, add: boolean) {
+        if (tool == "text") { this.placeText(px, py, 0); return }
+        if (tool != "select") { this.placeShape(px, py); return }
+        if (!add && _pressId != "" && sel.length > 1) sel = [_pressId]
+        },
+
+    dblclick(px: number, py: number) {
+        if (tool != "select") return
+        const id = hitTop(scopeEls, px, py, slack)
+        const e = id == "" ? null : findEl(scopeEls, id)
+        if (e == null) return
+        if (e.kind == "text") { this.editText(e.id); return }
+        if (e.kind == "group") {
+            // into the group: the one thing under the pointer
+            scope = e.id
+            const inner = hitTop(e.children ?? [], px, py, slack)
+            sel = inner == "" ? [] : [inner]
+        }
+        },
+
+    dragStart(shift: boolean) {
+        if (tool == "select") {
+            if (_pressId != "" && sel.includes(_pressId)) {
+                app.history.begin()
+                mode = "move"
+                _orig = selEls
+                _box = selBox ?? ({ x: _px, y: _py, w: 0, h: 0 })
+            } else {
+                mode = "marquee"
+                _base = shift ? sel : []
+                marquee = ({ x: _px, y: _py, w: 0, h: 0 })
+            }
+            return
+        }
+        // drawing: the new element exists from the first movement, and grows
+        this.finishText()
+        app.history.begin()
+        mode = "draw"
+        scope = ""
+        const id = newId("e")
+        _drawn = id
+        writeScope([...scopeEls, this.blank(tool, id, _px, _py, 0, 0)])
+        sel = [id]
+        },
+
+    drag(dx: number, dy: number, shift: boolean) {
+        if (mode == "move") {
+            let mx = dx, my = dy
+            if (shift) { if (Math.abs(dx) > Math.abs(dy)) my = 0; else mx = 0 }
+            const others = scopeEls.filter((e) => !sel.includes(e.id))
+            const b = _box
+            const sx = snapAxis([b.x + mx, b.x + mx + b.w / 2, b.x + mx + b.w], linesX(others), reach)
+            const sy = snapAxis([b.y + my, b.y + my + b.h / 2, b.y + my + b.h], linesY(others), reach)
+            guides = ({ v: sx.at, h: sy.at })
+            this.writeEach(_orig.map((e) => moveEl(e, round(mx + sx.d), round(my + sy.d))))
+        } else if (mode == "marquee") {
+            const m = ({ x: Math.min(_px, _px + dx), y: Math.min(_py, _py + dy), w: Math.abs(dx), h: Math.abs(dy) })
+            marquee = m
+            const inside = scopeEls.filter((e) => touches(m, e)).map((e) => e.id)
+            sel = [..._base.filter((i) => !inside.includes(i)), ...inside]
+        } else if (mode == "draw") {
+            this.drawTo(_px + dx, _py + dy, shift)
+        } else if (mode == "resize") {
+            const keep = _orig.length > 0 && _orig.every((e) => e.keepProportions == true)
+            const nb = dragBox(_box, _handle, dx, dy, keep != shift)
+            this.writeEach(_orig.map((e) => fitEl(e, _box, nb)))
+        } else if (mode == "end1" || mode == "end2") {
+            const l = _orig[0]
+            const ax = mode == "end1" ? l.x2 ?? 0 : l.x1 ?? 0, ay = mode == "end1" ? l.y2 ?? 0 : l.y1 ?? 0
+            const p = this.aim(ax, ay, (mode == "end1" ? l.x1 ?? 0 : l.x2 ?? 0) + dx, (mode == "end1" ? l.y1 ?? 0 : l.y2 ?? 0) + dy, shift)
+            this.writeEach([mode == "end1" ? ({ ...l, x1: p[0], y1: p[1] }) : ({ ...l, x2: p[0], y2: p[1] })])
+        } else if (mode == "radius") {
+            const r0 = _orig[0]
+            const most = Math.min(r0.width ?? 0, r0.height ?? 0) / 2
+            const r = Math.max(0, Math.min(most, (r0.cornerRadius ?? 0) + (dx + dy) / 2))
+            this.writeEach([({ ...r0, cornerRadius: Math.round(Math.min(r, most)) })])
+        }
+        },
+
+    dragEnd(canceled: boolean) {
+        const m = mode
+        mode = ""
+        guides = ({ v: [], h: [] })
+        marquee = null
+        if (m == "marquee" || m == "") return
+        if (canceled) {
+            if (m == "draw") { this.writeAll(removeEls(els, [_drawn])); sel = [] }
+            else this.writeEach(_orig)
+            app.history.drop()
+            return
+        }
+        if (m == "draw") {
+            const made = findEl(els, _drawn)
+            tool = "select"
+            if (made != null && made.kind == "text") { this.editText(made.id); return }
+            app.history.end(made == null ? "Draw" : made.kind == "line" ? "Draw Line"
+                : made.kind == "ellipse" ? "Draw Ellipse" : "Draw Rectangle")
+            return
+        }
+        app.history.end(m == "move" ? "Move" : m == "radius" ? "Corner Radius" : "Resize")
+        },
+
+    // A point the pointer aims at from (ax, ay): with shift, the nearest
+    // multiple of 45°; otherwise snapped to the lines nearby.
+
+    aim(ax: number, ay: number, x: number, y: number, shift: boolean) -> number[] {
+        if (shift) {
+            const ang = Math.round(Math.atan2(y - ay, x - ax) / (Math.PI / 4)) * (Math.PI / 4)
+            const len = Math.hypot(x - ax, y - ay)
+            guides = ({ v: [], h: [] })
+            return [round(ax + Math.cos(ang) * len), round(ay + Math.sin(ang) * len)]
+        }
+        const others = scopeEls.filter((e) => !sel.includes(e.id))
+        const sx = snapAxis([x], linesX(others), reach)
+        const sy = snapAxis([y], linesY(others), reach)
+        guides = ({ v: sx.at, h: sy.at })
+        return [round(x + sx.d), round(y + sy.d)]
+        },
+
+    drawTo(x: number, y: number, shift: boolean) {
+        const e = findEl(els, _drawn)
+        if (e == null) return
+        if (e.kind == "line") {
+            const p = this.aim(_px, _py, x, y, shift)
+            this.writeEach([({ ...e, x2: p[0], y2: p[1] })])
+            return
+        }
+        const p = this.aim(_px, _py, x, y, false)
+        let w = p[0] - _px, h = p[1] - _py
+        if (shift && e.kind != "text") {
+            const s = Math.max(Math.abs(w), Math.abs(h))
+            w = Math.sign(w || 1) * s
+            h = Math.sign(h || 1) * s
+        }
+        const box = ({ x: round(Math.min(_px, _px + w)), y: round(Math.min(_py, _py + h)),
+            width: Math.max(1, round(Math.abs(w))), height: Math.max(1, round(Math.abs(h))) })
+        this.writeEach([e.kind == "text" ? ({ ...e, x: box.x, y: box.y, width: Math.max(40, box.width) })
+            : ({ ...e, ...box, keepProportions: shift })])
+        },
+
+    // A new element of a kind, as the service's format has it, styled as the
+    // last of its kind was (`app.inks`).
+
+    blank(kind: string, id: string, x: number, y: number, w: number, h: number) -> El {
+        const p = app.inks
+        if (kind == "line") return ({ id: id, kind: "line", x1: x, y1: y, x2: x + w, y2: y + h,
+            stroke: ({ color: p.line, width: p.lineWidth }) })
+        if (kind == "text") return ({ id: id, kind: "text", x: x, y: y, width: Math.max(40, w), height: 48,
+            keepProportions: false, text: ({ ...p.words, content: "" }) })
+        if (kind == "ellipse") return ({ id: id, kind: "ellipse", x: x, y: y, width: w, height: h,
+            fill: p.fill, stroke: null, keepProportions: false })
+        return ({ id: id, kind: "rect", x: x, y: y, width: w, height: h, fill: p.fill, stroke: null,
+            cornerRadius: 0, keepProportions: false })
+        },
+
+    // A click with a shape tool: a shape of a good size, centred there.
+
+    placeShape(px: number, py: number) {
+        const id = newId("e")
+        const k = tool
+        this.change(k == "line" ? "Draw Line" : k == "ellipse" ? "Draw Ellipse" : "Draw Rectangle", () => {
+            const e = k == "line" ? this.blank(k, id, px - 120, py, 240, 0) : this.blank(k, id, px - 120, py - 80, 240, 160)
+            scope = ""
+            writeScope([...scopeEls, e])
+            sel = [id]
+            })
+        tool = "select"
+        },
+
+    // A text box made with a single click: empty, ready to type in.
+
+    placeText(px: number, py: number, w: number) {
+        const id = newId("e")
+        this.finishText()
+        app.history.begin()
+        scope = ""
+        writeScope([...scopeEls, this.blank("text", id, px, py - 24, w > 0 ? w : 480, 0)])
+        tool = "select"
+        this.editText(id)
+        },
+
+    // ── handles
+
+    resizeStart(h: string) {
+        app.history.begin()
+        mode = "resize"
+        _handle = h
+        _orig = selEls
+        _box = selBox ?? ({ x: 0, y: 0, w: 1, h: 1 })
+        reflow = leaves(selEls).filter((e) => e.kind == "text").map((e) => e.id)
+        },
+    endStart(which: number) {
+        if (single == null) return
+        app.history.begin()
+        mode = which == 1 ? "end1" : "end2"
+        _orig = [single!]
+        },
+    radiusStart() {
+        if (single == null) return
+        app.history.begin()
+        mode = "radius"
+        _orig = [single!]
+        },
+
+    // ── text
+
+    editText(id: string) {
+        app.history.begin()
+        editingId = id
+        sel = [id]
+        reflow = [id]
+        afterSettle(() => app.focusTyping())
+        },
+    typed(content: string) {
+        const e = editing
+        if (e == null || e.text == null) return
+        this.writeEach([({ ...e, text: ({ ...e.text!, content: content }) })])
+        },
+
+    // Typing ends: a box left empty goes, and the run of typing is one step.
+
+    finishText() {
+        if (editingId == "") return
+        const e = editing
+        const made = !app.history.open()
+        editingId = ""
+        if (e != null && (e.text?.content ?? "").trim() == "") {
+            this.writeAll(removeEls(els, [e.id]))
+            sel = sel.filter((s) => s != e.id)
+        }
+        if (!made) app.history.end("Typing")
+        },
+
+    // The slide being edited has laid out a text box: keep its height.
+
+    measured(id: string, h: number) {
+        if (h <= 0 || (id != editingId && !reflow.includes(id))) return
+        const e = findEl(els, id)
+        if (e == null || e.kind != "text" || Math.abs((e.height ?? 0) - h) < 0.5) return
+        this.writeEach([({ ...e, height: round(h) })])
+        },
+
+    // ── the selection's verbs
+
+    deleteSel() {
+        if (sel.length == 0) return
+        this.change("Delete", () => {
+            this.writeAll(removeEls(els, sel))
+            sel = []
+            if (findEl(app.doc.elementsOf(currentId), scope) == null) scope = ""
+            })
+        },
+    nudge(dx: number, dy: number) {
+        if (sel.length == 0) return
+        this.change("Move", () => this.writeEach(selEls.map((e) => moveEl(e, dx, dy))))
+        },
+    duplicate() {
+        if (sel.length == 0) return
+        this.change("Duplicate", () => {
+            const copies = selEls.map((e) => cloneEl(e, 20, 20))
+            const list = scopeEls
+            const top = Math.max(...selEls.map((e) => list.findIndex((x) => x.id == e.id)))
+            writeScope([...list.slice(0, top + 1), ...copies, ...list.slice(top + 1)])
+            sel = copies.map((c) => c.id)
+            })
+        },
+    copy() { if (sel.length > 0) { clip = structuredClone(selEls); _pastes = 0 } },
+    cut() { this.copy(); this.deleteSel() },
+    paste(items: El[]) {
+        if (items.length == 0 || currentId == "") return
+        this.finishText()
+        _pastes = _pastes + 1
+        const d = 20 * _pastes
+        this.change("Paste", () => {
+            scope = ""
+            const copies = items.map((e) => cloneEl(e, d, d))
+            writeScope([...app.doc.elementsOf(currentId), ...copies])
+            sel = copies.map((c) => c.id)
+            })
+        },
+
+    // Words pasted from elsewhere become a text box of their own.
+
+    pasteWords(t: string) {
+        const id = newId("e")
+        this.change("Paste", () => {
+            scope = ""
+            const e = this.blank("text", id, 160, 300, 960, 0)
+            writeScope([...app.doc.elementsOf(currentId), ({ ...e, text: ({ ...e.text!, content: t }) })])
+            sel = [id]
+            reflow = [id]
+            })
+        },
+
+    group() {
+        if (selEls.length < 2) return
+        this.change("Group", () => {
+            const list = scopeEls
+            const picked = list.filter((e) => sel.includes(e.id))
+            const at = Math.max(...picked.map((e) => list.indexOf(e)))
+            const g: El = ({ id: newId("g"), kind: "group", children: picked })
+            const out: El[] = []
+            list.forEach((e, i) => { if (i == at) out.push(g); else if (!sel.includes(e.id)) out.push(e) })
+            writeScope(out)
+            sel = [g.id]
+            })
+        },
+    ungroup() {
+        if (!canUngroup) return
+        this.change("Ungroup", () => {
+            const out: El[] = []
+            const now: string[] = []
+            for (const e of scopeEls) {
+                if (sel.includes(e.id) && e.kind == "group") { out.push(...(e.children ?? [])); now.push(...(e.children ?? []).map((c) => c.id)) }
+                else { out.push(e); if (sel.includes(e.id)) now.push(e.id) }
+            }
+            writeScope(out)
+            sel = now
+            })
+        },
+    align(how: string) {
+        if (selEls.length < 2) return
+        this.change("Align", () => this.writeEach(alignEls(selEls, how)))
+        },
+    distribute(across: boolean) {
+        if (selEls.length < 3) return
+        this.change("Distribute", () => this.writeEach(distributeEls(selEls, across)))
+        },
+    order(how: string) {
+        if (sel.length == 0) return
+        const label = how == "front" ? "Bring to Front" : how == "back" ? "Send to Back"
+            : how == "forward" ? "Bring Forward" : "Send Backward"
+        this.change(label, () => writeScope(restack(scopeEls, sel, how)))
+        },
+
+    // ── styling: each applies to every selected thing it fits, at any depth
+
+    restyle(label: string, fits: (e: El) -> boolean, fn: (e: El) -> El) {
+        const targets = selLeaves.filter(fits)
+        if (targets.length == 0) return
+        this.change(label, () => this.writeEach(targets.map(fn)))
+        reflow = targets.filter((e) => e.kind == "text").map((e) => e.id)
+        },
+    setFill(c: string?) {
+        this.restyle("Fill", (e) => e.kind == "rect" || e.kind == "ellipse", (e) => ({ ...e, fill: c }))
+        if (c != null) app.inks = ({ ...app.inks, fill: c })
+        },
+    setStroke(c: string?) {
+        const w = app.inks.strokeWidth
+        this.restyle("Outline", (e) => e.kind != "text" && e.kind != "group",
+            (e) => e.kind == "line" ? ({ ...e, stroke: ({ color: c ?? e.stroke?.color ?? "#1F2328", width: e.stroke?.width ?? w }) })
+                : ({ ...e, stroke: c == null ? null : ({ color: c, width: e.stroke?.width ?? w }) }))
+        if (c != null) app.inks = ({ ...app.inks, line: c })
+        },
+    setStrokeWidth(w: number) {
+        const v = Math.max(0.5, Math.min(100, w))
+        this.restyle("Outline Width", (e) => e.kind != "text" && e.kind != "group",
+            (e) => ({ ...e, stroke: ({ color: e.stroke?.color ?? app.inks.line, width: v }) }))
+        app.inks = ({ ...app.inks, strokeWidth: v, lineWidth: v })
+        },
+    setRadius(r: number) {
+        this.restyle("Corner Radius", (e) => e.kind == "rect",
+            (e) => ({ ...e, cornerRadius: Math.max(0, Math.round(Math.min(r, Math.min(e.width ?? 0, e.height ?? 0) / 2))) }))
+        },
+    setKeep(on: boolean) {
+        this.restyle(on ? "Keep Proportions" : "Free Proportions", (e) => e.kind != "group" && e.kind != "line",
+            (e) => ({ ...e, keepProportions: on }))
+        },
+
+    // Each text property changes alone, so a mixed selection keeps its other differences.
+
+    setWords(label: string, part: object) {
+        this.restyle(label, (e) => e.kind == "text", (e) => ({ ...e, text: ({ ...e.text!, ...part }) }))
+        app.inks = ({ ...app.inks, words: ({ ...app.inks.words, ...part }) })
+        },
+    setBackground(c: string) {
+        if (slide == null || slide!.background == c) return
+        this.change("Background", () => { app.doc.setBackground(currentId, c); app.saver.poke() })
+        },
+    setBox(field: string, v: number) {
+        const b = selBox
+        if (b == null) return
+        const nb = ({ x: field == "x" ? v : b.x, y: field == "y" ? v : b.y,
+            w: field == "w" ? Math.max(1, v) : b.w, h: field == "h" ? Math.max(1, v) : b.h })
+        this.change(field == "x" || field == "y" ? "Move" : "Resize",
+            () => this.writeEach(selEls.map((e) => fitEl(e, b, nb))))
+        },
+
+    // ── slides
+
+    addSlide() {
+        this.finishWork()
+        const id = newId("s")
+        this.change("New Slide", () => {
+            app.doc.insertSlide(slideIndex + 1, ({ id: id, background: slide?.background ?? "#FFFFFF", elements: [] }))
+            currentId = id
+            sel = []
+            scope = ""
+            app.saver.poke()
+            })
+        },
+    duplicateSlide(id: string) {
+        const s = app.doc.slide(id)
+        if (s == null) return
+        this.finishWork()
+        const nid = newId("s")
+        this.change("Duplicate Slide", () => {
+            app.doc.insertSlide(app.doc.indexOf(id) + 1, ({ id: nid, background: s.background, elements: structuredClone(s.elements) }))
+            currentId = nid
+            sel = []
+            scope = ""
+            app.saver.poke()
+            })
+        },
+    deleteSlide(id: string) {
+        const all = app.doc.slides()
+        if (all.length <= 1) return
+        this.finishWork()
+        const i = app.doc.indexOf(id)
+        const next = all[i + 1]?.id ?? all[i - 1]?.id ?? ""
+        this.change("Delete Slide", () => {
+            app.doc.removeSlide(id)
+            if (currentId == id) { currentId = next; sel = []; scope = "" }
+            app.saver.poke()
+            })
+        },
+    moveSlide(id: string, to: number) {
+        if (app.doc.indexOf(id) == to) return
+        this.change("Move Slide", () => { app.doc.moveSlide(id, to); app.saver.poke() })
+        },
+    step(by: number) {
+        const all = app.doc.slides()
+        const i = Math.max(0, Math.min(all.length - 1, slideIndex + by))
+        if (all[i] != null) this.go(all[i].id)
+        },
+
+    // Another window's version of a slide, taken.
+
+    adopt(local: string, background: string, elements: El[]) {
+        this.finishWork()
+        this.change("Use Their Version", () => {
+            app.doc.replaceSlide(local, background, elements)
+            if (currentId == local) { sel = []; scope = "" }
+            })
+        }
+    ]

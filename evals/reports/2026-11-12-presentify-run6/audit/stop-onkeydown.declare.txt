@@ -1,0 +1,13 @@
+// A list that is one Tab stop binds ArrowDown and End itself, to move what
+// is shown. Focus is on a row (a member of the stop).
+App [ width = 320, height = 200, fill = white, textColor = black,
+    moved: number = 0,
+    ended: number = 0,
+    list: View [ x = 10, y = 10, width = 200, focusScope = stop,
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        onKeyDown(e: KeyEvent) { if (e.key == "ArrowDown") this.down(); else if (e.key == "End") this.toEnd(); else super.onKeyDown(e) },
+        down() { app.moved = app.moved + 1 },
+        toEnd() { app.ended = app.ended + 1 },
+        Button [ label = "One" ], Button [ label = "Two" ], Button [ label = "Three" ]
+        ]
+    ]

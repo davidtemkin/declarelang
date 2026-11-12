@@ -1,0 +1,459 @@
+/*
+# Presentify: the model
+
+What a presentation *is*, apart from how it looks or where it is kept.
+
+- **The shapes of the data** — schemas that mirror the service's format
+  (`task/api/API.md`) exactly, so an element read from the service is the
+  element sent back, field for field.
+- **Geometry** — pure functions of their arguments (`script`): an element's
+  box, what a point hits, moving and resizing, snapping. Elements are treated
+  as values: every edit makes new ones rather than changing old ones in place.
+- **`Doc`** — the open presentation's slides, the working copy every view
+  reads and every edit writes. It knows nothing of the service; `Saver`
+  (sync.declare) carries it there.
+- **`History`** — undo and redo. A step is one thing the person did: a whole
+  drag, a run of typing, one change in the inspector. Each step keeps the
+  slides and the selection before and after it.
+*/
+
+// ── The shapes of the data ──────────────────────────────────────────────────
+//
+// A field marked `?` may be absent or null. An element is one schema for all
+// five kinds, because a slide's `elements` holds them side by side; which
+// fields it carries follows its `kind`.
+
+schema Ink [ color: string, width: number ]
+
+schema Words [ content: string, font: string, size: number, weight: number, italic: boolean,
+    color: string, align: "left" | "center" | "right" ]
+
+schema El [ id: string, kind: "rect" | "ellipse" | "line" | "text" | "group",
+    x?: number, y?: number, width?: number, height?: number,
+    x1?: number, y1?: number, x2?: number, y2?: number,
+    fill?: string, stroke?: Ink, cornerRadius?: number, keepProportions?: boolean,
+    text?: Words, children[]?: El ]
+
+// A slide as the editor holds it: `id` is the editor's own name for it, which
+// stays the same when the service gives it a different one (a slide made here
+// has no service id until its first save).
+
+schema SlideRec [ id: string, background: string, elements[]: El ]
+schema DocRec [ slides[]: SlideRec ]
+
+// What the service sends.
+
+schema ServerSlide [ id: string, deckId: string, version: number, background: string, elements[]: El ]
+schema Deck [ id: string, title: string, version: number, updatedAt: string,
+    slideOrder[]: string, thumbnailSlideId: string ]
+schema DeckSummary [ id: string, title: string, updatedAt: string, slideCount: number, thumbnailSlideId: string ]
+schema DeckList [ decks[]: DeckSummary ]
+schema SlideList [ slides[]: ServerSlide ]
+
+// One undoable moment: the slides, and where the person was among them.
+
+schema Moment [ slides[]: SlideRec, current: string, sel[]: string, scope: string ]
+schema Step [ label: string, before: Moment, after: Moment ]
+
+// A box in slide points, and a guide drawn while dragging.
+
+schema Box [ x: number, y: number, w: number, h: number ]
+schema Guides [ v[]: number, h[]: number ]
+
+
+// ── Geometry ────────────────────────────────────────────────────────────────
+//
+// Functions of their arguments only. `Elem` is the TypeScript face of the `El`
+// schema, for code outside the tree.
+
+script {
+    interface Pen { color: string; width: number }
+    interface Type { content: string; font: string; size: number; weight: number; italic: boolean;
+        color: string; align: "left" | "center" | "right" }
+    interface Elem { id: string; kind: "rect" | "ellipse" | "line" | "text" | "group";
+        x?: number | null; y?: number | null; width?: number | null; height?: number | null;
+        x1?: number | null; y1?: number | null; x2?: number | null; y2?: number | null;
+        fill?: string | null; stroke?: Pen | null; cornerRadius?: number | null;
+        keepProportions?: boolean | null; text?: Type | null; children?: Elem[] | null }
+    interface Rect { x: number; y: number; w: number; h: number }
+
+    const SLIDE_W = 1280
+    const SLIDE_H = 720
+
+    // A colour in the service's form ("#RRGGBB" or "#RRGGBBAA"), as a Declare colour.
+    function hex(c: string | null | undefined): number | null {
+        if (c == null || c.length < 7) return null
+        const rgb = parseInt(c.slice(1, 7), 16)
+        return c.length >= 9 ? colorWithAlpha(rgb, parseInt(c.slice(7, 9), 16)) : rgb
+    }
+    function opaque(c: string | null | undefined): string { return c == null ? "" : c.slice(0, 7).toUpperCase() }
+
+    function round(v: number): number { return Math.round(v * 10) / 10 }
+
+    function newId(prefix: string): string {
+        return prefix + Math.floor(Date.now()).toString(36).slice(-4) + Math.floor(Math.random() * 60466176).toString(36)
+    }
+
+    // ── boxes
+
+    function boxOf(e: Elem): Rect {
+        if (e.kind == "line") {
+            const x = Math.min(e.x1 ?? 0, e.x2 ?? 0), y = Math.min(e.y1 ?? 0, e.y2 ?? 0)
+            return { x: x, y: y, w: Math.abs((e.x2 ?? 0) - (e.x1 ?? 0)), h: Math.abs((e.y2 ?? 0) - (e.y1 ?? 0)) }
+        }
+        if (e.kind == "group") return unionOf(e.children ?? []) ?? { x: 0, y: 0, w: 0, h: 0 }
+        return { x: e.x ?? 0, y: e.y ?? 0, w: e.width ?? 0, h: e.height ?? 0 }
+    }
+    function unionOf(els: Elem[]): Rect | null {
+        if (els.length == 0) return null
+        let l = Infinity, t = Infinity, r = -Infinity, b = -Infinity
+        for (const e of els) {
+            const k = boxOf(e)
+            l = Math.min(l, k.x); t = Math.min(t, k.y); r = Math.max(r, k.x + k.w); b = Math.max(b, k.y + k.h)
+        }
+        return { x: l, y: t, w: r - l, h: b - t }
+    }
+    function touches(a: Rect, e: Elem): boolean {
+        const k = boxOf(e)
+        return k.x <= a.x + a.w && k.x + k.w >= a.x && k.y <= a.y + a.h && k.y + k.h >= a.y
+    }
+
+    // ── what a point hits (slide points; `tol` is the slack, in points)
+
+    function hits(e: Elem, px: number, py: number, tol: number): boolean {
+        if (e.kind == "group") return (e.children ?? []).some((c) => hits(c, px, py, tol))
+        if (e.kind == "line") {
+            const x1 = e.x1 ?? 0, y1 = e.y1 ?? 0, x2 = e.x2 ?? 0, y2 = e.y2 ?? 0
+            const dx = x2 - x1, dy = y2 - y1, len2 = dx * dx + dy * dy
+            const t = len2 == 0 ? 0 : Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / len2))
+            const cx = x1 + t * dx, cy = y1 + t * dy
+            return Math.hypot(px - cx, py - cy) <= tol + (e.stroke?.width ?? 2) / 2
+        }
+        const k = boxOf(e)
+        if (e.kind == "ellipse") {
+            const rx = k.w / 2 + tol, ry = k.h / 2 + tol
+            const nx = (px - (k.x + k.w / 2)) / rx, ny = (py - (k.y + k.h / 2)) / ry
+            return nx * nx + ny * ny <= 1
+        }
+        return px >= k.x - tol && px <= k.x + k.w + tol && py >= k.y - tol && py <= k.y + k.h + tol
+    }
+    // The topmost element of `els` under the point, or "".
+    function hitTop(els: Elem[], px: number, py: number, tol: number): string {
+        for (let i = els.length - 1; i >= 0; i--) if (hits(els[i], px, py, tol)) return els[i].id
+        return ""
+    }
+
+    // ── finding and replacing, at any depth
+
+    function findEl(els: Elem[], id: string): Elem | null {
+        for (const e of els) {
+            if (e.id == id) return e
+            if (e.kind == "group") { const f = findEl(e.children ?? [], id); if (f != null) return f }
+        }
+        return null
+    }
+    // The list an element sits in: the slide's own, or a group's children.
+    function siblingsOf(els: Elem[], scope: string): Elem[] {
+        if (scope == "") return els
+        const g = findEl(els, scope)
+        return g != null && g.kind == "group" ? (g.children ?? []) : els
+    }
+    // Replaces, at any depth, each element `fn` answers with something other than itself.
+    function mapEls(els: Elem[], fn: (e: Elem) => Elem): Elem[] {
+        return els.map((e) => {
+            const r = fn(e)
+            if (r !== e) return r
+            return e.kind == "group" ? { ...e, children: mapEls(e.children ?? [], fn) } : e
+        })
+    }
+    function removeEls(els: Elem[], ids: string[]): Elem[] {
+        const out: Elem[] = []
+        for (const e of els) {
+            if (ids.includes(e.id)) continue
+            if (e.kind == "group") {
+                const kids = removeEls(e.children ?? [], ids)
+                if (kids.length == 0) continue
+                if (kids.length == 1) { out.push(kids[0]); continue }   // a group of one is no group
+                out.push({ ...e, children: kids })
+            } else out.push(e)
+        }
+        return out
+    }
+    // Swaps the list at `scope` (the slide's own, or a group's children) for another.
+    function withSiblings(els: Elem[], scope: string, list: Elem[]): Elem[] {
+        if (scope == "") return list
+        return mapEls(els, (e) => e.id == scope ? { ...e, children: list } : e)
+    }
+    function leaves(els: Elem[]): Elem[] {
+        const out: Elem[] = []
+        for (const e of els) { if (e.kind == "group") out.push(...leaves(e.children ?? [])); else out.push(e) }
+        return out
+    }
+    function allIds(els: Elem[]): string[] {
+        const out: string[] = []
+        for (const e of els) { out.push(e.id); if (e.kind == "group") out.push(...allIds(e.children ?? [])) }
+        return out
+    }
+    // A copy with fresh ids throughout, moved by (dx, dy).
+    function cloneEl(e: Elem, dx: number, dy: number): Elem {
+        const c = moveEl(e, dx, dy)
+        if (c.kind == "group") return { ...c, id: newId("g"), children: (c.children ?? []).map((k) => cloneEl(k, 0, 0)) }
+        return { ...c, id: newId("e") }
+    }
+
+    // ── moving and resizing
+
+    function moveEl(e: Elem, dx: number, dy: number): Elem {
+        if (dx == 0 && dy == 0) return e
+        if (e.kind == "line") return { ...e, x1: round((e.x1 ?? 0) + dx), y1: round((e.y1 ?? 0) + dy),
+            x2: round((e.x2 ?? 0) + dx), y2: round((e.y2 ?? 0) + dy) }
+        if (e.kind == "group") return { ...e, children: (e.children ?? []).map((c) => moveEl(c, dx, dy)) }
+        return { ...e, x: round((e.x ?? 0) + dx), y: round((e.y ?? 0) + dy) }
+    }
+    // Maps an element from one box to another. A corner radius is a length,
+    // so it stays as it is; text keeps its size and rewraps to its new width.
+    function fitEl(e: Elem, from: Rect, to: Rect): Elem {
+        const sx = from.w == 0 ? 1 : to.w / from.w, sy = from.h == 0 ? 1 : to.h / from.h
+        const mx = (v: number) => round(to.x + (v - from.x) * sx)
+        const my = (v: number) => round(to.y + (v - from.y) * sy)
+        if (e.kind == "line") return { ...e, x1: mx(e.x1 ?? 0), y1: my(e.y1 ?? 0), x2: mx(e.x2 ?? 0), y2: my(e.y2 ?? 0) }
+        if (e.kind == "group") return { ...e, children: (e.children ?? []).map((c) => fitEl(c, from, to)) }
+        const x = mx(e.x ?? 0), y = my(e.y ?? 0)
+        const r = mx((e.x ?? 0) + (e.width ?? 0)), b = my((e.y ?? 0) + (e.height ?? 0))
+        return { ...e, x: Math.min(x, r), y: Math.min(y, b), width: Math.max(1, round(Math.abs(r - x))),
+            height: e.kind == "text" ? e.height : Math.max(1, round(Math.abs(b - y))) }
+    }
+
+    // The box a handle drag makes. `h` names the handle ("nw", "n", … "w");
+    // `lock` keeps the starting proportions.
+    function dragBox(b: Rect, h: string, dx: number, dy: number, lock: boolean): Rect {
+        let l = b.x, t = b.y, r = b.x + b.w, bt = b.y + b.h
+        if (h.includes("w")) l += dx
+        if (h.includes("e")) r += dx
+        if (h.includes("n")) t += dy
+        if (h.includes("s")) bt += dy
+        let w = r - l, ht = bt - t
+        if (lock && b.w > 0 && b.h > 0) {
+            const ratio = b.w / b.h
+            const corner = h.length == 2
+            if (corner) {
+                // the larger change leads; the other side follows it
+                if (Math.abs(w) / b.w > Math.abs(ht) / b.h) ht = Math.sign(ht || 1) * Math.abs(w) / ratio
+                else w = Math.sign(w || 1) * Math.abs(ht) * ratio
+                if (h.includes("w")) l = r - w; else r = l + w
+                if (h.includes("n")) t = bt - ht; else bt = t + ht
+            } else if (h == "e" || h == "w") {
+                ht = Math.abs(w) / ratio
+                const cy = b.y + b.h / 2
+                t = cy - ht / 2; bt = cy + ht / 2
+            } else {
+                w = Math.abs(ht) * ratio
+                const cx = b.x + b.w / 2
+                l = cx - w / 2; r = cx + w / 2
+            }
+        }
+        return { x: Math.min(l, r), y: Math.min(t, bt), w: Math.max(1, Math.abs(r - l)), h: Math.max(1, Math.abs(bt - t)) }
+    }
+
+    // ── snapping: the lines a moving box may meet (slide edges and centre, and
+    // every other element's edges and centre), and the nudge that meets the nearest.
+
+    interface Snap { d: number; at: number[] }
+    function snapAxis(edges: number[], lines: number[], reach: number): Snap {
+        let best = reach + 1, d = 0
+        for (const e of edges) for (const l of lines) {
+            const dd = l - e
+            if (Math.abs(dd) < Math.abs(best) || (Math.abs(dd) == Math.abs(best) && dd == best)) { best = dd; d = dd }
+        }
+        if (Math.abs(best) > reach) return { d: 0, at: [] }
+        const at: number[] = []
+        for (const e of edges) for (const l of lines) if (Math.abs(l - (e + d)) < 0.01 && !at.includes(l)) at.push(l)
+        return { d: d, at: at }
+    }
+    function linesX(others: Elem[]): number[] {
+        const out = [0, SLIDE_W / 2, SLIDE_W]
+        for (const o of others) { const k = boxOf(o); out.push(k.x, k.x + k.w / 2, k.x + k.w) }
+        return out
+    }
+    function linesY(others: Elem[]): number[] {
+        const out = [0, SLIDE_H / 2, SLIDE_H]
+        for (const o of others) { const k = boxOf(o); out.push(k.y, k.y + k.h / 2, k.y + k.h) }
+        return out
+    }
+
+    // ── aligning and spacing out
+
+    function alignEls(els: Elem[], how: string): Elem[] {
+        const all = unionOf(els)
+        if (all == null) return els
+        return els.map((e) => {
+            const k = boxOf(e)
+            switch (how) {
+                case "left": return moveEl(e, all.x - k.x, 0)
+                case "center": return moveEl(e, round(all.x + all.w / 2 - (k.x + k.w / 2)), 0)
+                case "right": return moveEl(e, all.x + all.w - (k.x + k.w), 0)
+                case "top": return moveEl(e, 0, all.y - k.y)
+                case "middle": return moveEl(e, 0, round(all.y + all.h / 2 - (k.y + k.h / 2)))
+                default: return moveEl(e, 0, all.y + all.h - (k.y + k.h))
+            }
+        })
+    }
+    // Equal gaps between neighbours, the outermost two staying where they are.
+    function distributeEls(els: Elem[], across: boolean): Elem[] {
+        if (els.length < 3) return els
+        const order = els.map((e, i) => ({ i: i, k: boxOf(e) }))
+            .sort((a, b) => across ? a.k.x - b.k.x : a.k.y - b.k.y)
+        const first = order[0].k, last = order[order.length - 1].k
+        const span = across ? last.x + last.w - first.x : last.y + last.h - first.y
+        const used = order.reduce((n, o) => n + (across ? o.k.w : o.k.h), 0)
+        const gap = (span - used) / (order.length - 1)
+        const out = els.slice()
+        let at = across ? first.x : first.y
+        for (const o of order) {
+            out[o.i] = across ? moveEl(els[o.i], round(at - o.k.x), 0) : moveEl(els[o.i], 0, round(at - o.k.y))
+            at += (across ? o.k.w : o.k.h) + gap
+        }
+        return out
+    }
+
+    // ── stacking order, within one list
+
+    function restack(list: Elem[], ids: string[], how: string): Elem[] {
+        const picked = list.filter((e) => ids.includes(e.id))
+        const rest = list.filter((e) => !ids.includes(e.id))
+        if (how == "front") return [...rest, ...picked]
+        if (how == "back") return [...picked, ...rest]
+        const out = list.slice()
+        if (how == "forward") {
+            for (let i = out.length - 2; i >= 0; i--)
+                if (ids.includes(out[i].id) && !ids.includes(out[i + 1].id)) { const t = out[i]; out[i] = out[i + 1]; out[i + 1] = t }
+        } else {
+            for (let i = 1; i < out.length; i++)
+                if (ids.includes(out[i].id) && !ids.includes(out[i - 1].id)) { const t = out[i]; out[i] = out[i - 1]; out[i - 1] = t }
+        }
+        return out
+    }
+
+    // What a slide is, to the service: its background and elements, as text, so
+    // two of them compare by content.
+    function sig(background: string, els: Elem[]): string { return JSON.stringify([background, els]) }
+
+    // "3 minutes ago", for a list of presentations.
+    function ago(iso: string, now: number): string {
+        const t = Date.parse(iso)
+        if (isNaN(t)) return ""
+        const s = Math.max(0, Math.round((now - t) / 1000))
+        if (s < 45) return "Edited just now"
+        const m = Math.round(s / 60)
+        if (m < 60) return "Edited " + m + (m == 1 ? " minute ago" : " minutes ago")
+        const h = Math.round(m / 60)
+        if (h < 24) return "Edited " + h + (h == 1 ? " hour ago" : " hours ago")
+        const d = Math.round(h / 24)
+        if (d < 7) return "Edited " + (d == 1 ? "yesterday" : d + " days ago")
+        return "Edited " + new Date(t).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })
+    }
+    }
+
+
+// ── The open presentation ───────────────────────────────────────────────────
+//
+// The slides, in order, as one dataset. Every view of them — the slide list,
+// the slide being edited, presenting — binds here; every edit is one of these
+// verbs. A verb replaces what it changes with a new value, never mutating an
+// element in place, so a `Moment` taken earlier stays true.
+
+class Doc extends Dataset [ schema = DocRec,
+    slides() -> SlideRec[] { return this.value?.slides ?? [] },
+    indexOf(id: string) -> number { return this.slides().findIndex((s) => s.id == id) },
+    slide(id: string) -> SlideRec? { return this.slides().find((s) => s.id == id) ?? null },
+    elementsOf(id: string) -> El[] { return this.slide(id)?.elements ?? [] },
+
+    load(slides: SlideRec[]) { this.set([], ({ slides: slides })) },
+    setElements(id: string, els: El[]) {
+        const i = this.indexOf(id)
+        if (i >= 0) this.set(["slides", i, "elements"], els)
+        },
+    setBackground(id: string, color: string) {
+        const i = this.indexOf(id)
+        if (i >= 0) this.set(["slides", i, "background"], color)
+        },
+
+    // A slide's content replaced whole: someone else's version of it, accepted.
+
+    replaceSlide(id: string, background: string, els: El[]) {
+        const i = this.indexOf(id)
+        if (i >= 0) this.set(["slides", i], ({ id: id, background: background, elements: els }))
+        },
+    insertSlide(at: number, s: SlideRec) { this.insert(["slides"], Math.max(0, Math.min(at, this.slides().length)), s) },
+    removeSlide(id: string) {
+        const i = this.indexOf(id)
+        if (i >= 0 && this.slides().length > 1) this.removeAt(["slides"], i)
+        },
+    moveSlide(id: string, to: number) {
+        const i = this.indexOf(id)
+        const j = Math.max(0, Math.min(to, this.slides().length - 1))
+        if (i >= 0 && i != j) this.move(["slides"], i, j)
+        }
+    ]
+
+
+// ── Undo ────────────────────────────────────────────────────────────────────
+//
+// A step is taken in two halves: `begin()` notes the moment before the person
+// starts (a press, the first keystroke), and `end(label)` closes the step once
+// they finish (the release, leaving the text). A change that is over at once
+// does both in one call (`Editor.change`). A step that changed nothing is not
+// kept. Undo puts back the slides and the selection as they were.
+
+class History extends Node [
+    done: Step[] = [],
+    undone: Step[] = [],
+    canUndo: boolean = { this.done.length > 0 },
+    canRedo: boolean = { this.undone.length > 0 },
+    undoLabel: string = { this.done.length > 0 ? "Undo " + this.done[this.done.length - 1].label : "Undo" },
+    redoLabel: string = { this.undone.length > 0 ? "Redo " + this.undone[this.undone.length - 1].label : "Redo" },
+    _open: Moment? = null,
+
+    now() -> Moment {
+        return ({ slides: structuredClone(app.doc.slides()), current: app.ed.currentId,
+            sel: [...app.ed.sel], scope: app.ed.scope })
+        },
+    begin() { if (_open == null) _open = this.now() },
+    open() -> boolean { return _open != null },
+    end(label: string) {
+        const before = _open
+        _open = null
+        if (before == null) return
+        const after = this.now()
+        if (JSON.stringify(before.slides) == JSON.stringify(after.slides)) return
+        done = [...done.slice(-199), ({ label: label, before: before, after: after })]
+        undone = []
+        },
+
+    // Forgets an open step without keeping it: a drag taken back.
+
+    drop() { _open = null },
+    clear() { done = []; undone = []; _open = null },
+
+    undo() {
+        if (_open != null) app.ed.finishWork()
+        if (done.length == 0) return
+        const s = done[done.length - 1]
+        done = done.slice(0, -1)
+        undone = [...undone, s]
+        this.restore(s.before)
+        },
+    redo() {
+        if (_open != null) app.ed.finishWork()
+        if (undone.length == 0) return
+        const s = undone[undone.length - 1]
+        undone = undone.slice(0, -1)
+        done = [...done, s]
+        this.restore(s.after)
+        },
+    restore(m: Moment) {
+        app.doc.load(structuredClone(m.slides))
+        app.ed.arrive(m.current, m.sel, m.scope)
+        app.saver.poke()
+        }
+    ]

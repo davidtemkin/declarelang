@@ -1,0 +1,6 @@
+// Shows Date.now() as a handler reads it.
+App [ width = 300, height = 80, fill = white, textColor = black,
+    stamp: string = "",
+    Button [ label = "Stamp", press() { app.stamp = "" + Date.now() } ],
+    Text [ y = 40, text = { app.stamp } ]
+    ]

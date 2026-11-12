@@ -220,6 +220,9 @@ export declare class KeysService {
     /** The owners in force, nearest scope first: each paired with its depth on
      *  the focus chain. */
     private ownersInForce;
+    /** A key as the person's keyboard spells it: `⇧⌘S` on a Mac, `Ctrl+Shift+S`
+     *  elsewhere — the same spelling the shortcuts panel and menus show. */
+    keyLabel(key: string): string;
     /** The shortcuts in force where focus is now, nearest declaration of each
      *  key first — what a hold-⌘ panel lists: `{ id, key, label, enabled,
      *  origin, group }`, `origin` being the declaring set's `title` and `group`

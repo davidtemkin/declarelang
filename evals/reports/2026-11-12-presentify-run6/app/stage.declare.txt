@@ -1,0 +1,337 @@
+/*
+# Presentify: the stage
+
+The slide being edited, shown as large as the room allows, and everything
+the hand does to it.
+
+Layers, back to front:
+
+- `paper` — the slide itself, a `SlideView` scaled to fit (the view labelled
+  "Slide": its edges are the slide's edges).
+- `typing` — the same scale and place as the paper, holding the text field
+  while a text box is typed into, so the words stay exactly where they are.
+- `chrome` — drawn in screen pixels, not slide points: the selection's
+  outline, the hover outline, snapping guides and the marquee. It takes no
+  presses.
+- the handles — views of their own, so each can show its cursor and take its
+  own drag; screen-sized, so they are as easy to hit on a small slide as on
+  a large one.
+
+The stage itself takes every other press. It turns the pointer into slide
+points and calls `app.ed` (editing.declare), which decides what was hit
+from the geometry.
+*/
+
+class Stage [ clip = true,
+    // One Tab stop: the keys below select, move and edit what is on the slide.
+
+    focusable = true, accessibilityRole = group, accessibilityLabel = "Slide editor",
+
+    // The ring goes round the slide itself.
+
+    focusShape() -> object { return ({ x: this.ox, y: this.oy, w: 1280 * this.k, h: 720 * this.k, rad: 3 }) },
+    fill = { provided("theme").well },
+    room: number = 40,
+    k: number = { Math.max(0.05, Math.min((this.width - this.room * 2) / 1280, (this.height - this.room * 2) / 720)) },
+    ox: number = { Math.round((this.width - 1280 * this.k) / 2) },
+    oy: number = { Math.round((this.height - 720 * this.k) / 2) },
+    trackChanges = ["k"],
+    onChange() { app.ed.k = this.k },
+    onInit() { app.ed.k = this.k },
+
+    sx(v: number) -> number { return this.ox + v * this.k },
+    sy(v: number) -> number { return this.oy + v * this.k },
+
+    cursor = { app.ed.tool != "select" ? "crosshair" : app.ed.mode == "move" ? "grabbing"
+        : app.ed.hoverId != "" ? "move" : "default" },
+
+    // ── the keys that act on what is on the slide
+
+    keyBindings = { [
+        ({ key: "Backspace", command: "remove" }), ({ key: "Delete", command: "remove" }),
+        ({ key: "ArrowLeft", command: "nudge", args: [-1, 0] }), ({ key: "ArrowRight", command: "nudge", args: [1, 0] }),
+        ({ key: "ArrowUp", command: "nudge", args: [0, -1] }), ({ key: "ArrowDown", command: "nudge", args: [0, 1] }),
+        ({ key: "Shift+ArrowLeft", command: "nudge", args: [-10, 0] }), ({ key: "Shift+ArrowRight", command: "nudge", args: [10, 0] }),
+        ({ key: "Shift+ArrowUp", command: "nudge", args: [0, -10] }), ({ key: "Shift+ArrowDown", command: "nudge", args: [0, 10] }),
+        ({ key: "Enter", command: "enter" }),
+        ({ key: "Shift+F10", command: "menu" }), ({ key: "ContextMenu", command: "menu" })
+        ] },
+    remove() -> boolean { if (!app.ed.has) return false; app.ed.deleteSel(); return true },
+    nudge(dx: number, dy: number) -> boolean { if (!app.ed.has) return false; app.ed.nudge(dx, dy); return true },
+
+    // Return: with a shape tool in hand, add one in the middle; on a selected
+    // text box, start typing in it.
+
+    enter() -> boolean {
+        if (app.ed.tool != "select") { const t = app.ed.tool; app.ed.tool = "select"; app.ed.insertCentered(t); return true }
+        const e = app.ed.single
+        if (e == null || e.kind != "text") return false
+        app.ed.editText(e.id)
+        return true
+        },
+
+    // ⇧F10: the right-click menu, at the selection (or the slide).
+
+    menu() { app.canvasMenu.openFor(this.seHandle.visible ? this.seHandle : this.paper) },
+
+    // ── the pointer, in slide points
+
+    onPointerDown(e: PointerEvent) {
+        Focus.focus(this)
+        app.ed.press((e.x - ox) / k, (e.y - oy) / k, e.shift || e.meta)
+        },
+    onDragStart(e: PointerEvent) { app.ed.dragStart(e.shift) },
+    onDrag(e: PointerEvent) { app.ed.drag(e.deltaX / k, e.deltaY / k, e.shift) },
+    onDragEnd(e: DragEndEvent) { app.ed.dragEnd(e.canceled) },
+    onClick(e: PointerEvent) { app.ed.click((e.x - ox) / k, (e.y - oy) / k, e.shift || e.meta) },
+    onDblClick(e: PointerEvent) { app.ed.dblclick((e.x - ox) / k, (e.y - oy) / k) },
+    onPointerMove(e: PointerEvent) { if (!e.down) app.ed.hover((e.x - ox) / k, (e.y - oy) / k) },
+    onContextMenu(e: PointerEvent) {
+        if (!app.ed.sel.includes(app.ed.hoverId)) app.ed.press((e.x - ox) / k, (e.y - oy) / k, false)
+        app.canvasMenu.open(this, e)
+        },
+
+    // ── the slide
+
+    lift: View [ x = { classroot.ox }, y = { classroot.oy }, width = { 1280 * classroot.k }, height = { 720 * classroot.k },
+        fill = white, shadow = { shadow(0, 10, 30, 0x1E1B2E2A) } ],
+    paper: SlideView [ x = { classroot.ox }, y = { classroot.oy }, scale = { classroot.k }, pivotX = 0, pivotY = 0,
+        accessibilityLabel = "Slide", accessibilityRole = image, datapath = { app.ed.slide },
+        hideId = { app.ed.editingId }, measures = true ],
+
+    // ── typing in place
+
+    typing: View [ x = { classroot.ox }, y = { classroot.oy }, width = 1280, height = 720,
+        scale = { classroot.k }, pivotX = 0, pivotY = 0,
+        field: TextInput [ exists = { app.ed.editing != null },
+            words: Words? = { app.ed.editing?.text ?? null },
+            x = { app.ed.editing?.x ?? 0 }, y = { app.ed.editing?.y ?? 0 }, width = { app.ed.editing?.width ?? 100 },
+            multiline = true, wrap = true, padding = 0, fill = null, stroke = null, cornerRadius = 0,
+            accessibilityLabel = "Text",
+            fontFamily = { this.words?.font ?? "Helvetica Neue" }, fontSize = { this.words?.size ?? 32 },
+            fontWeight = { this.words?.weight ?? 400 }, italic = { this.words?.italic ?? false },
+            textColor = { hex(this.words?.color ?? "#1F2328") }, textAlign = { this.words?.align ?? "left" },
+            value = { this.words?.content ?? "" },
+            commit(t: string) { app.ed.typed(t) },
+            keyBindings = { [ ({ key: "Escape", command: "done" }) ] },
+            done() { app.ed.finishText(); Focus.focus(app.stage) }
+            ]
+        ],
+
+    // ── what the hand is doing, drawn over it in screen pixels
+
+    chrome: View [ width = 100%, height = 100%, pointerEvents = "none",
+        draw(d: DrawContext) {
+            const st = classroot
+            const ed = app.ed
+            const X = (v: number) => st.ox + v * st.k
+            const Y = (v: number) => st.oy + v * st.k
+            const accent = provided("theme").selection
+            const outline = (b: Box, w: number, color: Color) => {
+                d.beginPath(); d.rect(X(b.x), Y(b.y), b.w * st.k, b.h * st.k)
+                d.lineWidth = w + 2; d.strokeStyle = 0xFFFFFFCC; d.stroke()
+                d.lineWidth = w; d.strokeStyle = color; d.stroke()
+            }
+            const lineOf = (e: El, w: number) => {
+                d.beginPath(); d.moveTo(X(e.x1 ?? 0), Y(e.y1 ?? 0)); d.lineTo(X(e.x2 ?? 0), Y(e.y2 ?? 0))
+                d.lineCap = "round"
+                d.lineWidth = w + 2.5; d.strokeStyle = 0xFFFFFFCC; d.stroke()
+                d.lineWidth = w; d.strokeStyle = accent; d.stroke()
+            }
+            const shape = (e: El, w: number) => { if (e.kind == "line") lineOf(e, w); else outline(boxOf(e), w, accent) }
+            d.w; d.h
+            // the open group, as a dashed frame
+            if (ed.scope != "") {
+                const g = findEl(ed.els, ed.scope)
+                if (g != null) {
+                    const b = boxOf(g)
+                    d.setLineDash([5, 4])
+                    outline(({ x: b.x - 6 / st.k, y: b.y - 6 / st.k, w: b.w + 12 / st.k, h: b.h + 12 / st.k }), 1, provided("theme").textMuted)
+                    d.setLineDash([])
+                }
+            }
+            // what the pointer is over
+            if (ed.hoverId != "" && !ed.sel.includes(ed.hoverId) && ed.mode == "") {
+                const h = findEl(ed.els, ed.hoverId)
+                if (h != null) shape(h, 1)
+            }
+            // the selection
+            if (ed.editingId == "") {
+                if (ed.selEls.length > 1) for (const e of ed.selEls) shape(e, 1)
+                const one = ed.single
+                if (one != null && one.kind == "line") lineOf(one, 1.5)
+                else if (ed.selBox != null) outline(ed.selBox!, 1.5, accent)
+            } else if (ed.editing != null) {
+                const b = boxOf(ed.editing!)
+                outline(({ x: b.x - 4 / st.k, y: b.y - 4 / st.k, w: b.w + 8 / st.k, h: b.h + 8 / st.k }), 1.5, accent)
+            }
+            // snapping guides, across the whole slide
+            d.lineWidth = 1
+            d.strokeStyle = provided("theme").spark
+            for (const v of ed.guides.v) { d.beginPath(); d.moveTo(X(v) + 0.5, st.oy); d.lineTo(X(v) + 0.5, st.oy + 720 * st.k); d.stroke() }
+            for (const h of ed.guides.h) { d.beginPath(); d.moveTo(st.ox, Y(h) + 0.5); d.lineTo(st.ox + 1280 * st.k, Y(h) + 0.5); d.stroke() }
+            // the marquee
+            if (ed.marquee != null) {
+                const m = ed.marquee!
+                d.beginPath(); d.rect(X(m.x), Y(m.y), m.w * st.k, m.h * st.k)
+                d.fillStyle = 0x5B3DF51A; d.fill()
+                d.lineWidth = 1; d.strokeStyle = accent; d.stroke()
+            }
+            }
+        ],
+
+    // ── handles
+
+    // The selection's box on screen, and which handles it gets.
+
+    sel: Box? = { app.ed.editingId != "" || app.ed.mode == "marquee" ? null : app.ed.selBox },
+    bx: number = { this.sx(this.sel?.x ?? 0) },
+    by: number = { this.sy(this.sel?.y ?? 0) },
+    bw: number = { (this.sel?.w ?? 0) * this.k },
+    bh: number = { (this.sel?.h ?? 0) * this.k },
+    isLine: boolean = { app.ed.single?.kind == "line" },
+    isText: boolean = { app.ed.single?.kind == "text" },
+    boxHandles: boolean = { this.sel != null && !this.isLine },
+    sideHandles: boolean = { this.boxHandles && !this.isText && this.bw > 30 && this.bh > 30 },
+    cornerHandles: boolean = { this.boxHandles && !this.isText },
+
+    Handle [ h = "nw", visible = { classroot.cornerHandles }, cx = { classroot.bx }, cy = { classroot.by } ],
+    Handle [ h = "n", visible = { classroot.sideHandles }, cx = { classroot.bx + classroot.bw / 2 }, cy = { classroot.by } ],
+    Handle [ h = "ne", visible = { classroot.cornerHandles }, cx = { classroot.bx + classroot.bw }, cy = { classroot.by } ],
+    Handle [ h = "e", visible = { classroot.boxHandles && (classroot.bh > 30 || classroot.isText) }, cx = { classroot.bx + classroot.bw }, cy = { classroot.by + classroot.bh / 2 } ],
+    seHandle: Handle [ h = "se", visible = { classroot.cornerHandles }, cx = { classroot.bx + classroot.bw }, cy = { classroot.by + classroot.bh } ],
+    Handle [ h = "s", visible = { classroot.sideHandles }, cx = { classroot.bx + classroot.bw / 2 }, cy = { classroot.by + classroot.bh } ],
+    Handle [ h = "sw", visible = { classroot.cornerHandles }, cx = { classroot.bx }, cy = { classroot.by + classroot.bh } ],
+    Handle [ h = "w", visible = { classroot.boxHandles && (classroot.bh > 30 || classroot.isText) }, cx = { classroot.bx }, cy = { classroot.by + classroot.bh / 2 } ],
+
+    // A line's two ends.
+
+    EndHandle [ end = 1, visible = { classroot.isLine && classroot.sel != null },
+        cx = { classroot.sx(app.ed.single?.x1 ?? 0) }, cy = { classroot.sy(app.ed.single?.y1 ?? 0) } ],
+    EndHandle [ end = 2, visible = { classroot.isLine && classroot.sel != null },
+        cx = { classroot.sx(app.ed.single?.x2 ?? 0) }, cy = { classroot.sy(app.ed.single?.y2 ?? 0) } ],
+
+    // A rectangle's corner radius: a dot inside its top-left corner, as far in
+    // as the radius (and never closer to the corner than it can be grabbed).
+
+    radius: View [ width = 22, height = 22,
+        r: number = { Math.min(app.ed.single?.cornerRadius ?? 0, Math.min(classroot.bw, classroot.bh) / classroot.k / 2) * classroot.k },
+        inset: number = { Math.min(Math.max(this.r, 16), Math.min(classroot.bw, classroot.bh) / 2) },
+        visible = { app.ed.single?.kind == "rect" && classroot.sel != null && classroot.bw > 48 && classroot.bh > 48 },
+        x = { classroot.bx + this.inset * 0.7071 + this.r * 0.2929 - 11 },
+        y = { classroot.by + this.inset * 0.7071 + this.r * 0.2929 - 11 },
+        cursor = "pointer",
+        tooltipLabel = "Drag to round the corners",
+        onDragStart(e: PointerEvent) { app.ed.radiusStart() },
+        onDrag(e: PointerEvent) { app.ed.drag(e.deltaX / classroot.k, e.deltaY / classroot.k, e.shift) },
+        onDragEnd(e: DragEndEvent) { app.ed.dragEnd(e.canceled) },
+        View [ x = center, y = center, width = 12, height = 12, cornerRadius = 6,
+            fill = { provided("theme").butter }, stroke = { stroke(2, 0xFFFFFF) },
+            shadow = { shadow(0, 1, 3, 0x1E1B2E66) } ]
+        ],
+
+    // ── said in words, over the slide
+
+    // Someone else changed this slide.
+
+    banner: ConflictBanner [ x = center ],
+
+    // A slide with nothing on it says how to begin.
+
+    hint: View [ x = center, y = { classroot.oy + 720 * classroot.k + 10 },
+        visible = { app.ed.els.length == 0 && app.ed.slide != null && app.ed.tool == "select" },
+        layout: SimpleLayout [ axis = x, spacing = 6, align = center ],
+        Glyph [ iconSize = 14, shape = "rect", ink = { provided("theme").textFaint } ],
+        Text [ fontSize = 13, textColor = { provided("theme").textMuted },
+            text = "An empty slide. Pick Rectangle, Ellipse, Line or Text above, then drag on it." ]
+        ]
+    ]
+
+
+// A resize handle: a small square on screen, with a larger reach.
+
+class Handle [ width = 22, height = 22,
+    h: string = "se",
+    cx: number = 0,
+    cy: number = 0,
+    x = { Math.round(this.cx) - 11 },
+    y = { Math.round(this.cy) - 11 },
+    cursor = { this.h == "n" || this.h == "s" ? "ns-resize" : this.h == "e" || this.h == "w" ? "ew-resize"
+        : this.h == "nw" || this.h == "se" ? "nwse-resize" : "nesw-resize" },
+    onDragStart(e: PointerEvent) { app.ed.resizeStart(this.h) },
+    onDrag(e: PointerEvent) { app.ed.drag(e.deltaX / app.ed.k, e.deltaY / app.ed.k, e.shift) },
+    onDragEnd(e: DragEndEvent) { app.ed.dragEnd(e.canceled) },
+    View [ x = center, y = center, width = 10, height = 10, cornerRadius = 2.5,
+        fill = white, stroke = { stroke(1.5, provided("theme").selection) },
+        shadow = { shadow(0, 1, 3, 0x1E1B2E55) } ]
+    ]
+
+
+class EndHandle [ width = 22, height = 22,
+    end: number = 1,
+    cx: number = 0,
+    cy: number = 0,
+    x = { Math.round(this.cx) - 11 },
+    y = { Math.round(this.cy) - 11 },
+    cursor = "crosshair",
+    onDragStart(e: PointerEvent) { app.ed.endStart(this.end) },
+    onDrag(e: PointerEvent) { app.ed.drag(e.deltaX / app.ed.k, e.deltaY / app.ed.k, e.shift) },
+    onDragEnd(e: DragEndEvent) { app.ed.dragEnd(e.canceled) },
+    View [ x = center, y = center, width = 11, height = 11, cornerRadius = 5.5,
+        fill = white, stroke = { stroke(1.5, provided("theme").selection) },
+        shadow = { shadow(0, 1, 3, 0x1E1B2E55) } ]
+    ]
+
+
+// Said when another window changed the slide being edited: in plain words,
+// with their version beside the choice.
+
+class ConflictBanner [ padding = [10, 10, 10, 14], cornerRadius = 14,
+    theirs: ServerSlide? = { app.saver.conflicts[app.ed.currentId] ?? null },
+
+    // It slides down into view, and back up out of it.
+
+    t: number = 0,
+    Spring [ attribute = t, to = { classroot.theirs != null ? 1 : 0 }, stiffness = 260, damping = 24 ],
+    y = { -90 + 104 * this.t },
+    opacity = { Math.min(1, this.t * 1.5) },
+
+    // their slide, held as data so a SlideView can show it
+
+    copy: Dataset [ contents = { ({ slide: classroot.theirs }) } ],
+    visible = { this.t > 0.01 },
+    fill = { provided("theme").surface }, stroke = { stroke(1, provided("theme").butter) },
+    shadow = { shadow(0, 8, 24, 0x1E1B2E30) },
+    accessibilityRole = status, accessibilityLive = assertive,
+    layout: SimpleLayout [ axis = x, spacing = 14, align = center ],
+    View [ width = 30, height = 30, cornerRadius = 15, fill = { provided("theme").warnSoft },
+        Glyph [ x = center, y = center, iconSize = 16, shape = "warn", ink = { provided("theme").warn } ]
+        ],
+    words: View [ layout: SimpleLayout [ axis = y, spacing = 2 ],
+        Text [ fontSize = 14, fontWeight = 650, textColor = { provided("theme").text },
+            text = "This slide was changed in another window." ],
+        Text [ fontSize = 12.5, textColor = { provided("theme").textMuted },
+            text = "Their version is on the right. Nothing is saved over it until you choose." ]
+        ],
+    peek: View [ width = 96, height = 54, cornerRadius = 4, clip = true, stroke = { stroke(1, provided("theme").line) },
+        datapath = { classroot.copy.value },
+        SlideView [ scale = { 96 / 1280 }, pivotX = 0, pivotY = 0, datapath = :slide ]
+        ],
+    Pill [ label = "Keep mine", tooltipLabel = "Keep this slide as you have it, and save it over theirs",
+        press() { app.saver.keepMine(app.ed.currentId) }
+        ],
+    Pill [ label = "Use their version", primary = true, tooltipLabel = "Replace this slide with theirs (you can undo this)",
+        press() { app.saver.takeTheirs(app.ed.currentId) }
+        ]
+    ]
+
+
+// A slide as one version of it, captioned: the two sides of a choice.
+
+class Version [ layout: SimpleLayout [ axis = y, spacing = 6 ],
+    caption: string = "",
+    Text [ fontSize = 12, fontWeight = 650, textColor = { provided("theme").textMuted }, text = { classroot.caption } ],
+    frame: View [ width = 176, height = 99, cornerRadius = 6, clip = true, stroke = { stroke(1, provided("theme").line) },
+        SlideView [ scale = { 176 / 1280 }, pivotX = 0, pivotY = 0 ]
+        ]
+    ]

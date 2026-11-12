@@ -1,0 +1,6 @@
+// A base sets a height; a subclass wants none — as tall as its words.
+class Shape [ width = 200, height = { 50 }, fill = 0xEEEEEE ]
+class Words extends Shape [ height = null,
+    Text [ width = 100%, text = "One line, then another line of words that wraps onto a second and a third line here." ] ]
+App [ width = 300, height = 200, fill = white, textColor = black,
+    w: Words [ ] ]

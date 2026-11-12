@@ -1,0 +1,289 @@
+/*
+# Presentify: keeping the service current
+
+There is no Save button. `Saver` compares the working copy (`app.doc`) with
+what it knows the service holds, and sends the difference, one request at a
+time, in the order that keeps the service's rules:
+
+  1. a slide made here and never saved is created (POST), so a deck is never
+     asked to lose its last slide;
+  2. a slide the service has that the working copy no longer does is deleted;
+  3. a slide whose content differs from what was last saved is saved whole
+     (PUT), with the version it was read at;
+  4. the order of the slides, and the title, are saved on the deck (PATCH).
+
+Because it saves *differences*, nothing else has to tell it what happened:
+undo, a drag, a deleted slide coming back — each simply leaves the working
+copy different, and the next pass sends whatever that takes. It waits until
+editing has paused (`poke`), and ⌘S sends at once (`flush`).
+
+What can go wrong, and what it does:
+
+- **The service can't be reached** (or answers 503): nothing is lost — the
+  working copy still holds it all — and the same pass runs again after a
+  pause that grows, up to eight seconds.
+- **Someone else saved a slide first** (409): that slide is held back and
+  their version kept in `conflicts`, for the person to choose (the banner in
+  editor.declare). Other slides go on saving.
+- **Someone else changed a slide while it sat here unchanged**: `Probe`
+  notices it when the person comes to that slide, and it is offered the same
+  way.
+*/
+
+class Saver extends DataSource [ timeout = 15,
+    api: string = "http://127.0.0.1:8360/api",
+
+    // What the service holds, as last heard.
+
+    deckId: string = "",
+    deckVersion: number = 0,
+    savedTitle: string = "",
+    serverOrder: string[] = [],
+    sids: Record<string, string> = { ({}) },       // the editor's slide id → the service's
+    versions: Record<string, number> = { ({}) },   // the service's id → its version
+    saved: Record<string, string> = { ({}) },      // the editor's slide id → its content, as saved
+    known: string[] = [],                          // every service id this window has held
+
+    // What the person wants.
+
+    title: string = "",
+
+    // Slides someone else changed: the editor's id → their version.
+
+    conflicts: Record<string, ServerSlide> = { ({}) },
+
+    // The request in flight, and how the last one went.
+
+    _job: string = "",
+    _local: string = "",
+    _sid: string = "",
+    _sent: string = "",
+    _sentTitle: string = "",
+    failing: boolean = false,
+    _backoff: number = 1000,
+    _quietAt: number = 0,
+
+    // ── the state the window shows
+
+    work: string = { this.nextJob() },
+    status: "saved" | "saving" | "offline" = {
+        (this.work != "" || this.loading) ? (this.failing ? "offline" : "saving") : "saved" },
+    statusText: string = { this.status == "saved" ? "All changes saved"
+        : this.status == "saving" ? "Saving…" : "Not saved: can't reach the service" },
+
+    // ── starting on a presentation
+
+    start(deck: Deck, slides: ServerSlide[]) {
+        deckId = deck.id
+        deckVersion = deck.version
+        title = deck.title
+        savedTitle = deck.title
+        serverOrder = [...deck.slideOrder]
+        const s: Record<string, string> = {}
+        const v: Record<string, number> = {}
+        const sv: Record<string, string> = {}
+        for (const sl of slides) { s[sl.id] = sl.id; v[sl.id] = sl.version; sv[sl.id] = sig(sl.background, sl.elements) }
+        sids = s
+        versions = v
+        saved = sv
+        known = slides.map((sl) => sl.id)
+        conflicts = ({})
+        failing = false
+        _backoff = 1000
+        app.doc.load(slides.map((sl) => ({ id: sl.id, background: sl.background, elements: sl.elements })))
+        },
+    stop() { deckId = ""; conflicts = ({}) },
+
+    // ── what to send next: a word naming the job, and the slide it is for
+
+    nextJob() -> string {
+        if (deckId == "") return ""
+        const slides = app.doc.slides()
+        if (slides.length == 0) return ""
+        for (const s of slides) if (sids[s.id] == null) return "create:" + s.id
+        const live = slides.map((s) => sids[s.id])
+        for (const sid of serverOrder) if (!live.includes(sid) && known.includes(sid)) return "delete:" + sid
+        for (const s of slides) {
+            if (conflicts[s.id] != null) continue
+            if (sig(s.background, s.elements) != saved[s.id]) return "put:" + s.id
+            }
+        const wanted = this.wantedOrder()
+        if (wanted.join(",") != serverOrder.join(",") || title != savedTitle) return "deck:"
+        return ""
+        },
+
+    // The order to save: ours, with any slide another window added (and this
+    // one has not taken in yet) kept where the service has it, at the end.
+
+    wantedOrder() -> string[] {
+        const ours = app.doc.slides().map((s) => sids[s.id])
+        return [...ours, ...serverOrder.filter((sid) => !known.includes(sid))]
+        },
+
+    // ── sending
+
+    poke() { _quietAt = Date.now() + 700; afterDelay(750, () => this.pumpIfQuiet()) },
+    pumpIfQuiet() { if (Date.now() >= _quietAt) this.pump() },
+    flush() { _quietAt = 0; this.pump() },
+
+    pump() {
+        if (this.loading || deckId == "") return
+        const job = this.nextJob()
+        if (job == "") return
+        const kind = job.slice(0, job.indexOf(":"))
+        const id = job.slice(job.indexOf(":") + 1)
+        _job = kind
+        _local = id
+        if (kind == "create") {
+            const slides = app.doc.slides()
+            const i = slides.findIndex((s) => s.id == id)
+            const s = slides[i]
+            const prev = i > 0 ? sids[slides[i - 1].id] ?? null : null
+            _sent = sig(s.background, s.elements)
+            this.url = api + "/decks/" + deckId + "/slides"
+            this.method = "POST"
+            this.body = ({ after: prev, background: s.background, elements: s.elements })
+        } else if (kind == "delete") {
+            _sid = id
+            this.url = api + "/slides/" + id
+            this.method = "DELETE"
+            this.body = null
+        } else if (kind == "put") {
+            const s = app.doc.slide(id)
+            if (s == null) return
+            _sid = sids[id]
+            _sent = sig(s.background, s.elements)
+            this.url = api + "/slides/" + _sid
+            this.method = "PUT"
+            this.body = ({ version: versions[_sid] ?? 1, background: s.background, elements: s.elements })
+        } else {
+            _sentTitle = title
+            this.url = api + "/decks/" + deckId
+            this.method = "PATCH"
+            this.body = ({ version: deckVersion, title: title, slideOrder: this.wantedOrder() })
+        }
+        this.fetch()
+        },
+
+    onLoad() {
+        failing = false
+        _backoff = 1000
+        if (_job == "create") {
+            const r = this.value as { slide: ServerSlide, deck: Deck }
+            sids = ({ ...sids, [_local]: r.slide.id })
+            versions = ({ ...versions, [r.slide.id]: r.slide.version })
+            saved = ({ ...saved, [_local]: _sent })
+            known = [...known, r.slide.id]
+            this.tookDeck(r.deck)
+        } else if (_job == "delete") {
+            this.tookDeck((this.value as { deck: Deck }).deck)
+        } else if (_job == "put") {
+            const r = this.value as ServerSlide
+            versions = ({ ...versions, [r.id]: r.version })
+            saved = ({ ...saved, [_local]: _sent })
+        } else if (_job == "deck") {
+            const d = this.value as Deck
+            savedTitle = _sentTitle
+            this.tookDeck(d)
+            app.home.refresh()
+        }
+        _job = ""
+        this.pump()
+        },
+    tookDeck(d: Deck) {
+        deckVersion = d.version
+        serverOrder = [...d.slideOrder]
+        },
+
+    onError() {
+        const code = this.statusCode
+        const why = (this.errorBody ?? ({})) as { error?: string, current?: ServerSlide | Deck }
+        const job = _job
+        _job = ""
+        if (code == 409 && why.error == "conflict" && job == "put" && why.current != null) {
+            // Someone saved this slide first. Hold it back, and offer theirs.
+            conflicts = ({ ...conflicts, [_local]: why.current as ServerSlide })
+            this.pump()
+            return
+        }
+        if (code == 409 && why.error == "conflict" && job == "deck" && why.current != null) {
+            // The deck moved on elsewhere (a title, an order, a slide added).
+            // Take its version and order, and send ours again from there.
+            const d = why.current as Deck
+            this.tookDeck(d)
+            if (title == _sentTitle && savedTitle != d.title) { savedTitle = d.title; title = d.title }
+            this.pump()
+            return
+        }
+        if (code == 404 && job == "put") {
+            // The slide was deleted elsewhere: make it again from ours.
+            const s: Record<string, string> = ({ ...sids })
+            delete s[_local]
+            sids = s
+            this.pump()
+            return
+        }
+        if (code == 404 && job == "deck") { app.deckGone(); return }
+        // Nothing was saved, or we can't tell: keep everything, and try again.
+        failing = true
+        afterDelay(_backoff, () => this.pump())
+        _backoff = Math.min(8000, _backoff * 2)
+        },
+
+    // ── another window's changes
+
+    // A slide as the service has it now, read by `Probe`. If it moved on
+    // since this window read it, either it says what we have anyway (take its
+    // version quietly), or the person is asked.
+
+    heard(s: ServerSlide) {
+        const local = Object.keys(sids).find((k) => sids[k] == s.id) ?? ""
+        if (local == "" || (this.loading && _local == local)) return
+        if (s.version <= (versions[s.id] ?? 0)) return
+        if (conflicts[local] != null && conflicts[local].version >= s.version) return
+        const mine = app.doc.slide(local)
+        if (mine != null && sig(mine.background, mine.elements) == sig(s.background, s.elements)) {
+            versions = ({ ...versions, [s.id]: s.version })
+            saved = ({ ...saved, [local]: sig(s.background, s.elements) })
+            return
+        }
+        conflicts = ({ ...conflicts, [local]: s })
+        },
+
+    // Their version replaces ours (an undoable step).
+
+    takeTheirs(local: string) {
+        const s = conflicts[local]
+        if (s == null) return
+        app.ed.adopt(local, s.background, s.elements)
+        versions = ({ ...versions, [s.id]: s.version })
+        saved = ({ ...saved, [local]: sig(s.background, s.elements) })
+        this.forget(local)
+        },
+
+    // Ours stands, and is saved over theirs.
+
+    keepMine(local: string) {
+        const s = conflicts[local]
+        if (s == null) return
+        versions = ({ ...versions, [s.id]: s.version })
+        saved = ({ ...saved, [local]: sig(s.background, s.elements) })
+        this.forget(local)
+        this.flush()
+        },
+    forget(local: string) {
+        const c: Record<string, ServerSlide> = ({ ...conflicts })
+        delete c[local]
+        conflicts = c
+        }
+    ]
+
+
+// Asks the service for the slide being edited: when the person comes to it,
+// and every few seconds while they stay. What it hears goes to `Saver.heard`.
+
+class Probe extends DataSource [ timeout = 10,
+    sid: string = "",
+    url = { this.sid == "" ? "" : app.saver.api + "/slides/" + this.sid },
+    onLoad() { app.saver.heard(this.value as ServerSlide) }
+    ]

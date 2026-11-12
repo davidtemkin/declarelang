@@ -1,0 +1,15 @@
+// A list screen; opening an item grows a full-window editor over it with a
+// spring. While covered, the list takes no presses, Tab skips it, and once
+// the editor has fully arrived the list is hidden.
+App [ width = 600, height = 400, fill = white, textColor = black,
+    open: boolean = false,
+    openT: number = 0,
+    Spring [ attribute = openT, to = { app.open ? 1 : 0 }, stiffness = 210, damping = 26 ],
+    home: View [ width = 600, height = 400,
+        visible = { !app.open || app.openT < 0.98 }, pointerEvents = { app.open ? "none" : "auto" },
+        tabOrder() -> View[] { return app.open ? [] : this.tabDefault() },
+        newBtn: Button [ x = 40, y = 20, label = "New", press() { app.open = true } ] ],
+    editor: View [ exists = { app.open || app.openT > 0.002 }, width = 600, height = 400,
+        fill = 0xEEEEEE, scale = { 0.4 + 0.6 * app.openT }, pivotX = 0, pivotY = 0,
+        stage: View [ width = 100%, height = 100%, focusable = true, accessibilityLabel = "Stage" ] ]
+    ]

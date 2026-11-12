@@ -1,0 +1,42 @@
+# eval-venue-30.noindex
+total 23.2 min · 108 turns · output 113575 tokens (thinking 42029)
+phases: reading 6.6 · writing 3.1 · checking 13.4 min
+tool time 5.4 min · model time 17.7 min
+tools:
+  verify    36×   4.28 min  (median 3.4 s)
+  look       5×   0.65 min  (median 9.2 s)
+  help       8×   0.34 min  (median 2.1 s)
+  bash      21×   0.15 min  (median 0.0 s)
+  read      20×   0.02 min  (median 0.0 s)
+model turns, by what came before:
+  after help      8×   5.32 min  (median 25.2 s)
+  after verify   35×   3.97 min  (median 5.4 s)
+  after write     2×   3.15 min  (median 94.4 s)
+  after image    15×   1.77 min  (median 6.4 s)
+  after bash     21×   1.72 min  (median 3.7 s)
+  after read     20×   1.44 min  (median 1.8 s)
+  after look      5×   0.17 min  (median 2.2 s)
+app: 2 .declare files, 1288 non-blank lines · 32 snapshots changed them: 1691 lines added, 193 removed
+verify results mentioning accessibility: 1
+diagnostic codes, by tool results reporting them: DECLARE4000 13, DECLARE1002 3, DECLARE4025 2, DECLARE7001 2, DECLARE2000 2, DECLARE4023 2, DECLARE3005 1, DECLARE5001 1, DECLARE5000 1, DECLARE4005 1, DECLARE4003 1, DECLARE4032 1
+inside the agent's verify and look calls:
+   3.32 min    36×  R5 behavior, in all
+   2.76 min    36×  script: the assert script, in all
+   1.27 min   120×  locator.click
+   0.69 min    54×  compile (R1–R3)
+   0.58 min  1054×  locator: wait a tick for it
+   0.49 min    52×  page: load, compile in the page and boot
+   0.48 min   176×  expect(locator), in all
+   0.44 min    36×  open: the app loaded and arrived, in all
+   0.26 min     9×  drive.waitReal
+   0.17 min   104×  locator.fill
+   0.13 min    14×  R4 boot, in all
+   0.13 min  1807×  locator: query the page
+   0.07 min    41×  check: scrolling come to rest
+   0.07 min    52×  page: a new page
+   0.05 min    30×  locator.pressSequentially
+   0.05 min    18×  drive.settleMotion
+   0.04 min    23×  end: layout questions at the end of the script
+   0.02 min    11×  locator.focus
+   0.02 min    41×  check: the layout questions
+   0.02 min   245×  locator.isEnabled

@@ -81,5 +81,18 @@ await (async () => {
   });
 })();
 
+await (async () => {
+  // a derived Dataset holds a record of another; the other then moves on (Presentify run 6, B1)
+  const app = await build(`App [ width = 300, height = 120,
+      src: Dataset { { "s": { "n": 1 } } },
+      held: object? = null,
+      copy: Dataset [ contents = { { slide: app.held } } ],
+      a: View [ datapath = { app.copy.value?.slide ?? null }, n: number = { :n ?? -1 } ] ]`);
+  app.held = app.src.value.s; settle();
+  test("a datapath into a derived dataset reads the record it holds", () => assert.equal(app.a.n, 1));
+  app.src.set(["s"], { n: 2 }); settle();
+  test("…and still does once the record's own dataset has moved on", () => assert.equal(app.a.n, 1));
+})();
+
 console.log(`cursor-reach: ${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

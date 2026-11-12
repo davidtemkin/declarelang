@@ -1,0 +1,8 @@
+// A menu bar item's key, spelled as keyBindings and Shortcuts spell keys
+// ("Ctrl+G": ⌘G on a Mac). The menu shows it; so does the hold-⌘ panel.
+App [ width = 400, height = 240, fill = white, textColor = black,
+    grouped: number = 0,
+    bar: MenuBar [ x = 10, y = 10,
+        menus = { [ ({ id: "arrange", label: "Arrange", items: [ ({ id: "group", label: "Group", key: "Ctrl+G" }) ] }) ] },
+        picked(id: string) { app.grouped = app.grouped + 1 } ]
+    ]

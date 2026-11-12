@@ -574,10 +574,19 @@ export function withLocators(page, { act, settle, advance, pause = async () => {
       return typeof v === "function" ? v.bind(t) : v;
     },
   });
+  const mouse = new Proxy(page.mouse, {
+    get(t, k) {
+      if (k === "dblclick") return async (x, y, o = {}) => { await t.click(x, y, { ...o, count: 2 }); await settle(); };
+      const v = t[k];
+      return typeof v === "function" ? v.bind(t) : v;
+    },
+  });
   const proxy = new Proxy(page, {
     get(t, k) {
       if (k === PAGE) return true;
       if (k === "keyboard") return keyboard;
+      // Playwright's mouse has dblclick; puppeteer's says it with a click count
+      if (k === "mouse") return mouse;
       if (k in top) return top[k];
       if (k in shortcuts) return shortcuts[k];
       const v = t[k];

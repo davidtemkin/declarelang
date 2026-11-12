@@ -670,7 +670,9 @@ parent's, Tab walks straight through. `stop`: the view is **one** Tab stop and t
 move among its members (Right and Down forward, Left and Up back, wrapping; Home and End to
 the ends) — a radio group, a segmented control, a row of chips. The arrows follow the
 members' order, not where they sit, so in a grid where Up means the row above, the view
-answers the arrows itself (`onKeyDown`) and moves focus with `Focus.focus`. Tab lands on the
+binds the arrows itself (`keyBindings`) and moves focus with `Focus.focus`: the movement is
+the view's own default, after its bindings, so a binding of its own comes first, and one
+that returns `false` hands the key on to the movement. Tab lands on the
 member the view names with a `focusEntry()` method, else the one that last had focus, else
 the view itself when it takes focus, else its first stop. `capture`: Tab walks into the view
 and through its stops (an entry form). `region`: one stop from outside, entered with Enter,
@@ -1439,9 +1441,9 @@ override calls** when it wants the ordinary answer under a condition of its own.
 
 ## onKeyDown()
 The base body of every view's key handler: the walk — this view's `keyBindings`, then each
-container's, then the standard table. Built into every view's table: inside a
-`focusScope = stop`, the arrows move to the next or previous member and Home and End to the
-ends; a scroller scrolls by its keys until it reaches its edge. **The thing an `onKeyDown`
+container's, then the standard table. Built into every view's table: a `focusScope = stop`
+moves among its members with the arrows (Home and End to the ends), after its own
+bindings and its members'; a scroller scrolls by its keys until it reaches its edge. **The thing an `onKeyDown`
 override hands keys to** when it does not take them:
 
 ```declare-fragment
