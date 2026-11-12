@@ -68,6 +68,7 @@ const SUITE = [
   "test/overlays.test.mjs",        // overlays by kind, windows, hosted programs (planes.md §3, §8, §11, §12)
   "test/shortcuts.test.mjs",       // shortcuts as declared data, across islands (planes.md §9)
   "test/key-bindings.test.mjs",    // the walk: keyBindings layered by class, nearest first (key-bindings.md)
+  "test/key-matrix.test.mjs",      // every focused view × key × container, and a field in each context: what the docs promise
   "test/draw-quiet.test.mjs",      // a drawing no one can see is not re-recorded
   "test/drag-edge-scroll.test.mjs", // a drag in an edge band scrolls, under a finger as under a mouse
   "test/focus-place.test.mjs",     // where focus goes when the program changes (focus-place.md)

@@ -263,6 +263,38 @@ await test("ledger-3: the stop's own Escape binding comes before leaving the row
   assert.equal(app.got, "cancel;", "the list's own Escape");
 });
 
+await test("ledger-4: a Combobox's Return that picks goes no further; with a choice made it goes on to the row", async () => {
+  const app = await boot(`App [ width = 500, height = 300, saved: number = 0, cat: string = "",
+    row: View [ width = 400, height = 40,
+        keyBindings = { [ ({ key: "Enter", command: "save" }) ] },
+        save() { app.saved = app.saved + 1 },
+        c: Combobox [ width = 200, accessibilityLabel = "Category", items = ["Other", "Shipping"],
+            value = { app.cat == "" ? null : app.cat }, commit(v: object) { app.cat = "" + v } ] ] ]`);
+  const c = app.row.c;
+  Focus.focus(c.entry); settle();
+  c.open(); c.query = "Ship"; c.filtering = true; c.syncList(); settle();
+  c.entry.onEnter(); press("Enter", { code: "Enter" });
+  assert.equal(app.cat, "Shipping", "Return picked");
+  assert.equal(app.saved, 0, "and went no further");
+  c.entry.onEnter(); press("Enter", { code: "Enter" });
+  assert.equal(app.saved, 1, "chosen, list down: Return goes on to the row");
+});
+
+await test("ledger-4: a Popover is not modal — Tab past its last control closes it and goes on past its opener", async () => {
+  const app = await boot(`App [ width = 900, height = 500,
+    opener: Button [ x = 120, y = 20, label = "Category", onClick() { app.pop.showFor(this) } ],
+    after: Button [ x = 260, y = 20, label = "After" ],
+    pop: Popover [ col: View [ layout: SimpleLayout [ axis = y ], a: Button [ label = "One" ] ] ] ]`);
+  assert.notEqual(app.pop.focusScope, "modal", "never a modal scope");
+  Focus.focus(app.opener); settle();
+  app.pop.showFor(app.opener); settle();
+  Focus.focus(app.pop.col.a); settle();
+  press("Tab", { code: "Tab" });
+  await new Promise((r) => setTimeout(r, 20)); settle();
+  assert.equal(app.pop.shown, false, "Tab out closed it");
+  assert.ok(Focus.getFocus() === app.after, "and went on past the opener");
+});
+
 await test("a one-line field's Enter in a Dialog presses the default; a focused button presses itself", async () => {
   const app = await boot(`App [ width = 500, height = 400,
     got: string = "",
@@ -271,6 +303,7 @@ await test("a one-line field's Enter in a Dialog presses the default; a focused 
         name: TextInput [ width = 200, accessibilityLabel = "Name" ] ] ]`);
   app.dlg.show(); settle();
   Focus.focus(app.dlg.name); settle();
+  app.dlg.name.onEnter();   // the platform's field calls it on Return, before the walk
   press("Enter", { code: "Enter" });
   await new Promise((r) => setTimeout(r, 30)); settle();
   assert.equal(app.got, "ok;", "the field's Enter reaches the Dialog's default");

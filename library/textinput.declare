@@ -187,10 +187,19 @@ Escape while the field shows something not yet committed (under `commitOn = "end
 the edit: nothing is committed, and the field shows the value. Otherwise the key goes on as
 for any control, so Escape in a field inside a dialog closes the dialog. Space and Return
 are the text's (Return is `onEnter`'s), never a `press()`; every other key without a
-command modifier, and the editing chords, are the field's editor's too. An `onKeyDown`
-override handles its own keys and passes the rest on with `super.onKeyDown(e)`, or Tab
-stops at the field. Return reaches it only after the edit has ended and `onEnter` has run:
-what Return does belongs in `onEnter`.
+command modifier, and the editing chords, are the field's editor's too. Return goes on to
+what holds the field — a dialog's default button, a row's Save — only from a field outside a
+form whose `onEnter` is the built-in one; a form's field, or one whose `onEnter` says what
+Return does, has answered it, and it goes no further. An `onKeyDown` override handles its
+own keys and passes the rest on with `super.onKeyDown(e)`, or Tab stops at the field.
+Return reaches it only after the edit has ended and `onEnter` has run: what Return does
+belongs in `onEnter`.
+
+## _returnAnswered()
+**Internal.** Return, in the walk: taken when the field answered it, else handed on.
+
+## _returnGoesOnAt
+**Internal.** When the built-in `onEnter` last said Return goes on.
 
 ## _multi()
 **Internal.** Whether Return is the field's own: a multi-line field's line break. A single-line
@@ -260,7 +269,8 @@ class TextInput extends ValueControl [
 
     onEnter() {
         const f = this.form as any
-        if (f == null) return
+        // no form, and Return not said otherwise: it goes on to what holds the field
+        if (f == null) { _returnGoesOnAt = Date.now(); return }
         if (typeof f._enter == "function") f._enter(this)
         else f.submit()
         },
@@ -271,9 +281,22 @@ class TextInput extends ValueControl [
 
     keyBindings = { [ ({ key: "Escape", command: "_keyEscape" }),
         ({ key: "Space", command: "native" }),
-        ({ key: "Enter", command: "native", when: "_multi" }), ({ key: "Enter", command: null }) ] },
+        ({ key: "Enter", command: "native", when: "_multi" }),
+        ({ key: "Enter", command: "_returnAnswered" }), ({ key: "Enter", command: null }) ] },
 
     _multi() -> boolean { return multiline },
+
+    // Return reached onEnter before the walk (the platform's field calls it): a
+    // form's field, or one whose onEnter says what Return does, has answered it,
+    // and it goes no further; the built-in onEnter of a field with no form says
+    // so just now, and it goes on — to a dialog's default button, a row's Save
+
+    _returnGoesOnAt: number = 0,
+    _returnAnswered() -> boolean {
+        const on = Date.now() - _returnGoesOnAt < 250
+        _returnGoesOnAt = 0
+        return !on
+        },
 
     _keyEscape(e: KeyEvent) -> boolean {
         if (!editing || shown === fieldValue) return false

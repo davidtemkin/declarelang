@@ -1939,6 +1939,11 @@ export class DomSurface {
             });
             this.linkEl = a;
             this.element.appendChild(a);
+            // its z-index is "above sibling content within this box" — kept within
+            // it: the view is a stacking context of its own, so the anchor never
+            // stacks over what paints above the view (an overlay's menu, a popover)
+            // and takes the presses meant for it
+            this.element.style.isolation = "isolate";
         }
         const loc = this.element.ownerDocument.location;
         this.linkEl.href = href.startsWith("#")

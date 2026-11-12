@@ -24,7 +24,8 @@ rendered row is ever scanned.
   row — or, when none is roved, the first match of what was typed (the
   type-then-Enter path); over the whole list it keeps the choice already made.
   With the list down, Enter opens it when nothing is chosen, and otherwise does
-  what Return does in any field of its form (submit, or on to the next);
+  what Return does in any field: in a form, the form's (submit, or on to the
+  next); outside one, it goes on to what holds the combobox (a row's Save);
   Escape closes the list (then a second Escape leaves the control — the
   focus-scope ascent). The list is never a tab stop of its own.
 - The list is a collection like any other — bind 100k options and
@@ -384,13 +385,20 @@ class Combobox extends ValueControl [
             classroot.syncList()
             if (!classroot.listShown()) (classroot.list as any).openFor(classroot)
             },
+
+        // Return answered here (a pick, opening the list, the form's) goes no
+        // further — the field's own rule; one handed on is said as the built-in
+        // onEnter says it
+
         onEnter() {
-            // with the list down and a choice made, Return is the form's, as in
-            // any field: submit, or on to the next under enterMoves
             if (!classroot.listShown()) {
+                // a choice made, the list down: Return is the form's, or goes on
+                // to what holds the combobox, as a field's does; nothing chosen
+                // yet, it opens the list
                 const f = classroot.form as any
-                if (f != null && classroot.value != null) f._enter(classroot)
-                else classroot.open()
+                if (classroot.value == null) classroot.open()
+                else if (f != null) f._enter(classroot)
+                else this._returnGoesOnAt = Date.now()
                 return
                 }
             // the roved row picks through the Menu's own Enter; unroved, Enter

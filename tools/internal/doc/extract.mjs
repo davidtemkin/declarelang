@@ -996,12 +996,12 @@ const CLASS_GROUPS = [
   ["Text",          ["Text", "TextLabel", "Font", "FontFace", "RichText", "Markdown", "HTMLText"]],
   ["Media",         ["Image", "Media", "Video", "Audio"]],
   ["Layout",        ["Layout", "SimpleLayout", "WrappingLayout", "ResponsiveLayout", "TweenLayout", "Spacer"]],
-  ["Controls",      ["Control", "Button", "Checkbox", "Switch", "Slider", "RadioGroup", "Radio", "ChoiceControl", "ChoiceItem", "Field", "FieldLayout", "Form", "ValueControl", "TextInput", "NativeText", "SearchField", "Combobox", "Segmented", "SegmentedItem", "TabBar", "TabBarTab", "Stepper", "DatePicker", "MonthCalendar", "MonthCalendarDay", "MonthCalendarArrow", "Toolbar", "ToolButton", "ToolbarDivider", "Splitter", "ProgressBar", "FocusRing", "AppearanceSwitch", "TextSizeSwitch"]],
+  ["Controls",      ["Control", "Button", "Checkbox", "Switch", "Slider", "RangeSlider", "RadioGroup", "Radio", "ChoiceControl", "ChoiceItem", "Field", "FieldLayout", "Form", "ValueControl", "TextInput", "NativeText", "SearchField", "Combobox", "Segmented", "SegmentedItem", "TabBar", "TabBarTab", "Stepper", "DatePicker", "MonthCalendar", "MonthCalendarDay", "MonthCalendarArrow", "Toolbar", "ToolButton", "ToolbarDivider", "Splitter", "ProgressBar", "FocusRing", "AppearanceSwitch", "TextSizeSwitch"]],
   // "Structure", not "Chrome": the word is the browser the gates drive, and the
   // reference is read by agents as often as by people, so the collision was one
   // we would have been adding on purpose. It is also the word the language file's
   // own map already uses for these — "controls, structure, layouts, embedding".
-  ["Structure",     ["Gauge", "Card", "Divider", "MenuBar", "Accordion", "AccordionPane", "Carousel", "CarouselLayout", "Disclosure", "Tree", "TreeRow", "Breadcrumb", "BreadcrumbStep", "BreadcrumbLink", "BreadcrumbCurrent", "Window"]],
+  ["Structure",     ["Gauge", "Card", "Divider", "MenuBar", "ShortcutsPanel", "Accordion", "AccordionPane", "Carousel", "CarouselLayout", "Disclosure", "Tree", "TreeRow", "Breadcrumb", "BreadcrumbStep", "BreadcrumbLink", "BreadcrumbCurrent", "Window"]],
   // what paints above everything in its context (planes.md §3.3): one base, the
   // objects every platform converges on, and the layers they paint in
   ["Overlays",      ["Floating", "Menu", "ContextMenu", "Popover", "Dialog", "Sheet", "Toast", "Tooltip", "OverlayStrata"]],

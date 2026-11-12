@@ -42,6 +42,9 @@ App [ width = 320, height = 200,
     ]
 ```
 
+## _topInset
+**Internal.** The height of what is pinned over the rows' top (a `DataGrid`'s header), which `showRow` keeps a row clear of.
+
 ## selected
 The primary selected *item* — the record most recently selected, or `null`.
 Items, not views: **selection survives sorts, filters, and windowing** because it was

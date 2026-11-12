@@ -126,6 +126,9 @@ rows begin below it and scroll up under it.
 `Table`'s, answered here: a heading record is not selectable, every other record is.
 An override narrows it with `super.selectable(m)`, so headings stay out.
 
+## _topInset
+**Internal.** Follows `headerH`: the header row pinned over the rows' top.
+
 ## _editStep()
 **Internal.** Moves an edit to the same column one row up or down, passing over headings and scrolling the row into existence.
 

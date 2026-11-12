@@ -998,6 +998,10 @@ export interface NativeHostLike {
 export declare function setNativeTextHook(fn: (view: View) => NativeHostLike | null): void;
 export declare function setCenterMovedHook(fn: (view: View, axis: "x" | "y") => void): void;
 export declare function setFocusDiscardHook(fn: (view: View) => void): void;
+/** A view about to be unlinked and discarded (a replicated row whose record
+ *  went): focus, if it is inside, notes the place while the view still has
+ *  one, so the next Tab starts there and not at the top. */
+export declare function focusLeaving(view: View): void;
 /** The focus service's default for a key a view's handlers left alone (the
  *  base `onKeyDown`), registered by focus.ts — the same one-way seam. */
 /** One class layer's `keyBindings` (key-bindings.md): the attribute as written

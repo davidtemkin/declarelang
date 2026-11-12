@@ -37,6 +37,15 @@ The list as rows: a heading per group, in the order groups first appear, then it
 ## rows
 **Internal.** The rows, as the dataset the panel replicates over.
 
+## visible
+Follows `shown`.
+
+## fill
+The theme's `surface`.
+
+## datapath
+The panel's `rows`: one line per binding, a heading per group.
+
 ## _hold
 **Internal.** Hears ⌘ held alone, and let go.
 */

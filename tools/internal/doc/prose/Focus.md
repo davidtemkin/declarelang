@@ -37,10 +37,13 @@ Clears focus entirely, so nothing holds it.
 
 ## next()
 Moves focus to the next view in traversal order — what Tab does, callable directly when a
-control wants to advance focus itself (a field that moves on Enter).
+control wants to advance focus itself (a field that moves on Enter). `next(past)` steps
+over `past` and everything in it: an overlay closing, still on screen while it animates
+away, is no place to move to.
 
 ## prev()
-Moves focus to the previous view in traversal order — Shift-Tab's action.
+Moves focus to the previous view in traversal order — Shift-Tab's action; `prev(past)` steps
+over `past` as `next` does.
 
 ## byKeyboard()
 Whether the current focus **arrived by keyboard** rather than by pointer — the web's

@@ -16,6 +16,7 @@ import { DataSource } from "./data.js";
 import { settle } from "./reactive.js";
 import { declareName } from "./declare-name.js";
 import { inColumns } from "./columns.js";
+import { Focus } from "./focus.js";
 export function bootCheck(app, opts = {}) {
     const record = { nodes: 0, notes: [], layout: [], unbuilt: [], answers: [], samples: [], flagged: [] };
     if (opts.feed) {
@@ -30,6 +31,7 @@ export function bootCheck(app, opts = {}) {
         walk(c); };
     walk(app);
     record.notes.push(...outOfReach(app));
+    record.layout.push(...tabAgainstSight(app));
     record.layout.push(...layoutChecks(app, opts, record.flagged));
     if (opts.classes !== undefined)
         record.unbuilt = unbuiltClasses(app, opts.classes);
@@ -95,6 +97,49 @@ function outOfReach(app) {
     };
     if (app instanceof View)
         visit(app);
+    return out;
+}
+/** TAB AGAINST WHAT THE EYE READS. Tab follows the order views are declared in
+ *  — on purpose: the order is the program's to say, and it does not move as a
+ *  layout wraps. Where a step of it goes back against reading order — to a
+ *  stop on a row above, not off in a column to the right, or to one left of it
+ *  on the same row — the declaration order and the screen disagree, which is
+ *  almost always a view placed apart from where it is declared. Said, a few at
+ *  most; an overlay's own stops are its business, and so is a bar held still
+ *  over the page (ignoreScroll): it is declared after what it covers so that
+ *  it paints over it, and comes after it in Tab and reading order by that. */
+function tabAgainstSight(app) {
+    if (!(app instanceof View) || Focus.getRoot() !== app)
+        return [];
+    const seq = Focus.sequenceFor(null);
+    const out = [];
+    const box = (v) => rootFrameBox(v);
+    const name = (v) => {
+        const l = v;
+        const t = l.accessibilityLabel || l.label || l.placeholder || "";
+        return t !== "" ? `“${String(t).slice(0, 40)}”` : declareName(v);
+    };
+    const floating = (v) => { for (let a = v; a instanceof View; a = a.parent)
+        if (isA(a, "Floating") || a.ignoreScroll)
+            return true; return false; };
+    for (let i = 0; i + 1 < seq.length && out.length < 3; i++) {
+        const a = seq[i], b = seq[i + 1];
+        if (!a.visible || !b.visible || floating(a) || floating(b))
+            continue;
+        // a step into or out of a program running inside this one, or onto a
+        // program's own root, is a boundary, not a place on the page
+        if (a.$root !== b.$root || b === b.$root || a === a.$root)
+            continue;
+        const A = box(a), B = box(b);
+        if (A.width <= 0 || A.height <= 0 || B.width <= 0 || B.height <= 0)
+            continue;
+        const sameRow = Math.min(A.y + A.height, B.y + B.height) - Math.max(A.y, B.y) >= Math.min(A.height, B.height) / 2;
+        const above = B.y + B.height <= A.y + 1 && !(B.x >= A.x + A.width - 1);
+        const leftOf = sameRow && B.x + B.width <= A.x + 1;
+        if (!above && !leftOf)
+            continue;
+        out.push(`Tab goes from ${name(a)} (${pathOf(app, a)}) to ${name(b)} (${pathOf(app, b)}), which sits ${above ? "above it" : "left of it"} — Tab follows the order views are declared in: declare ${name(b)} first, or say the order in their container's tabOrder()`);
+    }
     return out;
 }
 /** What the layout shows wrong, each naming the view. */

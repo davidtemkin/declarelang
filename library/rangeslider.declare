@@ -38,6 +38,12 @@ How far one arrow press moves a thumb; values land on steps from `min`.
 **Where a change goes**, receiving both ends — already within `min` and `max`, on a step, and
 in order. The default writes `low` and `high`; override it to own the destination.
 
+## disabled
+Takes no drags and no keys; both thumbs say so to a screen reader.
+
+## opacity
+Disabled dims the whole control, to the theme's `disabledOpacity`.
+
 ## lowLabel
 What a screen reader calls the low thumb: "Minimum …", after the slider's own name.
 
@@ -161,6 +167,27 @@ reader, moving its end of the range.
 
 ## valueText
 **Internal.** Its value as a screen reader says it.
+
+## accessibilityValue
+Follows `value`.
+
+## accessibilityMin
+Follows `min`.
+
+## accessibilityMax
+Follows `max`.
+
+## accessibilityStep
+Follows `step`.
+
+## accessibilityValueText
+Follows `valueText`, so a screen reader says the value as the slider shows it.
+
+## fill
+The theme's `sliderThumbFill`, else `surface`.
+
+## stroke
+A hairline in the theme's `line`, the `accent` while focused.
 
 ## moved()
 **Internal.** A key or a step moved it: the RangeSlider moves its end.

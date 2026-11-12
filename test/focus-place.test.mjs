@@ -21,7 +21,7 @@ provideMeasurer(approximateMeasurer());
 
 // views compared by identity: a failing assert.equal on a live view prints its graph
 const same = (a, b, msg) => assert.ok(a === b, msg);
-const turns = async (n = 3) => { for (let i = 0; i < n; i++) { await new Promise((r) => setTimeout(r, 0)); settle(); } };
+const turns = async (n = 6) => { for (let i = 0; i < n; i++) { await new Promise((r) => setTimeout(r, 0)); settle(); } };
 
 async function boot(src) {
   const b = await compileProgram(src, { originDir: process.cwd() + "/library", stripPos: false });

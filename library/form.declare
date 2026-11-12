@@ -43,6 +43,9 @@ runs.
 - a member that is not shown (it, or a view above it, has `visible = false`) or is
   disabled does not count: it is not judged, and its problems hold nothing up.
 
+## _overlay
+**Internal.** The overlay around the form that waits while it sends (`SendHold`), if any.
+
 ## submit()
 Ends every member's open edit first, committing it, so what is sent is what is shown. Then
 judges every member, so every problem shows at once, each under its own field —

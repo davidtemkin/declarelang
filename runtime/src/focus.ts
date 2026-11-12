@@ -406,7 +406,25 @@ export class FocusService {
       this.setKeyboard(false);
       for (const h of [...this.changeHandlers]) h(this.current);
     }
-    for (let v: View | null = leaf; v !== null; v = parentAcross(v)) if (canFocus(v)) return;
+    for (let v: View | null = leaf; v !== null; v = parentAcross(v)) {
+      if (!canFocus(v)) continue;
+      // a press moves focus to what was pressed: a control focuses itself (or
+      // its field) as the press runs, the browser a link or a field; a view
+      // that is focusable and nothing more has no code of its own that would,
+      // so once the press is through — the browser's own focus included, a
+      // task later — it is given the focus, unless something on the press took
+      // it, or it is the chrome a command runs from (a command button keeps the
+      // focus where it was)
+      if (!isChrome(v)) {
+        const target = v, calls = this.calls;
+        setTimeout(() => {
+          if (this.calls !== calls || !canFocus(target)) return;
+          if (this.current !== null && isInSubtree(this.current, target)) return;
+          this.focus(target);
+        }, 0);
+      }
+      return;
+    }
     if (this.current !== null) { this.setKeyboard(false); this.apply(null); }
     this.startPoint = leaf;
     // a press on nothing: the command target is what was pressed, as the next
@@ -1360,7 +1378,10 @@ export function walkCommand(name: string, from: View | null, run: boolean): "non
   const focus = focusOf();
   let v: View | null = from ?? focus.commandStart();
   const claim = (focus.keys ?? Keys)._claimant();
-  const claimant = claim instanceof View ? claim : null;
+  // a menu holding the keyboard is the chrome the command came from: the walk
+  // is from where the person was working, outside it, and the menu bounds
+  // nothing (a modal's edge still does, below)
+  const claimant = claim instanceof View && !isChrome(claim) ? claim : null;
   const start = v;
   let modal = false;
   while (v !== null) {

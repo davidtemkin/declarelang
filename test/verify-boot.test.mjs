@@ -166,4 +166,15 @@ await test("a child 0 wide in a columns layout is said, naming flexes; a flexing
   assert.match(said[0], /is 0 — .* In its parent's `columns` layout it takes its cell's width only with `flexes = true`; or give View a width\./);
 });
 
+await test("a Tab step that goes back against reading order is said; a step into a column to the right is not", () => {
+  const r = verify("taborder.declare", `App [ width = 600, height = 400,
+    save: Button [ x = 20, y = 200, label = "Save" ],
+    title: TextInput [ x = 20, y = 40, width = 200, accessibilityLabel = "Title" ],
+    left: Button [ x = 20, y = 300, label = "Bottom of the left column" ],
+    right: Button [ x = 300, y = 40, label = "Top of the right column" ] ]`);
+  const tab = r.boot.layout.filter((l) => /^Tab goes/.test(l));
+  assert.equal(tab.length, 1, tab.join("\n"));
+  assert.match(tab[0], /Tab goes from “Save” \(app\.save\) to “Title” \(app\.title\), which sits above it/);
+});
+
 summarize("verify-boot");

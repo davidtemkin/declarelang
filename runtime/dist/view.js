@@ -1698,7 +1698,8 @@ export class View extends Node {
                 return true;
         // a native field takes its own presses (the caret, the focus), declared or not
         const leaf = this.$leafRole?.();
-        return this.scrolls !== "none" || this.tooltipLabel !== "" || this.link !== "" || leaf === "textField";
+        // a focusable view takes a press as a focus (focus.ts pressAt)
+        return this.scrolls !== "none" || this.tooltipLabel !== "" || this.link !== "" || leaf === "textField" || this.focusable === true;
     }
     $inputSink() {
         const self = this;
@@ -2236,6 +2237,12 @@ export function setCenterMovedHook(fn) {
 let focusDiscardHook = null;
 export function setFocusDiscardHook(fn) {
     focusDiscardHook = fn;
+}
+/** A view about to be unlinked and discarded (a replicated row whose record
+ *  went): focus, if it is inside, notes the place while the view still has
+ *  one, so the next Tab starts there and not at the top. */
+export function focusLeaving(view) {
+    focusDiscardHook?.(view);
 }
 let keyDefaultHook = null;
 export function setKeyDefaultHook(fn) {

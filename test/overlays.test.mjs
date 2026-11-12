@@ -555,21 +555,21 @@ await test("a dialog whose opener is gone by its close gives focus to the next T
   Focus.focus(app.b); settle();
   app.dlg.show(); settle(); await turns();
   assert.ok(Focus.holds(app.dlg), "focus is in the dialog");
-  app.showB = false; app.dlg.close(); settle(); await turns();
+  app.showB = false; app.dlg.close(); settle(); await turns(6);
   same(Focus.getFocus(), app.c, "focus goes to the stop after the hidden opener");
   // discarded while the dialog was open
   app = await boot(src);
   deliverKeys(Keys, Focus);
   Focus.focus(app.b); settle();
   app.dlg.show(); settle(); await turns();
-  app.b.discard(); app.dlg.close(); settle(); await turns();
+  app.b.discard(); app.dlg.close(); settle(); await turns(6);
   same(Focus.getFocus(), app.c, "focus goes to the stop after the discarded opener's place");
   // still there: focus goes back to it, as before
   app = await boot(src);
   deliverKeys(Keys, Focus);
   Focus.focus(app.b); settle();
   app.dlg.show(); settle(); await turns();
-  app.dlg.close(); settle(); await turns();
+  app.dlg.close(); settle(); await turns(6);
   same(Focus.getFocus(), app.b, "an opener still there gets focus back");
 });
 

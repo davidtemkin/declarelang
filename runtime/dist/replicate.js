@@ -39,7 +39,7 @@
 import { isDeferred } from "./deferred-surface.js";
 import { diag } from "./errors.js";
 import { Node } from "./node.js";
-import { View, inheritedCursor, onDiscard, setRowIndex, fireRetireTree, nodeLabel, provideVisibleRows } from "./view.js";
+import { View, inheritedCursor, onDiscard, setRowIndex, fireRetireTree, nodeLabel, provideVisibleRows, focusLeaving } from "./view.js";
 import { Constraint, Cell } from "./reactive.js";
 import { setBound, armDivergence, nodeDiverged } from "./attributes.js";
 import { splitPath, isSelective } from "./path-plan.js";
@@ -532,6 +532,10 @@ export class Replicator {
         if (changed) {
             // Re-link the block in data order at its slot among the siblings.
             let at = this.start();
+            // a row going away that holds the focus says so while it still has its
+            // place among its siblings (unlinked first, it would have none)
+            for (const v of removed)
+                focusLeaving(v);
             for (const v of this.views)
                 this.parent.$removeChild(v);
             for (const v of next)

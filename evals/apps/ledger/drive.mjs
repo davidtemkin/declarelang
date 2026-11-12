@@ -169,6 +169,17 @@ async function controlOr(page, ctx, strict, loose, o = {}) {
   ctx.fallback(`found "${l.node.name}" by the looser name ${loose} (nothing named ${strict})`);
   return l;
 }
+// Filters kept behind a "Filters" button (a panel, a popover): opened when a
+// filter control is not on screen, and recorded.
+async function revealFilters(page, ctx, test) {
+  if (await maybe(find(page, test, { timeout: 1500 }))) return false;
+  const f = await maybe(control(page, /^(more )?filters?\b/i, { timeout: 1500 }));
+  if (!f) return false;
+  await press(page, f);
+  await sleep(400);
+  ctx.fallback(`the filters are behind "${f.node.name}"; opened it`);
+  return true;
+}
 let TOUCH = false;
 async function press(page, el) {
   await el.handle.evaluate((e) => e.scrollIntoView({ block: "nearest", inline: "nearest" }));
@@ -287,7 +298,8 @@ async function newEditor(page, ctx, kind) {
   else {
     ctx.fallback(`no "New ${kind}" control; opened a general New`);
     await press(page, await control(page, /^(\+ ?)?(new|add|record)\b|^\+$/i));
-    const item = await maybe(control(page, new RegExp(`^${kind}$|\\b${kind}\\b`, "i"), { timeout: 2500 }));
+    // the item named for the kind — "Sale", "Sale…" — not a figure that mentions one ("1 sale")
+    const item = await maybe(control(page, new RegExp(`^${kind}\\b(?!s)`, "i"), { timeout: 2500 }));
     if (item) await press(page, item);
   }
   await sleep(400);
@@ -563,8 +575,17 @@ const SCENARIOS = {
       return (best ?? "").replace(/\s+/g, " ");
     }, mug.name, print.name);
     const r = new RegExp(`refund[^.]{0,80}${esc(money(mug.price))}|${esc(money(mug.price))}[^.]{0,80}refund`, "i");
+    // …or the sale's own row in the list, where it says what was refunded
+    const rowText = () => page.evaluate((amt) => {
+      let best = null;
+      for (const e of document.querySelectorAll("body *")) {
+        const t = (e.innerText ?? "").replace(/\s+/g, " ");
+        if (t.includes(amt) && /refund/i.test(t) && e.checkVisibility() && t.length < 200 && (!best || t.length < best.length)) best = t;
+      }
+      return best ?? "";
+    }, money(total));
     let shown = null;
-    for (const until = Date.now() + 5000; !shown && Date.now() < until; await sleep(200)) shown = r.exec(await detailText());
+    for (const until = Date.now() + 5000; !shown && Date.now() < until; await sleep(200)) shown = r.exec(await detailText()) ?? r.exec(await rowText());
     if (!shown) throw new Error(`the sale's detail doesn't show the refund of ${money(mug.price)} (no text with "refund" and the amount beside its lines: "${(await detailText()).slice(0, 200)}")`);
     ctx.observed.refundShown = shown[0].slice(0, 120);
   },
@@ -584,6 +605,7 @@ const SCENARIOS = {
     await sleep(300);
     await page.keyboard.press("Tab");
     // the amount slider: two handles, each named for what it sets
+    await revealFilters(page, ctx, (n) => n.role === "slider");
     let sliders = await findAll(page, (n) => n.role === "slider");
     if (sliders.length < 2) {
       await press(page, await controlOr(page, ctx, /^amount\b/i, /amount/i));
@@ -651,10 +673,18 @@ const SCENARIOS = {
     await view(page, ctx, "Transactions");
     const clear = await maybe(control(page, /clear (all|filters)/i, { timeout: 1500 }));
     if (clear) await press(page, clear); else ctx.fallback('no "Clear all" (a fresh start has no filters to clear)');
-    await press(page, await controlOr(page, ctx, /^categor(y|ies)\b/i, /categor/i));
-    await press(page, await option(page, /^uncategori[sz]ed\b/i));
+    const panel = await revealFilters(page, ctx, (n) => OPTION_ROLES.has(n.role) && named(n, /^uncategori[sz]ed\b/i));
+    const direct = await maybe(option(page, /^uncategori[sz]ed\b/i, { timeout: 1000 }));
+    if (direct) await press(page, direct);
+    else {
+      await press(page, await controlOr(page, ctx, /^categor(y|ies)\b/i, /categor/i));
+      await press(page, await option(page, /^uncategori[sz]ed\b/i));
+    }
     await page.keyboard.press("Escape");
-    await sleep(600);
+    await sleep(400);
+    // and the filters panel it was in, when one was opened for it
+    if (panel && !(await maybe(control(page, /^all\b|select/i, { timeout: 800 })))) { await page.keyboard.press("Escape"); await sleep(400); }
+    await sleep(200);
     // the range the app shows (this month after Clear all): whichever service count the summary is
     const ranges = { "this month": { from: d.monthStart, to: d.today }, "all time": {} };
     let range = null, n0 = null;
@@ -667,8 +697,15 @@ const SCENARIOS = {
     if (!range) throw new Error(`filtered to Uncategorised, the summary line reads "${(await shownSummary(page))?.text ?? "nothing"}", matching neither this month's nor all time's uncategorised`);
     ctx.observed.range = range; ctx.observed.before = n0.count;
     if (n0.count === 0) throw new Error("nothing uncategorised to categorise (drive assumption)");
-    const sel = await controlOr(page, ctx, /select all/i, /^all\b|select/i);
-    await press(page, sel);
+    const sel = await maybe(controlOr(page, ctx, /select all/i, /^all\b|select/i, { timeout: 3000 }));
+    if (sel) await press(page, sel);
+    else {
+      // no Select all control: the list's own select-all key, ⌘A, in the list
+      const list = await maybe(find(page, (n) => ["grid", "table", "treegrid", "listbox", "list"].includes(n.role), { timeout: 2000 }));
+      if (list) await list.handle.evaluate((e) => e.focus());
+      await chord(page, "a");
+      ctx.fallback(`no "Select all" control; pressed ⌘A in the ${list?.node.role ?? "page"}`);
+    }
     await sleep(400);
     const cat = await controlOr(page, ctx, /^categori[sz]e\b/i, /\bcategori[sz]e\b|set category/i);
     await press(page, cat);
@@ -705,6 +742,7 @@ const SCENARIOS = {
     await cdp.send("Browser.setDownloadBehavior", { behavior: "allow", downloadPath: dir, browserContextId: page.browserContext().id, eventsEnabled: true });
     await open(page);
     await view(page, ctx, "Transactions");
+    const panel = await revealFilters(page, ctx, (n) => ACTION_ROLES.has(n.role) && (named(n, /^kind\b/i) || named(n, /^expenses?$/i)));
     const kindCtl = await maybe(control(page, /^kind\b/i, { timeout: 3000 }));
     if (kindCtl) { await press(page, kindCtl); await press(page, await option(page, /^expenses?\b/i)); await page.keyboard.press("Escape"); }
     else {
@@ -713,6 +751,8 @@ const SCENARIOS = {
       ctx.fallback(`no Kind menu; pressed the "${t.node.name}" kind toggle (${t.node.role})`);
       await press(page, t);
     }
+    // a filters panel opened for it is closed again, as a person would, to reach the list's own controls
+    if (panel) { await page.keyboard.press("Escape"); await sleep(400); }
     const want = await summary({ from: d.monthStart, to: d.today, kind: "expense" });
     await summaryBecomes(page, want, "this month, expenses only");
     await press(page, await controlOr(page, ctx, /export( csv)?\b/i, /export|csv|download/i));
@@ -766,12 +806,15 @@ const SCENARIOS = {
     // the Software budget's amount: a field named for Software, else one added for it
     let f = await maybe(field(page, /software/i, { timeout: 2500 }));
     if (!f) {
-      const add = await maybe(controlOr(page, ctx, /(add|set|new) (a )?budget|budget a category/i, /^add\b|^\+|budget/i));
+      const add = await maybe(controlOr(page, ctx, /(add|set|new) (a )?budget|budget a category/i, /^add\b|^\+|\bbudget\b(?!s)/i));
       if (add) { await press(page, add); await sleep(400); }
       const sw = await maybe(find(page, (n) => ["option", "menuitem", "button", "checkbox", "radio", "row", "listitem"].includes(n.role) && named(n, /^software\b/i), { timeout: 2500 }));
       if (sw) { await press(page, sw); await sleep(300); }
       else { const c = await maybe(field(page, /categor/i, { timeout: 2500 })); if (c) await choose(page, ctx, c, "Software", /^software$/i); }
-      f = await maybe(field(page, /software/i, { timeout: 2500 })) ?? await field(page, /amount|budget/i);
+      // its own amount, else the form's: never another category's row
+      f = await maybe(field(page, /software/i, { timeout: 2500 }))
+        ?? await maybe(field(page, /^(monthly )?amount\b|^monthly\b|^budget( amount)?$/i, { timeout: 2500 }))
+        ?? await field(page, /amount|budget/i);
       ctx.fallback(`the Software budget was set through "${add?.node.name ?? sw?.node.name ?? "a category field"}", then the field "${f.node.name}"`);
     }
     ctx.observed.field = f.node.name;

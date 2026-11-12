@@ -96,8 +96,9 @@ await test("Combobox: Enter over the whole list keeps the choice already made", 
   c.entry.onEnter(); settle();
   assert.equal(c.value, c.items[1], "typed, then Enter: the first match");
   c.entry.onEnter(); settle();
-  assert.equal(c.list.shown, true, "Enter on a closed list opens it");
-  assert.equal(c.matchCount, 3, "the whole list");
+  assert.equal(c.list.shown, false, "a choice made, list down: Return goes on (as a field's does), it doesn't reopen");
+  c.open(); settle();
+  assert.equal(c.matchCount, 3, "Down or the chevron opens the whole list");
   c.entry.onEnter(); settle();
   assert.equal(c.value, c.items[1], "Enter with no row roved keeps the choice");
   assert.equal(c.list.shown, false, "and closes the list");

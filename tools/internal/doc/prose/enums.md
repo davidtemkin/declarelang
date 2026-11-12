@@ -46,6 +46,12 @@ camelCase spelling of the wire's `same-origin`. `include` is the only one that
 reaches another origin, and it works **only** when that origin's CORS response
 names your origin back — a wildcard `*` cannot combine with it.
 
+## RequestFailure
+
+Why a request failed, as a closed set: `none`, `unsent`, `offline`, `networkError`,
+`timedOut`, `rejected`, `serverError`, `unreadable`. What to do next differs by kind, and
+for a write, so does whether it was carried out — `DataSource.failure` says what each means.
+
 ## CrossAlign
 
 Where a laid child sits across the flow — `y` on a row, `x` on a stack. `none`

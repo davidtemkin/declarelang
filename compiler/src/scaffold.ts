@@ -788,8 +788,8 @@ export const LANGUAGE_STATICS: Readonly<Record<string, readonly string[]>> = {
   Focus: [
     `  static focus(v: unknown): void;`,
     `  static blur(): void;`,
-    `  static next(): void;`,
-    `  static prev(): void;`,
+    `  static next(past?: View | null): void;`,
+    `  static prev(past?: View | null): void;`,
     `  static byKeyboard(): boolean;`,
     `  static getFocus(): any;`,
     // focus scopes (planes.md §13): into a scope, and between regions

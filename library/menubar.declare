@@ -232,7 +232,7 @@ class MenuBar [
             press() { if (this.open) classroot.menu.close(); else classroot.openMenu(this) },
             onKeyDown(e: KeyEvent) {
                 if (e.key == "Enter" || e.key == " " || e.key == "ArrowDown") classroot.openMenu(this)
-                else if (e.key == "ArrowLeft" || e.key == "ArrowRight") super.onKeyDown(e)
+                else super.onKeyDown(e)
                 },
             onPointerOver() { classroot.trackMenu(this) },
             onClick() { if (this.open) classroot.menu.close(); else classroot.openMenu(this) },

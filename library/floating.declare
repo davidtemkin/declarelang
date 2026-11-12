@@ -415,12 +415,17 @@ class Floating [
         this._strata().closedIt(this)
         Keyboard.navClaim(this, false)
         // back to where it was, or where restoresFocusTo says — unless the focus has
-        // gone on somewhere since; to the next Tab stop when what had it is gone
-        if (_savedFocus != null || restoresFocusTo != null) afterDelay(0, () => {
+        // gone on somewhere since; to the next Tab stop when what had it is gone.
+        // A turn after what the closing delivers (a dialog's picked, a menu's
+        // pick — themselves a turn later): a pick that removes what had the
+        // focus (the row a "Delete?" was about) has removed it by then
+        if (_savedFocus != null || restoresFocusTo != null) afterDelay(0, () => afterDelay(0, () => {
             const f = Focus.getFocus() as View | null
-            if (f == null || f == this || Focus.holds(this)) Focus._giveBack(this)
+            let inside = false
+            for (let p = f; p != null; p = p.parent) if (p == this) inside = true
+            if (f == null || inside || Focus.holds(this)) Focus._giveBack(this)
             else { _savedFocus = null; _savedParent = null }
-            })
+            }))
         this.closed()
         },
 

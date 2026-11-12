@@ -872,13 +872,13 @@ App [ appName = "To-do", minWidth = 320,
 
     // `ignoreScroll`: the page scrolls, the sidebar stays put.
 
-    side: View [ visible = { app.wide }, ignoreScroll = true,
+    side: View [ visible = { app.wide }, ignoreScroll = true, accessibilityRole = navigation, accessibilityLabel = "Lists",
         width = { app.sideW }, height = { app.height }, padding = [16, 12, 16, 12],
         fill = { provided("theme").surface }, stroke = { [null, stroke(1, provided("theme").line), null, null] },
         Sidebar [ ]
         ],
 
-    main: View [ flexes = true,
+    main: View [ flexes = true, accessibilityRole = main,
         padding = { app.wide ? [64, app.pagePad, 120, app.pagePad] : [52 + app.safeTop, 0, 120, 0] },
         col: View [ width = { Math.min(720, parent.contentBox("width")) },
             layout: SimpleLayout [ axis = y ],
@@ -889,7 +889,7 @@ App [ appName = "To-do", minWidth = 320,
                 layout: SimpleLayout [ axis = y, spacing = 12 ],
                 titleRow: View [ width = 100%, visible = { app.wide || !app.searchOpen },
                     layout: SimpleLayout [ axis = x, align = baseline ],
-                    Text [ flexes = true, fontFamily = { app.titleFace }, fontSize = { app.wide ? 32 : 34 }, fontWeight = semibold,
+                    Text [ flexes = true, accessibilityRole = heading, fontFamily = { app.titleFace }, fontSize = { app.wide ? 32 : 34 }, fontWeight = semibold,
                         letterSpacing = -0.6, wrap = false, textColor = { app.inkOf(app.viewId) },
                         text = { app.viewName } ],
                     Text [ fontSize = { app.wide ? 28 : 22 }, fontWeight = medium, opacity = 0.45,
@@ -945,11 +945,12 @@ App [ appName = "To-do", minWidth = 320,
     emptyLine: string = { app.view?.emptyLine ?? "Press + to add one." },
 
     // ── the bars. They stay put while the page scrolls under them, and frost
-    //    once it does (`backdrop` filters what lies beneath).
+    //    once it does (`backdrop` filters what lies beneath). They come after
+    //    the page, so they paint over it.
 
     // A wide screen: search and add, at the top right of the page.
 
-    toolbar: View [ visible = { app.wide }, ignoreScroll = true, ignoreLayout = true,
+    toolbar: View [ visible = { app.wide }, ignoreScroll = true, ignoreLayout = true, accessibilityRole = banner,
         x = { app.sideW }, width = { app.width - app.sideW }, height = 52, padding = [0, 16, 0, 16],
         fill = { app.scrolled ? provided("theme").background : null },
         backdrop = { app.scrolled ? frost(20) : null },
@@ -994,7 +995,7 @@ App [ appName = "To-do", minWidth = 320,
 
     // A phone: back to the lists, and search, along the top.
 
-    phoneBar: View [ visible = { !app.wide }, ignoreScroll = true, ignoreLayout = true,
+    phoneBar: View [ visible = { !app.wide }, ignoreScroll = true, ignoreLayout = true, accessibilityRole = banner,
         width = { app.width }, height = { 52 + app.safeTop }, padding = { [app.safeTop, 6, 0, 4] },
         fill = { app.scrolled ? provided("theme").background : null },
         backdrop = { app.scrolled ? frost(20) : null },
