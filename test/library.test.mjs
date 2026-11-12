@@ -299,6 +299,15 @@ await test("Menu: a row's key shows as the person's keyboard spells it (Keyboard
   app.m.close();
 });
 
+await test("Button: its own padding widens it — the label keeps its room instead of leaving the box", async () => {
+  const app = await boot(`App [ width = 400, height = 300,
+    a: Button [ label = "Save changes" ],
+    b: Button [ label = "Save changes", padding = [6, 28, 6, 28] ],
+    c: Button [ label = "Save changes", padding = 10 ] ]`);
+  assert.equal(app.b.width - app.a.width, 56, "28 each side");
+  assert.equal(app.c.width - app.a.width, 20, "10 each side");
+});
+
 // ── DataGrid ──────────────────────────────────────────────────────────────
 
 const GRID = `App [ width = 700, height = 400,

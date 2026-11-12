@@ -121,7 +121,7 @@ and a child that must stay put inside one says `ignoreLayout = true`.
 |---|---|
 | `@State` | a declared attribute: `expanded: boolean = false` |
 | a computed `var body` value | a `{ }` constraint on the attribute itself |
-| `@Binding` | usually just a constraint reading the owner (`checked = { app.muted }`) plus an `input` override; `<->` when the destination is a place in data |
+| `@Binding` | usually just a constraint reading the owner (`checked = { app.muted }`) plus a `commit` override; `<->` when the destination is a place in data |
 | `@Environment`, `@EnvironmentObject` | `provided("name")` |
 | `ForEach` | `datapath = :items[]` |
 | `if` inside a `ViewBuilder` | `visible = { … }`, or a `State` whose body holds a conditional subtree |

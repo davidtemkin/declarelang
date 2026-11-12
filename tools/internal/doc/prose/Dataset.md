@@ -28,7 +28,7 @@ unconventional name). Presence is the only switch; the `:path` surface never cha
 
 ## contents
 Makes the `Dataset` **derived**: a `{ }` constraint (in place of a JSON body) that computes
-the value from other reactive state — `matches: Dataset [ contents = { app.filter() } ]`. It
+the value from other reactive state — `matches: Dataset [ contents = { app.matching() } ]`. It
 recomputes exactly when what it reads changes, dep-gated like any constraint. A recompute
 reconciles replicated rows by each record's `id` field (or `key = :field` when identity lives
 under another name), so only the records that changed rebuild.

@@ -41,6 +41,21 @@ The data service is started by the script on its port. A dev server already runn
 the machine is part of the environment: the agent finds the port taken and picks another,
 as a user would.
 
+## A run on the tree on disk
+
+`launch.sh --local <app> <run-dir> <model-id>` hands the agent this working tree as it
+stands, uncommitted changes included, instead of a GitHub download — to try a fix in an eval
+before pushing it. The copy holds what a clone would (the files git tracks and the new ones
+it would track, nothing ignored), minus the same paths, as a repository of one commit. The
+tree is built first, and the launch is refused while its derived artifacts are stale (run
+`node tools/internal/derive.mjs --no-stage`): a stale browser bundle would otherwise be the
+subject. `logs/started.txt` names HEAD and the uncommitted changes on top. A run's report
+says it ran on a local tree; a result worth keeping is confirmed on the pushed commit.
+
+Either way the agent's copy is a repository of one commit made after the removals: a
+clone's own history still held `evals/` (until 2026-11-12, `git show` could reach a task's
+answer key; no kept transcript shows an agent doing so).
+
 ## The comparison run
 
 `launch.sh --stack React <app> <run-dir> <model-id>` runs the same brief on another

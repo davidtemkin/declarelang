@@ -387,7 +387,7 @@ why: View [ shows = "why",
 <pre><code class="language-declare-fragment">fill = { hovered ? 0x4169E1 : 0x191970 }   // royalblue when hovered, else midnightblue</code></pre>
 <p>On a view that declares <code>disabled</code> (every <code>Control</code>), both are false while it is disabled, and <code>pressed</code> is also true during a keyboard press — so a control styles from the same pair. Declaring or assigning either is refused, the same guard §5 describes.</p>
 <h2>9. Style</h2>
-<p>Having no CSS (§1) is also what makes a non-DOM renderer possible. Your CSS <em>knowledge</em> transfers: colors, font stacks, and shadows read the same. The names do not. A border is a <strong>stroke</strong>, rounding is <strong><code>cornerRadius</code></strong> (one number, or <code>[topLeft, topRight, bottomRight, bottomLeft]</code> to round only some corners), and <code>borderWidth</code>, <code>boxShadow</code>, and <code>outline</code> do not exist.</p>
+<p>Having no CSS (§1) is also what makes a non-DOM renderer possible. Your CSS <em>knowledge</em> transfers: colors, font stacks, and shadows read the same. The names do not. A border is a <strong>stroke</strong>, rounding is <strong><code>cornerRadius</code></strong> (one number, or <code>[topLeft, topRight, bottomRight, bottomLeft]</code> to round only some corners), and <code>borderWidth</code>, <code>boxShadow</code>, and a box's <code>outline</code> do not exist.</p>
 <p>What replaces the cascade is <strong>provided values</strong>: <code>provided("name")</code> reads the value the nearest ancestor makes available under that name, and <em>providing</em> is setting a value on a node — no keyword. The text face — <code>fontFamily</code>, <code>fontSize</code>, <code>fontWeight</code>, <code>textColor</code>, <code>letterSpacing</code> — works this way (each lives on <code>Text</code>, defaulting to <code>provided(…)</code>, so setting one on a container provides it to the runs below), and so does <strong><code>theme</code></strong>, a token record every color in an app should name once.</p>
 <p>A <strong>typeface is an object in the tree</strong>, like an <code>Image</code> — <code>brand: Font [ FontFace [ … ] ]</code>, usually on the App — and <code>fontFamily</code> takes that object as its value. So a face is a value like any other: choosing one is an assignment, and text, layout and drawings follow a face landing with no code of yours.</p>
 <pre><code class="language-declare-fragment">theme = { app.systemDark ? SanFranciscoDark : SanFrancisco },      // on the App: PROVIDE a preset, light or dark
@@ -808,7 +808,7 @@ npm start</code></pre>
   // The deployed .declare source is the source of truth; the precompiled artifact
   // is a self-VALIDATING cache (re-probed against the source), never a thing to
   // hand-sync. Paths are relative to this file → the tree is subpath-portable.
-  import boot from "./bundles/declare-boot.js?v=79927e5b4c1a";
+  import boot from "./bundles/declare-boot.js?v=e244e2f19706";
   // `launcher: true` — a bare-path query on THIS entry page launches that program
   // (index.html?apps/calendar): install the SW first, then navigate, so the target
   // URL runs even on a cold static visit. See boot-uniform.js launchTarget().

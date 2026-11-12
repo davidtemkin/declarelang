@@ -116,7 +116,7 @@ else 0.
 
 ## input()
 **Where opening and closing go** — the value pattern, as a control's `value` goes through
-its `input`. The default writes `shown`. To make whether it is open your own state,
+its `commit`. The default writes `shown`. To make whether it is open your own state,
 constrain `shown` and override this to write that state, so its own closings (Esc, a press
 past it) reach it: `shown = { app.editing }, input(open: boolean) { app.editing = open }`.
 Constraining `shown` without it is a compile error.

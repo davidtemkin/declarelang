@@ -742,7 +742,7 @@ Declaring or assigning either is refused, the same guard §5 describes.
 Having no CSS (§1) is also what makes a non-DOM renderer possible. Your CSS *knowledge* transfers: colors, font stacks, and
 shadows read the same. The names do not. A border is a **stroke**, rounding is **`cornerRadius`**
 (one number, or `[topLeft, topRight, bottomRight, bottomLeft]` to round only some corners),
-and `borderWidth`, `boxShadow`, and `outline` do not exist.
+and `borderWidth`, `boxShadow`, and a box's `outline` do not exist.
 
 What replaces the cascade is **provided values**: `provided("name")` reads the value the nearest
 ancestor makes available under that name, and *providing* is setting a value on a node — no

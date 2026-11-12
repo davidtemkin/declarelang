@@ -250,7 +250,7 @@ shows the Declare form.
   positioned from a snapshot of its anchor, with its own flip and clamp; an empty `onClick`
   to stop presses falling through; Esc handled as a chain of checks in a `KeyListener` member. A
   full-window view with a scrim is a `Dialog` or a `Sheet`; a panel at a control is a
-  `Popover` or a `Menu`, opened with `openFor`. Each closes itself on Esc and on a press past
+  `Popover`, opened with `showFor`, or a `Menu`, opened with `openFor`. Each closes itself on Esc and on a press past
   it, holds back what is behind it as its kind should, keeps Tab inside while open, and
   animates out before it goes. (`18-overlays.md`)
 - **Keys as a chain of tests** in a `KeyListener` member — `if (e.meta && e.key == "s")`. A key a

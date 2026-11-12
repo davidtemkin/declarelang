@@ -3,10 +3,15 @@
 # builds an app from a brief, in a fresh download of Declare, headless. See
 # evals/craft/README.md for the standard this script is the record of.
 #
-#   evals/craft/launch.sh [--stack NAME] <app> <run-dir> <model-id> [commit] [port]
+#   evals/craft/launch.sh [--stack NAME | --local] <app> <run-dir> <model-id> [commit] [port]
 #     --stack NAME  a comparison run on another platform (e.g. React): no Declare
 #                   download; the prompt names the platform and asks for the checking
 #                   Declare's SKILL asks for — nothing else changes
+#     --local       the subject is this working tree as it stands on disk, uncommitted
+#                   changes included, instead of a GitHub download — for iterating on a
+#                   fix before it is pushed. It is built, and refused if its derived
+#                   artifacts are stale (a stale browser bundle would be the subject).
+#                   `commit` is ignored; the record names HEAD and the changes on top
 #     app       a folder under evals/apps/ holding brief.md and api/ (cadence, murmur, …)
 #     run-dir   created fresh, OUTSIDE every repo (e.g. ~/Code/eval-cadence-7)
 #     model-id  an exact model id (claude-opus-5-5) — never an alias, which moves
@@ -18,8 +23,9 @@
 # Returns once the agent is running; the agent's stream is <run-dir>/logs/agent.stream.jsonl
 # and <run-dir>/logs/started.txt records everything the run was launched with.
 set -euo pipefail
-STACK=""
+STACK=""; LOCAL=""
 if [ "${1:-}" = "--stack" ]; then STACK="$2"; shift 2; fi
+if [ "${1:-}" = "--local" ]; then LOCAL=1; shift; fi
 APP="$1"; RUN="$2"; MODEL="$3"; COMMIT="${4:-}"; PORT="${5:-}"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 EVALS="$(cd "$HERE/.." && pwd)"
@@ -37,7 +43,24 @@ LOGS="$RUN/logs"
 cd "$RUN/work"
 
 # the subject: a fresh download of the published distribution, minus the evals
-if [ -z "$STACK" ]; then
+if [ -z "$STACK" ] && [ -n "$LOCAL" ]; then
+  # the tree on disk, as a fresh clone would hold it: the files git tracks plus the new
+  # ones it would track (nothing ignored — no node_modules, no caches), built first and
+  # refused if what derive makes from it is stale
+  TREE="$(cd "$EVALS/.." && pwd)"
+  ( cd "$TREE" && npm run -s build >/dev/null ) || { echo "the local tree does not build" >&2; exit 1; }
+  ( cd "$TREE" && node tools/internal/derive.mjs --dry >/dev/null ) || { echo "the local tree's derived artifacts are stale — run: node tools/internal/derive.mjs --no-stage" >&2; exit 1; }
+  mkdir declarelang
+  DEST="$PWD/declarelang"
+  ( cd "$TREE" && git ls-files -z --cached --others --exclude-standard ) | ( cd "$TREE" && rsync -a --from0 --files-from=- ./ "$DEST/" )
+  CHANGED="$(cd "$TREE" && git status --porcelain | grep -vc '^??' || true)"; ADDED="$(cd "$TREE" && git status --porcelain | grep -c '^??' || true)"
+  SUBJECT="local tree at $(git -C "$TREE" log -1 --format='%h %s') + $CHANGED changed, $ADDED new uncommitted (evals/, docs/system-design/ and test/ removed)"
+  rm -rf declarelang/evals declarelang/docs/system-design declarelang/test
+  for p in ${STRIP:-}; do rm -rf "declarelang/$p"; SUBJECT="$SUBJECT; $p removed"; done
+  # a repository of its own, one commit, as a clone has one — made AFTER the removals,
+  # so no answer key is in its history
+  ( cd declarelang && git init -q && git add -A && git -c user.name=eval -c user.email=eval@localhost commit -qm "Declare (local tree)" )
+elif [ -z "$STACK" ]; then
   git clone -q https://github.com/davidtemkin/declarelang.git declarelang
   [ -n "$COMMIT" ] && git -C declarelang checkout -q "$COMMIT"
   SUBJECT="$(git -C declarelang log -1 --format='%h %s') (GitHub, evals/, docs/system-design/ and test/ removed)"
@@ -48,6 +71,10 @@ if [ -z "$STACK" ]; then
   # STRIP="a b": further paths that would hand this task's answer to the agent (a test
   # program in the task's own shape), removed before it starts and named in the record
   for p in ${STRIP:-}; do rm -rf "declarelang/$p"; SUBJECT="$SUBJECT; $p removed"; done
+  # the clone's history still holds what was just removed (`git show HEAD:evals/…`):
+  # a repository of one commit in its place, as --local makes
+  rm -rf declarelang/.git
+  ( cd declarelang && git init -q && git add -A && git -c user.name=eval -c user.email=eval@localhost commit -qm "Declare" )
 else
   SUBJECT="none — $STACK, from the brief alone"
 fi

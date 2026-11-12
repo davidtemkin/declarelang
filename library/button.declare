@@ -85,7 +85,7 @@ at half the height, so a short button goes fully pill without a squared corner.
 Otherwise the shared `controlCornerRadius` every control uses.
 
 ## width
-Content-sized: the run — icon, label, icon — plus `padH` each side. Give it a `width`
+Content-sized: the run — icon, label, icon — plus `padH` each side, plus any `padding`. Give it a `width`
 and the run centres inside it, so a dialog's equal-width row keeps every label centred.
 
 ## opacity
@@ -169,7 +169,12 @@ class Button extends Control [
     // cycle. A self-sizing child breaks it, because the run's width never looks
     // outward.
 
-    width   = { this._run.width + this.padH * 2 },
+    // …and the view's own `padding`, which narrows the room the run centres in:
+    // a padded button grows by it rather than pushing its label out
+
+    width   = { this._run.width + this.padH * 2 + (typeof this.padding == "number"
+        ? 2 * Math.max(0, this.padding)
+        : Math.max(0, this.padding[1]) + Math.max(0, this.padding[3])) },
     opacity = { disabled ? (provided("theme").disabledOpacity) : 1 },
 
     // the fill by state: pressed (or its menu open), hovered, at rest
