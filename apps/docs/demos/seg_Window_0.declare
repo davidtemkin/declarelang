@@ -14,7 +14,7 @@ App [ width = 640, height = 360, fill = { provided("theme").background },
         ],
     Window [ x = 330, y = 60, width = 280, height = 220, title = "Notes", resizable = true,
         open = { app.notesOpen },
-        input(v: boolean) { app.notesOpen = v },
+        commit(v: boolean) { app.notesOpen = v },
         View [ width = 100%, padding = 16,
             layout: SimpleLayout [ axis = y, spacing = 10 ],
             TextInput [ width = 100%, placeholder = "Title" ]

@@ -6,6 +6,6 @@ class Chip [ label: string = "",
 
 
 App [ width = 430, height = 96,
-    HTMLText [ x = 16, y = 16, width = 398, fontSize = 15,
+    HTMLText [ x = 16, y = 16, width = 398, fontSize = 15, tagViews = { { Chip: Chip } },
         html = "Filed under <Chip label='docs'/> and <Chip label='runtime'/> — each one a real view, sitting on the line's baseline." ]
     ]

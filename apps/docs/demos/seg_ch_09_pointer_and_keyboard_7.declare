@@ -1,0 +1,9 @@
+App [ width = 320, height = 120, fill = white, textColor = black,
+    word: string = "tomato",
+    chip: View [ x = 20, y = 40, padding = 10, cornerRadius = 8, fill = gainsboro, focusable = true,
+        onClipboardCopy(e: ClipboardEvent) { e.put(app.word) },
+        onClipboardPaste(e: ClipboardEvent) { if (e.text.trim() != "") { app.word = e.text.trim() } },
+        Text [ text = { app.word } ]
+        ],
+    Text [ x = 20, y = 90, text = "Click the chip, then ⌘C or ⌘V" ]
+    ]

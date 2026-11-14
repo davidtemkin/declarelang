@@ -7,5 +7,6 @@ class Chip [ label: string = "",
 
 App [ width = 430, height = 90,
     HTMLText [ x = 16, y = 16, width = 398, fontSize = 15,
-        html = "<b>Bold</b> is a tag the whitelist knows; <Chip label='docs'/> is a view you declared." ]
+        tagViews = { { Chip: Chip } },
+        html = "<b>Bold</b> is a tag the whitelist knows; <Chip label='docs'/> is a view you listed." ]
     ]

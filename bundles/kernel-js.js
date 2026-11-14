@@ -1300,7 +1300,8 @@ ${new Error().stack ?? ""}`);
     }, "resume"),
     track: trackCell,
     settle,
-    pending: /* @__PURE__ */ __name(() => pendingFlag[0] === 1, "pending"),
+    // what kernel.c's kernel_pending answers: a settle asked for, or work queued
+    pending: /* @__PURE__ */ __name(() => pendingFlag[0] === 1 || ringCount[0] > 0 || q[0].length > 0 || q[1].length > 0, "pending"),
     dirty: /* @__PURE__ */ __name(() => {
       const out = new Uint32Array(dirtyList.length);
       for (let i = 0; i < dirtyList.length; i++) {

@@ -7,5 +7,6 @@ class Chip [ label: string = "",
 
 App [ width = 430, height = 90,
     Markdown [ x = 16, y = 16, width = 398, fontSize = 15,
+        tagViews = { { Chip: Chip } },
         text = "**Bold** is Markdown's, `<b>` stays text, and <Chip label='docs'/> is yours." ]
     ]

@@ -4,8 +4,7 @@ App [ width = 520, height = 260, theme = { SanFrancisco },
         onClick() { app.editing = true }
         ],
     Text [ x = 20, y = 80, textColor = { provided("theme").text }, text = { app.editing ? "editing" : "—" } ],
-    sheet: Sheet [ edge = "end", shown = { app.editing },
-        input(open: boolean) { app.editing = open },
+    sheet: Sheet [ edge = "end", shown <-> app.editing,
         Text [ textColor = { provided("theme").text }, text = "Editing" ],
         Button [ label = "Done", primary = true,
             onClick() { app.editing = false }

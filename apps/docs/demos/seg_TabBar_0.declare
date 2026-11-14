@@ -1,9 +1,9 @@
 App [ width = 360, height = 150,
     page: string = "general",
     TabBar [ x = 20, y = 20, width = 240, value = { app.page },
-        choices = { [ ({ id: "general", label: "General" }),
-                     ({ id: "privacy", label: "Privacy" }) ] },
-        input(v: string) { app.page = v }
+        items = { [ ({ id: "general", label: "General" }),
+                   ({ id: "privacy", label: "Privacy" }) ] },
+        commit(v: string) { app.page = v }
         ],
     View [ x = 20, y = 70, visible = { app.page == "general" },
         accessibilityRole = tabPanel, accessibilityLabel = "General",

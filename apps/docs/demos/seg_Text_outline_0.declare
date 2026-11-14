@@ -1,3 +1,0 @@
-App [ fill = #1E293B,
-    Text [ x = 20, y = 20, fontSize = 28, textColor = white, fontWeight = bold, outline = outline(1, #C0392B), text = "ringed" ]
-    ]

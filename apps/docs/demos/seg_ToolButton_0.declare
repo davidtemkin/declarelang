@@ -2,7 +2,7 @@ App [ width = 300, height = 80,
     wrap: boolean = true,
     Toolbar [ x = 20, y = 20, accessibilityLabel = "View",
         ToolButton [ label = "Wrap", toggle = true, on = { app.wrap },
-            input(v: boolean) { app.wrap = v }
+            commit(v: boolean) { app.wrap = v }
             ],
         ToolButton [ label = "Zoom in" ]
         ]

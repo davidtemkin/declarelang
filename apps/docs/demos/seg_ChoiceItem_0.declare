@@ -1,0 +1,14 @@
+class Swatch extends ChoiceItem [ width = 40, height = 40, cornerRadius = 20,
+    stroke = { on ? stroke(3, 0x1E2A38) : null },
+    accessibilityLabel = { choice }
+    ]
+
+
+App [ width = 240, height = 80, fill = white,
+    ChoiceControl [ x = 20, y = 20, value = "teal", accessibilityLabel = "Color",
+        layout: SimpleLayout [ axis = x, spacing = 10 ],
+        Swatch [ choice = "teal", fill = 0x1A9E8F ],
+        Swatch [ choice = "amber", fill = 0xE8A33D ],
+        Swatch [ choice = "plum", fill = 0x7A4A8C ]
+        ]
+    ]

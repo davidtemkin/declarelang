@@ -1,0 +1,28 @@
+class Score extends Text [ width = 60, accessibilityRole = cell ]
+
+App [ width = 240, height = 120, fill = white,
+    on: number = 0,
+    sheet: View [ x = 20, y = 20, focusable = true,
+        accessibilityRole = grid, accessibilityLabel = "Scores",
+        accessibilityActiveItem = { app.on == 0 ? sheet.ada.score : sheet.alan.score },
+        keyBindings = { [ ({ key: "ArrowUp", command: "go", args: [0] }),
+            ({ key: "ArrowDown", command: "go", args: [1] }) ] },
+        go(row: number) { app.on = row },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        View [ accessibilityRole = row,
+            layout: SimpleLayout [ axis = x ],
+            Text [ width = 60, text = "" ],
+            Text [ width = 60, text = "Score", accessibilityRole = columnHeader ]
+            ],
+        ada: View [ accessibilityRole = row,
+            layout: SimpleLayout [ axis = x ],
+            Text [ width = 60, text = "Ada", accessibilityRole = rowHeader ],
+            score: Score [ text = "92", fill = { app.on == 0 ? 0xDCE8FA : null } ]
+            ],
+        alan: View [ accessibilityRole = row,
+            layout: SimpleLayout [ axis = x ],
+            Text [ width = 60, text = "Alan", accessibilityRole = rowHeader ],
+            score: Score [ text = "87", fill = { app.on == 1 ? 0xDCE8FA : null } ]
+            ]
+        ]
+    ]

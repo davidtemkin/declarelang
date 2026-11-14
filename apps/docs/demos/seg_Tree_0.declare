@@ -3,7 +3,7 @@ App [ width = 320, height = 300,
     Tree [ x = 20, y = 20, width = 280, accessibilityLabel = "Documents",
         expanded = ["docs"],
         value = { app.picked },
-        input(v: string) { app.picked = v },
+        commit(v: string) { app.picked = v },
         items = { [
             ({ id: "docs", label: "Documents", children: [
                 ({ id: "notes", label: "Notes.txt" }),

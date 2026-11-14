@@ -3,8 +3,8 @@ App [ width = 320, height = 100,
     hi: number = 100,
     RangeSlider [ x = 20, y = 20, min = 0, max = 500, step = 5,
         accessibilityLabel = "Amount",
-        low = { app.lo }, high = { app.hi },
-        commit(low: number, high: number) { app.lo = low; app.hi = high }
+        value = { { low: app.lo, high: app.hi } },
+        commit(v: object) { app.lo = v.low; app.hi = v.high }
         ],
     Text [ x = 20, y = 60, text = { "$" + app.lo + " – $" + app.hi } ]
     ]

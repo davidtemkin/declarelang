@@ -5,11 +5,11 @@ App [ width = 360, height = 100,
     italic: boolean = false,
     Toolbar [ x = 20, y = 20, accessibilityLabel = "Formatting",
         ToolButton [ label = "B", toggle = true, on = { app.bold },
-            input(v: boolean) { app.bold = v },
+            commit(v: boolean) { app.bold = v },
             accessibilityLabel = "Bold"
             ],
         ToolButton [ label = "I", toggle = true, on = { app.italic },
-            input(v: boolean) { app.italic = v },
+            commit(v: boolean) { app.italic = v },
             accessibilityLabel = "Italic"
             ],
         ToolbarDivider [ ],

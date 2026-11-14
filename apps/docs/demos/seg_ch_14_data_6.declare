@@ -35,7 +35,7 @@ App [ width = 400, height = 300, fill = white, textColor = black,
         Text [ text = { (app.pages.value?.rows ?? []).map((r) => "/" + r.slug).join("  ") } ]
         ],
     sheet: Sheet [ accessibilityLabel = "New page", shown = { app.adding },
-        input(open: boolean) { app.adding = open },
+        commit(open: boolean) { app.adding = open },
         NewPage [ exists = { app.sheet.present } ]
         ]
     ]

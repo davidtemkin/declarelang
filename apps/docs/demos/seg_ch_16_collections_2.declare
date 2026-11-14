@@ -14,6 +14,6 @@ App [ width = 460, height = 240, fill = white, textColor = black,
         columns = { [ { id: "id",    title: "ID",    width: 60 },
                       { id: "title", title: "Title", width: 220 },
                       { id: "state", title: "State", width: 120 } ] },
-        input(sel: object) { app.chosen = (sel ?? []).length }
+        commit(sel: object) { super.commit(sel); app.chosen = (sel ?? []).length }
         ]
     ]
