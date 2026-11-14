@@ -35,7 +35,7 @@ await (async () => {
       ]
     App [ width = 300, height = 300,
       d: Dataset { { "rows": [ { "id": "a", "rank": 2, "typing": false, "unread": 0 } ] } },
-      col: View [ datapath = { app.d.value }, Row [ datapath = :rows[], key = :id ] ] ]`);
+      col: View [ datapath = { app.d.value }, Row [ datapath = :rows[], identityKey = :id ] ] ]`);
   const row = app.col.children[0];
   test("a Spring reads the row's record for its target", () => {
     assert.equal(row.move.to, 40, "rank 2 × 20");
@@ -75,7 +75,7 @@ await (async () => {
       f: TextInput [ width = 80, accessibilityLabel = "Name", value <-> :name ] ]
     App [ width = 300, height = 300,
       d: Dataset { { "rows": [ { "id": "a", "name": "x" } ] } },
-      col: View [ datapath = { app.d.value }, Row [ datapath = :rows[], key = :id ] ] ]`);
+      col: View [ datapath = { app.d.value }, Row [ datapath = :rows[], identityKey = :id ] ] ]`);
   test("the WRITE half still belongs to a view: a two-way path on a leaf input compiles", () => {
     assert.deepEqual(r.errors ?? [], []);
   });

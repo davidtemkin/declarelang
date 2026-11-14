@@ -2,8 +2,8 @@
 //
 // The dual of dep-extract.ts: where that walks `{ }` CONSTRAINT bodies for the
 // reactive cells they read, this walks ACTIVATION HANDLER bodies for the
-// `navigate(to)` CALLS they make — the navigation SERVICE ACTION (view.ts App.
-// navigate). Each call attributes a link to the element that carries the
+// `openURL(to)` CALLS they make — the navigation SERVICE ACTION (view.ts App.
+// openURL). Each call attributes a link to the element that carries the
 // handler: `<element>.link = { href } | { read }`. The relation then rides the
 // compile() result exactly as `deps` do (a walk-order side-list, links.ts in the
 // runtime), the runtime stamps each instance `_navLink`, and the static
@@ -11,8 +11,8 @@
 //
 // Attribution is BY CONSTRUCTION — rooted at the (element, handler) pair — not by
 // tracing an attribute name a router secretly consults. Only ACTIVATION handlers
-// (`onClick`) become anchors; a `navigate` elsewhere emits no `<a>`.
-// Conditionality lives in the VALUE (`navigate(this.link)` where the link value
+// (`onClick`) become anchors; an `openURL` elsewhere emits no `<a>`.
+// Conditionality lives in the VALUE (`openURL(this.link)` where the link value
 // is "" when it shouldn't fire), which the extractor reads as a read-path and the
 // serializer honours by emitting no anchor for an empty href.
 //
@@ -23,8 +23,8 @@
 import ts from "typescript";
 import type { Program, Element, LinkTarget } from "../../runtime/dist/parser.js";
 
-/** Handlers whose body activates the element — a click. A navigate here becomes
- *  an anchor; a navigate in `onInit` (or any non-activation handler) does not. */
+/** Handlers whose body activates the element — a click. An openURL here becomes
+ *  an anchor; an openURL in `onInit` (or any non-activation handler) does not. */
 const ACTIVATION = new Set(["onClick"]);
 
 /** AUTHORED `link` attributes → the navigation relation, directly (location.md
@@ -44,7 +44,7 @@ export function attachAuthoredLinks(program: Program): void {
 }
 
 /** Attach `element.link` for every element whose activation handler calls
- *  `navigate(to)` with a resolvable target. Mutates the program in place;
+ *  `openURL(to)` with a resolvable target. Mutates the program in place;
  *  serializeLinks (runtime links.ts) then reads it in walk order. An authored
  *  link (attachAuthoredLinks) always wins — inference never overwrites it. */
 export function extractLinks(program: Program): void {
@@ -64,7 +64,7 @@ export function extractLinks(program: Program): void {
 /** The link an element's FIRST activation handler yields, or undefined. Two kinds
  *  compose into the ONE link relation: an `app.location = <expr>` write is a
  *  FRAGMENT link (`<a href="#…">`, a reachable location — docs/system-design/location.md §5/§7),
- *  and a `navigate(to)` call is an external link. A handler that does both (a pill
+ *  and a `openURL(to)` call is an external link. A handler that does both (a pill
  *  that is an in-app location OR an out-of-app URL) folds into one value-carries-the-
  *  conditionality read: the fragment when the location is non-empty, else the URL. */
 function linkOf(el: Element, isClassRoot: boolean): LinkTarget | undefined {
@@ -77,7 +77,7 @@ function linkOf(el: Element, isClassRoot: boolean): LinkTarget | undefined {
 }
 
 /** Resolve a handler body to its link target: the first `app.location = <expr>`
- *  write (a fragment) and/or the first `navigate(to)` call (a URL). */
+ *  write (a fragment) and/or the first `openURL(to)` call (a URL). */
 function targetInBody(body: string, isClassRoot: boolean): LinkTarget | undefined {
   let sf: ts.SourceFile;
   try {
@@ -86,12 +86,12 @@ function targetInBody(body: string, isClassRoot: boolean): LinkTarget | undefine
     return undefined;
   }
   let locRhs: ts.Expression | undefined;   // the `app.location = <rhs>` right-hand side
-  let navArg: ts.Expression | undefined;   // the `navigate(<arg>)` argument
+  let navArg: ts.Expression | undefined;   // the `openURL(<arg>)` argument
   const walk = (n: ts.Node): void => {
     if (locRhs === undefined && ts.isBinaryExpression(n) && n.operatorToken.kind === ts.SyntaxKind.EqualsToken && isLocationTarget(n.left)) {
       locRhs = n.right;
     }
-    if (navArg === undefined && ts.isCallExpression(n) && isNavigateCallee(n.expression) && n.arguments.length >= 1) {
+    if (navArg === undefined && ts.isCallExpression(n) && isOpenURLCallee(n.expression) && n.arguments.length >= 1) {
       navArg = n.arguments[0];
     }
     ts.forEachChild(n, walk);
@@ -99,10 +99,10 @@ function targetInBody(body: string, isClassRoot: boolean): LinkTarget | undefine
   walk(sf);
 
   // A location write becomes a fragment link. Its RHS is evaluated at t=0 per
-  // settled instance (the read machinery static-html.ts already runs for navigate): a
+  // settled instance (the read machinery static-html.ts already runs for openURL): a
   // string literal shortcuts to a stable `#…` href; anything else (a read, a
   // `"guide/" + cid` concatenation over replicated tabs) rides as a read that
-  // prepends `#` when non-empty. A navigate in the same handler is the else-branch.
+  // prepends `#` when non-empty. An openURL in the same handler is the else-branch.
   if (locRhs !== undefined) {
     const loc = locExprText(locRhs, isClassRoot);
     if (loc !== null) {
@@ -116,13 +116,13 @@ function targetInBody(body: string, isClassRoot: boolean): LinkTarget | undefine
       return { read: `(${loc}) ? '#' + (${loc}) : ''` };
     }
   }
-  // No location write (or an unresolvable one): fall back to the navigate target.
+  // No location write (or an unresolvable one): fall back to the openURL target.
   if (navArg !== undefined) return resolveArg(navArg, isClassRoot);
   return undefined;
 }
 
 /** Is this the App's `location` attribute (the assignment LHS)? Matches the
- *  resolved `this.$root.location` plus `app.location`, the twin of isNavigateCallee. */
+ *  resolved `this.$root.location` plus `app.location`, the twin of isOpenURLCallee. */
 function isLocationTarget(expr: ts.Expression): boolean {
   if (!ts.isPropertyAccessExpression(expr) || expr.name.text !== "location") return false;
   const recv = expr.expression;
@@ -130,7 +130,7 @@ function isLocationTarget(expr: ts.Expression): boolean {
   return ts.isPropertyAccessExpression(recv) && recv.name.text === "$root" && recv.expression.kind === ts.SyntaxKind.ThisKeyword;
 }
 
-/** The evaluable text of a location/navigate RHS, or null if it reads something not
+/** The evaluable text of a location/openURL RHS, or null if it reads something not
  *  resolvable against this instance at t=0 (a `classroot` read below its own class
  *  root, where `classroot` is an ancestor). `this`/`parent`/literals are always fine;
  *  `classroot` only on the class root, where it IS the instance (compileExpr binds
@@ -143,19 +143,19 @@ function navExprText(arg: ts.Expression, isClassRoot: boolean): string | null {
   return locExprText(arg, isClassRoot);
 }
 
-/** Is this call target the App's navigate service action? Matches the resolved
- *  spelling `this.$root.navigate`, plus `app.navigate` and a bare `navigate` for
- *  robustness — no other `.navigate(` exists (it is not an attribute anymore). */
-function isNavigateCallee(callee: ts.Expression): boolean {
-  if (ts.isIdentifier(callee)) return callee.text === "navigate";
-  if (!ts.isPropertyAccessExpression(callee) || callee.name.text !== "navigate") return false;
+/** Is this call target the App's openURL service action? Matches the resolved
+ *  spelling `this.$root.openURL`, plus `app.openURL` and a bare `openURL` for
+ *  robustness — no other `.openURL(` exists (it is not an attribute anymore). */
+function isOpenURLCallee(callee: ts.Expression): boolean {
+  if (ts.isIdentifier(callee)) return callee.text === "openURL";
+  if (!ts.isPropertyAccessExpression(callee) || callee.name.text !== "openURL") return false;
   const recv = callee.expression;
   if (ts.isIdentifier(recv)) return recv.text === "app";
   // `this.$root` (the resolved `app`): a `.$root` access on `this`.
   return ts.isPropertyAccessExpression(recv) && recv.name.text === "$root" && recv.expression.kind === ts.SyntaxKind.ThisKeyword;
 }
 
-/** Resolve a navigate argument to a link target: a string literal → an href; a
+/** Resolve an openURL argument to a link target: a string literal → an href; a
  *  pure read-path rooted at the ELEMENT (`this.…`, or `classroot.…` on a class
  *  root, which is the same instance) → a read to evaluate at t=0. Anything else
  *  (a call, concatenation, an ancestor `classroot`/`parent` read) is left

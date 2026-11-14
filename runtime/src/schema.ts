@@ -25,7 +25,7 @@ export const ABSTRACT_SCHEMAS: ReadonlySet<string> = new Set(["Keyboard", "Media
 // no runtime import. instantiate.ts keeps the twin tag → class table.
 
 import { enumType, numericEnumType, type AttrType } from "./value.js";
-import { ROLES, LIVE, SORTS } from "./a11y-vocab.js";
+import { ROLES, LIVE, SORTS, CURRENT } from "./a11y-vocab.js";
 import { PURPOSE_NAMES } from "./purpose.js";
 
 // The weight vocabulary: the nine CSS keywords (aliases for the hundreds) plus
@@ -241,7 +241,7 @@ const ViewSchema: ClassSchema = {
     // blending order. A blending view lands as a UNIT, children included;
     // compositing is paint, never input. Tokens are camelCase (`colorDodge`),
     // the W3C mode set every renderer carries natively.
-    blend: enumType("Blend", "normal", "multiply", "screen", "overlay",
+    blendMode: enumType("BlendMode", "normal", "multiply", "screen", "overlay",
       "darken", "lighten", "colorDodge", "colorBurn", "hardLight", "softLight",
       "difference", "exclusion", "hue", "saturation", "color", "luminosity",
       "plusLighter"),
@@ -263,11 +263,11 @@ const ViewSchema: ClassSchema = {
     // The view's own paint, filtered as a GROUP (graphics-pass.md §1): the
     // clipped subtree — children included — passes through the list (blur,
     // brightness, contrast, saturate, grayscale, invert, sepia, hueRotate,
-    // tint, shadow-of-alpha) before opacity and blend land. Lengths are view
+    // tint, shadow-of-alpha) before opacity and blendMode land. Lengths are view
     // units and scale with the view's transform; the output may bleed past
     // the box (a blur's 3σ, a shadow's reach) and layout ignores the bleed. A
     // filtered view isolates (§4.1). Paint only, never input. null = none.
-    filter: { kind: "filter" },
+    visualFilter: { kind: "filter" },
     // A soft alpha MASK (graphics-pass.md §2), applied after clip, before
     // opacity: a gradient's alpha over the box, or a stencil View's painted
     // alpha placed by its own x/y inside the box (a `visible = false` child
@@ -401,6 +401,8 @@ const ViewSchema: ClassSchema = {
       accessibilityActiveItem: { kind: "class", of: "View" },
       // which way the column a header heads is sorted
       accessibilitySort: enumType("AccessibilitySort", ...SORTS),
+      // this view is where the person is, among its kind: the page, the step, the day
+      accessibilityCurrent: enumType("AccessibilityCurrent", ...CURRENT),
       // whether more than one item of this list, grid or tree can be selected at once
       accessibilityMultiselectable: { kind: "boolean" },
       accessibilityLevel: { kind: "number", nullable: true },
@@ -445,13 +447,14 @@ const ViewSchema: ClassSchema = {
     // generated from these tables) and so a `{ }` body has a declared type to
     // check against; check.ts gates it to a replication template.
     //
-    // `key` is deliberately NOT here, though it is the same kind of metadata.
-    // Being a View attribute would take the name out of every author's reach —
-    // no member and no child could be called `key` again — and the corpus
-    // proved that immediately: library/menu.declare has a child named `key`.
-    // A common English word is too expensive to spend on a rare override, so
-    // `key` stays a special case in check.ts and is taught in the guide's
-    // identity ladder rather than the reference.
+    // `identityKey = :field` names the record field a replicated instance
+    // follows (default: the record's `id`). It was spelled `key` until the
+    // 2026-11 naming ruling, which kept it out of this table — a View
+    // attribute takes its name out of every author's reach, and `key` is a
+    // word apps need for their own data (a shortcut's key, a record's key).
+    // `identityKey` is a name no app wants for anything else, so it is here
+    // like its siblings, documented by the reference.
+    identityKey: { kind: "string" },
     virtualize: { kind: "boolean" },
     // `classFor = { … }` picks each record's class: the written class is the
     // base, and the body names it or a subclass (check.ts gates it to a
@@ -479,13 +482,13 @@ const ViewSchema: ClassSchema = {
   // The pointer events come in two layers (input.ts): the RAW facts —
   // pointerDown/Move/Up, the multi-finger `touch*` family, and `wheel` (the
   // wheel stream, trackpad pinch included) — report what the pointer
-  // physically did, immediately; the RESOLVED ones — click, dblClick,
+  // physically did, immediately; the RESOLVED ones — click, doubleClick,
   // hold — report what the user MEANT, after the router has watched the whole
   // gesture. Activate on the resolved layer, manipulate on the raw one.
   // Declaring a raw-family handler is also a gesture CLAIM (backend.ts
   // InputWants): it takes from the browser exactly what that handler needs
   // to fire, nothing more.
-  events: ["click", "dblClick", "hold", "pointerDown", "pointerUp", "pointerMove", "pointerOver", "pointerOut",
+  events: ["click", "doubleClick", "hold", "pointerDown", "pointerUp", "pointerMove", "pointerOver", "pointerOut",
     "dragStart", "drag", "dragEnd",
     "touchStart", "touchMove", "touchEnd", "touchCancel", "wheel",
     "pinchStart", "pinch", "pinchEnd",
@@ -538,6 +541,11 @@ const AppSchema: ClassSchema = {
     // Chrome and the mac host do.) Same fact for an embedded app: visibility
     // is per-document, so an island inherits its page's.
     pageVisible: { kind: "boolean" },
+    // Whether the app fills the screen. Two-way: the host feeds it (the person
+    // pressing Esc, the browser's own control), and writing it asks the host to
+    // enter or leave — from a press, since a browser enters full screen only
+    // for one. A request the browser refuses leaves it false.
+    fullScreen: { kind: "boolean" },
     // "is this device built for touch?" — true when the device's PRIMARY pointer
     // is coarse (`pointer: coarse`): a phone or tablet, keyboard or not. A stable device fact (kept
     // live if the input changes) to size from; a hover reveal keys on
@@ -614,10 +622,10 @@ const AppSchema: ClassSchema = {
     // RULED shape 3, a class). The app-authored state (editing / liveCard /
     // liveSource) is instance-declared on the demo-hosting apps; the host-fed
     // channels the apps still read (demoSources / liveReport) are interim App
-    // runtime surface in scaffold.ts LANGUAGE_API (like navigate), never schema
+    // runtime surface in scaffold.ts LANGUAGE_API (like openURL), never schema
     // attrs. pageWeight / sourceLines are host-client writes with no Declare
     // reader — not language surface at all.
-    // NOTE: app→host navigation is the `navigate(to)` METHOD (view.ts App), not an
+    // NOTE: app→host navigation is the `openURL(to)` METHOD (view.ts App), not an
     // attribute — a link/button CALLS it in an activation handler (capabilities.md
     // §6). The runtime channel it writes (`pendingNav`) is a plain host-polled
     // field, deliberately not a schema attribute, so no Declare source names it.
@@ -722,6 +730,10 @@ const RICH_ATTRS: Readonly<Record<string, AttrType>> = {
   // the palette above (or a `style` declaration) defines. Keys are the elements
   // rich text styles, never a class, so no class name is taken; inherited too.
   tagStyles: { kind: "record", name: "TagStyles" },
+  // Which tags in the content build views, and of which class — `Chip: Chip`.
+  // The map is the only way a tag becomes a view: content names a tag, never a
+  // class, so what loaded text can build is what the program listed. Inherited.
+  tagViews: { kind: "record", name: "TagViews" },
 };
 
 /** The BUILT-IN provided values — the names a container may set BARE (no type)
@@ -734,6 +746,8 @@ const RICH_ATTRS: Readonly<Record<string, AttrType>> = {
 export const BUILTIN_PROVIDED: ReadonlySet<string> = new Set([
   ...Object.keys(FACE_ATTRS), ...Object.keys(RICH_ATTRS),
   "selectable", "iconSize", "theme", "lineHeight", "bodyColor", "fontScale",
+  // a container switched off: every control inside it is disabled
+  "disabled",
 ]);
 
 // Text (R3): a text run sized by native browser metrics when width/height
@@ -769,9 +783,9 @@ export const TextSchema: ClassSchema = {
     // overrides `textColor` when set. `textFill = { gradient("90deg", …) }`.
     textFill: { kind: "fill" },
     // Typographical treatments (paint/decoration; also carried by a run):
-    // `outline` a glyph-contour stroke (hollow text with textFill = transparent),
+    // `textStroke` a glyph-contour stroke, `stroke(width, color)` (hollow text with textFill = transparent),
     // `textTransform` upper/lower/capitalize, `smallCaps`, `underline`, `strike`.
-    outline: { kind: "outline" },
+    textStroke: { kind: "glyphStroke" },
     textTransform: enumType("TextTransform", "none", "uppercase", "lowercase", "capitalize"),
     smallCaps: { kind: "boolean" },
     // OpenType FIGURES. Two independent axes plus one toggle, named the way the
@@ -810,10 +824,9 @@ export const TextSchema: ClassSchema = {
   readOnly: ["ascent", "descent", "capHeight", "xHeight", "baseline"],
 };
 
-// Image (R3): an async-loaded bitmap. `stretches` is the first built-in
-// enum-typed attribute — exactly the doc's `value Stretch = none | width |
-// height | both` (language §6). The doc sketches `stretches` on View; it
-// lives on Image until a plain View has something to stretch.
+// Image (R3): an async-loaded bitmap. `fit` (ImageFit) was the first built-in
+// enum-typed attribute (language §6) — how the bitmap meets the box, CSS's
+// object-fit.
 const ImageSchema: ClassSchema = {
   name: "Image",
   base: ViewSchema,
@@ -822,7 +835,7 @@ const ImageSchema: ClassSchema = {
     // `cover`/`contain` (2026-08-06, assessment 1.1): the aspect-PRESERVING
     // fits — contain letterboxes inside the box, cover fills and crops it —
     // beside the axis stretches, which distort by design.
-    stretches: enumType("ImageFit", "none", "width", "height", "both", "cover", "contain"),
+    fit: enumType("ImageFit", "none", "width", "height", "both", "cover", "contain"),
     // Where an aspect-preserving fit sits in the box (graphics-pass.md §4):
     // `contain` letterboxes on one axis and `cover` crops on one — this says
     // which end the picture keeps. `center` (the default) is what the fits
@@ -879,12 +892,12 @@ const MediaSchema: ClassSchema = {
 };
 
 // Video: Media plus the picture — Image's twin. The natural size arrives with
-// the metadata; `stretches` is Image's vocabulary, same meanings.
+// the metadata; `fit` is Image's vocabulary, same meanings.
 const VideoSchema: ClassSchema = {
   name: "Video",
   base: MediaSchema,
   attrs: {
-    stretches: enumType("ImageFit", "none", "width", "height", "both", "cover", "contain"),
+    fit: enumType("ImageFit", "none", "width", "height", "both", "cover", "contain"),
   },
 };
 
@@ -934,7 +947,7 @@ const DOMIslandSchema: ClassSchema = {
   // payload) lands here as onPost({ topic, payload }). The outbound half is
   // the island's own post() method; standing values cross as `provides`
   // (down) and `exposed(…)` (up). `navigate` — the hosted program's
-  // navigate(to) / openWindow(to), delivered to the island when it declares
+  // openURL(to) / openWindow(to), delivered to the island when it declares
   // onNavigate (island.ts islandNavigation), else carried out by the page.
   events: ["post", "navigate"],
 };
@@ -963,6 +976,8 @@ const NativeTextSchema: ClassSchema = {
     // what the field holds, told to the platform: autofill, keyboard, capitalization (purpose.ts)
     purpose: enumType("InputPurpose", ...PURPOSE_NAMES),
     concealed: { kind: "boolean" },
+    // false: no caret and no selection highlight while focused (TextInput.showsCaret)
+    showsCaret: { kind: "boolean" },
     // the native selection's ends, as the person moves them; `select()` is the write half
     selectionStart: { kind: "number" },
     selectionEnd: { kind: "number" },
@@ -1020,7 +1035,7 @@ export const RichTextSchema: ClassSchema = {
   readOnly: ["baseline"],
   // A link (`[text](url)` / `<a href>`) was clicked — `onLink(href)`. The runtime
   // supplies mechanism only (the click + href); the app dispatches policy (scroll,
-  // route, or `app.navigate(href)`). Unhandled links fall back to `app.navigate(href)`.
+  // route, or `app.openURL(href)`). Unhandled links follow the app's link rule: `#…` in-app, anything else `app.openURL(href)`.
   events: ["link"],
 };
 
@@ -1153,7 +1168,7 @@ const DataSourceSchema: ClassSchema = {
     autoFetch: { kind: "boolean" },
     // How the browser handles cookies, TLS client certs and auth headers —
     // the Fetch API's three credentials modes. Tokens are camelCase, and
-    // data.ts maps `sameOrigin` to the wire's `same-origin`, exactly as `blend`
+    // data.ts maps `sameOrigin` to the wire's `same-origin`, exactly as `blendMode`
     // maps colorDodge → color-dodge: a hyphen cannot be a token (it is
     // subtraction), and the language spells closed sets as tokens, not strings.
     credentials: enumType("RequestCredentials", "omit", "sameOrigin", "include"),
@@ -1216,7 +1231,7 @@ const AnimatorSchema: ClassSchema = {
     from: { kind: "number" },
     duration: { kind: "number" },
     repeat: { kind: "number" },
-    motion: { kind: "motion" },
+    easing: { kind: "easing" },
     relative: { kind: "boolean" },
     started: { kind: "boolean" },
     paused: { kind: "boolean" },
@@ -1236,7 +1251,7 @@ const AnimatorSchema: ClassSchema = {
 
 // AnimatorGroup (animation.md §1, §4) — coordinates several animators, running
 // them `sequential` (default) or `simultaneous`. Its own animatable attrs (to /
-// from / duration / motion / relative / attribute) are the LZX default-cascade:
+// from / duration / easing / relative / attribute) are the LZX default-cascade:
 // a member that omits one inherits the group's. A separate twin-table entry
 // (base null, like Animator) with its own family test `descendsFrom(schema,
 // "AnimatorGroup")`; the checker routes a group to checkAnimatorGroupNode (its
@@ -1253,7 +1268,7 @@ const AnimatorGroupSchema: ClassSchema = {
     from: { kind: "number" },
     duration: { kind: "number" },
     repeat: { kind: "number" },
-    motion: { kind: "motion" },
+    easing: { kind: "easing" },
     process: enumType("AnimatorOrder", "sequential", "simultaneous"),
     relative: { kind: "boolean" },
     started: { kind: "boolean" },
@@ -1554,7 +1569,7 @@ export const EVENT_PAYLOAD: Readonly<Record<string, string>> = {
   // each had before it, the value each has now)
   change: "ChangeEvent",
   // the single-point pointer family — view-local or root-space per handler
-  click: "PointerEvent", dblClick: "PointerEvent", hold: "PointerEvent",
+  click: "PointerEvent", doubleClick: "PointerEvent", hold: "PointerEvent",
   contextMenu: "PointerEvent",
   pointerDown: "PointerEvent", pointerMove: "PointerEvent",
   pointerOver: "PointerEvent", pointerOut: "PointerEvent",

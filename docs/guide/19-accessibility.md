@@ -93,7 +93,8 @@ screen reader skips it and all it holds. Never on a control: the keyboard still 
 **The shape of a page.** A view whose text is a heading says so —
 `accessibilityRole = heading, accessibilityLevel = 2` — so a screen reader can move from
 heading to heading. The large regions of a screen can be landmarks (`navigation`, `main`,
-`search`, `banner`, `complementary`), which a screen reader's user jumps between.
+`search`, `banner`, `complementary`, and `contentinfo` for a page's foot), which a screen
+reader's user jumps between.
 
 **What changed, when nobody is looking at it.** A view whose changes should be heard —
 a status line, a count of results — sets `accessibilityLive = polite`. For a one-off,
@@ -104,7 +105,14 @@ with no view to say it from, `Accessibility.announce("Message sent")`.
 A control you draw is pixels to a screen reader until you say what it is. Give it a role,
 and the role tells you what else it needs: a `slider` must say its value and range and
 know how to step. The compiler checks that it does, by name and type, as it checks the
-library's own `Slider` — a missing member is an error that names it.
+library's own `Slider` — a missing member is an error that names it. A reading within a
+range that is not progress toward an end (storage used, a battery) is a `meter`.
+
+The roles are the ones every platform's accessibility API shares, so some web roles are
+left out on purpose: an alert is a `status` with `accessibilityLive = assertive`, a view
+that is only presentation is `none`, and the web's document-structure roles (an article, a
+figure, a note) have no word here — a heading and a named `region` give a screen reader the
+same places to move between.
 
 ```declare
 class Rating extends Control [ width = 140, height = 28, stars: number = 3,
@@ -134,6 +142,41 @@ that is pressed has `press()` already; a `button` role needs nothing more than a
 A choice among several that you draw — tiles, chips — is a `ChoiceControl` of `ChoiceItem`s:
 it gives them their role and says the choice as "2 of 4", selected or not, so nothing about
 it is yours to write but the look.
+
+A composite of your own — a sheet, a board, a list you build without `Table` — is read by its
+structure: a `grid` of `row`s, each holding `columnHeader`s, `rowHeader`s or `cell`s, made of
+views whose words are `Text`. The grid keeps the focus while the arrows move a highlight, so
+it says which item the keys are on with `accessibilityActiveItem`, and a screen reader
+announces that item as if it had the focus:
+
+```declare
+class Score extends Text [ width = 60, accessibilityRole = cell ]
+App [ width = 240, height = 120, fill = white, on: number = 0,
+    sheet: View [ x = 20, y = 20, focusable = true,
+        accessibilityRole = grid, accessibilityLabel = "Scores",
+        accessibilityActiveItem = { app.on == 0 ? sheet.ada.score : sheet.alan.score },
+        keyBindings = { [ ({ key: "ArrowUp", command: "go", args: [0] }),
+            ({ key: "ArrowDown", command: "go", args: [1] }) ] },
+        go(row: number) { app.on = row },
+        layout: SimpleLayout [ axis = y, spacing = 4 ],
+        View [ accessibilityRole = row, layout: SimpleLayout [ axis = x ],
+            Text [ width = 60, text = "" ], Text [ width = 60, text = "Score", accessibilityRole = columnHeader ] ],
+        ada: View [ accessibilityRole = row, layout: SimpleLayout [ axis = x ],
+            Text [ width = 60, text = "Ada", accessibilityRole = rowHeader ],
+            score: Score [ text = "92", fill = { app.on == 0 ? 0xDCE8FA : null } ] ],
+        alan: View [ accessibilityRole = row, layout: SimpleLayout [ axis = x ],
+            Text [ width = 60, text = "Alan", accessibilityRole = rowHeader ],
+            score: Score [ text = "87", fill = { app.on == 1 ? 0xDCE8FA : null } ] ]
+        ]
+    ]
+```
+
+Click the grid and use the arrows: a screen reader says "Alan, Score, 87". A long sheet
+replicates its rows from data and builds only those on screen; the roles are the same.
+
+A drawn chart whose points the arrows travel is an `image`, named for what it shows, and as
+the keys move it says the point they reach — the period and its value — with
+`Accessibility.announce`, since a picture has no items of its own for a screen reader to land on.
 
 The roles are a closed set — `button`, `checkbox`, `slider`, `tab`, `listbox`, `option`,
 `dialog`, `heading` and the rest; `declare-help View.accessibilityRole` lists them — and a role

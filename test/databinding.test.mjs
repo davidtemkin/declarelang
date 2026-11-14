@@ -120,6 +120,28 @@ await test("commitOn = \"end\" commits once, when the edit ends; cancelEdit comm
   assert.equal(f.text, "Zed", "and the field shows the value again");
 });
 
+await test("commitOn = \"end\": a field that goes with an edit open commits it, as leaving does; a cancelled one commits nothing", async () => {
+  // the field is put away in the turn the focus leaves it (`exists` on an
+  // editing flag its onBlur clears): the commit-on-leave would run at the
+  // settle's close, on a field already gone (Ledger run 5: Tab out of an
+  // in-place cell sent no save)
+  const app = await build(`
+    App [ editing: boolean = true, saved: string = "Original",
+      f: TextInput [ exists = { app.editing }, accessibilityLabel = "Name", value = { app.saved }, commitOn = "end",
+        commit(v: string) { app.saved = v } ] ]`);
+  let f = app.f;
+  f.beginEdit(); f.edit("Typed"); settle();
+  assert.equal(app.saved, "Original", "not written while the edit is open");
+  app.editing = false; settle();
+  assert.equal(app.saved, "Typed", "written as the field goes");
+  app.editing = true; settle();
+  f = app.f;
+  f.beginEdit(); f.edit("scratch"); settle();
+  f.cancelEdit();
+  app.editing = false; settle();
+  assert.equal(app.saved, "Typed", "a cancelled edit commits nothing as the field goes");
+});
+
 await test("validate only judges: every change is committed, and the field says what is wrong once judged", async () => {
   const app = await build(`
     App [
@@ -174,7 +196,7 @@ await test("on any value control: a checkbox and a slider bind both ways", async
 
 const errorsOf = async (src) => (await compileProgram(src)).errors.map((e) => e.message).join("\n");
 await test("misuse is refused, each naming what works", async () => {
-  assert.match(await errorsOf(`App [ d: Dataset { { "w": 3 } }, View [ datapath = { app.d.value }, width <-> :w ] ]`), /is not a value control/);
+  assert.match(await errorsOf(`App [ d: Dataset { { "w": 3 } }, View [ datapath = { app.d.value }, width <-> :w ] ]`), /has no commit/);
   assert.match(await errorsOf(`App [ p: string = "", TextInput [ accessibilityLabel = "x", placeholder <-> app.p ] ]`), /TextInput's value is 'value'/);
   assert.match(await errorsOf(`App [ f: TextInput [ accessibilityLabel = "x", value <-> "hi" ] ]`), /binds a PLACE/);
   assert.match(await errorsOf(`App [ s: Dataset { {"a":[]} }, form: View [ datapath = { app.s.value }, f: TextInput [ accessibilityLabel = "x", value <-> :a[] ] ] ]`), /not a many-path/);
@@ -223,6 +245,18 @@ await test("a constrained value with nowhere for the change to go is refused, na
   ]) assert.equal(await errorsOf(ok), "", ok);
 });
 
+await test("a method's own local named like a constrained attribute shadows it: not a write (7GUIs run 2)", async () => {
+  for (const ok of [
+    `App [ off: number = 0, View [ x = { app.off + 10 }, width = 100, height = 40, draw(d: DrawContext) { for (let c = 0; c < 3; c++) { const x = c * 20; d.fillRect(x, 0, 10, 10) } } ] ]`,
+    `App [ off: number = 0, View [ x = { app.off }, y = { app.off }, onClick() { let { x, y } = { x: 1, y: 2 }; x = x + 1; console.log(x, y) } ] ]`,
+    `App [ off: number = 0, View [ x = { app.off }, onClick() { [1, 2].forEach((x) => { x = x * 2 }) } ] ]`,
+  ]) assert.equal(await errorsOf(ok), "", ok);
+  for (const bad of [
+    `App [ off: number = 0, View [ x = { app.off }, onClick() { x = 5 } ] ]`,
+    `App [ off: number = 0, View [ x = { app.off }, onClick() { const x = 5; this.x = x } ] ]`,
+  ]) assert.match(await errorsOf(bad), /writes x, which it binds with a constraint/, bad);
+});
+
 // Re-anchoring: a `:path` island inside `datapath = { }` resolves against the
 // cursor the slot EXTENDS, never the one it defines. Before the
 // withCursorDefining fix, the compute read its own half-written cursor on
@@ -236,7 +270,7 @@ await test("datapath = { :detail } re-anchor + nested replication survives settl
         { "label": "Colour", "value": "Black" }, { "label": "Size", "value": "L" } ] } } } },
       host: View [ datapath = { app.db.value.v },
         det: View [ datapath = { :detail },
-          Text [ datapath = :details[], key = :label, width = 220,
+          Text [ datapath = :details[], identityKey = :label, width = 220,
             text = { (:label || "") + ": " + (:value || "") } ],
         ],
       ],

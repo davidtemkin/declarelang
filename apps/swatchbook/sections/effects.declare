@@ -17,13 +17,13 @@ class Subject [ width = 140, height = 88,
             textColor = 0xE4572E, text = "Aa 12" ]
         ],
     asImage: State [ applied = { classroot.content == "image" },
-        pic: Image [ width = 140, height = 88, stretches = contain, source = "assets/badge.png" ]
+        pic: Image [ width = 140, height = 88, fit = contain, source = "assets/badge.png" ]
         ]
     ]
 
 
 class FilterSwatch extends Swatch [ name = :name,
-    s: Subject [ x = 36, y = 16, content = { :content }, filter = { app.filterFor(:fx) } ]
+    s: Subject [ x = 36, y = 16, content = { :content }, visualFilter = { app.filterFor(:fx) } ]
     ]
 
 
@@ -32,9 +32,9 @@ class BlendSwatch extends Swatch [ name = :name,
         ground: View [ x = 20, y = 14, width = 172, height = 92, cornerRadius = 10, fill = gradient(90, #17A34A, #FDE68A) ]
         ],
     overImage: State [ applied = { :ground == "image" },
-        pic: Image [ x = 20, y = 14, width = 172, height = 92, stretches = cover, source = "assets/badge.png" ]
+        pic: Image [ x = 20, y = 14, width = 172, height = 92, fit = cover, source = "assets/badge.png" ]
         ],
-    over: View [ x = 56, y = 28, width = 100, height = 64, cornerRadius = 32, fill = 0xE4572E, blend = { :mode } ]
+    over: View [ x = 56, y = 28, width = 100, height = 64, cornerRadius = 32, fill = 0xE4572E, blendMode = { :mode } ]
     ]
 
 
@@ -105,7 +105,7 @@ class EffectsSection extends Section [ title = "Effects",
             ],
         Swatch [ name = "image stencil",
             s: Subject [ x = 36, y = 16, mask = { this.st },
-                st: Image [ visible = false, width = 140, height = 88, stretches = contain, source = "assets/badge.png" ]
+                st: Image [ visible = false, width = 140, height = 88, fit = contain, source = "assets/badge.png" ]
                 ]
             ]
         ],
@@ -150,7 +150,7 @@ class EffectsSection extends Section [ title = "Effects",
             View [ x = 48, y = 30, width = 116, height = 60, cornerRadius = 14, backdrop = frost(24, 2), fill = #FFFFFF33 ]
             ],
         Swatch [ name = "frost over an image",
-            Image [ x = 20, y = 14, width = 172, height = 92, stretches = cover, source = "assets/badge.png" ],
+            Image [ x = 20, y = 14, width = 172, height = 92, fit = cover, source = "assets/badge.png" ],
             View [ x = 48, y = 30, width = 116, height = 60, cornerRadius = 14, backdrop = frost(10), fill = #FFFFFF44 ]
             ],
         Swatch [ name = "frost over text",

@@ -15,14 +15,15 @@
 // Exit code: 0 = every requested rung passed; 1 = a rung failed; 2 =
 // usage/toolchain error.
 import { timing } from "./internal/timing.mjs";
+import { compileKey, cachedCompile, storeCompile } from "./internal/compile-cache.mjs";
 import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 // The compiler, loaded behind a preflight: on a fresh checkout without
 // `npm install`, a static import died with Node's bare "Cannot find package
 // 'typescript'" before a line of this tool ran.
-let compileTracked, programFromCompiled;
+let compileTracked, programFromCompiled, isUpToDate, diskProbe;
 try {
-  ({ compileTracked } = await import("../compiler/dist/compile-node.js"));
+  ({ compileTracked, isUpToDate, diskProbe } = await import("../compiler/dist/compile-node.js"));
   ({ programFromCompiled } = await import("../compiler/dist/program-build.js"));
 } catch (e) {
   const root = resolve(dirname(new URL(import.meta.url).pathname), "..");
@@ -192,8 +193,16 @@ if (flags.wrap && !hasApp) {
 // the program.
 if (flags.lint !== null && flags.lint !== "true" && flags.lint !== "false") { console.error(`declare-verify: --lint is true or false, not '${flags.lint}'`); process.exit(2); }
 if (flags.devices !== null && !["all", "desktop", "mobile"].includes(flags.devices)) { console.error(`declare-verify: --devices is all, desktop or mobile, not '${flags.devices}'`); process.exit(2); }
-const out = await timing.time("compile (R1–R3)", () => compileTracked(source, { originDir: dirname(resolve(file)), mainId: resolve(file),
-  ...(flags.lint !== null ? { lint: flags.lint === "true" } : {}), ...(flags.devices !== null ? { devices: flags.devices } : {}) }));
+// A compile of the same text, options and files is answered from the last one
+// (internal/compile-cache.mjs): most calls follow no edit.
+const compileOpts = { ...(flags.lint !== null ? { lint: flags.lint === "true" } : {}), ...(flags.devices !== null ? { devices: flags.devices } : {}) };
+const cacheKey = compileKey(resolve(file), source, compileOpts);
+const hit = await timing.time("compile (R1–R3): the last compile, if its files are unchanged", () => cachedCompile(cacheKey, { isUpToDate, diskProbe }));
+const out = hit !== null ? hit.out
+  : await timing.time("compile (R1–R3)", () => compileTracked(source, { originDir: dirname(resolve(file)), mainId: resolve(file), ...compileOpts }));
+// what is stored is the compile as it came, before --only narrows what is shown
+const asCompiled = { ...out, diagnostics: out.diagnostics };
+if (hit === null) storeCompile(cacheKey, asCompiled);
 // --only: keep the diagnostics positioned in the named file. Matched by path
 // suffix so `--only rooms/pulse.declare` and `--only pulse.declare` both work;
 // the main file itself is `--only <the program file>`. The others are counted,
@@ -232,10 +241,12 @@ let failedRung = failingAll.length ? Math.min(...failingAll.map((d) => rungOf(d.
 // rung 4 boots the same program headlessly. Instantiating leaves it untouched.
 let builtProgram = null;
 async function compiledProgram() {
+  if (builtProgram === null && hit?.program != null) builtProgram = hit.program;
   if (builtProgram === null) {
-    const r = await programFromCompiled(out, { stripPos: false });
+    const r = await timing.time("program: built from the compile", () => programFromCompiled(out, { stripPos: false }));
     if (r.program == null) throw new Error("program build failed: " + (r.report ?? "no report"));
     builtProgram = r.program;
+    storeCompile(cacheKey, asCompiled, builtProgram);
   }
   return builtProgram;
 }
@@ -255,7 +266,7 @@ const sized = (() => {
 })();
 const queries = flags.reads.length > 0 || flags.outline !== null || flags.semantics !== null
   ? { reads: flags.reads, outline: flags.outline, semantics: flags.semantics } : null;
-boot.layout = []; boot.unbuilt = []; boot.answers = []; boot.where = null;
+boot.layout = []; boot.unbuilt = []; boot.neverBuilt = []; boot.answers = []; boot.where = null;
 // WHERE RUNG 4 BOOTS: in Chrome when there is one — the Chrome kept running
 // between checks (tools/internal/chrome.mjs), so a boot there costs about what
 // one headless did, with real text where headless measures by a stand-in. With
@@ -293,6 +304,7 @@ if (failedRung === null && flags.rung >= 4 && !flags.noBoot) {
         const gist = (n) => n.replace(/\([^)]*\)/g, "");
         for (const n of r.notes) if (!boot.notes.some((m) => gist(m) === gist(n))) boot.notes.push(w.tag + n);
         boot.unbuilt = boot.unbuilt.filter((c) => r.unbuilt.includes(c));
+        boot.neverBuilt = (boot.neverBuilt ?? boot.unbuilt).filter((c) => (r.neverBuilt ?? r.unbuilt).includes(c));
       }
       for (const l of r.layout ?? []) boot.layout.push(w.tag + l);
       boot.flagged = [...(boot.flagged ?? []), ...(r.flagged ?? [])];
@@ -428,6 +440,12 @@ for (const c of driven.checks) for (const n of c.notes ?? []) {
 }
 const stillUnbuilt = driven.checks.length === 0 ? boot.unbuilt
   : boot.unbuilt.filter((cls) => driven.checks.every((c) => (c.unbuilt ?? []).includes(cls)));
+// of those, the ones the runtime never constructed — at boot or anywhere a
+// script went, standing at a check or not — and the ones it built that no check
+// happened to find standing
+const neverBuilt = stillUnbuilt.filter((cls) => (boot.neverBuilt ?? boot.unbuilt).includes(cls)
+  && driven.checks.every((c) => (c.neverBuilt ?? c.unbuilt ?? []).includes(cls)));
+const builtUnchecked = stillUnbuilt.filter((cls) => !neverBuilt.includes(cls));
 const layoutCount = boot.layout.length + drivenLayout.length;
 
 const effectiveBuilt = flags.states !== null ? 6 : flags.assert !== null ? 5 : 4;
@@ -449,7 +467,7 @@ if (flags.json) {
     probe: probeNote,
     only: onlyNote,
     stats: { constraints: out.deps?.length ?? 0, bootNodes: boot.nodes, bootMs: boot.ms },
-    boot: boot.ran ? { ok: boot.ok, errors: boot.errors, notes: boot.notes, layout: boot.layout, unbuilt: stillUnbuilt, answers: boot.answers, samples: boot.samples ?? [] } : null,
+    boot: boot.ran ? { ok: boot.ok, errors: boot.errors, notes: boot.notes, layout: boot.layout, unbuilt: stillUnbuilt, neverBuilt, answers: boot.answers, samples: boot.samples ?? [] } : null,
     driven: driven.checks.length > 0 ? { checks: driven.checks.length, layout: drivenLayout, notes: drivenNotes } : null,
     behavior: behave.ran ? { ok: behave.ok, failures: behave.failures, steps: behave.log } : null,
     visual: visual.ran ? { ok: visual.ok, failures: visual.failures, results: visual.results } : null,
@@ -522,11 +540,11 @@ if (flags.json) {
   for (const n of drivenNotes) console.log(`  note ${n}`);
   for (const l of boot.layout) console.log(`  layout ${l}`);
   for (const l of drivenLayout) console.log(`  layout ${l}`);
-  if (stillUnbuilt.length > 0) {
-    const names = `${stillUnbuilt.slice(0, 12).join(", ")}${stillUnbuilt.length > 12 ? ", …" : ""}`;
-    if (driven.checks.length > 0) console.log(`  note never built — at boot or in any state the scripts reached (${driven.checks.length} checked) — so never checked for layout: ${names}`);
-    else console.log(`  note not built at boot, so not checked here: ${names} — they appear once data arrives or the state changes; an assert script (R5) or a states script (R6) that reaches them has them checked there`);
-  }
+  const listed = (ns) => `${ns.slice(0, 12).join(", ")}${ns.length > 12 ? ", …" : ""}`;
+  if (driven.checks.length > 0) {
+    if (neverBuilt.length > 0) console.log(`  note never built — at boot or in any state the scripts reached (${driven.checks.length} checked) — so never checked for layout: ${listed(neverBuilt)}`);
+    if (builtUnchecked.length > 0) console.log(`  note built, but never checked for layout — none was standing at boot or at any place the scripts came to rest (${driven.checks.length} checked): ${listed(builtUnchecked)}; a settleData or settleMotion while one is on screen has it checked there`);
+  } else if (stillUnbuilt.length > 0) console.log(`  note not built at boot, so not checked here: ${listed(stillUnbuilt)} — they appear once data arrives or the state changes; an assert script (R5) or a states script (R6) that reaches them has them checked there`);
   for (const a of boot.answers) console.log(a);
   if (flags.samples) for (const s of boot.samples ?? []) console.log(`  sample ${s.source}: ${JSON.stringify(s.value)}`);
   if (failedRung === null) {
@@ -552,7 +570,18 @@ if (flags.json) {
       console.log(`       questions wherever the script settles, and --states <states.mjs> (R6) in each state.`);
     }
   } else {
-    console.log(`  verify: ${file} — FAILED at R${failedRung}`);
+    // the verdict names the first cause, so a view of the output cut to this line
+    // (grep, tail) still says what failed and where
+    let first = "";
+    if (failedRung <= 3) {
+      const d = failingAll.find((d) => rungOf(d.phase) === failedRung);
+      const m = d ? / \[(DECLARE\d+)\](?: \(([^)]*)\))?\s*$/.exec(show(d)) : null;
+      if (m) first = `: ${m[1]}${m[2] ? ` at ${m[2]}` : ""}`;
+    } else {
+      const m = (failedRung === 4 ? boot.errors : failedRung === 5 ? behave.failures : visual.failures)[0];
+      if (m) first = `: ${String(m).replace(/\s+/g, " ").slice(0, 100)}${String(m).length > 100 ? "…" : ""}`;
+    }
+    console.log(`  verify: ${file} — FAILED at R${failedRung}${first}`);
   }
 }
 process.exit(failedRung === null ? 0 : 1);

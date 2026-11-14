@@ -46,8 +46,11 @@ live while the menu is up.
 
 A menu's items, like a dialog's buttons, are **records, not children** — the contract from
 [Controls](declare-docs:guide:controls@controls-that-take-records): what a class arranges, it takes as data. The
-record is `{ id, label, key?, icon?, enabled?, checked?, divider?, submenu? }`, and the
-choice comes back through `picked(id)`.
+record is `{ id, label, key?, icon?, enabled?, checked?, divider?, submenu?, command? }`, and
+the choice comes back through `picked(id)` — or, for a record naming a `command`, runs that
+command along the key walk ([Pointer and keyboard](declare-docs:guide:pointer-and-keyboard@key-bindings)).
+`key` is shown, not bound: the key itself is a `keyBindings` record, or a
+[`MenuBar`](declare-docs:MenuBar) item, whose keys are the program's.
 
 A menu whose rows carry `checked` is a choice of one: derive `checked` from your state
 (`checked: app.sort == "date"`) and set the state in `picked`. Put it on a `Button` whose
@@ -56,19 +59,22 @@ other platforms ([Controls](declare-docs:guide:controls@choosing-one-of-many)).
 
 ## Opening at a view or at the pointer
 
+Every overlay opens with one family of verbs: [`show()`](declare-docs:Floating.method.show), and, for a view,
+[`showFor(v)`](declare-docs:Floating.method.showFor), which makes `v` its `opener`. A menu places itself by the verb:
+
 | verb | anchors | for |
 |---|---|---|
-| [`openFor(v)`](declare-docs:Menu.method.openFor) | below the view, flipping above at the screen edge | an attached menu — a button's dropdown, a select |
-| [`openAt(v, e)`](declare-docs:Menu.method.openAt) | at the pointer | a context menu |
+| [`showFor(v)`](declare-docs:Menu.method.showFor) | below the view, flipping above at the screen edge | an attached menu — a button's dropdown, a select |
+| [`showAt(v, e)`](declare-docs:Menu.method.showAt) | at the pointer | a context menu |
 
-[`ContextMenu`](declare-docs:ContextMenu) wraps the second as `open(v, e)`, and the wiring is two lines **on the view
+A [`ContextMenu`](declare-docs:ContextMenu) is a menu opened the second way, and the wiring is two lines **on the view
 being served** — which is what routes the gesture, since a handler is a claim:
 
 ```declare-fragment
 rowMenu: ContextMenu [ items = { … }, picked(id: string) { … } ],
 …
-Row [ onContextMenu(e: PointerEvent) { app.rowMenu.open(this, e) },
-      onHold(e: PointerEvent)        { app.rowMenu.open(this, e) } ]
+Row [ onContextMenu(e: PointerEvent) { app.rowMenu.showAt(this, e) },
+      onHold(e: PointerEvent)        { app.rowMenu.showAt(this, e) } ]
 ```
 
 `onContextMenu` engages the right-click and two-finger path; `onHold` is the touch
@@ -91,7 +97,8 @@ may change like any other:
 
 The open overlays form a stack in the order they opened. A press is weighed against the top
 one first; one that lets it go on hands it to the next. Esc closes the topmost, and nothing
-else: a program's own Esc runs on the next press, when nothing is open.
+else (a field inside it that binds Escape still comes first): a program's own Esc runs on the
+next press, when nothing is open.
 
 What is worth internalizing is the ordering rule a pick follows, because it is invisible
 until it bites:
@@ -121,6 +128,11 @@ App [ width = 360, height = 220, theme = { SanFrancisco }, size: number = 14,
 
 `showFor(v)` names the anchor for this opening; it takes focus to its first control and gives
 it back when it closes, and Tab stays inside it while it is open.
+
+Its size is yours to set like any view's. A section menu that opens as a panel across the page,
+under a navigation bar, is a popover the App's width (less the 8 points it keeps from each
+edge) anchored to the bar: `menu: Popover [ width = { app.width - 16 }, cornerRadius = 0 ]`,
+opened with `app.menu.showFor(app.bar)`.
 
 ## Dialogs and focus
 
@@ -167,19 +179,22 @@ App [ width = 400, height = 220, theme = { SanFrancisco }, name: string = "untit
 ```
 
 `presentation = "full"` turns a dialog into a full-screen view — a photo, a document — with
-your content edge to edge.
+your content edge to edge. It fills the app; for the app to fill the display, as a slideshow
+does, set [`app.fullScreen`](declare-docs:App.fullScreen) from a press. It reads back `false`
+when the person leaves full screen themselves (Esc, the window's own control), so whatever
+reads it follows them out.
 
 ## Open as state
 
 The verbs are one way to open an overlay; the other is to make whether it is open **state of
-your own**. Constrain [`shown`](declare-docs:Floating.shown) to it, and say where its own
-closings go with `input` — the value pattern, as a slider's drags go through its `input`:
+your own**. Bind [`shown`](declare-docs:Floating.shown) to it both ways — the value pattern, as a slider's
+value is bound:
 
 ```declare
 App [ width = 520, height = 260, theme = { SanFrancisco }, editing: boolean = false,
     Button [ x = 20, y = 20, label = "Edit…", onClick() { app.editing = true } ],
     Text [ x = 20, y = 80, textColor = { provided("theme").text }, text = { app.editing ? "editing" : "—" } ],
-    sheet: Sheet [ edge = "end", shown = { app.editing }, input(open: boolean) { app.editing = open },
+    sheet: Sheet [ edge = "end", shown <-> app.editing,
         Text [ textColor = { provided("theme").text }, text = "Editing" ],
         Button [ label = "Done", primary = true, onClick() { app.editing = false } ]
         ]
@@ -187,8 +202,11 @@ App [ width = 520, height = 260, theme = { SanFrancisco }, editing: boolean = fa
 ```
 
 It opens when the state turns true and closes when it turns false; Esc and a press past it
-write `false` back through `input`. Leaving `input` out is a compile error that names the fix:
-the sheet would have no way to tell your state it closed.
+write `false` back. Where its closings should go somewhere else, constrain `shown` and
+override [`commit`](declare-docs:Floating.method.commit), as a control's change goes through its own:
+`shown = { app.editing }, commit(open: boolean) { app.editing = open }`. Constraining `shown`
+with neither is a compile error that names the fix: the sheet would have no way to tell your
+state it closed.
 
 **Something to do when it closes**, however it closed — Esc, a press past it, `close()` —
 goes in [`closed()`](declare-docs:Floating.method.closed), called once it has closed:
@@ -196,8 +214,8 @@ goes in [`closed()`](declare-docs:Floating.method.closed), called once it has cl
 again — reset them there, or build the contents for each opening with
 `exists = { app.editSheet.present }` (see [`present`](declare-docs:Floating.present)):
 keyed on `present`, they stay through the closing motion, where keyed on the flag that opens
-it they vanish while the panel is still sliding away. Not in `input`: the verbs deliver
-through `input`, so an override of it that writes nothing leaves `show()` with nothing to open.
+it they vanish while the panel is still sliding away. Not in `commit`: the verbs deliver
+through `commit`, so an override of it that writes nothing leaves `show()` with nothing to open.
 
 ## Sheets
 
@@ -314,9 +332,9 @@ behavior comes with it — the layer it paints in, the policy for presses and sc
 Esc, focus, and its motion in and out. A photo viewer is a full-screen dialog of your own:
 
 ```declare-fragment
-class Viewer extends Dialog [ presentation = "full",
+class Viewer extends Dialog [ presentation = "full", fill = black,
     source: string = "",
-    Image [ width = 100%, height = 100%, stretches = contain, source = { classroot.source } ]
+    Image [ width = 100%, height = 100%, fit = contain, source = { classroot.source } ]
     ]
 ```
 

@@ -53,7 +53,7 @@ await test("a toast said as a sheet opens paints above it: a press on the sheet'
   const out = verify("toast-sheet", `App [
     open: boolean = false, hits: number = 0,
     Button [ x = 20, y = 20, label = "Open", onClick() { app.open = true; app.toast.say("Logged", null) } ],
-    s: Sheet [ edge = "end", shown = { app.open }, accessibilityLabel = "Detail", input(o: boolean) { app.open = o },
+    s: Sheet [ edge = "end", shown = { app.open }, accessibilityLabel = "Detail", commit(o: boolean) { app.open = o },
         View [ width = 100%, layout: SimpleLayout [ axis = y, spacing = 12 ],
             View [ width = 100%, height = 640 ],
             Button [ width = 100%, label = "Edit", onClick() { app.hits = app.hits + 1 } ] ] ],
@@ -130,11 +130,12 @@ App [ width = 100, height = 100, n: number = 0, Seat [ ] ]`);
   assert.doesNotMatch(good, /DECLARE4031/, good);
 });
 
-await test("a padded view whose only child centres itself in it is said to be its padding; a label centred on a point is not", () => {
-  const pill = verify("pill", `class Pill extends Control [ height = 40, padding = [0, 14, 0, 14],
+await test("a padded view sized by its content centres a label in it: as wide as the label and its padding; a label centred on a point is fine too", () => {
+  const pill = verify("pill", `class Pill extends Control [ height = 40, padding = [0, 14, 0, 14], accessibilityLabel = "Range",
     TextLabel [ x = center, y = center, text = "2 weeks" ] ]
 App [ width = 300, height = 100, Pill [ x = 10, y = 10 ] ]`);
-  assert.match(pill, /Pill\.width \([^)]*\) is only its padding/, pill);
+  assert.match(pill, /R4 ✓/, pill);
+  assert.doesNotMatch(pill, /only its padding/, pill);
   const pin = verify("pin", `App [ width = 300, height = 100, View [ x = 100, y = 50, Text [ x = center, y = center, text = "pin" ] ] ]`);
   assert.match(pin, /R4 ✓/, pin);
 });
@@ -193,7 +194,7 @@ await test("a surface that claims x takes the sideways wheel and leaves a vertic
 await test("a locator does not find what an open sheet puts out of reach", () => {
   const out = verify("locator-inert", `App [ width = 400, height = 300, open: boolean = false, signedIn: boolean = false,
     Button [ x = 20, y = 20, label = "Sign in", onClick() { app.open = true } ],
-    s: Sheet [ edge = "end", accessibilityLabel = "Sign in", shown = { app.open }, input(o: boolean) { app.open = o },
+    s: Sheet [ edge = "end", accessibilityLabel = "Sign in", shown = { app.open }, commit(o: boolean) { app.open = o },
         Button [ label = "Sign in", onClick() { app.signedIn = true } ] ] ]`, `export default async ({ page, drive, expect }) => {
   await page.getByRole("button", { name: "Sign in" }).click();
   await drive.settleMotion();

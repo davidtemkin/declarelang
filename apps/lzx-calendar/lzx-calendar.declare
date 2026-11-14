@@ -988,7 +988,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
        month pager, the centered title, and Add Event. */
 
     top: View [ x = 20, width = 806, y = -50,
-        slideDown: Animator [ attribute = y, to = 0, duration = 500, motion = laszloBoth ],
+        slideDown: Animator [ attribute = y, to = 0, duration = 500, easing = laszloBoth ],
 
         weekbar: View [ y = 26, width = 808, height = 26, fill = #354D5B,
             datapath = { app.names.value },
@@ -1095,7 +1095,7 @@ App [ width = 835, height = 600, fill = #1E3A49,
        layout; fades up on startup. */
 
     grid: View [ x = 20, y = 57, width = 808, height = 516, opacity = 0,
-        fadeIn: Animator [ attribute = opacity, to = 1, duration = 1000, motion = laszloBoth ],
+        fadeIn: Animator [ attribute = opacity, to = 1, duration = 1000, easing = laszloBoth ],
         datapath = { app.cal.value },
         layout: CalendarGrid [ ],
 
@@ -1118,11 +1118,11 @@ App [ width = 835, height = 600, fill = #1E3A49,
         fill = #C6CAC4,
         stroke = stroke(1, #83877F),
 
-        slideIn:  AnimatorGroup [ process = simultaneous, duration = 500, motion = laszloBoth,
+        slideIn:  AnimatorGroup [ process = simultaneous, duration = 500, easing = laszloBoth,
             Animator [ attribute = x, to = 622 ],
             Animator [ attribute = opacity, to = 1 ]
             ],
-        slideOut: AnimatorGroup [ process = simultaneous, duration = 500, motion = laszloBoth,
+        slideOut: AnimatorGroup [ process = simultaneous, duration = 500, easing = laszloBoth,
             Animator [ attribute = x, to = 852 ],
             Animator [ attribute = opacity, to = 0 ]
             ],

@@ -78,6 +78,10 @@ Below its anchor, or above it; risen from the bottom as a sheet.
 ## opacity
 Its open blend, as a bubble.
 
+## cornerRadius
+The theme's `popoverCornerRadius`; as a sheet, its top corners only. Its panel takes it,
+with its `fill`.
+
 ## scale
 It grows from slightly small as it opens, as a bubble — at its program's scale where it opens
 in a host's layer.
@@ -156,9 +160,14 @@ class Popover extends Floating [
     pivotX = { this.width / 2 },
     pivotY = { this._asSheet || this._below ? 0 : this.height },
 
+    // the popover paints its own fill, as any view does; the panel gives it the
+    // theme's surface when it sets none, and its edge and shadow
+
+    cornerRadius = { this._asSheet ? [(provided("theme").sheetCornerRadius) - 2, (provided("theme").sheetCornerRadius) - 2, 0, 0] : (provided("theme").popoverCornerRadius) },
+
     _panel: View [ width = 100%, height = 100%,
-        cornerRadius = { classroot._asSheet ? [(provided("theme").sheetCornerRadius) - 2, (provided("theme").sheetCornerRadius) - 2, 0, 0] : (provided("theme").popoverCornerRadius) },
-        fill = { provided("theme").surface },
+        cornerRadius = { classroot.cornerRadius },
+        fill = { classroot.fill == null ? provided("theme").surface : null },
         stroke = { classroot._asSheet ? null : stroke(1, provided("theme").line) },
         shadow = { provided("theme").popoverShadow } ],
 

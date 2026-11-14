@@ -11,7 +11,7 @@ export type SerializedLink = {
  *  so the two side-lists stay mutually consistent. */
 export declare function forEachElement(program: Program, fn: (el: Element) => void): void;
 /** Collect each navigable element's target with its walk index (compiler side,
- *  after extraction). Empty when a program has no `navigate(to)` links. */
+ *  after extraction). Empty when a program has no `openURL(to)` links. */
 export declare function serializeLinks(program: Program): SerializedLink[];
 /** Zip a walk-order link side-list back onto a freshly-parsed program (runtime
  *  side). Additive: an element with no entry keeps `link` undefined. */

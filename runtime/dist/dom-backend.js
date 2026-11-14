@@ -19,7 +19,7 @@
 // (input.ts), so both backends decide clicks identically.
 import { sharedClock } from "./animate.js";
 import { watchSelection } from "./edit-selection.js";
-import { wireEditableInput, setEditableValue, applyEditableText } from "./editable-input.js";
+import { wireEditableInput, setEditableValue, applyEditableText, applyCaret } from "./editable-input.js";
 import { allowedRef, notifyIslandSlot } from "./backend.js";
 import { domTransform3D, unproject } from "./projective.js";
 import { IDENTITY as IDENTITY_AFFINE, apply as applyAffine, cssMatrix, fromParts as affineFromParts, invert as invertAffine, isIdentity as affineIsIdentity, rotationOf as affineRotationOf, scaleOf as affineScaleOf } from "./affine.js";
@@ -416,8 +416,7 @@ function ensureScrollFrame(scrollerEl) {
     frame.dataset.declareScrollframe = "1";
     const s = frame.style;
     s.position = "sticky";
-    s.top = "0";
-    s.left = "0";
+    seatScrollFrame(frame, scrollerEl);
     s.width = "0";
     s.height = "0";
     s.overflow = "visible";
@@ -426,6 +425,20 @@ function ensureScrollFrame(scrollerEl) {
     s.zIndex = "2";
     scrollerEl.insertBefore(frame, scrollerEl.firstChild);
     return frame;
+}
+/** The frame's origin is the pane's own, not its content box's. A padded
+ *  pane carries its inset as CSS padding (setPadding), which would place the
+ *  in-flow frame inside the inset and hold it there when stuck, so a pinned
+ *  child, already shifted by the inset in view.ts, would get it twice. The
+ *  start sides cancel it, flowing and stuck. Re-run whenever the padding changes. */
+function seatScrollFrame(frame, scrollerEl) {
+    const t = scrollerEl.style.paddingTop, l = scrollerEl.style.paddingLeft;
+    const top = t === "" || t === "0px" ? "0" : `-${t}`, left = l === "" || l === "0px" ? "0" : `-${l}`;
+    const s = frame.style;
+    s.top = top;
+    s.marginTop = top;
+    s.left = left;
+    s.marginLeft = left;
 }
 /** Surfaces that carry BOTH a path clip and a sink. The browser must never
  *  see such an element as a pointer target: a clip-path'd hittable overlay
@@ -438,6 +451,16 @@ function ensureScrollFrame(scrollerEl) {
  *  part of an interactive box falls through") kept by the runtime instead of
  *  leaked to the app. Iterated per event, so a plain Map (destroy() removes). */
 const CARVED = new Map();
+/** Each view's element → its surface, so a change of `pointerEvents` can reach
+ *  the surfaces below it (a `"none"` switches off its whole subtree). */
+const DOM_SURFACE = new WeakMap();
+/** Re-derive the effective pointer-events of every surface at and below `el`. */
+function refreshPointerBelow(el) {
+    DOM_SURFACE.get(el)?.refreshPointer();
+    const all = el.getElementsByTagName("*");
+    for (let i = 0; i < all.length; i++)
+        DOM_SURFACE.get(all[i])?.refreshPointer();
+}
 // ── Transform-aware localization ─────────────────────────────────────────────
 // The browser's own hit-test follows CSS transforms, so a rotated or scaled
 // view TARGETS correctly — but localizing the point by rect subtraction does
@@ -615,7 +638,7 @@ export class DomBackend {
         // (index.ts isEmbedded), and the boundary the input router stops at so an
         // outer app never double-handles a click that belongs to an embedded child.
         rootEl.dataset.declareApp = "";
-        root.isRoot = true;
+        root.becomeRoot();
         // Selection is realized at the LEAVES (see the ruling above the class):
         // the root writes no `user-select` at all. What the root does own is the
         // tap flash — WebKit's gray tap-highlight rectangle is feedback for a
@@ -657,7 +680,7 @@ export class DomBackend {
         // CLICK LISTENER — and Declare wires all input at the window, so every
         // element reads as dead content. One no-op listener on the root makes
         // the whole painted UI "interactive" to the heuristic and retires smart
-        // zoom app-wide (measured: dblClick delivered at scale 1; a click-only
+        // zoom app-wide (measured: doubleClick delivered at scale 1; a click-only
         // view's double tap became two clicks, no zoom) — which is exactly the
         // root default's stated intent. Pinch-zoom is untouched: the heuristic
         // gates only the double-tap gesture. Inert otherwise: the router never
@@ -1047,6 +1070,7 @@ export class DomSurface {
     gone = false;
     constructor() {
         const el = document.createElement("div");
+        DOM_SURFACE.set(el, this);
         const s = el.style;
         // Absolute + a zeroed box so x/y/width/height map 1:1 to the view's
         // geometry; each surface is a positioning context for its children.
@@ -1153,6 +1177,14 @@ export class DomSurface {
     /** This surface is an app's root (attachRoot stamps it, with the
      *  `data-declare-app` mark other code reads off the DOM). */
     isRoot = false;
+    /** Mark this surface as the app's root and realize it as one at once: a frame
+     *  and a page extent that arrived before mount (an App whose size was known at
+     *  build) are applied now, since nothing may change them afterwards. */
+    becomeRoot() {
+        this.isRoot = true;
+        this.applyRootSize();
+        this.refreshTouchAction();
+    }
     // ── Box decoration: CSS properties as PAINT PRIMITIVES — background (a color
     // or a linear gradient), border-radius (one value or four corners), and
     // box-shadow (the drop shadow, the inset ring, and one inset band per side of
@@ -1319,8 +1351,6 @@ export class DomSurface {
         this.element.style.cursor = c;
         this.updateCarved();
     }
-    // The authored pointerEvents attr OVERRIDES the sink-driven default (setInput
-    // flips auto/none by sink presence; an explicit value must survive that).
     setDirection(d) {
         if (d === "ltr" || d === "rtl" || d === "auto")
             this.element.dir = d;
@@ -1330,7 +1360,23 @@ export class DomSurface {
     peOverride = "";
     setPointerEvents(m) {
         this.peOverride = m;
-        this.updateCarved();
+        // the authored value marks the element, so the views below read it: a
+        // `"none"` switches the subtree off; an `"auto"` below it switches back on
+        if (m === "")
+            delete this.element.dataset.declarePe;
+        else
+            this.element.dataset.declarePe = m;
+        refreshPointerBelow(this.element);
+    }
+    /** Re-derive the effective pointer-events (an ancestor's `pointerEvents`
+     *  may have changed). */
+    refreshPointer() { this.updateCarved(); }
+    /** Switched off for the pointer: its own `"none"`, or the nearest authored
+     *  value above it is `"none"`. */
+    pointerOff() {
+        if (this.peOverride !== "")
+            return this.peOverride === "none";
+        return this.element.parentElement?.closest("[data-declare-pe]")?.getAttribute("data-declare-pe") === "none";
     }
     setOpacity(o) {
         // OPACITY IS PAINT, NOT PRESENCE (ruled): a fully transparent view is still
@@ -1536,18 +1582,27 @@ export class DomSurface {
         this.updateCarved();
     }
     /** Reconcile carved-sink state (see CARVED): membership, and the element's
-     *  effective pointer-events — authored override > carved-inert > sink default
-     *  (a declared selection surface counts as a pointer target). */
+     *  effective pointer-events — switched off (its own or an ancestor's
+     *  `"none"`) > carved-inert > sink default (a declared selection surface
+     *  counts as a pointer target). */
     updateCarved() {
         const el = this.element;
         if (this.clipData !== null && SINKS.has(el))
             CARVED.set(el, this);
         else
             CARVED.delete(el);
+        // `"none"` here or above switches it off; otherwise (`"auto"` switches a
+        // part of an off subtree back on, as normal) it takes the pointer when it
+        // has something to do with it
+        const off = this.pointerOff();
         el.style.pointerEvents =
-            this.peOverride !== "" ? this.peOverride
+            off ? "none"
                 : CARVED.has(el) ? "none"
                     : SINKS.has(el) || this.selectableRegion || el.style.cursor !== "" ? "auto" : "none";
+        // An editable's native element is the press target itself: a `"none"` on it
+        // or above it reaches it too, or the field still takes the press.
+        if (this.editEl !== null)
+            this.editEl.style.pointerEvents = off ? "none" : "auto";
     }
     /** Does the viewport point fall in this carved sink's clipped region?
      *  Local coords unwind a uniform scale (rect vs layout box ratio), then the
@@ -1680,6 +1735,9 @@ export class DomSurface {
         const [t, r, b, l] = insetSides(inset);
         this.element.style.padding = t === 0 && r === 0 && b === 0 && l === 0
             ? "0" : `${t}px ${r}px ${b}px ${l}px`;
+        const frame = this.element.querySelector(":scope > [data-declare-scrollframe]");
+        if (frame !== null)
+            seatScrollFrame(frame, this.element);
     }
     /** A padded scroller's range (backend.ts setContentExtent): the browser's
      *  scrollable overflow counts the end padding only for in-flow content, and
@@ -1725,7 +1783,7 @@ export class DomSurface {
      *  element takes neither the write nor an honest read (setVisible). */
     // A GLIDE on the DOM is the browser's own smooth scroll: the compositor
     // drives it (no JS on the path, cancelled by a user gesture) — native feel,
-    // the platform's curve and duration; `glide.duration`/`motion` are hints the
+    // the platform's curve and duration; `glide.duration`/`easing` are hints the
     // DOM cannot honor exactly (documented: platform motion, not an Animator).
     scrollToY(v, glide) {
         const el = this.element;
@@ -1859,8 +1917,8 @@ export class DomSurface {
         // line is enough) pinned the target to the pane's LEFT edge and ate the
         // margin (docs reference, 2026-09-11). The scroll model says a y-scroller's
         // x is never the platform's to move; "nearest" on a target that fits is inert.
-        if (inset > 0)
-            this.element.style.scrollMarginTop = `${inset}px`;
+        // (set each time: an earlier reveal's inset is not this one's)
+        this.element.style.scrollMarginTop = inset > 0 ? `${inset}px` : "";
         // the scrolls this causes are the PROGRAM's, on every scroller it moves —
         // unmarked, a smooth one's events read as the user's scroll
         PAGE_WATCH?.program();
@@ -2556,7 +2614,8 @@ export class DomSurface {
             s.webkitUserSelect = "text";
             s.touchAction = "auto";
             s.resize = "none";
-            s.pointerEvents = "auto";
+            // interactive (it IS the editable), unless the author said pointerEvents = "none"
+            s.pointerEvents = this.pointerOff() ? "none" : "auto";
             // Native scrollbar for a scrolling code field (the platform's own).
             const self = el;
             // what the person does to the text: checked before it lands where the
@@ -2610,6 +2669,8 @@ export class DomSurface {
             applyPurpose(el, spec.purpose, spec.concealed, spec.spellcheck, spec.enterHint ?? "");
         if (prev === null || insetCss(prev.padding) !== insetCss(spec.padding))
             el.style.padding = insetCss(spec.padding);
+        if (prev === null || prev.caret !== spec.caret)
+            applyCaret(el, spec.caret !== false);
         // no-wrap = one line per line + horizontal scroll (both native to a textarea
         // whose wrap attribute is "off"); soft = the wrapping default.
         if (el instanceof HTMLTextAreaElement && (prev === null || prev.wrap !== spec.wrap)) {
@@ -2720,7 +2781,7 @@ export class DomSurface {
         const sh = st.shadow ?? null;
         s.textShadow = sh === null ? "" : `${sh.dx}px ${sh.dy}px ${sh.blur}px ${colorToCss(sh.color)}`;
         // Typographical treatments — set every frame (default clears a stale value):
-        const ol = st.outline;
+        const ol = st.textStroke;
         s.webkitTextStroke = ol != null ? `${ol.width}px ${colorToCss(ol.color)}` : "";
         s.paintOrder = ol != null ? "stroke fill" : "";
         // CAPITALIZE IS APPLIED TO THE TEXT, not by CSS: Chrome decides whether a
@@ -2925,7 +2986,7 @@ export class DomSurface {
      *  CSS `auto` would preserve the intrinsic ratio and drag it along with the
      *  stretched axis, which is not what a single-axis stretch means (the
      *  canvas walk draws the un-stretched axis at natural size; found by
-     *  weather's `stretches=width` tab art). The element is always loaded
+     *  weather's `fit=width` tab art). The element is always loaded
      *  when it crosses the seam, so the natural size is known. */
     applyStretch() {
         const img = this.imgEl;
@@ -3123,11 +3184,17 @@ export class DomSurface {
             ensureClipBoxFor(this.element);
         const target = exempt ? this.element : (this.clipBox ?? this.element);
         const beforeEl = before === null ? null : before.element;
+        // already there: no move (a move relayouts the subtree and costs focus care)
+        if (el.parentElement === target && (beforeEl !== null && beforeEl.parentElement === target ? el.nextElementSibling === beforeEl : el === target.lastElementChild))
+            return;
         // A move also blurs a focused field inside the moved subtree: the native
         // blur is not the person leaving it, so it is not passed on, and the field
         // is focused again where it now is (a dialog's field while the page's
         // children re-order under it).
         keepingFocus(el, () => target.insertBefore(el, beforeEl !== null && beforeEl.parentElement === target ? beforeEl : null));
+        // a subtree arriving under a view switched off for the pointer (or leaving one)
+        if (target.closest("[data-declare-pe]") !== null || el.querySelector("[data-declare-pe]") !== null)
+            refreshPointerBelow(el);
         for (const [s, l, t] of saved) {
             if (s.scrollLeft !== l)
                 s.scrollLeft = l;

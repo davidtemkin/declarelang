@@ -19,7 +19,7 @@ import type { Stretch, Surface } from "./backend.js";
 import { defineAttributes, isSet, ownerOf, setBound } from "./attributes.js";
 
 export class Video extends Media {
-  declare stretches: Stretch;
+  declare fit: Stretch;
 
   /** The frame's natural size — what contentExtent folds into an auto-extent. */
   private natural = { width: 0, height: 0 };
@@ -30,7 +30,7 @@ export class Video extends Media {
 
   protected override $flush(s: Surface): void {
     super.$flush(s);
-    s.setImageStretch(this.stretches);
+    s.setImageStretch(this.fit);
   }
 
   protected override $makeElement(): HTMLMediaElement {
@@ -59,5 +59,5 @@ export class Video extends Media {
 }
 
 defineAttributes(Video, {
-  stretches: { def: "none", push: (v, s) => v.$surface?.setImageStretch(s) },
+  fit: { def: "none", push: (v, s) => v.$surface?.setImageStretch(s) },
 });

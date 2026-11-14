@@ -194,7 +194,7 @@ App [ width = 100, height = 100,
     a: Doc [ id = "a", hue = 5 ], b: Doc [ id = "b", hue = 7 ],
     roster: object = null,
     onInit() { this.roster = [this.a, this.b] },
-    byId(id: string) -> Doc { const r = this.roster as any; return r != null ? r.find((d) => (d as any).id == id) : null },
+    byId(id: string) -> Doc? { const r = this.roster as any; return r != null ? r.find((d) => (d as any).id == id) : null },
     out: Text [ text = { app.roster != null ? "" + app.byId("b")!.hue : "-" } ],
     ]`;
   const r = await compile(src, {});

@@ -50,7 +50,7 @@ async function makeCtx(opts) {
   // time that a case has to be able to address. They were declared in cases.mjs
   // and never wired in here, so every `@frontWin` resolved to undefined and the
   // four cases that use one failed downstream — as `closeWin(undefined)`,
-  // `w.rootBounds is not a function`, and a slider with no `input`. Resolved
+  // `w.rootBounds is not a function`, and a slider with no `commit`. Resolved
   // LAZILY, on each use, because the front window is not the same window after
   // one has been opened or closed.
   const RECEIVERS = {

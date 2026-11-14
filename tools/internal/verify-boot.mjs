@@ -101,7 +101,7 @@ const HOST_W = 1280, HOST_H = 800;
 if (!isMainThread) {
   const { program, size, touch, queries } = workerData;
   const [hostW, hostH] = size ?? [HOST_W, HOST_H];
-  const record = { ok: false, nodes: 0, ms: 0, errors: [], notes: [], samples: [], answers: [], layout: [], unbuilt: [] };
+  const record = { ok: false, nodes: 0, ms: 0, errors: [], notes: [], samples: [], answers: [], layout: [], unbuilt: [], neverBuilt: [] };
   installSyntheticHost();
   const rejections = [];
   process.on("unhandledRejection", (reason) => rejections.push(String(reason?.message ?? reason)));
@@ -139,10 +139,12 @@ if (!isMainThread) {
     record.notes.push(...r.notes);
     record.layout = r.layout;
     record.unbuilt = r.unbuilt;
+    record.neverBuilt = r.neverBuilt ?? r.unbuilt;
     record.answers = r.answers;
     record.samples = r.samples;
+    for (const f of r.faults ?? []) record.errors.push(`boot: ${f}`);
     if (contained.length > 0) for (const c of new Set(contained)) record.errors.push(`boot: ${c}`);   // each row reports its own copy: once is enough
-    else record.ok = true;
+    if (record.errors.length === 0) record.ok = true;
   } catch (e) {
     record.errors.push(`boot: ${e?.message ?? e}`);
   } finally {

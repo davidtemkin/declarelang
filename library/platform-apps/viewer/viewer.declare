@@ -316,7 +316,7 @@ App [ fill = { provided("theme").background },
 
     // on a phone the tab switch is a menu, opened from a button that names the tab
 
-    tabMenu: Menu [ items = { app.tabs().map((t: any) => ({ id: t.location, label: t.label, checked: t.id == app.mode })) },
+    tabMenu: Menu [ items = { app.tabs().map((t: any) => ({ id: t.location, label: t.label, group: "tab", checked: t.id == app.mode })) },
         picked(id: string) { app.followLink("#" + id, true) }
         ],
 
@@ -965,12 +965,12 @@ App [ fill = { provided("theme").background },
         brand: View [ x = 20, y = { (app.barH - 22) / 2 }, height = 22,
             layout: SimpleLayout [ axis = x, spacing = 5 ],
 
-            // "Declare" is the way home — navigate() resolves against the distro
+            // "Declare" is the way home — openURL() resolves against the distro
             // root, so this works on either host at any mount point
 
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
                 textFill = { gradient("90deg", provided("theme").accent, provided("theme").accentSecondary) }, text = "Declare",
-                onClick() { app.navigate("apps/homepage/homepage.declare") }
+                onClick() { app.openURL("apps/homepage/homepage.declare") }
                 ],
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
                 textColor = { provided("theme").text }, text = "Viewer" ]
@@ -979,7 +979,7 @@ App [ fill = { provided("theme").background },
         // Reader / Source / Edit / Sizes. The tab writes `app.location`, and `app.mode`
         // derives back from it — so the switch stays a single source of truth
         // that back/forward walk for free. `Segmented` keeps that seam intact:
-        // `value` reads the derived mode, `input` writes the location.
+        // `value` reads the derived mode, `commit` writes the location.
 
         // the room between the brand and the controls on the right: the switch is
         // centered in the window while it fits, and narrows when it does not
@@ -1000,7 +1000,7 @@ App [ fill = { provided("theme").background },
             // build the full location itself — and replace, like the click
             // path, so no tab switch ever buries Back.
 
-            input(v: object) { app.followLink("#" + ("" + v) + (app.fileRel == "" ? "" : "/" + app.fileRel), true) },
+            commit(v: object) { app.followLink("#" + ("" + v) + (app.fileRel == "" ? "" : "/" + app.fileRel), true) },
 
             // each tab states its location, which is what makes the switch a link
             // the crawler can follow — without it this app emits one document
@@ -1009,7 +1009,7 @@ App [ fill = { provided("theme").background },
             // …and keeps the viewed file: switching tabs on a followed include
             // stays on that include
 
-            choices = { app.tabs() }
+            items = { app.tabs() }
             ],
 
         // a phone's tabs: the tab it is on, and a chevron that says there are more
@@ -1029,12 +1029,12 @@ App [ fill = { provided("theme").background },
         size: TextSizeSwitch [ visible = { app.hostWidth >= 520 }, y = { (app.barH - 30) / 2 }, x = { parent.themeSwitch.x - this.width - 8 }, height = 30,
             sizes = [0.8, 0.9, 1.1],
             value = { app.fontScale },
-            input(v: object) { app.fontScale = v as number }
+            commit(v: object) { app.fontScale = v as number }
             ],
 
         themeSwitch: AppearanceSwitch [ y = { (app.barH - this.height) / 2 }, x = { app.hostWidth - this.width - 16 },
             dark = { app.isDark },
-            input(v: boolean) { app.themeMode = v ? "dark" : "light" }
+            commit(v: boolean) { app.themeMode = v ? "dark" : "light" }
             ]
         ]
     ]

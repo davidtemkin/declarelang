@@ -17,13 +17,13 @@ export interface HitTarget {
      *  on the hover walk (its host is one element; the DOM brushes per-element
      *  style.cursor instead and leaves this unset). */
     cursor?: string;
-    /** True when this view declares `onDblClick` — the second click of a pair
-     *  then reaches it as `dblClick` alone, not as a second `click` too. The
+    /** True when this view declares `onDoubleClick` — the second click of a pair
+     *  then reaches it as `doubleClick` alone, not as a second `click` too. The
      *  first click is delivered at once, as the platforms do: the view's single
      *  click is something its double builds on. (Resolution knows this because a
      *  sink's existence and its declared handlers are the same fact — view.ts
      *  inputSink.) */
-    wantsDbl?: boolean;
+    wantsDoubleClick?: boolean;
     /** True when this view declares `onHold`. */
     wantsHold?: boolean;
     /** True when this view (or an ancestor) declares the raw touch family — the
@@ -35,7 +35,7 @@ export interface HitTarget {
     wantsDrag?: boolean;
     /** True when this view declares `onPointerMove` (claims nothing). */
     wantsMove?: boolean;
-    /** True when this view takes clicks (onClick, onDblClick, onHold, a link). */
+    /** True when this view takes clicks (onClick, onDoubleClick, onHold, a link). */
     takesClicks?: boolean;
     /** The nearest MOVE RECEIVER over this point — the closest view (self
      *  included) up the hit chain declaring `onPointerMove`: it hears every

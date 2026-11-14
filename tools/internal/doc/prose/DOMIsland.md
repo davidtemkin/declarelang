@@ -58,13 +58,13 @@ The verb's inbound half: the tenant's `post(topic, payload)` (a Declare tenant's
 with `m.topic` and `m.payload`. Declare it like any event handler.
 
 ## onNavigate
-The hosted program asked to go somewhere — its `navigate(to)` or `openWindow(to)`, the
+The hosted program asked to go somewhere — its `openURL(to)` or `openWindow(to)`, the
 links that leave it. Declare `onNavigate(n: IslandNavigation)` and the host decides what
 such a link means (a desktop opens the program in a window); without it, the page
 navigates. Declaring it is the claim, as for any input handler. `n.to` is the address
 made absolute; `n.program` the Declare program it names — its `.declare` path without
 the extension, a directory taken as its same-named program — or `""` when it names
 none; `n.location` the place after its `#`; `n.newWindow` whether it asked for a window
-of its own. The program inside changes nothing: it calls `navigate` as it would running
+of its own. The program inside changes nothing: it calls `openURL` as it would running
 alone. An `AppIsland` can open the named program at that place with its own `program`
 and `location`.

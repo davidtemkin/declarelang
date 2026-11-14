@@ -207,7 +207,7 @@ class MemberIndex [ width = 100%,
 
 A type printed in a signature is a NAME, and a name with a page behind it is a
 link. `app.typeLoc` answers where a printed type is documented — by name
-(`Color`, `Motion`, and every class), or by the TOKEN LIST a named enum prints
+(`Color`, `Easing`, and every class), or by the TOKEN LIST a named enum prints
 as (`left | center | right` is `TextAlign`), which is the spelling the reference
 shows and so the spelling matched. A type with no page answers `""` and renders
 as plain signature text: no cursor and no link.
@@ -916,7 +916,7 @@ class ClassDetail [ width = 100%,
             Eyebrow [ text = { "REFERENCE · " + (:origin == "library" ? "STANDARD LIBRARY" : :origin == "page" ? "PAGE API" : "BUILT-IN") + (:source != null && app.docked ? " · " + :source : "") } ],
 
             // a library class is Declare like any program: its source opens in
-            // the Viewer (`navigate` resolves the path against the distro root)
+            // the Viewer (`openURL` resolves the path against the distro root)
 
             Eyebrow [ visible = { :origin == "library" && :source != null }, text = "VIEW SOURCE →",
                 textColor = { provided("theme").accent }, cursor = "pointer", link = { "" + :source + "?viewer" } ]
@@ -1477,14 +1477,14 @@ class NavColumn [ width = 100%,
 
     modes: TabBar [ width = 100%, height = { app.touchFirst ? 44 : 30 },
         value = { app.mode == "guide" ? "guide" : "reference" },
-        input(v: object) { if (("" + v) == "guide") app.goGuide(app.guideAt); else app.goRef(app.refAt) },
+        commit(v: object) { if (("" + v) == "guide") app.goGuide(app.guideAt); else app.goRef(app.refAt) },
 
         // each half declares where it goes, so the switch is a link the
         // crawler can follow — without it the reference half of the docs
         // is unreachable from the default location (see SegmentedItem)
 
-        choices = { [ ({ id: "guide",     label: "Guide",     location: "guide/" + app.guideAt }),
-                      ({ id: "reference", label: "Reference", location: "reference/" + app.refAt }) ] }
+        items = { [ ({ id: "guide",     label: "Guide",     location: "guide/" + app.guideAt }),
+                    ({ id: "reference", label: "Reference", location: "reference/" + app.refAt }) ] }
         ],
 
     // guide nav — the parts, each a fold over its chapters
@@ -1977,10 +1977,10 @@ App [ fill = { provided("theme").background }, appName = "Declare Docs",
     // The `declare-docs:` link scheme. An in-app id (guide, reference, language,
     // type) is a location write — it navigates exactly like a rail tab, so it
     // deep-links, shares, and back-buttons, and keeps the remembered cursor in
-    // step. Every other id, and any ordinary href, leaves through `navigate`.
+    // step. Every other id, and any ordinary href, leaves through `openURL`.
 
     openDocLink(href: string) {
-        if (!href.startsWith("declare-docs:")) { app.navigate(href); return }
+        if (!href.startsWith("declare-docs:")) { app.openURL(href); return }
         const id = href.slice("declare-docs:".length)
         if (id.startsWith("guide:")) {                       // guide:tree → the chapter whose id ends with the slug
             const [slug, section] = id.slice("guide:".length).split("@")
@@ -1993,7 +1993,7 @@ App [ fill = { provided("theme").background }, appName = "Declare Docs",
         }
         if (id == "reference:index") { app.goRef(app.refAt); return }
         if (id.startsWith("language:")) { app.goForm(id.slice("language:".length)); return }   // language:class → the form's page ("language:" alone → the index)
-        if (id.startsWith("type:")) { app.goType(id.slice("type:".length)); return }           // type:Motion → the type's page
+        if (id.startsWith("type:")) { app.goType(id.slice("type:".length)); return }           // type:Easing → the type's page
         if (!id.includes(":")) {                                                            // a reference symbol: View / View.width / View.method.draw
             const parts = id.split(".")
             if (parts.length == 1) { app.goRef(parts[0]); return }
@@ -2001,9 +2001,9 @@ App [ fill = { provided("theme").background }, appName = "Declare Docs",
             app.followLink("#reference/" + parts[0] + "@" + parts[parts.length - 1])
             return
         }
-        if (id.startsWith("operational:")) { app.navigate("docs/operational/" + id.slice("operational:".length) + ".md"); return }
-        if (id == "spec:core") { app.navigate("docs/declare.md"); return }
-        if (id == "essay:why-declare") { app.navigate("apps/homepage/homepage.declare") }
+        if (id.startsWith("operational:")) { app.openURL("docs/operational/" + id.slice("operational:".length) + ".md"); return }
+        if (id == "spec:core") { app.openURL("docs/declare.md"); return }
+        if (id == "essay:why-declare") { app.openURL("apps/homepage/homepage.declare") }
         },
 
     /* ## The chrome bar
@@ -2027,12 +2027,12 @@ App [ fill = { provided("theme").background }, appName = "Declare Docs",
             x = { app.docked ? 20 : parent.menu.x + parent.menu.width + 6 },
             layout: SimpleLayout [ axis = x, spacing = 5 ],
 
-            // "Declare" is the way home — navigate() resolves against the
+            // "Declare" is the way home — openURL() resolves against the
             // distro root, so this works on either host at any mount point
 
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
                 textFill = { gradient("90deg", provided("theme").accent, provided("theme").accentSecondary) }, text = "Declare",
-                onClick() { app.navigate("apps/homepage/homepage.declare") }
+                onClick() { app.openURL("apps/homepage/homepage.declare") }
                 ],
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
                 textColor = { provided("theme").text }, text = "Docs" ]
@@ -2086,7 +2086,7 @@ App [ fill = { provided("theme").background }, appName = "Declare Docs",
         size: TextSizeSwitch [ y = center, x = { parent.themeSwitch.x - this.width - 20 }, height = 30,
             visible = { !app.compact },
             value = { app.fontScale },
-            input(v: object) { app.fontScale = v as number }
+            commit(v: object) { app.fontScale = v as number }
             ],
 
         // the theme switch. Selection is one App attribute (`themeMode`); the
@@ -2099,7 +2099,7 @@ App [ fill = { provided("theme").background }, appName = "Declare Docs",
         themeSwitch: AppearanceSwitch [ y = center, x = { app.width - this.width - (app.docked ? 16 : 8) },
             width = { app.touchFirst ? 44 : provided("theme").appearanceSwitchSize },
             dark = { app.darkUI },
-            input(v: boolean) { app.themeMode = v ? "dark" : "light" }
+            commit(v: boolean) { app.themeMode = v ? "dark" : "light" }
             ],
 
         // undocked, the search pill folded to its mark — and, while the field
@@ -2210,7 +2210,7 @@ App [ fill = { provided("theme").background }, appName = "Declare Docs",
 
     drawer: Sheet [ edge = "start", sheetWidth = 300, accessibilityLabel = "Contents",
         shown = { app.navOpen && !app.docked },
-        input(open: boolean) { app.navOpen = open },
+        commit(open: boolean) { app.navOpen = open },
         NavColumn [ ]
         ]
     ]

@@ -28,7 +28,7 @@ export interface BootOptions {
   /** Hears the program's `app.postToHost(topic, payload)`. Without it, such a message
    *  is dropped with a console note. */
   onPost?: (message: IslandMessage) => void;
-  /** Carries out every link the program follows out of itself (`app.navigate`) and
+  /** Carries out every link the program follows out of itself (`app.openURL`) and
    *  every window it opens (`app.openWindow`). It runs synchronously inside the click,
    *  so it may open a window itself. Without it, the browser does: the page navigates,
    *  or a new window opens. */

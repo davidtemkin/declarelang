@@ -21,10 +21,10 @@ Carousel [ width = 100%, height = 160,
 ```
 
 ## page
-The page in view, from 0. Constrain it (`page = { app.slide }`) and override `input` to own
-the destination, or leave it and read it back.
+The page in view, from 0. Bind it both ways (`page <-> app.slide`), or constrain it
+(`page = { app.slide }`) and override `commit` to own the destination, or leave it and read it back.
 
-## input()
+## commit()
 Where a settled swipe sends the new page. The default writes `page`.
 
 ## pageCount()
@@ -106,7 +106,7 @@ class Carousel extends View [
     layout: CarouselLayout [ ],
 
     page: number = 0,
-    input(p: number) { page = p },
+    commit(p: number) { page = p },
     pageCount() -> number { return (this.layout as CarouselLayout).laidCount() },
 
     // the row follows the finger while it is down (the spring's target is the
@@ -159,6 +159,6 @@ class Carousel extends View [
         const moved = offset + page * width
         const step = moved < -width / 3 || v < -0.4 ? 1 : moved > width / 3 || v > 0.4 ? -1 : 0
         const p = Math.max(0, Math.min(pageCount() - 1, page + step))
-        if (p != page) input(p)
+        if (p != page) commit(p)
         }
     ]

@@ -10,10 +10,10 @@ Markdown [ width = { parent.width }, text = { :body } ]
 ```
 
 **The one markup a Markdown document does read.** Raw HTML is not interpreted here — `<b>bold</b>`
-stays the characters you typed — with a single exception: a self-closing tag naming a view class
-the program declares is one real **inline view** of that class, flowed in the line (the family's
-`RichText` entry states the whole of it). So a document keeps Markdown's promise that markup is
-text, while still carrying the classes your program defines. Its attributes are read and
+stays the characters you typed — with a single exception: a self-closing tag that `tagViews` maps
+to one of your view classes is one real **inline view** of that class, flowed in the line (the
+family's `RichText` entry states the whole of it). So a document keeps Markdown's promise that
+markup is text, while still carrying the classes you list. Its attributes are read and
 converted by the class's declared types; Markdown has no `unsupported` attribute, so an attribute
 that will not apply is dropped and the document renders on.
 
@@ -26,6 +26,7 @@ class Chip [ label: string = "",
 
 App [ width = 430, height = 90,
     Markdown [ x = 16, y = 16, width = 398, fontSize = 15,
+        tagViews = { { Chip: Chip } },
         text = "**Bold** is Markdown's, `<b>` stays text, and <Chip label='docs'/> is yours." ]
     ]
 ```
@@ -33,4 +34,6 @@ App [ width = 430, height = 90,
 ## text
 The Markdown source — a literal, or a `{ }` constraint that re-parses whenever it changes
 (a streamed response, an editor's live text). Raw markup stays the text it is, but for the one
-exception above: a tag naming one of your view classes.
+exception above: a tag `tagViews` maps to one of your view classes. Text from a source you
+don't control builds only what the map lists, so show it where no map applies and every tag in
+it stays text.

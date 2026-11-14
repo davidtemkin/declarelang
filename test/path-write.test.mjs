@@ -337,6 +337,47 @@ await (async () => {
   });
 })();
 
+console.log("a source's record stays its source's when a derived dataset wraps it");
+await (async () => {
+  // NYT run 1: rows a program makes ({ ...b, shape }) around a source's records,
+  // in two derived lists split by a flag; a row binds a child's datapath to a
+  // record it computes from its own. An ad arriving ahead of them makes the
+  // merge move the rows (re-tagging what it made); then the flag moves a row to
+  // the other list, and the record must still be found — it never left its source.
+  const said = [];
+  const real = console.error;
+  console.error = (...a) => { said.push(a.map(String).join(" ")); };
+  try {
+    const app = await build(`
+    class Pic extends View [ width = 40, height = 20 ]
+    class Row extends View [ width = 300, height = 24,
+        picture: object? = { ((:media ?? []) as object[])[0] ?? null },
+        Pic [ exists = { classroot.picture != null }, datapath = { classroot.picture } ] ]
+    App [ width = 600, height = 300, wide: boolean = false, ad: boolean = false,
+        home: Dataset { { "main": [ { "id": "m", "media": [ { "src": "m.png" } ] } ],
+                          "rail": [ { "id": "r", "media": [ { "src": "r.png" } ] } ] } },
+        wrap(bs: object[]) -> object[] { return [...(app.ad ? [{ id: "ad", media: [] }] : []), ...bs.map((b) => ({ ...b, shape: "x" }))] },
+        mainRows: Dataset [ contents = { { rows: app.wrap(app.wide ? app.home.value.main : [...app.home.value.main, ...app.home.value.rail]) } } ],
+        railRows: Dataset [ contents = { { rows: app.wide ? app.wrap(app.home.value.rail) : [] } } ],
+        left: View [ datapath = { app.mainRows.value }, Row [ datapath = :rows[] ] ],
+        right: View [ datapath = { app.railRows.value }, Row [ datapath = :rows[] ] ] ]`);
+    settle();
+    app.ad = true;          // an ad arrives ahead of the rows: the merge moves them
+    for (let i = 0; i < 2; i++) { settle(); await new Promise((r) => setTimeout(r, 10)); }
+    app.wide = true;
+    for (let i = 0; i < 3; i++) { settle(); await new Promise((r) => setTimeout(r, 10)); }
+    test("moved to the other list, the row's picture is still a place in its source", () => {
+      assert.deepEqual(said.filter((t) => /no longer anywhere/.test(t)), []);
+      const row = app.right.children.find((c) => c.picture != null);
+      assert.ok(row !== undefined, "the rail row is built");
+      const pic = row.children.find((c) => c.constructor.name === "Pic");
+      assert.ok(pic !== undefined, "and its picture with it");
+    });
+  } catch (e) {
+    test("moved to the other list, the row's picture is still a place in its source", () => { throw e; });
+  } finally { console.error = real; }
+})();
+
 console.log(`path-write: ${pass} passed, ${fail} failed`);
 // the Checkbox press leaves an animation timer armed; the verdict is in
 process.exit(fail ? 1 : 0);

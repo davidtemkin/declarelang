@@ -190,14 +190,24 @@ export function extensionsOf(name: string, candidates: readonly string[]): reado
   return candidates.filter((c) => c.toLowerCase() !== lower && c.toLowerCase().startsWith(lower));
 }
 
+/** Is this a name a class keeps for itself — `_` (a library's or a program's
+ *  private member) or `$` (the runtime's)? */
+export function isInternalName(name: string): boolean { return name.startsWith("_") || name.startsWith("$"); }
+
 /** The single high-confidence near-miss among `candidates`, or null (no match
- *  in budget, or an ambiguous tie — ambiguity is below suggestion confidence). */
+ *  in budget, or an ambiguous tie — ambiguity is below suggestion confidence).
+ *  An internal name (`_field`, `$root`) is never offered for a public one: it is
+ *  a class's own machinery, not a fix (Ledger run 5 was told "did you mean
+ *  '_field'?" for `field`). A name written with the mark may be corrected to
+ *  another so marked — a program's own `_draft` for `_darft`. */
 export function nearestName(name: string, candidates: readonly string[], budget?: number): string | null {
   const lower = name.toLowerCase();
+  const mark = isInternalName(name) ? name[0] : null;
   let best: string | null = null;
   let bestD = budget === undefined ? 3 : budget + 1;
   let tie = false;
   for (const c of candidates) {
+    if (isInternalName(c) && c[0] !== mark) continue;
     const d = editDistance(lower, c.toLowerCase());
     if (d < bestD) {
       best = c;
@@ -266,7 +276,8 @@ export const Diag = {
   type: (message: string, pos?: Pos): DeclareError => err(code4(3000), message, pos),
 
   // 4xxx name resolution
-  unresolved: (name: string, scope: string, pos: Pos, sizing = false): DeclareError =>
+  unresolved: (name: string, scope: string, pos: Pos, sizing = false, hint = ""): DeclareError =>
+    hint !== "" ? err(code4(4001), `cannot resolve '${name}' — ${hint}`, pos) :
     err(code4(4001), `cannot resolve '${name}' — not a member of ${scope}, a parameter, or one of the globals a body may use (Math, JSON, Date, URL, console, …)` +
       // In a size slot the missing name is often a child the USE SITE supplied,
       // which the class cannot name because it does not own it. It can measure
@@ -312,14 +323,15 @@ export const Diag = {
   // refuses it ("belongs to no Dataset") every time.
   literalDatapath: (pos: Pos): DeclareError =>
     err(code4(3006), `a datapath is a place in declared data, and a literal is in none — the value is fresh, so no Dataset holds it and the cursor has nowhere to point. Declare the records as data and point there: 'items: Dataset { { "rows": [ … ] } }' for fixed records, or 'items: Dataset [ contents = { … } ]' for records you compute, then 'datapath = { app.items.value }' and replicate with ':rows[]'`, pos),
-  // A declared type name that TypeScript's standard library already declares
-  // globally (Pick, Map, Record, …): every { } body typechecks against that
-  // library, where the name already means the built-in — so a reference in a
-  // body reaches the wrong thing, and TypeScript's errors blame the use.
-  shadowsTsGlobal: (kind: string, name: string, lib: string, pos: Pos): DeclareError =>
-    err(code4(4015), `${kind} ${name} takes a name TypeScript's standard library already declares (${lib}) — the { } bodies typecheck against that library, where '${name}' means the built-in, so a use of yours there reaches the wrong thing. Choose another name`, pos),
+  // A declared name that JavaScript's standard library already holds as a
+  // value (Map, Date, Error, …): a { } body's bare name is that built-in when
+  // it runs, and the bodies typecheck against the library too — so a use of
+  // the program's reaches the wrong thing. (A name the library holds only as a
+  // type — Pick, Record — is free: the program's shadows it.)
+  shadowsTsGlobal: (kind: string, name: string, lib: string, rename: string, pos: Pos): DeclareError =>
+    err(code4(4015), `${kind} ${name} takes a name TypeScript's standard library already declares (${lib}) — in a { } body '${name}' is that built-in, so a use of yours there reaches the wrong thing. Rename yours, as '${rename}'`, pos),
   // The same, for a name Declare's own types already hold — a value type
-  // (Backdrop, Color, Filter, Outline, …), a word list (Process, Tick, …) or a
+  // (Backdrop, Color, Filter, Stroke, …), a word list (Process, Tick, …) or a
   // preset theme (Cupertino, …): the bodies typecheck with Declare's type under
   // that name, so `this` inside a class of that name is the value type — the
   // errors would say "'root' is not a member of Backdrop" at every use, or
@@ -333,13 +345,6 @@ export const Diag = {
   // a Spring, so an error, and the message gives the form that works.
   springsBoundSlot: (owner: string, slot: string, spring: string, pos: Pos): DeclareError =>
     err(code4(2005), `${owner}.${slot} is bound by a constraint, so this ${spring} cannot drive it — a spring owns the attribute it drives for as long as it lives, and a bound attribute belongs to its constraint. Put the target in the spring and leave ${slot} unbound: ${spring} [ attribute = ${slot}, to = { … } ]`, pos),
-  // A WARNING: a class named exactly like a tag the rich-text whitelist owns.
-  // Inside `Markdown`/`HTMLText` content a tag is resolved against the program's
-  // classes BEFORE the whitelist, so the class takes the tag over — defined
-  // behaviour, and a legal class, which is why this is a warning and not an
-  // error. Only raised when the program actually renders rich text.
-  shadowsRichTextTag: (name: string, pos: Pos): DeclareError =>
-    err(code4(4010), `class ${name} hides the rich-text tag <${name}> — inside Markdown or HTMLText content a tag is resolved against this program's own classes before the HTML whitelist, so every <${name}> in a document builds one ${name} view, not the tag. Rename the class if the content means the tag`, pos),
   // A HINT: a constraint that centers a box by hand. `x = center` is the
   // position literal for exactly this, and it re-resolves when either width
   // changes. Style, not a defect — the author may want the arithmetic — so it
@@ -369,6 +374,16 @@ export const Diag = {
       : near !== null
         ? `${owner} has no '${name}' event — '${near}' is the handler, so '${name}' never fires; as written it is an ordinary method`
         : `${owner} has no '${name}' event, so '${name}' is an ordinary method; a method that answers no event reads best without the 'on' prefix`, pos),
+  // A WARNING: a method named `input` on a class whose base hands the person's
+  // change back through `commit(v)` — the name an earlier Declare gave that hook
+  // on Segmented, Disclosure, Table, the overlays and the rest. Nothing calls it.
+  inputIsCommit: (owner: string, pos: Pos): DeclareError =>
+    err(code4(4042), `${owner}.input(…) is never called — the change ${owner} hands back (what the person picked, opened, closed or dragged to) goes to 'commit(v)'. Rename it to 'commit(…)'; or, where the change goes straight back to where the value came from, bind it both ways with '<->'`, pos),
+  // …and the same for the other delivery hooks an earlier Declare named
+  // otherwise (teach.ts FORMER_HOOKS): DataGrid's sortInput and the rest, Tree's
+  // expandInput. Nothing calls the old name.
+  hookRenamed: (owner: string, name: string, now: string, pos: Pos): DeclareError =>
+    err(code4(4042), `${owner}.${name}(…) is never called — the request it was named for lands in '${now}(…)', whose default carries it out. Rename it to '${now}(…)'`, pos),
   // Accessibility (docs/system-design/accessibility.md §3.7). A role is a
   // contract: the class that declares it must set what the role reads and have
   // the methods its actions call — an error, since a slider with no value is a
@@ -387,7 +402,7 @@ export const Diag = {
     err(code4(2009), `written for Declare ${wrote}; this is ${have} — npx declare-changes ${file} lists what changed since, and where it applies`, pos),
   // `labelled`: the class shows a `label` of its own, which is the first fix
   accessibilityNoName: (owner: string, role: string, pos: Pos, labelled = false): DeclareError =>
-    err(code4(4017), `${owner} is ${/^[aeiou]/i.test(role) ? "an" : "a"} ${role} with no name: it sets no accessibilityLabel${["slider", "progress", "textField", "dialog", "alertDialog", "region"].includes(role) ? "" : ` and holds no text, tip or named mark to take one from${labelled ? " (its label is empty)" : ""}`}, so a screen reader announces only "${role}". ${labelled
+    err(code4(4017), `${owner} is ${/^[aeiou]/i.test(role) ? "an" : "a"} ${role} with no name: it sets no accessibilityLabel${["slider", "progress", "meter", "textField", "dialog", "alertDialog", "region"].includes(role) ? "" : ` and holds no text, tip or named mark to take one from${labelled ? " (its label is empty)" : ""}`}, so a screen reader announces only "${role}". ${labelled
       ? `Give it a label ("Mute"), or, where the words that name it are shown apart from it (a Text beside it in a row), set accessibilityLabel to them (accessibilityLabel = :title)`
       : `Set accessibilityLabel to what it is called ("Volume", "Close")`}`, pos),
   accessibilityControlInControl: (inner: string, innerRole: string, outer: string, outerRole: string, pos: Pos): DeclareError =>
@@ -626,6 +641,7 @@ export const DIAGNOSTIC_CATALOG: ReadonlyArray<{ code: string; phase: DiagPhase;
   { code: code4(4034), phase: "name", summary: "colorWithAlpha given an alpha between 0 and 1 — the alpha is a byte, 0 to 255 (warning)" },
   { code: code4(4031), phase: "name", summary: "an onKeyDown on a Control that never calls super.onKeyDown — Space, Enter and the arrows stop (warning)" },
   { code: code4(4041), phase: "name", summary: "an onChange on a node that tracks nothing — it never runs (warning)" },
+  { code: code4(4042), phase: "name", summary: "a method under a delivery hook's former name (input for commit, sortInput for applySort, expandInput for applyExpanded, …) — never called (warning)" },
   { code: code4(4027), phase: "name", summary: "a control hidden from a screen reader that the keyboard still reaches (warning)" },
   { code: code4(4025), phase: "name", summary: "a constraint whose decisions are nested three deep, or one condition with four or more parts (warning)" },
   { code: code4(4014), phase: "name", summary: "afterDelay() in a { } value — a value computes and never waits" },

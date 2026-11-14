@@ -32,7 +32,9 @@ export function classOfFor(el: Element, parentView: View, croot: View): ClassOf 
     // (rebuilding every window of a desktop as one closed) — presented, as a row is
     const stand = { datapath: cursor, parent: null, $data: Node.prototype.$data };
     markPresented(stand);
-    const name = fn.call(stand, parentView, croot);
+    const got = fn.call(stand, parentView, croot);
+    // a class itself (a script function may answer one) is its name
+    const name = typeof got === "function" ? (got as { name?: string }).name : got;
     return typeof name === "string" && name !== "" ? name : el.tag;
   };
 }

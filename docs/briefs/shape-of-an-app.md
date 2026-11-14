@@ -46,7 +46,7 @@ App [ width = 360, height = 260, fill = #F4F6FA, textColor = #172530,
 - **Layouts arrange; you rarely place.** A `SimpleLayout` stacks; hand-set `x`/`y` is for
   free-form surfaces.
 - **Controls come from the library** and hand edits back: `checked = :done` down,
-  `input(v)` up. Your own control extends `Control`.
+  `commit(v)` up. Your own control extends `Control`.
 - **Handlers write facts, not consequences**: the record field, the attribute, and stop.
 - **Classes when they pay.** State and logic may live on the App. Name a class when a
   piece repeats or the App gets unwieldy: a view class, or a class with no view

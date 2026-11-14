@@ -143,9 +143,6 @@ export function emptyContainerMessage(parentClass, size, childClass, path = "", 
         return head + diag ` In its parent's \`columns\` layout it takes its cell's width only with \`flexes = true\`; or give ${parentClass} a ${size}.`;
     return head + diag ` To make them ${most}, remove their own ${size} and use align = stretch on ${parentClass}'s layout; or give ${parentClass} a ${size}.`;
 }
-export function placedFromParentMessage(parentClass, size, childClass, pos, path = "") {
-    return diag `${parentClass}.${size}${path === "" ? "" : ` (${path})`} is only its padding — it takes its ${size} from its children, and ${childClass} places itself in it (${pos} = center or end), which counts it out, so it hangs outside ${parentClass}. Give ${parentClass} a ${size}, or let its layout place ${childClass} (a Spacer on each side centers it in a row).`;
-}
 /** The checker's form: what the layout places is known from the source, so the
  *  message can also say HOW the author gets what they meant. `kind` is why the
  *  layout places this attribute — along its flow, across it by `align` (a

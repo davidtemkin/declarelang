@@ -9,8 +9,8 @@ to a screen reader a slider of its own, named for its end. The two never cross.
 App [ width = 320, height = 100, lo: number = 20, hi: number = 100,
     RangeSlider [ x = 20, y = 20, min = 0, max = 500, step = 5,
         accessibilityLabel = "Amount",
-        low = { app.lo }, high = { app.hi },
-        commit(low: number, high: number) { app.lo = low; app.hi = high } ],
+        value = { { low: app.lo, high: app.hi } },
+        commit(v: object) { app.lo = v.low; app.hi = v.high } ],
     Text [ x = 20, y = 60, text = { "$" + app.lo + " – $" + app.hi } ]
     ]
 ```
@@ -19,11 +19,20 @@ A press on the track moves the nearer thumb there, and a drag carries it. From t
 each thumb steps with the arrows, moves a tenth of the range with Page Up and Page Down, and
 goes as far as it can with Home and End — up to the other thumb, never past it.
 
+## value
+The range, as one record: `{ low, high }`. A form takes it as the field's value.
+
+## fieldValue
+The range record — what a form judges.
+
 ## low
-The low end of the range.
+**Read-only.** The low end of the range being shown.
 
 ## high
-The high end of the range.
+**Read-only.** The high end of the range being shown.
+
+## focusable
+Off: each thumb is a stop of its own.
 
 ## min
 The least value the range can reach.
@@ -35,8 +44,8 @@ The greatest value the range can reach.
 How far one arrow press moves a thumb; values land on steps from `min`.
 
 ## commit()
-**Where a change goes**, receiving both ends — already within `min` and `max`, on a step, and
-in order. The default writes `low` and `high`; override it to own the destination.
+**Where a change goes**, receiving the range `{ low, high }` — already within `min` and `max`,
+on a step, and in order. The default writes `value`; override it to own the destination.
 
 ## disabled
 Takes no drags and no keys; both thumbs say so to a screen reader.
@@ -69,6 +78,9 @@ Where a value sits along the track, from 0 to 1.
 ## _grab
 **Internal.** Which thumb a press on the track carries: `"low"` or `"high"`.
 
+## _valueAt()
+**Internal.** The value at a point `x` along the track.
+
 ## _track
 **Internal.** The track.
 
@@ -82,19 +94,23 @@ Where a value sits along the track, from 0 to 1.
 **Internal.** The high end's thumb.
 */
 
-class RangeSlider [ width = 220, height = 28,
-    low: number = 0,
-    high: number = 100,
+class RangeSlider extends ValueControl [ width = 220, height = 28,
+    // the range, one value: `{ low, high }`
+
+    value: object = { { low: 0, high: 100 } },
+    fieldValue = { value },
+    readonly low: number = { (this.shown as any)?.low ?? 0 },
+    readonly high: number = { (this.shown as any)?.high ?? 100 },
+    focusable = false,             // its thumbs are the stops, not the track
     min: number = 0,
     max: number = 100,
     step: number = 1,
-    disabled: boolean = false,
     lowLabel: string = { "Minimum " + this.accessibilityLabel.toLowerCase() },
     highLabel: string = { "Maximum " + this.accessibilityLabel.toLowerCase() },
     accessibilityRole = group,
     opacity = { disabled ? provided("theme").disabledOpacity : 1 },
 
-    commit(low: number, high: number) { this.low = low; this.high = high },
+    commit(v: object) { value = v },
     valueText(v: number) -> string { return "" + v },
 
     quant(v: number) -> number {
@@ -103,11 +119,11 @@ class RangeSlider [ width = 220, height = 28,
         },
     setLow(v: number) {
         const n = Math.min(quant(v), high)
-        if (n != low) commit(n, high)
+        if (n != low) edit({ low: n, high: high })
         },
     setHigh(v: number) {
         const n = Math.max(quant(v), low)
-        if (n != high) commit(low, n)
+        if (n != high) edit({ low: low, high: n })
         },
     frac(v: number) -> number { return Math.max(0, Math.min(1, (v - min) / ((max - min) || 1))) },
 

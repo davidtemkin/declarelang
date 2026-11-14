@@ -31,8 +31,13 @@ type CursorWrite = (node: Node, segs: readonly string[], v: unknown) => void;
 let writeCursor: CursorWrite | null = null;
 export function provideCursorWrite(fn: CursorWrite): void { writeCursor = fn; }
 
+/** Every class a node has been constructed as in this page, whether or not one
+ *  still stands — what a check asks of "was it ever built" (boot-check.ts). */
+const constructedAs = new Set<Function>();
+export function constructedClasses(): ReadonlySet<Function> { return constructedAs; }
+
 export class Node {
-  constructor() { if (profileHook !== null) profileHook.built(this); }
+  constructor() { constructedAs.add(new.target); if (profileHook !== null) profileHook.built(this); }
   parent: Node | null = null;
   /** Torn down: retired with its subtree. Services that hold nodes they did
    *  not build (Keys' shortcut sets and claims) drop the ones that are. */

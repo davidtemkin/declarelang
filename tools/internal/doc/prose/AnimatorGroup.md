@@ -1,5 +1,5 @@
 Coordinates several `Animator`s as a unit, running them `sequential` (one after another,
-the default) or `simultaneous` (all at once). Its own `to` / `from` / `duration` / `motion`
+the default) or `simultaneous` (all at once). Its own `to` / `from` / `duration` / `easing`
 / `attribute` / `relative` / `repeat` are a **default cascade** — a member that omits one
 inherits the group's — so shared timing is written once, on the group.
 
@@ -35,8 +35,8 @@ The default start value, inherited by members that omit `from`.
 The default run time (ms), inherited by members that omit `duration` — the usual way to
 give a whole group one tempo.
 
-## motion
-The default easing curve for members that omit `motion`.
+## easing
+The default easing curve for members that omit `easing`.
 
 ## relative
 The default offset-vs-absolute mode for members that omit `relative`.

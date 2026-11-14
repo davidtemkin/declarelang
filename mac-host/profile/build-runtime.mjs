@@ -248,7 +248,7 @@ globalThis.__profDrive = async function (stim, opts = {}) {
     for (let i = 0; i < 2; i++) for (const m of ["week", "day", "month"]) { await raf(() => { app.mode = m; }); await sleep(900); }
   } else if (stim === "slider") {
     // marketmap: DRAG THE DAY SLIDER left → right, the way a pointer does —
-    // the slider's own input(v) (what its onPointerMove calls) once per
+    // the slider's own commit(v) (what its onPointerMove calls) once per
     // animation frame, v following wall time over 2.5 s, so a 120 Hz display
     // takes twice the steps a 60 Hz one does; then the flight spring lands.
     const find = (n) => (n && n.scrubber) ? n.scrubber : (n?.children ?? []).map(find).find(Boolean);
@@ -256,13 +256,13 @@ globalThis.__profDrive = async function (stim, opts = {}) {
     if (!(app.market?.ready && app.nDays > 1)) throw new Error("the market data did not load within 30 s");
     const s = find(app);
     if (!s) throw new Error("no scrubber slider found");
-    await raf(() => { s.input(s.min); }); await sleep(1500);   // start at the left end, at rest
+    await raf(() => { s.commit(s.min); }); await sleep(1500);   // start at the left end, at rest
     P.reset(); gaps.length = 0;
     const DRAG = 2500, from = s.min, to = s.max;
     let steps = 0, lagSum = 0;
     for (const d0 = performance.now(); ;) {
       const f = Math.min(1, (performance.now() - d0) / DRAG);
-      await raf(() => { s.input(Math.round(from + (to - from) * f)); steps++; lagSum += Math.abs(app.targetDay - app.day); });
+      await raf(() => { s.commit(Math.round(from + (to - from) * f)); steps++; lagSum += Math.abs(app.targetDay - app.day); });
       if (f >= 1) break;
     }
     dragInfo = { steps, dragMs: DRAG, meanLagDays: lagSum / Math.max(1, steps), days: to - from };

@@ -68,6 +68,13 @@ provideHitPath((d, x, y) => H.pathHit(d, x, y));
 // leave it to the platform), and a paste hands over the pasteboard's
 // representations and files. Clipboard.copy writes through the host.
 provideClipboardHost({ write: (data) => H.clipboardWrite(JSON.stringify(data)) });
+// The window entered or left full screen (its own control, ⌃⌘F, or a write of
+// app.fullScreen the host carried out): the program's fact follows.
+globalThis.__declareFullScreen = (on) => {
+  if (currentApp === null || currentApp.fullScreen === on) return;
+  currentApp.fullScreen = on;
+  settle();
+};
 globalThis.__declareClipboard = (kind, json) => {
   if (currentApp === null) return null;
   if (kind.startsWith("can-")) return takesClipboard(currentApp, kind.slice(4)) ? "1" : null;
@@ -316,8 +323,12 @@ export async function macBoot(url) {
     try { prev.discard(); settle(); flushOps(); }
     catch (e) { H.log("error", "discarding the previous program: " + ((e && e.message) || e)); }
   }
-  const app = buildProgram(program, { provides: launchParams(base) });
+  // the window's size from the first evaluation (the host keeps innerWidth/Height current)
+  const app = buildProgram(program, { provides: launchParams(base), size: { width: globalThis.innerWidth || 0, height: globalThis.innerHeight || 0 } });
   currentApp = app;
+  // app.fullScreen, both ways: writing it asks the window (the host toggles it
+  // when it differs); the window entering or leaving says so (__declareFullScreen)
+  app.$fullScreenHost = (on) => { try { H.setFullScreen?.(on); } catch {} };
   globalThis.__app = app;
   liveApps.set(app, null);       // the root app can publish live edits too
 
@@ -543,7 +554,7 @@ function startPumps(app) {
   H.needFrame();
 }
 
-/** THE TWO NAVIGATION CHANNELS, serviced. `app.navigate(url)` and
+/** THE TWO NAVIGATION CHANNELS, serviced. `app.openURL(url)` and
  *  `app.openWindow(url)` are SERVICE ACTIONS (capabilities.md §6): the verb
  *  writes a plain field, the host polls it on the next frame, acts, and clears
  *  it. host-client.js does exactly this for the web.
@@ -573,7 +584,7 @@ function navTick(app) {
 // ── the Inspector, as chrome over the running program ───────────────────────
 //
 // `inspect(slot)` sets `pendingInspect` and the HOST decides what that means —
-// the same discipline as navigate() and openWindow(), so a `{ }` body never
+// the same discipline as openURL() and openWindow(), so a `{ }` body never
 // reaches for a window. On the web `host-client` imports inspector-boot and
 // appends an overlay div; here the overlay is a chrome SURFACE at the top of
 // the layer tree (mac-backend createOverlaySurface) and the Inspector mounts
@@ -842,7 +853,8 @@ function mountCompiled(surfaceId, compiled, assetUrl) {
   clearEmbed(surfaceId);
   kernelReadySync();
   const linkable = islView && typeof islView.post === "function";
-  const child = buildProgram(compiled.program, { provides: linkable ? islandProvisions(islView) : undefined });
+  const child = buildProgram(compiled.program, { provides: linkable ? islandProvisions(islView) : undefined,
+    size: { width: islView.width, height: islView.height } });
   // THE ISLAND BOUNDARY (islands.md) — the native runner is a full peer of the
   // web hosts: what the island `provides` goes down, what the tenant
   // `exposes` comes up, and the post/onPost verbs. Built WITH what the island
@@ -856,7 +868,7 @@ function mountCompiled(surfaceId, compiled, assetUrl) {
     catch (e) { log("island link: " + e.message); }
   }
   child.$attach(backend, null);
-  // The child's navigate()/openWindow(): its island first — an island that
+  // The child's openURL()/openWindow(): its island first — an island that
   // declares onNavigate decides what a link inside it means (a desktop opens
   // a window) — else this window, as the window's own program's links do
   // (navTick: resolved against the program).

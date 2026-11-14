@@ -21,19 +21,19 @@ import { Focus, bareScroller } from "./focus.js";
 import { Constraint, untracked, afterSettle } from "./reactive.js";
 import { onDiscard } from "./node.js";
 import { readRowIndex } from "./view.js";
-import { rowsUnder, roleOf, textOf, contentOf, nameOfContent, NAMED_BY_CONTENT, REACHED_APART } from "./semantics.js";
+import { rowsUnder, roleOf, textOf, contentOf, nameOfContent, fieldCaption, NAMED_BY_CONTENT, REACHED_APART } from "./semantics.js";
 import { provideAnnouncer } from "./accessibility-service.js";
 import { inPointer } from "./pointer-dispatch.js";
 /** The ARIA role each word maps to on the web. */
 const ARIA_ROLE = {
     button: "button", toggle: "button", checkbox: "checkbox", switch: "switch", radio: "radio", slider: "slider",
     progress: "progressbar", textField: "textbox", link: "link", image: "img", heading: "heading", list: "list",
-    listItem: "listitem", grid: "grid", row: "row", cell: "gridcell", columnHeader: "columnheader", tabList: "tablist", tab: "tab",
-    tabPanel: "tabpanel", menu: "menu", menuBar: "menubar", menuItem: "menuitem", dialog: "dialog",
+    listItem: "listitem", grid: "grid", row: "row", cell: "gridcell", columnHeader: "columnheader", rowHeader: "rowheader", tabList: "tablist", tab: "tab",
+    tabPanel: "tabpanel", menu: "menu", menuBar: "menubar", menuItem: "menuitem", menuItemRadio: "menuitemradio", dialog: "dialog",
     alertDialog: "alertdialog", group: "group", toolbar: "toolbar", region: "region", status: "status",
     listbox: "listbox", option: "option", tree: "tree", treeItem: "treeitem", radioGroup: "radiogroup",
-    combobox: "combobox", separator: "separator", searchBox: "searchbox", spinButton: "spinbutton",
-    navigation: "navigation", main: "main", search: "search", banner: "banner", complementary: "complementary",
+    combobox: "combobox", separator: "separator", searchBox: "searchbox", spinButton: "spinbutton", meter: "meter",
+    navigation: "navigation", main: "main", search: "search", banner: "banner", complementary: "complementary", contentinfo: "contentinfo",
 };
 /** The annotations a view's element carries: its role, its name and hint where
  *  set (a role whose name comes from content is named by the browser from the
@@ -151,6 +151,12 @@ function ariaOf(v) {
     // content would take in the control's text and labels too
     else if (NAMED_BY_CONTENT.has(role) && holdsReachable(v))
         a["aria-label"] = contentOf(v).words;
+    // nameless, inside a Field: the field's caption names it
+    if (a["aria-label"] === undefined && (!NAMED_BY_CONTENT.has(role) || contentOf(v).words === "")) {
+        const cap = fieldCaption(v, role);
+        if (cap !== "")
+            a["aria-label"] = cap;
+    }
     describe(v, a);
     if (v.accessibilityChecked !== null)
         a["aria-checked"] = String(v.accessibilityChecked);
@@ -160,6 +166,8 @@ function ariaOf(v) {
         a["aria-selected"] = String(v.accessibilitySelected);
     if (v.accessibilitySort !== "none")
         a["aria-sort"] = v.accessibilitySort;
+    if (v.accessibilityCurrent !== "none")
+        a["aria-current"] = v.accessibilityCurrent === "item" ? "true" : v.accessibilityCurrent;
     if (v.accessibilityMultiselectable)
         a["aria-multiselectable"] = "true";
     activeItem(v, a);
@@ -186,7 +194,7 @@ function ariaOf(v) {
         a["aria-live"] = live;
     // a list's size and each item's place in it — "4,012 of 30,500" with only
     // the built rows present
-    if (role === "listItem" || role === "menuItem" || role === "tab" || role === "radio" || role === "option" || role === "treeItem") {
+    if (role === "listItem" || role === "menuItem" || role === "menuItemRadio" || role === "tab" || role === "radio" || role === "option" || role === "treeItem") {
         // a place the view states (a tree row among its siblings) over the one
         // its replication gives
         const i = v.accessibilityPosInSet !== null ? v.accessibilityPosInSet - 1 : readRowIndex(v);
@@ -216,7 +224,7 @@ function ariaOf(v) {
     // while it has focus keeps it (focus-place.md), so its element must stay
     // focusable too, or the browser takes focus to the page; the focus read is
     // tracked only for a disabled view.
-    if (v.focusable === true)
+    if (v.focusable === true || bareScroller(v))
         a.tabindex = "0";
     else if (v.focusable === "quiet" || v.disabled === true && Focus.getFocus() === v)
         a.tabindex = "-1";
@@ -416,6 +424,8 @@ function announce(doc, text, politeness) {
         el = doc.createElement("div");
         el.setAttribute("aria-live", politeness);
         el.setAttribute("aria-atomic", "true");
+        // marked, so a check finding words on the page passes over what is only heard
+        el.setAttribute("data-declare-announcer", "");
         el.style.cssText = "position:absolute;width:1px;height:1px;overflow:hidden;clip-path:inset(50%);white-space:nowrap";
         doc.body.appendChild(el);
         REGIONS.set(politeness, el);

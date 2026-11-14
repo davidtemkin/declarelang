@@ -40,9 +40,9 @@ export interface ProgramBuild {
  *  (tags + class bases) ∪ any class a `{ }` body names as a value (`new
  *  Markdown()`, `v instanceof Card`, `const C = Video`: the compile writes each as
  *  `$classes.Name`, read here from the compiled text) ∪ the classes a `classFor`
- *  body picks (lowered to their names as strings) ∪ the classes a LITERAL
- *  rich-text document names as inline-view tags ∪ the explicit `use [ … ]`
- *  keep-list.
+ *  body picks (lowered to their names as strings) ∪ the explicit `use [ … ]`
+ *  keep-list. (A rich text's inline views are classes its `tagViews` map names
+ *  as values, so they are in the second set.)
  *  Sound because Declare has no reflective new-by-value: every construction path
  *  is a compile-time literal, so this set is complete (create-by-STRING — an
  *  `iconLeft = "TrashIcon"`, a fetched document — is what `use` covers). The

@@ -4,7 +4,7 @@
 The path to where you are — Home › Guide › Layout — each step a way back up. The steps are
 **records**, outermost first; the last is where you are, shown in the stronger ink and not
 pressable. A step with a `location` is a real link (⌘-click, copy link, the crawler); one
-without is a button that hands its `id` to `input`:
+without is a button that hands its `id` to `commit`:
 
 ```declare
 App [ width = 400, height = 80, at: string = "layout",
@@ -12,7 +12,7 @@ App [ width = 400, height = 80, at: string = "layout",
         items = { [ ({ id: "home", label: "Home" }),
                     ({ id: "guide", label: "Guide" }),
                     ({ id: "layout", label: "Layout" }) ] },
-        input(id: string) { app.at = id } ]
+        commit(id: string) { app.at = id } ]
     ]
 ```
 
@@ -22,7 +22,7 @@ buttons, the last one the current page. Each step is a Tab stop, as links are.
 ## items
 The steps, as **records**: `{ id, label }`, with a `location` to make a step a link.
 
-## input()
+## commit()
 **Where a step goes** when it has no `location`, receiving its `id`. Does nothing by default;
 override it.
 
@@ -42,7 +42,7 @@ class Breadcrumb [
     accessibilityRole = navigation,
     accessibilityLabel = "Breadcrumb",
     items: array = [],
-    input(id: string) { },
+    commit(id: string) { },
 
     height = { provided("theme").segmentedHeight },
     layout: SimpleLayout [ axis = x, spacing = 4, align = center ],
@@ -72,7 +72,7 @@ The step's place, when its record names one: the step is then a link to it.
 and never when it is the current one.
 
 ## press()
-Hands the step's `id` to the breadcrumb's `input`, for a step that is not a link.
+Hands the step's `id` to the breadcrumb's `commit`, for a step that is not a link.
 
 ## onClick
 Presses.
@@ -102,7 +102,7 @@ class BreadcrumbStep extends Control [
     current: boolean = { :last == true },
     location: string = { "" + (:location ?? "") },
     link = { !current && location != "" ? "#" + location : "" },
-    press() { if (!current && location == "") ((this.parent as any) as Breadcrumb).input("" + :id) },
+    press() { if (!current && location == "") ((this.parent as any) as Breadcrumb).commit("" + :id) },
     onClick() { press() },
 
     accessibilityRole = button,

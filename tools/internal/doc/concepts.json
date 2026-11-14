@@ -9,10 +9,11 @@
     "leading": "Text.lineHeight",
     "line height": "Text.lineHeight",
     "line spacing": "Text.lineHeight",
-    "crop": "Image.stretches",
-    "cover": "Image.stretches",
-    "contain": "Image.stretches",
-    "aspect ratio": "Image.stretches",
+    "crop": "Image.fit",
+    "cover": "Image.fit",
+    "contain": "Image.fit",
+    "aspect ratio": "Image.fit",
+    "object fit": "Image.fit",
     "image size": "Image.naturalWidth",
     "natural size": "Image.naturalWidth",
     "intrinsic size": "Image.naturalWidth",
@@ -28,9 +29,12 @@
     "hover": "View.hovered",
     "rollover": "View.hovered",
     "shadow": "View.shadow",
-    "drop shadow": "View.filter",
+    "drop shadow": "View.visualFilter",
     "border": "View.stroke",
     "outline": "Tree",
+    "text stroke": "Text.textStroke",
+    "outlined text": "Text.textStroke",
+    "hollow text": "Text.textStroke",
     "rounded corners": "View.cornerRadius",
     "rounding": "View.cornerRadius",
     "corner radius": "View.cornerRadius",
@@ -44,9 +48,9 @@
     "pinch": "View.claim",
     "pinch zoom": "View.claim",
     "gesture": "View.claim",
-    "blend": "View.blend",
-    "blend mode": "View.blend",
-    "multiply": "View.blend",
+    "blend": "View.blendMode",
+    "blend mode": "View.blendMode",
+    "multiply": "View.blendMode",
     "frost": "View.backdrop",
     "glass": "View.backdrop",
     "frosted glass": "View.backdrop",
@@ -74,6 +78,10 @@
     "ticker": "Time",
     "wheel": "View.event.wheel",
     "trackpad": "View.event.wheel",
+    "double click": "View.event.doubleClick",
+    "double-click": "View.event.doubleClick",
+    "dblclick": "View.event.doubleClick",
+    "double tap": "View.event.doubleClick",
     "arrangement": "View.layout",
     "states": "State",
     "mode": "State",
@@ -98,9 +106,17 @@
     "state": "State",
     "geometryreader": "View.width",
     "withanimation": "Animator",
+    "easing": "Animator.easing",
+    "easing curve": "Animator.easing",
+    "timing function": "Animator.easing",
+    "cubic bezier": "Animator.easing",
     "router": "App.location",
     "routing": "App.location",
     "navigation stack": "App.location",
+    "open url": "App.method.openURL",
+    "external link": "App.method.openURL",
+    "window.location": "App.method.openURL",
+    "redirect": "App.method.openURL",
     "modal": "Dialog",
     "drawer": "Sheet",
     "bottom sheet": "Sheet",
@@ -110,15 +126,24 @@
     "lightbox": "Dialog",
     "overlay": "Floating",
     "alert": "Dialog",
-    "context menu": "Menu",
+    "context menu": "ContextMenu",
+    "open menu": "Menu.method.showFor",
+    "show menu": "Menu.method.showFor",
+    "open context menu": "Menu.method.showAt",
+    "show popover": "Floating.method.showFor",
+    "open popover": "Floating.method.showFor",
+    "ispresented": "Floating.shown",
+    "two-way binding": "ValueControl.method.commit",
+    "two way binding": "ValueControl.method.commit",
+    "value pattern": "ValueControl.method.commit",
     "combo box": "Combobox",
     "autocomplete": "Combobox",
     "form": "Form",
     "form row": "Field",
     "toggle": "Switch",
-    "spinner": "ProgressBar",
-    "activity indicator": "ProgressBar",
-    "loading indicator": "ProgressBar",
+    "spinner": "ProgressBar.indeterminate",
+    "activity indicator": "ProgressBar.indeterminate",
+    "loading indicator": "ProgressBar.indeterminate",
     "progress": "ProgressBar",
     "tabs": "TabBar",
     "tab bar": "TabBar",
@@ -189,9 +214,10 @@
     "drawImage": "View.method.draw",
     "draw image": "View.method.draw",
     "image in canvas": "View.method.draw",
-    "blur": "View.filter",
-    "filter": "View.filter",
-    "grayscale": "View.filter",
+    "blur": "View.visualFilter",
+    "filter": "View.visualFilter",
+    "visual filter": "View.visualFilter",
+    "grayscale": "View.visualFilter",
     "mask": "View.mask",
     "mask image": "View.mask",
     "skew": "View.skewX",
@@ -263,6 +289,16 @@
     "is scrolling": "View.userScrolling",
     "user scrolling": "View.userScrolling",
     "scroll in progress": "View.userScrolling",
+    "scroll padding": "View.ignoreScroll",
+    "scroll margin": "View.ignoreScroll",
+    "scroll inset": "View.ignoreScroll",
+    "content inset": "View.ignoreScroll",
+    "viewport": "App.hostWidth",
+    "window size": "App.hostWidth",
+    "compact": "ResponsiveLayout",
+    "size class": "ResponsiveLayout",
+    "accessibility disabled": "Control.disabled",
+    "aria disabled": "Control.disabled",
     "while scrolling": "View.userScrolling",
     "touch device": "App.touchFirst",
     "phone or tablet": "App.touchFirst",
@@ -273,8 +309,13 @@
     "disabled field": "Control.disabled",
     "disable a field": "Control.disabled",
     "disabled text field": "Control.disabled",
-    "read only field": "TextInput.text",
-    "readonly field": "TextInput.text",
+    "read only field": "Text.selectable",
+    "readonly field": "Text.selectable",
+    "read-only field": "Text.selectable",
+    "pointer leave": "View.event.pointerOut",
+    "mouse leave": "View.event.pointerOut",
+    "pointer enter": "View.event.pointerOver",
+    "mouse enter": "View.event.pointerOver",
     "controlled field": "TextInput.text",
     "validation": "ValueControl.method.validate",
     "validate": "ValueControl.method.validate",
@@ -317,7 +358,15 @@
     "country picker": "Combobox.purpose",
     "request failed": "DataSource.failed",
     "fetch failed": "DataSource.failed",
-    "request error": "DataSource.failed"
+    "request error": "DataSource.failed",
+    "reduced motion": "App.accessibilitySettings",
+    "reduce motion": "App.accessibilitySettings",
+    "prefers reduced motion": "App.accessibilitySettings",
+    "fullscreen": "App.fullScreen",
+    "full screen": "App.fullScreen",
+    "requestFullscreen": "App.fullScreen",
+    "enter full screen": "App.fullScreen",
+    "exit full screen": "App.fullScreen"
   },
   "negative": [
     {
@@ -352,7 +401,7 @@
         "react key",
         "key prop"
       ],
-      "answer": "No refs — a named member IS its handle (`box: View [ … ]` → `app.box`); reach any node by its dotted path. Replicated rows take their identity from the record's `id` field on their own, and `key = :field` on the replicated node names it when it lives under another name — that is Declare's `key`, an identity attribute, not React's reconciliation prop."
+      "answer": "No refs — a named member IS its handle (`box: View [ … ]` → `app.box`); reach any node by its dotted path. Replicated rows take their identity from the record's `id` field on their own, and `identityKey = :field` on the replicated node names it when it lives under another name — replication metadata the record's data decides, not a prop each render passes."
     },
     {
       "terms": [
@@ -366,7 +415,18 @@
         "css grid",
         "grid layout"
       ],
-      "answer": "No grid layout strategy — `WrappingLayout` flows and wraps; a fixed N-column grid is a small `Layout` subclass of your own (`place()` is ~15 lines of arithmetic over `this.laid()` and `this.view.width`); and tabular DATA wants `Table` or `DataGrid`, which are classes, not layouts."
+      "answer": "No grid layout strategy — `WrappingLayout` flows and wraps; a fixed N-column grid is a small `Layout` subclass of your own (`place()` is ~15 lines of arithmetic over `this.laid()` and `this.view.width`); and tabular DATA wants `Table` or `DataGrid`, which are classes, not layouts. A grid as a screen reader reads it — a sheet or board you build — is a role, not a layout: `accessibilityRole = grid`, rows of `row`, cells of `columnHeader`, `rowHeader` or `cell` (declare-help spreadsheet)."
+    },
+    {
+      "terms": [
+        "spreadsheet",
+        "sheet roles",
+        "table roles",
+        "grid roles",
+        "grid role",
+        "aria grid"
+      ],
+      "answer": "No spreadsheet class: `DataGrid` is the library's grid of records, its roles its own. A sheet, a board or a grid you build yourself is read by its structure, which you give it in roles: the grid `accessibilityRole = grid`, each row `row`, and in a row `columnHeader`s, `rowHeader`s or `cell`s, made of views whose words are `Text`. The grid keeps the focus while the arrows move a highlight it names (`accessibilityActiveItem`). Guide: docs/guide/19-accessibility.md § Your own controls."
     },
     {
       "terms": [
@@ -381,7 +441,7 @@
         "badge",
         "avatar"
       ],
-      "answer": "No dedicated class — the library is deliberately small, and these are compositions: a skeleton is a few rounded Views whose opacity a `Time` pulses; a badge is a small rounded `Text` riding its parent's corner; an avatar is an `Image` with `stretches = cover` and rounding. Compose it, then keep it as your own class."
+      "answer": "No dedicated class — the library is deliberately small, and these are compositions: a skeleton is a few rounded Views whose opacity a `Time` pulses; a badge is a small rounded `Text` riding its parent's corner; an avatar is an `Image` with `fit = cover` and rounding. Compose it, then keep it as your own class."
     },
     {
       "terms": [
@@ -454,7 +514,7 @@
         "option list",
         "choose one"
       ],
-      "answer": "No `<select>` element: a pop-up choice is a `Button` with a `menu`. Declare a `Menu` whose rows carry `checked`, derived from your state, and set the state in its `picked(id)`:\n  sorts: Menu [ items = { [ ({ id: \"name\", label: \"Name\", checked: app.sort == \"name\" }), ({ id: \"date\", label: \"Date\", checked: app.sort == \"date\" }) ] }, picked(id: string) { app.sort = id } ],\n  Button [ label = { \"Sort by \" + app.sort }, menu = { app.sorts } ]\nThe button draws the chevron and opens the menu under itself, and the menu checks the current row (declare-help Control.menu). Other ways to choose one of many: two to five short choices shown at once, `Segmented`; a few that need a sentence each, `RadioGroup`; a long list filtered by typing, `Combobox`; a day, `DatePicker`; your own content in a bubble, `Popover`. Guide: docs/guide/08-controls.md § Choosing one of many."
+      "answer": "No `<select>` element: a pop-up choice is a `Button` with a `menu`. Declare a `Menu` whose rows carry `checked`, derived from your state, with a `group` shared by the rows (one choice among them), and set the state in its `picked(id)`:\n  sorts: Menu [ items = { [ ({ id: \"name\", label: \"Name\", group: \"sort\", checked: app.sort == \"name\" }), ({ id: \"date\", label: \"Date\", group: \"sort\", checked: app.sort == \"date\" }) ] }, picked(id: string) { app.sort = id } ],\n  Button [ label = { \"Sort by \" + app.sort }, menu = { app.sorts } ]\nThe button draws the chevron and opens the menu under itself, and the menu checks the current row (declare-help Control.menu). Other ways to choose one of many: two to five short choices shown at once, `Segmented`; a few that need a sentence each, `RadioGroup`; a long list filtered by typing, `Combobox`; a day, `DatePicker`; your own content in a bubble, `Popover`. Guide: docs/guide/08-controls.md § Choosing one of many."
     },
     {
       "terms": [
@@ -470,7 +530,7 @@
         "Math",
         "globalThis"
       ],
-      "answer": "No host globals beyond a fixed set: what code may name depends on where it is written.\n  Everywhere, `{ }` bodies and handlers included: the ECMAScript built-ins (`Math`, `JSON`, `Date`, `Intl`, `Number`, `String`, `Array`, `Object`, `Map`, `Set`, `RegExp`, `Promise`, …), and `URL`, `URLSearchParams`, `console`, `structuredClone`, `encodeURIComponent`, `decodeURIComponent`.\n  Refused in a `{ }` body or handler, with the Declare way named: `fetch` (a `DataSource`), the timers `setTimeout`, `setInterval`, `queueMicrotask`, `requestAnimationFrame` (`afterDelay(ms, fn)`, a `Time`), `performance` (a `Time`), `globalThis`.\n  In a `script { }` block: all of the above, `fetch`, the timers and `performance` included.\n  In a `script [ host = browser ] { }` block: `window`, `document` and the rest of the browser as well. An unmarked script runs on every host, so the compiler refuses them there.\nWhat a page reads from `window` is an App attribute here: the size is `app.width` / `app.height`, and a view is reached by its name (`app.sidebar.list`), not by a query. docs/declare.md § 5."
+      "answer": "No host globals beyond a fixed set: what code may name depends on where it is written.\n  Everywhere, `{ }` bodies and handlers included: the ECMAScript built-ins (`Math`, `JSON`, `Date`, `Intl`, `Number`, `String`, `Array`, `Object`, `Map`, `Set`, `RegExp`, `Promise`, …), and `URL`, `URLSearchParams`, `console`, `structuredClone`, `encodeURIComponent`, `decodeURIComponent`.\n  Refused in a `{ }` body or handler, with the Declare way named: `fetch` (a `DataSource`), the timers `setTimeout`, `setInterval`, `queueMicrotask`, `requestAnimationFrame` (`afterDelay(ms, fn)`, a `Time`), `performance` (a `Time`), `globalThis`.\n  In a `script { }` block: all of the above, `fetch`, the timers and `performance` included, and the runtime's functions a body calls (`colorWithAlpha`, `measureText`, the value constructors), except those that answer for the calling view (`provided`, `providedTextStyle`, `hostProvided`, `afterDelay`).\n  In a `script [ host = browser ] { }` block: `window`, `document` and the rest of the browser as well. An unmarked script runs on every host, so the compiler refuses them there.\nWhat a page reads from `window` is an App attribute here: the size is `app.width` / `app.height`, and a view is reached by its name (`app.sidebar.list`), not by a query. docs/declare.md § 5."
     },
     {
       "terms": [
@@ -490,6 +550,31 @@
         "computed member"
       ],
       "answer": "No lookup function: a member is a property of its view, reached as JavaScript reaches any property — `toolbar.share`, or by a name computed at run time, `toolbar[name]`. The two forms are the same access and chain freely: `app.prefs[section][field]`, `app.prefs[section].advanced`. Each bracket steps one level; its string names one member, not a dotted path. The result is the member by that name, or `undefined` when there is none. A string literal (`toolbar[\"share\"]`) is checked like a path; a name known only at run time cannot be, so a path stays the form for names known as you write. Data can name a view: `anchorTo = { app.toolbar[:target] }`. Guide: docs/guide/04-structure.md § A member by a name known at run time."
+    },
+    {
+      "terms": [
+        "NumberField",
+        "number field",
+        "NumberInput",
+        "number input",
+        "numeric field",
+        "numeric input"
+      ],
+      "answer": "No `NumberField`. A number changed a step at a time is a `Stepper` — `Stepper [ value = { app.copies }, min = 1, max = 99, commit(v: number) { app.copies = v } ]`, which also takes a typed number from the keyboard. A number typed into a field is a `TextInput` with `purpose = decimal` (`digits` for a whole number), which brings up a phone's number keyboard; `purpose` says what the field holds, not what may be typed, so an `admit(t)` that returns null for anything but a number keeps it numeric."
+    },
+    {
+      "terms": [
+        "ColorPicker",
+        "color picker",
+        "colour picker",
+        "ColorWell",
+        "color well",
+        "colour well",
+        "color input",
+        "colour input",
+        "input type color"
+      ],
+      "answer": "No color picker or color well control. A color is chosen from swatches: a `ChoiceControl` whose children are the colors (each a `ChoiceItem` drawn as a swatch), in a `Popover` opened from a swatch that shows the current color, with a `TextInput` beside them for a hex value."
     }
   ]
 }

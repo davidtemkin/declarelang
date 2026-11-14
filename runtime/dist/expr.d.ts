@@ -5,12 +5,16 @@ export declare function bodyScopeNames(): string[];
 type PreMake = ($d: Record<string, unknown>, $s: Record<string, unknown>) => readonly unknown[];
 /** `keyed` — the slots whose body names `Keyboard`, which a minified bundle no
  *  longer shows by name (see askingKeys). */
-export declare function providePrecompiled(make: PreMake, scripts: readonly (() => unknown)[], keyed?: readonly number[]): void;
+export declare function providePrecompiled(make: PreMake, scripts: readonly (($d: Record<string, unknown>) => unknown)[], keyed?: readonly number[]): void;
 /** Run `build` with `scope` as the active script scope. */
 export declare function withScriptScope<T>(scope: Record<string, unknown>, build: () => T): T;
 /** Evaluate one compiled `script { … }` body, returning the bindings it
  *  declares. The compiler appended the `return { … }` that makes this possible
- *  (there is no way to enumerate a function's scope from outside it). */
+ *  (there is no way to enumerate a function's scope from outside it). A script
+ *  shares the bodies' runtime scope (`$d`: the value constructors,
+ *  `colorWithAlpha`, `measureText`, the services), as the checker's prelude
+ *  says it does; the block runs one function in, so its own declarations
+ *  shadow those names rather than collide with them. */
 export declare function evalScript(js: string): Record<string, unknown>;
 /** The value-constructor names — the compile layer (compile.ts) skips these
  *  in callee position, and the checker reserves the two that are not already
@@ -20,7 +24,7 @@ export declare const CONSTRUCTOR_NAMES: readonly string[];
  *  `contrast`, `invert`…) a program may well want as ATTRIBUTE names, so they
  *  are reserved as method names only: an attribute called `blur` shadows the
  *  constructor inside that node's own `{ }` bodies and nowhere else, and the
- *  bare-slot call form (`filter = blur(3)`) is unaffected by any member. */
+ *  bare-slot call form (`visualFilter = blur(3)`) is unaffected by any member. */
 export declare const FILTER_FN_NAMES: readonly string[];
 /** A compiled body. Called with `this` bound to the owning node and its
  *  parent and classroot as arguments, so all three scope nouns resolve

@@ -145,7 +145,7 @@ const CONTEXTS = {
   },
   // a Sheet: Escape closes it; Return goes on (nothing in a sheet answers it)
   sheet: {
-    src: `ctx: Sheet [ accessibilityLabel = "Edit", input(v: boolean) { if (!v) app.log = app.log + "closed;"; this.shown = v },
+    src: `ctx: Sheet [ accessibilityLabel = "Edit", commit(v: boolean) { if (!v) app.log = app.log + "closed;"; this.shown = v },
         f: TextInput [ width = 100, accessibilityLabel = "Name" ] ]`,
     open: (a) => a.ctx.show(), field: (a) => a.ctx.f,
     expect: { Enter: "", Escape: "closed;", Tab: "focus:self" },

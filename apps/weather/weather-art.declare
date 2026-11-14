@@ -209,7 +209,7 @@ class SkyPhoto [ clip = true,
             }
         ],
     img: Image [
-        source = { classroot.source }, stretches = cover,
+        source = { classroot.source }, fit = cover,
 
         // over-scan by 8% and pan a slow figure across it
 
@@ -476,7 +476,7 @@ class PressureGauge [
 class MoonDisc [
     illum: number = 0.22,
     waning: boolean = true,
-    disc: Image [ width = 100%, height = 100%, source = "art/moon.png", stretches = both ],
+    disc: Image [ width = 100%, height = 100%, source = "art/moon.png", fit = both ],
     shade: MoonShadow [ width = 100%, height = 100%,
         illum = { classroot.illum }, waning = { classroot.waning } ]
     ]

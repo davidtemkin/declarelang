@@ -3,9 +3,10 @@ key that goes down and up. Its other half is [`Keyboard`](declare-docs:Keyboard)
 keyboard you ask — `Keyboard.isDown("KeyA")` from any `{ }` body.
 
 It is the **raw stream** — it fires even while a text field has focus, so gate single-key
-handling on app state where that matters. It is not part of the walk that answers a key —
-the focused view's `keyBindings` and `onKeyDown`, then each container's, out to the App — and
-takes nothing from it; a key a view answers is a
+handling on app state where that matters. The exception is an open overlay: the keys it is
+using (a menu's arrows, Enter and Escape) reach only the `KeyListener`s inside it. It is not
+part of the walk that answers a key — the focused view's `onKeyDown` and `keyBindings`, then
+each container's `keyBindings`, out to the App — and takes nothing from it; a key a view answers is a
 [key binding](declare-docs:guide:pointer-and-keyboard@key-bindings). A `KeyListener` is for a game's
 keys, a key held while dragging, and anything that reads the keyboard rather than answers it. Lifetime is the node's: subscribed at init, dropped when the node is
 discarded, nothing to clean up. Fan-out is by instance — a menu, a dialog, and a menubar

@@ -48,7 +48,8 @@ await test("unknown attribute: HANDLERS are in the pool", async () => {
   // handlers are declared as events, not attrs, but are written in the same
   // position and fumbled the same way
   await says(`App [ View [ onclick = 1 ] ]`, "did you mean 'onClick'?");
-  await says(`App [ View [ ondblclick = 1 ] ]`, "did you mean 'onDblClick'?");
+  // `ondblclick` is the DOM's spelling of a name Declare once used: it reaches the hint
+  await says(`App [ View [ ondblclick = 1 ] ]`, "the double-click event is 'onDoubleClick'");
 });
 
 await test("unknown attribute: a typo for nothing gets no guess", async () => {
@@ -96,8 +97,76 @@ await test("rotate/blur/transform point at the real doors, not into a wall", asy
   await says(`App [ View [ rotate = 45 ] ]`, "rotation = 45");
   await says(`App [ View [ blur = 4 ] ]`, "d.filter");
   await says(`App [ View [ transform = 1 ] ]`, "draw(d: DrawContext)");
-  await says(`App [ View [ mixBlendMode = 1 ] ]`, "blend = multiply");
+  await says(`App [ View [ mixBlendMode = 1 ] ]`, "blendMode = multiply");
   await says(`App [ View [ backdropFilter = 1 ] ]`, "frost(radius, saturation)");
+});
+
+// ── names an earlier Declare used: each miss names the current one ──────────
+await test("onDblClick, motion and navigate name onDoubleClick, easing and openURL", async () => {
+  const warns = async (src) => ((await compile(src, { originDir: process.cwd() })).warnings ?? []).map((w) => w.message).join("\n");
+  assert.ok((await warns(`App [ View [ width = 10, height = 10, onDblClick() { } ] ]`)).includes("'onDoubleClick'"),
+    "a method named onDblClick (DECLARE4019) names onDoubleClick");
+  await says(`App [ View [ Animator [ attribute = x, to = 1, motion = cubicOut ] ] ]`, "easing = cubicOut");
+  await says(`App [ View [ a: Animator [ attribute = x, to = 1, started = true ], onClick() { console.log(a.motion) } ] ]`, "is 'easing'");
+  await says(`App [ View [ scrolls = y, onClick() { this.scrollTo(10, { duration: 100, motion: "cubicOut" }) } ] ]`, "easing: \"cubicOut\"");
+  await says(`App [ View [ onClick() { app.navigate("https://example.com") } ] ]`, "app.openURL(to)");
+  await says(`App [ View [ onClick() { app.navigate("https://example.com") } ] ]`, "app.location");
+});
+
+await test("input, openFor, openAt and ContextMenu.open name commit, showFor and showAt", async () => {
+  const warns = async (src) => ((await compile(src, { originDir: process.cwd() })).warnings ?? []).map((w) => w.message).join("\n");
+  // a method named input where the base hands its changes back through commit (DECLARE4042)…
+  assert.ok((await warns(`App [ Disclosure [ label = "More", input(v: boolean) { } ] ]`)).includes("Rename it to 'commit(…)'"));
+  // …and nowhere else: input is an ordinary name on a class with no such hook
+  assert.ok(!(await warns(`App [ View [ input(x: number) { } ] ]`)).includes("commit"));
+  // beside a constraint, the refusal names the rename rather than a second override
+  await says(`App [ mode: string = "a", Segmented [ value = { app.mode }, input(v: string) { app.mode = v } ] ]`, "Rename 'input(…)' to 'commit(…)'");
+  await says(`App [ d: Disclosure [ label = "x" ], Button [ label = "t", onClick() { app.d.input(true) } ] ]`, "goes through 'commit(v)'");
+  await says(`App [ m: Menu [ ], Button [ label = "x", onClick() { app.m.openFor(this) } ] ]`, "showFor(v)");
+  await says(`App [ m: Menu [ ], View [ onContextMenu(e: PointerEvent) { app.m.openAt(this, e) } ] ]`, "showAt(v, e)");
+  await says(`App [ m: ContextMenu [ ], View [ onContextMenu(e: PointerEvent) { app.m.open(this, e) } ] ]`, "showAt(v, e)");
+  // a former Declare name is answered without a CSS label; a CSS name keeps its
+  await says(`App [ View [ blend = multiply ] ]`, "has no attribute 'blend' — compositing is the 'blendMode' attribute");
+  await silent(`App [ View [ blend = multiply ] ]`, "CSS instinct");
+  await says(`App [ View [ borderWidth = 1 ] ]`, "the CSS instinct:");
+  await says(`class S extends Sheet [ commit(open: boolean) { super.input(open) } ]\nApp [ S [ accessibilityLabel = "s" ] ]`, "call super.commit(…)");
+  await says(`App [ mode: Blend = "multiply" ]`, "the type is named 'BlendMode'");
+});
+
+await test("filter, choices, selected, active and the minor renames name what holds them now", async () => {
+  // the attribute: `filter` on a view names visualFilter, in either position…
+  await says(`App [ View [ filter = blur(4) ] ]`, "has no attribute 'filter' — a view's own visual effects are 'visualFilter'");
+  await says(`App [ View [ onClick() { console.log(this.filter) } ] ]`, "'visualFilter'");
+  // …and on a class with no view behind it, the CSS name still points there
+  await says(`App [ Node [ filter = 1 ] ]`, "the CSS instinct: a view's own effects are 'visualFilter'");
+  // `filter` is an ordinary name now: a list, a method of one's own
+  const clean = async (src) => assert.equal(await errText(src), "", "compiles");
+  await clean(`App [ filter: string = "open", View [ filter: string = "all" ], Text [ text = { app.filter } ] ]`);
+  await clean(`App [ filter(xs: number[]) -> number[] { return xs.filter((x) => x > 1) }, Text [ text = { "" + app.filter([1, 2, 3]).length } ] ]`);
+  // the library renames, each on its own class and nowhere else
+  await says(`App [ Segmented [ choices = { [ ({ id: "a", label: "A" }) ] } ] ]`, "the segments are 'items'");
+  await says(`App [ TabBar [ choices = { [ ({ id: "a", label: "A" }) ] } ] ]`, "the segments are 'items'");
+  await says(`App [ Segmented [ segMin = 60 ] ]`, "'segmentMinWidth'");
+  await says(`App [ c: string = "", Table [ selected = { app.c } ] ]`, "'selectedItem'");
+  await says(`App [ t: Table [ ], View [ onClick() { console.log(app.t.active) } ] ]`, "'activeItem'");
+  await says(`App [ g: DataGrid [ ], View [ onClick() { console.log(app.g.selected) } ] ]`, "'selectedItem'");
+  await says(`App [ DataGrid [ headerH = 30 ] ]`, "'headerHeight'");
+  await says(`App [ Button [ label = "x", inkColor = red ] ]`, "is 'ink'");
+  await clean(`App [ View [ choices: string[] = [], selected: boolean = false, active: boolean = false ] ]`);
+  // made internal: the old name answers with what to read instead, never the internal
+  await says(`App [ seg: Segmented [ ], Text [ text = { "" + app.seg.count } ] ]`, "items.length");
+  await silent(`App [ seg: Segmented [ ], Text [ text = { "" + app.seg.count } ] ]`, "_count");
+  await says(`App [ b: Button [ label = "x" ], Text [ text = { app.b.rightIcon } ] ]`, "'iconRight'");
+  // the secondary delivery hooks: an override under the old name is never called, and says so
+  const warns = async (src) => ((await compile(src, { originDir: process.cwd() })).warnings ?? []).map((w) => w.message).join("\n");
+  assert.ok((await warns(`App [ DataGrid [ sortInput(on: string, dir: string) { } ] ]`)).includes("Rename it to 'applySort(…)'"));
+  assert.ok((await warns(`App [ DataGrid [ editInput(r: object, f: string, v: string) -> boolean { return true } ] ]`)).includes("'applyEdit(…)'"));
+  assert.ok((await warns(`App [ Tree [ expandInput(ids: array) { } ] ]`)).includes("'applyExpanded(…)'"));
+  assert.ok((await warns(`class G extends DataGrid [ resizeInput(id: string, w: number) { } ]\nApp [ G [ ] ]`)).includes("'applyColumnWidth(…)'"));
+  // …nowhere else: a sortInput of one's own on a View is an ordinary method
+  assert.ok(!(await warns(`App [ View [ sortInput(x: number) { } ] ]`)).includes("applySort"));
+  await says(`App [ g: DataGrid [ ], View [ onClick() { app.g.arrangeInput(["a"]) } ] ]`, "applyColumnOrder(order)");
+  await clean(`App [ DataGrid [ applySort(column: string, direction: string) { super.applySort(column, direction) } ] ]`);
 });
 
 // ── a CSS percentage inside { } ──────────────────────────────────────────────
@@ -325,36 +394,13 @@ await test("4005 for an authored union names ONLY the quoted spelling — there 
   assert.match(be.message, /bare only as the whole value \(fontWeight = semibold\)/);
 });
 
-await test("a class named like a whitelisted rich-text tag warns ONCE, and only where there is rich text", async () => {
-  // Inside `Markdown`/`HTMLText` content a tag is resolved against the program's
-  // own classes before the HTML whitelist, so a class literally called `code`
-  // takes `<code>` over for every document the app renders. Legal, defined, and
-  // invisible — a warning, at the class declaration.
+await test("a class named like a whitelisted rich-text tag takes nothing over, so nothing warns", async () => {
+  // A tag becomes a view only through a `tagViews` entry, so a class literally
+  // called `code` leaves every `<code>` the tag it is — there is nothing to say.
   const r = await compile(`class code extends View [ width = 10, height = 10, fill = navy ]
     App [ width = 400, height = 100, HTMLText [ width = 380, html = "<p>a <code>b</code></p>" ] ]`, { originDir: process.cwd() });
-  const w = (r.warnings ?? []).filter((x) => x.code === "DECLARE4010");
-  assert.equal(w.length, 1, "one class, one warning: " + (r.warnings ?? []).map((x) => x.message).join(" | "));
-  assert.match(w[0].message, /class code hides the rich-text tag <code>/);
-  assert.match(w[0].message, /builds one code view, not the tag/, "names what happens");
-  assert.match(w[0].message, /Rename the class/, "names the fix");
-
-  // A subclass of a rich-text format is rich text too (the test is the schema
-  // chain, never the tag's spelling).
-  const sub = await compile(`class code extends View [ width = 10, height = 10, fill = navy ]
-    class Note extends Markdown [ width = 380 ]
-    App [ width = 400, height = 100, Note [ text = "hi" ] ]`, { originDir: process.cwd() });
-  assert.equal((sub.warnings ?? []).filter((x) => x.code === "DECLARE4010").length, 1, "a Markdown subclass counts as rich text");
-
-  // No flow in the program → the name collides with nothing, and a warning here
-  // would be noise on a working app.
-  const quiet = await compile(`class code extends View [ width = 10, height = 10, fill = navy ]
-    App [ width = 400, height = 100, c: code [ ], Text [ text = "no documents here" ] ]`, { originDir: process.cwd() });
-  assert.equal((quiet.warnings ?? []).filter((x) => x.code === "DECLARE4010").length, 0, "no rich text, no warning");
-
-  // …and a class whose name is not in the whitelist never warns, rich text or not.
-  const unrelated = await compile(`class Issue extends View [ width = 60, height = 20, fill = navy ]
-    App [ width = 400, height = 100, HTMLText [ width = 380, html = "see <Issue/>" ] ]`, { originDir: process.cwd() });
-  assert.equal((unrelated.warnings ?? []).filter((x) => x.code === "DECLARE4010").length, 0, "Issue shadows no tag");
+  assert.equal((r.warnings ?? []).filter((x) => /hides the rich-text tag/.test(x.message)).length, 0,
+    (r.warnings ?? []).map((x) => x.message).join(" | "));
 });
 
 // ── the idiom passes: a hint and two warnings that name the word ────────────
@@ -611,6 +657,78 @@ App [ width = 300, height = 200,
   assert.ok(codes(run).includes("DECLARE4025"), "a run's own flag overrides the program's");
   const phone = await compile(src("defaultFlags [ devices = mobile ]"));
   assert.ok(codes(phone).includes("DECLARE3005"), "a mobile program keeps the phone's findings");
+});
+
+// ── Ledger run 6's audit ───────────────────────────────────────────────────
+// A method body checks against its `-> Ret`, as an expression body checks
+// against its slot; an override that omits or loosens it checks against the base's.
+await test("a method's return is checked against its declared type", async () => {
+  await says(`App [ width = 300, height = 100, a() -> number { return "x" } ]`, "Type 'string' is not assignable to type 'number'");
+  await says(`class Meter [ a() -> number { return "x" }, t: string = { "" + this.a() } ]
+App [ width = 300, height = 100, Meter [ ] ]`, "Type 'string' is not assignable to type 'number'");
+  await says(`schema Pair [ name: string, message: string ]
+App [ width = 300, height = 100, b() -> Pair[] { return [ ({ field: "f", message: "m" }) ] } ]`, "'field' does not exist in type 'Pair'");
+  assert.equal(await errText(`App [ width = 300, height = 100, a() -> number { return 4 }, b() { return "anything" } ]`), "");
+});
+
+await test("an override that loosens or omits its return type is checked against the base's", async () => {
+  for (const ret of ["-> array", "-> any", ""]) {
+    await says(`class Editor extends Form [ refusal(body: object) ${ret} { return [ ({ field: "amount", message: "Too much" }) ] } ]
+App [ width = 300, height = 100, Editor [ ] ]`, "'field' does not exist in type 'FormProblem'");
+  }
+  assert.equal(await errText(`class Editor extends Form [ refusal(body: object) -> array {
+    if (body == null) return super.refusal(body)
+    return [ ({ name: "amount", message: "Too much" }) ] } ]
+App [ width = 300, height = 100, Editor [ ] ]`), "");
+});
+
+await test("classroot.X, where X is the state of the frame the body sits inside, offers provided", async () => {
+  const src = `class ChartFrame [ asTable: boolean = false ]
+class Page [ ChartFrame [ Text [ visible = { !classroot.asTable }, text = "chart" ] ] ]
+App [ width = 200, height = 100, Page [ ] ]`;
+  await says(src, `provided("asTable")`);
+  await silent(src, "declare it");
+});
+
+await test("HTMLText's text names html; a Segmented takes a form name", async () => {
+  await says(`App [ width = 300, height = 100, HTMLText [ text = "<b>hi</b>" ] ]`, "content is 'html'");
+  await silent(`App [ width = 300, height = 100, ch: string = "a", Segmented [ name = "channel", value <-> app.ch, items = { [ ({ id: "a", label: "A" }) ] } ] ]`, "not a form field");
+});
+
+await test("a script naming a shared function is told it is one", async () => {
+  await says(`script { function escapeHtml(s: string): string { return s } }
+App [ width = 100, height = 100 ]`, "'escapeHtml' is the shared function escapeHtml(s) every { } body already has — use it, or name yours differently");
+});
+
+await test("DECLARE4025 counts only the parts a name could be given", async () => {
+  const codes = async (src) => (await compile(src, { originDir: process.cwd() })).diagnostics.map((d) => d.code);
+  const named = await codes(`App [ width = 200, height = 100,
+    a: boolean = true, b: boolean = true, c: boolean = true, d: boolean = true, e: boolean = true,
+    ready: boolean = { app.a && app.b && !app.c && app.d && app.e } ]`);
+  assert.ok(!named.includes("DECLARE4025"), named.join());
+  const tangled = await codes(`App [ width = 200, height = 100, n: number = 1,
+    ready: boolean = { app.n > 1 && app.n < 9 && app.n != 4 && app.n % 2 == 1 } ]`);
+  assert.ok(tangled.includes("DECLARE4025"), tangled.join());
+});
+
+// Murmur run 17: tsc's "change the 'lib' option" names a setting no program has;
+// a class's data body belongs on an instance; a `parent.X` miss says where X is.
+await test("an ES2023 method says { } code is ES2022, with the ES2022 form", async () => {
+  await says(`App [ xs: number[] = [1, 2], Text [ text = { "" + app.xs.findLast((x) => x < 2) } ] ]`, "{ } code is ES2022 — write [...xs].reverse().find");
+  await silent(`App [ xs: number[] = [1, 2], Text [ text = { "" + app.xs.findLast((x) => x < 2) } ] ]`, "lib");
+});
+
+await test("a { } data body after a class's [ ] says data goes on an instance", async () => {
+  await says(`schema H [ me: string ]
+class S extends Dataset [ schema = H ] { { "me": "p1" } }
+App [ s: S [ ] ]`, "data belongs to an instance: s: S { { … } }");
+});
+
+await test("a member missed on parent names where it is in the class", async () => {
+  await says(`class T extends View [ width = 100, height = 100,
+    feed: View [ scrolls = y, list: View [ layout: SimpleLayout [ axis = y ] ] ],
+    chip: View [ Text [ text = { "" + parent.list.firstVisibleRow } ] ] ]
+App [ T [ ] ]`, "'classroot.feed.list'");
 });
 
 summarize("diagnostics-hints");

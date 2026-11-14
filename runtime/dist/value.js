@@ -104,7 +104,6 @@ function checkOrder(fn, width, color) {
         : diag `[Declare] ${fn}(${width}, …) — a stroke width of ${width} is drawn inside the box, so it paints as a filled rectangle. ${fn}(width, color) takes the width first`);
 }
 export const stroke = (width, color) => { checkOrder("stroke", width, color); return Object.freeze({ width, color }); };
-export const outline = (width, color) => { checkOrder("outline", width, color); return Object.freeze({ width, color }); };
 export const shadow = (dx, dy, blur, color) => Object.freeze({ fn: "shadow", dx, dy, blur, color });
 /** How far a filter's output can reach past the painted box, in view units —
  *  a blur's 3σ, a shadow's offset plus its 3σ. The over-scan a backdrop sample
@@ -143,9 +142,6 @@ export function strokeEqual(a, b) {
     const s = a;
     const t = b;
     return s.width === t.width && s.color === t.color;
-}
-export function outlineEqual(a, b) {
-    return a !== null && b !== null && a.width === b.width && a.color === b.color;
 }
 export function filterEqual(a, b) {
     if (a === b)
@@ -232,7 +228,7 @@ export function isPercent(v) {
     return typeof v === "object" && v !== null && "percent" in v;
 }
 /** Declare an enum attribute type: `enumType("Stretch", "none", "width", …)`
- *  — how §6's named unions declare. Built-in consumers: Image.stretches and
+ *  — how §6's named unions declare. Built-in consumers: Image.fit and
  *  Text.fontWeight (R3); user unions and Align slot in as pure data. */
 export function enumType(name, ...tokens) {
     return { kind: "enum", name, tokens };
@@ -298,7 +294,7 @@ const DECLARED_TYPES = {
  *  the name is not in the declarable vocabulary. */
 /** An AUTHORED literal union (`"idle" | "loading"`) is an enum whose NAME is
  *  the written union text — that text is the discriminator between it and a
- *  built-in vocabulary (Axis, Motion), whose name is an identifier. Every
+ *  built-in vocabulary (Axis, Easing), whose name is an identifier. Every
  *  consumer asks this one question here, not with its own `startsWith('"')`. */
 export const isAuthoredUnion = (name) => name.startsWith('"');
 /** The members of a written string-literal union, or null when `text` is not

@@ -13,7 +13,7 @@
 // TWO LAYERS, one wire. The RAW layer (pointerDown/pointerMove/pointerUp, and the
 // touch family) reports what the pointer physically did, immediately — the
 // layer a drag, a slider, or an app running its own gesture physics needs. The
-// RESOLVED layer (click, dblClick, hold) reports what the user MEANT, which the
+// RESOLVED layer (click, doubleClick, hold) reports what the user MEANT, which the
 // router decides by watching the whole gesture. Apps activate on the resolved
 // layer and manipulate on the raw one; the guide's input chapter is the long
 // version.
@@ -105,13 +105,13 @@ export interface HitTarget {
    *  on the hover walk (its host is one element; the DOM brushes per-element
    *  style.cursor instead and leaves this unset). */
   cursor?: string;
-  /** True when this view declares `onDblClick` — the second click of a pair
-   *  then reaches it as `dblClick` alone, not as a second `click` too. The
+  /** True when this view declares `onDoubleClick` — the second click of a pair
+   *  then reaches it as `doubleClick` alone, not as a second `click` too. The
    *  first click is delivered at once, as the platforms do: the view's single
    *  click is something its double builds on. (Resolution knows this because a
    *  sink's existence and its declared handlers are the same fact — view.ts
    *  inputSink.) */
-  wantsDbl?: boolean;
+  wantsDoubleClick?: boolean;
   /** True when this view declares `onHold`. */
   wantsHold?: boolean;
   /** True when this view (or an ancestor) declares the raw touch family — the
@@ -123,7 +123,7 @@ export interface HitTarget {
   wantsDrag?: boolean;
   /** True when this view declares `onPointerMove` (claims nothing). */
   wantsMove?: boolean;
-  /** True when this view takes clicks (onClick, onDblClick, onHold, a link). */
+  /** True when this view takes clicks (onClick, onDoubleClick, onHold, a link). */
   takesClicks?: boolean;
   /** The nearest MOVE RECEIVER over this point — the closest view (self
    *  included) up the hit chain declaring `onPointerMove`: it hears every
@@ -241,7 +241,7 @@ export function routeInput(
   let pressAux = false;
   // Double-click pairing (platform-level, both backends): a second click on
   // the SAME view within the interval — and, on touch, within slop of the first
-  // tap — also fires dblClick; the third starts a fresh cycle (the classic
+  // tap — also fires doubleClick; the third starts a fresh cycle (the classic
   // desktop rule — triple is double + single, not two doubles).
   let lastClickKey: object | null = null;
   let lastClickAt = 0;
@@ -835,7 +835,14 @@ export function routeInput(
       // pointer never wandered past slop (a moved finger was swiping, whatever
       // it started on). An excursion that returns still counts as wandering —
       // the gesture declared itself a drag when it left.
-      if (t !== null && t.key === captor.key && !wandered && !heldAbove && !pressAux) {
+      // A pointer that stayed where it pressed meant what it pressed, even when
+      // a layout change during the press moved that view out from under it (a
+      // field losing focus at the press reflows the bar the button sits in): the
+      // click is carried to it, and the view takes it only while it is still
+      // shown (view.ts inputSink).
+      const same = t !== null && t.key === captor.key;
+      if ((same || captor.wantsDoubleClick !== true) && !wandered && !heldAbove && !pressAux) {
+        const carried = same ? {} : { carried: true };
         const now = Date.now();
         // The pair must also land in about the same PLACE — a view can be
         // large, and two taps at opposite corners are not a double-tap.
@@ -845,10 +852,10 @@ export function routeInput(
         const isSecond = lastClickKey === captor.key && now - lastClickAt < DBL_MS && near;
         if (isSecond) {
           // The second tap of a pair. A view that answers double-clicks hears
-          // the pair as `dblClick` alone — the double is what the second click
+          // the pair as `doubleClick` alone — the double is what the second click
           // meant — and any other view hears a second click too, then the pair.
-          if (captor.wantsDbl !== true) captor.sink("click", p.x, p.y, moved(p.x, p.y));
-          captor.sink("dblClick", p.x, p.y, moved(p.x, p.y));
+          if (captor.wantsDoubleClick !== true) captor.sink("click", p.x, p.y, { ...moved(p.x, p.y), ...carried });
+          captor.sink("doubleClick", p.x, p.y, moved(p.x, p.y));
           lastClickKey = null;
         } else {
           // The first click is delivered at once, as the platforms do: a view
@@ -858,7 +865,7 @@ export function routeInput(
           lastClickAt = now;
           lastClickX = p.x;
           lastClickY = p.y;
-          captor.sink("click", p.x, p.y, moved(p.x, p.y));
+          captor.sink("click", p.x, p.y, { ...moved(p.x, p.y), ...carried });
         }
       }
     } else if (t !== null) {

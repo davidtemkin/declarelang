@@ -12,9 +12,9 @@ class ComboSwatch extends Swatch [ name = :name,
         ground: View [ x = 20, y = 14, width = 172, height = 92, cornerRadius = 10, fill = gradient(90, #17A34A, #FDE68A) ]
         ],
     body: View [ x = 36, y = 16, width = 140, height = 88, rotation = { :rot },
-        filter = { ({ shadow: [shadow(0, 6, 10, colorWithAlpha(0x000000, 170))], blur: [blur(2)], grayscale: [grayscale(1)] })[:fx] ?? null },
+        visualFilter = { ({ shadow: [shadow(0, 6, 10, colorWithAlpha(0x000000, 170))], blur: [blur(2)], grayscale: [grayscale(1)] })[:fx] ?? null },
         opacity = { :fx == "opacity" ? 0.45 : 1 },
-        blend = { :fx == "multiply" ? "multiply" : "normal" },
+        blendMode = { :fx == "multiply" ? "multiply" : "normal" },
         mask = { :fx == "mask" ? gradient("90deg", 0x000000, colorWithAlpha(0x000000, 0)) : null },
         asText: State [ applied = { :content == "text" },
             word: Text [ y = 24, width = 140, textAlign = center, fontSize = 30, fontWeight = bold, wrap = false,
@@ -25,7 +25,7 @@ class ComboSwatch extends Swatch [ name = :name,
                 html = "<b>Rich</b> text, <span class='Warm'>styled</span> in runs across a line." ]
             ],
         asImage: State [ applied = { :content == "image" },
-            pic: Image [ width = 140, height = 88, stretches = contain, source = "assets/badge.png" ]
+            pic: Image [ width = 140, height = 88, fit = contain, source = "assets/badge.png" ]
             ],
         asDrawing: State [ applied = { :content == "drawing" },
             art: View [ width = 140, height = 88,
@@ -76,7 +76,7 @@ class CombinedSection extends Section [ title = "Combined",
             ],
         Swatch [ name = "rounded clip · rotated",
             View [ x = 46, y = 16, width = 120, height = 88, clip = true, cornerRadius = 30, rotation = -20,
-                Image [ width = 120, height = 88, stretches = cover, source = "assets/badge.png" ]
+                Image [ width = 120, height = 88, fit = cover, source = "assets/badge.png" ]
                 ]
             ],
         Swatch [ name = "scaled clip · text",
@@ -94,7 +94,7 @@ class CombinedSection extends Section [ title = "Combined",
                 mask = gradient("180deg", #000000, #00000000) ]
             ],
         Swatch [ name = "mask × scale · image",
-            Image [ x = 36, y = 16, width = 140, height = 88, scale = 0.8, stretches = cover, source = "assets/badge.png",
+            Image [ x = 36, y = 16, width = 140, height = 88, scale = 0.8, fit = cover, source = "assets/badge.png",
                 mask = radialGradient(0.5, 0.5, 0.6, #000000, #00000000) ]
             ],
         Swatch [ name = "shadow on a rotated rounded box",
@@ -106,13 +106,13 @@ class CombinedSection extends Section [ title = "Combined",
     SubHead [ visible = { app.matrix }, text = "Layers" ],
     Grid [ visible = { classroot.showing("layers") },
         Swatch [ name = "filter over clipped children",
-            View [ x = 36, y = 16, width = 140, height = 88, clip = true, cornerRadius = 12, filter = shadow(0, 6, 10, #000000AA),
+            View [ x = 36, y = 16, width = 140, height = 88, clip = true, cornerRadius = 12, visualFilter = shadow(0, 6, 10, #000000AA),
                 View [ x = -20, y = -10, width = 100, height = 100, cornerRadius = 50, fill = #2E6FE0 ],
                 View [ x = 70, y = 30, width = 100, height = 100, cornerRadius = 50, fill = #E4572E ]
                 ]
             ],
         Swatch [ name = "blur over a group",
-            View [ x = 36, y = 16, width = 140, height = 88, filter = blur(3),
+            View [ x = 36, y = 16, width = 140, height = 88, visualFilter = blur(3),
                 View [ width = 80, height = 88, fill = #2E6FE0 ],
                 Text [ x = 60, y = 24, fontSize = 30, fontWeight = bold, text = "Blur" ]
                 ]
@@ -120,13 +120,13 @@ class CombinedSection extends Section [ title = "Combined",
         Swatch [ name = "opacity × blend",
             View [ x = 20, y = 14, width = 172, height = 92, fill = gradient(90, #17A34A, #FDE68A) ],
             View [ x = 36, y = 24, width = 140, height = 72, opacity = 0.6,
-                View [ width = 90, height = 72, cornerRadius = 36, fill = #E4572E, blend = multiply ],
-                View [ x = 50, width = 90, height = 72, cornerRadius = 36, fill = #2E6FE0, blend = screen ]
+                View [ width = 90, height = 72, cornerRadius = 36, fill = #E4572E, blendMode = multiply ],
+                View [ x = 50, width = 90, height = 72, cornerRadius = 36, fill = #2E6FE0, blendMode = screen ]
                 ]
             ],
         Swatch [ name = "blend inside an opacity group",
             View [ x = 20, y = 14, width = 172, height = 92, opacity = 0.7, fill = gradient(90, #2E6FE0, #FDE68A),
-                View [ x = 36, y = 14, width = 100, height = 64, cornerRadius = 32, fill = #E4572E, blend = difference ]
+                View [ x = 36, y = 14, width = 100, height = 64, cornerRadius = 32, fill = #E4572E, blendMode = difference ]
                 ]
             ],
         Swatch [ name = "nested masks",
@@ -135,7 +135,7 @@ class CombinedSection extends Section [ title = "Combined",
                 ]
             ],
         Swatch [ name = "filter chain over rich text",
-            HTMLText [ x = 16, y = 16, width = 180, fontSize = 15, filter = [grayscale(1), shadow(0, 2, 3, #00000088)],
+            HTMLText [ x = 16, y = 16, width = 180, fontSize = 15, visualFilter = [grayscale(1), shadow(0, 2, 3, #00000088)],
                 html = "<b>Rich</b> text with a <span class='rGrad'>gradient run</span> under two filters." ]
             ],
         Swatch [ name = "frost over a rotated drawing",
@@ -165,7 +165,7 @@ class CombinedSection extends Section [ title = "Combined",
             ],
         Swatch [ name = "rotateY · image · mask",
             View [ x = 56, y = 28, width = 100, height = 64, perspective = 400,
-                Image [ width = 100, height = 64, pivotX = 50, pivotY = 32, rotateY = -35, stretches = cover, source = "assets/badge.png", mask = gradient("90deg", #000000, #00000000) ]
+                Image [ width = 100, height = 64, pivotX = 50, pivotY = 32, rotateY = -35, fit = cover, source = "assets/badge.png", mask = gradient("90deg", #000000, #00000000) ]
                 ]
             ],
         Swatch [ name = "3D inside a clip",
@@ -175,7 +175,7 @@ class CombinedSection extends Section [ title = "Combined",
             ],
         Swatch [ name = "3D · opacity · blur",
             View [ x = 56, y = 28, width = 100, height = 64, perspective = 400,
-                View [ width = 100, height = 64, pivotX = 50, pivotY = 32, rotateX = 30, rotateY = 30, opacity = 0.6, filter = blur(1), fill = #E4572E, cornerRadius = 10 ]
+                View [ width = 100, height = 64, pivotX = 50, pivotY = 32, rotateX = 30, rotateY = 30, opacity = 0.6, visualFilter = blur(1), fill = #E4572E, cornerRadius = 10 ]
                 ]
             ]
         ]

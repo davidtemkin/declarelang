@@ -174,7 +174,7 @@ defineAttributes(Animator, {
     from: { def: null },
     relative: { def: false },
     duration: { def: 1000 },
-    motion: { def: DEFAULT_MOTION },
+    easing: { def: DEFAULT_MOTION },
     repeat: { def: 1 },
     started: { def: false, push: (s, v) => s.$startedChanged(v) },
     paused: { def: false, push: (s, v) => s.$pausedChanged(v) },

@@ -233,7 +233,7 @@ App [ width = 1000, height = 710, fill = #80807E, appName = "Laszlo Dashboard",
 
                     pane: View [ y = 19, width = 100%, height = { parent.height - 19 }, fill = #BB95C0,
                         visible = { parent.selected },
-                        slide: Image [ x = 5, y = 3, width = { parent.width - 10 }, stretches = both,
+                        slide: Image [ x = 5, y = 3, width = { parent.width - 10 }, fit = both,
                             height = { this.width * 600 / 800 },
                             source = "resources/img/presentation/q4numbers.png" ]
                         ]
@@ -328,7 +328,7 @@ App [ width = 1000, height = 710, fill = #80807E, appName = "Laszlo Dashboard",
             // the form fades up as the grow lands — the group's own stop hook,
             // not a timer guessing its duration
 
-            grow: AnimatorGroup [ process = simultaneous, duration = 700, motion = laszloIn,
+            grow: AnimatorGroup [ process = simultaneous, duration = 700, easing = laszloIn,
                 Animator [ attribute = width, to = 307 ],
                 Animator [ attribute = height, to = 172 ],
                 onStop() { form.fadeUp.start() }

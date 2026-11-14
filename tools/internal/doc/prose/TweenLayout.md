@@ -4,11 +4,10 @@ from `0`→`1` with a constraint or an `Animator` and the children slide *betwee
 arrangements rather than snapping. The case for an author-written layout —
 a grid that becomes a list, a fan that collapses to a stack.
 
-**Its boxes are whole.** A `Layout`'s `place()` may give a box any subset of `x`, `y`, `w`,
-`h` and `vis`, leaving the rest to the child; a `TweenLayout` blends every child between two
-complete boxes, so each box its `place()` returns gives all five —
-`{ x, y, w: c.width, h: c.height, vis: true }` where the size is the child's own. A box
-without `h` gives the child no height, and one without `vis` hides it.
+**Its boxes name what it moves.** As with any `Layout`, a box from `place()` may give any
+subset of `x`, `y`, `w`, `h` and `vis`: what it names glides between the two arrangements,
+and what it leaves out stays the child's own — a stack that moves only `y` (`{ x: 0, y }`)
+leaves each child its own width and height. A box without `vis` shows the child.
 
 ## t
 The interpolation scalar, `0`…`1` — `0` is the "from" arrangement, `1` the "to". Constrain it

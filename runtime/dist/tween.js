@@ -86,7 +86,7 @@ export class TweenRun {
     }
     /** Begin driving the target slot through the curve (LZX's doStart). A no-op
      *  while already running (LZX's guard). Samples from / to / duration /
-     *  motion / repeat ONCE here, and enrolls in the slot's exact-landing ledger
+     *  easing / repeat ONCE here, and enrolls in the slot's exact-landing ledger
      *  (displacing the slot's prior non-animator driver on the first arrival). */
     start() {
         if (this.live)
@@ -131,7 +131,7 @@ export class TweenRun {
         this.fromJump = a.from !== null ? a.from - preStart : 0;
         this.traveled = 0;
         this.runDuration = a.duration;
-        this.runMotion = a.motion;
+        this.runMotion = a.easing;
         this.cyclesLeft = a.repeat;
         // Declared perpetuity (Ticker.perpetual): `repeat = Infinity` is life —
         // it keeps painting without holding settleMotion open.

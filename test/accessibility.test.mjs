@@ -144,7 +144,7 @@ await test("a radio outside a RadioGroup is warned of (DECLARE4032); one inside,
 App [ width = 300, height = 200, picked: string = "a",
     row: View [ Tile [ ] ],
     g: RadioGroup [ value = { app.picked }, commit(v: string) { app.picked = v }, Radio [ choice = "a", label = "A" ], Tile [ ] ],
-    Segmented [ choices = { [ ({ id: "a", label: "A" }), ({ id: "b", label: "B" }) ] } ] ]`);
+    Segmented [ items = { [ ({ id: "a", label: "A" }), ({ id: "b", label: "B" }) ] } ] ]`);
   assert.deepEqual(warnedLines(b, "DECLARE4032"), [3]);
 });
 
@@ -334,7 +334,7 @@ await test("expanded: a menu button and an accordion header say whether what the
 await test("the wider vocabulary: a search field, a radio group, landmarks, a separator", async () => {
   const app = await boot(`App [ width = 400, height = 400, layout: SimpleLayout [ axis = y ],
     nav: View [ accessibilityRole = navigation, accessibilityLabel = "Sections",
-      Segmented [ value = { "a" }, input(v: object) { }, choices = { [ ({ id: "a", label: "All" }), ({ id: "b", label: "Mine" }) ] } ] ],
+      Segmented [ value = { "a" }, commit(v: object) { }, items = { [ ({ id: "a", label: "All" }), ({ id: "b", label: "Mine" }) ] } ] ],
     View [ accessibilityRole = main, find: SearchField [ width = 200, placeholder = "Search messages" ] ],
     m: Menu [ items = { [ ({ id: "a", label: "Copy" }), ({ divider: true }), ({ id: "b", label: "Paste" }) ] } ] ]`);
   const t = tree(app);
@@ -475,6 +475,38 @@ await test("an invalid field says what is wrong, once judged, and that it is req
   settle();
   assert.equal(f.error, "", "judged once, it follows each edit");
   assert.doesNotMatch(tree(app), /invalid/);
+});
+
+await test("a grid's row headers and a labelled scroller are read: rowHeader, and a named group", async () => {
+  const app = await boot(`App [ width = 400, height = 300,
+  sheet: View [ width = 300, height = 200, scrolls = both, focusable = true, accessibilityLabel = "Spreadsheet",
+    g: View [ accessibilityRole = grid, layout: SimpleLayout [ axis = y ],
+      View [ accessibilityRole = row, layout: SimpleLayout [ axis = x ], Text [ text = "", width = 30 ], Text [ text = "A", width = 60, accessibilityRole = columnHeader ] ],
+      View [ accessibilityRole = row, layout: SimpleLayout [ axis = x ], Text [ text = "0", width = 30, accessibilityRole = rowHeader ], Text [ text = "5", width = 60, accessibilityRole = cell ] ] ] ],
+  plain: View [ y = 210, width = 100, height = 50, scrolls = y, View [ width = 50, height = 200, Text [ text = "inside" ] ] ] ]`);
+  const t = tree(app);
+  assert.match(t, /group "Spreadsheet"/, t);
+  assert.match(t, /rowHeader "0"/, t);
+  assert.match(t, /columnHeader "A"/, t);
+  assert.doesNotMatch(t, /group ""|group\n/, "a scroller with no name stays transparent");
+  const c = await compile(`App [ s: View [ width = 100, height = 50, scrolls = y, accessibilityLabel = "Log", View [ height = 200 ] ] ]`);
+  assert.deepEqual(codes(c.warnings ?? []), [], "a labelled scroller's name is read, so it is not warned of");
+  const n = await compile(`App [ s: View [ width = 100, height = 50, scrolls = none, accessibilityLabel = "Log", View [ height = 200 ] ] ]`);
+  assert.deepEqual(codes(n.warnings ?? []), ["DECLARE4035"], "one that does not scroll has no role to be read by");
+});
+
+await test("a grid's row count is its rows, not its rows plus the cells each row replicates", async () => {
+  const rows = `{ { "rows": [ { "c": [{ "v": 1 },{ "v": 2 },{ "v": 3 },{ "v": 4 }] }, { "c": [{ "v": 5 },{ "v": 6 },{ "v": 7 },{ "v": 8 }] }, { "c": [{ "v": 9 },{ "v": 10 },{ "v": 11 },{ "v": 12 }] } ] } }`;
+  const app = await boot(`App [ width = 400, height = 200, data: Dataset ${rows},
+  roles: View [ accessibilityRole = grid, accessibilityLabel = "A", datapath = { app.data.value }, layout: SimpleLayout [ axis = y ],
+    View [ datapath = :rows[], accessibilityRole = row, layout: SimpleLayout [ axis = x ],
+      Text [ datapath = :c[], width = 40, accessibilityRole = cell, text = { String(:v) } ] ] ],
+  bare: View [ y = 100, accessibilityRole = grid, accessibilityLabel = "B", datapath = { app.data.value }, layout: SimpleLayout [ axis = y ],
+    View [ datapath = :rows[], layout: SimpleLayout [ axis = x ],
+      Text [ datapath = :c[], width = 40, text = { String(:v) } ] ] ] ]`);
+  const [a, b] = semanticTree(app).children;
+  assert.equal(a.rowCount, 3, "rows with a role");
+  assert.equal(b.rowCount, 3, "role-less rows: their cells' replications are not more rows");
 });
 
 summarize("accessibility");

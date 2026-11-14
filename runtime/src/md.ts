@@ -45,7 +45,7 @@ export type Inline =
   // the flow renders it as an inline replaced box (see rich-text.ts).
   | { t: "image"; src: string; alt: string; title?: string }
   | { t: "br" }
-  // An INLINE VIEW — a tag whose name is a class the program declares
+  // An INLINE VIEW — a tag the rich text's `tagViews` map names a class for
   // (`<Issue id='142'/>`). The flow engine creates ONE real view of that class
   // and places it in the line as an atomic box, the way an inline image is
   // placed (rich-text.ts). Both readers emit it, and only when they are given
@@ -66,8 +66,9 @@ export type Inline =
  *  (html.ts takes the same bag), and every field optional so the default
  *  behaviour is exactly today's. */
 export interface ReadOptions {
-  /** True when `name` is a class the running program declares — the ONE gate
-   *  that turns a tag into an inline view. Absent ⇒ no tag is ever a view. */
+  /** True when the rich text's `tagViews` map names a view class for the tag
+   *  `name` — the ONE gate that turns a tag into an inline view. Absent ⇒ no
+   *  tag is ever a view. */
   isClass?: (name: string) => boolean;
   /** A refused inline view (a class tag that is not self-closing — this
    *  version places only self-closing tags): the reader keeps going and hands
@@ -82,7 +83,7 @@ export interface ReadOptions {
 let currentOpts: ReadOptions | null = null;
 
 /** Scan a self-closing INLINE VIEW tag at `at` (where `src[at]` is `<`): a tag
- *  whose name is a class the program declares. Returns the class name, its
+ *  the rich text's `tagViews` map names. Returns the tag name, its
  *  attributes (case PRESERVED — an attribute names a slot, and slots are
  *  camelCase), the reserved `key`, whether the tag closed itself, and the index
  *  past `>`. Null when this `<` does not open a class tag at all, which leaves
@@ -504,8 +505,8 @@ export function parseInline(src: string, opts?: ReadOptions): Inline[] {
         i = close === -1 ? src.length : close + 3;
         continue;
       }
-      // An INLINE VIEW: `<Issue id='142'/>`, where `Issue` is a class the
-      // program declares. Read before the autolink test and ONLY for a name the
+      // An INLINE VIEW: `<Issue id='142'/>`, where `tagViews` maps `Issue` to
+      // a view class. Read before the autolink test and ONLY for a name the
       // predicate claims, so every other `<` — an autolink, a raw HTML tag, a
       // lone `<` — keeps the meaning the ruling gave it.
       if (o?.isClass !== undefined) {

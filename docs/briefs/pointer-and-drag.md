@@ -35,7 +35,7 @@ App [ width = 340, height = 180, fill = white,
 
 **Rules**
 - `onClick` activates; `onPointerDown` manipulates. A command runs from `onClick`
-  (or `onDblClick`, `onHold`): the runtime has watched the whole gesture, so a finger
+  (or `onDoubleClick`, `onHold`): the runtime has watched the whole gesture, so a finger
   starting a scroll never fires it.
 - `hovered` and `pressed` are facts to read in constraints, never assigned; `hovered` is
   false on touch. On a control they are false while `disabled`, and `pressed` includes a

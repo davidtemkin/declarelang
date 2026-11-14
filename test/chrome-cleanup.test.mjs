@@ -34,4 +34,30 @@ await test("a process that ends without closing stops its Chrome and removes the
   assert.equal(existsSync(r.profile), false, r.profile);
 });
 
+// A SIGKILL runs no exit hook, so the Chrome outlives its launcher. The next
+// launch anywhere stops it: left alone, it ran for days (2026-11-12).
+await test("a launcher killed outright: the next launch stops its Chrome", async () => {
+  const r = run("process.kill(process.pid, 'SIGKILL');");
+  assert.equal(alive(r.pid), true, "the killed launcher's Chrome should still be running before the sweep");
+  run("await b.close();");
+  await new Promise((res) => setTimeout(res, 500));
+  assert.equal(alive(r.pid), false, `Chrome ${r.pid} still running`);
+  assert.equal(existsSync(r.profile), false, r.profile);
+});
+
+// On a Mac, a headless copy of the person's own Chrome can take its place in the
+// Dock (⌘N and Quit reach a copy with no window), so the tools drive Chrome for
+// Testing when it is installed — even for a caller that names the branded path.
+await test("on a Mac with Chrome for Testing, the tools never drive the person's own Chrome", async () => {
+  if (process.platform !== "darwin") return;
+  const { findChrome } = await import(join(ROOT, "tools/internal/chrome.mjs"));
+  if (!/Google Chrome for Testing$/.test(findChrome())) return;   // not installed here: nothing to hold
+  const file = join(tempDir("declare-chrome-cleanup-"), "run.mjs");
+  writeFileSync(file, `import { launchChrome } from ${JSON.stringify(join(ROOT, "tools/internal/chrome.mjs"))};
+const b = await launchChrome({ executablePath: "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome", args: ["--no-sandbox"] });
+console.log(b.process().spawnargs[0]); await b.close();`);
+  const out = spawnSync(process.execPath, [file], { encoding: "utf8" }).stdout.trim();
+  assert.match(out, /Google Chrome for Testing$/);
+});
+
 summarize("chrome-cleanup");

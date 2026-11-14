@@ -53,7 +53,7 @@
 // still carries one — skipped, never misparsed.
 
 import ts from "typescript";
-import { type Element, type Param, type Program, type SchemaDecl } from "../../runtime/dist/parser.js";
+import { type Element, type Method, type Param, type Program, type SchemaDecl } from "../../runtime/dist/parser.js";
 import { resolveShapes } from "../../runtime/dist/shape-resolve.js";
 import { programSchemas, resolveWrittenType } from "../../runtime/dist/program-schema.js";
 import { THEME_PRESET_NAMES } from "../../runtime/dist/themes.js";
@@ -66,8 +66,8 @@ import { fillDatapaths } from "../../runtime/dist/datapath.js";
 /** TS primitives a Declare type name can resolve to — where "declare it" is
  *  not a fix (there is no slot to add to a `number`). */
 const PRIMITIVE_TYPES = new Set(["number", "string", "boolean", "any[]", "Length", "Color"]);
-import { Diag, extensionsOf, nearestName } from "../../runtime/dist/diagnostics.js";
-import { memberHint } from "../../runtime/dist/teach.js";
+import { Diag, extensionsOf, isInternalName, nearestName } from "../../runtime/dist/diagnostics.js";
+import { memberHint, renamedClassMember } from "../../runtime/dist/teach.js";
 import { DeclareError, insetOrRadiusShape, strokeShapeMessage, type Pos } from "../../runtime/dist/errors.js";
 
 
@@ -101,6 +101,13 @@ interface Unit {
   slot: string | null; // the attribute/declaration name; null for a method body
   slotTs: string | null; // the slot's TS type; null for a method body
   shorthand: string | null; // the `<->` place as written (`value <-> app.size`), when the body is one
+  /** The nearest view this body sits inside — not the body's own element, not
+   *  the class root — that has attribute `name`, as its tag; null for none. */
+  declaresAbove?: (name: string) => string | null;
+  /** Where in the tree this body is written in — the class's body, or the
+   *  App's — a named child holds `name`, as the path to read it by
+   *  (`classroot.feed.list`); null for none. */
+  heldInRoot?: (name: string) => string | null;
 }
 
 /** Typecheck every `{ }` body of a program whose bodies are scope-resolved
@@ -116,18 +123,84 @@ let CHECKING: Program | null = null;
  *  declared member — as a path from the class (`mailBox.mail`), or null. A
  *  name missed on a class is most often a child's: `this.mail` written for
  *  `this.mailBox.mail` (Venue run 6). Two levels down, nearest first. */
-function childPath(cls: string, name: string): string | null {
-  // the App is no class: its tree is the program's root
-  const body = CHECKING?.classes.find((k) => k.name === cls)?.body ?? (cls === "this App" || cls === "App" ? CHECKING?.root : undefined);
-  if (body === undefined) return null;
-  let level: { el: typeof body; path: string }[] = body.children.filter((e) => e.name !== null).map((e) => ({ el: e, path: e.name as string }));
-  for (let depth = 0; depth < 2 && level.length > 0; depth++) {
-    for (const { el, path } of level) {
-      if (el.children.some((k) => k.name === name) || el.decls.some((d) => d.name === name)) return `${path}.${name}`;
+/** A member a class's chain once had under another name, answered for that
+ *  class only: `input` where the class hands its changes back through
+ *  `commit(v)` (an ordinary name anywhere else), `open` on a menu, which
+ *  opens with showAt/showFor (a Dialog's `open(…)` and a Window's `open`
+ *  stay), and the renamed members teach.ts keeps (RENAMED_CLASS_MEMBERS —
+ *  `selected` on a Table, `filter` on a view), each on its own class's chain. */
+
+/** Whether a built-in enum type, by its name, has a `none` token. */
+const NONE_ENUMS = new Map<string, boolean>();
+function enumHasNone(name: string): boolean {
+  const known = NONE_ENUMS.get(name);
+  if (known !== undefined) return known;
+  let has = false;
+  for (const sc of Object.values(SCHEMAS)) {
+    for (const a of Object.values(sc.attrs)) {
+      const t = a as { kind?: string; name?: string; tokens?: readonly string[] };
+      if (t.kind === "enum" && t.name === name && (t.tokens ?? []).includes("none")) has = true;
     }
-    level = level.flatMap(({ el, path }) => el.children.filter((e) => e.name !== null).map((e) => ({ el: e, path: `${path}.${e.name}` })));
+  }
+  NONE_ENUMS.set(name, has);
+  return has;
+}
+
+function renamedMember(name: string, type: string): string {
+  const chain: Program["classes"] = [];
+  const names: string[] = [];
+  const seen = new Set<string>();
+  let t = type.replace(/^this /, "");
+  for (; !seen.has(t); ) {
+    seen.add(t);
+    names.push(t);
+    const c = CHECKING?.classes.find((k) => k.name === t);
+    if (c === undefined) break;
+    chain.push(c);
+    t = c.base;
+  }
+  // past the program's own classes, the runtime's (a class written without
+  // `extends` is a View)
+  for (let s: ClassSchema | null = SCHEMAS[names[names.length - 1]]?.base ?? null; s !== null; s = s.base) names.push(s.name);
+  const renamed = renamedClassMember(names, name);
+  if (renamed !== "") return renamed;
+  if (name === "input" && chain.some((c) => c.body.methods.some((m) => m.name === "commit")))
+    return "the change it hands back goes through 'commit(v)' — call commit(…), or override it where your state should change";
+  if (name === "open" && chain.some((c) => c.name === "Menu"))
+    return "a menu opens with showAt(v, e) at the pointer (a context menu), showFor(v) below a view, or show()";
+  return "";
+}
+
+/** Type names an earlier Declare used, each answered with the name it has now. */
+const RENAMED_TYPES: Readonly<Record<string, string>> = { Blend: "BlendMode", Motion: "Easing", MotionCurve: "EasingCurve" };
+
+function childPath(cls: string, name: string, own?: Element): string | null {
+  // the App is no class: its tree is the program's root; an element's own
+  // instance type (a named child read through its path) is that element
+  const body = own ?? CHECKING?.classes.find((k) => k.name === cls)?.body ?? (cls === "this App" || cls === "App" ? CHECKING?.root : undefined);
+  if (body === undefined) return null;
+  // a step through an unnamed view has no name to reach it by: it is shown as
+  // the view's class in angle brackets, and the message says to name it
+  const step = (e: typeof body): string => e.name ?? `<${e.tag}>`;
+  // a child with `exists` stands behind the State it is lowered to
+  const kids = (e: typeof body): (typeof body)[] => e.children.map((k) => (k.existsOf === true && k.children.length === 1 ? k.children[0] : k));
+  let level: { el: typeof body; path: string }[] = kids(body).map((e) => ({ el: e, path: step(e) }));
+  for (let depth = 0; depth < 3 && level.length > 0; depth++) {
+    for (const { el, path } of level) {
+      if (kids(el).some((k) => k.name === name) || el.decls.some((d) => d.name === name)) return `${path}.${name}`;
+    }
+    level = level.flatMap(({ el, path }) => kids(el).map((e) => ({ el: e, path: `${path}.${step(e)}` })));
   }
   return null;
+}
+
+/** The hint for a member held by a child: its path, and — where the path passes
+ *  through a view with no name — that the view needs one to be reached. */
+function heldHint(held: string): string {
+  const unnamed = held.split(".").filter((p) => p.startsWith("<")).length;
+  return unnamed > 0
+    ? `a child's is: '${held}', inside ${unnamed > 1 ? "views" : "a view"} with no name — name ${unnamed > 1 ? "them" : "it"} (box: View [ … ]) to read it through ${unnamed > 1 ? "those names" : "that name"}`
+    : `a child's is: '${held}' (reached through the child that holds it)`;
 }
 
 export function typecheckBodies(text: string, program: Program, mainStart = 0, prefix = "My"): { errors: DeclareError[]; oracle: TypeOracle | null } {
@@ -154,7 +227,8 @@ export function typecheckBodies(text: string, program: Program, mainStart = 0, p
   for (const cls of rprog.classes) emitter.classHasChildren.set(cls.name, cls.body.children.length > 0);
   for (const cls of rprog.classes) emitter.assignTypes(cls.body, true);
   const rootType = emitter.assignTypes(rprog.root, false);
-  let scaffold = generateScaffold(schemas, program.classes, rootType, emitter.classExtras, emitter.signatureTypeNames, rprog.shapes ?? [], rprog.themes ?? [], providedKeys, (rprog.styles ?? []).map((s) => ({ name: s.name, fields: s.body.attrs.map((a) => a.name) })));
+  const globals = libGlobals();
+  let scaffold = generateScaffold(schemas, program.classes, rootType, emitter.classExtras, emitter.signatureTypeNames, rprog.shapes ?? [], rprog.themes ?? [], providedKeys, (rprog.styles ?? []).map((s) => ({ name: s.name, fields: s.body.attrs.map((a) => a.name) })), new Set(globals.keys()));
   // A program's `script { … }` blocks are ambient TypeScript for every body:
   // their declarations are real signatures, so appending the source to the
   // scaffold is what makes `dbl(app.v)` typecheck against the actual function
@@ -195,18 +269,21 @@ export function typecheckBodies(text: string, program: Program, mainStart = 0, p
 
   const { diags, program: tsProgram } = runTsc(scaffold, emitter.caseSrc);
   const synthTags = emitter.synthTags;
+  const synthElements = emitter.instElements;
   const out: DeclareError[] = [...scoped];
   out.push(...portableNames(tsProgram, regions, starts));
-  // A declared type name the standard library, or Declare's own value types,
-  // already own: said once, at the declaration, before TypeScript's errors at
-  // each use (or the silence where an interface merges with it).
-  const globals = libGlobals(tsProgram);
+  // A declared name the standard library holds as a VALUE (Map, Date), or
+  // Declare's own value types hold: said once, at the declaration, before
+  // TypeScript's errors at each use (or the silence where an interface merges
+  // with it). A body's bare `Map` is the JS global when it runs, so the name
+  // can't be the program's. One the library holds as a type alone (Pick,
+  // Record) is the program's: its declarations shadow the library's (`$P`).
   const declared: [string, { name: string; pos: import("../../runtime/dist/errors.js").Pos }[]][] = [
     ["class", rprog.classes], ["schema", rprog.shapes ?? []], ["theme", rprog.themes ?? []], ["style", rprog.styles ?? []],
   ];
   for (const [kind, list] of declared) for (const d of list) {
     const lib = globals.get(d.name);
-    if (lib !== undefined) out.push(Diag.shadowsTsGlobal(kind, d.name, lib, d.pos));
+    if (lib !== undefined && lib.value) out.push(Diag.shadowsTsGlobal(kind, d.name, lib.file, prefix + d.name, d.pos));
     else if (PRELUDE_NAMES.has(d.name) || WORD_TYPES.has(d.name) || (kind !== "theme" && THEME_PRESET_NAMES.includes(d.name)))
       out.push(Diag.shadowsDeclareType(kind, d.name, prefix + d.name, d.pos));
   }
@@ -216,7 +293,9 @@ export function typecheckBodies(text: string, program: Program, mainStart = 0, p
     const dt = emitter.declTypePos.get(d.line);
     if (dt !== undefined) {
       const m = /Cannot find name '([^']+)'/.exec(d.message);
-      out.push(Diag.typeError(m !== null
+      out.push(Diag.typeError(m !== null && Object.hasOwn(RENAMED_TYPES, m[1])
+        ? `unknown type '${m[1]}' in '${dt.written}' — the type is named '${RENAMED_TYPES[m[1]]}'`
+        : m !== null
         ? `unknown type '${m[1]}' in '${dt.written}' — a declared type is TypeScript's: a built-in (string, Map, Record, Date, …), one of Declare's (Color, Length, …), a class, a schema, or a type a script block declares`
         : dt.isDefault === true ? `this default is not a ${dt.written} — ${d.message}` : `the type '${dt.written}' — ${d.message}`, dt.pos, d.code));
       continue;
@@ -246,6 +325,12 @@ export function typecheckBodies(text: string, program: Program, mainStart = 0, p
     // the wrapper's header declares the parameters' types: an unknown name
     // there is a signature's, reported at the parameter by its probe
     if (!inBody && (d.code === 2304 || d.code === 2552)) continue;
+    // `T?` inside a body is Declare's own spelling of "a T, or null", as in a
+    // declaration. TypeScript parses it, types it T | null (exactly), and only
+    // objects to the syntax (17019); strip-types removes the type with its `?`.
+    // So inside a body it is accepted. (A script block is bundled by esbuild,
+    // which does not take it, so there it is still refused.)
+    if (inBody && d.code === 17019) continue;
     const rel = Math.min(Math.max(d.line - u.bodyStart, 0), u.lineCount - 1);
     let pos: Pos;
     if (!inBody) pos = posAt(u.origStartLine, u.origStartCol, starts);
@@ -254,7 +339,7 @@ export function typecheckBodies(text: string, program: Program, mainStart = 0, p
       for (let i = 0; i < rel; i++) at = u.src.indexOf("\n", at) + 1;
       pos = offsetPos(u.braceOffset + 1 + unrewrite(at + d.character, u.rewrites), starts);
     }
-    out.push(Diag.typeError(explainTs(d, u, synthTags).replace(/\$script\b/g, ""), pos, d.code));
+    out.push(Diag.typeError(explainTs(d, u, synthTags, emitter.builtWhile, synthElements).replace(/\$script\b/g, ""), pos, d.code));
   }
   // Deterministic report: same input → same diagnostics, same order (position,
   // then TS code, then text — the loop-stability guarantee evals depend on).
@@ -420,7 +505,12 @@ function explainMember(d: TsDiag, mp: { name: string; tag: string }): string {
   return d.message;
 }
 
-function explainTs(d: TsDiag, u: Unit, synthTags: ReadonlyMap<string, string>): string {
+function explainTs(d: TsDiag, u: Unit, synthTags: ReadonlyMap<string, string>, builtWhile: ReadonlySet<string>, instElements: ReadonlyMap<string, Element> = new Map()): string {
+  // the element whose own instance type a missing member was read on, if any
+  const missedOn = (): Element | undefined => {
+    const t = d.message.match(/Property '.+?' does not exist on type '(_E\d+)'/s);
+    return t !== null ? instElements.get(t[1]) : undefined;
+  };
   // Internal synthesized type names (`_E7`) → the language's vocabulary: the
   // element's tag, spoken as an instance ("this View").
   const say = (typeName: string): string => {
@@ -456,6 +546,12 @@ function explainTs(d: TsDiag, u: Unit, synthTags: ReadonlyMap<string, string>): 
     // The SEAM error — the body's value doesn't fit the slot's declared type.
     case 2322:
       m = msg.match(/Type '(.+?)' is not assignable to type '(.+?)'/s);
+      // `undefined` into "a T, or null" (a `T?` local, a `T | null`): Declare's
+      // absent value is null, and `?.` or a missing field gives undefined —
+      // say the one conversion, not TypeScript's bare mismatch (Ledger run 7)
+      if (m !== null && /(^| \| )undefined( \| |$)/.test(m[1]) && /(^| \| )null( \| |$)/.test(m[2]) && !/(^| \| )undefined( \| |$)/.test(m[2])) {
+        return `this gives undefined (as ?. and a missing field do), but it goes where the type is ${m[2]}: Declare's "nothing" is null — end the expression with ?? null`;
+      }
       // `value <-> app.size` with `size` a number: the place holds another type
       // than the control shows, and the shorthand has no conversion to write
       if (m !== null && u.shorthand !== null && u.slot !== null) {
@@ -464,6 +560,8 @@ function explainTs(d: TsDiag, u: Unit, synthTags: ReadonlyMap<string, string>): 
       // A mismatch INSIDE the value (a record's field, an array's item) is not
       // the slot's own type: name the slot's type, and keep TypeScript's detail.
       if (m !== null && u.slot !== null && u.slotTs !== null && m[2] !== u.slotTs && !u.slotTs.startsWith(m[2] + " |")) {
+        // a tagViews entry that is not a view class: say what the map holds
+        if (u.slotTs === "TagViews") return `${home} does not fit '${u.slot}' — each entry maps a tag to one of your view classes, written as its name: { Chip: Chip }, not { Chip: "Chip" }; found ${m[1].replace(/^typeof /, "")}`;
         return `${home} does not fit '${u.slot}', typed ${u.slotTs} — ${msg.replace(/\s+/g, " ")}`;
       }
       if (m !== null && u.slot !== null) {
@@ -482,6 +580,15 @@ function explainTs(d: TsDiag, u: Unit, synthTags: ReadonlyMap<string, string>): 
             // A null family is no family: the face from above is read where it is
             // meant, never implied by a missing value (Cadence run 30 wrote
             // `{ big ? app.display : null }` and got the browser's default serif)
+            // `classFor` from a script function that returns the class itself: the
+            // body names classes inline; a function answers the class's NAME (Presentify run 8)
+            : u.slot === "classFor" && /^typeof /.test(m[1])
+              ? ` — inline, a class is named bare ({ :kind == "group" ? GroupShape : Shape }); a script function answers its name as a string: return "${m[1].replace(/^typeof /, "")}"`
+            // An enum with a `none` token says "no value" with that word, not with
+            // null (Ledger runs 7 and 8: `{ on ? page : null }` for
+            // accessibilityCurrent, `null` for accessibilitySort)
+            : (m[1] === "null" || m[1] === "undefined") && enumHasNone(m[2])
+              ? ` — "no value" is the token "none" here: { ${u.slot === "accessibilityCurrent" ? 'on ? "page" : "none"' : 'cond ? … : "none"'} }`
             : (m[1] === "null" || m[1] === "undefined") && u.slot === "fontFamily"
               ? ` — a family is never null. For the face provided from above in this case, read it: { big ? app.display : provided("fontFamily") }`
             : u.slot === "fontFamily" || u.slot === "codeFamily"
@@ -503,35 +610,72 @@ function explainTs(d: TsDiag, u: Unit, synthTags: ReadonlyMap<string, string>): 
         return `${home} computes ${article(m[1])}, but '${u.slot}' is typed ${m[2]}${named !== "" ? named : canon}`;
       }
       return msg;
+    // An object literal's unknown field — a style record (`textStyles`, a
+    // drawing's text style) that names a member-instinct field, `outline`.
+    case 2353:
+      m = msg.match(/'(.+?)' does not exist in type '(.+?)'/s);
+      if (m !== null && memberHint(m[1]) !== "") return `'${m[1]}' is not a field of ${quoteType(m[2])} — ${memberHint(m[1])}`;
+      return msg;
     // A list called as a function — `e.changed("seat")`, which reads as "did seat
     // change?": `changed` is the list of what changed (Venue runs 15, 17, 18, 19)
     case 2349:
       if (/ValueChange\[\]/.test(msg)) return `${msg} — 'changed' is the list of what changed, not a question: e.changed.some((c) => c.name == "seat") asks whether seat did`;
+      return msg;
+    // A newer library's method (`findLast`, ES2023). tsc's advice — change the
+    // 'lib' option — names a setting no program has: `{ }` code is ES2022, so
+    // say that, and the ES2022 form.
+    case 2550:
+      m = msg.match(/Property '(.+?)' does not exist on type '(.+?)'.*?'(es\d+)'/is);
+      if (m !== null) {
+        const es2022: Record<string, string> = {
+          findLast: "[...xs].reverse().find(…), or a loop from the end",
+          findLastIndex: "a loop from the end (for (let i = xs.length - 1; i >= 0; i--) …)",
+          toSorted: "[...xs].sort(…)",
+          toReversed: "[...xs].reverse()",
+          toSpliced: "a copy spliced: const ys = [...xs]; ys.splice(…)",
+          with: "xs.map((x, j) => j == i ? v : x)",
+        };
+        const form = Object.hasOwn(es2022, m[1]) ? es2022[m[1]] : null;
+        return `'${m[1]}' is ${m[3].toUpperCase()}, and { } code is ES2022 — ${form !== null ? `write ${form}` : `use an ES2022 form`}`;
+      }
       return msg;
     // A missing member — with tsc's suggestion when it has one (grounded in
     // the real instance type since the scaffold models it).
     case 2551:
       m = msg.match(/Property '(.+?)' does not exist on type '(.+?)'\. Did you mean '(.+?)'\?/s);
       if (m !== null && m[2] === "Theme") return themeTokenMiss(m[1], m[3]);
+      if (m !== null && renamedMember(m[1], m[2]) !== "") return `'${m[1]}' is not a member of ${quoteType(m[2])} — ${renamedMember(m[1], m[2])}`;
       if (m !== null && memberHint(m[1]) !== "") return `'${m[1]}' is not a member of ${quoteType(m[2])} — ${memberHint(m[1])}`;
       if (m !== null) {
         // a member one level down first: a view path after a rename (`app.listPage`
         // for `app.pages.listPage`) is the commonest miss of all
-        const held = childPath(m[2], m[1]);
-        if (held !== null) return `'${m[1]}' is not a member of ${quoteType(m[2])} — a child's is: '${held}' (reached through the child that holds it)`;
+        const on = missedOn();
+        const held = childPath(m[2], m[1], on);
+        // read on a named child (`app.tickets.head`): said by its name, the path from it
+        if (held !== null && on?.name != null) return `'${m[1]}' is not a member of '${on.name}' (a ${on.tag}) — ${heldHint(`${on.name}.${held}`)}`;
+        if (held !== null) return `'${m[1]}' is not a member of ${quoteType(m[2])} — ${heldHint(held)}`;
         // tsc's nearest name may be runtime machinery a program cannot write ($root,
-        // $provided): say what is true without offering it
-        if (m[3].startsWith("$")) return `'${m[1]}' is not a member of ${quoteType(m[2])} — declare it (${m[1]}: <type> = …) or fix the name`;
+        // $provided), or a class's internal member (`_field`): say what is true
+        // without offering it — unless the name written is itself so marked
+        if (isInternalName(m[3]) && m[3][0] !== m[1][0]) return `'${m[1]}' is not a member of ${quoteType(m[2])} — declare it (${m[1]}: <type> = …) or fix the name`;
         return `'${m[1]}' is not a member of ${quoteType(m[2])} — did you mean '${m[3]}'?`;
       }
       return msg;
     case 2339:
       m = msg.match(/Property '(.+?)' does not exist on type '(.+?)'/s);
       if (m !== null && m[2] === "Theme") return themeTokenMiss(m[1], null);
+      if (m !== null && renamedMember(m[1], m[2]) !== "") return `'${m[1]}' is not a member of ${quoteType(m[2])} — ${renamedMember(m[1], m[2])}`;
       if (m !== null && memberHint(m[1]) !== "") return `'${m[1]}' is not a member of ${quoteType(m[2])} — ${memberHint(m[1])}`;
       if (m !== null) {
-        const held = childPath(m[2], m[1]);
-        if (held !== null) return `'${m[1]}' is not a member of ${quoteType(m[2])} — a child's is: '${held}' (reached through the child that holds it)`;
+        const on = missedOn();
+        const held = childPath(m[2], m[1], on);
+        // read on a named child (`app.tickets.head`): said by its name, the path from it
+        if (held !== null && on?.name != null) return `'${m[1]}' is not a member of '${on.name}' (a ${on.tag}) — ${heldHint(`${on.name}.${held}`)}`;
+        if (held !== null) return `'${m[1]}' is not a member of ${quoteType(m[2])} — ${heldHint(held)}`;
+        // held elsewhere in the tree this body is written in (`parent.list` for
+        // a list that is a sibling's child): the path that reaches it
+        const elsewhere = on !== undefined || m[2].startsWith("this ") ? u.heldInRoot?.(m[1]) ?? null : null;
+        if (elsewhere !== null) return `'${m[1]}' is not a member of ${on?.name != null ? `'${on.name}' (a ${on.tag})` : quoteType(m[2])} — the one in this tree is '${elsewhere}'${elsewhere.includes("<") ? " (name the views marked <…> to reach it)" : ""}: read it there`;
       }
       if (m !== null) {
         // A `:path` LOWERS to `this.$data(…)`, so a path written on a non-view
@@ -559,6 +703,12 @@ function explainTs(d: TsDiag, u: Unit, synthTags: ReadonlyMap<string, string>): 
         // the fix. On a primitive (a typed parameter's `number`, a `string`)
         // there is nothing to declare — the name is simply wrong, or the
         // parameter's written type is.
+        // `classroot.X` where X is the state of an instance this body sits inside
+        // (content placed in a frame class): classroot is the class written,
+        // and the frame's state is read from above
+        const above = u.declaresAbove?.(m[1]) ?? null;
+        if (above !== null && new RegExp(`\\bclassroot\\s*\\??\\.\\s*${m[1]}\\b`).test(u.src))
+          return `'${m[1]}' is not a member of ${quoteType(m[2])} — classroot is the class this is written in, and '${m[1]}' belongs to the ${above} this is placed inside: read it from there with provided("${m[1]}")`;
         return PRIMITIVE_TYPES.has(m[2])
           ? `'${m[1]}' is not a member of ${m[2]} — fix the name, or widen the type it was read through`
           : `'${m[1]}' is not a member of ${quoteType(m[2])} — declare it (${m[1]}: <type> = …) or fix the name`;
@@ -603,6 +753,7 @@ function explainTs(d: TsDiag, u: Unit, synthTags: ReadonlyMap<string, string>): 
         // "fetch is a global, so why not?" — and reached for (globalThis as any).
         // a library class the program names only in code (a cast, an instanceof)
         // joins the build by tag, so it is not here yet: say so, and how to bring it
+        if (Object.hasOwn(RENAMED_TYPES, m[1])) return `nothing in scope is named '${m[1]}' — the type is named '${RENAMED_TYPES[m[1]]}'`;
         if (autoIncludableNames().includes(m[1])) return `'${m[1]}' is a library class this program never writes as a tag, so it is not part of the build and a body cannot name it — add \`use [ ${m[1]} ]\` at the top level`;
         return `nothing in scope is named '${m[1]}' — a bare name in a { } body is a member (written this.${m[1]}, or via parent/classroot/app), a method parameter, or one of the globals a body may use (Math, JSON, Date, URL, console, …); '${m[1]}' is none of these`;
       }
@@ -636,10 +787,14 @@ function explainTs(d: TsDiag, u: Unit, synthTags: ReadonlyMap<string, string>): 
       return msg;
     // A possibly-absent value read without a check. Names BOTH repairs, since
     // which is right depends on who knows: the body can check, or the signature
-    // can drop the `?` and make the CALLER guarantee it.
+    // can drop the `?` and make the CALLER guarantee it — except for a child
+    // built only while a State or `exists` applies, which no type can promise.
     case 18047:
     case 18048:
       m = msg.match(/'(.+?)' is possibly '(null|undefined)'/s);
+      if (m !== null && builtWhile.has(m[1].slice(m[1].lastIndexOf(".") + 1))) {
+        return `'${m[1]}' may be absent here — it is built only while its 'exists' (or its State) applies; check it ('if (${m[1]} != null) …')`;
+      }
       if (m !== null) {
         return `'${m[1]}' may be absent here — check it ('if (${m[1]} != null) …'); or, if it is always there, declare its type without '?' (an attribute or parameter written 'Menu' is never empty, 'Menu?' may be)`;
       }
@@ -754,9 +909,12 @@ function providedThemeKeys(program: Program): string[] {
   return [...keys];
 }
 
-/** "boolean" → "a boolean", "unknown"/"any" pass bare — tiny readability. */
+/** "boolean" → "a boolean", "unknown"/"any" pass bare — tiny readability. A
+ *  view's own instance type ("this View", say's rendering of its synthesized
+ *  name) is spoken as its class where an article goes: "a View | undefined". */
 function article(type: string): string {
-  return /^(a|e|i|o|u)/i.test(type) ? `an ${type}` : `a ${type}`;
+  const t = type.replace(/\bthis (?=[A-Z])/g, "");
+  return /^(a|e|i|o|u)/i.test(t) ? `an ${t}` : `a ${t}`;
 }
 
 /** A type name in a message: synth names were already translated to "this
@@ -850,6 +1008,9 @@ class CaseEmitter {
    *  from State children) — what a State ancestor hoists again, so nesting
    *  chains. */
   private namedMembers = new Map<Element, readonly string[]>();
+  /** The names of children built only while a State applies (`exists = { … }`
+   *  lowers to one): absent by the program's own logic, not by a written '?'. */
+  readonly builtWhile = new Set<string>();
 
   assignTypes(el: Element, classRoot: boolean): string {
     this.probeTypes(el);
@@ -868,7 +1029,9 @@ class CaseEmitter {
       // happens when one is not there.
       const cs = this.schemas[child.tag];
       if (cs !== undefined && descendsFrom(cs, "State")) {
-        named.push(...(this.namedMembers.get(child) ?? []).map((l) => (l.endsWith("| null;") ? l : l.replace(/;$/, " | null;"))));
+        const hoisted = this.namedMembers.get(child) ?? [];
+        for (const l of hoisted) { const n = /^\s*(\w+):/.exec(l); if (n !== null) this.builtWhile.add(n[1]); }
+        named.push(...hoisted.map((l) => (l.endsWith("| null;") ? l : l.replace(/;$/, " | null;"))));
       }
     }
     members.push(...named);
@@ -959,7 +1122,8 @@ class CaseEmitter {
       return el.tag;
     }
     const name = `_E${this.typeCounter++}`;
-    this.lines.push(`declare class ${name} extends ${el.tag} {`);
+    // exported: the check-blocks run in `namespace $P`, and the scaffold names it there
+    this.lines.push(`export declare class ${name} extends ${el.tag} {`);
     for (const line of members) {
       this.lines.push(line);
       const m = /^ {2}([a-zA-Z_$][\w$]*)[(<]/.exec(line);
@@ -1103,6 +1267,9 @@ class CaseEmitter {
     // lowers islands before this phase, so this only guards a caller handing
     // in un-resolved source; skipped, never misparsed.
     if (fillDatapaths(src) !== src) return;
+    // `array` and `object` mean in a cast what they mean in a declaration: a list
+    // or a record of no declared shape. Same length, so no position moves
+    src = src.replace(/(?<![\w$.])as(\s+)array(?![\w$])/g, "as$1any[]").replace(/(?<![\w$.])as(\s+)object(?![\w$])/g, "as$1any   ");
 
     const ty = (el: Element): string => this.instType.get(el) ?? el.tag;
     const self = ty(levels[0]);
@@ -1158,13 +1325,22 @@ class CaseEmitter {
       // contextually typed: `[4, 0, 4, 0]` under a `?:` reads as a Radius tuple
       // rather than widening to number[] and failing the const's assignment
       // afterwards. Same for a literal-union slot's string branches.
-      const typedHeader = slotTs === null ? header : header.replace(/\) \{$/, `): ${slotTs} {`);
-      this.lines.push(`const ${id}: ${slotTs ?? "unknown"} = ${typedHeader} return (`);
+      // a slot whose nothing is null (`T?`) also takes `?.`'s undefined: it stores null
+      const takesTs = slotTs !== null && /\| null$/.test(slotTs) ? `${slotTs} | undefined` : slotTs;
+      // …which the emitted body turns to null (compile.ts, the strip pass)
+      if (takesTs !== slotTs) (owner as { $nullsUndefined?: boolean }).$nullsUndefined = true;
+      const typedHeader = takesTs === null ? header : header.replace(/\) \{$/, `): ${takesTs} {`);
+      this.lines.push(`const ${id}: ${takesTs ?? "unknown"} = ${typedHeader} return (`);
       bodyStart = this.lines.length + 1;
       this.lines.push(...bodyLines);
       this.lines.push(`); ${footer}`);
     } else {
-      this.lines.push(`${header}`);
+      // A method's body checks against its return type, as an expression body
+      // checks against its slot: the declared `-> Ret`, or — where the method
+      // omits it or declares only `any`/`array`/`object` — what the method it
+      // overrides declares (an override cannot loosen the base's contract).
+      const ret = slot === null ? this.methodReturnTs(owner, baseTs) : null;
+      this.lines.push(ret === null ? header : header.replace(/\) \{$/, `): ${ret} {`));
       bodyStart = this.lines.length + 1;
       this.lines.push(...bodyLines);
       this.lines.push(footer);
@@ -1183,7 +1359,38 @@ class CaseEmitter {
       slot,
       slotTs,
       shorthand,
+      declaresAbove: (name: string) => {
+        for (const l of levels.slice(1, -1)) {
+          const sc = this.schemas[l.tag];
+          if (l.decls.some((d) => d.name === name) || (sc !== undefined && attrType(sc, name) !== null)) return l.tag;
+        }
+        return null;
+      },
+      heldInRoot: (name: string) => {
+        const top = levels[levels.length - 1];
+        const held = childPath("", name, top);
+        return held === null ? null : `${classBody ? "classroot" : "app"}.${held}`;
+      },
     });
+  }
+
+  /** The return type a method body checks against (see emit), or null for
+   *  none: its own written return type unless that is a loose one, else the
+   *  overridden method's, read from the base class by TypeScript itself (a
+   *  base without the method, or one that declares no return, yields `any`). */
+  private methodReturnTs(owner: object, baseTs: string | null): string | null {
+    const m = owner as Partial<Method>;
+    if (typeof m.name !== "string" || typeof m.body !== "string") return null;
+    const own = m.returns === undefined ? null
+      : signatureTsType(m.returns, (n) => this.schemas[n] !== undefined || this.shapeNames.has(n), m.returnsNullable === true);
+    if (own !== null && !LOOSE_RETURNS.has(own.replace(/ \| null$/, ""))) return own;
+    if (baseTs === null) return own;
+    const base = `(${baseTs} extends { ${m.name}(...a: any[]): infer R } ? R : any)`;
+    // an override that writes no return type may return nothing (`fetch() {
+    // …; super.fetch() }`); what it does return still meets the base's type
+    if (own === null) return `${base} | void`;
+    // a loose own type that admits null keeps admitting it
+    return own.endsWith(" | null") ? `${base} | null` : base;
   }
 
   /** Synthesized type name (`_E<n>`) → the tag it widens — so a diagnostic can
@@ -1213,6 +1420,10 @@ class CaseEmitter {
   }
 }
 
+/** Written return types that state no contract of their own: an override
+ *  declaring one is checked against the base's return type instead. */
+const LOOSE_RETURNS: ReadonlySet<string> = new Set(["any", "any[]", "unknown"]);
+
 /** A slot's TypeScript type, resolved through the schema chain (the value
  *  check's teeth). Unknown slots — a typo — fall to `unknown`; the TS2339 that
  *  names the missing property is the real report. */
@@ -1239,6 +1450,8 @@ function tsSlotType(schemas: Readonly<Record<string, ClassSchema>>, tag: string,
 // typecheck attempted with NO provider registered throws loudly (a wiring bug
 // must never degrade into silently-unchecked code).
 let libProvider: ((name: string) => string | undefined) | null = null;
+/** The standard library the bodies are checked against. */
+const LIB_FILE = "lib.es2022.d.ts";
 
 /** Is `src` — a `{ }` body — a literal value: an array, an object, a string, a
  *  number, a boolean, or a template with nothing interpolated (parentheses
@@ -1254,25 +1467,40 @@ function isLiteralExpression(src: string): boolean {
     || ts.isNoSubstitutionTemplateLiteral(e) || e.kind === ts.SyntaxKind.TrueKeyword || e.kind === ts.SyntaxKind.FalseKeyword;
 }
 
-/** Every name the loaded standard library declares at its top level, and the
- *  lib file that declares it — read off the library's own syntax trees in the
- *  program that just ran, so it is exactly the library the bodies are checked
- *  against (no list to keep). Cached: the library does not change in a run. */
-let LIB_GLOBALS: Map<string, string> | null = null;
-function libGlobals(tsProgram: import("typescript").Program): Map<string, string> {
+/** Every name the standard library the bodies are checked against declares at
+ *  its top level: the lib file that declares it, and whether it is a VALUE
+ *  (`Map`, `Date`, `parseInt` — what a body's bare name is at run time, the JS
+ *  global) or a type alone (`Pick`, `Record`, `Iterator`). Read off the
+ *  library's own syntax trees, following its `/// <reference lib>`s from the
+ *  one the check loads (no list to keep). Cached: the library does not change
+ *  in a run. Empty while no library is registered. */
+let LIB_GLOBALS: Map<string, { file: string; value: boolean }> | null = null;
+function libGlobals(): Map<string, { file: string; value: boolean }> {
   if (LIB_GLOBALS !== null) return LIB_GLOBALS;
-  const out = new Map<string, string>();
-  for (const sf of tsProgram.getSourceFiles()) {
-    const file = sf.fileName.split("/").pop() ?? sf.fileName;
-    if (!file.startsWith("lib.")) continue;
+  const out = new Map<string, { file: string; value: boolean }>();
+  if (libProvider === null) return out;
+  const queue = [LIB_FILE];
+  const seen = new Set<string>();
+  while (queue.length > 0) {
+    const file = queue.shift()!;
+    if (seen.has(file)) continue;
+    seen.add(file);
+    const text = libProvider(file);
+    if (text === undefined) continue;
+    const sf = ts.createSourceFile(file, text, ts.ScriptTarget.ES2022, false);
+    for (const ref of sf.libReferenceDirectives) queue.push(`lib.${ref.fileName.toLowerCase()}.d.ts`);
     for (const st of sf.statements) {
-      const names: string[] = [];
+      const names: [string, boolean][] = [];
       if (ts.isVariableStatement(st)) {
-        for (const d of st.declarationList.declarations) if (ts.isIdentifier(d.name)) names.push(d.name.text);
+        for (const d of st.declarationList.declarations) if (ts.isIdentifier(d.name)) names.push([d.name.text, true]);
       } else if ((ts.isInterfaceDeclaration(st) || ts.isTypeAliasDeclaration(st) || ts.isClassDeclaration(st) || ts.isFunctionDeclaration(st) || ts.isEnumDeclaration(st) || ts.isModuleDeclaration(st)) && st.name !== undefined && ts.isIdentifier(st.name)) {
-        names.push(st.name.text);
+        names.push([st.name.text, !(ts.isInterfaceDeclaration(st) || ts.isTypeAliasDeclaration(st))]);
       }
-      for (const n of names) if (!out.has(n)) out.set(n, file);
+      for (const [n, value] of names) {
+        const had = out.get(n);
+        if (had === undefined) out.set(n, { file, value });
+        else if (value && !had.value) { had.value = true; had.file = file; }   // the file that declares the value
+      }
     }
   }
   LIB_GLOBALS = out;
@@ -1289,7 +1517,11 @@ export function provideLib(provider: (name: string) => string | undefined): void
  *  via the registered provider), under `strict`. Returns the case file's
  *  diagnostics. */
 function runTsc(scaffold: string, caseSrc: string): { diags: TsDiag[]; program: import("typescript").Program } {
-  const files: Record<string, string> = { "scaffold.ts": scaffold, "case.ts": caseSrc };
+  // The check-blocks run inside `namespace $P`, beside the program's classes and
+  // schemas (scaffold.ts), so a program name shadows a library type of the same
+  // name. The opening shares line 1, which is never a body's (a body follows its
+  // header), so lines and body columns map unchanged.
+  const files: Record<string, string> = { "scaffold.ts": scaffold, "case.ts": `namespace $P { ${caseSrc}\n}` };
   // A lib request may arrive as a bare name or prefixed by the default-lib
   // location ("./lib.es2021.d.ts") — normalize to the basename for the provider.
   const lib = (name: string): string | undefined => {
@@ -1301,7 +1533,7 @@ function runTsc(scaffold: string, caseSrc: string): { diags: TsDiag[]; program: 
   const options: import("typescript").CompilerOptions = {
     strict: true, // strictBindCallApply — the check-block shape depends on it
     target: ts.ScriptTarget.ES2022,
-    lib: ["lib.es2022.d.ts"], // ES only — no DOM globals to collide with Text / Image
+    lib: [LIB_FILE], // ES only — no DOM globals to collide with Text / Image
     skipLibCheck: true,
     noEmit: true,
     types: [],
@@ -1333,7 +1565,7 @@ function runTsc(scaffold: string, caseSrc: string): { diags: TsDiag[]; program: 
       const lc = d.file && d.start !== undefined ? d.file.getLineAndCharacterOfPosition(d.start) : null;
       return {
         code: d.code,
-        message: ts.flattenDiagnosticMessageText(d.messageText, "\n"),
+        message: ts.flattenDiagnosticMessageText(d.messageText, "\n").replace(/\$P\./g, ""),   // the namespace is the scaffold's, not the author's
         line: lc ? lc.line + 1 : 0,
         character: lc ? lc.character : 0,                 // 0-based, within that case-file line
       };

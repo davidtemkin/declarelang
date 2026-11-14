@@ -191,7 +191,7 @@ final class Bridge {
     /// The Inspector's open state, pushed from JS when it changes.
     var onInspector: ((Bool) -> Void)?
     var onBootFailed: ((String) -> Void)?
-    /// `app.navigate(url)` / `app.openWindow(url)` — the program asking to go
+    /// `app.openURL(url)` / `app.openWindow(url)` — the program asking to go
     /// somewhere. `newWindow` distinguishes the two verbs.
     var onNavigate: ((String, Bool) -> Void)?
     /// The runtime's history mirror (mac-boot wireMacHistory): the app's
@@ -547,6 +547,17 @@ final class Bridge {
         host.setObject({ (json: String) in
             DispatchQueue.main.async { Clipboard.write(json: json) }
         } as @convention(block) (String) -> Void, forKeyedSubscript: "clipboardWrite")
+
+        // app.fullScreen written by the program: the window enters or leaves full
+        // screen, if it is not there already (on main). The window's delegate says
+        // when it has (ProgramWindow → __declareFullScreen), so the fact follows the
+        // window either way, the window's own control included.
+        host.setObject({ [weak self] (on: Bool) in
+            DispatchQueue.main.async {
+                guard let w = self?.program?.window else { return }
+                if w.styleMask.contains(.fullScreen) != on { w.toggleFullScreen(nil) }
+            }
+        } as @convention(block) (Bool) -> Void, forKeyedSubscript: "setFullScreen")
 
         // WebSocket (the env's WebSocket class): URLSessionWebSocketTask does
         // the protocol — the HTTP upgrade handshake, framing, ping/pong, the

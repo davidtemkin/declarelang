@@ -47,7 +47,7 @@ export interface DrawTextStyle {
   letterSpacing?: number; textColor?: Color | null; textShadow?: Shadow | null;
   textTransform?: TextTransform; smallCaps?: boolean;
   numerals?: Numerals; numeralWidth?: NumeralWidth; slashedZero?: boolean;
-  textFill?: unknown; outline?: unknown; underline?: boolean; strike?: boolean;
+  textFill?: unknown; textStroke?: unknown; underline?: boolean; strike?: boolean;
 }
 
 /** A style value may be a CSS string or a Declare `Color` (a number) — draw() is

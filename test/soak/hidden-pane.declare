@@ -24,7 +24,7 @@ App [ width = 800, height = 600,
 class Row extends View [ width = 300, height = 30, fill = #f4f4f4,
     Text [ x = 6, y = 6, text = :k ],
     cm: ContextMenu [ items = { [{ id: "a", label: "Alpha" }, { id: "b", label: "Beta" }] } ],
-    onContextMenu(e: PointerEvent) { classroot.cm.open(this, e) },
+    onContextMenu(e: PointerEvent) { classroot.cm.showAt(this, e) },
     toast: Toast [ ],
     say: Button [ x = 200, y = 2, label = "toast",
         onClick() { classroot.toast.say("hello from a row", null) }

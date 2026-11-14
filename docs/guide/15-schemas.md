@@ -58,7 +58,7 @@ A dataset declares the shape of its data with `schema = [ … ]` — here, data 
 is an array of `Task`. From then on:
 
 - **The compiler checks the paths it can see.** `text = :titel` on an attribute, a
-  misspelled `key = :…`, or a replication path that does not match the schema is a
+  misspelled `identityKey = :…`, or a replication path that does not match the schema is a
   compile error naming the real fields.
 - **The typed value is typed everywhere.** `app.tasks.value.items` is `Task[]` to every
   constraint and method, so in the `filter` above `t` is a `Task`, and `t.don` is an error
@@ -66,8 +66,9 @@ is an array of `Task`. From then on:
 - **The runtime checks every boundary** where data comes in — a fetched response, an
   embedded body, a write — as the table at the end of this chapter sets out. A write that
   does not match (`:done = "yes"`) is refused and throws, naming the path and what was
-  expected, so route values a person typed through a text field's edit session
-  ([Data](declare-docs:guide:data@editing-text-and-forms)), which validates before writing.
+  expected, so route values a person typed through a field whose `admit` and `commit` parse
+  them ([Data](declare-docs:guide:data@editing-text-and-forms)): `admit` keeps out what is not
+  a number, `commit` writes the number.
 
 Validation is permissive about extra keys: a schema declares what you *rely on*, and keys
 it does not mention pass through untouched, because real data is ragged. That has one
@@ -79,7 +80,9 @@ Your own state can use the same names. **The `?` says whether it may be empty.**
 `app.sel?.title ?? ""`. `rec: Task = { :@ }` — written without `?` — is never empty, so
 `classroot.rec.title` reads plainly; the checker holds the attribute to that (a `null`
 default is refused), and an attribute declared `rec: Task` with no default is one every
-use site must supply. The same rule holds for a class (`child: Menu?`) and for `View`. And a record-typed
+use site must supply. The same rule holds for a class (`child: Menu?`) and for `View`. A
+list or a lookup of them is typed the same way, `picked: Task[] = { [] }` or
+`byId: Record<string, Task> = { {} }`, never `object`, which leaves every read needing a cast. And a record-typed
 attribute is live past its identity: a constraint reading `app.sel.title` follows when
 that record's title is edited, not only when `sel` points at a different record.
 
@@ -112,7 +115,7 @@ are checked.
 | an embedded `{ json }` body | runtime | at build | fails the build, path named |
 | a write — `:field = v`, [`set`](declare-docs:Dataset.method.set), [`insert`](declare-docs:Dataset.method.insert) | runtime | at the write | throws, naming the path and the expectation |
 | a control's `<->` to a field — `value <-> :qty` | compiler | at compile | type error when the control's value and the field differ: a number shown in a text field is `value = { String(:qty) }` with a `commit` that parses |
-| a `:path` on an attribute, `key`, or a replication path | compiler | at compile | error with the schema's fields named |
+| a `:path` on an attribute, `identityKey`, or a replication path | compiler | at compile | error with the schema's fields named |
 | the typed `.value` chain in any `{ }` or method | compiler | at compile | type error, nearest name suggested |
 | a declaration or signature — `sel: Task`, `advance(t: Task)` | compiler | at compile | type error |
 | a `:path` *inside* a `{ }` body | nobody yet | — | reads null; the attribute falls back to its default |
@@ -122,6 +125,19 @@ The principle behind the table: **the runtime stands where data the program did 
 construct comes in; the compiler stands where the program constructs it.** The last two
 rows are the honest edge — one a check the compiler does not make, one a horizon no static
 checker crosses.
+
+A class's own `:` reads are checked with the record its use sites give it. When they give it
+records of different schemas — a seat chip shown under a hall's seats and under a fair's
+booths — there is no one record to check against, and the body goes unchecked. `record:`
+in the class says which it stands on:
+
+```declare-fragment
+class SeatChip [ record: Seat,
+    Text [ text = { :row + " · $" + :price } ] ]
+```
+
+The body is then checked against `Seat`, and each use site must stand on records that have
+`Seat`'s fields (more are fine). `record` is not a member: it names the schema and nothing more.
 
 ---
 

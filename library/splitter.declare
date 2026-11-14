@@ -23,13 +23,13 @@ At rest it is a hairline in the theme's `line`; under the pointer, while dragged
 focused from the keyboard it becomes a 2 px line in `accent`. Its own footprint along the
 axis is the slim strip a pointer can catch (`thickness`), with the line centred in it.
 
-The same value pattern as every control: standalone it owns `value`, as above; constrained
-to your own state it needs `input` with it —
-`Splitter [ value = { app.sideW }, input(v: number) { app.sideW = v } ]`.
+The same value pattern as every control: standalone it owns `value`, as above; bound to your
+own state, `Splitter [ value <-> app.sideW ]`, or constrained with `commit` beside it —
+`Splitter [ value = { app.sideW }, commit(v: number) { app.sideW = Math.round(v) } ]`.
 
 ## value
 The size of the pane before the divider, in pixels. Standalone the splitter owns it;
-constrained (`value = { app.sideW }`) it needs an `input` override with it, or the drag's
+constrained (`value = { app.sideW }`) it needs a `commit` override with it, or the drag's
 own delivery is refused against the constraint.
 
 ## min
@@ -51,12 +51,12 @@ The strip along `axis` that catches the pointer — 8 px by default. The line dr
 it is 1 px at rest and 2 px when active, so a wider strip makes it easier to catch without
 making it heavier.
 
-## input()
+## commit()
 **Where the value goes**, continuously through a drag and once per key. Override it to
-redirect the value (`input(v: number) { app.sideW = v }`); the default writes `value`.
+redirect the value (`commit(v: number) { app.sideW = v }`); the default writes `value`.
 
 ## setTo()
-Clamps a value into `min`…`max`, rounds it to a whole pixel, and delivers it through `input`
+Clamps a value into `min`…`max`, rounds it to a whole pixel, and delivers it through `commit`
 when it differs from `value`. Every change the splitter makes routes through it.
 
 ## toggle()
@@ -105,7 +105,7 @@ An override calls `super.onDragEnd(e)`: it is what ends the drag.
 ## onClick
 Does nothing: a press on the divider that does not move is not a command.
 
-## onDblClick
+## onDoubleClick
 Restores `_home`, the size the pane was built with.
 
 ## onKeyDown
@@ -172,10 +172,10 @@ class Splitter extends Control [
     axis: Axis = x,
     thickness: number = 8,
 
-    input(v: number) { value = v },
+    commit(v: number) { value = v },
     setTo(v: number) {
         const n = Math.round(Math.max(min, Math.min(max, v)))
-        if (n != value) input(n)
+        if (n != value) commit(n)
         },
 
     // where a double-click returns to, and where Enter restores a collapsed pane to
@@ -214,7 +214,7 @@ class Splitter extends Control [
         if (e.canceled) setTo(_v0)
         },
     onClick() { },
-    onDblClick() { if (!disabled) setTo(_home) },
+    onDoubleClick() { if (!disabled) setTo(_home) },
 
     onKeyDown(e: KeyEvent) {
         if (disabled) return

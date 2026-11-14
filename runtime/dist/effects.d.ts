@@ -22,5 +22,5 @@ export declare const frost: (radius: number, saturation?: number) => Backdrop;
 export declare function coerceRadialConic(lit: Extract<Literal, {
     kind: "call";
 }>): Coerced;
-/** A written `filter` / `backdrop` value: one function, a list, `frost(…)`, or null. */
+/** A written `visualFilter` / `backdrop` value: one function, a list, `frost(…)`, or null. */
 export declare function coerceFilter(lit: Literal): Coerced;

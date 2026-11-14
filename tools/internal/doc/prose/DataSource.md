@@ -47,7 +47,10 @@ to you, so you decide *when* (usually in `onInit`, or on a user action). Calling
 re-fetches — `loading` for the duration, `loaded` and `value` untouched until the new
 data lands. It settles before it sends, so a handler that changes what `url` or `body`
 derives from and then calls `fetch()` sends the new request. A later call supersedes an
-earlier one: that request is stopped, and its reply never arrives. It returns a `Promise` that never rejects — a failure
+earlier one, whose reply never arrives: a read is stopped, but a write (`POST`, `PUT`,
+`PATCH`, `DELETE`) is not — it was sent, so it may still be carried out, and the runtime
+says so. To send writes one after another, call the next from `onLoad`, or wait while
+`loading`. It returns a `Promise` that never rejects — a failure
 lands in `failed` and `error` — but the flags and `onLoad` are the idiomatic path.
 
 ## autoFetch
@@ -106,7 +109,7 @@ Fetch API's three modes, spelled as tokens.
   must echo back the specific requesting origin instead.
 
 `sameOrigin` is the camelCase spelling of the wire's `same-origin` (a hyphen is
-subtraction, so it cannot be a token) — the same translation `blend` makes for
+subtraction, so it cannot be a token) — the same translation `blendMode` makes for
 CSS's `color-dodge`. Since `url` may be a `{ }` constraint, `include` sends
 credentials wherever that expression resolves: keep the address under your own
 control.

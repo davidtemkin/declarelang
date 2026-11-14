@@ -4,7 +4,7 @@
 //
 //   1. draw() filters (both renderers): a wide blurred gradient field — the
 //      desktop wallpaper's case — then small blurs and every colour function.
-//   2. view `filter = [ … ]` (canvas renderer): a view's own layer filtered.
+//   2. view `visualFilter = [ … ]` (canvas renderer): a view's own layer filtered.
 //   3. `backdrop = frost(…)` (canvas renderer): glass over busy content.
 // `phase` places the glass and the filtered views; a resize (the rig's stimulus)
 // re-renders them, so a run sees the fallback in motion (approximate) and at
@@ -77,10 +77,10 @@ App [ width = 1200, height = 800, fill = #0B0710,
     // 2. view filters (the canvas renderer filters the view's layer)
 
     viewFilters: View [ x = { 40 + 30 * Math.sin(app.phase) }, y = 330, width = 700, height = 150,
-        Swatch [ x = 0, y = 0, filter = [blur(4)] ],
-        Swatch [ x = 170, y = 0, filter = [saturate(1.6), brightness(1.1)] ],
-        Swatch [ x = 340, y = 0, filter = [grayscale(0.7), contrast(1.4)] ],
-        Swatch [ x = 510, y = 0, filter = [blur(2), hueRotate(60)] ]
+        Swatch [ x = 0, y = 0, visualFilter = [blur(4)] ],
+        Swatch [ x = 170, y = 0, visualFilter = [saturate(1.6), brightness(1.1)] ],
+        Swatch [ x = 340, y = 0, visualFilter = [grayscale(0.7), contrast(1.4)] ],
+        Swatch [ x = 510, y = 0, visualFilter = [blur(2), hueRotate(60)] ]
         ],
 
     // 3. frost: glass over the field and the swatches

@@ -81,7 +81,7 @@ class ContactRow [
     open: boolean = false,
     picked() { },
     height = { open ? 224 : 34 },
-    slide: Animator [ attribute = height, to = { classroot.open ? 224 : 34 }, duration = 333, motion = laszloBoth ],
+    slide: Animator [ attribute = height, to = { classroot.open ? 224 : 34 }, duration = 333, easing = laszloBoth ],
     trackChanges = ["open"],
     onChange() { slide.start() },
     clip = true,
@@ -203,7 +203,7 @@ class ContactsPanel [
 
     form: View [ y = 25, width = 100%, height = 0, clip = true, fill = #B6CCC1,
         visible = { this.height > 0 },
-        slide: Animator [ attribute = height, duration = 500, motion = laszloBoth ],
+        slide: Animator [ attribute = height, duration = 500, easing = laszloBoth ],
         gutter: View [ width = 55, height = 100%, fill = #9EBAAB ],
         fontFamily = { app.vera }, fontWeight = bold, fontSize = 10, textColor = #222222,
 
@@ -401,7 +401,7 @@ classes are for: they carry the transport and leave the chrome to the app.
 class TrackCell [
     width = 68, height = 68,
     kind: string = "audio",
-    art: Image [ x = 12, y = 9, width = 40, height = 40, stretches = both,
+    art: Image [ x = 12, y = 9, width = 40, height = 40, fit = both,
         source = :imageurl ],
     caption: Text [ y = 50, width = 100%, fontFamily = { app.kroe }, fontSize = 8,
         textColor = #000000, textAlign = center, text = :label ],
@@ -450,7 +450,7 @@ class MediaTransport [
 
         // the load-progress fill; metadata arriving is what counts as loaded
 
-        prog: Image [ y = 5, height = 8, stretches = both, source = "resources/img/loadbar.png",
+        prog: Image [ y = 5, height = 8, fit = both, source = "resources/img/loadbar.png",
             width = { parent.width * (classroot.isLoaded ? 1 : 0) } ],
 
         // The scrubber. Its x is derived from the playhead even mid-drag —
@@ -504,11 +504,11 @@ class MediaTransport [
 
     // the view-switch strip along the bottom edge, decorative in both
 
-    tabL: Image [ y = { parent.height - 7 }, width = 100%, height = 7, stretches = width,
+    tabL: Image [ y = { parent.height - 7 }, width = 100%, height = 7, fit = width,
         source = "resources/img/media_tab_l.png" ],
     tabM: Image [ x = 80, y = { parent.height - 28 }, source = "resources/img/media_tab_m.png" ],
     tabR: Image [ x = 112, y = { parent.height - 25 }, width = { parent.width - 112 }, height = 25,
-        stretches = width, source = "resources/img/media_tab_r.png" ],
+        fit = width, source = "resources/img/media_tab_r.png" ],
     tabBtns: Image [ x = { parent.width - 97 }, y = { parent.height - 22 },
         source = "resources/img/media_tab_buttons.png" ],
 
@@ -547,7 +547,7 @@ class MusicPanel [
         onEnded() { app.mediaWants = false }
         ],
 
-    iconWell: Image [ x = 4, y = 3, width = 32, height = 32, stretches = both,
+    iconWell: Image [ x = 4, y = 3, width = 32, height = 32, fit = both,
         shadow = shadow(2, 2, 0, #826886),
         source = { app.nowPlaying != null ? "" + app.nowPlaying.imageurl : "" } ],
 
@@ -576,7 +576,7 @@ class VideoPanel [
         height = { parent.height - 74 - 65 },
         width = { this.height * 240 / 135 },
         x = center,
-        stretches = both,
+        fit = both,
         onEnded() { position = 0; app.mediaWants = false }
         ],
 

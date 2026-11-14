@@ -184,7 +184,7 @@ class HourStrip extends Tile [ height = 196,
 
     scroller: View [ x = 8, y = 88, width = { parent.width - 16 }, height = 100, scrolls = x,
         row: View [ layout: SimpleLayout [ axis = x, spacing = 4 ],
-            HourCol [ datapath = :hours[], key = :t ]
+            HourCol [ datapath = :hours[], identityKey = :t ]
             ]
         ]
     ]
@@ -232,7 +232,7 @@ class TenDay extends Tile [
         DayRow [ width = 100%,
             lo10 = { classroot.lo10 }, hi10 = { classroot.hi10 },
             todayTemp = { classroot.todayTemp },
-            datapath = :days[], key = :day ]
+            datapath = :days[], identityKey = :day ]
         ]
     ]
 
@@ -388,7 +388,7 @@ class MapCard extends Tile [ label = "PRECIPITATION",
 
         // `contain`, not `cover`: a map that has been cropped is a wrong map
 
-        img: Image [ width = 100%, height = 100%, stretches = contain,
+        img: Image [ width = 100%, height = 100%, fit = contain,
             source = { classroot.base } ],
         radar: RadarBlobs [ width = 100%, height = 100%,
             amount = { classroot.amount }, seed = { classroot.seed } ],
@@ -525,7 +525,7 @@ class RowSky [ clip = true,
     // — so a drawn row points at an image it already has and does not show it.
 
     hasPhoto: boolean = { this.cond == "cloudy" || this.cond == "cumulus" },
-    photo: Image [ width = 100%, height = 100%, stretches = cover,
+    photo: Image [ width = 100%, height = 100%, fit = cover,
         visible = { classroot.hasPhoto },
         source = { classroot.cond == "cumulus" ? "sky/cumulus.jpg" : "sky/cloudy.jpg" } ],
 
@@ -1318,7 +1318,7 @@ App [ textColor = whitesmoke, appName = "Weather",
 
                 focusScope = stop,
                 focusEntry() -> View? { return (this.children.find((c) => (c as CityRow).selected) ?? null) as View | null },
-                CityRow [ datapath = :rows[], key = :id ]
+                CityRow [ datapath = :rows[], identityKey = :id ]
                 ],
             tail: View [ y = { app.listGone ? app.cityH : app.listH }, width = 100%,
                 height = { LIST_TAIL + app.safeBottom } ]
@@ -1383,7 +1383,7 @@ App [ textColor = whitesmoke, appName = "Weather",
                     layout: SimpleLayout [ axis = x, spacing = 0 ],
                     datapath = { app.data.loaded ? app.data.value : null },
                     Dot [ flexes = true, minWidth = 6,
-                        datapath = :cities[], key = :id ]
+                        datapath = :cities[], identityKey = :id ]
                     ]
                 ]
             ],
@@ -1441,7 +1441,7 @@ App [ textColor = whitesmoke, appName = "Weather",
 
                 focusScope = stop,
                 focusEntry() -> View? { return (this.children.find((c) => (c as CityRow).selected) ?? null) as View | null },
-                CityRow [ width = 100%, datapath = :rows[], key = :id ]
+                CityRow [ width = 100%, datapath = :rows[], identityKey = :id ]
                 ]
             ],
 

@@ -24,7 +24,7 @@
 // Ownership is the other half: an author `{ }` constraint owns its slot and a
 // direct write to it is an error (one declarative owner — the silent-clobber
 // bug is unrepresentable); a runtime-supplied derive yields to a direct write.
-import { ACTIVE, Cell, Constraint, S, isSettling, isTracking, kernel, noteWrite, nulls, retireValue, setPushHook, table, touchCell, trackCell, untracked, workPending, setOwnershipCheck } from "./reactive.js";
+import { ACTIVE, Cell, Constraint, S, isSettling, isTracking, kernel, noteWrite, nulls, retireValue, setPushHook, table, touchCell, trackCell, untracked, setOwnershipCheck } from "./reactive.js";
 import { DeclareError, at, layoutConflictMessage } from "./errors.js";
 import { THEME_PRESETS, withThemeDefaults } from "./themes.js";
 import { declareName } from "./declare-name.js";
@@ -431,10 +431,12 @@ export function defineAttributes(ctor, specs) {
         const defBinding = spec.defBinding;
         const defOuter = spec.defOuter === true;
         // A declared default standing as a rule (defRule): the TABLE is its value
-        // once the world is quiescent; an UNTRACKED read while writes are pending
-        // (a handler reading `app.selCount` right after it wrote the selection)
-        // evaluates the `{ }` live — the value main's live fallback gave, fresh
-        // through every derived input, since a pending settle has not landed it.
+        // once the world is quiescent; an UNTRACKED read while the rule is behind
+        // (a handler reading `app.selCount` right after it wrote the selection the
+        // count reads, directly or through other rules) evaluates the `{ }` live —
+        // the value main's live fallback gave, fresh through every derived input,
+        // since a pending settle has not landed it. A default none of whose inputs
+        // moved answers its stored value (declStale).
         // Tracked readers and the kernel always read the table: they re-run.
         const defRule = spec.defRule === true && defBinding !== undefined;
         const nullableSlot = kind !== undefined && spec.nullable !== undefined;
@@ -487,8 +489,12 @@ export function defineAttributes(ctor, specs) {
                             // became the reader's own edges, re-taken each run — a row's
                             // `fill = { lit ? … }` ran for all forty rows on every click that
                             // changed `lit = { app.picked == :id }` for two (profile, 2026-10-29)
-                            if (defRule && declStale(self, name, true))
-                                return untracked(() => evalDefault(self, name, defBinding, defOuter));
+                            if (defRule && declStale(self, name, true)) {
+                                const v = untracked(() => evalDefault(self, name, defBinding, defOuter));
+                                if (self.$owners?.[name] === undefined)
+                                    notePrelive(self, name, v, nullableSlot && nulls[c] === 1 ? null : kind === "b" ? table[c] !== 0 : table[c]);
+                                return v;
+                            }
                         }
                         else if (defRule && declStale(self, name, isSettling())) {
                             return evalDefault(self, name, defBinding, defOuter);
@@ -504,7 +510,12 @@ export function defineAttributes(ctor, specs) {
                 // tracked: a cell made for it now would never be freed — a scroll
                 // anchor reading a discarded row allocated one a rebuild (soak, 2026-11-01)
                 if (isTracking() && self.$base !== -1) {
-                    cellFor(self, name).track();
+                    const cell = cellFor(self, name);
+                    const unnamed = cell.id < 0;
+                    cell.track();
+                    // a rule writing this slot is now findable from its readers (isBehind)
+                    if (unnamed && cell.id >= 0)
+                        self.$owners?.[name]?.writesCell(cell.id);
                     if (trackedOnce !== null && !trackedOnce.has(self)) {
                         trackedOnce.add(self);
                         onTrack(self);
@@ -568,6 +579,7 @@ export function defineAttributes(ctor, specs) {
                 }
                 (self.$set ??= new Set()).add(name);
                 write(this, name, v);
+                endPrelive(self, name);
             },
         });
     }
@@ -1004,7 +1016,38 @@ function declStale(self, name, tracked) {
         return !(self.$displaced?.has(name) ?? false) && !(self.$set?.has(name) ?? false);
     if (!o.declDefault)
         return false;
-    return tracked ? o.isQueued() : workPending();
+    // untracked (a handler): stale when the rule is behind — its own inputs, or
+    // theirs, moved — not whenever any work is pending. A default whose inputs
+    // stand answers its stored value: one holding an object (`{ new Map() }`) is
+    // the same object on every read, as a handler mutating it needs (7GUIs run 2)
+    return tracked ? o.isQueued() : o.isBehind();
+}
+/** A TRACKED read of a declared default no rule owns yet (the install batch:
+ *  a class's `fill = { classroot.m ? … }` runs before `m`'s own rule installs,
+ *  and before the use-site input `m` reads lands) takes the default's live
+ *  value, untracked — its edge is the slot's cell. When that value is not
+ *  what the cell stores, the reader holds a value nothing will tell it is
+ *  stale: if the slot's eventual value equals its starting one, the landing
+ *  passes the equality gate and wakes no one, and the reader keeps the live
+ *  value for good (Ledger run 5: every category chip kept a warning outline
+ *  its `missing` default no longer said). Noted here, and the cell is woken
+ *  when the slot gets its owner or an author value (endPrelive). */
+function notePrelive(self, name, live, stored) {
+    if (live !== stored)
+        (self.$prelive ??= new Set()).add(name);
+}
+/** The slot is no longer read live before ownership: an owner installed, or
+ *  an author value set. A reader that took a live value the cell did not hold
+ *  re-runs, and reads the slot as it now stands — a later landing that
+ *  changes it wakes it again through the gate, as for any reader. */
+function endPrelive(self, name) {
+    if (self.$prelive === undefined || !self.$prelive.delete(name))
+        return;
+    const cell = slotCellOf(self, name);
+    if (cell >= 0)
+        touchCell(cell);
+    else
+        self.$cells?.[name]?.changed();
 }
 /** The rule's OWN apply: the table write without the displacement check. */
 export function writeOwned(self, name, v) { write(self, name, v, true); }
@@ -1346,6 +1389,12 @@ export function own(self, name, c) {
     const cell = slotCellOf(self, name);
     if (cell >= 0)
         c.ownCell(cell);
+    else {
+        const jc = self.$cells?.[name];
+        if (jc !== undefined && jc.id >= 0)
+            c.writesCell(jc.id);
+    }
+    endPrelive(self, name);
 }
 function refreshDeclDefault(self, name) {
     const t = tableFor(DEF_RULES, self.constructor)?.[name];

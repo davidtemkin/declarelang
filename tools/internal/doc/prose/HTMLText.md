@@ -5,21 +5,23 @@ native, contiguous text selection for free. Supported tags are the text-shaped o
 `p`, `h1`–`h6`, `b`/`strong`, `i`/`em`, `code`, `s`/`del`, `a`, `br`, `ul`/`ol`/`li`,
 `blockquote`, `pre`, `hr`, `span`, `div` — and nothing else.
 
+White space behaves as in HTML: outside `pre`, a run of spaces and line breaks is one space, set
+in the size of the text around it. A space between two large figures
+(`<span class='big'>1</span>h <span class='big'>24</span>m`) is a small one, so space them with a
+`span` of their own that sets its size.
+
 This is **not** a `DOMIsland` (that mounts arbitrary host DOM you manage yourself):
 `HTMLText` is *sanitized rich text*, with defined, safe behaviour on anything outside the
 whitelist — so it is the right choice for content that arrives from data. `html = { post.body }`
 re-parses and re-renders reactively.
 
-**Your own view classes are tags here too.** Alongside the whitelist, a self-closing tag naming
-a view class the program declares is one real **inline view** of that class, flowed in the line
-as a box the words wrap around (the family's `RichText` entry states the whole of it). A name is
-resolved against your classes first and the whitelist second, so a class named exactly like a
-supported tag takes that tag over inside content — the compiler warns when one does. Unlike
-every other tag, whose attributes are ignored but for `href` and `class`, an inline view's
-attributes are **read and converted** by the class's declared types, and anything that will not
-apply goes to `unsupported` along with the unknown tags. Since content may name any view class
-the program declares, a document loaded from elsewhere can place any of them — the classes your
-program contains are the boundary.
+**Your own view classes can be tags here too.** Alongside the whitelist, a self-closing tag
+that `tagViews` maps to one of your view classes is one real **inline view** of that class,
+flowed in the line as a box the words wrap around (the family's `RichText` entry states the whole
+of it). Unlike every other tag, whose attributes are ignored but for `href` and `class`, an
+inline view's attributes are **read and converted** by the class's declared types, and anything
+that will not apply goes to `unsupported` along with the unknown tags. Content can build only
+the classes the map lists, so loaded HTML shown with no map builds none of yours.
 
 ```declare
 class Chip [ label: string = "",
@@ -30,7 +32,8 @@ class Chip [ label: string = "",
 
 App [ width = 430, height = 90,
     HTMLText [ x = 16, y = 16, width = 398, fontSize = 15,
-        html = "<b>Bold</b> is a tag the whitelist knows; <Chip label='docs'/> is a view you declared." ]
+        tagViews = { { Chip: Chip } },
+        html = "<b>Bold</b> is a tag the whitelist knows; <Chip label='docs'/> is a view you listed." ]
     ]
 ```
 
@@ -43,8 +46,8 @@ HTMLText [ width = { parent.width },
 ## html
 The HTML source — a literal, or a `{ }` constraint that re-parses whenever it changes (a
 fetched document, a live-edited field). Only `<a href>` and `<span class>` (see `textStyles`)
-are read; every other attribute is ignored — except on a tag naming one of your view classes,
-whose attributes are the view's (above).
+are read; every other attribute is ignored — except on a tag `tagViews` maps to one of your
+view classes, whose attributes are the view's (above).
 
 ## unsupported
 What a tag **outside the whitelist** does — the reason this is safe for loaded content:

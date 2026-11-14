@@ -150,7 +150,8 @@ when no record is marked default.
 ## presentation
 `"center"` (the default): a panel centered over its context. `"full"`: the whole context,
 for a viewer or a lightbox — your content edge to edge, no title or buttons unless you set
-them.
+them. The dialog's own `fill` colours its panel, so a photo viewer's dark ground is
+`fill = black` on the dialog; without one, the panel is the theme's `surface`.
 
 ## escape()
 Esc picks the cancel button (`pickCancel`).
@@ -184,6 +185,9 @@ A third of the way down its context; the top, full-screen.
 
 ## opacity
 Its open blend — it fades in and out.
+
+## cornerRadius
+The theme's `dialogCornerRadius`; square full-screen. Its panel takes it, with its `fill`.
 
 ## scale
 It settles from slightly small as it opens — at its program's scale where it opens in a
@@ -356,12 +360,29 @@ class Dialog extends Floating [
     _scrim: View [ pointerEvents = "none",
         x = { -classroot.x }, y = { -classroot.y },
         width = { classroot._hostW }, height = { classroot._hostH },
-        fill = { provided("theme").scrimFill },
-        opacity = { (provided("theme").scrimOpacity) * (classroot._full ? 0 : 1) } ],
+
+        // the dimming stops at the dialog's own box, which paints its fill there
+
+        draw(d: DrawContext) {
+            const c = classroot
+            d.fillStyle = provided("theme").scrimFill
+            d.beginPath()
+            d.rect(0, 0, d.w, d.h)
+            const r = c.cornerRadius
+            d.roundRect(c.x, c.y, c.width, c.height, typeof r == "number" ? r : [...r])
+            d.fill("evenodd")
+            },
+        opacity = { (provided("theme").scrimOpacity) * (classroot._full ? 0 : 1) }
+        ],
+
+    // the dialog paints its own fill, as any view does; the panel gives it the
+    // theme's surface when it sets none, and its edge and shadow
+
+    cornerRadius = { this._full ? 0 : provided("theme").dialogCornerRadius ?? provided("theme").menuCornerRadius + 2 },
 
     _panel: View [ width = 100%, height = 100%,
-        cornerRadius = { classroot._full ? 0 : provided("theme").dialogCornerRadius ?? provided("theme").menuCornerRadius + 2 },
-        fill = { provided("theme").surface },
+        cornerRadius = { classroot.cornerRadius },
+        fill = { classroot.fill == null ? provided("theme").surface : null },
         stroke = { classroot._full ? null : stroke(1, provided("theme").line) },
         shadow = { classroot._full ? null : provided("theme").dialogShadow ?? provided("theme").menuShadow } ],
 

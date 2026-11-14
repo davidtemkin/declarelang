@@ -55,6 +55,7 @@ export class NativeText extends Node {
   declare wrap: boolean;
   declare enterSubmits: boolean;
   declare spellcheck: boolean;
+  declare showsCaret: boolean;
   declare purpose: Purpose;
   declare concealed: boolean;
   declare numeralWidth: NumeralWidth;
@@ -134,6 +135,7 @@ export class NativeText extends Node {
       spellcheck: this.spellcheck,
       purpose: this.purpose,
       concealed: this.concealed,
+      caret: this.showsCaret !== false,
       wrap: this.wrap,
       padding: f.padding as Inset,
       placeholder: this.placeholder,
@@ -194,6 +196,7 @@ defineAttributes(NativeText as never, {
   spellcheck: { def: true, push: (n: NativeText) => n.$sync() },
   purpose: { def: "text", push: (n: NativeText) => n.$sync() },
   concealed: { def: false, push: (n: NativeText) => n.$sync() },
+  showsCaret: { def: true, push: (n: NativeText) => n.$sync() },
   numeralWidth: { def: "normal" },
   textAlign: { def: "start" },
   italic: { def: false },

@@ -271,12 +271,12 @@ class Sidebar [ width = 100%,
         ],
 
     // A control shows the value it is given and hands the person's change to
-    // `input`, which writes it where it lives. Every library control works so.
+    // `commit`, which writes it where it lives. Every library control works so.
 
     appearance: View [ padding = [28, 0, 0, 0],
         Segmented [ width = 120, height = 28, value = { app.themeMode },
-            choices = { [ ({ id: "light", icon: "SunIcon" }), ({ id: "dark", icon: "MoonIcon" }), ({ id: "auto", icon: "AutoIcon" }) ] },
-            input(v: string) { app.themeMode = v as "auto" | "light" | "dark" }
+            items = { [ ({ id: "light", icon: "SunIcon" }), ({ id: "dark", icon: "MoonIcon" }), ({ id: "auto", icon: "AutoIcon" }) ] },
+            commit(v: string) { app.themeMode = v as "auto" | "light" | "dark" }
             ]
         ]
     ]

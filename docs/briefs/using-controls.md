@@ -15,8 +15,8 @@ App [ width = 360, height = 260, fill = white,
         Slider [ width = 100%, value = { app.volume }, disabled = { app.muted },
             commit(v: number) { app.volume = v } ],
         Segmented [ width = 200, value = { app.view },
-            choices = { [ ({ id: "list", label: "List" }), ({ id: "grid", label: "Grid" }) ] },
-            input(v: object) { app.view = "" + v } ],
+            items = { [ ({ id: "list", label: "List" }), ({ id: "grid", label: "Grid" }) ] },
+            commit(v: object) { app.view = "" + v } ],
         TextInput [ width = 200, placeholder = "Your name",
             value = { app.who }, commit(v: string) { app.who = v } ],
         Button [ label = "Reset", primary = true,
@@ -30,9 +30,9 @@ App [ width = 360, height = 260, fill = white,
   `Switch`, `RadioGroup`/`Radio`, `Slider`, `Segmented`, `Combobox`, `TextInput`. Check
   there before building one by hand.
 - A control's value is owned one of three ways: by the control (read it by name), by
-  your state (`checked = { app.muted }` down, `input(v) { app.muted = v }` up), or by
-  a record (`checked = :done`, `input(v) { :done = v }`).
-- The pair travels together. Without the `input` override, the control's edit is an
+  your state (`checked = { app.muted }` down, `commit(v) { app.muted = v }` up), or by
+  a record (`checked = :done`, `commit(v) { :done = v }`).
+- The pair travels together. Without the `commit` override, the control's edit is an
   assignment to a constrained attribute, and the runtime refuses it.
 - `TextInput` hands edits back through the `onInput(v)` event. `<->` binds it to a
   record field when a `datapath` is above it.

@@ -66,35 +66,28 @@ test("used-set: use[] adds a name with no static reference", async () => assert.
 // the content string is a reference site. Miss it and the build has the worst
 // shape of bug it can have: dev ships the registry whole and the tag renders as a
 // real view, production drops the class and the same tag renders as plain text.
-test("used-set: a class named ONLY by a tag in a literal html string is kept", async () => {
+test("used-set: a class an inline view's tagViews map names is kept — the map names it as a value", async () => {
+  const u = await used(`class Issue extends View [ width = 60, height = 20 ]
+    App [ width = 400, HTMLText [ width = 380, tagViews = { { Issue: Issue } }, html = "Fixed by <Issue id='142'/> today." ] ]`);
+  assert.ok(u.has("Issue"), "the map's value is the reference that keeps the class");
+});
+test("used-set: a COMPUTED document needs no `use` — the map keeps its classes", async () => {
+  const u = await used(`class Issue extends View [ width = 60, height = 20 ]
+    App [ width = 400, who: string = "x", tagViews = { { Issue: Issue } },
+      Markdown [ width = 380, text = { "Fixed by <Issue/> by " + app.who } ] ]`);
+  assert.ok(u.has("Issue"));
+});
+test("used-set: a tag in a literal document, with no map, keeps nothing — it builds no view", async () => {
   const u = await used(`class Issue extends View [ width = 60, height = 20 ]
     App [ width = 400, HTMLText [ width = 380, html = "Fixed by <Issue id='142'/> today." ] ]`);
-  assert.ok(u.has("Issue"), "the tag in the literal is the only reference — it must keep the class");
+  assert.ok(!u.has("Issue"), "with no tagViews entry the tag is text, so the class is not reached");
 });
-test("used-set: the same tag in a literal Markdown `text` is kept", async () => {
-  const u = await used(`class Issue extends View [ width = 60, height = 20 ]
-    App [ width = 400, Markdown [ width = 380, text = "Fixed by <Issue id='142'/>." ] ]`);
-  assert.ok(u.has("Issue"));
-});
-test("used-set: the content slot is found by SCHEMA CHAIN, so a subclass carries it too", async () => {
-  const u = await used(`class Issue extends View [ width = 60, height = 20 ]
-    class Note extends HTMLText [ width = 380 ]
-    App [ width = 400, Note [ html = "see <Issue/>" ] ]`);
-  assert.ok(u.has("Issue"));
-});
-test("used-set: a COMPUTED document keeps nothing — `use` is the author's tool there", async () => {
-  const src = (uses) => `${uses}class Issue extends View [ width = 60, height = 20 ]
-    App [ width = 400, who: string = "x",
-      HTMLText [ width = 380, html = { "Fixed by <Issue/> by " + app.who } ] ]`;
-  assert.ok(!(await used(src(""))).has("Issue"), "a { }-built string is not scanned (nor is a fetched one)");
-  assert.ok((await used(src("use [ Issue ]\n"))).has("Issue"), "…and `use` is what keeps it");
-});
-test("used-set: a whitelisted tag keeps nothing — the scan is intersected with the program's classes", async () => {
+test("used-set: a whitelisted tag keeps nothing", async () => {
   const u = await used(`class Issue extends View [ width = 60, height = 20 ]
     App [ width = 400, HTMLText [ width = 380, html = "<b>bold</b> <span class='x'>y</span> <br/>" ] ]`);
   assert.ok(!u.has("Issue"), "nothing in this document names Issue");
 });
-test("used-set: a non-rich-text `text` slot is not content — Text is not scanned", async () => {
+test("used-set: a tag in a Text's text keeps nothing", async () => {
   const u = await used(`class Issue extends View [ width = 60, height = 20 ]
     App [ width = 400, Text [ text = "not a document: <Issue/>" ] ]`);
   assert.ok(!u.has("Issue"), "Text descends from neither Markdown nor HTMLText");
@@ -340,7 +333,7 @@ if (!CHROME) {
     // …and the constructors are globals, reached only by name
     assert.ok((none["effects.js"] ?? 0) < STUBBED, `effects.js should be stubbed for a program naming no constructor, was ${none["effects.js"]}`);
     const src = `App [ width = 200, fill = white,
-      a: View [ width = 40, height = 40, fill = radialGradient(0.5, 0.5, 1, red, blue), filter = [blur(2), colorize(navy)], rotateY = 20,
+      a: View [ width = 40, height = 40, fill = radialGradient(0.5, 0.5, 1, red, blue), visualFilter = [blur(2), colorize(navy)], rotateY = 20,
         trackChanges = ["opacity"], onChange(e: ChangeEvent) { } ],
       b: View [ y = 50, width = 40, height = 40, fill = red, mask = gradient(#000000, #00000000) ],
       c: Text [ y = 100, text = "12", numerals = lining, width = { measureText("12", { fontSize: 13 }).width + 4 } ],
@@ -482,7 +475,7 @@ App [ width = 200, fill = white, Deep [ html = "<p>prose</p>" ] ]`;
     // the spelling of a filter and a gradient is core, and the DOM's tint and
     // mask ship always, so a value from data needs no constructor's module
     for (const src of [
-      `App [ width = 200, fill = white, f: any = { JSON.parse('[{"fn":"blur","radius":4}]') }, v: View [ width = 40, height = 40, fill = red, filter = { app.f } ] ]`,
+      `App [ width = 200, fill = white, f: any = { JSON.parse('[{"fn":"blur","radius":4}]') }, v: View [ width = 40, height = 40, fill = red, visualFilter = { app.f } ] ]`,
       `App [ width = 200, fill = white, d: DataSource [ url = "look.json" ], v: View [ width = 40, height = 40, fill = { d.value.paint } ] ]`,
     ]) await renders(src);
     const mask = modsOf(await buildProduction(`App [ width = 200, fill = white, d: DataSource [ url = "look.json" ], v: View [ width = 40, height = 40, fill = red, mask = { d.value.m } ] ]`, {}));

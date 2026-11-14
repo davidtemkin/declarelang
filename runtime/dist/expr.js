@@ -30,7 +30,7 @@ import { phasesOn, phased } from "./phase-timer.js"; // dependency-free: the mea
 import { rewriteDatapaths } from "./datapath.js";
 import { diag } from "./errors.js";
 import { keysCaller } from "./keys.js";
-import { colorWithAlpha, gradient, outline, shadow, colorStop, stroke } from "./value.js";
+import { colorWithAlpha, gradient, shadow, colorStop, stroke } from "./value.js";
 import { blur, brightness, conicGradient, contrast, frost, grayscale, hueRotate, invert, radialGradient, saturate, sepia, colorize } from "./effects.js";
 // The ruled value constructors, in scope inside every `{ }` body — the "one
 // vocabulary, two lexical homes" ruling: the same names the literal grammar
@@ -39,7 +39,7 @@ import { blur, brightness, conicGradient, contrast, frost, grayscale, hueRotate,
 // leading hidden argument (never globals); the compile layer leaves
 // CALLEE-position uses of these names unresolved so `stroke(…)` is the
 // constructor while bare `stroke` stays the slot.
-const DECOR = { gradient, radialGradient, conicGradient, stroke, outline, shadow, colorStop, frost, blur, brightness, contrast, saturate, grayscale, invert, sepia, hueRotate, colorize };
+const DECOR = { gradient, radialGradient, conicGradient, stroke, shadow, colorStop, frost, blur, brightness, contrast, saturate, grayscale, invert, sepia, hueRotate, colorize };
 // The lowering target for `0xRRGGBBAA` literals (compile.ts rewrites each 8-hex
 // color literal to a colorWithAlpha(…) call): in scope so the resolved body can
 // call it, but NOT a user-written value constructor — kept out of DECOR so
@@ -118,11 +118,15 @@ export function withScriptScope(scope, build) {
 }
 /** Evaluate one compiled `script { … }` body, returning the bindings it
  *  declares. The compiler appended the `return { … }` that makes this possible
- *  (there is no way to enumerate a function's scope from outside it). */
+ *  (there is no way to enumerate a function's scope from outside it). A script
+ *  shares the bodies' runtime scope (`$d`: the value constructors,
+ *  `colorWithAlpha`, `measureText`, the services), as the checker's prelude
+ *  says it does; the block runs one function in, so its own declarations
+ *  shadow those names rather than collide with them. */
 export function evalScript(js) {
     const pre = PRE_MAKE !== null && js.charCodeAt(0) === 0 ? PRE_SCRIPTS[parseInt(js.slice(1), 10)] : undefined;
-    const fn = pre ?? new Function(`"use strict"; ${js}`);
-    const out = fn();
+    const fn = pre ?? new Function("$d", `"use strict"; ${PRELUDE} return (function () { ${js}\n })();`);
+    const out = fn(SCOPE);
     return out !== null && typeof out === "object" ? out : {};
 }
 /** The destructuring line that puts the current program's helpers in scope.
@@ -140,7 +144,7 @@ export const CONSTRUCTOR_NAMES = Object.keys(DECOR);
  *  `contrast`, `invert`…) a program may well want as ATTRIBUTE names, so they
  *  are reserved as method names only: an attribute called `blur` shadows the
  *  constructor inside that node's own `{ }` bodies and nowhere else, and the
- *  bare-slot call form (`filter = blur(3)`) is unaffected by any member. */
+ *  bare-slot call form (`visualFilter = blur(3)`) is unaffected by any member. */
 export const FILTER_FN_NAMES = ["blur", "brightness", "contrast", "saturate", "grayscale", "invert", "sepia", "hueRotate", "colorize"];
 /** Compile a body's source to a function, or say why it can't be. The
  *  error text is a fragment ("is not a valid expression — …") for callers
@@ -340,6 +344,18 @@ function refineBodyError(src, raw, expression, slot = "") {
         const clean = syntaxValidator !== null ? syntaxValidator(wrapped, true) === null : !("error" in compileExpr(wrapped));
         if (clean) {
             return diag `${head} — this reads as an object literal, and the outer { } is the constraint's own delimiter; give the object its own braces: { { a: 1, b: 2 } }`;
+        }
+    }
+    // `x as T?` ending a line: TypeScript reads that `?` as the start of a ? : the
+    // next line continues, when the next line begins with a name. The probe is
+    // authoritative: the same body must parse once each such line ends with `;`.
+    if (!expression && /':' expected/.test(raw) && syntaxValidator !== null) {
+        const castEnds = /(\bas\s+[A-Za-z_$][\w$.]*(?:<[^<>\n]*>)?(?:\[\])*\?)([ \t]*)(?=\r?\n)/g;
+        if (castEnds.test(src)) {
+            const r = rewriteDatapaths(src.replace(castEnds, "$1;$2"), true);
+            if (!("error" in r) && syntaxValidator(r.src, false) === null) {
+                return diag `${head} — 'as T?' at the end of a line reads as the start of a ? : that the next line continues; end that line with ; or put the cast in parentheses: (v as Choice?)`;
+            }
         }
     }
     if (expression && looksLikeStatements(src, raw)) {

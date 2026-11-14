@@ -9,7 +9,9 @@ export declare function argNumber(lit: Literal): number | null;
 export declare function coerceStops(args: Literal[]): GradientStop[] | string;
 export declare function coerceFill(lit: Literal): Coerced;
 export declare function coerceStroke(lit: Literal): Coerced;
-export declare function coerceOutline(lit: Literal): Coerced;
+/** A Text's `textStroke`: ONE stroke along the glyphs' edges — the box stroke's
+ *  value without its per-side list (a glyph has no sides). */
+export declare function coerceGlyphStroke(lit: Literal): Coerced;
 export declare function coerceShadow(lit: Literal): Coerced;
 export declare function coerceMotion(lit: Literal): Coerced;
 export declare function coerceShape(lit: Literal): Coerced;

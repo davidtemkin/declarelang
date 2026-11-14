@@ -468,7 +468,6 @@ if (!MAC) {
   console.log("  to prove the third renderer too.\n");
 }
 
-summarize("conform");
 
 // ── pointer transparency ────────────────────────────────────────────────────
 // `pointerEvents = "none"` is documented for a full-viewport chrome overlay,
@@ -476,8 +475,10 @@ summarize("conform");
 // three hit walks had disagreed for as long as they had existed: the model
 // walk, canvas and mac each returned null at a "none" and never looked inside,
 // so an overlay's own panel was unreachable on two of three renderers (DOM
-// 1/101, canvas 0/0, mac 0/0 on a two-click probe). The rule these pin is
-// "none" makes THAT VIEW transparent and seals nothing.
+// 1/101, canvas 0/0, mac 0/0 on a two-click probe). The rule these pin
+// (ruled 2026-11-13): "none" switches off the view AND everything inside it, a
+// handler-bearing child included; a view inside that states `auto` switches its
+// own part back on.
 
 await test("conform: an `auto` panel inside a transparent overlay takes its press, everywhere", async () => {
   const r = await conform("test/probe/pointertransparent.declare", [],
@@ -486,13 +487,13 @@ await test("conform: an `auto` panel inside a transparent overlay takes its pres
   console.log(`    hosts agreeing: ${r.hosts.join(", ")}`);
 });
 
-await test("conform: a sink-carrying child of a transparent view takes its press, everywhere", async () => {
-  // States no pointerEvents of its own — the DOM gives it `auto` for carrying a
-  // sink, so an ancestor's "none" does not reach it. This is the case that
-  // makes the rule self-only rather than inherited.
+await test("conform: a sink-carrying child of a transparent view takes no press, everywhere", async () => {
+  // States no pointerEvents of its own, so its ancestor's "none" reaches it,
+  // handler and all: the press goes on to what lies beneath. Only `auto` (the
+  // panel, above) switches a part back on.
   const r = await conform("test/probe/pointertransparent.declare", [],
     `__declare.explainHit(400, 120).hit`, "sink child");
-  assert.equal(r.answers[0].value, "app.sink", "a handler-bearing child takes the point");
+  assert.equal(r.answers[0].value, null, "a handler-bearing child under none takes no point");
   console.log(`    hosts agreeing: ${r.hosts.join(", ")}`);
 });
 
@@ -513,6 +514,8 @@ await test("conform: the transparent view itself never takes a press, everywhere
   assert.notEqual(r.answers[0].value, "app", "a pointer-transparent view is not a target");
   console.log(`    hosts agreeing: ${r.hosts.join(", ")}`);
 });
+
+summarize("conform");
 
 await browser.close();
 if (server?.close) server.close();

@@ -320,7 +320,7 @@ class Cell [ clip = true,
         ],
     dow: Text [ x = 34, y = 8, fontSize = 11, wrap = false, opacity = { classroot.rowBlock },
         textColor = { :current ? provided("theme").currentDayText : provided("theme").textMuted }, text = { :dow } ],
-    Ev [ datapath = :events[], key = :id, rowBlock = { classroot.rowBlock }, inView = { classroot.inView } ],
+    Ev [ datapath = :events[], identityKey = :id, rowBlock = { classroot.rowBlock }, inView = { classroot.inView } ],
 
     onClick() { app.pickDay(:key) }
     ]
@@ -756,17 +756,17 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
             cornerRadius = 12, fill = { mix(provided("theme").background, provided("theme").miniCurrentBg, app.yearZoom) },
             scale = { app.yearScale }, pivotX = { app.miniW / 2 }, pivotY = { app.miniH / 2 } ],
         weekdays: View [ opacity = { (1 - app.blockness) * (1 - app.yearZoom) }, datapath = { app.labels.value },
-            View [ datapath = :cols[], key = :col, x = { app.pad + :col * (app.bodyW - 2 * app.pad) / 7 + 11 },
+            View [ datapath = :cols[], identityKey = :col, x = { app.pad + :col * (app.bodyW - 2 * app.pad) / 7 + 11 },
                 l: Text [ y = 9, fontSize = 11, wrap = false, textColor = { provided("theme").textMuted }, text = { :name } ]
                 ]
             ],
         hours: View [ opacity = { app.blockness }, datapath = { app.labels.value },
-            View [ datapath = :hours[], key = :h, y = { app.headH + :h / 24 * (app.bodyH - app.headH) }, width = { app.bodyW }, height = 1, fill = { provided("theme").gridLine },
+            View [ datapath = :hours[], identityKey = :h, y = { app.headH + :h / 24 * (app.bodyH - app.headH) }, width = { app.bodyW }, height = 1, fill = { provided("theme").gridLine },
                 lbl: Text [ x = 6, y = 1, fontSize = 10, wrap = false, textColor = { provided("theme").hourLabel }, text = { :label } ]
                 ]
             ],
         grid: View [ datapath = { app.cal.value },
-            Cell [ datapath = :grid[], key = :key ]
+            Cell [ datapath = :grid[], identityKey = :key ]
             ],
         yearName: Text [ x = { app.slotX + 14 }, y = { app.slotY + 11 }, fontSize = 13, fontWeight = semibold, wrap = false,
             textColor = { provided("theme").todayText }, text = { monthName(app.month) },
@@ -780,7 +780,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
         opacity = { clamp((app.yearZoom - 0.5) / 0.3, 0, 1) },
         scale = { app.yearScale }, pivotX = { app.slotX + app.miniW / 2 }, pivotY = { app.slotY + app.miniH / 2 },
         grid: View [ width = 100%, height = 100%, datapath = { app.yearCal.value },
-            MiniMonth [ datapath = :months[], key = :m ]
+            MiniMonth [ datapath = :months[], identityKey = :m ]
             ]
         ],
 
@@ -873,10 +873,10 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
             brand: View [ height = 22,
                 layout: SimpleLayout [ axis = x, spacing = 5 ],
 
-                // the word "Declare" is the way home — navigate() resolves against the
+                // the word "Declare" is the way home — openURL() resolves against the
                 // distro root, so this works on either host at any mount point
 
-                Control [ press() { app.navigate("apps/homepage/homepage.declare") },
+                Control [ press() { app.openURL("apps/homepage/homepage.declare") },
                     accessibilityRole = link,
                     Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false, textFill = { gradient("90deg", provided("theme").accent, provided("theme").accentSecondary) }, text = "Declare" ]
                     ],
@@ -890,7 +890,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
             themeSwitch: AppearanceSwitch [
                 visible = { app.showTheme },
                 dark = { app.isDark },
-                input(v: boolean) { app.themeMode = v ? "dark" : "light" }
+                commit(v: boolean) { app.themeMode = v ? "dark" : "light" }
                 ],
 
             Spacer [ ],
@@ -898,7 +898,7 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
             // quiet like the tabs beside it: muted until the pointer is on it
 
             today: Button [ height = 34, fontSize = 13, label = "Today",
-                inkColor = { hovered || pressed ? provided("theme").text : provided("theme").textMuted },
+                ink = { hovered || pressed ? provided("theme").text : provided("theme").textMuted },
                 onClick() { app.today() }
                 ],
 
@@ -906,15 +906,15 @@ App [ minWidth = 360, minHeight = 420, appName = "Declare Calendar",
             // tab stops, arrow-key roving, and the shared look.
             //
             // The labels shorten to single letters when the bar narrows, which the
-            // data carries: `choices` is a constraint like any other.
+            // data carries: `items` is a constraint like any other.
 
             tabs: Segmented [ height = 34, width = { app.tabsW },
                 value = { app.mode },
-                input(v: object) { app.goMode(v as "day" | "week" | "month" | "year") },
-                choices = { [ ({ id: "day",   label: app.tabsCompact ? "D" : "Day" }),
-                              ({ id: "week",  label: app.tabsCompact ? "W" : "Week" }),
-                              ({ id: "month", label: app.tabsCompact ? "M" : "Month" }),
-                              ({ id: "year",  label: app.tabsCompact ? "Y" : "Year" }) ] }
+                commit(v: object) { app.goMode(v as "day" | "week" | "month" | "year") },
+                items = { [ ({ id: "day",   label: app.tabsCompact ? "D" : "Day" }),
+                            ({ id: "week",  label: app.tabsCompact ? "W" : "Week" }),
+                            ({ id: "month", label: app.tabsCompact ? "M" : "Month" }),
+                            ({ id: "year",  label: app.tabsCompact ? "Y" : "Year" }) ] }
                 ]
             ],
 

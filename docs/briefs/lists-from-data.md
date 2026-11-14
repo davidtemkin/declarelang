@@ -28,7 +28,7 @@ App [ width = 320, height = 200, fill = white,
 - Filter, sort or group in a **derived** `Dataset` (`contents = { … }`). It holds the
   source's own records, so a row bound to it writes the real record.
 - A row's position is `rowIndex`. Don't stamp index fields into the records.
-- Identity is a record's `id`; name another field with `key = :field`.
+- Identity is a record's `id`; name another field with `identityKey = :field`.
 - Count the data (`.value.rows.length`), never the rendered children.
 - A row's whole record is `:@` — typed by the schema, for a method that takes it
   (`rec: Task = { :@ }`), instead of looking it up by id.

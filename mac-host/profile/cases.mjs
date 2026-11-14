@@ -256,10 +256,10 @@ export const CASES = [
     steps: [
       { until: "app.market?.ready && app.nDays > 1", timeout: 30000, or: "the market data did not load within 30 s" },
       { bind: "s", to: "@scrubber", or: "no scrubber slider found" },
-      { call: "@s.input", args: ["@s.min"] },
+      { call: "@s.commit", args: ["@s.min"] },
       { wait: 1500 },
       { reset: true },
-      { ramp: ["@s.input"], from: ["@s.min"], to: ["@s.max"], frames: 150, as: "call", round: true,
+      { ramp: ["@s.commit"], from: ["@s.min"], to: ["@s.max"], frames: 150, as: "call", round: true,
         track: "Math.abs(app.targetDay - app.day)" },
       { wait: 1500 },
     ],

@@ -1,0 +1,15 @@
+// The browser-tier Image failure fixture (test/network-browser.test.mjs): a
+// source that reads its own `failed` (said and held, not loaded without end),
+// and a plain source re-pointed from a failing address to a good one.
+
+class Avatar extends Image [ width = 24, height = 24,
+    url: string = "",
+    source = { classroot.url == "" || classroot.failed ? "dot.png" : classroot.url }
+    ]
+
+
+App [ width = 200, height = 60, fill = white,
+    u: string = "net-live.json",
+    a: Avatar [ url = "net-live.json" ],
+    pic: Image [ x = 40, width = 24, height = 24, source = { app.u } ]
+    ]

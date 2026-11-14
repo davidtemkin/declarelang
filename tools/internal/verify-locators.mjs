@@ -170,7 +170,9 @@ function resolveInPage(steps) {
         // words (spacing aside) cannot either, so it is never asked — a page of 650
         // seats paid innerText for every element and its children on each query
         const could = (el) => s.name == null || s.name.re !== undefined || squash(el.textContent).includes(squash(s.name.s));
-        cur = below(cur, (el) => could(el) && fits(text(el), s.name, s.exact) && !hidden(el) && ![...el.children].some((c) => could(c) && fits(text(c), s.name, s.exact)));
+        // what the platform only says aloud (its announcer) is not on the page:
+        // expect.announced is how a script checks it
+        cur = below(cur, (el) => could(el) && el.closest("[data-declare-announcer]") === null && fits(text(el), s.name, s.exact) && !hidden(el) && ![...el.children].some((c) => could(c) && fits(text(c), s.name, s.exact)));
       } else if (s.by === "altText") {
         cur = below(cur, (el) => !hidden(el) && el.hasAttribute("alt") && fits(el.getAttribute("alt"), s.name, s.exact));
       } else if (s.by === "title") {
@@ -235,7 +237,31 @@ export async function pressChord(page, name) {
 }
 const CLICK_OPTIONS = new Set(["button", "clickCount", "force", "modifiers", "noWaitAfter", "position", "timeout", "trial"]);
 
-export function withLocators(page, { act, settle, advance, pause = async () => {}, fail: refuse = (m) => { throw new Error(m); }, judged = () => {} }) {
+/** The finite motion in flight, named by what it moves and where — "Spring on
+ *  x, y of app.panel" — or "" when none. The settle rule's own (clock.settling):
+ *  a Time or a `repeat = Infinity` loop is life and never named, so a note made
+ *  of this is never a standing tail on every failure; and named, a reader sees
+ *  whether the motion could be what the check found (a focus ring gliding is not
+ *  a count left at 0). */
+export async function inFlight(page) {
+  const list = await page.evaluate(() => window.__declare?.clock?.settling === true ? (window.__declare.moving?.() ?? ["motion"]) : []).catch(() => []);
+  if (list.length === 0) return "";
+  const by = new Map();
+  for (const m of list) {
+    const r = /^(\w+)(?: \(([^)]*)\))?(?: on (.*))?$/.exec(m);
+    const k = r ? `${r[1]} on ${r[3] ?? "the program"}` : m;
+    if (!by.has(k)) by.set(k, []);
+    if (r?.[2]) by.get(k).push(r[2]);
+  }
+  const said = [...by].map(([k, attrs]) => attrs.length > 0 ? k.replace(" on ", ` on ${attrs.join(", ")} of `) : k);
+  return said.slice(0, 4).join("; ") + (said.length > 4 ? `; and ${said.length - 4} more` : "");
+}
+
+/** What refuses a scroll toward a view while an overlay is open: its scroll
+ *  hold, named — said alike by the driver's swipes and a locator's reach. */
+export const heldBy = (held) => `the open ${held.kind} '${held.path}' holds scrolling outside it while it is open (scrollBelow = block), as it holds a person's, whose first press outside it would only close it — close it first (Escape, or the choice that ends it)`;
+
+export function withLocators(page, { act, series, settle, advance, fail: refuse = (m) => { throw new Error(m); }, judged = () => {} }) {
   // the script's line that reached the locator or expect last: a failure names it,
   // so "found nothing within 5 s" says which of a script's lookups it was
   let site = null;
@@ -265,21 +291,40 @@ export function withLocators(page, { act, settle, advance, pause = async () => {
 
   // ONE element to act on, as Playwright's strict mode has it: two or more is an error
   // naming them; none, or one not yet shown, is waited for (the driven clock moving)
+  // the program's clock is the script's: motion still in flight (a sheet rising)
+  // has not landed, however long a wait runs — said beside a failure, with the
+  // way on. `maybe` names what the script wanted when the motion is only a
+  // possible reason (the locator may simply not match); null when it is the likely one.
+  const motionNote = async (maybe) => {
+    const moving = await inFlight(page);
+    if (moving === "") return "";
+    return maybe !== null
+      ? ` — motion is still in flight on the program's clock, which the script holds (${moving}); if what you are ${maybe} appears when it lands, let it land first (drive.settleMotion())`
+      : ` — motion is still in flight on the program's clock, which the script holds (${moving}): let it land first (drive.settleMotion())`;
+  };
+  // each match said by the view it is drawn for, the words it shows, and the live
+  // region it sits in — so two matches that read alike can be told apart
+  const strictly = async (steps, found) => {
+    const listed = found.slice(0, 8);
+    const whats = await onAll((els, n) => els.slice(0, n).map((el) => {
+      const tag = `<${el.tagName.toLowerCase()}${el.getAttribute("role") ? ` role=${el.getAttribute("role")}` : ""}>`;
+      const view = window.__declare?.profile?.viewOf?.(el)?.view ?? null;
+      const words = (el.innerText || el.textContent || "").replace(/\s+/g, " ").trim();
+      const live = el.closest("[aria-live]")?.getAttribute("aria-live");
+      return `${view !== null ? `${view} ${tag}` : tag} "${words.length > 60 ? words.slice(0, 59) + "…" : words}"${live ? ` in an aria-live="${live}" region` : ""}`;
+    }), listed.length).catch(() => listed.map((h) => h.what));
+    return `${describe(steps)} matches ${found.length} elements — name it more closely (exact: true), scope it inside another locator, or take .first() / .nth(i): ${whats.join("; ")}${found.length > 8 ? "; …" : ""}`;
+  };
   const one = async (steps, timeout = 5000) => {
     const until = Date.now() + timeout;
     for (;;) {
       const found = await find(steps);
-      if (found.length > 1) fail(`${describe(steps)} matches ${found.length} elements — name it more closely, scope it inside another locator, or take .first() / .nth(i): ${found.slice(0, 8).map((h) => h.what).join(", ")}${found.length > 8 ? ", …" : ""}`);
+      if (found.length > 1) fail(await strictly(steps, found));
       if (found.length === 1 && found[0].shown) return found[0].i;
       if (Date.now() > until) {
-        // the program's clock is the script's: motion still in flight (a sheet
-        // rising) has not landed, however long the wait — say so, and the way on
-        const moving = await page.evaluate(() => window.__declare?.clock?.settling === true).catch(() => false);
         // found but not shown: the motion is the likely reason; found nothing: only
         // a possible one (the locator may simply not match), and said as such
-        const why = !moving ? "" : found.length === 0
-          ? " — motion is still in flight on the program's clock, which the script holds; if what you are looking for appears when it lands, let it land first (drive.settleMotion())"
-          : " — motion is still in flight on the program's clock, which the script holds: let it land first (drive.settleMotion())";
+        const why = await motionNote(found.length === 0 ? "looking for" : null);
         fail((found.length === 0 ? `${describe(steps)} found nothing within ${timeout / 1000} s` : `${describe(steps)} found ${found[0].what}, which is not shown`) + why);
       }
       await tick();
@@ -293,6 +338,23 @@ export function withLocators(page, { act, settle, advance, pause = async () => {
   const spot = (i, at) => on(i, (el, at) => { const r = el.getBoundingClientRect(); return at ? { x: r.left + at.x, y: r.top + at.y } : { x: r.left + r.width / 2, y: r.top + r.height / 2 }; }, at ?? null);
   const frame = () => page.evaluate(() => new Promise((r) => requestAnimationFrame(() => r())));
   const aim = async (i, steps, o = {}) => {
+    // AN OPEN OVERLAY'S SCROLL HOLD (a Menu's list, open over the page) refuses
+    // the scroll that would bring a view outside the window in, as it refuses a
+    // person's — whose first press outside it only closes it. Said, naming it,
+    // as the driver's swipes are refused, never scrolled past
+    if (o.force !== true) {
+      const held = await on(i, (el) => {
+        const r = el.getBoundingClientRect();
+        if (r.top >= 0 && r.left >= 0 && r.bottom <= innerHeight && r.right <= innerWidth) return null;
+        const d = window.__declare, p = d?.profile?.viewOf?.(el)?.view?.replace(/ \(.*\)$/, "");
+        return p ? d.scrollHeld?.(p) ?? null : null;
+      });
+      if (held) fail(`${describe(steps)} is outside the window, and ${heldBy(held)}`);
+    }
+    // brought into view as a person's Tab brings it: the platform's reveal, which
+    // lands clear of bars pinned over the scroller (ignoreScroll); the DOM's own
+    // scroll only for what no view holds, or what the reveal left outside the window
+    await on(i, (el) => window.__declare?.reveal?.(el));
     await on(i, (el) => el.scrollIntoView({ block: "nearest" }));
     let c = await spot(i, o.position);
     for (let tries = 0, same = 0; same < 3; tries++) {
@@ -307,7 +369,7 @@ export function withLocators(page, { act, settle, advance, pause = async () => {
         const t = document.elementFromPoint(p.x, p.y);
         // a view sliding in (a sheet opening) holds still where its motion paused,
         // since time is the script's: said, or it reads as a view laid out off-screen
-        if (t === null) return "nothing — the point is outside the window (a view still opening or sliding in stays where its motion paused until the script lets time pass: drive.settleMotion() first)";
+        if (t === null) return { outside: true };
         if (el === t || el.contains(t)) return null;
         const v = window.__declare?.profile?.viewOf?.(t)?.view;
         // the hit is a view that holds the target's own (a list row around the
@@ -320,6 +382,7 @@ export function withLocators(page, { act, settle, advance, pause = async () => {
         const label = t.getAttribute("aria-label") || (t.textContent ?? "").trim().slice(0, 40);
         return `${v ?? "<" + t.tagName.toLowerCase() + ">"}${label ? ` ("${label}")` : ""}`;
       }, c);
+      if (cover !== null && typeof cover === "object") fail(`${describe(steps)}: its ${o.position ? "point" : "centre"} (${Math.round(c.x)}, ${Math.round(c.y)}) is outside the window, and bringing it into view did not move it there — a person could not reach it (is what holds it a scroller with room to scroll?). A view still opening or sliding in stays where its motion paused until the script lets time pass: drive.settleMotion() first`);
       if (cover !== null) fail(`${describe(steps)}: a press at its ${o.position ? "point" : "centre"} (${Math.round(c.x)}, ${Math.round(c.y)}) would land on ${cover}, which covers it there — what a person would touch. Close or move what covers it; force: true presses there anyway`);
     }
     return c;
@@ -329,7 +392,12 @@ export function withLocators(page, { act, settle, advance, pause = async () => {
     if (odd.length > 0) fail(`${verb}({ ${odd.join(", ")} }): not an option here — ${[...CLICK_OPTIONS].join(", ")}${odd.includes("delay") ? " (time between presses is the script's: drive.wait(ms))" : ""}`);
     if (o.button !== undefined && !["left", "right", "middle"].includes(o.button)) fail(`${verb}({ button: ${JSON.stringify(o.button)} }): a button is "left", "right" or "middle"`);
   };
-  const typeInto = async (i, text) => {
+  // a person types into a field they can reach: brought into view and not
+  // covered, as a click is (aim) — a field off the window or under another
+  // view is said, not typed into behind the screen. force: true skips it.
+  const reachToType = async (i, steps, o = {}) => { if (o.force !== true) await aim(i, steps, o); };
+  const typeInto = async (i, text, steps = null, o = {}) => {
+    if (steps !== null) await reachToType(i, steps, o);
     await on(i, (el) => el.focus());
     await page.keyboard.type(String(text));
     await settle();
@@ -376,8 +444,10 @@ export function withLocators(page, { act, settle, advance, pause = async () => {
         if (o.trial === true) return;
         const mods = (o.modifiers ?? []).map((m) => parseChord(m + "+x").mods[0]);
         for (const m of mods) await page.keyboard.down(m);
-        // a double is two presses a person's beat apart, inside the platform's window
-        for (let k = 0; k < (o.clickCount ?? 1); k++) { if (k > 0) await pause(100); await act(c.x, c.y, { button: o.button, count: k + 1 }); }
+        // a double is two presses a person's beat apart, inside the platform's
+        // window, numbered 1 then 2 — the driver's series, nothing between them
+        if ((o.clickCount ?? 1) > 1) await series(c.x, c.y, { button: o.button ?? "left", count: o.clickCount });
+        else await act(c.x, c.y, { button: o.button });
         for (const m of [...mods].reverse()) await page.keyboard.up(m);
         await settle();
       },
@@ -386,6 +456,7 @@ export function withLocators(page, { act, settle, advance, pause = async () => {
       async hover(o = {}) { const c = await aim(await one(steps, o.timeout), steps, o); await page.mouse.move(c.x, c.y); await settle(); },
       async fill(value, o = {}) {
         const i = await one(steps, o.timeout);
+        await reachToType(i, steps, o);
         await on(i, (el) => { el.focus(); if (typeof el.select === "function") el.select(); });
         // the value arrives whole, in one input event, as Playwright's fill sets it
         // (and as a paste or autofill does) — not key by key, which a field reads
@@ -396,9 +467,9 @@ export function withLocators(page, { act, settle, advance, pause = async () => {
         await settle();
       },
       async clear(o = {}) { return api.fill("", o); },
-      async pressSequentially(text, o = {}) { await typeInto(await one(steps, o.timeout), text); },
-      async type(text, o = {}) { await typeInto(await one(steps, o.timeout), text); },
-      async press(key, o = {}) { const i = await one(steps, o.timeout); await on(i, (el) => el.focus()); await pressChord(page, key); await settle(); },
+      async pressSequentially(text, o = {}) { await typeInto(await one(steps, o.timeout), text, steps, o); },
+      async type(text, o = {}) { await typeInto(await one(steps, o.timeout), text, steps, o); },
+      async press(key, o = {}) { const i = await one(steps, o.timeout); await reachToType(i, steps, o); await on(i, (el) => el.focus()); await pressChord(page, key); await settle(); },
       async check(o = {}) { if (!(await api.isChecked(o))) await api.click(o); },
       async uncheck(o = {}) { if (await api.isChecked(o)) await api.click(o); },
       async setChecked(v, o = {}) { return v ? api.check(o) : api.uncheck(o); },
@@ -420,7 +491,7 @@ export function withLocators(page, { act, settle, advance, pause = async () => {
         return chosen;
       },
       async scrollIntoViewIfNeeded(o = {}) { const i = await one(steps, o.timeout); await on(i, (el) => el.scrollIntoView({ block: "nearest" })); await settle(); },
-      async isVisible() { const hs = await find(steps); return hs.some((h) => h.shown); },
+      async isVisible() { const hs = await find(steps); if (hs.length > 1) fail(await strictly(steps, hs)); return hs.some((h) => h.shown); },
       async isHidden() { return !(await api.isVisible()); },
       async isDisabled(o = {}) { const i = await one(steps, o.timeout); return on(i, (el) => el.disabled === true || el.closest('[aria-disabled="true"]') !== null); },
       async isEnabled(o = {}) { return !(await api.isDisabled(o)); },
@@ -444,6 +515,7 @@ export function withLocators(page, { act, settle, advance, pause = async () => {
         const until = Date.now() + timeout;
         for (;;) {
           const hs = await find(steps);
+          if (hs.length > 1 && state !== "attached" && state !== "detached") fail(await strictly(steps, hs));
           const vis = hs.some((h) => h.shown);
           if ((state === "visible" && vis) || (state === "hidden" && !vis) || (state === "attached" && hs.length > 0) || (state === "detached" && hs.length === 0)) return;
           if (Date.now() > until) fail(`${describe(steps)} did not become ${state} within ${timeout / 1000} s`);
@@ -471,7 +543,7 @@ export function withLocators(page, { act, settle, advance, pause = async () => {
       const r = await check();
       if (r.ok) { judged(); return; }
       last = r.got;
-      if (Date.now() > until) fail(`${label} — got ${last} (after ${timeout / 1000} s)`);
+      if (Date.now() > until) fail(`${label} — got ${last} (after ${timeout / 1000} s)${await motionNote("expecting")}`);
       await tick();
     }
   };
@@ -483,7 +555,10 @@ export function withLocators(page, { act, settle, advance, pause = async () => {
   const locatorMatchers = (l, not) => {
     const steps = stepsOf(l);
     const d = describe(steps);
-    const first = async () => { const hs = await find(steps); return hs.length === 0 ? null : hs[0]; };
+    // strict, as Playwright's expect is: a check of one element's state on a
+    // locator that matches two reads neither — it fails at once, naming them
+    // (7GUIs run 2: getByLabel("Count") read the tab "Counter", not the field)
+    const first = async () => { const hs = await find(steps); if (hs.length > 1) fail(await strictly(steps, hs)); return hs.length === 0 ? null : hs[0]; };
     const read = async (fn, arg) => { const h = await first(); return h === null ? undefined : on(h.i, fn, arg); };
     const m = (label, test, show) => async (o = {}) => retry(`expect(${d})${not ? ".not" : ""}.${label}`, async () => {
       const got = await test();
@@ -491,8 +566,8 @@ export function withLocators(page, { act, settle, advance, pause = async () => {
     }, o.timeout);
     const T = (el) => el.innerText ?? el.textContent ?? "";
     return {
-      toBeVisible: m("toBeVisible()", async () => { const hs = await find(steps); return { pass: hs.some((h) => h.shown), n: hs.length }; }, (g) => g.n === 0 ? "no element" : g.pass ? "visible" : "not visible"),
-      toBeHidden: m("toBeHidden()", async () => { const hs = await find(steps); return { pass: !hs.some((h) => h.shown) }; }, (g) => g.pass ? "hidden" : "visible"),
+      toBeVisible: m("toBeVisible()", async () => { const hs = await find(steps); if (hs.length > 1) fail(await strictly(steps, hs)); return { pass: hs.some((h) => h.shown), n: hs.length }; }, (g) => g.n === 0 ? "no element" : g.pass ? "visible" : "not visible"),
+      toBeHidden: m("toBeHidden()", async () => { const hs = await find(steps); if (hs.length > 1) fail(await strictly(steps, hs)); return { pass: !hs.some((h) => h.shown) }; }, (g) => g.pass ? "hidden" : "visible"),
       toBeEnabled: m("toBeEnabled()", async () => { const v = await read((el) => !(el.disabled === true || el.closest('[aria-disabled="true"]') !== null)); return { pass: v === true, v }; }, (g) => g.v === undefined ? "no element" : g.v ? "enabled" : "disabled"),
       toBeDisabled: m("toBeDisabled()", async () => { const v = await read((el) => el.disabled === true || el.closest('[aria-disabled="true"]') !== null); return { pass: v === true, v }; }, (g) => g.v === undefined ? "no element" : g.v ? "disabled" : "enabled"),
       toBeChecked: (o = {}) => m("toBeChecked()", async () => { const v = await read((el) => el.checked === true || el.getAttribute("aria-checked") === "true" || el.getAttribute("aria-pressed") === "true"); return { pass: v === (o.checked ?? true), v }; }, (g) => g.v === undefined ? "no element" : g.v ? "checked" : "not checked")(o),
@@ -576,7 +651,7 @@ export function withLocators(page, { act, settle, advance, pause = async () => {
   });
   const mouse = new Proxy(page.mouse, {
     get(t, k) {
-      if (k === "dblclick") return async (x, y, o = {}) => { await t.click(x, y, { ...o, count: 2 }); await settle(); };
+      if (k === "dblclick") return async (x, y, o = {}) => { await series(x, y, { button: o.button ?? "left", count: 2 }); await settle(); };
       const v = t[k];
       return typeof v === "function" ? v.bind(t) : v;
     },

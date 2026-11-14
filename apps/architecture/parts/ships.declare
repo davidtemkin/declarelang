@@ -224,7 +224,7 @@ class Shot [ cornerRadius = 8, clip = true,
     height = { this.width * this.aspect },
     stroke = { stroke(1, provided("theme").line) },
     shadow = { shadow(0, 4, 14, 0x00000024) },
-    Image [ width = 100%, height = 100%, stretches = both, source = { classroot.src } ]
+    Image [ width = 100%, height = 100%, fit = both, source = { classroot.src } ]
     ]
 
 
@@ -255,8 +255,8 @@ class ShipsFig [
 
     head: View [
         Segmented [ x = center, width = { Math.min(420, parent.width) }, height = 32, value = { classroot.build },
-            choices = { [ ({ id: "calDom", label: "DOM" }), ({ id: "calCanvas", label: "Canvas" }), ({ id: "calMac", label: "Mac host" }) ] },
-            input(v: object) { classroot.build = "" + v }
+            items = { [ ({ id: "calDom", label: "DOM" }), ({ id: "calCanvas", label: "Canvas" }), ({ id: "calMac", label: "Mac host" }) ] },
+            commit(v: object) { classroot.build = "" + v }
             ]
         ],
     Spring [ attribute = shown, to = { classroot.sizes.totals[classroot.build] ?? 0 }, stiffness = 90, damping = 18 ],

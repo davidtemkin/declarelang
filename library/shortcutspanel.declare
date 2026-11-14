@@ -34,7 +34,7 @@ What it lists: `Keyboard.shortcutsInForce()` as the hold began.
 ## grouped()
 The list as rows: a heading per group, in the order groups first appear, then its keys.
 
-## rows
+## _rows
 **Internal.** The rows, as the dataset the panel replicates over.
 
 ## visible
@@ -44,7 +44,7 @@ Follows `shown`.
 The theme's `surface`.
 
 ## datapath
-The panel's `rows`: one line per binding, a heading per group.
+The rows `grouped()` makes: one line per binding, a heading per group.
 
 ## _hold
 **Internal.** Hears ⌘ held alone, and let go.
@@ -66,7 +66,7 @@ class ShortcutsPanel [ x = center, y = center, width = 340, ignoreLayout = true,
             }
         return out
         },
-    rows: Dataset [ contents = { { rows: classroot.grouped(classroot.list) } } ],
+    _rows: Dataset [ contents = { { rows: classroot.grouped(classroot.list) } } ],
     _hold: KeyListener [ onCommandHeld(on: boolean) {
         const p = classroot
         if (on && p.active) { p.list = Keyboard.shortcutsInForce(); p.shown = p.list.length > 0 }
@@ -79,7 +79,7 @@ class ShortcutsPanel [ x = center, y = center, width = 340, ignoreLayout = true,
     fill = { provided("theme").surface }, shadow = shadow(0, 16, 50, #00000059),
     accessibilityRole = region, accessibilityLabel = "Keyboard shortcuts",
     layout: SimpleLayout [ axis = y ],
-    datapath = { this.rows.value },
+    datapath = { this._rows.value },
     ShortcutsPanelRow [ datapath = :rows[], classFor = { :kind == "head" ? ShortcutsPanelHead : ShortcutsPanelLine } ]
     ]
 

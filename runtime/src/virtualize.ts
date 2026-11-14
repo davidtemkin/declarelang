@@ -64,6 +64,7 @@ import { insetLead } from "./value.js";
 import { markPresented, type Dataset } from "./data.js";
 import type { PathNode } from "./select.js";
 import type { Surface } from "./backend.js";
+import { isDeferred } from "./deferred-surface.js";
 import { armTree, focusedWithin, reportInstanceThrow, subtreeDiverged, type Match, type Materialize, type MaterializationDiag } from "./replicate.js";
 
 const DEFAULT_UNIT = 24;      // pre-measurement row-extent estimate (corrected by the first real row)
@@ -451,6 +452,10 @@ export class Windowing {
     if (h > gap) this.measured = true;
     this.unit = h > gap ? h : this.unit > 0 ? this.unit : DEFAULT_UNIT + gap;
 
+    // a record's identity rewritten in place (a write to its id field) keeps
+    // the array but not the membership: a mounted row whose place no longer
+    // holds its record is that change
+    if (!dataChanged) for (const [id, r] of this.rows) if (!Object.is(host.idOf(arr[r.index]), id)) { dataChanged = true; break; }
     // a new membership: the ledger re-seats its corrections, and the reader's
     // member, if it moved (records arriving above it), takes the view along
     if (dataChanged || this.ledgerIds === null || this.ledger.shouldRebaseline()) {
@@ -786,6 +791,7 @@ export class Windowing {
         }
       }
     }
+    if (pointed.size > 0) this.inDataOrder();
     // a row presenting a record it was not presenting takes its geometry outright
     for (const v of pointed) arriveSubtree(v);
 
@@ -895,6 +901,36 @@ export class Windowing {
     this.heightOwner = null;
   }
 
+  /** The mounted rows in their records' order among the parent's children, and
+   *  their surfaces likewise, the parked rows after them: Tab and assistive
+   *  tech walk the tree, so a re-pointed row takes its record's place, not the
+   *  one its view held. Only the surfaces out of order move. */
+  private inDataOrder(): void {
+    const want = [...this.rows.values()].sort((a, b) => a.index - b.index).map((r) => r.view);
+    const mounted = new Set(want);
+    for (const v of this.owned) if (!mounted.has(v)) want.push(v);
+    if (want.length !== this.owned.length || want.every((v, i) => v === this.owned[i])) return;
+    const parent = this.host.parent, at = this.host.start();
+    const was = new Map(this.owned.map((v, i) => [v, i]));
+    const keep = inOrder(want.map((v) => was.get(v)!));
+    for (const v of this.owned) parent.$removeChild(v);
+    want.forEach((v, i) => parent.$insertChild(v, at + i));
+    this.owned = want;
+    const ps = parent.$surface;
+    if (ps === null || parent.$backend === null) return;
+    let before: Surface | null = null;
+    for (let i = at + want.length; i < parent.children.length && before === null; i++) {
+      const sib = parent.children[i];
+      if (sib instanceof View && sib.$surface !== null && !isDeferred(sib.$surface)) before = sib.$surface;
+    }
+    for (let i = want.length - 1; i >= 0; i--) {
+      const s = want[i].$surface;
+      if (s === null || isDeferred(s) || (s as { isTraveling?(): boolean }).isTraveling?.() === true) continue;
+      if (!keep.has(i)) ps.insertChild(s, before);
+      before = s;
+    }
+  }
+
   private park(v: View): void {
     setBound(v, "visible", false);
     // a parked row presents no record: nothing asking rows for their place
@@ -917,4 +953,19 @@ export class Windowing {
     this.owned = this.owned.filter((o) => o !== v);
     v.discard();
   }
+}
+
+/** The positions of a longest increasing run in `xs` (patience sorting): the
+ *  entries already in order, which need not move. */
+function inOrder(xs: readonly number[]): Set<number> {
+  const tails: number[] = [], prev: number[] = new Array(xs.length).fill(-1);
+  for (let i = 0; i < xs.length; i++) {
+    let lo = 0, hi = tails.length;
+    while (lo < hi) { const mid = (lo + hi) >> 1; if (xs[tails[mid]] < xs[i]) lo = mid + 1; else hi = mid; }
+    if (lo > 0) prev[i] = tails[lo - 1];
+    tails[lo] = i;
+  }
+  const out = new Set<number>();
+  for (let i = tails.length > 0 ? tails[tails.length - 1] : -1; i >= 0; i = prev[i]) out.add(i);
+  return out;
 }

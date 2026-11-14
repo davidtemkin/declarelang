@@ -63,9 +63,9 @@ export interface MaterializationDiag {
     extent: "measured" | "predicted" | null;
     fallback: string | null;
     /** Which identity rule keys these records (the revised ladder): the
-     *  explicit `key =`, the inferred `id` convention, or object identity —
+     *  explicit `identityKey =`, the inferred `id` convention, or object identity —
      *  with the structural fallback beneath the keyless modes. */
-    identity: "key" | "id" | "object";
+    identity: "identityKey" | "id" | "object";
 }
 export interface Match {
     data: Dataset | null;
@@ -126,7 +126,7 @@ export declare class Replicator {
     protected readonly template: Element;
     private readonly constraint;
     /** The record field that identifies an instance across re-derivations
-     *  (`key = :field`), split into segments — or null to reconcile by object
+     *  (`identityKey = :field`), split into segments — or null to reconcile by object
      *  identity (===), the default. A derived collection produces FRESH record
      *  objects every recompute, so identity would rebuild all of them; a key
      *  pools by a stable field, so only genuinely changed records rebuild. */
@@ -198,13 +198,13 @@ export declare class Replicator {
     /** What the windowed half needs from this block. */
     private windowHost;
     /** A record's pooling identity, per the REVISED ladder (ruled 2026-07-30,
-     *  the invisible version): the explicit `key = :field` override first,
+     *  the invisible version): the explicit `identityKey = :field` override first,
      *  then the INFERRED convention — a record's own scalar `id` field IS its
      *  identity, no declaration anywhere — then the record object itself
      *  (===; the structural-equality fallback catches misses beneath that). */
     private idOf;
     /** The identity mode in force — the inspector's honesty about an invisible
-     *  rule (key | id | object; structural fallback applies on misses either
+     *  rule (identityKey | id | object; structural fallback applies on misses either
      *  way when keyless). */
     private identityMode;
     private reconcile;

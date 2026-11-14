@@ -81,10 +81,9 @@ function buildTree(src: string, policy: Unsupported, opts?: ReadOptions): El {
     }
 
     // AN INLINE VIEW, read before the whitelist and case-SENSITIVELY: a tag
-    // whose name is a class the program declares creates one real view of that
-    // class, placed in the flowing text. This is also the tie-break the ruling
-    // names — a program class called exactly like a whitelisted tag (a class
-    // literally named `code`) wins here in rich text.
+    // the `tagViews` map names creates one real view of the class it maps to,
+    // placed in the flowing text. The map is the author's statement, so an
+    // entry for a whitelisted tag's name (`code`) wins here in rich text.
     if (opts?.isClass !== undefined) {
       const vt = scanViewTag(src, lt, opts.isClass);
       if (vt !== null) {

@@ -261,7 +261,7 @@ await test("membership init also governs keyed re-derivation (the ruling is gene
     raw: Dataset { { "rows": [ { "id": "a" }, { "id": "b" } ] } },
     derived: Dataset [ contents = { { rows: (app.raw.read(["rows"]) ?? []).map(r => ({ id: r.id })) } } ],
     list: View [ datapath = { derived.value },
-      View [ datapath = :rows[], key = :id, height = 10,
+      View [ datapath = :rows[], identityKey = :id, height = 10,
         onInit() { app.counter = app.counter + 1 },
       ],
     ],
@@ -645,6 +645,21 @@ App [ width = 100, height = 100, pick: string = "", d: Dataset { { "rows": [] } 
   assert.match(await errs(`Entry [ datapath = :rows[], classFor = Photo ]`), /classFor = \{ … \} picks each record's class/);
   assert.match(await errs(`Entry [ classFor = { Photo } ]`), /'classFor' is replication metadata/);
   assert.equal(await errs(`Entry [ datapath = :rows[], classFor = { :kind == "photo" ? Photo : Entry } ]`), "", "the base itself is a legal answer");
+  assert.match(await errs(`Entry [ datapath = :rows[], classFor = { app.kindOf(:kind) } ]`), /a function in script \{ \} can, called with the fields it needs/,
+    "a member of the program is refused, and the message names the way that works");
+});
+
+await test("classFor may call a script function with the record's fields; it answers a class name", async () => {
+  const r = await compile(`script {
+    function kindClass(kind: string): string { return kind == "photo" ? "Photo" : kind == "note" ? "Note" : "Entry" }
+}
+${KINDS}
+App [ width = 300, height = 300, d: Dataset { { "rows": [ { "id": 1, "kind": "photo", "text": "a" }, { "id": 2, "kind": "note", "text": "b" }, { "id": 3, "kind": "other", "text": "c" } ] } },
+  col: View [ datapath = { d.value }, Entry [ datapath = :rows[], classFor = { kindClass(:kind) } ] ] ]`);
+  assert.deepEqual(r.errors.map((e) => e.message), [], "compiles");
+  const app = buildProgram(r.program);
+  settle();
+  assert.deepEqual(app.col.childViews.map((v) => v.constructor.name), ["Photo", "Note", "Entry"]);
 });
 
 // ── rowIndex: a row's place in its array ─────────────────────────────────────
@@ -997,6 +1012,39 @@ await test("engaging with new data in the same update: no record is shown twice"
   assert.ok(seen.size < 60, `a window, not the full block (${seen.size} rows shown)`);
 });
 
+// A write to a record's id field changes the membership while the array stays
+// the same: the row for the old identity retires, and one row shows the record.
+await test("windowed: a record whose id is rewritten in place is shown by one row", async () => {
+  const r = await compile(`App [ width = 400, height = 400,
+    d: Dataset { { "rows": [] } },
+    sc: View [ scrolls = y, width = 300, height = 300,
+      content: View [ width = 300, datapath = { d.value },
+        layout: SimpleLayout [ axis = y ],
+        View [ datapath = :rows[], virtualize = true, width = 300, height = 30 ] ] ] ]`);
+  assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
+  const app = buildProgram(r.program);
+  app.$attach(new HeadlessBackend(), null);
+  app.d.value = { rows: Array.from({ length: 5 }, (_, i) => ({ id: "m" + i })) };
+  for (let i = 0; i < 3; i++) settle();
+  app.d.set(["rows", 4, "id"], "m99");
+  for (let i = 0; i < 3; i++) settle();
+  const shown = app.sc.content.children.filter((c) => c.visible && c.rowIndex >= 0).map((c) => c.rowIndex).sort();
+  assert.deepEqual(shown, [0, 1, 2, 3, 4], "each record once");
+});
+
+// Tab and assistive tech walk the tree: the mounted rows stand among the
+// parent's children in their records' order, however the views were recycled.
+await test("windowed: mounted rows are children in data order after scrolling both ways", async () => {
+  const app = await makeApp("true", 1000);
+  app.$attach(new HeadlessBackend(), null);
+  for (const y of [3000, 2400, 9000, 8700]) {
+    app.sc.scrollY = y;
+    for (let i = 0; i < 4; i++) settle();
+    const order = app.sc.content.children.filter((c) => c.visible && c.rowIndex >= 0).map((c) => c.rowIndex);
+    assert.deepEqual(order, [...order].sort((a, b) => a - b), `scrolled to ${y}: ${order.join(",")}`);
+  }
+});
+
 // A parked row presents no record: whatever asks rows for their place (a
 // table walking to its active row) must not find it there.
 await test("windowed: a parked row has no index", async () => {
@@ -1131,6 +1179,30 @@ App [ width = 400, height = 400,
   assert.ok(Math.abs(app.sc.scrollY - max) < 1, `at the end: scrollY ${app.sc.scrollY} of ${max}`);
   assert.ok(globalThis.__built >= 20000 - 40, `the first row built is near the end: ${globalThis.__built}`);
   delete globalThis.__built;
+});
+
+// An end pane over a virtualized list knows its extent before it has a surface
+// (the rows' estimate), so it opens at its end while the tree is still being
+// built. That offset reaches the surface it gets, or the model reads the end
+// over a pane shown at its top, and the first wheel jumps there (Murmur run 17).
+await test("scrollAnchor = end (virtualize = true): the offset taken before attach reaches the surface", async () => {
+  const r = await compile(`App [ width = 400, height = 400,
+    d: Dataset [ contents = { { rows: Array.from({ length: 400 }, (_, i) => ({ id: "p" + i })) } } ],
+    sc: View [ scrolls = y, scrollAnchor = end, width = 300, height = 300, datapath = { d.value },
+      content: View [ width = 300, layout: SimpleLayout [ axis = y ],
+        View [ datapath = :rows[], virtualize = true, width = 300, height = 120 ] ] ] ]`);
+  assert.deepEqual(r.errors.map((e) => e.message), [], "fixture compiles");
+  const app = buildProgram(r.program);
+  for (let i = 0; i < 4; i++) settle();
+  const max = app.sc.contentHeight - app.sc.height;
+  assert.ok(max > 0 && Math.abs(app.sc.scrollY - max) < 1, `at the end before attach: scrollY ${app.sc.scrollY} of ${max}`);
+  const asked = [];
+  const backend = new HeadlessBackend();
+  const make = backend.createSurface.bind(backend);
+  backend.createSurface = () => { const s = make(); s.scrollToY = (y) => asked.push(y); return s; };
+  app.$attach(backend, null);
+  settle();
+  assert.ok(asked.some((y) => Math.abs(y - app.sc.scrollY) < 1), `the surface was asked for ${app.sc.scrollY}: ${JSON.stringify(asked)}`);
 });
 
 // The full build's place: the top edge running through a row's bottom padding

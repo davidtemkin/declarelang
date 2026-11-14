@@ -3,7 +3,7 @@
 //   node tools/verify.mjs apps/docs/docs.declare --assert apps/docs/tests/assert.mjs
 //
 // The question this proves is the one the pages were built to answer: a reader
-// meets `motion: Motion` in a signature, and can get from that name to what the
+// meets `easing: Easing` in a signature, and can get from that name to what the
 // vocabulary IS. So it drives the two halves of that path — the location renders
 // a page with its tokens on it, and the printed type in a signature is a real
 // link that lands there — plus the invariant that keeps the change safe: a type
@@ -26,38 +26,38 @@ export default async ({ drive, expect }) => {
   await expect.attr("app", "mode", "guide");
 
   // ── a type page is a LOCATION ─────────────────────────────────────────────
-  await drive.set("app", "location", "type/Motion");
+  await drive.set("app", "location", "type/Easing");
   await expect.attr("app", "mode", "type");
-  await expect.attr("app", "tname", "Motion");
+  await expect.attr("app", "tname", "Easing");
 
   const page = "app.detail.col.typeCol.0";
   await expect.visible(page);
-  await expect.text(`${page}.header.1`, "Motion");         // header: eyebrow, NAME, syntax, prose
+  await expect.text(`${page}.header.1`, "Easing");         // header: eyebrow, NAME, syntax, prose
 
   // …and it renders its TOKENS, grouped by family (the first group is the
   // loose one — `linear` belongs to no family; the second is `ease`)
   await expect.visible(`${page}.tokens`);
-  const [loose, family] = model.types.pages.Motion.tokenGroups;
+  const [loose, family] = model.types.pages.Easing.tokenGroups;
   await expect.text(`${page}.tokens.fams.0.row.0.lbl`, loose.tokens[0].name);
   await expect.text(`${page}.tokens.fams.1.row.0.lbl`, family.tokens[0].name);
 
   // every token on the page, counted off the model — a page that rendered half
   // its vocabulary would pass a single-token check
-  const total = model.types.pages.Motion.nTokens;
+  const total = model.types.pages.Easing.nTokens;
   const painted = await drive.page.evaluate((p) => {
     let n = 0;
     const walk = (x) => { if (x.kind === "Chip") n++; (x.children ?? []).forEach(walk); };
     walk(window.__declare.inspect(p));
     return n;
   }, `${page}.tokens`);
-  expect.equal(painted, total, "token chips on the Motion page");
+  expect.equal(painted, total, "token chips on the Easing page");
 
   // ── a printed type in a SIGNATURE is a link to that page ──────────────────
   await drive.set("app", "location", "reference/Animator");
   await expect.attr("app", "mode", "reference");
-  const row = `app.detail.col.refCol.0.attrs.${attrIndex("Animator", "motion") + 1}`;
-  await expect.text(`${row}.sig.ty`, ": Motion");
-  await expect.attr(`${row}.sig.ty`, "link", "#type/Motion");
+  const row = `app.detail.col.refCol.0.attrs.${attrIndex("Animator", "easing") + 1}`;
+  await expect.text(`${row}.sig.ty`, ": Easing");
+  await expect.attr(`${row}.sig.ty`, "link", "#type/Easing");
 
   // a type with NO page keeps rendering exactly as it did: painted, tinted, and
   // not a link — never a dead one
@@ -73,7 +73,7 @@ export default async ({ drive, expect }) => {
   await drive.waitReal(600);
   await drive.settleMotion();
   await drive.click(`${row}.sig.ty`);
-  await expect.attr("app", "location", "type/Motion");
-  await expect.attr("app", "tname", "Motion");
+  await expect.attr("app", "location", "type/Easing");
+  await expect.attr("app", "tname", "Easing");
   await expect.visible("app.detail.col.typeCol.0");
 };

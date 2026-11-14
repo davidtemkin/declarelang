@@ -15,8 +15,12 @@ let readCursor = null;
 export function provideCursorRead(fn) { readCursor = fn; }
 let writeCursor = null;
 export function provideCursorWrite(fn) { writeCursor = fn; }
+/** Every class a node has been constructed as in this page, whether or not one
+ *  still stands — what a check asks of "was it ever built" (boot-check.ts). */
+const constructedAs = new Set();
+export function constructedClasses() { return constructedAs; }
 export class Node {
-    constructor() { if (profileHook !== null)
+    constructor() { constructedAs.add(new.target); if (profileHook !== null)
         profileHook.built(this); }
     parent = null;
     /** Torn down: retired with its subtree. Services that hold nodes they did

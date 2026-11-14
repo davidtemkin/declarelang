@@ -12,4 +12,5 @@ export declare function setEditableValue(el: Field, value: string): void;
  *  `onInput(value, checked)` hears every change once it has landed: `checked` when
  *  `admit` already saw it, false when it couldn't (the field then judges it). */
 export declare function wireEditableInput(el: Field, spec: () => EditableSpec | null): void;
+export declare function applyCaret(el: HTMLInputElement | HTMLTextAreaElement, shows: boolean): void;
 export {};

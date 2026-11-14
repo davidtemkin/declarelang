@@ -139,7 +139,7 @@ export declare class DataSource extends Dataset {
      *    `omit`       — never send credentials
      *  `sameOrigin` is the camelCase spelling of the wire's `same-origin` (a
      *  hyphen is subtraction, so it cannot be a token); FETCH_CREDENTIALS maps it
-     *  back, as `blend` does for CSS's color-dodge. */
+     *  back, as `blendMode` does for CSS's color-dodge. */
     credentials: "omit" | "sameOrigin" | "include";
     /** Seconds a request may go with nothing arriving before it is given up
      *  (`failure` = timedOut); 0 = no limit. */
@@ -196,6 +196,8 @@ export declare class DataSource extends Dataset {
     autoFetch: boolean;
     private autoUrl;
     $maybeAuto(): void;
+    private $autoQueued;
+    private $autoNow;
     /** Discards a superseded request: only the latest fetch/clear may land
      *  (the Image loader's sequence discipline). */
     private seq;
@@ -242,6 +244,14 @@ export declare class DataSource extends Dataset {
  *  underneath the tag. null/undefined mean "no cursor yet" (a source that
  *  has not loaded). */
 export declare function toCursor(v: unknown, context: string): Cursor | null;
+/** Region cells as `<dataset> /pointer` — a tracked rule's data reads, named
+ *  for tooling (inspect.ts explain). Walks each dataset's value once; a record
+ *  two datasets hold is named where it is met first (`datasets` in tree order,
+ *  so a source before what derives from it, as a rule is usually declared). */
+export declare function nameDataCells(datasets: readonly {
+    data: Dataset;
+    name: string;
+}[], cells: readonly number[]): string[];
 export declare function markPresented(row: object): void;
 /** A read through a view's cursor depends on the place the cursor names, not
  *  only on the record it found there. The deepest-slot rule tracks the record's

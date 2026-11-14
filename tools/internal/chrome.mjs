@@ -12,20 +12,73 @@
 // stop the helpers; releasing the pipes once launch has read the address does.
 
 import puppeteer from "puppeteer-core";
-import { spawn } from "node:child_process";
+import { spawn, execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, mkdtempSync, mkdirSync, readdirSync, readFileSync, writeFileSync, utimesSync, rmSync, statSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { tmpdir, homedir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-/** The Chrome to drive: PUPPETEER_EXECUTABLE_PATH / CHROME_PATH, else the usual installs. */
+// NEVER THE PERSON'S OWN CHROME, ON A MAC. A headless Chrome started from
+// /Applications/Google Chrome.app is, to macOS, a running instance of the app the
+// person uses. With their own window closed or quit, the Dock, ⌘N and Quit go to
+// the oldest such instance — one with no window to show — and Chrome cannot be
+// opened at all until every headless one is gone (2026-11-12: five, left by runs
+// two to six days old). Chrome for Testing is the same browser under another
+// bundle identity (com.google.chrome.for.testing), so nothing the person does
+// reaches it. Installed into the cache puppeteer already uses:
+//   npx @puppeteer/browsers install chrome@stable --path ~/.cache/puppeteer
+const BRANDED_MAC = "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome";
+const TESTING_CACHE = join(homedir(), ".cache", "puppeteer", "chrome");
+
+/** The newest Chrome for Testing in the puppeteer cache, or null. */
+function chromeForTesting() {
+  if (process.platform !== "darwin") return null;
+  let dirs = [];
+  try { dirs = readdirSync(TESTING_CACHE).filter((d) => /^mac(_arm)?-\d/.test(d)); } catch { return null; }
+  const version = (d) => d.replace(/^[^-]*-/, "").split(".").map(Number);
+  dirs.sort((a, b) => { const x = version(a), y = version(b); for (let i = 0; i < 4; i++) if (x[i] !== y[i]) return (y[i] ?? 0) - (x[i] ?? 0); return 0; });
+  for (const d of dirs) {
+    for (const arch of ["chrome-mac-arm64", "chrome-mac-x64"]) {
+      const c = join(TESTING_CACHE, d, arch, "Google Chrome for Testing.app", "Contents", "MacOS", "Google Chrome for Testing");
+      if (existsSync(c)) return c;
+    }
+  }
+  return null;
+}
+
+let warned = false;
+/** The Chrome to drive: PUPPETEER_EXECUTABLE_PATH / CHROME_PATH, else Chrome for
+ *  Testing on a Mac, else the usual installs. */
 export function findChrome() {
-  for (const c of [process.env.PUPPETEER_EXECUTABLE_PATH, process.env.CHROME_PATH,
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    "/usr/bin/google-chrome", "/usr/bin/chromium"].filter(Boolean))
+  for (const c of [process.env.PUPPETEER_EXECUTABLE_PATH, process.env.CHROME_PATH, chromeForTesting()].filter(Boolean))
+    if (existsSync(c)) return c;
+  if (process.platform === "darwin" && existsSync(BRANDED_MAC) && !warned) {
+    warned = true;
+    process.stderr.write("chrome.mjs: no Chrome for Testing — driving /Applications/Google Chrome, whose headless copies can take the place of your own Chrome. Install it: npx @puppeteer/browsers install chrome@stable --path ~/.cache/puppeteer\n");
+  }
+  for (const c of [BRANDED_MAC, "/usr/bin/google-chrome", "/usr/bin/chromium"])
     if (existsSync(c)) return c;
   throw new Error("no Chrome found — set PUPPETEER_EXECUTABLE_PATH");
+}
+
+/** A path a caller named, with the person's own Chrome on a Mac swapped for
+ *  findChrome()'s — callers that spelled the branded path out get the same
+ *  protection as those that ask. */
+function driven(path) {
+  return path === undefined || path === BRANDED_MAC ? findChrome() : path;
+}
+
+/** Stop every Chrome whose command line names this profile — the ones a process
+ *  that ended without closing them (a SIGKILL, a crash) left running. */
+function stopChromesOn(profile) {
+  let out = "";
+  try { out = execFileSync("ps", ["-axo", "pid=,command="], { encoding: "utf8" }); } catch { return; }
+  for (const line of out.split("\n")) {
+    const m = /^\s*(\d+)\s+(.*)$/.exec(line);
+    if (m === null || !(m[2] + " ").includes(`--user-data-dir=${profile} `) || / --type=/.test(m[2])) continue;
+    try { process.kill(Number(m[1]), "SIGKILL"); } catch { /* gone */ }
+  }
 }
 
 // EVERY PROFILE IS REMOVED. Chrome writes a profile — caches, a GPU cache, a
@@ -55,6 +108,8 @@ function sweepProfiles() {
     if (Number.isFinite(pid) && alive(pid)) continue;
     // unmarked: only once it is plainly abandoned
     if (!Number.isFinite(pid)) { try { if (Date.now() - statSync(dir).mtimeMs < 3_600_000) continue; } catch { continue; } }
+    // its launcher is gone, so a Chrome still on it has no one to close it
+    stopChromesOn(dir);
     removeProfile(dir);
   }
 }
@@ -80,7 +135,7 @@ export async function launchChrome(opts = {}) {
     }
   }
   const quiet = ["--disable-background-timer-throttling", "--disable-renderer-backgrounding", "--disable-backgrounding-occluded-windows"];
-  const browser = await puppeteer.launch({ executablePath: findChrome(), headless: true, ...opts, args: [...(opts.args ?? []), ...quiet], userDataDir: profile });
+  const browser = await puppeteer.launch({ headless: true, ...opts, executablePath: driven(opts.executablePath), args: [...(opts.args ?? []), ...quiet], userDataDir: profile });
   const proc = browser.process();
   for (const s of [proc?.stdin, proc?.stdout, proc?.stderr]) s?.unref?.();
   // the profile goes once Chrome has exited (it writes to it while closing)
@@ -138,6 +193,10 @@ async function launchKept(slot, args, scrollbars) {
   const proc = spawn(findChrome(), [
     "--headless=new", "--remote-debugging-port=0", `--user-data-dir=${slot.profile}`,
     "--no-first-run", "--no-default-browser-check", "--mute-audio",
+    // never the login keychain: a Chrome that is not the person's own asks for
+    // "Chrome Safe Storage" at every launch, one dialog each (puppeteer.launch
+    // passes this itself)
+    "--use-mock-keychain", "--password-store=basic",
     // several checks share one Chrome, each in its own page: a page that is not
     // the front one must not have its timers and frames throttled, or a step
     // that waits on a frame waits forever (verify-apps under load, 2026-10-26)
@@ -169,6 +228,7 @@ async function launchKept(slot, args, scrollbars) {
  *  `--hide-scrollbars` out. Returns { browser, context, release }: work in
  *  `context`, then `release()` closes the context and disconnects. */
 export async function sharedChrome({ args = [], ignoreDefaultArgs = [] } = {}) {
+  sweepProfiles();
   if (process.env.DECLARE_FRESH_CHROME === "1") {
     const browser = await launchChrome({ args, ...(ignoreDefaultArgs.length ? { ignoreDefaultArgs } : {}) });
     const context = browser.defaultBrowserContext();
@@ -193,7 +253,9 @@ export async function sharedChrome({ args = [], ignoreDefaultArgs = [] } = {}) {
   let browser;
   try { browser = await puppeteer.connect({ browserWSEndpoint: ws, defaultViewport: null }); }
   catch {
-    // the state outlived its Chrome: start over
+    // the state outlived its Chrome (or its Chrome stopped answering): end it,
+    // or it runs on with no state naming it and no reaper, and start over
+    try { process.kill(JSON.parse(readFileSync(slot.state, "utf8")).pid, "SIGKILL"); } catch { /* gone */ }
     rmSync(slot.state, { force: true });
     return sharedChrome({ args, ignoreDefaultArgs });
   }

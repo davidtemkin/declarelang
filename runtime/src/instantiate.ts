@@ -71,7 +71,7 @@ import type { ClassSchema } from "./schema.js";
 // dev path takes the same code with `trusted` false, routes the tree first and
 // validates every step.
 import { makeRouter, routeProgram, type Router } from "./route.js";
-import { checkAttr as checkAttrAboard, checkMethod as checkMethodAboard, checkClassValue as checkClassValueAboard, type CheckedAttr } from "./check.js";
+import { checkAttr as checkAttrAboard, checkMethod as checkMethodAboard, checkClassValue as checkClassValueAboard, stateProvidedMessage, type CheckedAttr } from "./check.js";
 
 // THE CHECKER SEAM. A trusted program (compiler-checked and stamped) never
 // reaches these; an UNTRUSTED element does — the Inspector's live `Tag [ … ]`
@@ -464,6 +464,14 @@ function buildTree(program: Program, trusted: boolean, scripts: Record<string, u
   // against this tree's own classes + built-ins. Weak by root, so a
   // discarded tree releases its context with it.
   CONTEXTS.set(root, ctx);
+  // An App whose host size the boot knows (view.ts withStartingHost) starts its
+  // unset width and height there, before the bindings below first run; what the
+  // program writes on the App itself (a literal, a binding — a lowered literal
+  // is not marked set in the store, so the source decides) is left to it
+  const ownSize = new Set<string>();
+  for (const a of program.root.attrs) ownSize.add(a.name);
+  for (const p of ctx.pending) if ("attr" in p && p.view === root) ownSize.add(p.attr.name);
+  (root as unknown as { $bindStartingExtent?: (own: ReadonlySet<string>) => void }).$bindStartingExtent?.(ownSize);
   installPending(ctx.pending, ctx);
   // Construction-complete lifecycle (R5): the tree is linked, methods are
   // installed, every binding has evaluated once — so `onInit` sees settled
@@ -1216,7 +1224,7 @@ function constructNode(el: Element, outer: View | null, ctx: Ctx, parentEl: Elem
   // Stamp the navigation target (capabilities.md §6, links.ts): the leaf-most
   // source with a `link` wins — a use-site override beats the class body, the
   // same nearest-wins rule the methods/attrs merge below follows. Read only by
-  // the static extractor; runtime navigation is the handler's own navigate(to).
+  // the static extractor; runtime navigation is the handler's own openURL(to).
   for (const s of sources) if (s.el.link) view.$navLink = s.el.link;
   // Attribute channels land in the ruled precedence order (mergeAttrs): class-
   // body sets base→leaf (rank 4), then the use site (rank 5). (The retired
@@ -1590,7 +1598,7 @@ const CASCADE_ATTRS: ReadonlySet<string> = new Set([
   "to",
   "from",
   "duration",
-  "motion",
+  "easing",
   "relative",
 ]);
 
@@ -1699,7 +1707,7 @@ function constructState(
     // the view is known.
     const viewEff = effOf(parentEl, ctx);
     if (!ctx.trusted && ctx.router().typeIn(viewEff(), a.name) === null) {
-      throw new DeclareError(`${el.tag}.${a.name}: a state override sets a declared attribute of the view, not a provided value`, a.value.pos);
+      throw new DeclareError(stateProvidedMessage(el, a), a.value.pos);
     }
     const v = a.value;
     const type = a.slotType !== undefined || v.kind === "value" || v.kind === "code" || v.kind === "path"
@@ -1719,7 +1727,7 @@ function constructState(
     } else if ("datapath" in r) {
       throw new DeclareError(`${el.tag}.${slot}: a state override is a value or a { }, not a data read`, a.value.pos);
     } else if ("provision" in r) {
-      throw new DeclareError(`${el.tag}.${slot}: a state override sets a declared attribute of the view, not a provided value`, a.value.pos);
+      throw new DeclareError(stateProvidedMessage(el, a), a.value.pos);
     } else {
       const value = r.value;
       const pos = a.value.pos;
@@ -1852,11 +1860,12 @@ function appendChildren(from: Element, parentView: View, croot: View, ctx: Ctx, 
           childEl.pos
         );
       }
-      // `key = :field` (optional): reconcile by this stable field instead of
-      // object identity, so a re-derived collection reuses instances by key.
-      const keyAttr = childEl.attrs.find((a) => a.name === "key" && a.value.kind === "path");
+      // `identityKey = :field` (optional): reconcile by this stable field
+      // instead of object identity, so a re-derived collection reuses
+      // instances by it.
+      const keyAttr = childEl.attrs.find((a) => a.name === "identityKey" && a.value.kind === "path");
       const keyPath = keyAttr !== undefined ? (keyAttr.value as { path: string }).path : null;
-      // `virtualize` — the policy slot: replication metadata like `key`,
+      // `virtualize` — the policy slot: replication metadata like `identityKey`,
       // consumed here, stripped from the template by the Replicator. A
       // literal is resolved now; a `{ }` becomes a thunk the Replicator calls
       // from inside its match, so the reads are tracked and the block engages
@@ -2086,6 +2095,11 @@ provideInlineViewHost((root) => {
   if (ctx === undefined) return null;
   return {
     declares: (name) => ctx.classes.has(name) && familyOf(name, ctx) === "view",
+    nameOf: (value) => {
+      if (typeof value !== "function") return null;
+      for (const [name, c] of ctx.classes) if (c.ctor === value) return name;
+      return null;
+    },
     attrType: (cls, name) => ctx.router().attrTypeOf(cls, name),
     readOnly: (cls, name) => ctx.router().readOnlyOf(cls, name),
     create: (parent, cls, attrs, provides) => {

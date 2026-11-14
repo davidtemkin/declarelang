@@ -1,6 +1,8 @@
-// inline views in rich text — a tag whose name is a class the program declares
-// (`<Issue id='142'/>`) is ONE REAL VIEW of that class, placed inline in the
-// flowing text as an atomic box the text flows around.
+// inline views in rich text — a tag the rich text's `tagViews` map names
+// (`tagViews = { { Issue: Issue } }`, then `<Issue id='142'/>`) is ONE REAL VIEW
+// of that class, placed inline in the flowing text as an atomic box the text
+// flows around. With no map, no tag is a view (the gate's own cases are below);
+// every other program here lists its classes on the App with `withViews`.
 //
 // The mechanism is split across two renderers by design — the DOM emits a
 // placeholder per slot and reads back where the browser put it; the manual flow
@@ -42,7 +44,16 @@ const ISSUE = `class Issue extends View [
     t: TextLabel [ x = 19, fontSize = 12, text = { "#" + classroot.id } ]
     ]`;
 
-async function boot(src) {
+/** `src` with a `tagViews` map on its App naming every class it declares, by
+ *  its own name — the program states which tags are views, as a real one does. */
+function withViews(src) {
+  const names = [...src.matchAll(/^\s*class (\w+)/gm)].map((m) => m[1]);
+  if (names.length === 0) return src;
+  return src.replace(/App \[/, `App [ tagViews = { { ${names.map((n) => `${n}: ${n}`).join(", ")} } },`);
+}
+
+async function boot(src, { views = true } = {}) {
+  if (views) src = withViews(src);
   const b = await compileProgram(src, { originDir: process.cwd() + "/library", stripPos: false });
   assert.deepEqual(b.errors.map((e) => e.message), [], "compiles");
   const app = instantiate(b.program);
@@ -299,6 +310,61 @@ await test("a tag with content is refused: an inline view must be self-closing",
   const texts = flowsOf(app.m)[0].children.filter((v) => v.constructor.name === "Text").map((t) => t.text).join(" ");
   assert.match(texts, /docs/, "the content survives as text");
   await assert.rejects(() => boot(src(error_())), /must be self-closing/);
+});
+
+// ── the gate: only what `tagViews` names is a view ───────────────────────────
+
+await test("with no tagViews map, a tag naming a class builds nothing — in either format", async () => {
+  const app = await boot(`${ISSUE}
+    App [ width = 600, height = 300,
+      h: HTMLText [ x = 10, y = 10, width = 400, html = "a <Issue id='1'/> b" ],
+      m: Markdown [ x = 10, y = 60, width = 400, text = "a <Issue id='2'/> b" ],
+      ]`, { views: false });
+  assert.equal(chipsOf(app.h, "Issue").length, 0, "HTMLText built no view");
+  assert.equal(chipsOf(app.m, "Issue").length, 0, "Markdown built no view");
+  const md = flowsOf(app.m)[0].children.filter((v) => v.constructor.name === "Text").map((t) => t.text).join("");
+  assert.match(md, /<Issue id='2'\/>/, "in Markdown the tag stays the text it was written as");
+});
+
+await test("a tag spelled as one of your classes, with no entry, is said once", async () => {
+  const { said } = await withDiagnostics(() => boot(`${ISSUE}
+    App [ width = 600, height = 300,
+      m: Markdown [ x = 10, y = 10, width = 400, text = "a <Issue/> b <Issue/> c" ],
+      ]`, { views: false }));
+  const notes = said.filter((l) => /no tagViews entry maps it/.test(l));
+  assert.equal(notes.length, 1, "one note for the two tags: " + JSON.stringify(said));
+  assert.match(notes[0], /tagViews = \{ \{ Issue: Issue \} \}/, "it names the fix");
+});
+
+await test("the map's key is the tag the content writes; its value is the class built", async () => {
+  const app = await boot(`${ISSUE}
+    App [ width = 600, height = 300,
+      m: HTMLText [ x = 10, y = 10, width = 400, tagViews = { { ticket: Issue } },
+        html = "see <ticket id='7'/> and <Issue id='8'/>" ],
+      ]`, { views: false });
+  const chips = chipsOf(app.m, "Issue");
+  assert.equal(chips.length, 1, "only the mapped tag became a view");
+  assert.equal(chips[0].id, 7);
+});
+
+await test("tagViews is inherited: set once above, a nearer map replaces it below", async () => {
+  const app = await boot(`${ISSUE}
+    App [ width = 600, height = 300, tagViews = { { Issue: Issue } },
+      a: HTMLText [ x = 10, y = 10, width = 400, html = "a <Issue id='1'/> b" ],
+      off: View [ y = 60, width = 400, height = 100, tagViews = { ({}) },
+        b: Markdown [ width = 400, text = "a <Issue id='2'/> b" ] ],
+      ]`, { views: false });
+  assert.equal(chipsOf(app.a, "Issue").length, 1, "the App's map reaches a rich text below it");
+  assert.equal(chipsOf(app.off.b, "Issue").length, 0, "an empty map nearer turns views off");
+});
+
+await test("a map value must be a view class: a string is refused at its line", async () => {
+  const b = await compileProgram(`${ISSUE}
+    App [ width = 600, height = 300,
+      m: HTMLText [ tagViews = { { Issue: "Issue" } }, html = "a <Issue/> b" ] ]`,
+    { originDir: process.cwd() + "/library", stripPos: false });
+  assert.ok(b.errors.length > 0, "a string where a class belongs compiles");
+  assert.match(b.errors.map((e) => e.message).join("\n"), /tagViews|Issue/);
 });
 
 // ── everything else keeps the meaning it has today ───────────────────────────
@@ -595,7 +661,7 @@ if (!CHROME) {
       m: HTMLText [ x = 10, y = 10, width = 400, html = "Fixed by <Issue id='142'/> and <Issue id='157'/> today." ],
       ]`;
   const dom = await (async () => {
-    const b = await buildProduction(DOC, { render: "dom" });
+    const b = await buildProduction(withViews(DOC), { render: "dom" });
     assert.ok(b.ok, "build failed: " + (b.errors || []).map((e) => e.message).join("; "));
     const browser = await launchChrome({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
     try {
@@ -688,7 +754,7 @@ if (!CHROME) {
       App [ width = 600, height = 200,
         m: HTMLText [ x = 10, y = 10, width = 400, html = "Fixed by <Chip/> today." ],
         ]`;
-    const b = await buildProduction(src, { render: "canvas" });
+    const b = await buildProduction(withViews(src), { render: "canvas" });
     assert.ok(b.ok, "canvas build failed: " + (b.errors || []).map((e) => e.message).join("; "));
     const browser = await launchChrome({ executablePath: CHROME, headless: true, args: ["--no-sandbox"] });
     try {

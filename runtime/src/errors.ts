@@ -210,9 +210,6 @@ export function emptyContainerMessage(parentClass: string, size: "width" | "heig
   return head + diag` To make them ${most}, remove their own ${size} and use align = stretch on ${parentClass}'s layout; or give ${parentClass} a ${size}.`;
 }
 
-export function placedFromParentMessage(parentClass: string, size: "width" | "height", childClass: string, pos: "x" | "y", path = ""): string {
-  return diag`${parentClass}.${size}${path === "" ? "" : ` (${path})`} is only its padding — it takes its ${size} from its children, and ${childClass} places itself in it (${pos} = center or end), which counts it out, so it hangs outside ${parentClass}. Give ${parentClass} a ${size}, or let its layout place ${childClass} (a Spacer on each side centers it in a row).`;
-}
 
 /** The checker's form: what the layout places is known from the source, so the
  *  message can also say HOW the author gets what they meant. `kind` is why the

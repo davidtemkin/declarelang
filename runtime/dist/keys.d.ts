@@ -10,7 +10,7 @@ export interface KeyEvent {
     alt: boolean;
     meta: boolean;
     repeat: boolean;
-    /** An IME is composing: the key belongs to the composition, not to a binding. */
+    /** An IME is composing: the key belongs to the composition, not to a binding (keyDown also counts Safari's 229). */
     isComposing?: boolean;
     /** The legacy key code — 229 is Safari's keydown during and just after composition. */
     keyCode?: number;
@@ -32,6 +32,15 @@ export interface KeyDispatch {
     /** The focus layer took the key in hand (focus.ts deliverKeys): it decides
      *  whether the walk runs. Without one (a headless service), keyDown walks. */
     delivered: boolean;
+    /** Where focus was when the key arrived — before a native field's own
+     *  handling of it (Return → `onEnter`) ran and perhaps moved focus. The key
+     *  is that view's, not delivered again where focus went (focus.ts
+     *  deliverKeys). Undefined when not known (a key fed in directly). */
+    arrivedAt?: unknown;
+    /** A text field whose own handler answered the key (no `super`): its typing
+     *  stays the field's, but if focus has left it by the time the key would
+     *  type, the text goes nowhere — not into the field focus went to (listen). */
+    consumedIfFocusLeaves?: unknown;
 }
 /** The walk (focus.ts walkKeys), injected — keys.ts sits below the view layer.
  *  `from` null = start where the key starts (the focused view, or an overlay).
@@ -243,7 +252,16 @@ export declare class KeysService {
      *  function key — walks the tables first, before any `onKeyDown`, so a
      *  handler that forgets `super` can't swallow it; a plain key goes to the
      *  focused view's `onKeyDown`, whose base is the walk. */
-    keyDown(e: KeyEvent): boolean;
+    keyDown(e: KeyEvent, arrivedAt?: unknown): boolean;
+    /** The text field the last key down may still type into, when its own
+     *  handler answered it (KeyDispatch.consumedIfFocusLeaves): its text is
+     *  dropped if it would land anywhere else (listen's `beforeinput`). */
+    typesOnlyIn: unknown;
+    /** Where focus is now, for a key's arrival (`arrivedAt`): the focus layer
+     *  wired to this service sets it (focus.ts deliverKeys). */
+    focusProbe: (() => unknown) | null;
+    /** The key now arriving, and where focus was as it did (listen's capture). */
+    private arrival;
     /** Whatever a key's handlers do happens while this is true — so focus they
      *  move is keyboard focus (focus.ts `focus()`, the web's :focus-visible rule
      *  for script focus during keyboard use). */

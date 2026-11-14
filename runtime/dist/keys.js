@@ -462,11 +462,16 @@ export class KeysService {
      *  function key — walks the tables first, before any `onKeyDown`, so a
      *  handler that forgets `super` can't swallow it; a plain key goes to the
      *  focused view's `onKeyDown`, whose base is the walk. */
-    keyDown(e) {
+    keyDown(e, arrivedAt) {
+        // a handler reads one answer to "is an input method composing this?": Safari's
+        // keydown during and just after a composition says so only by keyCode 229
+        if (composing(e) && e.isComposing !== true)
+            e = { ...e, isComposing: true };
         this.noteCommandHold(e, true);
+        this.typesOnlyIn = null;
         this.dispatching++;
         const prev = this.current;
-        const d = { e, prevent: false, walked: false, reachedBase: false, delivered: false, skipTables: composing(e) || (PROGRAMS !== null && PROGRAMS.typing() && typesCharacter(e)) };
+        const d = { e, prevent: false, walked: false, reachedBase: false, delivered: false, skipTables: composing(e) || (PROGRAMS !== null && PROGRAMS.typing() && typesCharacter(e)), arrivedAt };
         this.current = d;
         try {
             if (!d.skipTables && WALK !== null && !MODIFIERS.has(e.code) && commanded(comboOf(e))) {
@@ -486,6 +491,7 @@ export class KeysService {
                 if (r.prevent)
                     d.prevent = true;
             }
+            this.typesOnlyIn = d.consumedIfFocusLeaves ?? null;
             return d.prevent;
         }
         finally {
@@ -493,6 +499,15 @@ export class KeysService {
             this.dispatching--;
         }
     }
+    /** The text field the last key down may still type into, when its own
+     *  handler answered it (KeyDispatch.consumedIfFocusLeaves): its text is
+     *  dropped if it would land anywhere else (listen's `beforeinput`). */
+    typesOnlyIn = null;
+    /** Where focus is now, for a key's arrival (`arrivedAt`): the focus layer
+     *  wired to this service sets it (focus.ts deliverKeys). */
+    focusProbe = null;
+    /** The key now arriving, and where focus was as it did (listen's capture). */
+    arrival = null;
     /** Whatever a key's handlers do happens while this is true — so focus they
      *  move is keyboard focus (focus.ts `focus()`, the web's :focus-visible rule
      *  for script focus during keyboard use). */
@@ -629,14 +644,24 @@ export class KeysService {
         const isAlive = () => box.alive();
         const retire = () => {
             LISTENING.delete(target);
+            target.removeEventListener("keydown", onArrive, true);
             target.removeEventListener("keydown", onDown);
             target.removeEventListener("keyup", onUp);
+            target.removeEventListener("beforeinput", onInput, true);
             target.removeEventListener("blur", onBlur);
             target.removeEventListener("pointerdown", onPress, true);
+        };
+        // the key on its way in, before the focused element's own listeners: a
+        // native field handles Return there (onEnter) and may move focus; the key
+        // stays the view that had it as it arrived
+        const onArrive = (ev) => {
+            this.arrival = { ev, at: this.focusProbe?.() };
         };
         const onDown = (ev) => {
             if (!isAlive())
                 return retire();
+            const arrived = this.arrival !== null && this.arrival.ev === ev ? this.arrival.at : undefined;
+            this.arrival = null;
             // Declare owns Tab traversal (Layer 2); stop the browser from also moving its
             // own focus, which would fight the focus service (and skip a canvas app's
             // overlay inputs).
@@ -665,13 +690,25 @@ export class KeysService {
             // command modifier stays the browser's, and so does typing in a field.
             if (ev.key !== "Tab" && !ev.metaKey && !ev.ctrlKey && !ev.altKey && !isField(document.activeElement) && this.claimed(ev.code))
                 ev.preventDefault();
-            if (this.keyDown(normalize(ev)))
+            if (this.keyDown(normalize(ev), arrived))
                 ev.preventDefault(); // a declared shortcut's chord is not also the browser's
         };
         const onUp = (ev) => {
             if (!isAlive())
                 return retire();
+            this.typesOnlyIn = null;
             this.keyUp(normalize(ev));
+        };
+        // the text of a key a field's own handler answered lands only in that
+        // field: one that focus left meanwhile types nowhere (KeyDispatch
+        // consumedIfFocusLeaves) — one key, one action
+        const onInput = (ev) => {
+            const only = this.typesOnlyIn;
+            if (only === null)
+                return;
+            this.typesOnlyIn = null;
+            if (this.focusProbe?.() !== only && ev.cancelable)
+                ev.preventDefault();
         };
         const onBlur = () => {
             if (!isAlive())
@@ -685,8 +722,10 @@ export class KeysService {
                 return retire();
             this.endCommandHold();
         };
+        target.addEventListener("keydown", onArrive, true);
         target.addEventListener("keydown", onDown);
         target.addEventListener("keyup", onUp);
+        target.addEventListener("beforeinput", onInput, true);
         target.addEventListener("blur", onBlur);
         target.addEventListener("pointerdown", onPress, true);
     }

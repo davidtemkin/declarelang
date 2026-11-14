@@ -95,6 +95,10 @@ export declare class DomSurface implements Surface {
     /** This surface is an app's root (attachRoot stamps it, with the
      *  `data-declare-app` mark other code reads off the DOM). */
     isRoot: boolean;
+    /** Mark this surface as the app's root and realize it as one at once: a frame
+     *  and a page extent that arrived before mount (an App whose size was known at
+     *  build) are applied now, since nothing may change them afterwards. */
+    becomeRoot(): void;
     /** A scrolling pane's browser-drawn scrollbar follows the pane's own fill
      *  (the editable-scheme rule, applied to scrollers). */
     private applyScrollScheme;
@@ -127,6 +131,12 @@ export declare class DomSurface implements Surface {
     setDirection(d: string): void;
     private peOverride;
     setPointerEvents(m: string): void;
+    /** Re-derive the effective pointer-events (an ancestor's `pointerEvents`
+     *  may have changed). */
+    refreshPointer(): void;
+    /** Switched off for the pointer: its own `"none"`, or the nearest authored
+     *  value above it is `"none"`. */
+    private pointerOff;
     setOpacity(o: number): void;
     private scaleK;
     private rotationDeg;
@@ -188,8 +198,9 @@ export declare class DomSurface implements Surface {
     private selectableRegion;
     setSelectableRegion(on: boolean): void;
     /** Reconcile carved-sink state (see CARVED): membership, and the element's
-     *  effective pointer-events — authored override > carved-inert > sink default
-     *  (a declared selection surface counts as a pointer target). */
+     *  effective pointer-events — switched off (its own or an ancestor's
+     *  `"none"`) > carved-inert > sink default (a declared selection surface
+     *  counts as a pointer target). */
     private updateCarved;
     /** Does the viewport point fall in this carved sink's clipped region?
      *  Local coords unwind a uniform scale (rect vs layout box ratio), then the
@@ -259,12 +270,12 @@ export declare class DomSurface implements Surface {
      *  element takes neither the write nor an honest read (setVisible). */
     scrollToY(v: number, glide?: {
         duration?: number;
-        motion?: string;
+        easing?: string;
     }): void;
     reassertScroll(): void;
     scrollToX(v: number, glide?: {
         duration?: number;
-        motion?: string;
+        easing?: string;
     }): void;
     /** A top-level App that scrolls the page is a document, and the page gives
      *  the platform's elastic feedback at its ends. One that declares
@@ -458,7 +469,7 @@ export declare class DomSurface implements Surface {
      *  CSS `auto` would preserve the intrinsic ratio and drag it along with the
      *  stretched axis, which is not what a single-axis stretch means (the
      *  canvas walk draws the un-stretched axis at natural size; found by
-     *  weather's `stretches=width` tab art). The element is always loaded
+     *  weather's `fit=width` tab art). The element is always loaded
      *  when it crosses the seam, so the natural size is known. */
     private applyStretch;
     setDrawing(list: DisplayList | null, owner?: object): void;

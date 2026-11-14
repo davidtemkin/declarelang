@@ -19,11 +19,11 @@ the parts you commonly re-theme are their own provided values —
 `headingColor`, `headingWeight`, `linkColor`, `codeColor` — each defaulting to the nearest
 provided value, exactly like `fontSize`.
 
-**Content may name your own view classes — an inline view.** A self-closing tag whose name is
-a view class the program declares (`<Chip label='docs'/>`) is **one real view of that class**,
-placed in the flowing line as an atomic box the words wrap around — not a styled run. Nothing
-declares the capability: the class existing is what makes the tag mean it, matched by the name
-exactly as written, and a tag naming no class of yours keeps the meaning it already had. The
+**Content may hold views of your own classes — an inline view.** A self-closing tag that
+`tagViews` maps to one of your view classes (`tagViews = { { Chip: Chip } }`, then
+`<Chip label='docs'/>`) is **one real view of that class**, placed in the flowing line as an
+atomic box the words wrap around — not a styled run. The map is the whole gate: a tag it does
+not name keeps the meaning it already had, and with no map no tag is a view. The
 tag's attributes are the class's, converted from their strings by each attribute's **declared** type
 (`id='142'` is the number in a `number` attribute, `width='50%'` a percent of the width the text
 flows in) — **the tag is the use site**, so an attribute beats what the class body sets for
@@ -41,7 +41,9 @@ handing that attribute back to the class (a tag that gains or loses one is built
 the tag claims is settled at build); `key='…'` is the identity (never passed to the class), else the
 class name plus that tag's ordinal. **Only view classes, only self-closing tags**, and no
 expression inside markup: build content in a `{ }` and `escapeHtml` every interpolated value.
-A `<span class>` stays a style and is never a view. The guide's Style chapter ("Views in a
+Content can build only what the map lists, so set it where you want views in the text and
+nowhere else: content from a source you don't control, shown where no map applies, builds
+none of your classes. A `<span class>` stays a style and is never a view. The guide's Style chapter ("Views in a
 sentence") teaches the whole of it.
 
 ```declare
@@ -52,7 +54,7 @@ class Chip [ label: string = "",
     ]
 
 App [ width = 430, height = 96,
-    HTMLText [ x = 16, y = 16, width = 398, fontSize = 15,
+    HTMLText [ x = 16, y = 16, width = 398, fontSize = 15, tagViews = { { Chip: Chip } },
         html = "Filed under <Chip label='docs'/> and <Chip label='runtime'/> — each one a real view, sitting on the line's baseline." ]
     ]
 ```
@@ -60,7 +62,7 @@ App [ width = 430, height = 96,
 ## textStyles
 The **named-style palette**: a map of name → a bundle of `Text`'s own style attributes —
 `fontSize`, `fontFamily`, `fontWeight`, `textColor`, `textFill`, `letterSpacing`, and the
-treatments (`italic`, `textShadow`, `outline`, `smallCaps`, `textTransform`, `underline`,
+treatments (`italic`, `textShadow`, `textStroke`, `smallCaps`, `textTransform`, `underline`,
 `strike`) — that a `<span class="name">` in the content references. The field names are
 exactly the ones you set on a `Text`, so there is nothing new to learn, and the keys are
 yours: content names a style the app defines and never carries CSS itself, so this stays safe
@@ -131,6 +133,29 @@ so it adds to it, and nesting composes outside in: `<b><i>…</i></b>` is the st
 then the em style over it, the inner winning only where both set the same field. A name no
 palette or `style` defines is refused at its line. Inherited, like the palette it names.
 
+## tagViews
+**Which tags in the content are views, and of which class**: a map from a tag, as the content
+writes it, to one of your view classes, written as its name — `tagViews = { { Chip: Chip } }`.
+The key is the tag, matched exactly; the value is the class built, so `{ ticket: IssueChip }`
+makes every `<ticket id='7'/>` an `IssueChip`. A tag the map does not name is not a view, and
+with no map — the default — none is: the map is the list of what content may build. A value
+that is not one of your view classes is refused at its line.
+
+```declare
+class Chip [ label: string = "",
+    height = 19, width = { this.t.width + 18 }, cornerRadius = 9, fill = 0xDDF4E4,
+    t: TextLabel [ x = 9, fontSize = 11.5, text = { classroot.label } ]
+    ]
+
+App [ width = 430, height = 96, tagViews = { { Chip: Chip } },
+    Markdown [ x = 16, y = 16, width = 398, text = "Filed under <Chip label='docs'/> today." ]
+    ]
+```
+
+Inherited, like `tagStyles`: set on a container, it reaches every rich text below, and a
+nearer map replaces it whole — `tagViews = { ({}) }` turns views off for a part of the tree.
+A tag spelled exactly as one of your classes, with no entry, stays text and says so once.
+
 ## textAlign
 How each paragraph's and heading's lines sit across the flow's width, as a `Text`'s do:
 `start` (the default), `center`, `end`, `left` or `right`, with `start` and `end` following the
@@ -175,7 +200,7 @@ reactive — re-claimed on every rebuild and re-width.
 ## onLink
 A link (`[text](url)` in Markdown, `<a href>` in HTMLText) was activated — you get its `href`,
 and you decide what it means: scroll to an anchor, set an in-app route, or open externally. The
-runtime only delivers the click. Left unhandled, a link falls back to `app.navigate` (so
+runtime only delivers the click. Left unhandled, a link falls back to `app.openURL` (so
 external links work with no wiring); declaring `onLink` overrides that. Modifier/middle clicks
 still open a new tab natively. Same on every renderer.
 

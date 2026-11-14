@@ -212,18 +212,19 @@ family: content
 spec: §9 Style
 terms: inline view, inline views, view in text, view in a sentence, view in prose, chip in text, widget in text, component in markdown, inline-block, tag in content
 syntax:
+    tagViews = { { Chip: Chip, Issue: Issue } }  // which tags are views, and of which class
     HTMLText [ html = "Filed under <Chip label='docs'/> today." ]
     Markdown [ text = "Fixed by <Issue id='142'/>." ]
     <Chip key='a' label='docs'/>                 // key: this view's identity across a content change
 usage: form-inlineview
 
-Inside rich-text content, a **self-closing tag whose name is a view class the program
-declares** is one real view of that class, placed in the flowing line as an atomic box the
-words wrap around. There is no whitelist to extend and no attribute to set: the class
-existing is what makes the tag mean it, matched by the name exactly as written, in both
-formats (`HTMLText`'s `html` and `Markdown`'s `text`). A tag naming no class of yours keeps
-the meaning it already had — the HTML whitelist, an autolink, a literal `<` — and a
-`<span class>` stays a style, never a view.
+Inside rich-text content, a **self-closing tag that `tagViews` maps to one of your view
+classes** is one real view of that class, placed in the flowing line as an atomic box the
+words wrap around. The map — tag as the content writes it, to the class it builds — is
+inherited like `tagStyles`, so it is usually set once on the App, and it is the whole gate,
+in both formats (`HTMLText`'s `html` and `Markdown`'s `text`): a tag it does not name keeps
+the meaning it already had — the HTML whitelist, an autolink, a literal `<` — and with no map
+no tag is a view. A `<span class>` stays a style, never a view.
 
 The tag's attributes are the class's, each converted from its string by the attribute's
 **declared** type, exactly as a source literal is: `id='142'` is the number in a `number`
@@ -247,19 +248,19 @@ inside the class from an identity the content names.
 
 - Placement belongs to the flow, so a tag may not set `x` or `y`.
   > says: the text flow places an inline view — 'x' is not yours to set here
-  > probe: class Chip [ width = 10, height = 10 ]\nApp [ HTMLText [ unsupported = error, html = "a <Chip x='4'/> b" ] ]
+  > probe: class Chip [ width = 10, height = 10 ]\nApp [ tagViews = { { Chip: Chip } }, HTMLText [ unsupported = error, html = "a <Chip x='4'/> b" ] ]
 - A tag names attributes the class actually has; anything else goes to `unsupported`.
   > says: Chip has no attribute 'nope'
-  > probe: class Chip [ width = 10, height = 10 ]\nApp [ HTMLText [ unsupported = error, html = "a <Chip nope='1'/> b" ] ]
+  > probe: class Chip [ width = 10, height = 10 ]\nApp [ tagViews = { { Chip: Chip } }, HTMLText [ unsupported = error, html = "a <Chip nope='1'/> b" ] ]
 - An inline view is self-closing: a tag with content between it and a closing tag is not one.
   > says: is an inline view, and an inline view must be self-closing
-  > probe: class Chip [ width = 10, height = 10 ]\nApp [ HTMLText [ unsupported = error, html = "a <Chip>hi</Chip> b" ] ]
+  > probe: class Chip [ width = 10, height = 10 ]\nApp [ tagViews = { { Chip: Chip } }, HTMLText [ unsupported = error, html = "a <Chip>hi</Chip> b" ] ]
 - A percent needs an axis to resolve against, so it belongs on a width or a height.
   > says: no axis to resolve a percent against
-  > probe: class Chip [ pad: Length = 4, width = 10, height = 10 ]\nApp [ HTMLText [ unsupported = error, html = "a <Chip pad='50%'/> b" ] ]
+  > probe: class Chip [ pad: Length = 4, width = 10, height = 10 ]\nApp [ tagViews = { { Chip: Chip } }, HTMLText [ unsupported = error, html = "a <Chip pad='50%'/> b" ] ]
 - A read-only attribute is computed from its declaration, so no tag may set it.
   > says: is read-only
-  > probe: class Chip [ width = 10, height = 10 ]\nApp [ HTMLText [ unsupported = error, html = "a <Chip hovered='true'/> b" ] ]
+  > probe: class Chip [ width = 10, height = 10 ]\nApp [ tagViews = { { Chip: Chip } }, HTMLText [ unsupported = error, html = "a <Chip hovered='true'/> b" ] ]
 
 ### related
 
@@ -502,7 +503,7 @@ runtime methods are replaced and reached the same way: `class Fetcher extends Da
 fetch() { …; super.fetch() } ]` wraps the DataSource's fetch rather than rewriting it, and the
 runtime's own calls to `fetch()` land on the override.
 
-A use site that overrides a class's method (`Stepper [ input(v: number) { … } ]`) reaches the
+A use site that overrides a class's method (`Stepper [ commit(v: number) { … } ]`) reaches the
 class's with `super` the same way. A constraint that calls a method stays live through
 `super` too: the base body's reads are wired like the override's.
 
@@ -628,7 +629,7 @@ syntax:
     text = :title                              // a read, relative to the nearest datapath
     View [ datapath = :rows[], … ]             // [] replicates: one instance per record
     text = { :on ? :title : "—" }              // a read inside a body
-    input(v: boolean) { :done = v }            // a write, in a handler or method
+    commit(v: boolean) { :done = v }           // a write, in a handler or method
     Text [ datapath = :tags[], text = :@ ]     // :@ — the record itself
     text = { "" + :@[(classroot.field)] }      // [( … )] — a key computed by TypeScript
 usage: form-datapath, form-datapath-select
@@ -668,7 +669,7 @@ compile time.
   > says: the Dataset body is not valid JSON
   > probe: App [ d: Dataset { { "rows": [1,], } } ]
 - A dataset needs data: a literal body, or a derived `contents`.
-  > says: a Dataset needs data — a literal JSON body ('d: Dataset { … }') or a derived 'contents = { … }'
+  > says: a Dataset needs data — a literal JSON body ('d: Dataset { … }'; one the program fills itself starts from its shape's empty form, such as '{ "rows": [] }') or a derived 'contents = { … }'
   > probe: App [ d: Dataset [ ] ]
 - A literal is not a place: a cursor points into declared data. Declare the records in a Dataset and point at its `.value`.
   > says: a datapath is a place in declared data, and a literal is in none
@@ -680,31 +681,31 @@ forms: twoway, constraint, schema, set
 classes: Dataset, DataSource, View
 guide: 14-data · Data, 16-collections · Large collections
 
-## key
+## identityKey
 
-name: key
+name: identityKey
 group: Values
 family: attribute
 spec: §7 Data
-terms: key, key =, record identity, identity, reconcile, reconciliation
+terms: identityKey, identityKey =, record identity, identity, reconcile, reconciliation, trackBy, track by
 syntax:
-    View [ datapath = :people[], key = :email ]
-usage: form-key
+    View [ datapath = :people[], identityKey = :email ]
+usage: form-identity-key
 
 Replication reuses an instance across sorts, filters and edits when it can tell which
 record is which. By convention that is the record's `id` field, with nothing declared.
-When a collection's identity lives under another name, `key = :field` on the replicated
+When a collection's identity lives under another name, `identityKey = :field` on the replicated
 node names it — a single `:path`, read per record. It is replication metadata, so it is
 legal only beside a many-path `datapath`.
 
 ### rules
 
-- Only a node that replicates can carry a `key`.
-  > says: 'key' is replication metadata — it belongs on a node whose datapath matches many
-  > probe: App [ d: Dataset { { "rows": [ { "id": "a" } ] } }, v: View [ datapath = { d.value }, key = :id ] ]
-- A key is one `:path` to the identity field, never a literal or a many-path.
-  > says: key = :field names each record's identity field
-  > probe: App [ d: Dataset { { "rows": [ { "id": "a" } ] } }, datapath = { d.value }, View [ datapath = :rows[], key = "id" ] ]
+- Only a node that replicates can carry an `identityKey`.
+  > says: 'identityKey' is replication metadata — it belongs on a node whose datapath matches many
+  > probe: App [ d: Dataset { { "rows": [ { "id": "a" } ] } }, v: View [ datapath = { d.value }, identityKey = :id ] ]
+- An `identityKey` is one `:path` to the identity field, never a literal or a many-path.
+  > says: identityKey = :field names each record's identity field
+  > probe: App [ d: Dataset { { "rows": [ { "id": "a" } ] } }, datapath = { d.value }, View [ datapath = :rows[], identityKey = "id" ] ]
 
 ### related
 
@@ -718,18 +719,21 @@ name: <->
 group: Values
 family: operator
 spec: §7 Data
-terms: <->, two way, two-way binding, bidirectional, double arrow, bind both ways, v-model, bind:value
+terms: <->, two way, two-way binding, bidirectional, double arrow, bind both ways, v-model, bind:value, isPresented
 syntax:
     TextInput [ value <-> :title ]
     Checkbox [ checked <-> app.muted ]
+    Sheet [ shown <-> app.editing ]                           // an overlay open while the state says
     TextInput [ value <-> { :@[(classroot.field)] } ]       // a field chosen by name
 usage: form-twoway
 
 A control's value and a place, kept together: shorthand, lowered at parse, for the pair
 `value = { place }` plus `commit(v) { place = v }` — the control shows the place, and the
-person's change is written back to it. It works on any control with a value, on whichever
-attribute is its value (`checked` on a checkbox, `value` on a field or a slider), and while
-the person is editing the control shows their change, as with the pair written out.
+person's change is written back to it. It works on any class that hands a change back
+through `commit(v)`, on whichever attribute that is: `checked` on a checkbox, `value` on a
+field, a slider or a `Segmented`, `open` on a `Disclosure`, `selection` on a `Table`, `shown`
+on an overlay. While the person is editing, a control shows their change, as with the pair
+written out.
 
 The right side is a **place**: a `:path`, resolved against the nearest enclosing `datapath`;
 `{ :@[(name)] }` for a field chosen by name; or an attribute, `app.muted` or `classroot.size`.
@@ -750,10 +754,10 @@ yourself, with that work in `commit`.
 - One place decides where the change goes: the shorthand, or a `commit` of your own.
   > says: already says where the person's change goes
   > probe: App [ s: string = "", TextInput [ accessibilityLabel = "T", value <-> app.s, commit(v: string) { app.s = v } ] ]
-- It binds a value control's value, and nothing else.
-  > says: is not a value control
+- It binds what a class hands back through `commit(v)`, and nothing else.
+  > says: has no commit
   > probe: App [ d: Dataset { { "w": 3 } }, View [ datapath = { app.d.value }, width <-> :w ] ]
-- On a value control, it binds the attribute that is its value.
+- It binds the attribute the class hands back — a control's value, an overlay's `shown`.
   > says: TextInput's value is 'value'
   > probe: App [ p: string = "", TextInput [ accessibilityLabel = "T", placeholder <-> app.p ] ]
 - The place holds what the control shows: the shorthand converts nothing.

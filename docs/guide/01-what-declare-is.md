@@ -151,7 +151,7 @@ colors and sizes the app repeats are tokens in a `theme`, read where they are us
 never constants copied into views ([Paint and themes](declare-docs:guide:paint-and-themes@themes)).
 
 **Controls come from the library, and they hand edits back.** The [`Checkbox`](declare-docs:Checkbox) shows a
-value it is given (`checked = :done`) and delivers the user's change through `input`,
+value it is given (`checked = :done`) and delivers the user's change through `commit`,
 which writes the record: `:done = v`. Every control follows that one pattern, and the
 library ships the usual set, themed and keyboard-ready. A control you build yourself
 extends [`Control`](declare-docs:Control) and inherits focus, keyboard activation and interaction states. See
@@ -253,7 +253,7 @@ crawlers read real content from a static host with no server-side rendering
 ([Packaging for production](declare-docs:guide:packaging)).
 
 And it was designed for a time when much code is written by LLMs. The whole language
-fits in [one file](declare-docs:spec:core) of about <!--stat:spec.tokens-->20,000<!--/stat--> tokens, small enough
+fits in [one file](declare-docs:spec:core) of about <!--stat:spec.tokens-->21,000<!--/stat--> tokens, small enough
 to hand to an LLM whole, and the compiler's errors name the rule and the fix, so an
 LLM's write-check-revise loop converges. Every property that makes the language
 workable for a machine — small, regular, strictly checked — is a property you benefit

@@ -195,7 +195,7 @@ await test("a Segmented's selected label takes the pill's own text colour, else 
   // Cadence run 26: a theme with an ink pill (segmentedSelectedFill) left its label in
   // ink too, unreadable; the pair is segmentedSelectedTextColor, as accent / accentTextColor
   const seg = (theme) => `theme = { { ...SanFrancisco, ${theme} } },
-    s: Segmented [ accessibilityLabel = "Pick", value = { "a" }, input(v: any) { }, choices = { [ ({ id: "a", label: "A" }), ({ id: "b", label: "B" }) ] } ]`;
+    s: Segmented [ accessibilityLabel = "Pick", value = { "a" }, commit(v: any) { }, items = { [ ({ id: "a", label: "A" }), ({ id: "b", label: "B" }) ] } ]`;
   const inks = (app) => {
     const out = [];
     const walk = (v) => { for (const c of v.children ?? []) { if (typeof c.on === "boolean" && c.ink !== undefined) out.push([c.on, c.ink]); walk(c); } };

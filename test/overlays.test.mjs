@@ -58,7 +58,7 @@ await test("a press outside: a popover closes and the press goes on; a dialog ho
   assert.equal(app.dlg.shown, true, "…and stays open");
   app.dlg.close(); settle();
 
-  app.menu.openFor(app.opener1); settle();
+  app.menu.showFor(app.opener1); settle();
   assert.equal(pressOutside(app, 520, 360), true, "a menu swallows the press — the Mac rule");
   settle();
   assert.equal(app.menu.shown, false, "…and closes");
@@ -67,6 +67,16 @@ await test("a press outside: a popover closes and the press goes on; a dialog ho
   assert.equal(pressOutside(app, 520, 360), false, "a toast is not in the way");
   assert.equal(app.toast.shown, true, "…and stays");
   app.toast.close(); settle();
+});
+
+await test("a closing overlay takes no presses on itself: through its closing motion they reach what is beneath (Presentify run 9)", async () => {
+  const app = await boot(KINDS);
+  assert.equal(app.pop.pointerEvents, "none", "closed: nothing to press");
+  app.pop.showFor(app.opener1); settle();
+  assert.equal(app.pop.pointerEvents, "auto", "open: it takes its own presses");
+  app.pop.close(); settle();
+  assert.equal(app.pop.present, true, "still drawn while its closing motion runs");
+  assert.equal(app.pop.pointerEvents, "none", "…and takes no presses meanwhile");
 });
 
 await test("a combobox's open list is suggestions, not a menu: a press elsewhere closes it and goes on", async () => {
@@ -85,7 +95,7 @@ await test("an overlay's open and close work is its own: a use site's trackChang
     pop: Popover [ anchorTo = { app.opener1 }, note: string = "",
         trackChanges = ["note"], onChange() { app.seen = app.seen + 1 }, onInit() { app.inits = app.inits + 1 },
         Text [ text = "a popover" ] ],
-    early: Sheet [ shown = { app.startOpen }, input(open: boolean) { app.startOpen = open }, onInit() { app.inits = app.inits + 1 }, Text [ text = "open at start" ] ]
+    early: Sheet [ shown = { app.startOpen }, commit(open: boolean) { app.startOpen = open }, onInit() { app.inits = app.inits + 1 }, Text [ text = "open at start" ] ]
     ]`);
   await new Promise((r) => setTimeout(r, 0)); settle();
   assert.equal(app.inits, 2, "the use sites' own onInit ran");
@@ -175,7 +185,7 @@ const WINDOWS = `App [ width = 800, height = 500,
 
 await test("a Window: what opens inside it paints in its own layer; a toast paints in the App's", async () => {
   const app = await boot(WINDOWS);
-  app.a.menu.openFor(app.a.fa); settle();
+  app.a.menu.showFor(app.a.fa); settle();
   same(app.a.menu.paintsIn, app.a.layer, "a menu declared in the window opens in the window's layer");
   app.a.menu.close(); settle();
   app.a.local.say("hello", null); settle();
@@ -214,12 +224,12 @@ await test("a menu in a turned window opens at its anchor in the window's frame 
         far: Button [ x = 240, y = 150, label = "Edge" ]
         ]
     ]`);
-  app.w.menu.openFor(app.w.btn); settle();
+  app.w.menu.showFor(app.w.btn); settle();
   const m = app.w.menu, b = app.w.btn;
   assert.ok(Math.abs(m.x - b.x) < 0.5 && Math.abs(m.y - (b.y + b.height + 4)) < 0.5,
     `below the button, in the window's own frame (menu ${m.x},${m.y}; button ${b.x},${b.y + b.height + 4})`);
   m.close(); settle();
-  app.w.menu.openFor(app.w.far); settle();
+  app.w.menu.showFor(app.w.far); settle();
   const r = app.w.menu.rootBounds();
   assert.ok(r.x + r.width <= 600 - 3.5 && r.x >= 3.5 && r.y + r.height <= 400 - 3.5 && r.y >= 3.5,
     `kept on the App: ${JSON.stringify(r)}`);
@@ -265,7 +275,7 @@ async function hosted() {
 
 await test("a hosted program's menu opens in its window's layer, at its anchor, and may hang past the window", async () => {
   const { host, tenant, unlink } = await hosted();
-  tenant.menu.openFor(tenant.btn); settle();
+  tenant.menu.showFor(tenant.btn); settle();
   same(tenant.menu.paintsIn, host.w.layer, "the window's layer, through the island's provides");
   assert.ok(Math.abs(tenant.menu.x - 20) < 0.5 && Math.abs(tenant.menu.y - (150 + tenant.btn.height + 4)) < 0.5,
     `below the button, in the layer's frame (${tenant.menu.x},${tenant.menu.y})`);
@@ -288,7 +298,7 @@ await test("a hosted program's dialog holds back presses in its own window only,
 
 await test("a hosted program's open menu leaves the host's layer when the program goes", async () => {
   const { host, tenant, unlink } = await hosted();
-  tenant.menu.openFor(tenant.btn); settle();
+  tenant.menu.showFor(tenant.btn); settle();
   same(host.w.layer.$paintGuests.length, 1, "listed in the layer while open");
   unlink();
   tenant.discard(); settle();
@@ -313,7 +323,7 @@ await test("a program shown scaled in a window opens its menu at its own scale, 
   const { host, tenant } = await hostedIn(`box: View [ x = 20, y = 20, width = 150, height = 100, scale = 0.5,
         isl: AppIsland [ width = 300, height = 200 ] ]`);
   const unlink = linkIslandTenant(host.w.box.isl, tenant); settle();
-  tenant.menu.openFor(tenant.btn); settle();
+  tenant.menu.showFor(tenant.btn); settle();
   same(tenant.menu.paintsIn, host.w.layer, "the window's layer, past the box's clip");
   assert.ok(Math.abs(tenant.menu.scale - 0.5) < 1e-6, `at the program's scale (${tenant.menu.scale})`);
   const b = tenant.btn.transformTo(host.w.layer);
@@ -326,7 +336,7 @@ await test("a program shown scaled in a window opens its menu at its own scale, 
 await test("containOverlays keeps a hosted program's menu inside its own program", async () => {
   const { host, tenant } = await hostedIn(`isl: AppIsland [ width = 100%, height = 100%, containOverlays = true ]`);
   const unlink = linkIslandTenant(host.w.isl, tenant); settle();
-  tenant.menu.openFor(tenant.btn); settle();
+  tenant.menu.showFor(tenant.btn); settle();
   assert.ok(tenant.menu.paintsIn !== host.w.layer, "not the window's layer");
   let n = tenant.menu.paintsIn; while (n.parent != null) n = n.parent;
   same(n, tenant, "a layer of the program's own");
@@ -423,13 +433,13 @@ await test("in a dialog, Return in a multi-line field does not pick the default"
 
 await test("an open menu keeps the arrows from the control it was opened from", async () => {
   const app = await boot(`App [ width = 500, height = 300, sel: string = "a",
-    seg: Segmented [ x = 20, y = 20, value = { app.sel }, input(v: any) { app.sel = v },
-        choices = { [ ({ id: "a", label: "A" }), ({ id: "b", label: "B" }) ] } ],
+    seg: Segmented [ x = 20, y = 20, value = { app.sel }, commit(v: any) { app.sel = v },
+        items = { [ ({ id: "a", label: "A" }), ({ id: "b", label: "B" }) ] } ],
     m: Menu [ items = { [ ({ id: "x", label: "X" }), ({ id: "y", label: "Y" }) ] } ] ]`);
   deliverKeys(Keys, Focus);
   const s0 = app.seg.segs()[0];
   Focus.focus(s0); settle();
-  app.m.openFor(s0); settle(); await turns();
+  app.m.showFor(s0); settle(); await turns();
   press("ArrowRight");
   same(Focus.getFocus(), app.m, "the open menu holds the focus, naming its rows");
   assert.equal(app.sel, "a", "the segment under the open menu did not rove");
@@ -451,7 +461,7 @@ await test("a sheet modal to one window stays open, and lets by, a press in anot
 
 await test("an overlay's shown can be state: it opens when the state does, and Esc writes the state back", async () => {
   const app = await boot(`App [ width = 600, height = 400, editing: boolean = false,
-    sh: Sheet [ shown = { app.editing }, input(open: boolean) { app.editing = open },
+    sh: Sheet [ shown = { app.editing }, commit(open: boolean) { app.editing = open },
         f: Button [ label = "Inside" ] ] ]`);
   deliverKeys(Keys, Focus);
   assert.equal(app.sh.present, false, "closed while the state is false");
@@ -464,29 +474,50 @@ await test("an overlay's shown can be state: it opens when the state does, and E
   assert.equal(app.sh.shown, false, "and it closed");
   same(Keys._claimant(), null, "its keyboard claim went with it");
   app.sh.show(); settle(); await turns();
-  assert.equal(app.editing, true, "show() delivers through input too");
+  assert.equal(app.editing, true, "show() delivers through commit too");
   app.sh.close(); settle(); await turns();
   assert.equal(app.editing, false);
 });
 
+await test("<-> binds what any class hands back through commit: an overlay's shown, a Disclosure's open, a Segmented's value", async () => {
+  const app = await boot(`App [ width = 600, height = 400, editing: boolean = false, o: boolean = false, mode: string = "a",
+    sh: Sheet [ shown <-> app.editing, f: Button [ label = "Inside" ] ],
+    d: Disclosure [ label = "More", open <-> app.o ],
+    seg: Segmented [ value <-> app.mode, items = { [ ({ id: "a", label: "A" }), ({ id: "b", label: "B" }) ] } ] ]`);
+  deliverKeys(Keys, Focus);
+  app.editing = true; settle(); await turns();
+  assert.ok(app.sh.shown && app.sh.present, "the state opened it");
+  press("Escape"); await turns();
+  assert.equal(app.editing, false, "Esc delivered the close to the state");
+  app.sh.show(); settle(); await turns();
+  assert.equal(app.editing, true, "show() delivers through the shorthand's commit");
+  app.sh.close(); settle(); await turns();
+  app.d.toggle(); settle();
+  assert.equal(app.o, true, "the disclosure's toggle reached the state");
+  assert.equal(app.d.open, true);
+  app.seg.pick("b"); settle();
+  assert.equal(app.mode, "b", "the segment's pick reached the state");
+  assert.equal(app.seg.value, "b");
+});
+
 await test("an overlay whose state is true at start opens with the program", async () => {
   const app = await boot(`App [ width = 600, height = 400, editing: boolean = true,
-    sh: Sheet [ shown = { app.editing }, input(open: boolean) { app.editing = open }, Text [ text = "hi" ] ] ]`);
+    sh: Sheet [ shown = { app.editing }, commit(open: boolean) { app.editing = open }, Text [ text = "hi" ] ] ]`);
   await turns();
   assert.ok(app.sh.present, "open from the first frames");
   app.sh.close(); settle(); await turns();
   assert.equal(app.editing, false);
 });
 
-await test("a constrained shown without an input override is a compile error that names the fix; with one it compiles", async () => {
+await test("a constrained shown without a commit override is a compile error that names the fix; with one it compiles", async () => {
   const bad = await compileProgram(`App [ width = 400, height = 300, editing: boolean = false,
     sh: Sheet [ shown = { app.editing } ] ]`, { originDir: process.cwd() + "/library", stripPos: false });
-  assert.ok(bad.errors.some((e) => /Sheet\.shown is constrained here/.test(e.message) && /input\(/.test(e.message)), bad.errors.map((e) => e.message).join("; "));
+  assert.ok(bad.errors.some((e) => /Sheet\.shown is constrained here/.test(e.message) && /commit\(/.test(e.message) && /shown <-> app\.editing/.test(e.message)), bad.errors.map((e) => e.message).join("; "));
   const slider = await compileProgram(`App [ width = 400, height = 300, v: number = 3,
     Slider [ value = { app.v } ] ]`, { originDir: process.cwd() + "/library", stripPos: false });
   assert.ok(slider.errors.some((e) => /Slider\.value is constrained here/.test(e.message)), "the same rule for a control's value");
   const good = await compileProgram(`App [ width = 400, height = 300, editing: boolean = false,
-    sh: Sheet [ shown = { app.editing }, input(open: boolean) { app.editing = open } ] ]`, { originDir: process.cwd() + "/library", stripPos: false });
+    sh: Sheet [ shown = { app.editing }, commit(open: boolean) { app.editing = open } ] ]`, { originDir: process.cwd() + "/library", stripPos: false });
   assert.equal(good.errors.length, 0, good.errors.map((e) => e.message).join("; "));
 });
 
@@ -498,7 +529,7 @@ await test("typing letters in an open menu moves its highlight: a prefix, then t
         ({ id: "export", label: "Export" }), ({ id: "print", label: "Print" }) ] } ] ]`);
   deliverKeys(Keys, Focus);
   Focus.focus(app.b); settle();
-  app.m.openFor(app.b); settle(); await turns();
+  app.m.showFor(app.b); settle(); await turns();
   const at = () => app.m.activeRow?.label;
   press("e");
   assert.equal(at(), "Export", "e lands on Export");
@@ -521,7 +552,7 @@ await test("Tab with a menu open closes the menu and moves on; it never goes beh
     m: Menu [ items = { [ ({ id: "x", label: "X" }) ] } ] ]`);
   deliverKeys(Keys, Focus);
   Focus.focus(app.b); settle();
-  app.m.openFor(app.b); settle(); await turns();
+  app.m.showFor(app.b); settle(); await turns();
   press("Tab");
   await turns();
   assert.equal(app.m.shown, false, "the menu closed");
@@ -596,7 +627,7 @@ await test("a start sheet is a drawer at every width, and a swipe back past a qu
   setClock(new Clock(sched));
   try {
     const app = await boot(`App [ width = 390, height = 700, open: boolean = false,
-    nav: Sheet [ edge = "start", shown = { app.open }, input(v: boolean) { app.open = v },
+    nav: Sheet [ edge = "start", shown = { app.open }, commit(v: boolean) { app.open = v },
         Text [ text = "Contents" ] ],
     card: Sheet [ Text [ text = "a sheet" ] ] ]`);
     app.hostWidth = 390; app.hostHeight = 700; settle();

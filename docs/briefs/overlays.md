@@ -7,8 +7,8 @@ popover, a tooltip.
 ```declare
 class Row [ width = 100%, height = 30,
     t: Text [ x = 10, y = 7, text = :name ],
-    onContextMenu(e: PointerEvent) { app.rowMenu.open(this, e) },   // right-click, two-finger
-    onHold(e: PointerEvent) { app.rowMenu.open(this, e) }            // touch long-press
+    onContextMenu(e: PointerEvent) { app.rowMenu.showAt(this, e) },  // right-click, two-finger
+    onHold(e: PointerEvent) { app.rowMenu.showAt(this, e) }           // touch long-press
     ]
 
 App [ width = 360, height = 220, theme = { SanFrancisco }, fill = { provided("theme").background },
@@ -40,8 +40,8 @@ App [ width = 360, height = 220, theme = { SanFrancisco }, fill = { provided("th
 - Items are records (`{ id, label, key?, icon?, enabled?, checked?, divider?, submenu? }`);
   the choice comes back through `picked(id)`. A menu's `items` may read `opener` to serve
   many rows from one instance.
-- `menu = { app.x }` on a control is the whole wiring for a dropdown. `openFor(v)`
-  anchors below a view; `openAt(v, e)` / `ContextMenu.open(v, e)` opens at the pointer,
+- `menu = { app.x }` on a control is the whole wiring for a dropdown. `showFor(v)`
+  anchors below a view; `showAt(v, e)` opens at the pointer (a `ContextMenu`),
   wired on the served view with `onContextMenu` and `onHold`.
 - Menus light-dismiss: an outside press closes the layer and is swallowed. Dialogs are
   modal: a scrim, no light dismiss, focus trapped inside, focus restored after.
@@ -51,7 +51,7 @@ App [ width = 360, height = 220, theme = { SanFrancisco }, fill = { provided("th
 - Building your own modal: restore focus one turn late, or the Return that closed it
   reopens it.
 
-**Look up** `Menu`, `Menu.picked`, `Menu.opener`, `Menu.openFor`, `ContextMenu`,
+**Look up** `Menu`, `Menu.picked`, `Menu.opener`, `Menu.showFor`, `ContextMenu`,
 `Dialog.ask`, `Dialog.notice`, `View.tooltipLabel`, `Control.menu`.
 
 **Examples** `apps/tracker/tracker.declare`: `IssueRow`, a menu on right-click and on hold ·

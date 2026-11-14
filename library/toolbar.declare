@@ -12,9 +12,9 @@ use [ PlusIcon, MinusIcon ]
 
 App [ width = 360, height = 100, bold: boolean = false, italic: boolean = false,
     Toolbar [ x = 20, y = 20, accessibilityLabel = "Formatting",
-        ToolButton [ label = "B", toggle = true, on = { app.bold }, input(v: boolean) { app.bold = v },
+        ToolButton [ label = "B", toggle = true, on = { app.bold }, commit(v: boolean) { app.bold = v },
             accessibilityLabel = "Bold" ],
-        ToolButton [ label = "I", toggle = true, on = { app.italic }, input(v: boolean) { app.italic = v },
+        ToolButton [ label = "I", toggle = true, on = { app.italic }, commit(v: boolean) { app.italic = v },
             accessibilityLabel = "Italic" ],
         ToolbarDivider [ ],
         ToolButton [ icon = "PlusIcon", label = "Add" ],
@@ -70,7 +70,7 @@ with.
 ```declare
 App [ width = 300, height = 80, wrap: boolean = true,
     Toolbar [ x = 20, y = 20, accessibilityLabel = "View",
-        ToolButton [ label = "Wrap", toggle = true, on = { app.wrap }, input(v: boolean) { app.wrap = v } ],
+        ToolButton [ label = "Wrap", toggle = true, on = { app.wrap }, commit(v: boolean) { app.wrap = v } ],
         ToolButton [ label = "Zoom in" ]
         ]
     ]
@@ -88,15 +88,15 @@ Whether the button holds a state, on or off. A toggle is a pressed or unpressed 
 screen reader.
 
 ## on
-A toggle's state. Constrain it to your own state and override `input` to own the
-destination, or leave it alone and read it back.
+A toggle's state. Bind it both ways to your own state (`on <-> app.bold`), or constrain it
+and override `commit` to own the destination, or leave it alone and read it back.
 
-## input()
+## commit()
 **Where a toggle's change goes**, receiving the new `on`. The default writes `on`.
 
 ## onClick
 What the command does — the handler you give it. A toggle's own flips `on`; a toggle's
-change is had through `input`, so give a toggle no `onClick`.
+change is had through `commit`, so give a toggle no `onClick`.
 
 ## press()
 Runs `onClick`, so Space and Enter do what a click does.
@@ -143,8 +143,8 @@ class ToolButton extends Control [
     icon: string = "",
     toggle: boolean = false,
     on: boolean = false,
-    input(v: boolean) { on = v },
-    onClick() { if (toggle) input(!on) },
+    commit(v: boolean) { on = v },
+    onClick() { if (toggle) commit(!on) },
     press() { onClick() },
 
     accessibilityRole = button,

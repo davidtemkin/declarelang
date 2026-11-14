@@ -5,7 +5,9 @@
 //     text other apps read, and the program's own type;
 //   - ⌘V hands the pasteboard to the view that takes it, its own type intact;
 //   - text another app copied arrives as text.
-// The person's clipboard is kept and put back.
+// The person's clipboard is kept and put back. A test takes no focus, so the host
+// has no key window for a menu item to reach: `menukey` checks that the menu claims
+// the key, and `edit copy|paste` performs the action at the program's view.
 import assert from "node:assert/strict";
 import http from "node:http";
 import path from "node:path";
@@ -52,6 +54,8 @@ try {
     let up = false;
     for (let i = 0; i < 100 && !up; i++) { up = (await ctl("ping", 10)) === "ok"; if (!up) await sleep(0.1); }
     assert.equal(up, true);
+    // the program itself, not only the control channel
+    for (let i = 0; i < 100 && (await app("word")) !== "tomato"; i++) await sleep(0.1);
     await ctl("waitload");
     for (let i = 0; i < 50 && (await app("word")) !== "tomato"; i++) await sleep(0.1);
     assert.match(await ctl("activate"), /^ok/);
@@ -60,14 +64,16 @@ try {
   await test("⌘C at a focused view puts its text and its own type on the pasteboard", async () => {
     pbcopy("before");
     await focusOn("chip");
-    assert.equal(await ctl("menukey c cmd"), "handled");
+    assert.equal(await ctl("menukey c cmd"), "handled", "the Edit menu claims ⌘C");
+    assert.equal(await ctl("edit copy"), "ok");
     await sleep(0.3);
     assert.equal(pbpaste(), "tomato", "the plain text, as other apps read it");
   });
 
   await test("⌘V gives the view the pasteboard, its own type first", async () => {
     await focusOn("board");
-    assert.equal(await ctl("menukey v cmd"), "handled");
+    assert.equal(await ctl("menukey v cmd"), "handled", "the Edit menu claims ⌘V");
+    assert.equal(await ctl("edit paste"), "ok");
     for (let i = 0; i < 20 && (await app("pasted")) === ""; i++) await sleep(0.1);
     assert.equal(await app("pasted"), "tomato");
     assert.match(await app("types"), /application\/x-chip/);
@@ -76,7 +82,7 @@ try {
   await test("text another app copied arrives as text", async () => {
     pbcopy("thyme");
     await focusOn("board");
-    await ctl("menukey v cmd");
+    await ctl("edit paste");
     for (let i = 0; i < 20 && (await app("pasted")) !== "thyme"; i++) await sleep(0.1);
     assert.equal(await app("pasted"), "thyme");
     assert.equal(await app("types"), "text/plain");

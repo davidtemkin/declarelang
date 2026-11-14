@@ -14,15 +14,15 @@ sound that answers an event, which plays each time the event happens.
 ## Images
 
 Set `source` to a URL and the image loads in the background. Left unsized, it takes the
-bitmap's natural size when the bytes arrive; give it a size and `stretches` decides how
-the picture fits:
+bitmap's natural size when the bytes arrive; give it a size and `fit` decides how
+the picture fills it:
 
 ```declare
 App [ width = 340, height = 170, fill = white, textColor = #51606C, fontSize = 12,
     row: View [ x = 20, y = 20,
         layout: SimpleLayout [ axis = x, spacing = 20 ],
         pic: View [ width = 130, height = 130, fill = #E9EFF4, cornerRadius = 8, clip = true,
-            logo: Image [ width = 130, height = 130, source = "../resources/logo.png", stretches = contain ]
+            logo: Image [ width = 130, height = 130, source = "../resources/logo.png", fit = contain ]
             ],
         Text [ width = 150,
             text = { app.row.pic.logo.loaded
@@ -32,7 +32,7 @@ App [ width = 340, height = 170, fill = white, textColor = #51606C, fontSize = 1
     ]
 ```
 
-- `stretches`: `none` (natural size), `contain` (the whole picture, letterboxed),
+- `fit`: `none` (natural size), `contain` (the whole picture, letterboxed),
   `cover` (fill the box and crop — the photo-in-a-card value), or `width`, `height`,
   `both` to stretch.
 - [`alignX`](declare-docs:Image.alignX) / [`alignY`](declare-docs:Image.alignY) choose which part a `contain` or `cover` keeps.
@@ -42,6 +42,11 @@ App [ width = 340, height = 170, fill = white, textColor = #51606C, fontSize = 1
   image and drawing inside follows.
 - `loaded`, `failed`, [`naturalWidth`](declare-docs:Image.naturalWidth) and [`naturalHeight`](declare-docs:Image.naturalHeight) are read-only facts. A
   placeholder is a constraint: `spinner: View [ visible = { !pic.loaded } ]`.
+- `loaded` says a picture is showing, not that the current `source`'s has arrived. Given a
+  new `source`, an image keeps the picture it has, and `loaded` stays true, until the new one
+  lands; if that load fails, `failed` turns true and the old picture stays. So a change in
+  `loaded` is no news of a new picture: work that belongs to one picture keys off `source`,
+  and reads `failed` first.
 
 `source` is an attribute like any other, so an image driven by data is a constraint:
 `source = { iconFor(:code) }`. A small script function computing the URL beats a class
@@ -63,7 +68,7 @@ wrapped around one image.
 - [`volume`](declare-docs:Media.volume), [`muted`](declare-docs:Media.muted), [`loop`](declare-docs:Media.loop), [`playbackRate`](declare-docs:Media.playbackRate).
 
 ```declare-fragment
-clip: Video [ source = "tour.mp4", width = 320, height = 180, stretches = both, loop = true,
+clip: Video [ source = "tour.mp4", width = 320, height = 180, fit = both, loop = true,
     playing = { onScreen && app.pageVisible } ]
 ```
 

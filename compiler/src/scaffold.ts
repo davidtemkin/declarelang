@@ -121,7 +121,9 @@ interface Gradient { kind?: "linear" | "radial" | "conic"; angle: number; cx?: n
 /** What a fill slot holds: a flat color, or a gradient. \`null\` is no fill at all. */
 type Fill = Color | Gradient;
 /** A border, built by \`stroke(width, color)\`. It is drawn INSIDE the box, so a
- *  stroke never changes a view's size — there is no \`borderWidth\` to add to a layout. */
+ *  stroke never changes a view's size — there is no \`borderWidth\` to add to a layout.
+ *  On \`Text.textStroke\` the same value strokes the GLYPHS' edges, under their fill:
+ *  a filled letter shows a thin ring and an unfilled one reads hollow. */
 interface Stroke { width: number; color: Color }
 /** What the \`stroke\` slot holds: ONE Stroke on all four sides, or four —
  *  \`[top, right, bottom, left]\`, clockwise from the top, \`null\` for a bare side.
@@ -130,20 +132,16 @@ interface Stroke { width: number; color: Color }
  *  into a stroke asks which form it has first: \`Array.isArray(v.stroke)\`, or
  *  \`v.stroke && "width" in v.stroke\`. \`null\` is no border at all. */
 type BoxStroke = Stroke | readonly [Stroke | null, Stroke | null, Stroke | null, Stroke | null] | null;
-/** A stroke around the edges of the GLYPHS, built by \`outline(width, color)\` — the
- *  value \`Text.outline\` takes. It rides under the fill, so a filled letter shows a
- *  thin ring and an unfilled one reads hollow; it is not a box around the run. */
-interface GlyphOutline { width: number; color: Color }
 /** A drop shadow, built by \`shadow(dx, dy, blur, color)\`. It is also a \`ImageFilter\`, so
  *  it composes in a filter list; on \`textShadow\` it shadows the glyphs. */
 interface Shadow { fn: "shadow"; dx: number; dy: number; blur: number; color: Color }
 /** One entry in a filter list: a blur, one of the amount filters, a hue rotation, a
- *  colorize, or a shadow. \`filter\` applies the list to the view's own paint as a
+ *  colorize, or a shadow. \`visualFilter\` applies the list to the view's own paint as a
  *  GROUP (so a subtree blurs together, not child by child); \`backdrop\` applies the
  *  same list to what lies beneath. There is no CSS \`filter\` string: the tokens are
  *  functions, so a misspelling is a compile error rather than a silent no-op. */
 type ImageFilter = { fn: "blur"; radius: number } | { fn: "brightness" | "contrast" | "saturate" | "grayscale" | "invert" | "sepia"; amount: number } | { fn: "hueRotate"; degrees: number } | { fn: "colorize"; color: Color } | Shadow;
-/** A list of filters, applied in order: what \`filter\` applies to the view's own
+/** A list of filters, applied in order: what \`visualFilter\` applies to the view's own
  *  paint and \`backdrop\` to what lies beneath it. \`frost(…)\` builds the common
  *  backdrop pair. */
 type FilterList = readonly ImageFilter[];
@@ -184,10 +182,8 @@ declare function radialGradient(cx: number, cy: number, r: number, ...stops: (Co
  *  a progress sweep. */
 declare function conicGradient(cx: number, cy: number, angle: number, ...stops: (Color | { offset: number | null; color: Color })[]): Gradient;
 /** Build a border: \`stroke = stroke(1, #B0B0B0)\`. Drawn inside the box, so it
- *  costs no layout. */
+ *  costs no layout. On a Text, \`textStroke = stroke(1, #C0392B)\` strokes the glyphs. */
 declare function stroke(width: number, color: Color): Stroke;
-/** Build a Text's glyph outline: a stroke along the letters' edges, under their fill. */
-declare function outline(width: number, color: Color): GlyphOutline;
 /** Place one gradient stop at an exact offset (0 to 1) instead of letting the
  *  colors spread evenly. */
 declare function colorStop(offset: number, color: Color): { offset: number; color: Color };
@@ -197,7 +193,7 @@ declare function shadow(dx: number, dy: number, blur: number, color: Color): Sha
 /** The frosted-glass backdrop: blur what lies beneath, and lift its saturation a
  *  little so color shows through rather than going grey. \`backdrop = frost(26, 1.5)\`. */
 declare function frost(radius: number, saturation?: number): FilterList;
-/** Blur, by radius in the view's own units. \`filter = blur(4)\` blurs this view's
+/** Blur, by radius in the view's own units. \`visualFilter = blur(4)\` blurs this view's
  *  paint; \`backdrop = blur(20)\` blurs what is behind it. */
 declare function blur(radius: number): ImageFilter;
 /** Scale brightness — 1 is unchanged, 0 is black, above 1 lightens. */
@@ -231,7 +227,7 @@ interface TextStyle {
   letterSpacing?: number; lineHeight?: number; textColor?: Color | null; textShadow?: Shadow | null;
   textTransform?: "none" | "uppercase" | "lowercase" | "capitalize"; smallCaps?: boolean;
   numerals?: "normal" | "lining" | "oldstyle"; numeralWidth?: "normal" | "tabular" | "proportional"; slashedZero?: boolean;
-  textFill?: Fill | null; outline?: GlyphOutline | null; underline?: boolean; strike?: boolean;
+  textFill?: Fill | null; textStroke?: Stroke | null; underline?: boolean; strike?: boolean;
 }
 /** The palette a \`<span class>\` names: style name → that style's fields. The KEYS
  *  are open — content chooses them — and the VALUES are closed, so a misspelled
@@ -246,6 +242,10 @@ interface TagStyles {
   strong?: string; em?: string; strike?: string; code?: string; link?: string; quote?: string;
   h1?: string; h2?: string; h3?: string; h4?: string; h5?: string; h6?: string;
 }
+/** Which tags in rich-text content build views: tag name → one of the program's
+ *  view classes, written as a value (\`{ Chip: Chip }\`). Keys open — content
+ *  chooses them; values closed to view classes, so a string is caught. */
+type TagViews = Readonly<Record<string, abstract new (...args: any[]) => View>>;
 /** One block type's geometry in a rich-text flow: a measure to cap its width at
  *  (0 = the full track), a \`[left, right]\` margin, and how it sits in what is
  *  left. Every field is optional; what a block does not state it takes from the
@@ -431,8 +431,12 @@ interface WheelEvent extends PointerEvent { pinch: boolean }
 interface PinchEvent extends PointerEvent { scale: number; center: { readonly x: number; readonly y: number } }
 /** A key, both ways: \`code\` is the physical key regardless of layout (what a
  *  shortcut wants), \`key\` is the character it produced (what typing wants). Plus the
- *  four modifiers and whether the key is repeating. */
-interface KeyEvent { code: string; key: string; shift: boolean; ctrl: boolean; alt: boolean; meta: boolean; repeat: boolean }
+ *  four modifiers, whether the key is repeating, and \`isComposing\`: the key belongs to
+ *  an input method's composition (an accent, a Japanese reading, the Return that
+ *  commits one), so it is the method's to act on, not a command or a typed letter;
+ *  and \`altGraph\`: AltGr is held (Windows and Linux layouts, where it also reads as
+ *  Ctrl and Alt), so the key types a character such as € and is not a chord. */
+interface KeyEvent { code: string; key: string; shift: boolean; ctrl: boolean; alt: boolean; meta: boolean; repeat: boolean; isComposing: boolean; altGraph: boolean }
 /** Where the focus indicator should be, and where it came from — the rect and
  *  radius to draw, the view and root it belongs to, the scroller it sits in, and the
  *  \`home…\` fields it is travelling from. What a custom focus ring reads to animate. */
@@ -466,7 +470,7 @@ interface ClipboardEvent { readonly types: string[]; readonly text: string; read
  *  what the person does, as a browser allows the write only then. Pasting is the person's:
  *  a view reads the clipboard in \`onClipboardPaste\`. */
 declare const Clipboard: { copy(what: string | Record<string, string>): void };
-/** Commands run by name (key-bindings.md): \`run(name)\` walks from the last focus
+/** Commands run by name (the key walk: guide 09, Commands): \`run(name)\` walks from the last focus
  *  outside command chrome — a menu bar, a menu, a command button — outward, and the first
  *  view whose \`keyBindings\` bind the command runs it; \`state(name)\` says whether one would
  *  ("on", "off" for greyed, "none"); \`target()\` is where the walk starts. */
@@ -486,23 +490,23 @@ declare const Accessibility: {
   announced(): readonly { text: string; politeness: "polite" | "assertive" }[];
 };
 /** An easing curve, built by \`cubicBezier\`, \`back\`, \`steps\` or \`laszlo\` — what an
- *  \`Animator\`'s \`motion\` takes, alongside the named tokens. Opaque by design: a curve
+ *  \`Animator\`'s \`easing\` takes, alongside the named tokens. Opaque by design: a curve
  *  is a value you pass, not a shape you inspect. */
-type MotionCurve = { readonly __motion: true };
+type EasingCurve = { readonly __easing: true };
 /** An easing curve from two control points, the CSS \`cubic-bezier\` form — so a
  *  curve copied from a design tool or a stylesheet transfers unchanged. */
-declare function cubicBezier(x1: number, y1: number, x2: number, y2: number): MotionCurve;
+declare function cubicBezier(x1: number, y1: number, x2: number, y2: number): EasingCurve;
 /** An easing curve that overshoots its destination and settles back. The argument
  *  is how far past it goes. */
-declare function back(overshoot: number): MotionCurve;
+declare function back(overshoot: number): EasingCurve;
 /** A stepped curve: \`n\` discrete jumps rather than a continuous ease — a ticking
  *  counter, a sprite flip. \`jump\` chooses whether the first or last step is taken at
  *  the ends. */
-declare function steps(n: number, jump?: "jumpStart" | "jumpEnd"): MotionCurve;
+declare function steps(n: number, jump?: "jumpStart" | "jumpEnd"): EasingCurve;
 /** An easing curve in OpenLaszlo's pole form: a begin and end pole rather than two
  *  control points. The same family of shapes as \`cubicBezier\`, reached the way the
  *  animations it came from were written. */
-declare function laszlo(beginPole: number, endPole: number): MotionCurve;
+declare function laszlo(beginPole: number, endPole: number): EasingCurve;
 /** The running program, readable — what the Inspector is built on: the node rows
  *  with their kinds and constraint state, and whether the service is up. Dev tooling;
  *  a production build ships a stub unless you ask for it. */
@@ -585,6 +589,15 @@ declare function decodeURI(s: string): string;`;
  *  the law, and the two layers cannot disagree again (they did, for `fetch`:
  *  admitted by the resolver, refused by the checker — field report
  *  2026-08-21). */
+/** A shared function every { } body has, as a person writes its call —
+ *  `escapeHtml(s)` — read from its prelude declaration; null when `name` is
+ *  not one. */
+export function sharedFunctionSignature(name: string): string | null {
+  const m = new RegExp(`^declare function ${name}\\(([^)]*)\\)`, "m").exec(PRELUDE);
+  if (m === null) return null;
+  return `${name}(${m[1].split(",").map((p) => p.trim().split(/\??:/)[0].trim()).filter((p) => p !== "").join(", ")})`;
+}
+
 export const PRELUDE_NAMES: ReadonlySet<string> = new Set(
   [...PRELUDE.matchAll(/^(?:declare\s+)?(?:interface|type|function|const|var|let|class|enum|namespace)\s+([A-Za-z]\w*)/gm)].map((m) => m[1])
 );
@@ -619,7 +632,7 @@ export const HOST_VALUE_GLOBALS: ReadonlySet<string> = new Set(
  *  whose name is here is NOT given the generated open alias below — it has a
  *  real declaration, and a second one is a duplicate identifier. Add a name here
  *  when you write its shape into the prelude, and only then. */
-const PRELUDE_RECORDS: ReadonlySet<string> = new Set(["Theme", "TextStyles", "TagStyles", "RichTextLayout", "DelayHandle", "AccessibilitySettings"]);
+const PRELUDE_RECORDS: ReadonlySet<string> = new Set(["Theme", "TextStyles", "TagStyles", "TagViews", "RichTextLayout", "DelayHandle", "AccessibilitySettings"]);
 
 /** One AttrType (value.ts) → its TypeScript type, mirroring the value model.
  *  Enum and record arms reference a NAMED type (`type Stretch = …`, `Theme`)
@@ -640,7 +653,7 @@ export function tsType(t: AttrType): string {
     case "dataschema": return "any"; // the parsed shape declarations — data, not a body-facing type
     // An AUTHORED literal union (`"idle" | "loading"`) carries the union TEXT
     // as its name and is already TypeScript, so it emits inline and needs no
-    // alias; a built-in vocabulary (Axis, Motion) references the emitted
+    // alias; a built-in vocabulary (Axis, Easing) references the emitted
     // `type <Name> = …` alias. Both are `t.name` — the difference is whether
     // an alias is generated for it (see generateScaffold's `enums`).
     case "enum": return t.name;
@@ -651,11 +664,11 @@ export function tsType(t: AttrType): string {
     case "record": return t.data === true && t.required !== true ? `${t.name} | null` : t.name; // data record (nullable unless declared without `?`) / Theme-class token record
     case "fill": return "Fill";
     case "stroke": return "BoxStroke"; // one Stroke, four clockwise from the top, or null
-    case "outline": return "GlyphOutline | null";
+    case "glyphStroke": return "Stroke | null"; // one Stroke along the glyphs' edges (Text.textStroke), or null
     case "shadow": return "Shadow | null";
     case "filter": return "ImageFilter | readonly ImageFilter[] | null";
     case "mask": return "Gradient | View | null";
-    case "motion": return "Motion"; // the token union + MotionCurve brand (prelude)
+    case "easing": return "Easing"; // the token union + EasingCurve brand (prelude)
     // a family string, a Font object, or a fallback list of them; null only where a slot
     // says null is its default (codeFamily: the house monospace) — a face's own family is
     // never null, and the face provided from above is read as provided("fontFamily")
@@ -712,6 +725,12 @@ export function signatureTsType(written: string, isClassName: (n: string) => boo
   const t = declaredType(written);
   if (t !== null) return nul(t.kind === "view" ? "View" : t.kind === "class" ? t.of : tsType(t));
   if (isClassName(written)) return nul(written);
+  // A paint written by name is "a paint, or none": null is no paint throughout
+  // the language (Color is number | null, Fill holds it, the stroke and shadow
+  // slots take it), so a method that computes one for a slot may return null —
+  // `outline(s) -> Stroke { return s == null ? null : stroke(…) }` (Presentify
+  // run 7). stroke() and shadow() themselves still give a value, never null.
+  if (written === "Stroke" || written === "Shadow") return `${written} | null`;
   // any other TypeScript type, as written — its names are TypeScript's to
   // check, at the parameter (typecheck.ts probeTypes)
   return nul(written.replace(/->/g, "=>"));
@@ -818,19 +837,19 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
     // write climbs to the nearest cursor exactly as the read does
     `  $cell(segs: readonly unknown[]): { value: any };`,
   ],
-  // The App's navigation SERVICE ACTION (view.ts App.navigate, capabilities.md
-  // §6): a link/button calls `app.navigate(url)` in an activation handler. A
-  // method, not an attribute — `app.navigate = url` is a type error now, which
-  // is the migration signal, and the extractor reads the CALL (links.ts).
+  // The App's navigation SERVICE ACTION (view.ts App.openURL, capabilities.md
+  // §6): a link/button calls `app.openURL(url)` in an activation handler to leave
+  // the app for another address. A method, not an attribute, and the extractor
+  // reads the CALL (links.ts).
   App: [
-    `  navigate(to: string): void;`,
+    `  openURL(to: string): void;`,
     `  openWindow(to: string): void;`,
     // the island bridge's tenant-side verb (islands design): this app → its
     // host island's onPost. Meaningful only when embedded and linked.
     `  postToHost(topic: string, payload?: unknown): void;`,
     // The ONE operation behind every arrival (location.md §0.5): followLink(ref)
     // applies the app's onFollowLink hook once, then routes — external through
-    // navigate, "#…" into a location write + reveal. destinationOf strips the
+    // openURL, "#…" into a location write + reveal. destinationOf strips the
     // runtime's own trailing `@name`; apps never hand-write that split.
     `  followLink(ref: string, replace?: boolean): void;`,
     `  destinationOf(loc: string): string;`,
@@ -842,7 +861,7 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
     // The Inspector service action (view.ts App.inspect): a button calls
     // `app.inspect("run:<slot>")` to open the Inspector on an embedded app, or
     // `app.inspect()` for this one. Rides the same host-polled channel shape as
-    // navigate/openWindow — a `{ }` body never touches the document.
+    // openURL/openWindow — a `{ }` body never touches the document.
     `  inspect(slot?: string): void;`,
     // INTERIM (capabilities.md §7): the two host-fed live-demo channels the
     // demo-hosting site apps still read — `demoSources` (host-seeded name→source
@@ -869,9 +888,9 @@ export const LANGUAGE_API: Readonly<Record<string, readonly string[]>> = {
     // motion — the browser's smooth scroll, an NSAnimationContext, the runtime
     // provider's tween — not a Declare Animator: the provider's curve, no
     // Animator semantics, cancelled by a gesture in flight (ruled 2026-09-10).
-    `  scrollTo(y: number | { x?: number; y?: number }, glide?: { duration?: number; motion?: string }): void;`,
-    `  scrollToX(x: number, glide?: { duration?: number; motion?: string }): void;`,
-    `  scrollBy(dx: number, dy: number, glide?: { duration?: number; motion?: string }): void;`,
+    `  scrollTo(y: number | { x?: number; y?: number }, glide?: { duration?: number; easing?: string }): void;`,
+    `  scrollToX(x: number, glide?: { duration?: number; easing?: string }): void;`,
+    `  scrollBy(dx: number, dy: number, glide?: { duration?: number; easing?: string }): void;`,
     // The view's origin in root space via THE one walk (scroll-aware) — the
     // anchor primitive overlays position by (menus, popovers).
     `  rootOrigin(): { x: number; y: number };`,
@@ -1141,7 +1160,12 @@ export function generateScaffold(
   /** The program's `style Name [ … ]` bundles — each a value in body scope, like a
    *  theme, typed EXACTLY by the fields it sets (so `Caption.fontSize` is a number,
    *  not `number | undefined`), which is still a `TextStyle`. */
-  styles: readonly { name: string; fields: readonly string[] }[] = []
+  styles: readonly { name: string; fields: readonly string[] }[] = [],
+  /** The standard library's global names (typecheck.ts libGlobals). The
+   *  program's classes and schemas live in `namespace $P`, so inside it — where
+   *  the check-blocks are — one named like a library type (`Pick`) shadows it;
+   *  outside, each gets a global alias for the scripts, except one of these. */
+  libNames: ReadonlySet<string> = new Set()
 ): string {
   // Every schema reachable — the registry entries PLUS abstract bases the
   // registry omits (the `Layout` base is deliberately not a name-table key,
@@ -1154,7 +1178,7 @@ export function generateScaffold(
   for (const s of Object.values(schemas)) collect(s);
 
   // The enum aliases every enum-typed attribute references, deduped by name in
-  // first-encounter order (built-in enum names are globally consistent — Motion
+  // first-encounter order (built-in enum names are globally consistent — Easing
   // is identical on Animator and AnimatorGroup — so a name pins one token set).
   const enums = new Map<string, { tokens: readonly string[]; numeric: boolean; boolean: boolean }>();
   for (const s of all.values()) {
@@ -1202,7 +1226,7 @@ export function generateScaffold(
   // the runtime validates data against it, and this projection is the exact
   // same shape as a TS type. The schema grammar is the proper subset of the
   // type system that can be checked against data while the program runs.
-  const shapeLines = shapes.map((d) => `interface ${d.name} ${shapeObjectText(d.fields)}`);
+  // (Each is emitted with the program's classes, in `namespace $P` below.)
 
   // Methods ride the user class declaration, keyed by class name.
   const declOf = new Map<string, ClassDecl>();
@@ -1213,18 +1237,36 @@ export function generateScaffold(
   const depth = (s: ClassSchema): number => (s.base === null ? 0 : 1 + depth(s.base));
   // Signature types may name a schema too (`advance(t: Task)`) — the widened
   // predicate lets the written name pass through to the interface above.
-  const classes = [...all.values()].sort((a, b) => depth(a) - depth(b)).map((s) => emitClass(s, declOf.get(s.name), rootType, classExtras?.get(s.name), (n) => all.has(n) || shapeNameSet.has(n)));
+  // The program's own classes and schemas are declared in `namespace $P`, and
+  // the check-blocks run inside it (typecheck.ts runTsc): a program name there
+  // shadows a standard-library type of the same name (`class Pick`), as any
+  // inner declaration shadows an outer one. A built-in reaching one from
+  // outside names it `$P.` (the tag table, `$root`); scripts, global too, reach
+  // it by an alias — none for a name the library holds, which keeps its meaning
+  // there. Messages drop the `$P.` (typecheck.ts).
+  const own = (n: string): boolean => declOf.has(n) || shapeNameSet.has(n);
+  const sorted = [...all.values()].sort((a, b) => depth(a) - depth(b));
+  // the root's instance type is the program's: a class of its, or an `_E<n>` of the check-blocks'
+  const rootQ = own(rootType) || /^_E\d+$/.test(rootType) ? `$P.${rootType}` : rootType;
+  const emit = (s: ClassSchema): string => emitClass(s, declOf.get(s.name), rootQ, classExtras?.get(s.name), (n) => all.has(n) || shapeNameSet.has(n));
+  const classes = sorted.filter((s) => !own(s.name)).map(emit);
+  const ownDecls = [...shapes.map((d) => `interface ${d.name} ${shapeObjectText(d.fields)}`),
+    ...sorted.filter((s) => own(s.name)).map((s) => emit(s).replace(/^declare class /, "class "))];
+  const ownBlock = ownDecls.length === 0 ? "" : `declare namespace $P {\n${ownDecls.join("\n\n")}\n}`;
+  const aliases = [...new Set([...declOf.keys(), ...shapeNameSet])].filter((n) => !libNames.has(n))
+    .map((n) => declOf.has(n) && all.has(n) ? `type ${n} = $P.${n};\ndeclare const ${n}: typeof $P.${n};` : `type ${n} = $P.${n};`);
+  const q = (n: string): string => (own(n) ? `$P.${n}` : n);
   // tag name → instance class, for createView's literal-tag overload (View's
   // LANGUAGE_API). Every schema, built-in and user, under its instantiable name.
-  const tagLines = ["interface DeclareTags {", ...[...all.keys()].map((n) => `  ${JSON.stringify(n)}: ${n};`), "}",
+  const tagLines = ["interface DeclareTags {", ...[...all.keys()].map((n) => `  ${JSON.stringify(n)}: ${q(n)};`), "}",
     // a class named as a value in a body reads this table (compile.ts rewrites
     // `v instanceof Card` to `v instanceof $classes.Card`), so it narrows as the
     // class itself would
-    `declare const $classes: { ${[...all.keys()].map((n) => `readonly ${n}: typeof ${n}`).join("; ")} };`];
+    `declare const $classes: { ${[...all.keys()].map((n) => `readonly ${n}: typeof ${q(n)}`).join("; ")} };`];
 
-  // The Motion union — named tokens (generated from animate.ts, single source
-  // of truth) plus the MotionCurve brand the constructors in the prelude return.
-  const motionLine = `type Motion = ${MOTION_TOKENS.map((t) => JSON.stringify(t)).join(" | ")} | MotionCurve;`;
+  // The Easing union — named tokens (generated from animate.ts, single source
+  // of truth) plus the EasingCurve brand the constructors in the prelude return.
+  const motionLine = `type Easing = ${MOTION_TOKENS.map((t) => JSON.stringify(t)).join(" | ")} | EasingCurve;`;
 
   // The theme names in scope as `Theme` values: the built-in presets plus any
   // the program declares — a body names one (`theme = { app.systemDark ? … : … }`).
@@ -1241,7 +1283,7 @@ export function generateScaffold(
       return `\ndeclare const ${s.name}: { ${fields.join("; ")} };`;
     }).join("");
 
-  return [PRELUDE, enumLines.join("\n"), recordLines.join("\n"), shapeLines.join("\n"), motionLine, themeLine, tagLines.join("\n"), classes.join("\n\n")].filter((x) => x.length > 0).join("\n\n") + "\n";
+  return [PRELUDE, enumLines.join("\n"), recordLines.join("\n"), motionLine, themeLine, tagLines.join("\n"), classes.join("\n\n"), ownBlock, aliases.join("\n")].filter((x) => x.length > 0).join("\n\n") + "\n";
 }
 
 /** Every key a provided theme can carry, with the type a read of it yields:

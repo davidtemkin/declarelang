@@ -17,7 +17,7 @@ open inside it takes Esc first.
 
 Its children go into its body, the pane below the title bar, and place themselves there as
 in any view — give one a layout or a `padding` of its own. Whether it is open is state, by
-the value pattern: `open` on its own, or `open = { … }` with `input` writing where your
+the value pattern: `open` on its own, or `open = { … }` with `commit` writing where your
 state lives. Its `x`, `y`, `width` and `height` are its own to move and resize, so set them
 as literals.
 
@@ -36,7 +36,7 @@ App [ width = 640, height = 360, fill = { provided("theme").background },
             ]
         ],
     Window [ x = 330, y = 60, width = 280, height = 220, title = "Notes", resizable = true,
-        open = { app.notesOpen }, input(v: boolean) { app.notesOpen = v },
+        open = { app.notesOpen }, commit(v: boolean) { app.notesOpen = v },
         View [ width = 100%, padding = 16,
             layout: SimpleLayout [ axis = y, spacing = 10 ],
             TextInput [ width = 100%, placeholder = "Title" ]
@@ -88,18 +88,18 @@ The shortest a resize makes it, as it is the shortest a layout makes it.
 The height of the title bar; the body starts below it. None without a frame.
 
 ## open
-Whether it is open. Constrain it to state of your own and override `input`, or leave it and
-read it back.
+Whether it is open. Bind it both ways to state of your own (`open <-> app.notesOpen`), or
+constrain it and override `commit`, or leave it and read it back.
 
-## input()
+## commit()
 **Where an opening or a closing goes**, receiving the new open state. The default writes
 `open`; override it to own the destination.
 
 ## close()
-Closes it, through `input(false)` — what the close button and Esc do.
+Closes it, through `commit(false)` — what the close button and Esc do.
 
 ## show()
-Opens it, through `input(true)`, and brings it to the front.
+Opens it, through `commit(true)`, and brings it to the front.
 
 ## visible
 Present while it is open.
@@ -224,9 +224,9 @@ class Window [ width = 360, height = 240,
     shadow = { frame ? (provided("theme").dialogShadow ?? provided("theme").menuShadow) : null },
 
     open: boolean = true,
-    input(v: boolean) { open = v },
-    close() { this.input(false) },
-    show() { this.input(true); this._bringForward() },
+    commit(v: boolean) { open = v },
+    close() { this.commit(false) },
+    show() { this.commit(true); this._bringForward() },
 
     overlays: View? = { this.layer },
 

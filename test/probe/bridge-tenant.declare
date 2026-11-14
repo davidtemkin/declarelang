@@ -12,6 +12,6 @@ App [ width = 200, height = 600, fill = #22303C,                   // taller tha
     onHostMessage(m: IslandMessage) {
         app.pos = app.pos + 1
         app.postToHost("ack", m.topic)
-        if (m.topic == "go") app.navigate("other/other.declare#there")
+        if (m.topic == "go") app.openURL("other/other.declare#there")
         }
     ]

@@ -152,9 +152,8 @@ class Tooltip extends Floating [
     stroke = { provided("theme").tooltipStrokeColor != null ? stroke(1, provided("theme").tooltipStrokeColor) : null },
 
     // pure chrome: never a pointer target — and never on the hover chain
-    // either, which is what pointerEvents (unlike a hit-test override) governs.
-    // "none" applies to this view only, not its children (View.pointerEvents), so
-    // the label must carry it too, or it would answer viewAt and sit on the hover chain.
+    // either, which is what pointerEvents (unlike a hit-test override) governs;
+    // "none" reaches the label too
 
     pointerEvents = "none",
 
@@ -162,8 +161,7 @@ class Tooltip extends Floating [
 
     selectable = false,
 
-    _t: Text [ pointerEvents = "none",
-        x = 8, y = 5, fontSize = { provided("theme").tooltipFontSize },
+    _t: Text [ x = 8, y = 5, fontSize = { provided("theme").tooltipFontSize },
         textColor = { provided("theme").tooltipTextColor },
         text = { classroot.label } ]
     ]

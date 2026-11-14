@@ -106,7 +106,7 @@ class DashTab [
     othersUsed: number = 54,           // what the closed siblings take, together
 
     height = { selected ? parent.height - othersUsed : 18 },
-    slide: Animator [ attribute = height, duration = 333, motion = laszloBoth ],
+    slide: Animator [ attribute = height, duration = 333, easing = laszloBoth ],
     clip = true,
 
     header: View [ width = 100%, height = 18,
@@ -191,7 +191,7 @@ class DashWindow [
 
     // four attributes moving together — the maximize and restore gesture
 
-    move: AnimatorGroup [ process = simultaneous, duration = 500, motion = laszloOut,
+    move: AnimatorGroup [ process = simultaneous, duration = 500, easing = laszloOut,
         ax: Animator [ attribute = x ],
         ay: Animator [ attribute = y ],
         aw: Animator [ attribute = width ],

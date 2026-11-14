@@ -9,21 +9,21 @@ and the box's own paint around an image.
 class FitSwatch extends Swatch [ name = :name,
     frame: View [ x = { :shape == "tall" ? 76 : 16 }, y = 12, width = { :shape == "tall" ? 60 : 180 }, height = 96, clip = true,
         fill = { provided("theme").line },
-        img: Image [ width = { parent.width }, height = 96, source = "assets/badge.png", stretches = { :fit } ]
+        img: Image [ width = { parent.width }, height = 96, source = "assets/badge.png", fit = { :fit } ]
         ]
     ]
 
 
 class AlignSwatch2 extends Swatch [ name = :name,
     frame: View [ x = 16, y = 12, width = 180, height = 96, clip = true, fill = { provided("theme").line },
-        img: Image [ width = 180, height = 96, source = "assets/badge.png", stretches = { :cover ? "cover" : "contain" },
+        img: Image [ width = 180, height = 96, source = "assets/badge.png", fit = { :cover ? "cover" : "contain" },
             alignX = { :ax }, alignY = { :ay } ]
         ]
     ]
 
 
 class TintSwatch extends Swatch [ name = :name,
-    img: Image [ x = 16, y = 12, width = 180, height = 96, stretches = contain, source = "assets/badge.png", tint = { :tint } ]
+    img: Image [ x = 16, y = 12, width = 180, height = 96, fit = contain, source = "assets/badge.png", tint = { :tint } ]
     ]
 
 
@@ -61,31 +61,31 @@ class ImagesSection extends Section [ title = "Images",
     Grid [ visible = { classroot.showing("boxed") },
         Swatch [ name = "rounded · clipped",
             View [ x = 36, y = 12, width = 140, height = 96, cornerRadius = 24, clip = true, fill = #DCE3EC,
-                Image [ width = 140, height = 96, stretches = cover, source = "assets/badge.png" ]
+                Image [ width = 140, height = 96, fit = cover, source = "assets/badge.png" ]
                 ]
             ],
         Swatch [ name = "circle · clipped",
             View [ x = 58, y = 12, width = 96, height = 96, cornerRadius = 48, clip = true, fill = #DCE3EC,
-                Image [ width = 96, height = 96, stretches = cover, source = "assets/badge.png" ]
+                Image [ width = 96, height = 96, fit = cover, source = "assets/badge.png" ]
                 ]
             ],
         Swatch [ name = "four radii · clipped",
             View [ x = 36, y = 12, width = 140, height = 96, cornerRadius = [0, 30, 50, 10], clip = true, fill = #DCE3EC,
-                Image [ width = 140, height = 96, stretches = cover, source = "assets/badge.png" ]
+                Image [ width = 140, height = 96, fit = cover, source = "assets/badge.png" ]
                 ]
             ],
         Swatch [ name = "stroke over an image",
             View [ x = 36, y = 12, width = 140, height = 96, cornerRadius = 12, clip = true, fill = #DCE3EC, stroke = stroke(5, #111111),
-                Image [ width = 140, height = 96, stretches = cover, source = "assets/badge.png" ]
+                Image [ width = 140, height = 96, fit = cover, source = "assets/badge.png" ]
                 ]
             ],
         Swatch [ name = "shadow around an image",
             View [ x = 36, y = 12, width = 140, height = 96, cornerRadius = 12, fill = white, shadow = shadow(0, 8, 16, #00000066),
-                Image [ width = 140, height = 96, stretches = contain, source = "assets/badge.png" ]
+                Image [ width = 140, height = 96, fit = contain, source = "assets/badge.png" ]
                 ]
             ],
         Swatch [ name = "image's own shadow filter",
-            Image [ x = 36, y = 12, width = 140, height = 96, stretches = contain, source = "assets/badge.png", filter = shadow(0, 6, 10, #000000AA) ]
+            Image [ x = 36, y = 12, width = 140, height = 96, fit = contain, source = "assets/badge.png", visualFilter = shadow(0, 6, 10, #000000AA) ]
             ]
         ]
     ]

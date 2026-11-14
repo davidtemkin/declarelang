@@ -236,7 +236,7 @@ await test("scaffold: the abstract Layout base is declared (strategies extend it
 await test("scaffold: the WeatherTab user class — attrs typed, base extends, method", () => {
   const s = scaffoldFor(PROGRAM);
   const wt = classBlock(s, "WeatherTab");
-  assert.ok(wt.startsWith("declare class WeatherTab extends View {"), "extends View");
+  assert.ok(wt.startsWith("class WeatherTab extends View {"), "extends View (in the program's namespace, $P)");
   assert.ok(wt.includes("label: string;"), "declared string slot");
   assert.ok(wt.includes("sel: boolean;"), "declared boolean slot");
   assert.ok(wt.includes("openHeight: number;"), "declared number slot");
@@ -313,10 +313,11 @@ await test("scaffold: (dump) print the generated scaffold", () => {
 });
 
 /** Extract the `declare class <name> { … }` block from the scaffold text —
- *  from its `declare class <name>` head to the matching top-level `}` line. */
+ *  from its `declare class <name>` head to the matching top-level `}` line. (A
+ *  program's class is `class <name>`, inside `declare namespace $P`.) */
 function classBlock(scaffold, name) {
   const lines = scaffold.split("\n");
-  const start = lines.findIndex((l) => l.startsWith(`declare class ${name} `) || l.startsWith(`declare class ${name}{`) || l === `declare class ${name} {}` || l.startsWith(`declare class ${name} {`));
+  const start = lines.findIndex((l) => l.startsWith(`declare class ${name} `) || l.startsWith(`declare class ${name}{`) || l.startsWith(`class ${name} `));
   assert.ok(start >= 0, `scaffold should declare class ${name}`);
   if (lines[start].endsWith("}")) return lines[start]; // single-line `{}` form
   const end = lines.findIndex((l, i) => i > start && l === "}");

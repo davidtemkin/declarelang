@@ -21,6 +21,10 @@ export declare function checkStyleDecls(program: Program, schemas: Readonly<Reco
  *  — token names are free (a Theme is a schema-less record), values are plain
  *  literals or decoration constructors. `rec` is the declaration's body. */
 export declare function checkThemeRecord(where: string, rec: Element): DeclareError[];
+/** The refusal for a State overriding a provided value (`fontSize`): the
+ *  override engine drives the view's own slots only, so the condition goes
+ *  into the value itself — named with the State's own condition and value. */
+export declare function stateProvidedMessage(state: Element, a: Attr): string;
 /** Validate a class-typed attribute's element value (R7: the `layout:`
  *  member). The element must name a class descending from `of`, and carry no
  *  children or methods (a strategy has neither by nature). Attribute values may be

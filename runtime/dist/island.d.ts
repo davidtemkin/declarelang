@@ -60,7 +60,7 @@ export declare class Island extends View {
     private handle;
     $foreignHandle(): Record<string, unknown>;
 }
-/** One navigation an embedded app asked for — its `navigate(to)` or
+/** One navigation an embedded app asked for — its `openURL(to)` or
  *  `openWindow(to)` — as its island's `onNavigate` receives it: the address
  *  made absolute, the Declare program it names (its `.declare` path without
  *  the extension, a directory taken as its same-named program; "" when it

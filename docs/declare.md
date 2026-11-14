@@ -163,7 +163,8 @@ type is a TypeScript type — `number`, `string[]`, `"idle" | "busy"`, `Map<stri
 `{ x: number; y: number }`, `[number, number]`, `(id: string) => void`, `Row | null` — naming
 TypeScript's built-ins, Declare's own (`Color`, `Length`, …), your classes, your schemas
 (§7), or a type a `script` block declares; `object` / `array` stand for a record or list of
-no declared shape. `T?` is Declare's shorthand for `T | null`. A type that a declaration
+no declared shape, in a cast too. `T?` is Declare's shorthand for `T | null`, and takes `?.`'s
+`undefined` as `null`. A type that a declaration
 cannot hold in place (a conditional or template-literal type) is named once in a `script`
 block and used by name. The one place a type meets the member syntax is a `[` after it:
 glued and empty it is an array (`w: Window[]`); after a space it opens a named child
@@ -422,7 +423,10 @@ Which globals a piece of code may name depends on where it is written:
 - **Not in a `{ }` body or a handler:** `fetch`, the timers (`setTimeout`, `setInterval`,
   `queueMicrotask`, `requestAnimationFrame`), `performance` and `globalThis`. The compiler
   refuses each and names the Declare way: `DataSource`, `Time`, `afterDelay`.
-- **In a `script { }` block:** all of the above, `fetch`, the timers and `performance` included.
+- **In a `script { }` block:** all of the above, `fetch`, the timers and `performance` included,
+  and the runtime's functions a body calls (`colorWithAlpha`, `measureText`, the value
+  constructors), except those that answer for the calling view (`provided`, `providedTextStyle`,
+  `hostProvided`, `afterDelay`).
 - **In a `script [ host = browser ] { }` block:** `window`, `document` and the rest of the
   browser as well. An unmarked script runs on every host, so the compiler refuses those names
   there. The views a program draws belong to the runtime: they differ between renderers and
@@ -506,10 +510,10 @@ and the host pans instead.
 
 **Data is JSON, held in the tree.** A `Dataset` holds data — written inline, derived from other
 state, or fetched by a `DataSource` — as a named member of the node whose subtree uses it. A
-view's `datapath` points it at a place in that data, and its descendants read fields relative to
-it with `:path` — every member, not only the visible ones: a `Spring`'s target, a `Time`'s gate,
-or a class that extends `Node`, standing on a record of its own — and a path matching many records
-**replicates** its view, one instance per record.
+view's `datapath` points it at a place in that data, never at a value computed in `{ }` (computed
+records are a derived `Dataset`). `:path` reads relative to it in the view and every
+member below, visible or not — a `Spring`'s target, a `Time`'s gate, a `Node` class on
+a record — and a path matching many records **replicates** its view, one instance per record.
 
 ```declare
 App [ width = 420, height = 260, fill = midnightblue, textColor = gainsboro,
@@ -532,6 +536,9 @@ App [ width = 420, height = 260, fill = midnightblue, textColor = gainsboro,
 **The `[]` suffix is what replicates.** `datapath = :rows[]` says *this path matches many
 records, so make one instance of this node per record*; without the brackets, `:rows` is an
 ordinary read of whatever is there, and `[]` may appear only at the end of a path.
+So an attribute on a replicated node reads that node's own record; a field of the record
+above reaches it through a member declared where that record is current:
+`class Team [ team: string = { :name }, Text [ datapath = :members[], text = { :name + ", " + classroot.team } ] ]`.
 
 Between those, a path may **select**: `:path` follows JSONPath (RFC 9535) over the shipped
 subset — `[0]`, `[-1]`, `[1:4]`, `[*]`, `['quoted key']`. So `:rows[*].label` is every row's
@@ -542,7 +549,7 @@ A `Dataset`'s literal body is **strict JSON** — quoted keys, no trailing comma
 replicated node is anonymous, but names inside it resolve per instance. **Identity is
 inferred** — a record's `id` field is its identity by convention, so reconciliation reuses
 instances across sorts, filters and edits with nothing declared; when identity lives under
-another name, `key = :email` on the replicated node says which. An instance reads its record's
+another name, `identityKey = :email` on the replicated node says which. An instance reads its record's
 index in the array as **`rowIndex`**, a fact, so records carry no position fields.
 
 **Count the data, not the tree.** A Dataset's `.value` is the parsed data, so a count is ordinary
@@ -576,7 +583,8 @@ compiler *and* enforced against live data; TypeScript's spellings of a field are
 field (`tags: string[]` is `tags[]: string`, `km: number | null` is `km?: number`). Extra
 keys always pass: a schema declares what the program relies on.
 
-**Two-way binding is opt-in, with `<->`, on a control's value** — `Checkbox [ checked <-> app.muted ]`
+**Two-way binding is opt-in, with `<->`, on what a class hands back through `commit`** — a
+control's value, an overlay's `shown`, a `Disclosure`'s `open`. `Checkbox [ checked <-> app.muted ]`
 is shorthand for `checked = { app.muted }` plus `commit(v) { app.muted = v }`. The place is a
 datapath (`:title`, against the nearest enclosing `datapath`), `{ :@[(name)] }` for a field
 chosen by name, or an attribute (`app.muted`, `classroot.size`). The types must match, and the
@@ -680,7 +688,7 @@ first, its class's still apply — so your bindings never cost a `Button` its Sp
 
 **Pointer input has two layers.** The **raw** layer — `onPointerDown`/`Move`/`Up` (every move,
 hover too), the multi-finger touch family, and `onWheel` — reports what the pointer physically did.
-The **resolved** layer — `onClick`, `onDblClick`, `onHold`, and `onDragStart`/`onDrag`/`onDragEnd` —
+The **resolved** layer — `onClick`, `onDoubleClick`, `onHold`, and `onDragStart`/`onDrag`/`onDragEnd` —
 reports what the user *meant*, decided by watching the gesture.
 
 *Pointer*, not *mouse*: one handler serves a mouse, a fingertip, and a pen, and it fires at once
@@ -691,8 +699,8 @@ separate multi-finger stream, for when you need the finger list rather than a po
 
 Reach for the raw layer to run a command and it misfires on touch, where a finger landing on a
 button may be starting a scroll. A press is a click or a drag, never both: a view that takes no
-clicks drags from the press, one that does once the press wanders. A view declaring `onDblClick`
-hears its first click at once, its second as `onDblClick`. Every pointer event carries its point both ways: `x`/`y` in the view's own
+clicks drags from the press, one that does once the press wanders. A view declaring `onDoubleClick`
+hears its first click at once, its second as `onDoubleClick`. Every pointer event carries its point both ways: `x`/`y` in the view's own
 coordinates, and `rootX`/`rootY` in **root space** — the frame a drag reads, because it does not move
 with the dragged thing — with `deltaX`/`deltaY` the root-space movement since the press.
 
@@ -794,9 +802,10 @@ style Keyword [ textColor = #C678DD, fontWeight = bold ]   // a <span class='Key
 ```
 
 Rich-text content can also carry **views**: inside `HTMLText`/`Markdown`, a self-closing tag
-naming one of your own view classes (`<Chip label='docs'/>`) places one real view of that class
-in the flowing line, its attributes converted by their declared types. A `<span class>` remains
-a style; a tag is never one.
+that the inherited `tagViews` map names (`tagViews = { { Chip: Chip } }`, then
+`<Chip label='docs'/>`) places one real view of that class in the flowing line, its attributes
+converted by their declared types. With no map, no tag is a view. A `<span class>` remains a
+style; a tag is never one.
 
 Precedence is fixed: a value **set locally always outranks a provided one** — a `Text` that sets
 its own `fontSize` ignores the region's, and a provided value is a default a node overrides, never
@@ -829,8 +838,10 @@ attribute, the later declaration wins.
 
 **A state overrides its own element's attributes only.** It cannot reach into a child —
 `top.bg.opacity = 0.5` is a compile error, because a member always sets its own element's
-attributes. To coordinate several views from one condition, declare a state on each of them reading
-the same flag, or give the child a constraint that reads it:
+attributes. Those are the attributes it declares: a value it only provides to its contents (`fontSize`
+on a View) is not one, so the condition goes in the value, `fontSize = { large ? 20 : 16 }`. To
+coordinate several views from one condition, declare a state on each of them reading the same flag,
+or give the child a constraint that reads it:
 
 ```declare-fragment
 bg: View [ opacity = { app.open ? 0.5 : 1 } ],                 // the child derives
@@ -896,7 +907,7 @@ actually lives.
 `admit(v)` before it appears (return what to show, or `null` to refuse), then shown and handed
 to `commit` — after each change, or once at the end with `commitOn = "end"`. **While an edit is
 open, the control shows the person's change, not your value**, so a `commit` that clamps doesn't
-fight them; when it ends (they leave, release, press Return; Escape cancels) it shows your value.
+fight them; when it ends (they leave, release, press Return; a field's Escape cancels) it shows your value.
 Any other change to your value ends the edit. `validate` and `required` only judge. A control of
 your own reports with `edit(v)` and draws from `shown`.
 

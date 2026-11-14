@@ -4,12 +4,16 @@
 // the compiler, createView and the semantic tree need.
 export const ROLES = [
     "none", "button", "toggle", "checkbox", "switch", "radio", "slider", "progress", "textField", "link", "image",
-    "heading", "list", "listItem", "grid", "row", "cell", "columnHeader", "tabList", "tab", "tabPanel", "menu", "menuBar", "menuItem",
+    "heading", "list", "listItem", "grid", "row", "cell", "columnHeader", "rowHeader", "tabList", "tab", "tabPanel", "menu", "menuBar", "menuItem", "menuItemRadio",
     "dialog", "alertDialog", "group", "toolbar", "region", "status",
-    "listbox", "option", "tree", "treeItem", "radioGroup", "combobox", "separator", "searchBox", "spinButton",
+    "listbox", "option", "tree", "treeItem", "radioGroup", "combobox", "separator", "searchBox", "spinButton", "meter",
     // landmarks: the parts of a screen a screen reader's user jumps between
-    "navigation", "main", "search", "banner", "complementary",
+    "navigation", "main", "search", "banner", "complementary", "contentinfo",
 ];
+/** Where the person is, among a set of views: the page in a navigation, the
+ *  step in a sequence, the day in a calendar — or `item`, the current one of
+ *  anything else. */
+export const CURRENT = ["none", "page", "step", "location", "date", "time", "item"];
 /** Which way a column is sorted, said by its header. */
 export const SORTS = ["none", "ascending", "descending"];
 /** The politeness of a live region. */

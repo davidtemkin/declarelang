@@ -25,6 +25,6 @@ App [ fill = #1B2733, appName = "Probe A",
 
     away: View [ x = 16, y = 106, width = 150, height = 32, fill = #40332A, cornerRadius = 6,
         t: Text [ x = 12, y = 7, textColor = whitesmoke, text = "navigate out" ],
-        onClick(e: PointerEvent) { app.navigate("https://example.com/away") }
+        onClick(e: PointerEvent) { app.openURL("https://example.com/away") }
         ]
     ]

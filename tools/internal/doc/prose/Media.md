@@ -11,7 +11,7 @@ from the start each time the event happens. Build a scrubber out of `position` a
 in Declare.
 
 ```declare-fragment
-clip: Video [ source = "shots/tour.mp4", stretches = both, loop = true,
+clip: Video [ source = "shots/tour.mp4", fit = both, loop = true,
     playing = { onScreen && app.pageVisible } ]
 ```
 

@@ -87,7 +87,7 @@ name the same thing, the one here is the one the platform means.
 - **replication** — one instance per record, produced by a `datapath` ending in `[]`. The
   replacement for generating views from code. Only views replicate.
 - **identity** — which instance belongs to which record: the record's `id` by convention,
-  `key = :field` otherwise.
+  `identityKey = :field` otherwise.
 - **rowIndex** — a replicated instance's index in the array it presents, kept by the
   runtime; `-1` on a view no replication made.
 - **derived dataset** — a dataset whose data is a constraint over other data: the view
@@ -138,7 +138,7 @@ name the same thing, the one here is the one the platform means.
 
 - **raw and resolved** — the two pointer layers. Raw handlers (`onPointerDown`, `…Move`,
   `…Up`, the touch family, `onWheel`) report what the pointer did, for manipulation.
-  Resolved handlers (`onClick`, `onDblClick`, `onHold`) report what the user meant, for
+  Resolved handlers (`onClick`, `onDoubleClick`, `onHold`) report what the user meant, for
   commands. → [Pointer and keyboard](declare-docs:guide:pointer-and-keyboard)
 - **capture** — a press that began on a view stays that view's until release.
 - **claim** — what declaring a handler takes from the browser on a touch screen: exactly

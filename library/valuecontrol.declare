@@ -67,8 +67,8 @@ to one edit, and what the control shows is the person's until it ends.
 
 ## endEdit()
 Ends the open edit: with `commitOn = "end"` it commits what is shown, then the control shows
-your value. Leaving the control, and Return in a text field, end the edit this way; your own
-code may too.
+your value. Leaving the control, Return in a text field, and the control going (`exists`
+turning false) end the edit this way; your own code may too.
 
 ## cancelEdit()
 Ends the open edit without committing what isn't committed yet, and shows your value —
@@ -149,7 +149,8 @@ control whose empty is something else says so (a rating of 0).
 `blank(v)`: null, `""`, `false` or an empty list.
 
 ## onRetire
-A control that goes leaves its form and its `Field`. An override calls `super.onRetire()`.
+A control that goes ends its open edit, as leaving does, then leaves its form and its
+`Field`. An override calls `super.onRetire()`.
 
 ## focusField()
 Puts the focus where a person fixes this control's value — the control itself, or its
@@ -303,7 +304,7 @@ class ValueControl extends Control [
     judge() { judged = true },
     focusField() { Focus.focus(this) },
 
-    // a control that goes leaves its form and its field (an override calls super.onRetire())
+    // a control that goes ends its edit and leaves its form and its field (an override calls super.onRetire())
 
     onRetire() { _member.retire() },
 
@@ -350,6 +351,10 @@ class ValueControl extends Control [
                 }
             },
         retire() {
+            // a control that goes mid-edit ends the edit as leaving does — what
+            // the person typed is committed, not dropped; a cancelled edit has
+            // already ended, and commits nothing
+            classroot.endEdit()
             if (_joined != null) _joined._leave(classroot)
             if (_held != null) _held._release(classroot)
             _joined = null

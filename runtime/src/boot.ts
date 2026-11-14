@@ -10,7 +10,7 @@
 import { phasesStart, phasesStop } from "./phase-timer.js";
 import { armFirstFrame } from "./boot-deferrals.js";
 import { instantiate } from "./instantiate.js";
-import { App, View, withHostProvides } from "./view.js";
+import { App, View, withHostProvides, withStartingHost } from "./view.js";
 import { onDiscard } from "./node.js";
 import { applyDeps } from "./deps.js";
 import { fontsReady } from "./font-value.js";
@@ -48,7 +48,8 @@ export function isEmbedded(host: HTMLElement): boolean {
 }
 
 /** The host's service table for the app→host verbs (App.$hostServices): install
- *  it at mount and `navigate`/`openWindow`/`inspect` call it SYNCHRONOUSLY —
+ *  it at mount and `openURL`/`openWindow`/`inspect` call it SYNCHRONOUSLY (the
+ *  service `navigate` carries `openURL`) —
  *  inside the click's transient user activation — instead of parking intents
  *  on the pending* channels for a poll that no longer exists. Per-app, so a
  *  page hosting several apps routes each to its own services, and an embedding
@@ -155,6 +156,21 @@ function wireVisibility(app: App): () => void {
   update();
   document.addEventListener("visibilitychange", update);
   return () => document.removeEventListener("visibilitychange", update);
+}
+
+/** `app.fullScreen`, both ways: the document's full-screen state feeds it, and
+ *  a write asks for it — the whole page for a top-level app, its own box for an
+ *  embedded one. A refused request (no press behind it, a host that forbids it)
+ *  sets it back to false. */
+function wireFullScreen(app: App, el: HTMLElement): () => void {
+  if (typeof document === "undefined" || typeof el.requestFullscreen !== "function") return () => {};
+  const update = () => { const on = document.fullscreenElement === el; if (app.fullScreen !== on) app.fullScreen = on; };
+  app.$fullScreenHost = (on) => {
+    if (on && document.fullscreenElement !== el) el.requestFullscreen().catch(() => { app.fullScreen = false; });
+    else if (!on && document.fullscreenElement === el) void document.exitFullscreen().catch(() => {});
+  };
+  document.addEventListener("fullscreenchange", update);
+  return () => { document.removeEventListener("fullscreenchange", update); app.$fullScreenHost = null; };
 }
 
 /** Feed the SAFE-AREA facts (`app.safeTop`…`safeRight`) and honor `edges = cover`.
@@ -281,6 +297,7 @@ function wireEnvironment(app: App, host: HTMLElement, embedded: boolean): void {
   wireColorScheme(app);                    // top-level app lives for the page — no teardown needed
   wireAccessibilitySettings(app);          // the person's preferences — likewise page-lived
   wireVisibility(app);                     // page visibility fact — likewise page-lived
+  wireFullScreen(app, document.documentElement);   // full screen, both ways — likewise page-lived
   wireInputFacts(app);                    // device pointer kind — likewise page-lived
   wireSafeArea(app, w);                    // notch/home-indicator insets — likewise page-lived
   // The LAYOUT viewport, never the visual one: on iOS/iPadOS `window.inner*`
@@ -412,6 +429,7 @@ function wireEnvironmentEmbedded(app: App, host: HTMLElement): void {
   const unTheme = wireColorScheme(app);    // re-rendered embedded apps must drop the mq listener
   const unSettings = wireAccessibilitySettings(app);
   const unVisible = wireVisibility(app);   // …and the visibilitychange listener
+  const unFull = wireFullScreen(app, host);   // …and the fullscreenchange one
   const unPointer = wireInputFacts(app);
   const down = (e: PointerEvent) => {
     const p = localPoint(host, e.clientX, e.clientY);
@@ -444,6 +462,7 @@ function wireEnvironmentEmbedded(app: App, host: HTMLElement): void {
     unTheme();
     unSettings();
     unVisible();
+    unFull();
     unPointer();
   });
 }
@@ -562,12 +581,21 @@ function startTitleMirror(app: App, host: HTMLElement): void {
   });
 }
 
+/** The host's size before a program's first evaluation: the window at top
+ *  level, the box an embedded app sits in. wireEnvironment feeds both exactly
+ *  at mount; this spares the first evaluation a size of 0. */
+function startingSize(host: HTMLElement): { width: number; height: number } | null {
+  if (typeof window === "undefined" || typeof document === "undefined") return null;
+  return isEmbedded(host) ? { width: host.clientWidth, height: host.clientHeight }
+    : { width: document.documentElement.clientWidth, height: window.innerHeight };
+}
+
 /** Render a PRECOMPILED program (the artifact `declarec` emits) — instantiate
  *  and mount, with NO parse and NO typecheck (both done at build time). This is
  *  the production entry point: importing it pulls the runtime's run-path only,
  *  never the parser or checker. */
 export function renderProgram(program: Program, host: HTMLElement, backend: RenderBackend): App {
-  const root = instantiate(program);
+  const root = withStartingHost(startingSize(host), () => instantiate(program));
   if (!(root instanceof App)) throw new DeclareError("a program's root must be 'App [ … ]'", program.root.pos);
   mountApp(root, host, backend);
   startTitleMirror(root, host);
@@ -581,9 +609,13 @@ export function renderProgram(program: Program, host: HTMLElement, backend: Rend
  *  this way. `deps` zips an extracted dependency list on when the
  *  program does not carry one already; `provides` are the topmost host's
  *  values, there from the first evaluation. */
-export function buildProgram(program: Program, opts: { deps?: readonly (readonly string[])[]; provides?: Readonly<Record<string, unknown>> } = {}): App {
+export function buildProgram(program: Program, opts: { deps?: readonly (readonly string[])[]; provides?: Readonly<Record<string, unknown>>; host?: HTMLElement; size?: { width: number; height: number } } = {}): App {
   if (opts.deps !== undefined) applyDeps(program, opts.deps);
-  const root = withHostProvides(opts.provides, () => instantiate(program));
+  // the size the app starts at: its host element's (the window at top level), or
+  // a size stated outright — an island's, which is its view's, not an element's
+  const build = (): View => withHostProvides(opts.provides, () => instantiate(program));
+  const starting = opts.host !== undefined ? startingSize(opts.host) : opts.size ?? null;
+  const root = starting !== null ? withStartingHost(starting, build) : build();
   if (!(root instanceof App)) throw new DeclareError("a program's root must be 'App [ … ]'", program.root.pos);
   return root;
 }
@@ -616,7 +648,7 @@ export async function renderProgramAsync(program: Program, host: HTMLElement, ba
   await kernelReady();   // the reactive core (kernel.md): loaded once per host, before anything instantiates
   done("kernel-wait"); mark("instantiate");
   if (typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__) phasesStart("construct, other");
-  const root = buildProgram(program, { deps: opts.deps, provides: opts.provides });
+  const root = buildProgram(program, { deps: opts.deps, provides: opts.provides, host });
   done("instantiate");
   opts.beforeMount?.(root);
   // ASSETS only. An embedded program's relative DATA resolves in its host's

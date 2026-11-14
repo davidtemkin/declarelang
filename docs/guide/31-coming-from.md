@@ -33,7 +33,7 @@ what dissolves most of the left-hand columns below.
 | controlled input (`value` + `onChange`) | `value = { app.title }` with `commit(v: string) { app.title = v }` — the field shows what your state says, and typing reaches it through `commit`; said once, `value <-> app.title`. Unlike React, the field keeps showing what the person types while they type, even when your state rounds or rejects it |
 | `useContext` / a provider | `provided("name")`; *providing* is just holding the value on an ancestor |
 | `items.map(…)` | `datapath = :items[]` on the node — one instance per record, reconciled for you |
-| `key={…}` | the record's `id`, by default and with nothing declared; `key = :field` when identity lives under another name |
+| `key={…}` | the record's `id`, by default and with nothing declared; `identityKey = :field` when identity lives under another name |
 | `cond && <Thing/>` | `visible = { cond }` — the view stays constructed and keeps its state; it just paints and hit-tests nothing. To build it only while `cond` holds, `exists = { cond }` |
 | `useRef` | there are no refs: a named member **is** the handle. `box: View [ … ]`, then `box.width` from anywhere in scope |
 | `useEffect` | usually nothing — propagation is the constraint graph's job. `onReady` for the first settle, `afterSettle(…)` for work that must *read* geometry your write just created, `onRetire` for teardown |
@@ -121,7 +121,7 @@ and a child that must stay put inside one says `ignoreLayout = true`.
 |---|---|
 | `@State` | a declared attribute: `expanded: boolean = false` |
 | a computed `var body` value | a `{ }` constraint on the attribute itself |
-| `@Binding` | usually just a constraint reading the owner (`checked = { app.muted }`) plus a `commit` override; `<->` when the destination is a place in data |
+| `@Binding` | usually just a constraint reading the owner (`checked = { app.muted }`) plus a `commit` override; `<->` when the change goes back to the same place it reads |
 | `@Environment`, `@EnvironmentObject` | `provided("name")` |
 | `ForEach` | `datapath = :items[]` |
 | `if` inside a `ViewBuilder` | `visible = { … }`, or a `State` whose body holds a conditional subtree |
@@ -171,11 +171,11 @@ override `place()` — the same seam every library layout is built on. Reaching 
 | `Box` | a plain `View` — children at their own `x`/`y` is the base case, with no layout attached |
 | `Modifier.weight(1f)` | [`flexes = true`](declare-docs:View.flexes) — a share of the room the row leaves; `flexes = 2` takes twice the share, and [`minWidth`](declare-docs:View.minWidth)/`maxWidth` keep it within a range |
 | `LazyColumn` / `LazyRow` | `datapath = :items[]` on the node, plus [`virtualize`](declare-docs:View.virtualize) when the collection is large |
-| `items(list, key = { it.id })` | the record's `id`, with nothing declared; `key = :field` to name another |
+| `items(list, key = { it.id })` | the record's `id`, with nothing declared; `identityKey = :field` to name another |
 | `Modifier.clickable { }` | an `onClick()` handler on the view itself |
 | `animateFloatAsState`, `animateDpAsState` | `Spring [ attribute = x, to = { … } ]` — it follows a live target and sleeps at rest |
 | `AnimatedVisibility` | `visible = { … }` with a `Spring` on `opacity` (the view persists, so nothing is torn down and rebuilt), or a `State` bundle that snaps a set of overrides together |
-| `updateTransition`, `Animatable` | `Animator` — a timed `from`→`to` run on a `motion` curve |
+| `updateTransition`, `Animatable` | `Animator` — a timed `from`→`to` run on an `easing` curve |
 | `LaunchedEffect(key)` | usually a constraint. `onReady` for the first settle; `onChange` with `trackChanges = [ … ]` when a change is genuinely an event the program must act on |
 | `DisposableEffect` | `onRetire` |
 | `MaterialTheme`, `MaterialTheme.colorScheme` | `theme Name [ … ]` set on an ancestor, read anywhere below with `provided("theme")` |
@@ -219,7 +219,7 @@ several views read. → [Paint and themes](declare-docs:guide:paint-and-themes)
 | `bind:this`, a component reference | the child's own name — there are no refs. An attribute typed by a class (`panel: Menu? = null`) holds an instance |
 | a `writable` store, `$store` | an attribute on the `App` or any common ancestor, read by its path (`app.count`); a [`Dataset`](declare-docs:Dataset) when the shared thing is a JSON collection |
 | `setContext` / `getContext` | `provided("name")` |
-| `{#each items as item (item.id)}` | `datapath = :items[]` on the node — one instance per record, keyed by `id`, or `key = :field` |
+| `{#each items as item (item.id)}` | `datapath = :items[]` on the node — one instance per record, keyed by `id`, or `identityKey = :field` |
 | `{#if …}` | `visible = { … }` — the subtree stays constructed and keeps its state |
 | `{#await promise}` | a [`DataSource`](declare-docs:DataSource) and its own facts: `loaded`, [`loading`](declare-docs:DataSource.loading), `failed` |
 | `bind:value` | `<->`, on any control with a value: [`TextInput [ value <-> app.title ]`](declare-docs:TextInput), `Checkbox [ checked <-> :done ]`; when the change needs work first, `value = { … }` with a `commit(v)` that does it |
@@ -268,7 +268,7 @@ winning. → [Constraints](declare-docs:guide:constraints)
 | `v-model` | `<->`, on any control with a value: `TextInput [ value <-> app.title ]`, `Checkbox [ checked <-> app.muted ]`, `Slider [ value <-> :volume ]`; `v-model.lazy` is `commitOn = "end"`; a conversion is `value = { … }` with a `commit(v)` that converts back |
 | `provide` / `inject` | `provided("name")` and, to provide, simply setting the value on an ancestor |
 | `v-for` | `datapath = :items[]` |
-| `:key` | the record's `id`; `key = :field` to name a different one |
+| `:key` | the record's `id`; `identityKey = :field` to name a different one |
 | `v-if` / `v-show` | `visible = { … }` (the `v-show` sense — the view persists and is inert) |
 | template `ref` | the child's own name |
 | `watch`, `watchEffect` | a constraint, in almost every case. `afterSettle(…)` when the work is irreducibly a reading of new geometry |
@@ -306,7 +306,7 @@ ask. → [Notation](declare-docs:guide:notation)
 | `Column` / `Row` | `layout: SimpleLayout [ axis = y ]` / `[ axis = x ]` on the container |
 | `Padding(…)` as a wrapper | `padding` on the view — a value, not a node in the tree, and the view's own `fill` still covers it |
 | `LayoutBuilder`, `MediaQuery` | `parent.width` and friends read directly; `ResponsiveLayout` for a plan per width |
-| `AnimationController`, `AnimatedBuilder` | `Spring` (follows a live target, sleeps at rest) or `Animator` (timed `from`→`to`, with a `motion` curve) |
+| `AnimationController`, `AnimatedBuilder` | `Spring` (follows a live target, sleeps at rest) or `Animator` (timed `from`→`to`, with an `easing` curve) |
 | `BoxDecoration`, `ThemeData` | attributes on the view; `theme Name [ … ]` for the token record, `provided("theme")` to read it |
 
 **The structural difference: nothing is rebuilt, so nothing is a wrapper.** A Flutter tree
@@ -341,7 +341,7 @@ direction, and the runtime settles the arithmetic. Sizing to content is a constr
 | `padding` on a [`Control`](declare-docs:Control), `anchors.margins` | `padding` on **any** view — every view has a content box, not only a styled control |
 | `Repeater`, `ListView` + a model | `datapath = :items[]`, plus `virtualize` when the collection is large |
 | `states` + `PropertyChanges` | `State` — a named bundle of overrides that snaps on and off together |
-| `transitions`, `Behavior on x` | `Spring` to follow a live target, `Animator` for a timed run on a `motion` curve |
+| `transitions`, `Behavior on x` | `Spring` to follow a live target, `Animator` for a timed run on an `easing` curve |
 | `signal` + `onClicked`, `Connections` | the view's own events, answered by `on…` methods. There are no custom signals and nothing bubbles: a child tells its owner by calling a method |
 | a context property, a QML singleton | `provided("name")`, or an attribute on the `App` |
 | `Loader` | usually a `visible` constraint on a subtree that is already written. [`createView(…)`](declare-docs:View.method.createView) with `use [ Name ]` when structure genuinely has to be built at runtime |

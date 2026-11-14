@@ -7,7 +7,7 @@
 // suite's technique — the browser's own PNG decode, no Node-side dependency).
 // Loaded lazily by tools/verify.mjs; also the eval harness's execution seam.
 
-import { withLocators, parseChord, pressChord } from "./verify-locators.mjs";
+import { withLocators, parseChord, pressChord, heldBy, inFlight } from "./verify-locators.mjs";
 import http from "node:http";
 import { spawnSync } from "node:child_process";
 import { readFileSync, writeFileSync, existsSync, statSync, mkdirSync, mkdtempSync, rmSync } from "node:fs";
@@ -179,7 +179,7 @@ bootHost(cfg);
     ...(scrollbars ? { ignoreDefaultArgs: ["--hide-scrollbars"] } : {}) }));
   try {
     /** A fresh page with the app booted and the language-altitude API bound. */
-    const openApp = async ({ width = 1024, height = 768, clock = null, scheme = "light", dpr = 1, touch = false, hideScrollbars = false, echoConsole = false, onPage = null, budgetMs = 15000, check = null } = {}) => {
+    const openApp = async ({ width = 1024, height = 768, clock = null, scheme = "light", dpr = 1, touch = false, hideScrollbars = false, echoConsole = false, onPage = null, budgetMs = 15000, check = null, fromStart = false } = {}) => {
       const page = await timing.time("page: a new page", () => browser.newPage());
       // watched from before the program's first line: a program that stops
       // answering — while it boots, or later, under a click — is paused where it
@@ -282,6 +282,8 @@ bootHost(cfg);
       // string given by the state; `Date.now()` and `new Date()` answer from it,
       // while the DRIVEN animation clock (window.__declare.clock) is untouched,
       // so motion still settles frame-exactly.
+      // a script that starts from the start drives the animation clock from boot
+      if (fromStart) await page.evaluateOnNewDocument(() => { globalThis.__declareClockHeld = true; });
       if (clock !== null) {
         await page.evaluateOnNewDocument((iso) => {
           const fixed = new Date(iso).getTime();
@@ -396,7 +398,11 @@ bootHost(cfg);
       // so they are forgotten when the new page commits: Codex Venue 3's
       // usability flow waited out settles on its own GET of venue.declare,
       // then on a script of the page it replaced (2026-11-02).
-      page.on("request", (r) => { if (!LONG_LIVED.has(r.resourceType()) && !r.isNavigationRequest()) { inflight.add(r); lastChange = Date.now(); } });
+      // requests the script holds (drive.hold({ method, path })) are not waited
+      // for: the script is looking at the program while they are out
+      const holds = [];
+      const heldRequest = (method, url) => holds.some((h) => h.matches(method, url));
+      page.on("request", (r) => { if (!LONG_LIVED.has(r.resourceType()) && !r.isNavigationRequest() && !heldRequest(r.method(), r.url())) { inflight.add(r); lastChange = Date.now(); } });
       const settled = (r) => { if (inflight.delete(r)) lastChange = Date.now(); };
       page.on("framenavigated", (f) => {
         if (f !== page.mainFrame()) return;
@@ -488,7 +494,9 @@ bootHost(cfg);
           // a settle (its scroll extent among them)
           // …and the clock stays driven: between steps nothing moves, so what a
           // step finds is what the steps before it made, whatever the machine is doing
-          await page.evaluate(() => { const c = window.__declare.clock; c?.settleMotion?.(5000); });
+          // (a script that starts from the start — `export const fromStart = true` —
+          // finds the motion where the arrival left it, its clock held there)
+          if (!fromStart) await page.evaluate(() => { const c = window.__declare.clock; c?.settleMotion?.(5000); });
           await frames(page);
         });
         // Deferred time now rides the driven clock for every stepper — the
@@ -547,15 +555,22 @@ bootHost(cfg);
           })));
           // MOTION STILL IN FLIGHT: a place the network rested (settleData) can
           // be mid-transition — a panel growing over the list it replaces covers
-          // it only on the way. What the screen comes to is asked at the next
-          // rest, or at the script's end
-          // (said under the step it was deferred from)
-          if (where !== "at the end of the script" && await page.evaluate(() => window.__declare?.clock?.settling === true).catch(() => false)) { deferredAt ??= where; return; }
+          // it only on the way, and a real press leaves its own look moving on
+          // the driven clock. What the screen comes to is what is asked: the
+          // motion is run to rest here (bounded, as settleMotion runs it), two
+          // frames go by, and then the questions. Motion that does not come to
+          // rest in that time is asked about at the next rest, or at the
+          // script's end (said under the step it was deferred from)
+          if (where !== "at the end of the script" && await page.evaluate(() => window.__declare?.clock?.settling === true).catch(() => false)) {
+            const rested = await page.evaluate(() => window.__declare.clock.settleMotion?.(2000) === true).catch(() => false);
+            if (!rested) { deferredAt ??= where; return; }
+            await frames(page);
+          }
           if (deferredAt !== null) { where = deferredAt; deferredAt = null; }
           const r = await timing.time("check: the layout questions", () => page.evaluate((o) => window.__declare?.bootCheck?.(o) ?? null, { touch, realText: true, classes: check.classes ?? [], skip: [...reported] }));
           if (r !== null) {
             for (const k of r.flagged ?? []) reported.add(k);
-            checks.push({ where, layout: r.layout, notes: r.notes, unbuilt: r.unbuilt, flagged: r.flagged ?? [] });
+            checks.push({ where, layout: r.layout, faults: r.faults ?? [], notes: r.notes, unbuilt: r.unbuilt, neverBuilt: r.neverBuilt, flagged: r.flagged ?? [] });
           }
         } catch { /* a page that went away answers nothing */ }
       };
@@ -573,6 +588,18 @@ bootHost(cfg);
             const base = segs.slice(0, i).join("."), miss = segs[i] ?? "";
             const top = window.__declare.find(base);
             if (top == null || i === 0) return null;
+            // a declared child that is not built now: the State that builds it
+            // (an `exists`, or one written) is not applied
+            if (!miss.startsWith('"')) {
+              const holder = (n, d) => {
+                if (n == null || d > 8) return null;
+                if (Array.isArray(n.childTemplates) && n.childTemplates.some((t) => t?.el?.name === miss)) return n;
+                for (const c of n.children ?? []) { const h = holder(c, d + 1); if (h !== null) return h; }
+                return null;
+              };
+              const st = holder(top, 0);
+              if (st !== null && st.applied !== true) return { base, miss, near: [], unbuilt: true };
+            }
             const out = new Set();
             if (miss.startsWith('"')) {
               const walk = (v, d) => {
@@ -592,9 +619,22 @@ bootHost(cfg);
               }
               if (byClass !== null) return { base, miss, near: [...out], byClass };
             }
-            return { base, miss, near: [...out] };
+            // a control's parts are its own: `_` members are never a script's route
+            const ins = window.__declare.inspect(base);
+            return { base, miss, near: [...out].filter((n) => !n.startsWith("_")), hidden: [...out].some((n) => n.startsWith("_")),
+              kind: ins?.kind ?? "", role: String(top.accessibilityRole ?? ""), stepped: typeof top.accessibilityIncrement === "function" };
           }, path);
-          if (r === null || r.near.length === 0) return "";
+          if (r === null) return "";
+          if (r.unbuilt) return ` — '${r.miss}' is not built now: its exists is false (or the State that holds it is not applied), so there is no view there to ask about`;
+          // a control whose parts are internal: its public route, as a person drives it
+          if (r.near.length === 0 && r.hidden) {
+            const what = r.kind !== "" ? `a ${r.kind}` : "a control";
+            const route = r.stepped
+              ? `step it as a person does: drive.click("${r.base}"), then drive.key("ArrowUp") or drive.key("ArrowDown")`
+              : `drive it as a whole: drive.click("${r.base}"), then keys once it has focus`;
+            return ` — '${r.base}' is ${what}, and its parts are internal (not a script's to reach); ${route}`;
+          }
+          if (r.near.length === 0) return "";
           if (r.byClass) return ` — '${r.miss}' is a class, not a name: in '${r.base}' that child is '${r.byClass}' (a path names a view by its member name, or by its place among the views beside it). Give it a name where it is written to reach it by that name`;
           const dist = (a, b) => {
             const d = Array.from({ length: a.length + 1 }, (_, i) => [i, ...Array(b.length).fill(0)]);
@@ -606,9 +646,22 @@ bootHost(cfg);
           return ` — '${r.base}' holds nothing called ${r.miss}; nearest there: ${near.join(", ")}`;
         } catch { return ""; }
       };
+      // A PATH THAT NAMES TWO: a step by what a view says (`app.row.Count`) that
+      // two views say alike names neither — refused, naming both, as a strict
+      // locator is; never the first of them taken silently (7GUIs run 2)
+      const noNode = async (path) => {
+        const a = await page.evaluate((p) => window.__declare.ambiguity?.(p) ?? null, path).catch(() => null);
+        if (a !== null) return `'${path}' is ambiguous: '${a.step}' in '${a.at}' names ${a.matches.length} views alike — ${a.matches.join(", ")}. Name the one you mean by its address (or give it a name where it is written)`;
+        // not there yet may be waiting on held time: what still moves or waits is said
+        return `no node at '${path}'${await nearNodes(path)}${await heldNote()}`;
+      };
+      // every path the script has found a view at: one that names nothing now
+      // was there, and is gone — hidden, as a person sees it (expect.hidden)
+      const reached = new Set();
       const node = async (path) => {
         const n = await page.evaluate((p) => window.__declare.inspect(p), path);
-        if (n === null) throw new VerifyAssertion(`no node at '${path}'${await nearNodes(path)}`);
+        if (n === null) throw new VerifyAssertion(await noNode(path));
+        reached.add(path);
         return n;
       };
       // the nearest view above `path` whose own visible is false, by its path
@@ -689,7 +742,7 @@ bootHost(cfg);
           const b = v.parent == null ? { x: innerWidth, y: innerHeight } : pt(v.parent, v.x + v.width, v.y + v.height);
           if (a === null || b === null) continue;
           scrollers.push({
-            at: scrollers.length, name: v.name ?? v.constructor.name, y: ax !== "x", x: ax !== "y", scrolling: v.userScrolling === true,
+            at: scrollers.length, name: d.pathOf?.(v) ?? v.name ?? v.constructor.name, y: ax !== "x", x: ax !== "y", scrolling: v.userScrolling === true,
             box: { l: Math.max(0, Math.min(a.x, b.x)), t: Math.max(0, Math.min(a.y, b.y)), r: Math.min(innerWidth, Math.max(a.x, b.x)), b: Math.min(innerHeight, Math.max(a.y, b.y)) },
             up: Math.max(0, v.scrollY ?? 0), down: Math.max(0, (v.contentHeight ?? 0) - v.height - (v.scrollY ?? 0)),
             left: Math.max(0, v.scrollX ?? 0), right: Math.max(0, (v.contentWidth ?? 0) - v.width - (v.scrollX ?? 0)),
@@ -770,6 +823,12 @@ bootHost(cfg);
         }
         return { c: P?.c ?? null, tried, short: null };
       };
+      // a view swiping did not bring into the window: what was tried, and the
+      // open overlay whose scroll hold refused it, when one did
+      const notBroughtIn = async (path, c, r) => {
+        const held = await page.evaluate((p) => window.__declare.scrollHeld?.(p) ?? null, path).catch(() => null);
+        return new VerifyAssertion(`'${path}' is outside the window at (${Math.round(c.x)}, ${Math.round(c.y)}), and swiping did not bring it in: ${toldTried(r)}${held ? ` — ${heldBy(held)}` : ""}`);
+      };
       const toldTried = (r) => {
         if (r.tried.some((t) => t.nowhere)) return `no point on '${r.tried.find((t) => t.nowhere).on}' to start a swipe from: what is under a finger there belongs to another scroller`;
         if (r.tried.length === 0) return r.short !== null ? `'${r.short.name}' is already at its end that way` : "nothing holding it scrolls that way";
@@ -787,6 +846,18 @@ bootHost(cfg);
       // `drag`: a finger's drag over a view that takes no presses is the scroll of
       // the pane holding it, so reaching that pane there is reaching the view
       const reach = async (path, at = null, { drag = false, hover = false } = {}) => {
+        // A HIDDEN VIEW IS NOT THERE TO PRESS. Its box still has a centre, and a
+        // press there lands on what holds it — which used to count as reaching
+        // it, and pressed nothing in silence (7GUIs run 3). Said by name first.
+        const was = await node(path);
+        // a node with no box — a DataSource, a Time, a Node of the program's own:
+        // nothing on screen to press; said by its kind, not by a crash further on
+        const boxless = await page.evaluate((p) => typeof window.__declare.find(p)?.rootOrigin !== "function", path);
+        if (boxless) throw new VerifyAssertion(`'${path}' is a ${was.kind}, not a view — it has no place on screen, so a ${hover ? "hover" : drag ? "drag" : "press"} can't reach it. Press the control that uses it, or call its method (declare-look's --call)`);
+        if (!was.shown) {
+          const why = !was.visible ? "its own visible is false" : `'${await hider(path)}' above it is hidden`;
+          throw new VerifyAssertion(`'${path}' is hidden (${why}), so a ${hover ? "hover" : drag ? "drag" : "press"} can't reach it — what holds it would take it instead. Check the path names the view you mean, or show it first`);
+        }
         const spot = () => at === null ? center(path) : pointIn(path, at.x, at.y);
         // A TARGET STILL MOVING is aimed at where it will be, not where it was: a
         // native smooth scroll, or a scroll request that lands a frame later,
@@ -813,7 +884,7 @@ bootHost(cfg);
         if (off(c)) {
           const r = await scrollInto(path, at, whole);
           c = await still();
-          if (off(c)) throw new VerifyAssertion(`'${path}' is outside the window at (${Math.round(c.x)}, ${Math.round(c.y)}), and swiping did not bring it in: ${toldTried(r)}`);
+          if (off(c)) throw await notBroughtIn(path, c, r);
         }
         // the view a press there reaches must be the target, inside it, or what holds it;
         // one that pinned chrome covers is scrolled clear of it first, as a person would
@@ -907,13 +978,16 @@ bootHost(cfg);
       // WHAT A PRESS STARTS, LANDED: a handler that hands its work to the next
       // frame (afterDelay(0) — a Menu passing on its choice) has run before the
       // script reads, as it has for a person, who never acts within one frame
-      // WHAT HELD TIME IS STILL HOLDING, said beside a failed expect: the program's
-      // time moves only when the script moves it, so motion short of rest and
-      // timers not yet due are what a check made too soon finds
+      // WHAT HELD TIME IS STILL HOLDING, said beside a failure that waiting could
+      // answer — a view not there yet, not yet shown or not yet gone: the
+      // program's time moves only when the script moves it, so motion short of
+      // rest and timers not yet due are what a check made too soon finds. Never
+      // beside a refused press or a value read now: there it reads as a cause
       const heldNote = async () => {
-        const h = await page.evaluate(() => ({ timers: globalThis.__declareTimers?.pending?.() ?? 0, moving: window.__declare?.clock?.settling === true })).catch(() => ({ timers: 0, moving: false }));
+        const h = await page.evaluate(() => ({ timers: globalThis.__declareTimers?.pending?.() ?? 0 })).catch(() => ({ timers: 0 }));
+        const moving = await inFlight(page);
         const said = [];
-        if (h.moving) said.push("motion is still in flight — the program's time stands still between steps; drive.settleMotion() runs it to rest");
+        if (moving !== "") said.push(`motion is still in flight (${moving}) — the program's time stands still between steps; drive.settleMotion() runs it to rest`);
         if (h.timers > 0) said.push(`${h.timers} timer${h.timers === 1 ? "" : "s"} still waiting — drive.wait(ms) runs them`);
         return said.length > 0 ? ` (${said.join("; ")})` : "";
       };
@@ -929,6 +1003,50 @@ bootHost(cfg);
         else await page.mouse.click(x, y);
         await landed();
       };
+      // `ms` of the program's time, driven a frame at a time (drive.wait, without
+      // its wait for the network: what passes between a pair's two presses)
+      const passTime = async (ms) => {
+        await page.evaluate(async (m) => {
+          const c = window.__declare.clock, T = globalThis.__declareTimers;
+          c.manual();
+          // a frame the app is owed goes by for real — never more of them, in
+          // all, than `ms` of real time would have held
+          const until = performance.now() + m;
+          const owed = async () => { while (T.framesOwed() > 0 && performance.now() < until) await T.nextFrame(); };
+          await owed();
+          for (let t = 0; t < m; t += 16.7) { c.step(Math.min(16.7, m - t)); await owed(); }
+          // A NATIVE SCROLL IN FLIGHT — a smooth scrollIntoView, the browser's
+          // own glide — runs on real frames, which the driven steps above do
+          // not give it: let it land (three quiet frames, or as long as the
+          // wait asked for), or it stops where the burst left it
+          let seen = scrollY, still = 0;
+          const quietUntil = performance.now() + Math.max(m, 300);
+          while (still < 3 && performance.now() < quietUntil) {
+            await T.nextFrame();
+            const y = scrollY + [...document.querySelectorAll("[data-declare-scroll]")].reduce((n, e) => n + e.scrollTop + e.scrollLeft, 0);
+            still = Math.abs(y - seen) < 0.5 ? still + 1 : 0;
+            seen = y;
+          }
+        }, ms);
+      };
+      // A DOUBLE (or triple) CLICK AS A PERSON MAKES ONE: `count` presses, each
+      // one down and up — click count 1, then 2, as the platform numbers them —
+      // a person's beat (100 ms of the program's time, inside the pair's window)
+      // apart, and nothing else between them: no wait for the network, which a
+      // hand does not make. (Puppeteer's mouse.click({ count: 2 }) is itself both
+      // presses, so it is never sent after a press of its own.) A finger taps.
+      const pressSeries = async (x, y, { button = "left", count = 2 } = {}) => {
+        for (let k = 1; k <= count; k++) {
+          if (k > 1) await passTime(100);
+          if (touching()) await page.touchscreen.tap(x, y);
+          else {
+            await page.mouse.move(x, y);
+            await page.mouse.down({ button, clickCount: k });
+            await page.mouse.up({ button, clickCount: k });
+          }
+        }
+        await landed();
+      };
       // a pointer held down between press() and release(): where it is, and the finger
       let held = null;
       // What the platform did with the input while `fn` ran, read from Chrome's own
@@ -937,6 +1055,7 @@ bootHost(cfg);
       // and how many input events had to wait for the page's main thread first (a
       // non-passive listener in the way). A scroll a program sets shows no updates.
       const traceInput = async (fn) => {
+        if (frameSession !== null) throw nestedTrace("drive.traceInput");
         const s = await page.target().createCDPSession();
         const events = [];
         s.on("Tracing.dataCollected", (d) => events.push(...d.value));
@@ -965,7 +1084,13 @@ bootHost(cfg);
       // profile.viewOf) with what each declares that costs to paint — a view that
       // moves every frame repaints the layer it sits in (Pagemap's drag ghost)
       let frameSession = null, frameEvents = [], frameDone = null, layerSeen = new Map();
+      // One Chrome trace at a time: a second Tracing.start answers only with a
+      // protocol error. declare-profile --scenario already profiles the whole
+      // script from boot, so a drive.profile (or traceInput) inside it is the
+      // nested case, refused here in the script's own terms.
+      const nestedTrace = (what) => new VerifyAssertion(`${what} inside a profile that is already recording — declare-profile --scenario profiles the whole script from boot, so drop ${what} from the script (its report covers what it would have), or run the script with declare-verify --assert to profile just that part`);
       const startFrames = async () => {
+        if (frameSession !== null) throw nestedTrace("drive.profile");
         frameSession = await page.target().createCDPSession();
         frameEvents = []; layerSeen = new Map();
         frameSession.on("Tracing.dataCollected", (d) => frameEvents.push(...d.value));
@@ -1048,10 +1173,10 @@ bootHost(cfg);
           step(`reveal ${path}`);
           const vp = page.viewport() ?? { width: 1280, height: 800 };
           const r = await scrollInto(path, null, { l: 0, t: 0, r: vp.width, b: vp.height });
-          if (r.c === null) throw new VerifyAssertion(`no node at '${path}'${await nearNodes(path)}`);
+          if (r.c === null) throw new VerifyAssertion(await noNode(path));
           const c = r.c;
           if (c.x < 0 || c.y < 0 || c.x >= vp.width || c.y >= vp.height)
-            throw new VerifyAssertion(`'${path}' is outside the window at (${Math.round(c.x)}, ${Math.round(c.y)}), and swiping did not bring it in: ${toldTried(r)}`);
+            throw await notBroughtIn(path, c, r);
         },
         /** A press on the view, as a person makes it. `{ modifiers: ["Shift"],
          *  button: "right" }` holds keys down through it (Cmd, Option, Mod…), or
@@ -1088,6 +1213,9 @@ bootHost(cfg);
          *  release in place — a finger's press-and-hold, or a held mouse button.
          *  What `onHold` answers, and a context menu on a touch screen. */
         async hold(path, ms = 600) {
+          // a REQUEST held: { method, path } — it stays out until release(), so
+          // the script can look at what the program shows while it waits
+          if (typeof path === "object" && path !== null && !Array.isArray(path)) return holdRequests(path);
           const c = await reach(path);
           step(`hold ${path} for ${ms} ms`);
           if (touching()) {
@@ -1150,17 +1278,13 @@ bootHost(cfg);
           else { await page.mouse.click(p.x, p.y, { button: o.button }); await landed(); }
           for (const m of [...mods].reverse()) await page.keyboard.up(m);
         },
-        /** A double-click as a person makes one — what `onDblClick` answers —
+        /** A double-click as a person makes one — what `onDoubleClick` answers —
          *  on the view, or at a point inside it: two presses 100 ms of the
          *  program's time apart, inside the platform's window for a pair. */
         async dblclick(path, x, y) {
           const p = await reach(path, x === undefined ? null : { x, y });
           step(`double-${touching() ? "tap" : "click"} ${path}${x === undefined ? "" : ` at (${x}, ${y})`}`);
-          const one = (n) => touching() ? page.touchscreen.tap(p.x, p.y) : page.mouse.click(p.x, p.y, { count: n });
-          await one(1);
-          await this.wait(100);
-          await one(2);
-          await landed();
+          await pressSeries(p.x, p.y);
         },
         async drag(path, dx, dy = 0, steps = 10) {
           const c = await reach(path, null, { drag: true });
@@ -1279,11 +1403,13 @@ bootHost(cfg);
         async selectAll(path) {
           const field = (p) => {
             const n = window.__declare.find(p);
-            if (n == null) return `no view at '${p}'`;
+            if (n == null) return "";
             if (typeof n.select !== "function") return `'${p}' is not a text field — it has no select()`;
             return null;
           };
           const r = await page.evaluate(field, path);
+          // a path that names nothing is answered as click's is: what is there nearest it
+          if (r === "") throw new VerifyAssertion(`selectAll: ${await noNode(path)}`);
           if (r !== null) throw new VerifyAssertion(`selectAll: ${r}`);
           // a press into the field, as a person gives it focus, then its whole text
           await this.click(path);
@@ -1299,20 +1425,29 @@ bootHost(cfg);
         async waitReal(ms) {
           // the program runs LIVE with the world for `ms`: real frames move its
           // motion, and its own time (timers, Date) keeps pace with them; then
-          // it is held again
-          await page.evaluate(async (m) => {
-            const c = window.__declare.clock, T = globalThis.__declareTimers;
-            c.auto();
-            let last = performance.now();
-            const end = last + m;
-            while (performance.now() < end) {
+          // it is held again. In slices of at most 10 s (and the budget), each
+          // its own evaluate: a long wait is the driver's, and must never read
+          // as an evaluate the program does not finish
+          await page.evaluate((m) => {
+            const now = performance.now();
+            globalThis.__declareRealWait = { last: now, end: now + m };
+            window.__declare.clock.auto();
+          }, ms);
+          while (await page.evaluate(async (slice) => {
+            const T = globalThis.__declareTimers, w = globalThis.__declareRealWait;
+            const until = Math.min(w.end, performance.now() + slice);
+            while (performance.now() < until) {
               await T.nextFrame();
               const t = performance.now();
-              T.advance(Math.min(t, end) - last);
-              last = Math.min(t, end);
+              T.advance(Math.min(t, w.end) - w.last);
+              w.last = Math.min(t, w.end);
             }
-            c.manual();
-          }, ms);
+            if (performance.now() < w.end) return true;
+            T.advance(w.end - w.last);
+            window.__declare.clock.manual();
+            delete globalThis.__declareRealWait;
+            return false;
+          }, Math.min(10000, budgetMs)));
           await quiet(Math.max(ms, 1000));
         },
         /** Let `ms` of the app's time pass: its clock is driven through it a
@@ -1322,28 +1457,7 @@ bootHost(cfg);
          *  it is waited out for real. What the browser still owes — a request
          *  the app made, the frame after — is waited for, as it lands. */
         async wait(ms) {
-          await page.evaluate(async (m) => {
-            const c = window.__declare.clock, T = globalThis.__declareTimers;
-            c.manual();
-            // a frame the app is owed goes by for real — never more of them, in
-            // all, than `ms` of real time would have held
-            const until = performance.now() + m;
-            const owed = async () => { while (T.framesOwed() > 0 && performance.now() < until) await T.nextFrame(); };
-            await owed();
-            for (let t = 0; t < m; t += 16.7) { c.step(Math.min(16.7, m - t)); await owed(); }
-            // A NATIVE SCROLL IN FLIGHT — a smooth scrollIntoView, the browser's
-            // own glide — runs on real frames, which the driven steps above do
-            // not give it: let it land (three quiet frames, or as long as the
-            // wait asked for), or it stops where the burst left it
-            let seen = scrollY, still = 0;
-            const quietUntil = performance.now() + Math.max(m, 300);
-            while (still < 3 && performance.now() < quietUntil) {
-              await T.nextFrame();
-              const y = scrollY + [...document.querySelectorAll("[data-declare-scroll]")].reduce((n, e) => n + e.scrollTop + e.scrollLeft, 0);
-              still = Math.abs(y - seen) < 0.5 ? still + 1 : 0;
-              seen = y;
-            }
-          }, ms);
+          await passTime(ms);
           await quiet(Math.max(ms, 1000));
         },
         /** Run in-flight motion to rest DETERMINISTICALLY (driven clock,
@@ -1374,7 +1488,7 @@ bootHost(cfg);
             if (inflight.size > 0) { await quiet(2000); continue; }
             if (still) break;
           }
-          if (!ok) throw new VerifyAssertion(`motion did not settle within ${maxMs} ms`);
+          if (!ok) { const moving = await inFlight(page); throw new VerifyAssertion(`motion did not settle within ${maxMs} ms${moving !== "" ? ` (still in flight: ${moving})` : ""}`); }
           await atRest();
         },
         async settleData() { step("settleData"); await quiet(); await atRest(); },
@@ -1384,7 +1498,17 @@ bootHost(cfg);
          *  for the file; none is said, never taken for an empty one. */
         async download(fn, { timeout = 5000 } = {}) {
           const dir = mkdtempSync(join(tmpdir(), "declare-download-"));
-          const s = await page.browser().target().createCDPSession();
+          // the browser's own target, in a Chrome shared between calls: an attach
+          // can miss while other calls open and close their pages ("No target with
+          // given id found", the full suite, 2026-11-14) — asked again, briefly
+          let s = null;
+          for (let tries = 0; s === null; tries++) {
+            try { s = await page.browser().target().createCDPSession(); }
+            catch (e) {
+              if (tries >= 4 || !/No target with given id/.test(String(e?.message))) throw e;
+              await new Promise((r) => setTimeout(r, 100));
+            }
+          }
           try {
             const ctx = page.browserContext().id;
             await s.send("Browser.setDownloadBehavior", { behavior: "allowAndName", downloadPath: dir, eventsEnabled: true, ...(ctx ? { browserContextId: ctx } : {}) });
@@ -1442,11 +1566,62 @@ bootHost(cfg);
           step(`set ${path}.${name}`);
           await page.evaluate((p, a, v) => { window.__declare.find(p)[a] = v; }, path, name, value);
         },
+        /** A value, as `--read` gives it: `drive.read("app.list.height")` — the
+         *  attribute after the last dot, on the view the rest names. A view comes
+         *  back as its class's name; a path that names no view is said. */
+        async read(path) {
+          const r = await page.evaluate((full) => {
+            const k = full.lastIndexOf(".");
+            const n = k > 0 ? window.__declare.find(full.slice(0, k)) : null;
+            if (n == null) return { missing: full.slice(0, k > 0 ? k : full.length) };
+            const v = n[full.slice(k + 1)];
+            if (typeof v === "object" && v !== null && "children" in v) return { value: `(a ${v.constructor?.name ?? "view"})` };
+            try { return { value: JSON.parse(JSON.stringify(v ?? null)) }; } catch { return { value: String(v) }; }
+          }, path);
+          if (r.missing !== undefined) throw new VerifyAssertion(await noNode(r.missing));
+          return r.value;
+        },
         page,
       };
       timing.wrap("drive", drive);
 
       const fail = (msg) => { throw new VerifyAssertion(msg); };
+      /** drive.hold({ method, path }): every request that matches waits, unsent
+       *  to the service, until the returned `release()` — `path` a prefix of the
+       *  URL's path, or a RegExp over the whole URL; `method` any when left out. */
+      async function holdRequests({ method, path: want }) {
+        if (want === undefined) fail("drive.hold({ method, path }) needs a path: a prefix of the request's path, or a RegExp");
+        const matches = (m, url) => {
+          if (method !== undefined && String(method).toUpperCase() !== String(m).toUpperCase()) return false;
+          if (want instanceof RegExp) return want.test(url);
+          let at = url;
+          try { at = new URL(url).pathname; } catch { /* as written */ }
+          return at.startsWith(String(want));
+        };
+        const session = await page.target().createCDPSession();
+        const paused = [];
+        const hold = { matches, paused };
+        holds.push(hold);
+        session.on("Fetch.requestPaused", (ev) => {
+          if (matches(ev.request.method, ev.request.url)) paused.push(ev.requestId);
+          else session.send("Fetch.continueRequest", { requestId: ev.requestId }).catch(() => {});
+        });
+        await session.send("Fetch.enable", { patterns: [{ urlPattern: "*", requestStage: "Request" }] });
+        step(`hold ${method ?? "any"} ${want}`);
+        return {
+          /** How many requests are being held now. */
+          get count() { return paused.length; },
+          /** Let the held requests go, and stop holding; the program then settles. */
+          async release() {
+            holds.splice(holds.indexOf(hold), 1);
+            for (const id of paused.splice(0)) await session.send("Fetch.continueRequest", { requestId: id }).catch(() => {});
+            await session.send("Fetch.disable").catch(() => {});
+            await session.detach().catch(() => {});
+            step(`release ${method ?? "any"} ${want}`);
+            await drive.wait(0);
+          },
+        };
+      }
       // An attribute written with a dot — expect.attr("app", "weekCount.shown") — when
 // the part before the dot is a node: the path and the attribute split there.
 const nodeAttrHint = async (path, name, v) => {
@@ -1522,11 +1697,14 @@ const expect = {
           const why = !n.visible ? "its own visible is false"
             : !n.shown ? `'${await hider(path)}' above it is hidden`
             : `it has no size (${Math.round(n.width)}×${Math.round(n.height)})`;
-          fail(`expected '${path}' visible — it isn't: ${why}`);
+          fail(`expected '${path}' visible — it isn't: ${why}${await heldNote()}`);
         },
         async hidden(path) {
-          const n = await node(path);   // a path that names nothing is said, never a pass
-          if (n.shown && n.width > 0 && n.height > 0) fail(`expected '${path}' hidden — it is shown (${Math.round(n.width)}×${Math.round(n.height)} at (${Math.round(n.rootX)}, ${Math.round(n.rootY)}))`);
+          // a path that names nothing is said, never a pass — unless the script
+          // found a view there earlier: it is gone, which a person sees as hidden
+          if (reached.has(path) && await page.evaluate((p) => window.__declare.inspect(p), path) === null) return;
+          const n = await node(path);
+          if (n.shown && n.width > 0 && n.height > 0) fail(`expected '${path}' hidden — it is shown (${Math.round(n.width)}×${Math.round(n.height)} at (${Math.round(n.rootX)}, ${Math.round(n.rootY)}))${await heldNote()}`);
         },
         async attr(path, name, expected) {
           // find(path)[attr] is the LIVE read — it answers for formula-defaulted
@@ -1541,7 +1719,7 @@ const expect = {
           // while printing two identical-looking values at the reader.
           const same = v === expected || JSON.stringify(v) === JSON.stringify(expected);
           if (!same) {
-            fail(`expected ${path}.${name} = ${JSON.stringify(expected)}, got ${JSON.stringify(v)}${await nodeAttrHint(path, name, v)}${await heldNote()}`);
+            fail(`expected ${path}.${name} = ${JSON.stringify(expected)}, got ${JSON.stringify(v)}${await nodeAttrHint(path, name, v)}`);
           }
         },
         async approx(path, name, expected, tol = 1) {
@@ -1549,7 +1727,7 @@ const expect = {
             const n = window.__declare.find(p);
             return n != null && a in n ? n[a] : window.__declare.explain(p, a)?.value;
           }, path, name);
-          if (typeof v !== "number" || Math.abs(v - expected) > tol) fail(`expected ${path}.${name} ≈ ${expected} (±${tol}), got ${JSON.stringify(v)}${await nodeAttrHint(path, name, v)}${await heldNote()}`);
+          if (typeof v !== "number" || Math.abs(v - expected) > tol) fail(`expected ${path}.${name} ≈ ${expected} (±${tol}), got ${JSON.stringify(v)}${await nodeAttrHint(path, name, v)}`);
         },
         /** Structural equality on any two values the script already holds —
          *  for reads made through page.evaluate, where identity never holds. */
@@ -1580,8 +1758,21 @@ const expect = {
             const base = words.join(" ");
             return [base, ...said.filter((n) => !base.includes(n))].filter((x) => x !== "").join(" ");
           }, path);
-          if (!said.includes(contains)) {
-            fail(`expected '${path}' text to contain "${contains}", got "${said}"${await heldNote()}`);
+          // compared as a person reads it: a no-break space is a space, and a run
+          // of spaces one (Cadence run 32 lost a minute to "1h\u00a024m" against
+          // "1h 24m", the two printed alike)
+          const read = (x) => x.replace(/\s+/g, " ").trim();
+          if (!read(said).includes(read(contains))) {
+            fail(`expected '${path}' text to contain "${contains}", got "${said}"${invisibleDifference(read(said), read(contains))}`);
+          }
+        },
+        /** Something the program said through `Accessibility.announce` (since the
+         *  page loaded; the latest 20) contains `contains`. */
+        async announced(contains) {
+          const said = await page.evaluate(() => window.__declare.announced?.() ?? null);
+          if (said === null) fail("expect.announced: this runtime does not report what it announced");
+          if (!said.some((a) => a.text.includes(contains))) {
+            fail(`expected an announcement containing "${contains}" — announced: ${said.length === 0 ? "nothing" : said.map((a) => JSON.stringify(a.text)).join(", ")}`);
           }
         },
         async count(path, kind, expected) {
@@ -1607,7 +1798,7 @@ const expect = {
       // asks that judge (not explain, the trace, or fail itself), so the
       // verdict can say a pass asserted nothing.
       let asserted = 0;
-      for (const k of ["request", "exists", "visible", "hidden", "attr", "approx", "equal", "text", "count"]) {
+      for (const k of ["request", "exists", "visible", "hidden", "attr", "approx", "equal", "text", "announced", "count"]) {
         const judge = expect[k];
         expect[k] = (...a) => { asserted++; return judge(...a); };
       }
@@ -1621,16 +1812,21 @@ const expect = {
       const located = withLocators(page, {
         act: async (x, y, o = {}) => {
           step(`${o.button && o.button !== "left" ? o.button + "-" : ""}press at (${Math.round(x)}, ${Math.round(y)})`);
-          if (touching() || ((o.button ?? "left") === "left" && (o.count ?? 1) === 1)) await press(x, y);
-          else { await page.mouse.click(x, y, { button: o.button ?? "left", count: o.count ?? 1 }); await landed(); }
+          if (touching() || (o.button ?? "left") === "left") await press(x, y);
+          else { await page.mouse.click(x, y, { button: o.button }); await landed(); }
         },
-        pause: (ms) => drive.wait(ms),
+        series: async (x, y, o = {}) => {
+          step(`${o.button && o.button !== "left" ? o.button + "-" : ""}${o.count === 2 ? "double-" : o.count + "×"}press at (${Math.round(x)}, ${Math.round(y)})`);
+          await pressSeries(x, y, o);
+        },
         settle: async () => { await landed(); await frames(page); },
         advance: (ms) => page.evaluate((ms) => globalThis.__declareTimers?.advance?.(ms), ms).catch(() => {}),
         fail,
         judged: () => { asserted++; },
       });
       const scriptPage = located.page;
+      // one page by either name: drive.page is the script's page, locators and all
+      drive.page = scriptPage;
       // `expect` is both: Playwright's expect(locator / page / value), and the
       // driver's own asks by program path (expect.text, expect.attr, expect.request, …)
       const scriptExpect = Object.assign((target) => located.expect(target), expect);
@@ -1658,7 +1854,7 @@ export async function runBootInBrowser({ compiled, appDir, windows, queries = nu
     const out = [];
     let first = true;
     for (const w of windows) {
-      const record = { ok: false, nodes: 0, ms: 0, errors: [], notes: [], layout: [], unbuilt: [], answers: [], samples: [] };
+      const record = { ok: false, nodes: 0, ms: 0, errors: [], notes: [], layout: [], unbuilt: [], neverBuilt: [], answers: [], samples: [] };
       const contained = [];
       const t0 = Date.now();
       let app;
@@ -1677,6 +1873,7 @@ export async function runBootInBrowser({ compiled, appDir, windows, queries = nu
       try {
         const r = await app.watched(() => app.page.evaluate((o) => window.__declare.bootCheck(o), { touch: w.touch, realText: true, classes, feed: true, queries: first ? queries : null }));
         Object.assign(record, r);
+        for (const f of r.faults ?? []) record.errors.push(`boot: ${f}`);
       } catch (e) {
         record.errors.push(...(e?.lines ?? [`boot: ${String(e?.message ?? e).split("\n")[0]}`]));
       }
@@ -1689,6 +1886,31 @@ export async function runBootInBrowser({ compiled, appDir, windows, queries = nu
     }
     return out;
   });
+}
+
+/** Why two texts that print alike still differ: the first character either
+ *  holds that a reader cannot see — a zero-width or format character, or an
+ *  accent composed differently — named by its code point and its index. Empty
+ *  when they differ visibly. */
+const INVISIBLE_NAMES = { "200B": "zero-width space", "200C": "zero-width non-joiner", "200D": "zero-width joiner", "2060": "word joiner", FEFF: "zero-width no-break space", "00AD": "soft hyphen" };
+function invisibleDifference(got, want) {
+  const plain = (x) => x.normalize("NFC").replace(/\p{Cf}/gu, "");
+  if (!plain(got).includes(plain(want))) return "";
+  const odd = (x, whose) => {
+    let i = 0;
+    for (const ch of x) {
+      const decomposed = /\p{M}/u.test(ch) && i > 0 && (x[i - 1] + ch).normalize("NFC").length === 1;
+      if (/\p{Cf}/u.test(ch) || decomposed) {
+        const cp = ch.codePointAt(0).toString(16).toUpperCase().padStart(4, "0");
+        const name = INVISIBLE_NAMES[cp] ?? (decomposed ? "a combining mark, an accent written apart from its letter" : "a format character");
+        return `${whose} holds U+${cp} (${name}) at index ${i}`;
+      }
+      i += ch.length;
+    }
+    return null;
+  };
+  const which = odd(got, "the view's text") ?? odd(want, "yours");
+  return which === null ? "" : ` — they differ where nothing shows: ${which}`;
 }
 
 // ── a page that stops answering ─────────────────────────────────────────────
@@ -1940,7 +2162,7 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
     if (typeof mod.default !== "function") throw new VerifyAssertion(`${assertPath} has no default export function`);
     let app;
     try {
-      app = await timing.time("open: the app loaded and arrived, in all", () => openApp({ width: 1280, height: 800, ...(mod.device ?? {}), budgetMs, check: classes === null ? null : { classes, skip } }));
+      app = await timing.time("open: the app loaded and arrived, in all", () => openApp({ width: 1280, height: 800, ...(mod.device ?? {}), budgetMs, check: classes === null ? null : { classes, skip }, fromStart: mod.fromStart === true }));
     } catch (e) {
       if (e?.lines === undefined) throw e;
       return { ok: false, failures: e.lines, log: [] };
@@ -1980,6 +2202,7 @@ export async function runBehavior({ compiled, appDir, assertPath, fixturesDir = 
     });
     for (const e of app.pageErrors) failures.push(`page error: ${e}`);
     for (const e of new Set(app.thrown)) failures.push(`error: ${e}`);
+    for (const c of app.checks ?? []) for (const f of c.faults ?? []) failures.push(`${f} (${c.where})`);
     // what the program asked for and did not get — a data file not found, a service
     // that refused — said beside the verdict: a run otherwise passes with its data empty
     const refused = [...new Set(app.drive.requests().filter((q) => q.intercepted === undefined && typeof q.status === "number" && q.status >= 400).map((q) => `${q.method} ${q.path} answered ${q.status}`))];

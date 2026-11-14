@@ -2,16 +2,16 @@
 # TabBar
 
 A `Segmented` that is a row of tabs, switching what is shown below it — see `Segmented`
-§ Tabs. It looks and moves like a `Segmented` and takes the same `choices`, `value` and
-`input`; to a screen reader it is a tab list, each segment a tab. The keys are a `Segmented`'s: the
+§ Tabs. It looks and moves like a `Segmented` and takes the same `items`, `value` and
+`commit`; to a screen reader it is a tab list, each segment a tab. The keys are a `Segmented`'s: the
 arrows move among the tabs and Space or Enter picks one, so a pane changes only when asked.
 
 ```declare
 App [ width = 360, height = 150, page: string = "general",
     TabBar [ x = 20, y = 20, width = 240, value = { app.page },
-        choices = { [ ({ id: "general", label: "General" }),
-                     ({ id: "privacy", label: "Privacy" }) ] },
-        input(v: string) { app.page = v }
+        items = { [ ({ id: "general", label: "General" }),
+                   ({ id: "privacy", label: "Privacy" }) ] },
+        commit(v: string) { app.page = v }
         ],
     View [ x = 20, y = 70, visible = { app.page == "general" },
         accessibilityRole = tabPanel, accessibilityLabel = "General",
@@ -23,7 +23,7 @@ App [ width = 360, height = 150, page: string = "general",
 ```
 
 ## datapath
-Roots the control on its own rows of tabs, built from `choices`, so the tabs replicate in
+Roots the control on its own rows of tabs, built from `items`, so the tabs replicate in
 place of a `Segmented`'s radios.
 */
 
@@ -31,7 +31,7 @@ include [ "segmented.declare" ]
 
 class TabBar extends Segmented [
     accessibilityRole = tabList,
-    _tabRows: Dataset [ contents = { { tabs: ((classroot.choices ?? []) as any).map((c, i) => ({ ...c, i: i })) } } ],
+    _tabRows: Dataset [ contents = { { tabs: ((classroot.items ?? []) as any).map((c, i) => ({ ...c, i: i })) } } ],
     datapath = { this._tabRows.value },
     TabBarTab [ datapath = :tabs[] ]
     ]
@@ -40,7 +40,7 @@ class TabBar extends Segmented [
 /*
 # TabBarTab
 
-**Internal.** One tab of a `TabBar`, built from its `choices`: a `SegmentedItem` that is a tab to a screen reader.
+**Internal.** One tab of a `TabBar`, built from its `items`: a `SegmentedItem` that is a tab to a screen reader.
 
 ## accessibilitySelected
 Follows `on`.

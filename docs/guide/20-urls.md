@@ -37,13 +37,23 @@ App [ width = 420, height = 200, fill = whitesmoke, location = "home",
 ```
 
 `shows = "home"` is the visibility you would have written by hand ([`visible`](declare-docs:View.visible) still
-composes on top for further gating — an auth check, say), and it registers the name:
+composes on top for further gating), and it registers the name:
 the compiler now knows every destination, so `link = "#detial"` is a **compile error**
 naming the real names, and the crawler knows where to go without guessing. [`link`](declare-docs:View.link)
 makes any view a link — no handler: following, the real `<a>` (hover preview,
 ⌘-click, copy-link), the keyboard stop, and the crawler's edge all come from the one
 attribute. The same references work in authored Markdown — `[the detail](#detail)` in
 a rendered `.md` follows identically, with no wiring.
+
+**A place that needs an account** shows the sign-in form where it is, rather than sending
+the visitor elsewhere: the address stays the one they followed, Back still leaves it, and
+once they sign in the page they asked for is already there. Two views share the place, one
+for each case:
+
+```declare-fragment
+editor: View [ shows = "editor", visible = { app.signedIn }, … ],
+editorSignIn: SignInForm [ shows = "editor", visible = { !app.signedIn } ]
+```
 
 A place *inside* a destination is named with `anchor = "story"` on a view (headings in
 rendered prose are anchors automatically). Link to it as bare `#story` from anywhere: the

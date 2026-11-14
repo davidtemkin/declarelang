@@ -11,7 +11,7 @@ App [ width = 900, height = 500, fill = #101820,
     rack: View [ x = 10, y = 10, width = { parent.width - 20 },
         datapath = { app.src.value },
         layout: SimpleLayout [ axis = y, spacing = 10 ],
-        Cell [ datapath = :rows[], key = :id ]
+        Cell [ datapath = :rows[], identityKey = :id ]
         ],
 
     count: Text [ x = 10, y = 460, textColor = whitesmoke,

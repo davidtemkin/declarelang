@@ -28,10 +28,10 @@ App [ width = 820, height = 560, fill = white, textColor = #999999, fontSize = 2
             }
         ],
 
-    n: Image [ x = 430, y = 110, width = 170, height = 120, stretches = none, source = "assets/badge.png", stroke = { stroke(1, 0xCCCCCC) } ],
-    w: Image [ x = 620, y = 110, width = 170, height = 120, stretches = width, source = "assets/badge.png", stroke = { stroke(1, 0xCCCCCC) } ],
-    b: Image [ x = 430, y = 250, width = 170, height = 120, stretches = both, source = "assets/badge.png", stroke = { stroke(1, 0xCCCCCC) } ],
-    hh: Image [ x = 620, y = 250, width = 170, height = 120, stretches = height, source = "assets/badge.png", stroke = { stroke(1, 0xCCCCCC) } ],
+    n: Image [ x = 430, y = 110, width = 170, height = 120, fit = none, source = "assets/badge.png", stroke = { stroke(1, 0xCCCCCC) } ],
+    w: Image [ x = 620, y = 110, width = 170, height = 120, fit = width, source = "assets/badge.png", stroke = { stroke(1, 0xCCCCCC) } ],
+    b: Image [ x = 430, y = 250, width = 170, height = 120, fit = both, source = "assets/badge.png", stroke = { stroke(1, 0xCCCCCC) } ],
+    hh: Image [ x = 620, y = 250, width = 170, height = 120, fit = height, source = "assets/badge.png", stroke = { stroke(1, 0xCCCCCC) } ],
 
     key: Text [ x = 20, y = 400, fontSize = 14, textColor = #444444,
         text = "images: none · width · both · height (each must differ)" ]

@@ -2,7 +2,7 @@
 // against a booted simulator (DIAG-adjacent tooling, keep with drive.mjs).
 // Everything the 2026-08-06 model validation measured, as one repeatable run:
 // the touch-family books, the hold-gated claim, the scroll-takeover cancel,
-// resolved-layer delivery (click/dblClick/hold), axis-scoped claims, flow
+// resolved-layer delivery (click/doubleClick/hold), axis-scoped claims, flow
 // selection, tap-to-stop, pinch survival — and the homepage regression pack
 // (text pans, pinned navbar, double-tap, links). Aim points are computed
 // LIVE from the DOM (never hardcoded): a press point is believed only after

@@ -138,7 +138,7 @@ await (async () => {
     log: string = "",
     d: Dataset { { "rows": [ { "id": "a", "kind": "text" }, { "id": "b", "kind": "photo" } ] } },
     col: View [ datapath = { app.d.value },
-      Row [ datapath = :rows[], key = :id ]
+      Row [ datapath = :rows[], identityKey = :id ]
     ]
   ]`);
   test("a data-bound attribute under trackChanges reports the record's change", () => {

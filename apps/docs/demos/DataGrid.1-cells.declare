@@ -1,6 +1,6 @@
 // Cells of your own, and headings between rows
-// The Task column is an `edit` column: type into it, Esc puts back what was there, Enter
-// moves down. Done names a class of the app's own, bound to each row's record. A record
+// The Task column is an `edit` column: select a cell and type, Esc puts back what was there,
+// Enter moves down. Done names a class of the app's own, bound to each row's record. A record
 // with a `heading` field is a heading row, which selection and the arrows pass over.
 
 class DoneCell [ width = 100%, height = 100%,

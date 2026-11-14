@@ -76,6 +76,7 @@ export declare function paintParentOf(v: InteractionView): InteractionView | nul
 export declare function paintsAbove(a: InteractionView, b: InteractionView): boolean | null;
 /** Some view's box, place, transform, scroll, clip or children changed. */
 export declare function markGeometry(): void;
+export declare function pointerOff(v: InteractionView): boolean;
 /** The view a real press at this point would reach — `hitAt` passing over views
  *  that take no presses, as the backends' input routing does. The checking
  *  tools ask this, so a press they refuse is one a person's would miss. */

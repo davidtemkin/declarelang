@@ -48,19 +48,19 @@ Past the basics, each compositing stage is an attribute too, and every renderer 
 them natively:
 
 ```declare-fragment
-card: View [ filter = { [blur(d * 1.15), brightness(1 - d * 0.13)] } ],  // the view's own paint, as a group
+card: View [ visualFilter = { [blur(d * 1.15), brightness(1 - d * 0.13)] } ],  // the view's own paint, as a group
 glass: View [ backdrop = frost(20, 1.4), fill = #F9F9FBDB ],             // blur what lies beneath: frosted glass
-chip: View [ blend = multiply ],                                         // mix with what is already painted
+chip: View [ blendMode = multiply ],                                     // mix with what is already painted
 fade: Image [ mask = gradient("180deg", #00000000, #000000FF) ],         // a soft alpha mask
 glow: View [ fill = radialGradient(0.5, 0.38, 0.3, #FFFFFF60, #FFFFFF00) ],
 dial: View [ fill = conicGradient(0.5, 0.5, 0, #FF5A36, #FFD23F, #FF5A36) ]
 ```
 
-`filter` takes one function or a list — `blur`, `brightness`, `contrast`, `saturate`,
+`visualFilter` takes one function or a list — `blur`, `brightness`, `contrast`, `saturate`,
 `grayscale`, `invert`, `sepia`, `hueRotate`, `colorize`, `shadow` — and applies it to the
 view and its children as a group. [`backdrop`](declare-docs:View.backdrop) applies the same list to what lies beneath
 the view, inside its own shape, which is how menus and sheets get their frosted look.
-[`blend`](declare-docs:View.blend) sets the compositing operator (the usual blend modes, camelCased). All of it is
+[`blendMode`](declare-docs:View.blendMode) sets the compositing operator (the usual blend modes, camelCased). All of it is
 paint: clicks and focus are unaffected. The [`View`](declare-docs:View) reference entry has the details.
 
 ## Provided values
@@ -221,7 +221,7 @@ App [ themeMode: string = "auto",
     isDark: boolean = { app.themeMode == "auto" ? app.systemDark : app.themeMode == "dark" },
     theme = { app.isDark ? SanFranciscoDark : SanFrancisco },
     AppearanceSwitch [ dark = { app.isDark },
-        input(v: boolean) { app.themeMode = v ? "dark" : "light" } ]
+        commit(v: boolean) { app.themeMode = v ? "dark" : "light" } ]
     ]
 ```
 

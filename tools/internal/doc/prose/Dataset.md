@@ -18,19 +18,23 @@ read-only: the data changes through the verbs — `set(path, v)` writes one plac
 and a replicated row writes a field of its own record with `:field = v`. A whole
 replacement re-renders the datapaths that read it in one settle.
 
+A dataset the program fills itself — from code, in `onInit` — still starts with a body:
+its shape's empty form, every array its schema requires empty, as
+`log: Entries { { "rows": [] } }`. `set([], …)` then fills it.
+
 ## schema
 The optional data shape (`schema = [ city: string, rows[]: [ id: string, n?: number ] ]`):
 arrivals validate against it at the boundary (a malformed response lands in `.failed` with
 the pointed path; an embedded body fails at build), and every `:path` under a direct cursor
 is checked statically against it. Validation only — identity is not declared here or
-anywhere: a record's `id` field is its identity by convention (`key = :field` overrides an
+anywhere: a record's `id` field is its identity by convention (`identityKey = :field` overrides an
 unconventional name). Presence is the only switch; the `:path` surface never changes.
 
 ## contents
 Makes the `Dataset` **derived**: a `{ }` constraint (in place of a JSON body) that computes
 the value from other reactive state — `matches: Dataset [ contents = { app.matching() } ]`. It
 recomputes exactly when what it reads changes, dep-gated like any constraint. A recompute
-reconciles replicated rows by each record's `id` field (or `key = :field` when identity lives
+reconciles replicated rows by each record's `id` field (or `identityKey = :field` when identity lives
 under another name), so only the records that changed rebuild.
 
 **A derived dataset holds its source's records.** When the computation *selects* — filter,

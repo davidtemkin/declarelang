@@ -457,8 +457,8 @@ class TaskRow extends Line [
 
     // A context menu: right-click (or a two-finger tap), or press and hold.
 
-    onContextMenu(e: PointerEvent) { app.rowMenu.open(this, e) },
-    onHold(e: PointerEvent) { app.rowMenu.open(this, e) }
+    onContextMenu(e: PointerEvent) { app.rowMenu.showAt(this, e) },
+    onHold(e: PointerEvent) { app.rowMenu.showAt(this, e) }
     ]
 
 
@@ -810,7 +810,7 @@ App [ appName = "To-do", minWidth = 320,
             ({ id: "done", label: this.doneLabel }),
             ({ id: "important", label: this.flagLabel }),
             ({ divider: true }),
-            ...app.tasks.lists().map((l) => ({ id: "list:" + l.id, label: "Move to " + l.name, checked: this.task?.list == l.id })),
+            ...app.tasks.lists().map((l) => ({ id: "list:" + l.id, label: "Move to " + l.name, group: "list", checked: this.task?.list == l.id })),
             ({ divider: true }),
             ({ id: "delete", label: "Delete" }),
         ] },
@@ -824,14 +824,14 @@ App [ appName = "To-do", minWidth = 320,
         ],
 
     moveMenu: Menu [
-        items = { app.tasks.lists().map((l) => ({ id: l.id, label: l.name, checked: app.tasks.byId(app.openId)?.list == l.id })) },
+        items = { app.tasks.lists().map((l) => ({ id: l.id, label: l.name, group: "list", checked: app.tasks.byId(app.openId)?.list == l.id })) },
         picked(id: string) { app.tasks.move(app.openId, id) }
         ],
 
     // The add form's two menus read and write the open form (`addForm`, below).
 
     addListMenu: Menu [
-        items = { app.tasks.lists().map((l) => ({ id: l.id, label: l.name, checked: app.addForm?.list == l.id })) },
+        items = { app.tasks.lists().map((l) => ({ id: l.id, label: l.name, group: "list", checked: app.addForm?.list == l.id })) },
         picked(id: string) { if (app.addForm != null) app.addForm.list = id }
         ],
     addTagsMenu: Menu [
@@ -1032,7 +1032,8 @@ App [ appName = "To-do", minWidth = 320,
         ],
 
     // A phone's add button, bottom right. Its dock is a strip at the window's
-    // foot that lets presses through (`pointerEvents = "none"`). `y = end`
+    // foot that lets presses through (`pointerEvents = "none"`), and the button
+    // takes them back for itself (`"auto"`). `y = end`
     // pins it there by the browser itself, so it holds still as Safari's bars
     // come and go (a `y` computed from the window's height trails them a frame
     // and jerks). The dock's padding keeps the button off the edges, and lifts
@@ -1043,6 +1044,7 @@ App [ appName = "To-do", minWidth = 320,
         lift: number = { app.toast.shown ? 60 : 0 },
         padding = { [0, 20, 20 + this.lift, 0] },
         fab: Control [ x = end, y = end, width = 56, height = 56, cornerRadius = 28, accessibilityLabel = "New task",
+            pointerEvents = "auto",
             fill = { app.addTone },
             shadow = { shadow(0, 6, 16, app.isDark ? 0x00000080 : 0x0000002E) },
             scale = { pressed ? 0.92 : 1 }, pivotX = 28, pivotY = 28,
@@ -1052,21 +1054,21 @@ App [ appName = "To-do", minWidth = 320,
         ],
 
     // ── layers: they paint above everything, opened by a call (`say`) or by a
-    //    value (`shown`). `shown` follows the App's state, and `input` is where
+    //    value (`shown`). `shown` follows the App's state, and `commit` is where
     //    the layer's own closing (Esc, a press outside) is written back.
 
     addPanel: Popover [ anchorTo = { app.toolbar.plus }, shown = { app.adding && app.wide },
-        input(open: boolean) { app.adding = open },
+        commit(open: boolean) { app.adding = open },
         accessibilityLabel = "New task",
         entry: AddForm [ exists = { app.adding }, width = 420 ]
         ],
     addSheet: Sheet [ shown = { app.adding && !app.wide },
-        input(open: boolean) { app.adding = open },
+        commit(open: boolean) { app.adding = open },
         accessibilityLabel = "New task",
         entry: AddForm [ exists = { app.adding } ]
         ],
     listSheet: Sheet [ edge = "start", accessibilityLabel = "Lists", shown = { app.listsOpen && !app.wide },
-        input(open: boolean) { app.listsOpen = open },
+        commit(open: boolean) { app.listsOpen = open },
         Sidebar [ ]
         ],
 

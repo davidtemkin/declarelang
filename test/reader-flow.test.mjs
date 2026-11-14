@@ -128,7 +128,7 @@ await test("viewer: an include path is a link that views the included file in pl
   assert.equal(s.isInclude, true);
   assert.equal(await page.evaluate(() => location.hash), "#reader/apps/weather/weather-art.declare", "the fragment names the file");
   // the REAL tab path: pick "Edit" through the switch — it must keep the viewed file
-  await page.evaluate(() => window.__declare.find("app.bar.modeSwitch").input("edit"));
+  await page.evaluate(() => window.__declare.find("app.bar.modeSwitch").commit("edit"));
   await settled(page);
   const edit = await page.evaluate(() => { const a = window.__declare.find("app"); return { noRun: a.noRun.visible, live: a.live.visible, l1: a.noRun.l1.text, rowOn: a.noRun.row.visible, name: a.noRun.row.name.text, altOn: a.noRun.alt.visible }; });
   assert.equal(edit.noRun, true); assert.equal(edit.live, false);
@@ -221,7 +221,7 @@ await test("viewer: the Sizes tab weighs the program's build, file by file, and 
   assert.equal(inc.url, "", "nothing is built for an include");
   assert.equal(inc.status, "This file declares classes — there is no App, so no build to weigh.");
   // and the switch's Sizes tab keeps the viewed file, as the others do
-  await page.evaluate(() => window.__declare.find("app.bar.modeSwitch").input("reader"));
+  await page.evaluate(() => window.__declare.find("app.bar.modeSwitch").commit("reader"));
   await settled(page);
   assert.equal(await page.evaluate(() => window.__declare.find("app").location), "reader/apps/weather/weather-art.declare");
 });

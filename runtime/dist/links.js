@@ -3,7 +3,7 @@
 // for constraint dependencies.
 //
 // The compiler's link extraction (compiler/src/links.ts) finds each
-// `navigate(to)` call in an ACTIVATION handler and attaches a LinkTarget to the
+// `openURL(to)` call in an ACTIVATION handler and attaches a LinkTarget to the
 // element that carries the handler (`element.link`). The precompiled (declarec)
 // path serializes the program AST, so `element.link` rides along for free; the
 // dev / live path ships resolved SOURCE that the browser re-parses, so links
@@ -28,7 +28,7 @@ export function forEachElement(program, fn) {
         walk(c.body);
 }
 /** Collect each navigable element's target with its walk index (compiler side,
- *  after extraction). Empty when a program has no `navigate(to)` links. */
+ *  after extraction). Empty when a program has no `openURL(to)` links. */
 export function serializeLinks(program) {
     const out = [];
     let i = 0;

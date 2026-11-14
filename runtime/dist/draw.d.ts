@@ -18,7 +18,7 @@ export interface DrawTextStyle {
     numeralWidth?: NumeralWidth;
     slashedZero?: boolean;
     textFill?: unknown;
-    outline?: unknown;
+    textStroke?: unknown;
     underline?: boolean;
     strike?: boolean;
 }

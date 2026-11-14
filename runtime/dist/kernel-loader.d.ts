@@ -114,7 +114,7 @@ export interface Kernel {
     readonly trackCap: number;
     /** A rule's state bits (KERNEL_STATE), read off the kernel's own array — no call. */
     stateOf(rule: number): number;
-    /** The kernel's scheduled-settle flag, viewed (see reactive.ts workPending). */
+    /** The kernel's scheduled-settle flag, viewed (no call). */
     pendingFlag: Int32Array;
     /** Does any rule subscribe to this cell? (a viewed list head — no call) */
     listened(cell: number): boolean;

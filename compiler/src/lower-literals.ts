@@ -2,7 +2,7 @@
 //
 // The checker coerces every literal the program writes, in its slot, to the
 // value it means: `navy` in a Color slot is 0x000080, `gradient(#F8F8F8, #D8D8D8)`
-// a gradient record, `easeOut` in a Motion slot a curve, `bold` in a weight
+// a gradient record, `easeOut` in an Easing slot a curve, `bold` in a weight
 // slot 700. The runtime used to do all of that again at boot, from the text —
 // which put the parsers and their tables (148 color names among them) in every
 // build. Instead, while the compile checks the program it will ship, the

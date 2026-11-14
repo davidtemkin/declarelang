@@ -49,14 +49,14 @@ Button [ label = "OK", padH = 28 ]                  // a short word, given room
 Button [ label = "Add", iconLeft = "PlusIcon", gap = 12 ]
 ```
 
-## inkColor
+## ink
 The one ink decision, so a button's icon and its label always agree: the accent
 text colour when `primary`, the ordinary text colour otherwise. `textColor`
 follows it. Override this rather than `textColor` alone, or the icon and the
 words drift apart.
 
 ```declare-fragment
-class DangerButton extends Button [ inkColor = { primary ? white : crimson } ]
+class DangerButton extends Button [ ink = { primary ? white : crimson } ]
 ```
 
 ## baseline
@@ -107,10 +107,12 @@ buttons set `provided("theme").buttonStrokeColor`; flat themes leave it null and
 primary button is never bordered — the accent fill is its edge.
 
 ## press()
-The activation path, called by a click and by Space/Enter. It flashes the press
-tint, opens an attached `menu` if there is one, then calls `onClick`. Override
-`onClick` for ordinary use; override this only to change what activation *means*.
-An override calls `super.press()`: it is what runs `onClick` from Space and Enter.
+The keyboard's activation path, called by Space and Enter. It flashes the press
+tint, opens an attached `menu` if there is one, then calls `onClick`. A click does
+not come here: a Button's click runs `onClick` itself (a pointer-down opens the
+`menu`). Override `onClick` for ordinary use — it serves pointer and keyboard alike;
+override this only to change what keyboard activation *means*. An override calls
+`super.press()`: it is what runs `onClick` from Space and Enter.
 
 ## onClick
 Your handler. Fires after the press is delivered, so the affordance has already
@@ -118,7 +120,7 @@ run — put the work here, not in `press()`. The base runs `command` when the bu
 one: a button that names a command needs no handler.
 
 ## textColor
-Follows `inkColor`, the button's one ink decision, so the label and the icon can never disagree. Override `inkColor`, not this.
+Follows `ink`, the button's one ink decision, so the label and the icon can never disagree. Override `ink`, not this.
 
 ## _primaryFill
 **Internal.** The primary look's ground for the current state, that `fill` picks when `primary`.
@@ -155,8 +157,8 @@ class Button extends Control [
 
     // one ink decision, so a primary button's icon and its label agree
 
-    inkColor: Color = { primary ? provided("theme").accentTextColor : provided("theme").text },
-    textColor = { inkColor },
+    ink: Color = { primary ? provided("theme").accentTextColor : provided("theme").text },
+    textColor = { ink },
 
     // The run sizes to its own content and centers itself in the button; the
     // button's default width is the run plus symmetric padding. Two objects, so
@@ -192,9 +194,9 @@ class Button extends Control [
         width = { this.contentWidth },
         layout: SimpleLayout [ axis = x, spacing = { classroot.gap } ],
 
-        ico:   IconHost [ y = center, kind = { classroot.iconLeft },  ink = { classroot.inkColor } ],
+        ico:   IconHost [ y = center, kind = { classroot.iconLeft },  ink = { classroot.ink } ],
         cap:   TextLabel [ wrap = false, fontWeight = semibold,
             visible = { classroot.label != "" }, text = { classroot.label } ],
-        trail: IconHost [ y = center, kind = { classroot.rightIcon }, ink = { classroot.inkColor } ]
+        trail: IconHost [ y = center, kind = { classroot._rightIcon }, ink = { classroot.ink } ]
         ]
     ]

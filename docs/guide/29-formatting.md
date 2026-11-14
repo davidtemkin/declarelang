@@ -66,7 +66,7 @@ state, no declaration. It closes **inline**, the `]` riding the last content lin
 when the attributes wrapped:
 
 ```declare-fragment
-icon: Image [ x = 1, y = 1, width = 32, height = 32, stretches = both,
+icon: Image [ x = 1, y = 1, width = 32, height = 32, fit = both,
     source = { :code != null ? "icons/" + :code + ".png" : "" } ],
 ```
 

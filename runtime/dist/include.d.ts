@@ -116,4 +116,8 @@ prefix?: string): Promise<{
     sourceFrom: SourceFrom[];
     sourceSplices: Splice[][];
     errors: DeclareError[];
+    /** A name the library already has, taken by the program: refused, but the
+     *  program's own declaration is whole, so the compile goes on and says the
+     *  rest of what is wrong beside it. */
+    squats: DeclareError[];
 }>;

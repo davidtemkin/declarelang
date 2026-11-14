@@ -169,7 +169,7 @@ function syncNamed(read, put, drop, label) {
     // is compared here, name by name, so identical values deliver nothing
     return observe(() => { const r = read(); return Object.keys(r).sort().flatMap((k) => [k, r[k]]); }, () => apply(read()), label);
 }
-/** One navigation an embedded app asked for — its `navigate(to)` or
+/** One navigation an embedded app asked for — its `openURL(to)` or
  *  `openWindow(to)` — as its island's `onNavigate` receives it: the address
  *  made absolute, the Declare program it names (its `.declare` path without
  *  the extension, a directory taken as its same-named program; "" when it

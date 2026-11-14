@@ -126,7 +126,10 @@ that exists once is used from several distant places, declare an alias on the Ap
 search: TextInput = { app.bar.tools.search },     // the one line that knows where it lives
 ```
 
-Everything else says `app.search`.
+Everything else says `app.search`. The type is what each use is checked against: typed with
+a base class such as `View`, the alias offers only what every view has, and the named
+children of the view it points to are hidden behind it. A part reached through its children
+wants a class of its own to type the alias with (or `any`, which is not checked).
 
 ### A member by a name known at run time
 
@@ -406,7 +409,7 @@ anything the browser has:
 
 ```declare-fragment
 script [ host = browser ] {
-    function copy(s: string) { navigator.clipboard.writeText(s) }
+    function buzz(ms: number) { navigator.vibrate?.(ms) }
     }
 ```
 

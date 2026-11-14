@@ -333,7 +333,7 @@ function enumVocabularies() {
       if (t.kind === "enum" && !t.name.startsWith('"') && !(t.name in vocab)) vocab[t.name] = [...t.tokens];
     }
   }
-  vocab.Motion = [...MOTION_TOKENS];
+  vocab.Easing = [...MOTION_TOKENS];
   // the declarable enum types the library's own attributes use (Axis, Justify,
   // CrossAlign, …) — registered in value.ts, not on a runtime schema
   for (const n of DECLARED_TYPE_NAMES) {
@@ -612,7 +612,7 @@ const VOCAB_NOTE = {
   tint: "`tint(color, dark)` — an active tone derived from an accent (22% over the surface), for a theme that overrides the accent.",
   Inspect: "The running program's introspection surface, behind the same door as `__declare.explain` — dev tooling, stubbed in a production build unless you pass `declarec --debug`.",
   DataCursor: "a datapath's resolved position — `.data` and `.path`",
-  MotionCurve: "an easing curve for an `Animator`",
+  EasingCurve: "an easing curve for an `Animator`",
   PointerEvent: "a pointer went down, moved, or a view was clicked",
   PointerUpEvent: "a pointer release — carries **`canceled`**, true when the browser reclaimed the gesture",
   DragEndEvent: "a drag's end — a release, or taken back (**`canceled`**) by a system interruption, Escape, or the window losing focus",
@@ -627,11 +627,11 @@ const VOCAB_NOTE = {
   StreamMessage: "one arrival from an `EventStream` or `Socket`",
   gradient: "build a `Gradient` from an angle and colours",
   stroke: "build a `Stroke`",
-  shadow: "build a `Shadow` — the box's own, glyphs' (`textShadow`), or in a `filter` list the painted alpha's",
+  shadow: "build a `Shadow` — the box's own, glyphs' (`textShadow`), or in a `visualFilter` list the painted alpha's",
   colorStop: "one colour stop, for `gradient(…)`",
   frost: "the material pair `[blur(radius), saturate(saturation)]` — what lies beneath the view, blurred under its own fill",
-  FilterList: "a list of filters, applied in order — to the view's own paint (`filter`) or to what lies beneath it (`backdrop`); `frost(…)` builds the common backdrop pair",
-  ImageFilter: "one function of the filter vocabulary, for `filter` (the view's own paint) and `backdrop` (what lies beneath)",
+  FilterList: "a list of filters, applied in order — to the view's own paint (`visualFilter`) or to what lies beneath it (`backdrop`); `frost(…)` builds the common backdrop pair",
+  ImageFilter: "one function of the filter vocabulary, for `visualFilter` (the view's own paint) and `backdrop` (what lies beneath)",
   blur: "a Gaussian blur, radius in view units",
   brightness: "multiply the light: `brightness(0.8)` darkens, `1` is unchanged",
   contrast: "scale about mid-grey: `contrast(1.5)` deepens, `1` is unchanged",
@@ -761,7 +761,7 @@ const sharedTypesDoc = (spine) => {
 
 // ── the TYPE PAGES — one reference page per named vocabulary ─────────────────
 //
-// A type printed in a signature (`motion: Motion`, `onKeyDown(e: KeyEvent)`) was
+// A type printed in a signature (`easing: Easing`, `onKeyDown(e: KeyEvent)`) was
 // a name and nothing else: no page to open, no tokens to read, no way to tell
 // where the vocabulary is used. These build one page per ENUM (the fixed token
 // sets, spine.enums) and per SHARED TYPE (the aliases and interfaces the scaffold
@@ -778,12 +778,12 @@ const sharedTypesDoc = (spine) => {
 // type exactly once, so a new enum or a new PRELUDE declaration fails the
 // assembly until it is placed.
 const TYPE_GROUPS = [
-  ["Enums", ["AccessibilityLive", "AccessibilityRole", "AccessibilitySort", "Axis", "Backface", "Blend", "ClaimAxis", "RequestCredentials", "RequestFailure", "CrossAlign", "TextDirection", "SafeAreaMode",
-             "FitAlign", "Focusable", "FocusScope", "FontLate", "FontWeight", "Justify", "Motion", "Numerals", "NumeralWidth",
+  ["Enums", ["AccessibilityCurrent", "AccessibilityLive", "AccessibilityRole", "AccessibilitySort", "Axis", "Backface", "BlendMode", "ClaimAxis", "RequestCredentials", "RequestFailure", "CrossAlign", "TextDirection", "SafeAreaMode",
+             "FitAlign", "Focusable", "FocusScope", "FontLate", "FontWeight", "Justify", "Easing", "Numerals", "NumeralWidth",
              "OutsidePress", "AnimatorOrder", "InputPurpose", "ImageRendering", "ScrollAnchor", "ScrollBelow", "Scrolls", "StreamStatus", "ImageFit", "TextAlign", "TextTransform", "UnsupportedTags", "ClockTick"]],
-  ["Values", ["Color", "Fill", "Gradient", "Length", "Percent", "Radius", "Inset", "ClipPath", "Stroke", "BoxStroke", "GlyphOutline",
-              "Shadow", "ImageFilter", "FilterList", "Theme", "MotionCurve", "DataCursor", "TextMetrics", "IslandMessage", "IslandNavigation", "DelayHandle", "AccessibilitySettings"]],
-  ["Text", ["TextStyle", "TextStyles", "TagStyles", "BlockGeometry", "RichTextLayout"]],
+  ["Values", ["Color", "Fill", "Gradient", "Length", "Percent", "Radius", "Inset", "ClipPath", "Stroke", "BoxStroke",
+              "Shadow", "ImageFilter", "FilterList", "Theme", "EasingCurve", "DataCursor", "TextMetrics", "IslandMessage", "IslandNavigation", "DelayHandle", "AccessibilitySettings"]],
+  ["Text", ["TextStyle", "TextStyles", "TagStyles", "TagViews", "BlockGeometry", "RichTextLayout"]],
   ["Event payloads", ["PointerEvent", "PointerUpEvent", "DragEndEvent", "TouchEvent", "Touch", "WheelEvent", "PinchEvent",
                       "KeyEvent", "FocusGeometry", "TooltipEvent", "StreamMessage", "ChangeEvent", "ValueChange",
                       "FilesOverEvent", "FilesDropEvent", "ClipboardEvent"]],

@@ -61,6 +61,10 @@ end or start edge.
 ## opacity
 Its open blend, as a card; a sheet at an edge slides rather than fades.
 
+## cornerRadius
+The theme's `sheetCornerRadius` on its two top corners at the bottom edge, all four as a
+card, none at a side edge. Its panel takes it, with its `fill`.
+
 ## _widePresentation
 **Internal.** What the sheet is when the host has room to spare: an `edge = end` sheet stays at the end,
 any other is centred. `presentation` takes it unless the sheet comes from the start or the host is
@@ -127,13 +131,34 @@ class Sheet extends Floating [
     _scrim: View [ pointerEvents = "none",
         x = { -classroot.x }, y = { -classroot.y },
         width = { classroot._hostW }, height = { classroot._hostH },
-        fill = { provided("theme").scrimFill },
-        opacity = { (provided("theme").scrimOpacity) * classroot.openT } ],
+
+        // the dimming stops at the sheet's own box, which paints its fill there
+
+        draw(d: DrawContext) {
+            const c = classroot
+            d.fillStyle = provided("theme").scrimFill
+            d.beginPath()
+            d.rect(0, 0, d.w, d.h)
+            const r = c.cornerRadius
+            d.roundRect(c.x, c.y, c.width, c.height, typeof r == "number" ? r : [...r])
+            d.fill("evenodd")
+            },
+        opacity = { (provided("theme").scrimOpacity) * classroot.openT }
+        ],
+
+    // the sheet paints its own fill, as any view does; the panel gives it the
+    // theme's surface when it sets none, and its shadow — and runs on below its
+    // foot, so a sheet pulled up shows no gap (a fill of its own goes there too)
+
+    cornerRadius = { this.presentation == "bottom" ? [(provided("theme").sheetCornerRadius), (provided("theme").sheetCornerRadius), 0, 0] : this.presentation == "end" || this.presentation == "start" ? 0 : (provided("theme").sheetCornerRadius) - 2 },
 
     _panel: View [ width = 100%, height = { parent.height + (classroot.presentation == "bottom" ? 40 + classroot._keyboardH : 0) },
-        cornerRadius = { classroot.presentation == "bottom" ? [(provided("theme").sheetCornerRadius), (provided("theme").sheetCornerRadius), 0, 0] : classroot.presentation == "end" || classroot.presentation == "start" ? 0 : (provided("theme").sheetCornerRadius) - 2 },
-        fill = { provided("theme").surface },
-        shadow = { provided("theme").sheetShadow } ],
+        cornerRadius = { classroot.cornerRadius },
+        fill = { classroot.fill == null ? provided("theme").surface : null },
+        shadow = { provided("theme").sheetShadow },
+        _foot: View [ y = { classroot.height }, width = 100%, height = { parent.height - classroot.height },
+            visible = { classroot.fill != null }, fill = { classroot.fill } ]
+        ],
 
     // the bottom sheet's handle: pull it down past a quarter of the sheet to put it away
 

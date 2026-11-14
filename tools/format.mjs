@@ -361,14 +361,22 @@ function analyze(tokens) {
         p++;
         // `:@` — the record itself — or a field name
         let last = tok().kind === "at" ? tokens[p++] : tokens[expect("ident", "a field name after ':'")];
-        while (tok().kind === "dot") { p++; last = tokens[expect("ident", "a field name after '.'")]; }
-        // bracket segments glue to the path: `[]` (replication), `[3]`,
-        // `[a:b]` — any run of them, each emitted with no interior gaps
-        while (tok().kind === "lb" && tok().start === last.end) {
-          tok().role = "repl"; p++;
-          while (tok().kind !== "rb" && tok().kind !== "eof") { tok().role = "repl"; p++; }
-          tok().role = "repl";
-          last = tokens[expect("rb", "']'")];
+        // fields and bracket segments in any order, as the compiler reads them:
+        // `:a.b`, `:arr[]`, `:arr[2:8][]`, `:stories[0].image`. A bracket glues
+        // to what it follows (`[]` replication, `[3]`, `[a:b]`, no interior
+        // gaps), and so does a `.field` after a bracket
+        for (;;) {
+          if (tok().kind === "dot" && (last.kind === "ident" || tok().start === last.end)) {
+            p++; last = tokens[expect("ident", "a field name after '.'")]; continue;
+          }
+          if (tok().kind === "lb" && tok().start === last.end) {
+            tok().role = "repl"; p++;
+            while (tok().kind !== "rb" && tok().kind !== "eof") { tok().role = "repl"; p++; }
+            tok().role = "repl";
+            last = tokens[expect("rb", "']'")];
+            continue;
+          }
+          break;
         }
         return nc[p - 1];
       }

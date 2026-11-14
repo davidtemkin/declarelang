@@ -23,7 +23,7 @@ export class Video extends Media {
     }
     $flush(s) {
         super.$flush(s);
-        s.setImageStretch(this.stretches);
+        s.setImageStretch(this.fit);
     }
     $makeElement() {
         const el = document.createElement("video");
@@ -48,6 +48,6 @@ export class Video extends Media {
     }
 }
 defineAttributes(Video, {
-    stretches: { def: "none", push: (v, s) => v.$surface?.setImageStretch(s) },
+    fit: { def: "none", push: (v, s) => v.$surface?.setImageStretch(s) },
 });
 //# sourceMappingURL=video.js.map

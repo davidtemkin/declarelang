@@ -209,6 +209,12 @@ function tagTree(data, v, path) {
 function tagUnder(data, v, up, key) {
     if (!isContainer(v))
         return;
+    // a derived dataset's own container may hold a record its source owns: that
+    // record keeps its own tag (it is referred to, never adopted — see below), so
+    // the walk stops there. Re-tagging it would orphan it the moment the derived
+    // dataset drops the container that held it, while its source still holds it.
+    if (DERIVED.has(data) && foreign(data, v))
+        return;
     const t = { data, up, key };
     TAGS.set(v, t);
     for (const k of Object.keys(v))
@@ -236,8 +242,8 @@ const foreign = (data, v) => {
  *  a tracked view unwraps to the record it views (a projection built from a
  *  `.value` read holds the source's records, never the wrappers); a record
  *  that already lives in another dataset stays home, untagged; everything
- *  else — what the code made — is tagged to `data`, its children landed the
- *  same way. */
+ *  else — what the code made — lands as the dataset's own copy (MADE, below),
+ *  tagged to `data`, its children landed the same way. */
 function adoptTree(data, v, path) {
     return adoptUnder(data, v, { data, up: null, key: "", at: path });
 }
@@ -250,22 +256,40 @@ function noteReferrer(v, data) {
         list.push(new WeakRef(data));
     REFERRERS.set(v, list);
 }
+// A container the program made and still holds (an attribute's records, an
+// undo snapshot) is not the derived dataset's to write: a recompute merges
+// into what it holds. So a container that arrives from the program is copied
+// as it lands (one level — its children land the same way), and the dataset
+// writes only into its own copies (MADE). The copy remembers what it was taken
+// from (FROM), so a later recompute that hands back the same container skips
+// it as `===` would.
+const MADE = new WeakMap();
+const FROM = new WeakMap();
+/** The same contents: one object, or the dataset's copy of that object. */
+const same = (a, b) => Object.is(a, b) || (typeof a === "object" && a !== null && FROM.get(a) === b);
 /** adoptTree's walk: `place` is the tag `v` takes if it is this dataset's. */
 function adoptUnder(data, v, place) {
-    v = unwrapValue(v);
-    if (!isContainer(v))
-        return v;
-    if (foreign(data, v)) {
-        noteReferrer(v, data);
-        return v;
+    const got = unwrapValue(v);
+    if (!isContainer(got))
+        return got;
+    if (foreign(data, got)) {
+        noteReferrer(got, data);
+        return got;
     }
-    TAGS.set(v, place);
-    for (const k of Object.keys(v)) {
-        const c = v[k], raw = adoptUnder(data, c, { data, up: place, key: k });
+    let own = got;
+    if (MADE.get(got) !== data) {
+        own = Array.isArray(got) ? got.slice()
+            : Object.getPrototypeOf(got) === null ? Object.assign(Object.create(null), got) : { ...got };
+        MADE.set(own, data);
+        FROM.set(own, got);
+    }
+    TAGS.set(own, place);
+    for (const k of Object.keys(own)) {
+        const c = own[k], raw = adoptUnder(data, c, { data, up: place, key: k });
         if (raw !== c)
-            v[k] = raw;
+            own[k] = raw;
     }
-    return v;
+    return own;
 }
 /** Own-key read — data lookups must never climb prototypes (the R2 own-key
  *  discipline: a field named "constructor" is data, not Object.prototype). */
@@ -372,11 +396,15 @@ export class Dataset extends Node {
             cellAt(container, key).track();
             if (edge !== null && edge !== container)
                 cellAt(edge, edgeKey).track();
-            // a source's LIST held here: its membership and order change in the
-            // source (insert/remove/move wake every cell on the array), so a reader
-            // of the list through this dataset — a replicator — rides one of them
-            if (derived && Array.isArray(cur) && foreign(this, cur))
-                cellAt(cur, "length").track();
+            // a read that stops at a source's record or list held here, in a slot of
+            // this dataset's own: through the source, the same read stands on the
+            // record's slot there, which every write beneath it wakes (the ancestor
+            // chain) — so this read rides that slot too
+            if (derived && !foreign(this, container) && foreign(this, cur)) {
+                const home = homeSlot(cur);
+                if (home !== null)
+                    cellAt(home[0], home[1]).track();
+            }
         }
         return cur;
     }
@@ -598,6 +626,8 @@ export class Dataset extends Node {
     $adopt(v) {
         const next = unwrapValue(v);
         const old = unwrapValue(this.value);
+        if (same(old, next))
+            return;
         // merge only into this dataset's own tree: a whole value taken from a
         // source (`contents = { app.raw.value }`) is that source's, never merged into
         if (isContainer(old) && isContainer(next) && old !== next && !foreign(this, old) && !foreign(this, next)) {
@@ -616,6 +646,9 @@ export class Dataset extends Node {
         this.value = v;
     }
 }
+/** The copy a derived dataset's value push is storing in place of the
+ *  program's container — already landed, so its push does not walk it again. */
+let landing = null;
 defineAttributes(Dataset, {
     // Adopting a value tags its containers with their locations, which is what
     // lets `datapath = { … }` expressions turn dereferenced values back into
@@ -631,11 +664,21 @@ defineAttributes(Dataset, {
                 setBound(d, "value", raw);
                 return;
             }
-            d.$shape++;
-            if (DERIVED.has(d))
-                adoptTree(d, v, []);
+            if (DERIVED.has(d)) {
+                // a derived dataset holds its own copy of what the program made (MADE)
+                if (v !== landing) {
+                    const own = adoptTree(d, v, []);
+                    if (own !== v) {
+                        landing = own;
+                        setBound(d, "value", own);
+                        return;
+                    }
+                }
+                landing = null;
+            }
             else
                 tagTree(d, v, []);
+            d.$shape++;
         },
         // a TRACKED reader gets the tracking view (see trackedView above);
         // untracked readers — handlers, methods — keep the raw tree
@@ -673,7 +716,7 @@ function mergeTree(data, old, next, path, chain) {
     const nextKeys = Object.keys(next);
     for (const k of nextKeys) {
         const a = getOwn(old, k), b = unwrapValue(getOwn(next, k));
-        if (Object.is(a, b))
+        if (same(a, b))
             continue;
         // a record or list selected from a source is never merged into or from: it
         // is the source's, so a different one here is a replacement
@@ -681,12 +724,13 @@ function mergeTree(data, old, next, path, chain) {
         if (mine && Array.isArray(a) && Array.isArray(b)) {
             const r = mergeRows(data, a, b, [...path, k], [...chain, [old, k]]);
             if (r === true)
-                continue; // rows merged in place, order and membership unchanged
+                continue; // rows merged in place, order and membership unchanged (FROM noted)
             if (r !== false) { // a NEW array (structural change): land it, wake the old one's readers
                 // wake the LIST's own readers (index and length cells), not the rows':
                 // the rows that survived are the same objects and stay asleep; the
                 // removed ones were woken by mergeRows
                 old[k] = r;
+                data.$shape++;
                 wake(old, k);
                 wakeAll(a);
                 for (const [c, ck] of chain)
@@ -700,6 +744,8 @@ function mergeTree(data, old, next, path, chain) {
         // a changed leaf, or a container whose shape changed: land the new value here
         const had = Object.prototype.hasOwnProperty.call(old, k);
         old[k] = adoptTree(data, b, [...path, k]);
+        if (isContainer(a) || isContainer(b))
+            data.$shape++; // a record or list replaced: positional cursors re-check (rowPlace), as after set
         wake(old, k);
         if (isContainer(a))
             wakeTree(a, data);
@@ -713,8 +759,10 @@ function mergeTree(data, old, next, path, chain) {
             const a = getOwn(old, k);
             delete old[k];
             wake(old, k);
-            if (isContainer(a))
+            if (isContainer(a)) {
+                data.$shape++;
                 wakeTree(a, data);
+            }
             structural = true;
         }
     if (structural) {
@@ -722,6 +770,7 @@ function mergeTree(data, old, next, path, chain) {
         for (const [c, ck] of chain)
             wake(c, ck);
     }
+    FROM.set(old, next);
     return true;
 }
 /** An ARRAY merges BY KEY, never by index. A row is a record with an `id`
@@ -763,8 +812,8 @@ function mergeRows(data, old, next, path, chain) {
         seen.add(k);
         const ov = byKey.get(k);
         const at = [...path, String(i)];
-        if (ov !== undefined && (ov === nv || (!foreign(data, ov) && !foreign(data, nv)))) {
-            if (ov !== nv && !mergeTree(data, ov, nv, at, [...chain, [old, String(i)]]))
+        if (ov !== undefined && (same(ov, nv) || (!foreign(data, ov) && !foreign(data, nv)))) {
+            if (!same(ov, nv) && !mergeTree(data, ov, nv, at, [...chain, [old, String(i)]]))
                 return false;
             if (ov !== old[i]) {
                 structural = true;
@@ -794,8 +843,12 @@ function mergeRows(data, old, next, path, chain) {
     // readers wake through the parent's landing (wakeAll + chain there). Mutating
     // the standing array in place was tried first: a caller that had read
     // `rows` before a collapse watched its own snapshot shrink.
-    if (!structural)
+    if (!structural) {
+        FROM.set(old, next);
         return true;
+    }
+    MADE.set(merged, data);
+    FROM.set(merged, next);
     return merged;
 }
 let transport = (url, init) => globalThis.fetch(url, init);
@@ -854,7 +907,7 @@ function appResolve(root, url) {
  *  turn: value + status settle together, ahead of one frame. */
 /** Declare token → the Fetch API's own spelling. `same-origin` cannot be a
  *  token (the hyphen is subtraction), so the language spells it camelCase and
- *  the translation happens here — the same shape `blend` uses for CSS's
+ *  the translation happens here — the same shape `blendMode` uses for CSS's
  *  hyphenated blend modes (colorDodge → color-dodge). */
 const FETCH_CREDENTIALS = {
     omit: "omit", sameOrigin: "same-origin", include: "include",
@@ -874,6 +927,25 @@ export class DataSource extends Dataset {
     get loaded() { return this.value != null; }
     autoUrl = "";
     $maybeAuto() {
+        if (!this.autoFetch)
+            return;
+        // Inside a settle the decision waits for its close: the same assignment that
+        // changes the address can take the view holding this source away (`exists`
+        // turning false as the location empties the slug), and a source that is
+        // leaving must not fetch on its way out. A source discarded before the settle
+        // closes drops the step ($afterSettle); one still alive decides on the
+        // address as the settle left it.
+        if (isSettling()) {
+            if (!this.$autoQueued) {
+                this.$autoQueued = true;
+                this.$afterSettle(() => { this.$autoQueued = false; this.$autoNow(); });
+            }
+            return;
+        }
+        this.$autoNow();
+    }
+    $autoQueued = false;
+    $autoNow() {
         if (!this.autoFetch)
             return;
         if (this.url === "") {
@@ -1392,6 +1464,61 @@ function homeOf(data, container, segs, verb) {
     }
     return { data: t.data, path };
 }
+/** The slot that holds `v` in its own dataset — `(parent, key)`, the cell a
+ *  write beneath `v` wakes as an ancestor. The tag's path is re-verified and,
+ *  when the source's structure shifted, healed: within the same array first
+ *  (an insert or removal ahead of it, a move), else by identity, as homeOf
+ *  heals. Null when `v` is the source's whole value or has left it. */
+function homeSlot(v) {
+    const t = TAGS.get(v);
+    if (t === undefined)
+        return null;
+    let path = pathOf(t);
+    if (path.length === 0)
+        return null;
+    let parent = resolveRaw(t.data, path.slice(0, -1));
+    if (isContainer(parent) && getOwn(parent, path[path.length - 1]) === v)
+        return [parent, path[path.length - 1]];
+    const i = Array.isArray(parent) ? parent.indexOf(v) : -1;
+    if (i >= 0)
+        path = [...path.slice(0, -1), String(i)];
+    else {
+        const healed = locateByIdentity(unwrapValue(untracked(() => t.data.value)), v, []);
+        if (healed === null || healed.length === 0)
+            return null;
+        path = healed;
+        parent = resolveRaw(t.data, path.slice(0, -1));
+    }
+    t.at = path;
+    return [parent, path[path.length - 1]];
+}
+/** Region cells as `<dataset> /pointer` — a tracked rule's data reads, named
+ *  for tooling (inspect.ts explain). Walks each dataset's value once; a record
+ *  two datasets hold is named where it is met first (`datasets` in tree order,
+ *  so a source before what derives from it, as a rule is usually declared). */
+export function nameDataCells(datasets, cells) {
+    const want = new Set(cells);
+    const out = [];
+    const seen = new Set();
+    const walk = (v, path, name) => {
+        if (!isContainer(v) || seen.has(v))
+            return;
+        seen.add(v);
+        const cs = CELLS.get(v);
+        if (cs !== undefined)
+            for (const [k, c] of cs)
+                if (c.id >= 0 && want.has(c.id)) {
+                    want.delete(c.id);
+                    out.push(`${name} ${showPath([...path, k])}`);
+                }
+        for (const k of Object.keys(v))
+            walk(v[k], [...path, k], name);
+    };
+    for (const { data, name } of datasets)
+        if (want.size > 0)
+            walk(unwrapValue(untracked(() => data.value)), [], name);
+    return out;
+}
 /** The record each replicated row presents, and the dataset's shape count
  *  when its cursor was set (replicate.ts). Between a structural change and the
  *  settle that re-points the rows, a row's positional cursor can name another
@@ -1419,10 +1546,15 @@ export function standOnPlace(owner, cursor) {
 export function noteRowRecord(row, data, path) {
     PRESENTED.add(row);
     const rec = resolveRaw(data, path);
+    // a read that found the row's record gone (rowPlace) stands on `gone`: the
+    // re-point wakes it, since a record replaced in place leaves the cursor —
+    // the reader's other dependency — equal
+    const gone = ROW_RECORDS.get(row)?.gone;
     if (rec !== null && typeof rec === "object")
-        ROW_RECORDS.set(row, { rec, shape: data.$shape });
+        ROW_RECORDS.set(row, { rec, shape: data.$shape, ...(gone !== undefined ? { gone } : {}) });
     else
         ROW_RECORDS.delete(row);
+    gone?.changed();
 }
 /** Where a row's reads go: its cursor's path while that still holds its
  *  record; the record's new place in the same array when it has moved; the
@@ -1442,6 +1574,13 @@ export function rowPlace(owner, cursor) {
         const i = arr.indexOf(r.rec);
         if (i >= 0)
             return { path: [...up, String(i)] };
+    }
+    if (isTracking()) {
+        if (r.gone === undefined) {
+            r.gone = new Cell();
+            RETIRE?.register(owner, new Map([["", r.gone]]));
+        }
+        r.gone.track();
     }
     return { rec: r.rec };
 }
@@ -1523,11 +1662,11 @@ export function coerceData(type, v, def) {
         case "class":
         case "fn":
         case "stroke":
-        case "outline":
+        case "glyphStroke":
         case "shadow":
         case "filter":
         case "mask":
-        case "motion":
+        case "easing":
         case "font":
         case "faceSource":
         case "faceWeight":

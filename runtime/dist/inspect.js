@@ -9,7 +9,7 @@
 // Zero-dependency like the rest of the runtime; pay-per-use (nothing here
 // allocates until asked). The `__declare` page bridge is installed by boot.ts
 // for top-level apps.
-import { startProfile, stopProfile, profiling, profileReport, profileText, measureDrawings, clearProfile } from "./profile.js";
+import { startProfile, stopProfile, profiling, profileReport, motionInFlight, profileText, measureDrawings, clearProfile } from "./profile.js";
 import { Node, authoredName } from "./node.js";
 import { findPath, pathOf, indexStep } from "./node-path.js";
 /** Resolve a dotted inspect path (`app.col.opts`, `app.col.3`) to the node.
@@ -18,15 +18,40 @@ import { findPath, pathOf, indexStep } from "./node-path.js";
  *  accessible name or its text (`app.seg.Two`), quoted when it holds a dot or a
  *  space (`app.menu."Save As…"`). */
 export function find(root, path) {
+    // the page API's calls take an address; a script that hands one an answer
+    // (at()'s `{ path, kind }`, a view, null) is told what it holds and what to
+    // pass, rather than meeting a TypeError from inside the walk
+    if (typeof path !== "string")
+        throw new TypeError(`a path is a string such as "app.sidebar.list"; this got ${pathArgIs(path)}`);
     return findPath(root, path, said);
+}
+/** What a page-API call was handed where it takes a path or a view — named
+ *  with the call that turns it into the right thing. */
+function pathArgIs(v) {
+    if (v === null || v === undefined)
+        return `${v} — a lookup that found nothing (at() over no view, find() of a missing path) answers null; check it before passing it on`;
+    if (v instanceof Node)
+        return "a view — pass its address, pathOf(view)";
+    if (typeof v === "object" && typeof v.path === "string")
+        return `an answer from at() or pressAt(), { path, kind } — pass its .path ("${v.path}")`;
+    return `${typeof v} ${String(v).slice(0, 40)}`;
 }
 /** The view inside `from` that says `words` — its label, its accessible name, or
  *  its text — ranked, so the one a person means is found: a SHOWN view before a
  *  hidden one (a saved card's hidden code field must not answer for the new
  *  card's), then a view a person acts on before one they only read (a `Field`
  *  is labelled "Password", and so is the field it holds), then one NAMED so
- *  before a text that merely reads so, then the nearer before the deeper. */
+ *  before a text that merely reads so. Strict, as a locator is: two views that
+ *  rank alike (a field labelled "Count" beside a button labelled "Count") name
+ *  nothing — a path never silently takes the first of two (7GUIs run 2); the
+ *  nearer of a view and one inside it is the one a person sees. */
 function said(from, words) {
+    const c = sayers(from, words);
+    return c.length === 1 ? c[0] : undefined;
+}
+/** Every view inside `from` that says `words` at the best rank (see said):
+ *  one is a match, two or more an ambiguity. */
+function sayers(from, words) {
     const named = (n) => {
         const a = n;
         return a.label === words || a.accessibilityLabel === words;
@@ -44,35 +69,64 @@ function said(from, words) {
         const a = n;
         return a.focusable === true || typeof a.select === "function" || typeof a.press === "function";
     };
-    let best;
+    let best = [];
     let bestRank = Infinity;
     let level = [...from.children];
-    for (let depth = 0; level.length > 0; depth++) {
+    while (level.length > 0) {
         for (const n of level) {
             const byName = named(n);
             if (!byName && !reads(n))
                 continue;
-            const rank = (shown(n) ? 0 : 4000) + (acts(n) ? 0 : 2000) + (byName ? 0 : 1000) + depth;
+            const rank = (shown(n) ? 0 : 4) + (acts(n) ? 0 : 2) + (byName ? 0 : 1);
             if (rank < bestRank) {
-                best = n;
+                best = [n];
                 bestRank = rank;
             }
+            // one inside a view already found is that view, seen by a person as one
+            else if (rank === bestRank && !best.some((b) => { for (let v = n.parent; v !== null; v = v.parent)
+                if (v === b)
+                    return true; return false; }))
+                best.push(n);
         }
         level = level.flatMap((n) => [...n.children]);
     }
     return best;
 }
+/** Where a path is ambiguous: the first step that names two or more views
+ *  alike (said), with their addresses — what a tool says instead of "no node",
+ *  as a strict locator names its matches. Null when the path is not. */
+export function ambiguity(root, path) {
+    const segs = (path.match(/"[^"]*"|[^.]+/g) ?? []).filter((s) => s !== "");
+    for (let i = segs[0] === "app" ? 1 : 0; i < segs.length; i++) {
+        const at = ["app", ...segs.slice(segs[0] === "app" ? 1 : 0, i)].join(".");
+        const from = findPath(root, at, said);
+        if (from === null)
+            return null;
+        if (findPath(root, `${at}.${segs[i]}`, said) !== null)
+            continue;
+        const step = segs[i].startsWith('"') ? segs[i].slice(1, -1) : segs[i];
+        const c = sayers(from, step);
+        if (c.length < 2)
+            return null;
+        return { at, step, matches: c.map((n) => `${pathOf(root, n)} (${declareName(n)})`) };
+    }
+    return null;
+}
 import { hitAt, pressAt, traceHitAt, rootFrameOrigin, rootFrameBox, rootTransform } from "./interaction.js";
 import { apply as applyAffine } from "./affine.js";
 import { bootCheck } from "./boot-check.js";
 import { View } from "./view.js";
+import { scrollHeldFor } from "./outside.js";
+import { reveal } from "./focus.js";
 import { semanticTree, formatSemantics } from "./semantics.js";
+import { Accessibility } from "./accessibility-service.js";
 import { declarationsOf, isSet, ownerOf, ownValues, ownedSlots } from "./attributes.js";
 import { materializationInfo } from "./replicate.js";
 import { sharedClock, browserScheduler } from "./animate.js";
 import { declareName } from "./declare-name.js";
 import { settle, staleRules } from "./reactive.js";
-import { clearTrace, readTrace, startTrace, stopTrace, traceText, tracing } from "./wake-trace.js";
+import { clearTrace, nameCells, readTrace, startTrace, stopTrace, traceText, tracing } from "./wake-trace.js";
+import { Dataset, nameDataCells } from "./data.js";
 const isView = (n) => n instanceof View;
 /** The class name to SHOW for a node: the program's name for its class, in
  *  every build (declare-name.ts). */
@@ -196,6 +250,28 @@ function intersectBox(a, b) {
     const x = Math.max(a.x, b.x), y = Math.max(a.y, b.y);
     return { x, y, width: Math.max(0, Math.min(a.x + a.width, b.x + b.width) - x), height: Math.max(0, Math.min(a.y + a.height, b.y + b.height) - y) };
 }
+/** A tracked rule's reads, from its last run: slots as `path.attr`, data
+ *  regions as `<dataset> /pointer`. Null when no rule serves the slot. */
+function lastReads(node, owner) {
+    if (owner === null)
+        return null;
+    const deps = owner.deps;
+    let root = node;
+    while (root.parent !== null)
+        root = root.parent;
+    const where = (n) => { try {
+        return pathOf(root, n);
+    }
+    catch {
+        return declareName(n);
+    } };
+    const datasets = [];
+    const walk = (n) => { if (n instanceof Dataset)
+        datasets.push({ data: n, name: where(n) }); for (const c of n.children)
+        walk(c); };
+    walk(root);
+    return [...nameCells(root, where, deps), ...nameDataCells(datasets, deps)];
+}
 export function explain(node, attr) {
     // A slot that does not exist answers LOUDLY — an absent key reads
     // `undefined`, and a harness asking `=== true` is told "no" forever with no
@@ -270,7 +346,7 @@ export function explain(node, attr) {
                 label: `${kindName(node)}.${attr}`,
                 static: owner.isStatic,
                 live: owner.live === true,
-                deps: owner.wiredPaths,
+                deps: owner.wiredPaths ?? lastReads(node, owner),
                 // A sourceless owner is machinery — and for a box slot the writer
                 // is almost always the parent's layout. Name it (duck-typed on
                 // `place`, the Layout contract; kindName resists minification).
@@ -292,7 +368,7 @@ export function explain(node, attr) {
                     label: `${kindName(node)}.${attr}`,
                     static: decl.deps !== null,
                     live: false,
-                    deps: decl.deps,
+                    deps: decl.deps ?? lastReads(node, owner),
                     writer: null,
                     source: decl.source,
                     pos: decl.pos,
@@ -404,6 +480,11 @@ export const clock = {
         return !sharedClock.settling;
     },
 };
+// A harness that looks from the very first frame (look --from-start) sets this
+// before the page runs: the clock is driven from boot, so the motion the app
+// starts as it comes up is still at its start when the look begins.
+if (globalThis.__declareClockHeld === true)
+    clock.manual();
 // ── the page bridge ─────────────────────────────────────────────────────────
 /** The evaluate service, loaded lazily (it is heavy and boot never needs it)
  *  but PRIMED when the first bridge is created — so by the time anyone calls
@@ -450,12 +531,8 @@ export function profileName(root, n) {
     }
     return cls;
 }
-/** The view an element of the page belongs to (the nearest one up whose surface
- *  it is, or holds it), named, with what it declares that costs to paint: a shadow,
- *  a filter or backdrop, opacity, a drawing. The profiler's way from the browser's
- *  layers and invalidations back to the program. Null for an element no view of
- *  this tree owns (the document itself). */
-export function elementView(root, el) {
+/** The view a DOM element is drawn for: its own, or the nearest one holding it. */
+function viewOfElement(root, el) {
     if (el === null)
         return null;
     const byEl = new Map();
@@ -469,26 +546,36 @@ export function elementView(root, el) {
     walk(root);
     for (let cur = el; cur != null; cur = cur.parentElement) {
         const v = byEl.get(cur);
-        if (v === undefined)
-            continue;
-        const paints = [];
-        const sh = v.shadow;
-        if (sh != null)
-            paints.push(`a shadow${sh.blur > 0 ? ` (${sh.blur} px blur)` : ""}`);
-        const f = v.filter;
-        if (f != null && !(Array.isArray(f) && f.length === 0))
-            paints.push("a filter");
-        const b = v.backdrop;
-        if (b != null && !(Array.isArray(b) && b.length === 0))
-            paints.push("a backdrop filter");
-        const o = v.opacity;
-        if (typeof o === "number" && o < 1)
-            paints.push(`opacity ${o}`);
-        if (typeof v.draw === "function")
-            paints.push("a drawing");
-        return { view: `${profileName(root, v)} (${kindName(v)})`, paints };
+        if (v !== undefined)
+            return v;
     }
     return null;
+}
+/** The view an element of the page belongs to (the nearest one up whose surface
+ *  it is, or holds it), named, with what it declares that costs to paint: a shadow,
+ *  a filter or backdrop, opacity, a drawing. The profiler's way from the browser's
+ *  layers and invalidations back to the program. Null for an element no view of
+ *  this tree owns (the document itself). */
+export function elementView(root, el) {
+    const v = viewOfElement(root, el);
+    if (v === null)
+        return null;
+    const paints = [];
+    const sh = v.shadow;
+    if (sh != null)
+        paints.push(`a shadow${sh.blur > 0 ? ` (${sh.blur} px blur)` : ""}`);
+    const f = v.visualFilter;
+    if (f != null && !(Array.isArray(f) && f.length === 0))
+        paints.push("a filter");
+    const b = v.backdrop;
+    if (b != null && !(Array.isArray(b) && b.length === 0))
+        paints.push("a backdrop filter");
+    const o = v.opacity;
+    if (typeof o === "number" && o < 1)
+        paints.push(`opacity ${o}`);
+    if (typeof v.draw === "function")
+        paints.push("a drawing");
+    return { view: `${profileName(root, v)} (${kindName(v)})`, paints };
 }
 /** A value for the stale report: short text, a view by its name. */
 function shortValue(v) {
@@ -534,6 +621,21 @@ export function bridgeFor(root) {
             return n !== null ? inspect(n, path ?? "app") : null;
         },
         find: (path) => find(root, path),
+        /** Bring the view an element is drawn for into view as focus does (Tab): each
+         *  scroller that carries it scrolls the least that shows it, clear of the
+         *  bars pinned over it with ignoreScroll. False when no view holds the element. */
+        reveal: (el) => {
+            const v = viewOfElement(root, el);
+            if (v === null)
+                return false;
+            reveal(v);
+            return true;
+        },
+        /** Where a path names two or more views alike: the step, and their addresses. */
+        ambiguity: (path) => ambiguity(root, path),
+        /** The finite motion in flight now, named (`Spring (x) on app.panel`) — what
+         *  clock.settling is true for; a Time or a looping animator is never listed. */
+        moving: () => motionInFlight((n) => `${profileName(root, n)}${n instanceof Node && authoredName(n) === null ? `, a ${declareName(n)}` : ""}`),
         /** Rung 4's questions of the booted program (boot-check.ts): what it can
          *  see wrong in reach and layout, which classes were never built, the
          *  answers to reads, an outline and the semantic tree. */
@@ -569,6 +671,8 @@ export function bridgeFor(root) {
             const t = semanticTree(n);
             return asData ? t : formatSemantics(t);
         },
+        /** What the program said lately through `Accessibility.announce`, oldest first. */
+        announced: () => Accessibility.announced().map((a) => ({ text: a.text, politeness: a.politeness })),
         /** Geometry + causality queries — the same set the Inspector's panes use, so
          *  an agent, an assert script and the UI all ask the identical questions. */
         slots: (path) => { const n = find(root, path); return n === null ? [] : slotsOf(n); },
@@ -580,6 +684,21 @@ export function bridgeFor(root) {
         pressAt: (x, y) => {
             const v = pressAt(root, x, y);
             return v === null ? null : { path: pathOf(root, v), kind: kindName(v) };
+        },
+        /** The open overlay holding back a scroll of what holds the view (a Menu
+         *  open over the page), or null — what a reach by scrolling meets there. */
+        /** A live view's address — the path `find` takes back. */
+        pathOf: (n) => {
+            if (n instanceof Node)
+                return pathOf(root, n);
+            if (n === null || n === undefined)
+                return null;
+            throw new TypeError(`pathOf(view) takes a live view (find(path) gives one); this got ${pathArgIs(n)}`);
+        },
+        scrollHeld: (path) => {
+            const n = find(root, path);
+            const o = n instanceof View ? scrollHeldFor(n) : null;
+            return o === null ? null : { path: pathOf(root, o), kind: kindName(o) };
         },
         at: (x, y, pierce = false) => {
             // Default = the router's own rule (pointer-transparent views are
@@ -648,12 +767,16 @@ export function bridgeFor(root) {
 const BRIDGE_HELP = {
     inspect: "inspect(path?) — the node as data: kind, attrs summary, shown (no hidden ancestor) and inView (not clipped away either), children. Start here; paths look like 'app.sidebar.list'",
     find: "find(path) — the live node object itself (attributes readable/writable directly)",
+    moving: "moving() — the finite motion in flight now, each named by what it moves and where ('Spring (x) on app.panel'); what clock.settling is true for",
+    ambiguity: "ambiguity(path) — where a path names nothing because a step names two or more views alike: { at, step, matches } (their addresses), else null",
     explain: "explain(path, attr) — the slot's value AND its provenance: owning constraint or declaration default, source text, line, extracted deps. THE 'why is this value what it is' call",
     slots: "slots(path) — every slot on the node: written, constraint-owned, and author-declared (with origin). Enumeration — how you discover what to assert on",
     expand: "expand(path, attr, trail?) — drill into a record/array/dataset value one level at a time",
     dependents: "dependents(attr) — every constraint that READS the named app attr (the other direction from explain)",
     at: "at(x, y, pierce?) — the topmost view under this point; pierce=true includes pointer-transparent views",
     pressAt: "pressAt(x, y) — what a real press at this point reaches: past views that take no presses (no handler, link, tip or scroll axis), as the input routing does",
+    pathOf: "pathOf(view) — a live view's address, the path find() takes",
+    scrollHeld: "scrollHeld(path) — the open overlay (a Menu, a list) whose scroll hold refuses a scroll of what holds the view, as it would a person's, or null",
     explainHit: "explainHit(x, y, pierce?) — the hit walk's decisions in order: what took the point and what it stepped over",
     stats: "stats() — node/constraint counts for the whole tree",
     semantics: "semantics(path?, asData?) — what a screen reader is given: the semantic tree under the node (default the app) — roles, names, values, states, actions — as indented text, or as data",

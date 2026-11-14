@@ -76,8 +76,9 @@ export type Inline = {
  *  (html.ts takes the same bag), and every field optional so the default
  *  behaviour is exactly today's. */
 export interface ReadOptions {
-    /** True when `name` is a class the running program declares — the ONE gate
-     *  that turns a tag into an inline view. Absent ⇒ no tag is ever a view. */
+    /** True when the rich text's `tagViews` map names a view class for the tag
+     *  `name` — the ONE gate that turns a tag into an inline view. Absent ⇒ no
+     *  tag is ever a view. */
     isClass?: (name: string) => boolean;
     /** A refused inline view (a class tag that is not self-closing — this
      *  version places only self-closing tags): the reader keeps going and hands
@@ -85,7 +86,7 @@ export interface ReadOptions {
     refuse?: (message: string) => void;
 }
 /** Scan a self-closing INLINE VIEW tag at `at` (where `src[at]` is `<`): a tag
- *  whose name is a class the program declares. Returns the class name, its
+ *  the rich text's `tagViews` map names. Returns the tag name, its
  *  attributes (case PRESERVED — an attribute names a slot, and slots are
  *  camelCase), the reserved `key`, whether the tag closed itself, and the index
  *  past `>`. Null when this `<` does not open a class tag at all, which leaves

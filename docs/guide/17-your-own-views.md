@@ -289,6 +289,14 @@ inherited value, so a measurement means the same wherever it is taken. When a dr
 should match the text around it, ask for the face in force with
 `providedTextStyle(overrides?)`.
 
+Drawn text is pixels: a screen reader never hears it, and `find()`, a test's locator and the
+page's search never find it. Draw words that only decorate; put words a person reads — a
+label, a heading, a column's letter, a number — in `Text` views, or name the drawing
+itself with an `accessibilityLabel` and a role ([Accessibility](declare-docs:guide:accessibility)).
+A composite — a sheet, a board, a grid — needs its structure in roles as well: a `grid` of
+`row`s holding `columnHeader`s, `rowHeader`s and `cell`s
+([Your own controls](declare-docs:guide:accessibility@your-own-controls)).
+
 ## A control of your own, start to finish
 
 A control's look is yours to choose. What makes it a control is the contract it keeps, and

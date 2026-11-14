@@ -79,10 +79,10 @@ class Section [ width = 100%,
     cap: Text [ width = 100%, fontSize = 13, wrap = true,
         textColor = { provided("theme").textMuted }, text = { classroot.caption } ],
     pick: Segmented [ visible = { !app.matrix },
-        segMin = 96,
+        segmentMinWidth = 96,
         value = { classroot.sub },
-        input(v: object) { classroot.sub = "" + v },
-        choices = { classroot.tabs }
+        commit(v: object) { classroot.sub = "" + v },
+        items = { classroot.tabs }
         ]
     ]
 

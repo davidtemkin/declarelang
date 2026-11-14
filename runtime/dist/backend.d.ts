@@ -1,4 +1,4 @@
-import type { Backdrop, BoxStroke, Color, Fill, Filter, Gradient, Inset, Radius, Shadow, Outline } from "./value.js";
+import type { Backdrop, BoxStroke, Color, Fill, Filter, Gradient, Inset, Radius, Shadow, Stroke } from "./value.js";
 import type { Affine } from "./affine.js";
 import type { TextStyle, FontWeight } from "./measure.js";
 import type { DisplayList } from "./draw.js";
@@ -24,7 +24,7 @@ export type RichRun = {
     href?: string;
     underline?: boolean;
     shadow?: Shadow;
-    outline?: Outline;
+    outline?: Stroke;
     transform?: "uppercase" | "lowercase" | "capitalize";
     smallCaps?: boolean;
 } | {
@@ -154,12 +154,12 @@ export declare function isStructural(n: RichNode): n is RichStructure;
  *  hint the scroll PROVIDER executes in its own loop — the browser's smooth
  *  scroll, an NSAnimationContext, the runtime provider's tween. Explicitly
  *  platform motion, not a Declare Animator: the provider's curve, no Animator
- *  semantics, cancelled by a gesture in flight. `motion` names a Declare
- *  motion curve where the provider can honor one (mac, runtime); the DOM
+ *  semantics, cancelled by a gesture in flight. `easing` names a Declare
+ *  easing curve where the provider can honor one (mac, runtime); the DOM
  *  uses its own. Absent = an immediate request. */
 export interface ScrollGlide {
     duration?: number;
-    motion?: string;
+    easing?: string;
 }
 /** The stencil half of a mask: a live view — its surface (null until it
  *  attaches) and its box, read at paint time. `x`/`y` are the stencil's own
@@ -181,18 +181,18 @@ export type MaskSpec = {
     readonly kind: "view";
     readonly stencil: MaskStencil;
 };
-/** How an Image scales its bitmap into the view box — the language's
- *  `value Stretch = none | width | height | both` (§6). */
 /** What can cross the bitmap seam: a decoded still, or a video element whose
  *  current frame is the picture. Both answer `drawImage`; both place as an
  *  absolutely-positioned child on the DOM. */
 export type Bitmap = HTMLImageElement | HTMLVideoElement;
+/** How an Image or Video scales its bitmap into the view box — its `fit`, the
+ *  ImageFit vocabulary. */
 export type Stretch = "none" | "width" | "height" | "both" | "cover" | "contain";
 /** The pointer events a view can answer at R5 (`onPointerDown` / `onPointerUp` /
  *  `onClick`). A click is not a platform event here — the shared router
  *  (input.ts) synthesizes it as "press and release resolved to the same
  *  view", so both backends decide it identically by construction. */
-export type PointerType = "pointerDown" | "pointerUp" | "click" | "dblClick" | "pointerMove" | "pointerOver" | "pointerOut" | "dragStart" | "drag" | "dragEnd" | "hold" | "contextMenu" | "touchStart" | "touchMove" | "touchEnd" | "touchCancel" | "pinchStart" | "pinch" | "pinchEnd" | "wheel";
+export type PointerType = "pointerDown" | "pointerUp" | "click" | "doubleClick" | "pointerMove" | "pointerOver" | "pointerOut" | "dragStart" | "drag" | "dragEnd" | "hold" | "contextMenu" | "touchStart" | "touchMove" | "touchEnd" | "touchCancel" | "pinchStart" | "pinch" | "pinchEnd" | "wheel";
 export declare const POINTER_TYPES: readonly PointerType[];
 /** The raw-touch member of the family: declaring one of these is a view's
  *  statement that it owns multi-finger gestures in its subtree (the backend
@@ -220,7 +220,7 @@ export type InputSink = (type: PointerType, x: number, y: number, extra?: Record
  *  subtree and runs one way — measured on Chrome and iOS Safari (2026-07-27),
  *  a descendant cannot hand a claimed pinch back to the browser. */
 export interface InputWants {
-    wantsDbl: boolean;
+    wantsDoubleClick: boolean;
     wantsHold: boolean;
     wantsTouch: boolean;
     /** Declares a drag event (`onDragStart`, `onDrag`, `onDragEnd`) — claims the
@@ -231,7 +231,7 @@ export interface InputWants {
     /** Declares `onPointerMove` — every move, hover included, goes to the nearest
      *  view up the hit chain that declares it (R7). Claims nothing. */
     wantsMove: boolean;
-    /** Takes clicks: declares `onClick`, `onDblClick` or `onHold`, or has a `link`
+    /** Takes clicks: declares `onClick`, `onDoubleClick` or `onHold`, or has a `link`
      *  — a press on it is a click candidate until it wanders, so a drag over it
      *  starts only past the threshold (R2). */
     takesClicks: boolean;
@@ -274,6 +274,8 @@ export interface EditableSpec {
     purpose: string;
     /** What is typed is hidden, as a password is. */
     concealed: boolean;
+    /** The caret and the selection's highlight are shown (TextInput.showsCaret). */
+    caret?: boolean;
     /** Soft-wrap long lines (true) vs. keep them on one line and scroll
      *  horizontally (false) — a code field wants no-wrap + h-scroll. */
     wrap: boolean;
@@ -393,7 +395,7 @@ export interface Surface {
      *  already painted beneath it within the nearest isolating ancestor
      *  (compositing.md §4.1 — the App root, a group-opacity subtree, a
      *  scroller's content group, an island boundary; plain containers are
-     *  transparent to blending). The token is the schema's camelCase Blend
+     *  transparent to blending). The token is the schema's camelCase BlendMode
      *  enum ("multiply", "colorDodge", …; "normal" = plain painting); each
      *  backend maps it to its native operator — CSS mix-blend-mode, canvas
      *  globalCompositeOperation, Core Animation compositingFilter. A blending
@@ -597,10 +599,12 @@ export interface Surface {
      *  `align` "nearest" scrolls the MINIMUM distance that makes the surface
      *  visible — and not at all when it already is (the web's focus-reveal
      *  behavior; keyboard traversal uses it so Tab never lands offscreen).
-     *  `inset` (location.md §0.5.4) — land this many pixels SHORT of the
-     *  viewport top, clearing fixed chrome: the scroll-margin analogue. DOM
+     *  `inset` (location.md §0.5.4) — the top `inset` px of the scroller are
+     *  covered by fixed chrome: scroll-margin-top, on every backend. "start"
+     *  lands the view that far below the top; "nearest" counts a view under the
+     *  band as hidden and lands it there; the bottom edge is unchanged. DOM
      *  realizes it as scroll-margin-top (native scrollIntoView honors it);
-     *  canvas subtracts it from the clamp. 0/absent = the old behavior. */
+     *  canvas and Mac in their own reveal math. 0/absent = no band. */
     scrollIntoView(align?: "start" | "nearest", smooth?: boolean, inset?: number): void;
     /** OPTIONAL — realize this view's `link` (location.md §0.4) as a REAL
      *  anchor: an `<a href>` overlaying the box (a sibling-overlay, never a

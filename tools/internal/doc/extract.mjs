@@ -79,6 +79,7 @@ const genFiles = {};                                          // id → source, 
 const PROSE = {};                                             // class → its parsed prose (members/methods), for the post-pass
 const LIB_SRC = {};                                           // library class → its source slice (reads are scanned here)
 const LIB_SETS = {};                                          // library class → its bare `name = value` sets (overrides)
+const LIB_KIDS = {};                                          // library class → its named children (language §4: members of the class)
 async function compilesOK(src) { try { return !(await compile(src, {})).errors?.length; } catch { return false; } }
 async function runnableForm(block) {
   // A program needs an `App` root. If the block already has a top-level `App [` (a whole
@@ -200,8 +201,9 @@ function renderType(t) {
     case "record": return t.name;
     case "fill": return "Fill";
     case "stroke": return "Stroke";
+    case "glyphStroke": return "Stroke";
     case "shadow": return "Shadow";
-    case "motion": return "Motion";
+    case "easing": return "Easing";
     case "font": return "Font";
     default: return t.kind;
   }
@@ -713,6 +715,23 @@ for (const [tag, file] of Object.entries(LIBRARY)) {
     const all = parseProgram(src + "\nApp [ ]\n").classes.map((c) => c.pos?.offset ?? 0).filter((o) => o > (cls.pos?.offset ?? 0)).sort((a, b) => a - b);
     LIB_SRC[tag] = src.slice(cls.pos?.offset ?? 0, all[0] ?? src.length);
     LIB_SETS[tag] = cls.body.attrs.map((a) => ({ name: a.name, value: a.value, col: (a.value?.pos?.col ?? 1) - 1 }));
+    // A named child is a member of its class (language §4), and its `## name`
+    // section is its prose. `layout: SimpleLayout [ … ]` is the one named child
+    // that is an attribute — the class re-defaults its inherited `layout` slot —
+    // so it is an override like a bare set, shown as written on one line.
+    LIB_KIDS[tag] = [];
+    for (const k of cls.body.children) {
+      if (k.name === null || k.entry) continue;
+      if (k.name !== "layout") { LIB_KIDS[tag].push(k.name); continue; }
+      const open = src.indexOf("[", k.pos.offset);
+      let depth = 0, end = open;
+      for (; end < src.length; end++) {
+        if (src[end] === "[") depth++;
+        else if (src[end] === "]" && --depth === 0) break;
+      }
+      const text = k.tag + " " + src.slice(open, end + 1).replace(/\s+/g, " ");
+      LIB_SETS[tag].push({ name: "layout", value: { kind: "written", text }, col: 0 });
+    }
   }
   const attributes = [], methods = [], events = [];
   for (const d of cls.body.decls) {
@@ -801,8 +820,8 @@ for (const [base, subs] of Object.entries(subclassIndex)) {
 }
 
 // the audit for LIBRARY classes: a `## heading` in a .declare header block that
-// binds to no own attribute, own method, event handler, or OVERRIDDEN inherited
-// attribute (below) is prose the page silently drops. Runtime classes have had
+// binds to no own attribute, own method, event handler, named child, or OVERRIDDEN
+// inherited attribute (below) is prose the page silently drops. Runtime classes have had
 // this gate since the 2026-08-07 audit; the library had none.
 // Classes that read the SAME block (a "DataGrid / DataGridRow" heading, or
 // a class with no block of its own falling back to the file's first) are one
@@ -814,17 +833,23 @@ for (const [base, subs] of Object.entries(subclassIndex)) {
     (units.get(key) ?? units.set(key, []).get(key)).push(tag);
   }
   for (const [key, tags] of units) {
-    const own = new Set(), sets = new Set(), handlers = new Set(), meths = new Set();
+    const own = new Set(), sets = new Set(), handlers = new Set(), meths = new Set(), kids = new Set();
     for (const tag of tags) {
       for (const id of nodes[tag].attributes) own.add(nodes[id].name);
       for (const x of LIB_SETS[tag]) sets.add(x.name);
       for (const id of nodes[tag].events) handlers.add("on" + nodes[id].name[0].toUpperCase() + nodes[id].name.slice(1));
       for (const id of nodes[tag].methods) meths.add(nodes[id].name);
+      for (const k of LIB_KIDS[tag]) kids.add(k);
     }
     const prose = PROSE[tags[0]];
     const file = key.split("#")[0];
     for (const head of Object.keys(prose.members)) {
       if (own.has(head) || sets.has(head) || handlers.has(head)) continue;
+      // a named child's section: bound, and held to the naming rule like any member
+      if (kids.has(head)) {
+        if (tags.some((t) => !nodes[t].internal)) checkNaming(tags.join("/"), head, prose.internal.has(head));
+        continue;
+      }
       unboundProse.push(`library/${file}: '## ${head}' binds to no attribute, override, or event of ${tags.join("/")}`);
     }
     for (const head of Object.keys(prose.methods)) {
@@ -898,7 +923,8 @@ for (const c of Object.values(nodes)) {
     if (set.value?.kind === "code") {
       const lines = set.value.src.replace(/^ /, "").replace(/ $/, "").split("\n");
       text = "{ " + lines.map((l, i) => (i === 0 ? l : l.replace(new RegExp("^ {0," + set.col + "}"), ""))).join("\n") + " }";
-    } else text = renderDefault(set.value);
+    } else if (set.value?.kind === "written") text = set.value.text;
+    else text = renderDefault(set.value);
     const doc = prose.members[set.name] ?? null;
     const id = `${c.id}.${set.name}`;
     const setInternal = prose.internal?.has(set.name) === true;
@@ -1296,7 +1322,7 @@ const coverage = [];
 // marker attributes and methods may carry) — it is missing. And it fails
 // silently: `api: doc !== null` above drops it from its own class page, so the
 // surface disappears from the reference with nothing said. Eight events were in
-// that state on 2026-09-15 — the whole touch family, dblClick, contextMenu,
+// that state on 2026-09-15 — the whole touch family, doubleClick, contextMenu,
 // App.follow, Keys.navClaim — reachable in every program and absent from the
 // generated reference.
 // …on a class a program uses. A class whose prose opens **Internal.** (a tree's

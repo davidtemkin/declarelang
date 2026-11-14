@@ -1,6 +1,7 @@
 // Editing a column in place
-// `edit: true` makes a column's cells text fields that write the record as you type. Return
-// or Down moves to the row below, Up to the row above, and Esc puts back what was there.
+// `edit: true` makes a column's cells write the record as you type into them. A press selects
+// a cell, and typing replaces its text; Enter, F2 or a second press edits what is there.
+// Return or Down ends the edit a row below, Up a row above, and Esc puts back what was there.
 
 App [ width = 420, height = 160,
     d: Dataset { { "rows": [ { "id": 1, "item": "Flour", "qty": "2 kg" },

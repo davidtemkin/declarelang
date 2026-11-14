@@ -1,7 +1,7 @@
 // The graphics vocabulary a program has to NAME to use — the filter functions,
 // `frost`, and the radial and conic gradients — with the literal forms that
 // build them. Its own file so a production build carries it only for a program
-// that names one of these or sets a `filter` or `backdrop` (the `effects`
+// that names one of these or sets a `visualFilter` or `backdrop` (the `effects`
 // capability, compiler/src/capabilities.ts) — which is also every program that
 // needs a filter list's CSS, so that is here too. What a program can reach
 // without either — a theme's `menuBackdrop` record, the linear `gradient` —
@@ -83,7 +83,7 @@ function coerceFilterFn(lit: Literal): Filter | null {
   }
 }
 
-/** A written `filter` / `backdrop` value: one function, a list, `frost(…)`, or null. */
+/** A written `visualFilter` / `backdrop` value: one function, a list, `frost(…)`, or null. */
 export function coerceFilter(lit: Literal): Coerced {
   if (lit.kind === "ident" && lit.name === "null") return ok(null);
   if (lit.kind === "call" && lit.name === "frost") {

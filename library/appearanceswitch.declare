@@ -16,7 +16,7 @@ App [ themeMode: string = "auto",                     // "auto" until the reader
     isDark: boolean = { app.themeMode == "auto" ? app.systemDark : app.themeMode == "dark" },
     theme = { app.isDark ? SanFranciscoDark : SanFrancisco },
     AppearanceSwitch [ dark = { app.isDark },
-        input(v: boolean) { app.themeMode = v ? "dark" : "light" } ]
+        commit(v: boolean) { app.themeMode = v ? "dark" : "light" } ]
     ]
 ```
 
@@ -25,15 +25,15 @@ The appearance the switch shows: `true` shows the moon, `false` the sun. Bind it
 the app's effective appearance (`dark = { app.isDark }`) — the value the page is
 actually wearing, whether that came from the environment or from the reader.
 
-## input()
+## commit()
 Where a press delivers the new appearance — the flipped value of `dark`. The default
 writes `dark`; override it to record the reader's choice in the app
-(`input(v: boolean) { app.themeMode = v ? "dark" : "light" }`), after which the
+(`commit(v: boolean) { app.themeMode = v ? "dark" : "light" }`), after which the
 environment stops deciding. `press()` never writes `dark` directly, so a
 constrained switch never fights its constraint.
 
 ## press()
-Flips the appearance, by delivering `!dark` through `input`. Called by a click and by
+Flips the appearance, by delivering `!dark` through `commit`. Called by a click and by
 Space/Enter.
 
 ## tooltipLabel
@@ -73,9 +73,9 @@ class AppearanceSwitch extends Control [
     accessibilityLabel = "Dark appearance",
     accessibilityChecked = { dark },
 
-    input(v: boolean) { dark = v },
+    commit(v: boolean) { dark = v },
 
-    press()   { input(!dark) },
+    press()   { commit(!dark) },
 
     tooltipLabel = { dark ? "Switch to light" : "Switch to dark" },
     fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : null },

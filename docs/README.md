@@ -33,7 +33,7 @@ the symbol itself (`View.width`) — so files renumber and move freely under sta
   wrong target cannot ship; the graph itself travels inside `declare-model.json`.
 - **Resolvers:** each packaging resolves the same IDs its own way — the docs app
   navigates in-app (guide and reference IDs switch the pane; the rest leave through
-  `navigate`); on disk and for LLMs, the `links` section of `declare-model.json`
+  `openURL`); on disk and for LLMs, the `links` section of `declare-model.json`
   maps any ID to its file.
 
 ## For LLMs

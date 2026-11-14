@@ -14,6 +14,7 @@ export declare function provideCursorRead(fn: CursorRead): void;
  *  record of the nearest view with a cursor, exactly where its reads land. */
 type CursorWrite = (node: Node, segs: readonly string[], v: unknown) => void;
 export declare function provideCursorWrite(fn: CursorWrite): void;
+export declare function constructedClasses(): ReadonlySet<Function>;
 export declare class Node {
     constructor();
     parent: Node | null;

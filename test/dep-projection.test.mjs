@@ -162,7 +162,7 @@ await test("a language method registered as PURE when it is not switches analysi
 });
 
 await test("the same call in a HANDLER is untouched — a snapshot is correct there", async () => {
-  // Menu.openAt and FocusRing anchor an overlay at gesture time; the position
+  // Menu.showAt and FocusRing anchor an overlay at gesture time; the position
   // wanted is the one at the moment of the gesture, which is what a snapshot IS.
   // The split falls out of the residue rule; it is not written anywhere.
   const r = await compile(`App [ width = 200, height = 100,

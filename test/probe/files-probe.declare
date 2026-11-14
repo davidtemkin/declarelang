@@ -23,7 +23,7 @@ App [ width = 600, height = 400, fill = #f4f4f4,
         Text [ x = 10, y = 10, text = "Drop files or a folder here" ]
         ],
     list: Text [ x = 20, y = 240, width = 560, text = { app.names } ],
-    preview: Image [ x = 400, y = 240, width = 180, height = 140, stretches = both,
+    preview: Image [ x = 400, y = 240, width = 180, height = 140, fit = both,
         visible = { app.picked.length > 0 && app.picked[0].type.startsWith("image/") },
         source = { app.picked.length > 0 ? app.picked[0].url : "" } ]
     ]

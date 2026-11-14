@@ -129,6 +129,18 @@ const bump = (m: Map<string, number>, k: string, by = 1): void => { m.set(k, (m.
 const className = (n: object): string => (n as { constructor?: { name?: string } }).constructor?.name ?? "Node";
 const work = (): Work => open ?? between;
 
+/** The finite motion in flight now, each named by what it moves and where —
+ *  `Spring (x) on app.panel`: the settle predicate's tickers (perpetual ones,
+ *  a Time or a `repeat = Infinity` loop, are life and never listed). */
+export function motionInFlight(nameOf: (node: object) => string = className): string[] {
+  return sharedClock.tickersNow().filter((t) => (t as { perpetual?: boolean }).perpetual !== true).map((t) => {
+    const owner = (t as { $resolveTarget?: () => object | null }).$resolveTarget?.() ?? (t as { parent?: object | null }).parent ?? null;
+    let where = "";
+    if (owner !== null) { try { where = ` on ${nameOf(owner)}`; } catch { where = ` on a ${className(owner)}`; } }
+    return `${className(t)}${(t as { attribute?: string }).attribute ? ` (${(t as { attribute?: string }).attribute})` : ""}${where}`;
+  });
+}
+
 const HOOK: ProfileHook = {
   begin: enter,
   ran(rule, ms, changed) {
@@ -461,10 +473,7 @@ export function profileReport(nameOf: (node: object) => string = className, root
     for (const [k, r] of m) { const s0 = t.rules.get(k); if (s0 !== undefined) topRule.set(r, s0.rule); }
     return { n: t.n, at: t.at, ms: t.ms, lead: t.lead, origin: t.origin, runs: t.hostRuns, kernelRuns: Math.max(0, t.kernelRuns - t.inRuns), changed, built: b, builtBy, spent: spentOf(t), triggers: triggersOf(t).slice(0, 5), top, why: top.length > 0 ? whyOf(t, topRule.get(top[0])) : [] };
   });
-  const motion = sharedClock.tickersNow().filter((t) => (t as { perpetual?: boolean }).perpetual !== true).map((t) => {
-    const owner = (t as { $resolveTarget?: () => object | null }).$resolveTarget?.() ?? (t as { parent?: object | null }).parent ?? null;
-    return `${className(t)}${(t as { attribute?: string }).attribute ? ` (${(t as { attribute?: string }).attribute})` : ""}${owner !== null ? ` on ${nameOf(owner)}` : ""}`;
-  });
+  const motion = motionInFlight(nameOf);
   // what is built but hidden, by the hidden view that holds it: kept current
   // while no one sees it
   const hiddenParts: { view: string; n: number }[] = [];

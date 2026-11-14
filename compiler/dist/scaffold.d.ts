@@ -7,6 +7,10 @@ import type { ClassDecl, Literal, SchemaDecl } from "../../runtime/dist/parser.j
  *  the law, and the two layers cannot disagree again (they did, for `fetch`:
  *  admitted by the resolver, refused by the checker — field report
  *  2026-08-21). */
+/** A shared function every { } body has, as a person writes its call —
+ *  `escapeHtml(s)` — read from its prelude declaration; null when `name` is
+ *  not one. */
+export declare function sharedFunctionSignature(name: string): string | null;
 export declare const PRELUDE_NAMES: ReadonlySet<string>;
 /** The HOST's surface, not the language's. These are declared in the prelude so a
  *  handler typechecks against the real shape each has in every host Declare runs
@@ -115,7 +119,12 @@ themeKeys?: readonly string[],
 styles?: readonly {
     name: string;
     fields: readonly string[];
-}[]): string;
+}[], 
+/** The standard library's global names (typecheck.ts libGlobals). The
+ *  program's classes and schemas live in `namespace $P`, so inside it — where
+ *  the check-blocks are — one named like a library type (`Pick`) shadows it;
+ *  outside, each gets a global alias for the scripts, except one of these. */
+libNames?: ReadonlySet<string>): string;
 /** Every key a provided theme can carry, with the type a read of it yields:
  *  the presets' tokens, the library defaults every provided theme is laid
  *  over, the tokens of each `theme` the program declares, and the keys its

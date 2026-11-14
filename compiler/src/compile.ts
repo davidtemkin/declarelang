@@ -49,8 +49,7 @@ import { parseProgram, applyLineMap, type Element, type Program, type ClassDecl 
 import { DeclareError, DeclareErrors, type Pos } from "../../runtime/dist/errors.js";
 import { check } from "../../runtime/dist/check.js";
 import { programSchemas } from "../../runtime/dist/program-schema.js";
-import { SCHEMAS, descendsFrom, attrType, eventsOf, eventOfHandler, handlerName } from "../../runtime/dist/schema.js";
-import { SUPPORTED_TAGS } from "../../runtime/dist/html.js";
+import { SCHEMAS, descendsFrom, attrType, eventsOf, eventOfHandler, handlerName, BUILTIN_PROVIDED } from "../../runtime/dist/schema.js";
 import { THEME_PRESET_NAMES } from "../../runtime/dist/themes.js";
 import { resolveShapes } from "../../runtime/dist/shape-resolve.js";
 import { serializeDeps } from "../../runtime/dist/deps.js";
@@ -201,8 +200,8 @@ import { fillDatapaths, isWriteTarget, scanDatapaths, loweredPieces, islandEdits
 import { CONSTRUCTOR_NAMES, bodyScopeNames } from "../../runtime/dist/expr.js";
 import { CSS_COLORS } from "../../runtime/dist/css-colors.js";
 import { isAuthoredUnion } from "../../runtime/dist/value.js";
-import { hostGlobalHint } from "../../runtime/dist/teach.js";
-import { PRELUDE_NAMES } from "./scaffold.js";
+import { FORMER_HOOKS, hostGlobalHint, memberHint } from "../../runtime/dist/teach.js";
+import { PRELUDE_NAMES, sharedFunctionSignature } from "./scaffold.js";
 import { runtimeMethodsOf } from "../../runtime/dist/runtime-methods.js";
 import { accessibilityDiagnostics } from "./a11y-check.js";
 import { resolveIncludes, resolveAutoIncludes, spliceScriptFiles, NO_INCLUDES, type IncludeHost, type AutoIncludeHost, type Splice } from "../../runtime/dist/include.js";
@@ -258,7 +257,7 @@ export interface Compiled {
   source: string | null;
   deps?: readonly (readonly string[])[];
   /** The extracted navigation relation (capabilities.md §6, links.ts) — a
-   *  sparse walk-order side-list of `navigate(to)` targets, present exactly when
+   *  sparse walk-order side-list of `openURL(to)` targets, present exactly when
    *  `source` is. Rides the ONE result like `deps`; the runtime zips it back on
    *  and the static extractor turns each into an `<a href>`. */
   links?: readonly SerializedLink[];
@@ -422,37 +421,6 @@ function smallFieldWarnings(program: Program, mainStart: number): DeclareError[]
   return out;
 }
 
-/** A program class named exactly like a tag the rich-text whitelist owns — a
- *  class literally called `code`, `span`, `b`, `p`. Inside `Markdown`/`HTMLText`
- *  content a tag is resolved against the program's classes BEFORE the whitelist,
- *  so that class silently takes the tag over for every document the app renders.
- *  A WARNING (the class is legal, the behaviour is defined), and only when the
- *  program HAS rich text: on an app with no flow at all the name collides with
- *  nothing, and warning there would be noise on a working program.
- *
- *  Rich text is decided by SCHEMA CHAIN, not by tag name — a `class Note extends
- *  Markdown` renders documents exactly as `Markdown` does, and a class of the
- *  author's that merely happens to be called `Markdown`-something does not. */
-function richTextTagShadowWarnings(program: Program): DeclareError[] {
-  const shadowed = program.classes.filter((c) => SUPPORTED_TAGS.includes(c.name));
-  if (shadowed.length === 0) return [];
-  const bases = new Map(program.classes.map((c) => [c.name, c.base]));
-  const isRichText = (tag: string): boolean => {
-    let name = tag;
-    const seen = new Set<string>();
-    while (bases.has(name) && !seen.has(name)) {
-      seen.add(name);
-      const b = bases.get(name);
-      if (b === undefined || b === null || b === "") return false;
-      name = b;
-    }
-    const schema = Object.hasOwn(SCHEMAS, name) ? SCHEMAS[name] : null;
-    return schema !== null && (schema.name === "RichText" || descendsFrom(schema, "RichText"));
-  };
-  const flows = (el: Element): boolean => isRichText(el.tag) || el.children.some(flows);
-  if (!flows(program.root) && !program.classes.some((c) => flows(c.body))) return [];
-  return shadowed.map((c) => Diag.shadowsRichTextTag(c.name, c.pos));
-}
 
 /** 4033 — a browser script that looks up elements in the page. Decided by
  *  the AST: a lookup method called on `document` (or `document.body`), or
@@ -505,11 +473,19 @@ function decisionShape(src: string): { depth: number; parts: number } | null {
     && (n.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken || n.operatorToken.kind === ts.SyntaxKind.BarBarToken);
   const peel = (n: ts.Node): ts.Node => (ts.isParenthesizedExpression(n) ? peel(n.expression) : n);
   let depth = 0, parts = 0;
+  // A part that only reads a member (`app.ready`, `!s.loaded`, `:done`) is
+  // already a named fact: the remedy, naming the facts, cannot apply to it.
+  const named = (n: ts.Node): boolean => {
+    const p = peel(n);
+    if (ts.isPrefixUnaryExpression(p) && p.operator === ts.SyntaxKind.ExclamationToken) return named(p.operand);
+    if (ts.isIdentifier(p) || p.kind === ts.SyntaxKind.ThisKeyword) return true;
+    return ts.isPropertyAccessExpression(p) && named(p.expression);
+  };
   // the parts of one run of the same operator (`a && b && c`); a bracketed
   // group of the other operator is one part
   const count = (n: ts.Node, op: ts.SyntaxKind): number => {
     const p = peel(n)
-    return isLogic(p) && p.operatorToken.kind === op ? count(p.left, op) + count(p.right, op) : 1
+    return isLogic(p) && p.operatorToken.kind === op ? count(p.left, op) + count(p.right, op) : named(p) ? 0 : 1
   };
   const visit = (n: ts.Node, d: number): void => {
     if (ts.isArrowFunction(n) || ts.isFunctionExpression(n)) return;
@@ -718,6 +694,23 @@ function idiomDiagnostics(
       }
     }
 
+    // 4042 — a method named `input` where the class's base delivers through
+    // `commit(v)` (the name an earlier Declare gave the hook on everything but a
+    // value control): nothing calls it. Keyed on the base's own hook, so an
+    // ordinary `input` method anywhere else is left alone.
+    // The same holds for every hook teach.ts's FORMER_HOOKS names (DataGrid's
+    // sortInput → applySort, Tree's expandInput → applyExpanded, …).
+    {
+      const bases = chainBodies(decl !== undefined ? decl.base : el.tag);
+      for (const m of el.methods) {
+        const now = Object.hasOwn(FORMER_HOOKS, m.name) ? FORMER_HOOKS[m.name] : undefined;
+        if (now === undefined) continue;
+        if (!bases.some((b) => b.methods.some((x) => x.name === now)) || bases.some((b) => b.methods.some((x) => x.name === m.name))) continue;
+        const owner = decl !== undefined ? decl.name : el.tag;
+        warnings.push(m.name === "input" ? Diag.inputIsCommit(owner, m.pos) : Diag.hookRenamed(owner, m.name, now, m.pos));
+      }
+    }
+
     // 4041 — an onChange at a use site whose node, and every class it is made
     // from, tracks nothing: change events fire only for trackChanges, so the
     // handler can never run (a class body is left alone — a use site may name
@@ -752,21 +745,35 @@ function idiomDiagnostics(
     // `class Fancy extends Button` overriding it is caught like any use site.
     const receiving = decl !== undefined ? schemas[decl.base] : schemas[el.tag];
 
-    // `<->` binds a CONTROL'S VALUE: the shorthand's commit is one only a value
-    // control calls, so on anything else — a View's width, a field's placeholder
-    // — it would be a one-way constraint that silently never writes back.
+    // `<->` binds what a class DELIVERS through its `commit(v)` — a control's
+    // value, an overlay's `shown`, a Disclosure's `open`, a Table's `selection`:
+    // the shorthand's commit is one only such a class calls, so on anything else
+    // — a View's width, a field's placeholder — it would be a one-way constraint
+    // that silently never writes back.
     for (const a of el.attrs) {
       if (a.shorthand !== true) continue;
       const who = decl !== undefined ? decl.name : el.tag;
-      if (receiving === undefined || !descendsFrom(receiving, "ValueControl")) {
-        errors.push(new DeclareError(`'${a.name} <-> …' binds a control's value, and ${who} is not a value control — <-> is for Checkbox, TextInput, Slider and the rest (ValueControl). Constrain it one way, '${a.name} = { … }', and write your state from what the person did`, a.pos));
+      const bases = chainBodies(decl !== undefined ? decl.base : el.tag);
+      const hook = bases.flatMap((b) => b.methods).find((m) => m.name === "commit");
+      if (receiving === undefined || hook === undefined) {
+        errors.push(new DeclareError(`'${a.name} <-> …' binds what a class hands back through commit(v) — a control's value, an overlay's shown, a Disclosure's open — and ${who} has no commit. Constrain it one way, '${a.name} = { … }', and write your state from what the person did`, a.pos));
         continue;
       }
-      // the value attribute is what the class's fieldValue names (`fieldValue = { checked }`)
-      const levels = [el, ...chainBodies(decl !== undefined ? decl.base : el.tag)];
-      const fv = levels.flatMap((b) => b.attrs).find((x) => x.name === "fieldValue" && x.value.kind === "code");
-      const named = fv === undefined ? null : /^\s*(?:this\.)?([A-Za-z_$][\w$]*)\s*$/.exec((fv.value as { src: string }).src)?.[1] ?? null;
-      if (named !== null && named !== a.name) {
+      if (hook.params.length > 1) {
+        errors.push(new DeclareError(`'${a.name} <-> …' binds one value, and ${who} hands back ${hook.params.length} at once — commit(${hook.params.map((p) => p.name).join(", ")}). Constrain each one way and write your state in your own commit(…)`, a.pos));
+        continue;
+      }
+      // the delivered attribute: a value control's fieldValue (`fieldValue = { checked }`),
+      // else the attribute the class's own commit writes with what it is given
+      const valueControl = descendsFrom(receiving, "ValueControl");
+      const fv = [el, ...bases].flatMap((b) => b.attrs).find((x) => x.name === "fieldValue" && x.value.kind === "code");
+      const p = hook.params[0]?.name;
+      const named = valueControl
+        ? (fv === undefined ? null : /^\s*(?:this\.)?([A-Za-z_$][\w$]*)\s*$/.exec((fv.value as { src: string }).src)?.[1] ?? null)
+        : p === undefined ? null : new RegExp(`^\\s*\\{?\\s*(?:this\\.)?([A-Za-z_$][\\w$]*)\\s*=\\s*${p}\\s*(?:;|\\n|\\}|$)`).exec(hook.body)?.[1] ?? null;
+      if (named === null && !valueControl) {
+        errors.push(new DeclareError(`'${a.name} <-> …' — ${who}'s commit(v) hands the change on without keeping it, so there is no value to bind both ways. Write your state in a commit(v) of your own`, a.pos));
+      } else if (named !== null && named !== a.name) {
         errors.push(new DeclareError(`'${a.name} <-> …' — ${who}'s value is '${named}', and the person's change goes only there: write '${named} <-> …'. To drive '${a.name}', constrain it: '${a.name} = { … }'`, a.pos));
       }
     }
@@ -949,6 +956,10 @@ const RUNTIME_SERVICES = new Set(["Focus", "Keyboard", "FilePicker", "Clipboard"
 const runtimeBodyNames = (): Set<string> =>
   new Set([...CONSTRUCTOR_NAMES, "colorWithAlpha", "measureText", "escapeHtml", ...RUNTIME_SERVICES, ...bodyScopeNames()]);
 
+/** The calls a { } body rewrites to a method of its own node (the walk below):
+ *  meaningful only where there is a node, so a script block refuses them. */
+const VIEW_BOUND_CALLS: ReadonlySet<string> = new Set(["provided", "hostProvided", "providedTextStyle", "afterDelay"]);
+
 const isKnownGlobal = (name: string): boolean =>
   hostGlobalHint(name) === null && (ES_GLOBALS.has(name) || PRELUDE_NAMES.has(name) || RUNTIME_SERVICES.has(name));
 
@@ -1034,8 +1045,8 @@ function programPrefix(opts: CompileOptions): string {
  *  after every phase and on every path out, so no phase decides it alone. What
  *  was quieted is counted in the report, never dropped silently. */
 export async function compile(source: string, opts: CompileOptions = {}): Promise<Compiled> {
-  const seen: { flags?: Partial<CompileFlags> } = {};
-  const out = await compileUnquieted(source, opts, seen);
+  const seen: { flags?: Partial<CompileFlags>; held?: DeclareError[] } = {};
+  const out = withHeld(await compileUnquieted(source, opts, seen), seen.held ?? []);
   const flags = {
     lint: opts.lint ?? (seen.flags?.lint as boolean | undefined) ?? true,
     devices: opts.devices ?? (seen.flags?.devices as string | undefined) ?? "all",
@@ -1060,7 +1071,21 @@ export async function compile(source: string, opts: CompileOptions = {}): Promis
   };
 }
 
-async function compileUnquieted(source: string, opts: CompileOptions, seen: { flags?: Partial<CompileFlags> }): Promise<Compiled> {
+/** Errors an early phase refused without stopping (a library name the program
+ *  took), joined to whatever the rest of the compile found: first in the
+ *  report, and the compile fails with them though every later phase passed. */
+function withHeld(out: Compiled, held: readonly DeclareError[]): Compiled {
+  if (held.length === 0) return out;
+  const errors = [...held, ...out.errors];
+  const diagnostics = [...collapse(held.map((e) => toDiagnostic(e, "error", "module"))), ...out.diagnostics];
+  return {
+    source: null, errors, warnings: out.warnings, ...(out.hints !== undefined ? { hints: out.hints } : {}),
+    ...(out.sources !== undefined ? { sources: out.sources } : {}),
+    diagnostics, report: renderReport(diagnostics),
+  };
+}
+
+async function compileUnquieted(source: string, opts: CompileOptions, seen: { flags?: Partial<CompileFlags>; held?: DeclareError[] }): Promise<Compiled> {
   let main: Program;
   try {
     main = parseProgram(source);
@@ -1084,8 +1109,12 @@ async function compileUnquieted(source: string, opts: CompileOptions, seen: { fl
   // without the manifest (single-file compiles stay byte-identical).
   const auto = await resolveAutoIncludes(resolved.program, main.root, host, resolved.visited, source, programPrefix(opts));
   if (auto.errors.length > 0) {
-    return { source: null, errors: auto.errors, warnings: [], ...diagnose(auto.errors, [], "module") };
+    const es = [...auto.squats, ...auto.errors];
+    return { source: null, errors: es, warnings: [], ...diagnose(es, [], "module") };
   }
+  // a library name the program took is refused, but its declaration is whole:
+  // the compile goes on, so the rest of what is wrong is said in the same run
+  if (auto.squats.length > 0) seen.held = auto.squats;
 
   // The one self-contained source: explicit-include libraries, then auto-
   // included class libraries (both dependency-first, their own directives
@@ -1397,7 +1426,6 @@ async function compileUnquieted(source: string, opts: CompileOptions, seen: { fl
     else if (compareReleases(version, releaseDepth(version) >= 3 ? DECLARE_VERSION : DECLARE_VERSION.split(".").slice(0, releaseDepth(version)).join(".")) < 0) r.warnings.push(Diag.versionOlder(version, DECLARE_VERSION, (opts.mainId ?? "app.declare").split("/").pop()!, pos));
   }
   r.warnings.push(...smallFieldWarnings(program, preludeLen));
-  r.warnings.push(...richTextTagShadowWarnings(program));
   r.warnings.push(...pageLookupWarnings(program));
   r.warnings.push(...coldLoadWarnings);
   const idiom = idiomDiagnostics(program, r.schemas);
@@ -1457,9 +1485,15 @@ async function compileUnquieted(source: string, opts: CompileOptions, seen: { fl
   {
     const strip = (src: string, expression: boolean): string =>
       applyEdits(src, stripEditsFor(src, expression).map((e) => ({ ...e, text: e.text ?? "" })));
+    // a body on a slot whose nothing is null (`T?`) may yield `?.`'s undefined
+    // (the type check admits it, typecheck.ts): it lands as null. The leading
+    // space a body has becomes the paren, so its columns hold
+    const nulls = (lit: object, src: string): string =>
+      (lit as { $nullsUndefined?: boolean }).$nullsUndefined !== true || !/\?\.|(?<![\w$.])undefined(?![\w$])/.test(src) ? src
+        : src.startsWith(" ") ? `(${src.slice(1)})??null` : `(${src})??null`;
     const stripElement = (el: Element): void => {
-      for (const a of el.attrs) if (a.value.kind === "code") a.value.src = strip(a.value.src, true);
-      for (const d of el.decls) if (d.def?.kind === "code") d.def.src = strip(d.def.src, true);
+      for (const a of el.attrs) if (a.value.kind === "code") a.value.src = nulls(a.value, strip(a.value.src, true));
+      for (const d of el.decls) if (d.def?.kind === "code") d.def.src = nulls(d.def, strip(d.def.src, true));
       for (const m of el.methods) m.body = strip(m.body, false);
       for (const c of el.children) stripElement(c);
     };
@@ -1510,7 +1544,8 @@ async function compileUnquieted(source: string, opts: CompileOptions, seen: { fl
         const es = rbAll([new DeclareError(`script imports failed to bundle — ${bundled.error}`, posOf(merged, blocks[0].span.start))]);
         return { source: null, errors: es, warnings: [], ...diagnose(es, [], "module") };
       }
-      const blockSrc = ` const js = ${JSON.stringify(bundled.code)}; const module = { exports: {} }; new Function("module", "exports", js)(module, module.exports); ${BINDINGS_MARK} return module.exports; `;
+      // the module shares the runtime scope the block runs in (`$d`, expr.ts evalScript)
+      const blockSrc = ` const js = ${JSON.stringify(bundled.code)}; const module = { exports: {} }; new Function("module", "exports", "$d", "const { " + Object.keys($d).join(", ") + " } = $d; return (function () {\\n" + js + "\\n})();")(module, module.exports, $d); ${BINDINGS_MARK} return module.exports; `;
       for (const s of blocks) s.src = keepLines(s === blocks[0] ? blockSrc : " ", s.src);
       blocks[0].compiled = true;
     } else if (scripts.length > 0 && !scripts.some((s) => s.compiled === true)) {
@@ -2148,6 +2183,14 @@ class Resolver {
             `'${n.right.text}' is a class this program declares, and a class name is a type and a tag — never a value, in script or in a { } body. To ask what a node is, read it from the node (n.constructor.name == ${JSON.stringify(n.right.text)}), or give the record an attribute that says so and test that`,
             this.posAt(bodyOpen + n.right.getStart(sf))));
         }
+        // The body-scope functions that answer for the VIEW whose body calls
+        // them (each is rewritten to a method of that node). A script block
+        // shares the rest of the bodies' scope, but it belongs to no view.
+        if (ts.isCallExpression(n) && ts.isIdentifier(n.expression) && VIEW_BOUND_CALLS.has(n.expression.text) && !localNames.has(n.expression.text)) {
+          this.errors.push(new DeclareError(
+            `'${n.expression.text}(…)' answers for the view whose { } body calls it, and a script { } block belongs to no view — call it in that body and pass what the script needs as an argument`,
+            this.posAt(bodyOpen + n.expression.getStart(sf))));
+        }
         ts.forEachChild(n, walkValues);
       };
       walkValues(sf);
@@ -2199,6 +2242,13 @@ class Resolver {
         else if (ts.isVariableStatement(st)) for (const d of st.declarationList.declarations) addIds(d.name);
         for (const id of named) {
           if (!runtimeBodyNames().has(id.text)) continue;
+          const shared = CONSTRUCTOR_NAMES.includes(id.text) ? null : sharedFunctionSignature(id.text);
+          if (shared !== null) {
+            this.errors.push(new DeclareError(
+              `script { } declares '${id.text}', and '${id.text}' is the shared function ${shared} every { } body already has — use it, or name yours differently`,
+              pos(id)));
+            continue;
+          }
           this.errors.push(new DeclareError(
             `script { } declares '${id.text}', a name the runtime already gives every { } body (${CONSTRUCTOR_NAMES.includes(id.text) ? `the ${id.text}(…) value constructor` : "a built-in service or preset"}) — a body could not tell the two apart; choose another name`,
             pos(id)));
@@ -2236,6 +2286,25 @@ class Resolver {
   private warnAmbient(src: string, pos: Pos): void {
     const what = ambientRead(src);
     if (what !== null) this.warnings.push(Diag.ambientRead(what, pos));
+  }
+
+  /** The type of `slot` set on an element of `tag`: its own chain's slot (a
+   *  program class through its bases), else — a built-in provided value the
+   *  element provides to its subtree (`fontWeight` on a View) — the type the
+   *  classes that read it declare. */
+  private slotTypeOf(tag: string, slot: string): ReturnType<typeof attrType> {
+    const seen = new Set<string>();
+    for (let t: string | undefined = tag; t !== undefined && !seen.has(t); t = this.classDecls.get(t)?.base) {
+      seen.add(t);
+      const sc = this.schemas[t] ?? SCHEMAS[t];
+      if (sc === undefined) continue;
+      const type = attrType(sc, slot);
+      if (type !== null) return type;
+      break;
+    }
+    if (!BUILTIN_PROVIDED.has(slot)) return null;
+    for (const sc of [SCHEMAS.Text, ...Object.values(SCHEMAS)]) { const type = sc === undefined ? null : attrType(sc, slot); if (type !== null) return type; }
+    return null;
   }
 
   /** Walk one body root (a class body, or the main tree — `mainRoot` set
@@ -2401,8 +2470,11 @@ class Resolver {
         const pos = this.posAt(bodyStart + id.start);
         const base = levels[0].tag;
         const sc = Object.hasOwn(this.schemas, id.name) ? this.schemas[id.name] : undefined;
+        // a function of the script's, called with what it reads of the record —
+        // a lookup or a switch over the kind — answers the class (or its name)
+        if (sc === undefined && id.callee && this.scriptNames.has(id.name)) continue;
         if (sc === undefined) {
-          this.errors.push(new DeclareError(`classFor reads the record and names classes — '${id.name}' is neither (read a field with :field; the class is chosen from the record alone)`, pos));
+          this.errors.push(new DeclareError(`classFor reads the record and names classes — '${id.name}' is neither (read a field with :field; the class is chosen from the record alone${id.name === "app" || id.name === "classroot" || id.name === "parent" ? ", so a member of the program cannot choose it: a function in script { } can, called with the fields it needs — classFor = { shapeClass(:kind) }" : ""})`, pos));
         } else if (id.name !== base && !descendsFrom(sc, base)) {
           this.errors.push(new DeclareError(`classFor names '${id.name}', which does not extend ${base} — each record's class is ${base} or a subclass of it, the class the rest of this line is checked against`, pos));
         } else {
@@ -2417,7 +2489,7 @@ class Resolver {
       if (id.name === "app") {
         // `app` (language §11) — the running App at the top of the tree. Sugar
         // for `this.$root` (the `root` getter walks parent links to the top),
-        // so it reads as a noun anywhere — `app.hostWidth`, `app.navigate(…)`
+        // so it reads as a noun anywhere — `app.hostWidth`, `app.openURL(…)`
         // — and typechecks as `App` via View's `root: App` in the scaffold. A
         // scope noun, never a member, so it is intercepted before the surface
         // search; a param named `app` is forbidden (check.ts) so it cannot be
@@ -2534,8 +2606,7 @@ class Resolver {
           // — is the slot's OWN vocabulary spoken without quotes. The bare form is
           // the literal-slot spelling (`fontWeight = semibold`); inside a body a
           // token is a string. Name the quoted form rather than a flat "unresolved".
-          const slotSchema = slot !== undefined && levels.length > 0 ? this.schemas[levels[0].tag] : undefined;
-          const slotType = slotSchema !== undefined && slot !== undefined ? attrType(slotSchema, slot) : null;
+          const slotType = slot !== undefined && levels.length > 0 ? this.slotTypeOf(levels[0].tag, slot) : null;
           if (slotType !== null && slotType.kind === "enum" && slotType.tokens.includes(id.name)) {
             this.errors.push(Diag.enumTokenInExpr(id.name, slot!, pos, isAuthoredUnion(slotType.name)));
             continue;
@@ -2547,6 +2618,15 @@ class Resolver {
             this.errors.push(Diag.namedColorInExpr(id.name, hex, pos));
           } else if (hostHint !== null) {
             this.errors.push(Diag.hostGlobal(id.name, hostHint, pos));
+          } else if (id.name === "input" && levels.some((l) => this.classExtras.get(l.tag)?.methods.has("commit") === true)) {
+            // the name an earlier Declare gave the delivery hook (`input(v)`), called bare
+            // in a class that hands its changes back through commit(v)
+            this.errors.push(Diag.unresolved(id.name, levels.map(describe).join(" → "), pos, false,
+              "the change this class hands back goes through 'commit(v)' — call commit(…), or override it where your state should change"));
+          } else if (memberHint(id.name) !== "") {
+            // a member instinct written bare (`outline(1, 0xC0392B)`, `isHovered`):
+            // the table's answer, not the flat scope list
+            this.errors.push(Diag.unresolved(id.name, levels.map(describe).join(" → "), pos, false, memberHint(id.name)));
           } else {
             this.errors.push(Diag.unresolved(id.name, levels.map(describe).join(" → "), pos,
                                              slot === "width" || slot === "height"));
@@ -2654,8 +2734,11 @@ class Resolver {
           // event rather than writing a body for it, so `super.onInit()` in a
           // program's App reaches nothing.
           const from = own !== undefined ? `${here.tag} extends ${own.base}` : here.tag;
-          this.errors.push(new DeclareError(
-            `super.${name}(): no class beneath ${from} declares ${name}() — super reaches a method written in this program or the library, or a built-in's own runtime method; a built-in fires its events, so a handler has no base body to call`,
+          // `super.input(…)`: the name an earlier Declare gave the delivery hook
+          const hook = name === "input" && this.classExtras.get(own !== undefined ? own.base : here.tag)?.methods.has("commit") === true;
+          this.errors.push(new DeclareError(hook
+            ? `super.input(): no class beneath ${from} declares input() — the change it hands back goes through commit(v): call super.commit(…)`
+            : `super.${name}(): no class beneath ${from} declares ${name}() — super reaches a method written in this program or the library, or a built-in's own runtime method; a built-in fires its events, so a handler has no base body to call`,
             pos));
           return;
         }

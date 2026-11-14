@@ -131,3 +131,18 @@ export function wireEditableInput(el: Field, spec: () => EditableSpec | null): v
   const sync = (): void => { reported = el.value; };
   (el as Field & { $synced?: () => void }).$synced = sync;
 }
+
+
+/** A field that shows no caret and no selection highlight (`showsCaret = false`):
+ *  focused, it takes typing — and an input method's composing — while it reads
+ *  as plain text, as a spreadsheet's selected cell does. */
+let caretRule = false;
+export function applyCaret(el: HTMLInputElement | HTMLTextAreaElement, shows: boolean): void {
+  if (!shows && !caretRule && typeof document !== "undefined") {
+    caretRule = true;
+    const st = document.createElement("style");
+    st.textContent = ".declare-no-caret{caret-color:transparent}.declare-no-caret::selection{background:transparent}";
+    document.head.appendChild(st);
+  }
+  el.classList.toggle("declare-no-caret", !shows);
+}

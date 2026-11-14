@@ -102,6 +102,7 @@ App [
     ]
 ```
 
+
 ## cornerRadius
 Rounds the **painted** box (default `0`, square). One number rounds all four corners;
 four — `[topLeft, topRight, bottomRight, bottomLeft]`, clockwise from the top-left as
@@ -141,13 +142,13 @@ App [ fill = white,
 ## shadow
 A drop shadow on the box (`shadow(dx, dy, blur, color)`), the CSS box-shadow shape
 minus spread. `null` by default. The same value shadows glyphs as `Text.textShadow`,
-and the painted **alpha** of any subtree inside a `filter` list — one `shadow(…)`, three
+and the painted **alpha** of any subtree inside a `visualFilter` list — one `shadow(…)`, three
 sites, one look (its `blur` is the box-shadow radius everywhere).
 
-## filter
+## visualFilter
 The view's own painted subtree, filtered as a **group** — children included — before
-`opacity` and `blend` land. One function or a bare list:
-`filter = blur(3)`, `filter = [blur(2), brightness(0.8)]`, `filter = { [blur(k), saturate(1.4)] }`.
+`opacity` and `blendMode` land. One function or a bare list:
+`visualFilter = blur(3)`, `visualFilter = [blur(2), brightness(0.8)]`, `visualFilter = { [blur(k), saturate(1.4)] }`.
 The functions are `blur(radius)`, `brightness(k)`, `contrast(k)`, `saturate(k)`,
 `grayscale(k)`, `invert(k)`, `sepia(k)`, `hueRotate(deg)`, `colorize(color)` — the group's
 alpha in one colour, what `Image.tint` is sugar for — and `shadow(dx, dy, blur, color)`, which
@@ -284,7 +285,9 @@ contributes nothing to the scroll range. It opts out of its **own parent's** scr
 view nested deeper, under a parent that does not scroll, moves with that parent (the boot
 check names it — make it a child of the App, shown with its screen's condition). The
 fixed header, the pinned toolbar, and the overlay layer that stages parked furniture are
-all this one attribute.
+all this one attribute. A child pinned against an edge of the frame is chrome the platform
+reads: a view brought into view by focus (Tab) lands clear of it, as CSS's scroll-padding would
+have it, with nothing declared (a link's arrival clears chrome by `App.revealInset`).
 
 ## scrolls
 Which **axes** of interior overflow this view scrolls — `none` (the default), `y`, `x`,
@@ -312,7 +315,7 @@ scroll-driven effects (a fading header, reveals, parallax): `opacity = { 1 - app
 Nothing may set it: an assignment and an `Animator [ attribute = scrollY ]` are both
 compile errors, each naming the verb. To move the pane, **call `scrollTo(y)`** — a
 request the platform clamps to the real range and holds for a pane that cannot take it
-yet; add a glide (`scrollTo(y, { duration, motion })`) for the platform's own motion. A
+yet; add a glide (`scrollTo(y, { duration, easing })`) for the platform's own motion. A
 starting offset is declared with `scrollStartY`. The offset is sampled once per settle,
 like the pointer: your view of it may trail the pixels by a frame, and the pixels never
 wait on you. To reveal a particular view, `scrollIntoView()` on the target already does
@@ -398,6 +401,22 @@ count: number = { (app.d.value.rows).length }
 If you want the window with its logical indices — an accessibility traversal, a diagnostic
 — that is kernel API (`blocksOf`, `realized()`, `materializationInfo`).
 
+## identityKey
+The record field a replicated instance follows, when it is not `id`. **Replication
+metadata**, like `virtualize`: it belongs on the node whose `datapath` matches many, beside
+that path, and the checker refuses it anywhere else.
+
+Replication matches instances to records so a sort, a filter or an edit moves the instances
+it already has rather than rebuilding them, and whatever an instance holds travels with its
+record. By convention a record's `id` field is its identity, with nothing declared. When the
+records carry it under another name, `identityKey` names that field — a single `:path`, read
+per record. Records with neither are matched as the same object, or by content where a
+recompute made fresh ones.
+
+```declare-fragment
+Row [ datapath = :items[], identityKey = :sku ]
+```
+
 ## virtualize
 Virtualize this replicated collection: build the instances near the viewport and leave the
 rest logical, reconstructed indistinguishably as you scroll. **Replication metadata** — it
@@ -441,6 +460,11 @@ Block [ datapath = :blocks[],
     classFor = { :kind == "image" ? ImageBlock : :kind == "heading" ? HeadingBlock : TextBlock } ]
 ```
 
+With more kinds than a condition reads well, a function in `script { }` chooses, called with
+the fields it needs, and answers the class's name: `classFor = { blockClass(:kind) }`, with
+`function blockClass(kind: string): string { switch (kind) { … } }`. A member of the program
+cannot choose — the choice stays the record's.
+
 A class per kind is for rows that *are* different things. A row that varies by what state it
 is *in* — selected or not, saved or draft — keeps one class and a
 [`State`](declare-docs:State) for each variation; a state's children exist only while it
@@ -478,7 +502,7 @@ container of a virtualized block, which is every view in a program that never as
 virtualization.
 
 **Read it on the container, not the template.** `virtualize` is declared on the replicated
-child — beside its `datapath = :rows[]`, where `key` lives too — but the block belongs to
+child — beside its `datapath = :rows[]`, where `identityKey` lives too — but the block belongs to
 the *parent* that holds the instances, so the parent is what answers. A row instance reports
 `false`, and that is the honest answer: an instance has no replicated content of its own. In
 ordinary speech the list is virtualized, not the row.
@@ -673,8 +697,9 @@ members' order, not where they sit, so in a grid where Up means the row above, t
 binds the arrows itself (`keyBindings`) and moves focus with `Focus.focus`: the movement is
 the view's own default, after its bindings, so a binding of its own comes first, and one
 that returns `false` hands the key on to the movement. Tab lands on the
-member the view names with a `focusEntry()` method, else the one that last had focus, else
-the view itself when it takes focus, else its first stop. `capture`: Tab walks into the view
+member the view names with a `focusEntry() -> View?` method of its own — the selected
+segment, the checked radio: a member inside it that can take focus, where null passes —
+else the one that last had focus, else the view itself when it takes focus, else its first stop. `capture`: Tab walks into the view
 and through its stops (an entry form). `region`: one stop from outside, entered with Enter,
 and inside it Tab wraps and never leaves — a window, a pane; F6 and Shift-F6 move between
 regions. `modal`: Tab wraps inside and never leaves; a dialog is one. Every scope remembers
@@ -802,6 +827,17 @@ Whether this `tab`, `row`, `cell`, `listItem`, `option` or `treeItem` is the sel
 Which way the column a `columnHeader` heads is sorted: `"none"` (the default),
 `"ascending"` or `"descending"`. A screen reader says it with the header's name.
 
+## accessibilityCurrent
+Where the person is, among views of the same kind: `"page"` for the link or button of the
+page shown now (a navigation's, a breadcrumb's last), `"step"` in a sequence, `"location"`
+on a map or a diagram, `"date"` or `"time"` in a calendar, and `"item"` for the current one
+of anything else. `"none"` by default. A screen reader says "current page" with the name,
+so a nav that marks where you are by color alone is read the same way it is seen.
+
+```declare-fragment
+Button [ label = "Pricing", accessibilityCurrent = { app.page == "pricing" ? "page" : "none" } ]
+```
+
 ## accessibilityMultiselectable
 Whether more than one item of this `listbox`, `grid` or `tree` can be selected at once.
 `false` by default; a `Table` or `DataGrid` that `selects = "multi"` sets it.
@@ -857,7 +893,7 @@ read `app.pointerX`/`pointerY` instead.
 
 ## onDragStart
 A press has become a drag: one that wandered past the click threshold, or — on a view that
-takes no clicks (`onClick`, `onDblClick`, `onHold`, a `link`) — at the press itself. A press
+takes no clicks (`onClick`, `onDoubleClick`, `onHold`, a `link`) — at the press itself. A press
 is a click or a drag, never both. It goes to the **nearest view that declares a drag
 event**, the pressed view or an ancestor, so a press on a control inside a draggable card
 is the control's while it stays put and the card's drag once it wanders. `e.x`/`e.y` are
@@ -902,13 +938,13 @@ finger: the drag's claim engages *at the hold* instead of at touchdown, so a qui
 swipe still scrolls the surface underneath and a held finger picks the thing up — the
 hold-to-drag idiom for draggables on scrolling surfaces.
 
-## onDblClick
+## onDoubleClick
 The **resolved** pair: a second click on this same view inside the double-click interval
 (and, on touch, within a few pixels of the first tap). The desktop rule holds — a third
 click starts a fresh cycle, so triple is a double plus a single, not two doubles.
 
 The first click arrives at once, as the platforms deliver it; on a view that declares
-`onDblClick`, the second arrives as `dblClick` alone, not as a second `click`. So the single
+`onDoubleClick`, the second arrives as `doubleClick` alone, not as a second `click`. So the single
 click's action should be one the double builds on — select on one click, open on two — as a
 file list does.
 
@@ -1045,8 +1081,12 @@ pasting is the person's act.
 ## scrollIntoView()
 Scrolls this view into the visible region of its nearest `scrolls` ancestor (or the page),
 aligning its top to the viewport top — the imperative partner of the declarative jump-index
-pattern. Both backends realize it natively (DOM `scrollIntoView`, canvas clamps the scroll
-ancestor's `scrollOffset`). A no-op if nothing above it scrolls.
+pattern. `"nearest"` scrolls the least distance that shows it, and not at all when it is
+already in sight; `smooth` glides there. `inset` is room left above it for fixed chrome at the
+top of the scroller (the `scroll-margin-top` of the web): the view lands that far below the
+top, and `"nearest"` counts a view under that band as hidden. It leaves no room below — to bring
+what sits under the view into sight with it, reveal the view that holds both. A no-op if
+nothing above it scrolls.
 
 ## scrollTo()
 Ask **this scroller** to go to offset `y` — a **request, not an assignment**: the platform
@@ -1075,9 +1115,9 @@ before asking, so a request waits for a hand that is still moving. What does not
 re-asserting a position every frame; the gesture will win, and the program will spend the
 whole gesture losing.
 
-**With a glide** — `scrollTo(y, { duration, motion })` — the request moves the pane over
+**With a glide** — `scrollTo(y, { duration, easing })` — the request moves the pane over
 `duration` milliseconds on the platform's own motion: the browser's smooth scroll, the
-native host's tween, the canvas runtime's loop. `motion` names a Declare curve
+native host's tween, the canvas runtime's loop. `easing` names a Declare curve
 (`"cubicOut"`, the default; any family token) where the provider can honor one. This is
 not an Animator: no Animator semantics, no driven attribute — the scroller glides, `scrollY` reports
 as it goes, and a **gesture cancels it** (the user always wins). A request that arrives
@@ -1090,7 +1130,7 @@ request past the end stops at the end the content has when it is made, rather th
 for more.
 
 ## scrollBy()
-A **relative** request — `scrollBy(dx, dy)`, or `scrollBy(dx, dy, { duration, motion })`
+A **relative** request — `scrollBy(dx, dy)`, or `scrollBy(dx, dy, { duration, easing })`
 — measured from the current facts: `scrollBy(0, -pane.height)` pages up. The same
 clamp, hold and glide contract as `scrollTo()`/`scrollToX()`, on both axes at once.
 
@@ -1189,7 +1229,7 @@ painted shape** (its box, rounded by `cornerRadius`, or its `clip` shape), blurr
 `radius`, saturation-scaled, and the view's own `fill` then paints **over** the frosted
 sample — a translucent wash over a blurred backdrop, which is how every platform's
 material works. Content moving beneath re-frosts; that is the point. Samples reach the
-same isolating ancestor `blend` does, and like `blend` it is paint only — input never
+same isolating ancestor `blendMode` does, and like `blendMode` it is paint only — input never
 changes. `saturation` defaults to `1`; frosted materials read best around `1.4`–`1.8`.
 
 ```declare
@@ -1201,7 +1241,7 @@ App [ fill = #F6F8FA,
     ]
 ```
 
-## blend
+## blendMode
 The **compositing operator** this view lands with against what has already painted
 beneath it — `normal` (the default), or one of the W3C blend modes in camelCase
 (`multiply`, `screen`, `overlay`, `darken`, `lighten`, `colorDodge`, `colorBurn`,
@@ -1213,7 +1253,7 @@ boundary. A plain container is transparent to blending, so a `multiply` chip ins
 nested layout Views blends against the card under them — which is what you meant.
 A blending view blends **as a unit**, children included; compositing is paint, never
 input — hit-testing and focus are unchanged. A token string in a `{ }` body, like
-`scrolls` — so a blend can be state: `blend = { active ? "multiply" : "normal" }`.
+`scrolls` — so a blend can be state: `blendMode = { active ? "multiply" : "normal" }`.
 
 ## imageRendering
 How what is painted inside this view — its **images and drawings**, and everything inside
@@ -1245,7 +1285,7 @@ point. Paint only: hit testing, layout and focus are unchanged.
 mirrored from the platform's scroll — `scrollY`'s twin, with the same enforcement: the
 platform owns it, and an assignment or an Animator aimed at it is a compile error.
 **`scrollToX(x)` is the verb** — a clamped, held request, with an optional glide
-(`scrollToX(x, { duration: 260, motion: "cubicOut" })` is how the desktop's Files strip
+(`scrollToX(x, { duration: 260, easing: "cubicOut" })` is how the desktop's Files strip
 slides a fresh column into view). `scrollStartX` declares a starting offset. Read it for
 a paging strip's position or scroll-driven effects.
 
@@ -1314,21 +1354,28 @@ App [ direction = rtl,
 ```
 
 ## pointerEvents
-Whether **this view** takes pointer events: `"none"` or `"auto"`. Unset, it behaves as
-`"auto"`.
-`"none"` is for a view that is pure decoration over live content — a highlight rectangle,
-a full-viewport chrome overlay — so presses reach what is beneath it. Without it, an
-overlay sized to the frame takes every press, and nothing under it can be clicked.
+Whether this view **and everything inside it** take pointer events: `"none"` or `"auto"`.
+Unset, a view follows the nearest view above it that sets one, and takes pointer events
+when none does.
+`"none"` is for decoration over live content — a highlight rectangle, a full-viewport chrome
+overlay — so presses reach what is beneath it, and for a part of the interface switched off
+for the pointer: a pane faded out, a section dimmed while something else is under way. Every
+view inside it passes presses through too, a control's own insides included (a field in a
+`Combobox`, the segments of a `Segmented`), and hover, press and the cursor go with them.
 
-**It applies to this view only, not to its children.** A press on an empty part of the
-view goes to whatever is beneath it; a press on a child still goes to that child if the
-child takes presses. A child with a handler keeps taking its own presses, and a child may
-set `"auto"` outright — which is what lets a chrome overlay hold a real panel (the
-Inspector's own window is exactly that) while the rest of it lets presses through.
-So `"none"` on a container does **not** disable the views inside it: a pane faded to
-`opacity = 0` with `"none"` still takes presses on its buttons. To stop a subtree taking
-presses, set `visible = false` on it, move it out of the frame, disable its controls, or
-set `"none"` on each view that has a handler.
+`"auto"` switches a part back on inside a `"none"`: that view and what it holds take
+presses again, as they would anywhere else. That is what lets a chrome overlay hold a real
+panel (the Inspector's own window is exactly that), or a strip that lets presses through
+hold one button that takes them.
+
+```declare-fragment
+dock: View [ width = { app.width }, height = 76, pointerEvents = "none",
+    add: Control [ x = end, width = 56, height = 56, pointerEvents = "auto", press() { app.adding = true } ] ]
+```
+
+The pointer is one of three ways into a view. The keyboard reaches a control until it is
+`disabled`, which a container passes to every control inside it; a screen reader passes
+over what `accessibilityHidden` covers.
 
 ## viewAt()
 The tree answers **what is under a root-space point** — the deepest visible view,

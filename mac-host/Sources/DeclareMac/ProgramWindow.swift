@@ -670,6 +670,11 @@ final class ProgramWindow: NSObject, NSWindowDelegate {
 
     // ── NSWindowDelegate ────────────────────────────────────────────────────
 
+    // app.fullScreen follows the window, whatever put it there (⌃⌘F, the green
+    // button, or the program's own write through Bridge `setFullScreen`)
+    func windowDidEnterFullScreen(_ n: Notification) { bridge.call("__declareFullScreen", [true]); bridge.needsFrame() }
+    func windowDidExitFullScreen(_ n: Notification) { bridge.call("__declareFullScreen", [false]); bridge.needsFrame() }
+
     func windowDidResize(_ n: Notification) {
         // The runtime re-lays out on its own thread; without a wait the window
         // shows its new size one frame before the app fills it, and everything

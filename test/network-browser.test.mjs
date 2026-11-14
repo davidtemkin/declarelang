@@ -102,6 +102,26 @@ try {
     assert.deepEqual(errs, []);
   });
 
+  await test("an Image whose source reads its own failed is said and held on the other picture, not reloaded without end", async () => {
+    const p = await browser.newPage();
+    const asked = {}, said = [];
+    p.on("request", (r) => { const f = r.url().split("/").pop(); asked[f] = (asked[f] ?? 0) + 1; });
+    p.on("console", (m) => { if (m.type() === "error") said.push(m.text()); });
+    await p.goto(`${B}/test/fixtures/image-fallback.declare`, { waitUntil: "load", timeout: 60000 });
+    await p.waitForFunction(() => { const a = window.__declare?.find?.("app.a"); return a != null && a.loaded && a.failed; }, { timeout: 15000 });
+    await new Promise((r) => setTimeout(r, 500));
+    const a = await p.evaluate(() => { const n = window.__declare.find("app.a"); return { source: n.source, failed: n.failed, loaded: n.loaded }; });
+    assert.deepEqual(a, { source: "dot.png", failed: true, loaded: true }, "the fallback holds");
+    assert.ok((asked["net-live.json"] ?? 0) < 10, `the failing address asked for ${asked["net-live.json"]} times`);
+    assert.ok(said.some((t) => t.includes("app.a: its source keeps turning back")), `said: ${said.join(" | ")}`);
+
+    // a plain source re-pointed from a failing address: failed clears once the new picture loads
+    await p.waitForFunction(() => window.__declare.find("app.pic").failed, { timeout: 15000 });
+    await p.evaluate(() => { window.__declare.find("app").u = "dot.png"; });
+    await p.waitForFunction(() => { const n = window.__declare.find("app.pic"); return n.loaded && !n.failed; }, { timeout: 15000 });
+    await p.close();
+  });
+
   await test("a re-pointed clip stops the old one; a discarded clip stops altogether", async () => {
     const media = await browser.newPage();
     await media.evaluateOnNewDocument(() => {

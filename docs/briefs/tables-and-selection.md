@@ -27,7 +27,7 @@ App [ width = 460, height = 260, fill = white,
         columns = { [ { id: "id",    title: "ID",    width: 60 },
                       { id: "title", title: "Title", width: 220, edit: true },
                       { id: "state", title: "State", width: 120 } ] },
-        input(sel: object) { app.chosen = (sel ?? []) as object[] }
+        commit(sel: object) { app.chosen = (sel ?? []) as object[] }
         ]
     ]
 ```
@@ -39,19 +39,19 @@ App [ width = 460, height = 260, fill = white,
   sortable, reorderable, resizable columns.
 - The selection holds **items** (the records themselves), so it survives sorting,
   filtering and scrolling. The table owns `selected`/`selection` and hands them out
-  through `input(sel)`; don't write into them.
+  through `commit(sel)`; don't write into them.
 - `selects = "none" | "single" | "multi"`. Counts you show are full-dataset counts, not
   what's on screen.
 - Sorting names a derivation: a header click sets `sortOn`/`sortDir`, and **you** derive
-  the sorted dataset (or send the sort to a server by overriding `sortInput`).
+  the sorted dataset (or send the sort to a server by overriding `applySort`).
 - A cell shows `record[id]` as text; `edit: true` makes it editable, and `cell:
   "ClassName"` names a class of your own bound to the row's record. An edit writes the
   record, through a derived dataset too. A record with a `heading` field is a heading row.
-- Column `order` and `widths` are the value pattern (`arrangeInput`, `resizeInput`);
+- Column `order` and `widths` are the value pattern (`applyColumnOrder`, `applyColumnWidth`);
   a width of `0` drops a column, so a responsive table is a constraint.
 
 **Look up** `Table`, `Table.selection`, `Table.selects`, `TableRow.item`, `DataGrid`,
-`DataGrid.columns`, `DataGrid.items`, `DataGrid.sortOn`, `DataGrid.sortInput`.
+`DataGrid.columns`, `DataGrid.items`, `DataGrid.sortOn`, `DataGrid.applySort`.
 
 **Examples** `apps/tracker/tracker.declare`: a `Table` of issues, multi-select, a derived
 sort · `apps/sampler/sampler.declare`: an editable `DataGrid`.

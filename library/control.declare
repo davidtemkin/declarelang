@@ -46,6 +46,17 @@ nothing. **Constrain it rather than assigning it**
 (`disabled = { app.muted }`) — it is ordinary derived state. Concrete controls also
 dim themselves against `provided("theme").disabledOpacity`.
 
+**It reaches every control inside.** Set on any view — a section, a form's pane, a toolbar —
+`disabled` switches off every control below it, and a disabled control switches off the
+controls it is made of (a `Combobox`'s field, a `Segmented`'s segments). A control inside that
+sets `disabled = false` itself stays on.
+
+```declare-fragment
+details: View [ disabled = { !app.signedIn }, layout: SimpleLayout [ axis = y, spacing = 8 ],
+    TextInput [ accessibilityLabel = "Name" ],
+    Button [ label = "Save" ] ]
+```
+
 ## focusVisible
 Focused **and** the focus arrived by keyboard — the web's `:focus-visible` channel.
 Cleared by blur and by a pointer press on this control, so a clicked control shows no
@@ -65,7 +76,7 @@ subclass: `class BackChevron extends ChevronIcon [ dir = "left" ]`, then
 
 ## iconRight
 The trailing icon slot, same vocabulary as `iconLeft`. Setting it **wins over the
-chevron a `menu` would imply** — see `rightIcon`.
+chevron a `menu` would imply**.
 
 ## menu
 The menu this control drops — an instance, not a name (`menu = { app.optionsMenu }`).
@@ -89,8 +100,8 @@ own role.
 Whether the control's `menu` is open — follows `menuOpen`, so a screen reader hears a
 menu button as collapsed or expanded. Unset (null) on a control with no menu.
 
-## rightIcon
-What actually renders on the right: `iconRight` when set, else the disclosure chevron
+## _rightIcon
+**Internal.** What actually renders on the right: `iconRight` when set, else the disclosure chevron
 implied by `menu`, else nothing. One place decides, so every menu-dropping control
 wears the same mark.
 
@@ -110,7 +121,7 @@ The seam a concrete control calls from its own `press()`.
 **The activation seam — override this, not the handlers.** Pointer and keyboard both
 land here — a click through `onClick`, Space and Enter through the keyboard — so one
 override serves all three. The base opens `menu` when
-there is one. A value control delivers through `input` from here and **never writes its
+there is one. A value control delivers through `commit` from here and **never writes its
 own value directly**, which is what lets a constrained control avoid fighting its
 constraint.
 On a control with a `menu`, an override calls `super.press()`: the base is what opens it
@@ -187,7 +198,10 @@ A control takes focus unless it is disabled — one rule, so a disabled control 
 */
 
 class Control [
-    disabled: boolean = false,
+    // off when a container around it is — a view with `disabled = true`, or a
+    // disabled control it is part of — unless it says otherwise itself
+
+    disabled: boolean = { provided("disabled", false) },
 
     // A control is chrome, not prose: its label never selects, even inside a
     // `selectable` region (a provision here vetoes the inherited value — the
@@ -244,7 +258,7 @@ class Control [
     // disclosure chevron a `menu` implies. One place decides, so every
     // menu-dropping control wears the same mark.
 
-    rightIcon: string = { this.iconRight != "" ? this.iconRight : this.menu != null ? "ChevronIcon" : "" },
+    _rightIcon: string = { this.iconRight != "" ? this.iconRight : this.menu != null ? "ChevronIcon" : "" },
 
     // a control that drops a menu says whether its menu is open; one that drops
     // none says nothing of the kind
@@ -253,7 +267,7 @@ class Control [
 
     openMenu() {
         if (this.menu == null || this.disabled) return
-        ;(this.menu as any).openFor(this)
+        ;(this.menu as any).showFor(this)
         },
 
     // the activation seam — concrete controls override; pointer and keyboard both land here

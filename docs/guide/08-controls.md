@@ -25,9 +25,9 @@ what the library ships, and what `extends Control` makes yours.
 | [`RadioGroup [ value ]`](declare-docs:RadioGroup) with [`Radio [ choice, label ]`](declare-docs:Radio) children | `value` on the group | one of several |
 | [`ChoiceControl [ value ]`](declare-docs:ChoiceControl) with [`ChoiceItem [ choice ]`](declare-docs:ChoiceItem) children | `value`, or `values` with `multiple` | one of several, or several at once, each item drawn as your own |
 | [`Slider [ value, min, max, step ]`](declare-docs:Slider) | `value: number` | drag or arrow keys |
-| [`RangeSlider [ low, high, min, max, step ]`](declare-docs:RangeSlider) | `low`, `high` | a range on one track — two thumbs that never cross, each a stop of its own; `commit(low, high)` |
-| [`Segmented [ choices, value ]`](declare-docs:Segmented) | the chosen `id` | one of a few, shown at once; set its `width` — segments divide it evenly |
-| [`TabBar [ choices, value ]`](declare-docs:TabBar) | the chosen `id` | a `Segmented` that switches what is shown below it — pages, panes; a screen reader hears tabs |
+| [`RangeSlider [ value, min, max, step ]`](declare-docs:RangeSlider) | `{ low, high }` | a range on one track — two thumbs that never cross, each a stop of its own |
+| [`Segmented [ items, value ]`](declare-docs:Segmented) | the chosen `id` | one of a few, shown at once; set its `width` — segments divide it evenly |
+| [`TabBar [ items, value ]`](declare-docs:TabBar) | the chosen `id` | a `Segmented` that switches what is shown below it — pages, panes; a screen reader hears tabs |
 | [`Combobox [ items, value ]`](declare-docs:Combobox) | the chosen item | filter as you type; with [`creates`](declare-docs:Combobox.creates), what names no item is offered as new |
 | [`TextInput [ value, placeholder ]`](declare-docs:TextInput) | `value: string` | the text field |
 | [`SearchField [ value, placeholder ]`](declare-docs:SearchField) | `value: string` | a text field for searching: round at both ends, and a search field to a screen reader |
@@ -42,8 +42,17 @@ what the library ships, and what `extends Control` makes yours.
 | [`Splitter [ value, min, max ]`](declare-docs:Splitter) | `value: number` | the divider between two panes you arrange, by pointer or keys |
 | [`Window [ title, open ]`](declare-docs:Window) | `open: boolean` | a window with a title bar, dragging and a close button; `frame = false` for one of your own design |
 
+Two tiers hand a change back. The **value controls** — `Checkbox`, `Switch`, `RadioGroup`,
+`ChoiceControl`, `Slider`, `RangeSlider`, `Segmented` (with `TabBar` and `TextSizeSwitch`),
+`Combobox`, `TextInput` (with `SearchField`), `Stepper` and `DatePicker` — extend
+[`ValueControl`](declare-docs:ValueControl): beside `commit` they have the editing model below
+(`admit`, `commitOn`, `shown`) and are checked like form fields. The rest — `AppearanceSwitch`,
+`Disclosure`, `Tree`, `ToolButton`, `Splitter`, `Window` — hand a change back with `commit` alone.
+
 Every control also takes `disabled`, which makes it inert and removes it from the tab
-order. Constrain it (`disabled = { app.muted }`) rather than assigning it.
+order. Constrain it (`disabled = { app.muted }`) rather than assigning it. Set on a
+container, it reaches every control inside, so a whole section goes off with one line; a
+control in it that sets `disabled = false` stays on.
 
 The library also has classes that are not controls — they have no value of their
 own: [`ProgressBar`](declare-docs:ProgressBar) (the read-only sibling of `Slider`), [`Gauge`](declare-docs:Gauge) (a captioned value bar for
@@ -100,7 +109,12 @@ has nowhere to go; the compiler says so.
 When the change goes straight to the place the value comes from, say it once:
 `checked <-> app.muted` is exactly `checked = { app.muted }` with
 `commit(v) { app.muted = v }`. Write the two members when `commit` does more — rounds,
-clamps, saves.
+clamps, saves. The same pair serves every library class that hands a change back: a
+`Segmented`'s `value`, a `Disclosure`'s `open`, a `Table`'s `selection`, an overlay's `shown`.
+A class has one such value, the one `commit` delivers and `<->` binds; its other values a
+person changes each have their own hook, written as the pair by hand (a `Tree`'s `expanded`
+with `applyExpanded`, a `DataGrid`'s sort, order, widths and cells with `applySort`,
+`applyColumnOrder`, `applyColumnWidth` and `applyEdit`).
 
 **A record owns it.** Inside a list built from data, the value is a field of the row's
 record, and the change goes straight back to it:
@@ -138,6 +152,11 @@ App [ width = 340, height = 100, theme = { SanFrancisco }, fill = { provided("th
 A letter never appears; a fourth digit never appears; the platform's Undo still works,
 because a refused change never entered it.
 
+Three things stop or answer a change, at three moments: `admit` returning `null` stops it
+before it shows; `refuse(message)`, or a service's refusal, says what is wrong with a value
+that stays as it is (a judgement, below); and an `apply…` hook that does not write — a
+`DataGrid`'s `applyEdit` returning `false` — keeps the record as it was.
+
 ### Text fields
 
 A [`TextInput`](declare-docs:TextInput) is a value control like the others: its value is
@@ -165,11 +184,11 @@ A field that keeps its own text needs nothing: `TextInput [ placeholder = "Note"
 back as `note.value`. A number or a date your state keeps is shown converted —
 `value = { String(app.size) }` — and parsed back in `commit`, as in the size field above.
 
-Every control that holds a value — the ones above, a `Combobox`, a `DatePicker`, and any
-of your own that extends [`ValueControl`](declare-docs:ValueControl) — can be **checked like a field**:
+Every value control — the library's, and any of your own that extends
+[`ValueControl`](declare-docs:ValueControl) — can be **checked like a field**:
 `required` (`true` or the message), `validate(v)`, and a `name` a service refuses it by.
 Judging never refuses a change or alters it — that is `admit`'s — and a control is judged
-when the person leaves it. A
+when the person leaves it, or from the start with `judged = true`. A
 [`Form`](declare-docs:Form) around them judges them all on submit; a [`Field`](declare-docs:Field) around one shows
 what is wrong with it under it ([Data](declare-docs:guide:data@a-form)).
 
@@ -191,7 +210,7 @@ can follow them (`canBold = { f.selectionEnd > f.selectionStart }`); to move it,
 
 > **If the class arranges it, hand it data. If you arrange it, build it from views.**
 
-A `Segmented` control's choices, a `Menu`'s items, a `Dialog`'s buttons, a `DataGrid`'s
+A `Segmented` control's items, a `Menu`'s items, a `Dialog`'s buttons, a `DataGrid`'s
 columns: all plain lists of records, with the choice handed back through a method.
 
 ```declare
@@ -201,8 +220,8 @@ App [ width = 340, height = 120, theme = { SanFrancisco }, fill = { provided("th
     col: View [ x = 20, y = 20,
         layout: SimpleLayout [ axis = y, spacing = 14 ],
         Segmented [ width = 300, value = { app.page },
-            choices = { [ ({ id: "list", label: "List" }), ({ id: "grid", label: "Grid" }) ] },
-            input(v: string) { app.page = v }
+            items = { [ ({ id: "list", label: "List" }), ({ id: "grid", label: "Grid" }) ] },
+            commit(v: string) { app.page = v }
             ],
         Text [ text = { "showing: " + app.page } ]
         ]
@@ -219,16 +238,17 @@ are and how much room they may take:
   shown at once.
 - **A pop-up button** — a list of choices that stays closed until pressed, as a `<select>` is
   in HTML. It is a `Button` with a [`menu`](declare-docs:Control.menu) whose rows carry
-  `checked`; the row that is checked is the current choice.
+  `checked`; the row that is checked is the current choice, and a `group` shared by the
+  rows tells a screen reader they are one set to choose from.
 - [`Combobox`](declare-docs:Combobox) — a long list the user narrows by typing.
 
 ```declare
 App [ width = 340, height = 160, theme = { SanFrancisco }, fill = { provided("theme").background },
     sort: string = "name",
     sorts: Menu [
-        items = { [ ({ id: "name", label: "Name", checked: app.sort == "name" }),
-                    ({ id: "date", label: "Date", checked: app.sort == "date" }),
-                    ({ id: "size", label: "Size", checked: app.sort == "size" }) ] },
+        items = { [ ({ id: "name", label: "Name", group: "sort", checked: app.sort == "name" }),
+                    ({ id: "date", label: "Date", group: "sort", checked: app.sort == "date" }),
+                    ({ id: "size", label: "Size", group: "sort", checked: app.sort == "size" }) ] },
         picked(id: string) { app.sort = id }
         ],
     Button [ x = 20, y = 20, label = { "Sort by " + app.sort }, menu = { app.sorts } ]
@@ -243,6 +263,13 @@ A choice of your own shape — a tile, a card, a chip — is a [`ChoiceItem`](de
 drawn as you like, a direct child of a [`ChoiceControl`](declare-docs:ChoiceControl): the control
 holds what is chosen (`value`, or `values` with `multiple = true` for several at once), says it
 to a screen reader, and moves the arrows between the items, and adds nothing to how they look.
+
+**What a choice holds.** A choice among items given as records holds a key of the chosen one:
+a `Segmented`, `TabBar` or `Tree` its `id`, a `RadioGroup` or `ChoiceControl` its item's
+`choice`. A `Combobox` holds the whole record it picked, since its list may be long or made as
+you type. So a record that stores the id is shown and written back converted:
+`value = { app.people.find((p) => p.id == :ownerId) ?? null }` with
+`commit(v: Person?) { :ownerId = v?.id ?? null }` (`Person` the people's schema).
 
 You cannot nest rows inside a `Menu` — there is nowhere to put them. That is the
 contract, not a gap: a class that owns its arrangement owns how it draws, and can
@@ -261,7 +288,7 @@ and Enter activate, and a click moves focus to what was clicked (a button that r
 [command](declare-docs:guide:pointer-and-keyboard@commands-menus-and-buttons) leaves it
 where it was); a click on anything that
 can't take focus clears it, and the next Tab starts from where you clicked. A control with members —
-a radio group, a segmented control, a list, a menu bar — is one stop: Tab lands on its
+a radio group, a segmented control, a menu bar — is one stop: Tab lands on its
 chosen member and the arrows move among the rest. A focus ring that
 travels to the focused control is added to any app that uses library controls; the
 theme can change or turn off how it looks. You declare none of it.
@@ -279,8 +306,16 @@ When you need more:
 - A container reorders or gates what Tab reaches by overriding [`tabOrder()`](declare-docs:View.method.tabOrder) — a closed
   pane returns nothing, so Tab never reaches content the user cannot see.
 - [`focusScope`](declare-docs:View.focusScope) says what Tab does at a container's edge:
-  `stop` makes it one stop whose arrows move among its members, `region` gives it a cycle of its own that
+  `stop` makes it one stop whose arrows move among its members, `capture` lets Tab walk into
+  it and through its stops (an entry form), `region` gives it a cycle of its own that
   Enter enters and F6 leaves (a window, a pane), `modal` keeps Tab inside it (a dialog).
+- A set of members moved among with the arrows takes one of two shapes. **Roving focus**
+  (`focusScope = stop`) moves the focus itself from member to member: right for a few real
+  controls, as segments and radios are. **An active item** keeps the focus on the container,
+  which binds the arrows and moves a highlight, named for a screen reader with
+  [`accessibilityActiveItem`](declare-docs:View.accessibilityActiveItem): right for rows and
+  cells, as [`Table`](declare-docs:Table) and [`DataGrid`](declare-docs:DataGrid) do (rows are
+  never tab stops; [Collections](declare-docs:guide:collections) has the grid's Tab, Enter and F2).
   Some browsers take F6 for themselves, so **Esc then Tab** leaves a region too (Shift-Tab
   goes back), and a program's own command can call
   [`Focus.nextRegion`](declare-docs:Focus.method.nextRegion).

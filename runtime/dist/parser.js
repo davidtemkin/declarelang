@@ -489,6 +489,8 @@ class Parser {
         this.tokens = tokens;
     }
     peek() { return this.tokens[this.i]; }
+    /** The token just consumed (the first token when none has been). */
+    previous() { return this.tokens[Math.max(this.i - 1, 0)]; }
     peekAt(ahead) { return this.tokens[Math.min(this.i + ahead, this.tokens.length - 1)]; }
     next() { return this.tokens[this.i++]; }
     expect(kind, what) {
@@ -714,6 +716,12 @@ class Parser {
         this.expect("lbracket", "'['");
         this.parseMembers(body);
         this.expect("rbracket", "']'");
+        // `class S extends Dataset [ … ] { { … } }`: embedded data is an instance's
+        // (a document is one place), never a class's
+        if (this.peek().kind === "code") {
+            const inst = name.text[0].toLowerCase() + name.text.slice(1);
+            throw new DeclareError(`a class takes no embedded data — a { } after a class's [ ] is a data body, and data belongs to an instance: ${inst}: ${name.text} { { … } }`, this.peek().pos);
+        }
         return { name: name.text, base, basePos, body, pos: kw.pos };
     }
     parseElement() {
@@ -905,7 +913,11 @@ class Parser {
                         this.next();
                         def = this.parseLiteral();
                     }
-                    el.decls.push({ name: name.text, type: type.text, typePos: type.pos, def, readOnly, pos: declPos });
+                    // `record: Seat` — the record the `:` reads here stand on, not a member
+                    if (name.text === "record" && def === null && !readOnly)
+                        el.recordType = { name: type.text, pos: type.pos };
+                    else
+                        el.decls.push({ name: name.text, type: type.text, typePos: type.pos, def, readOnly, pos: declPos });
                 }
             }
             else if (this.peek().kind === "lparen") {
@@ -1100,7 +1112,7 @@ class Parser {
                 return { kind: "list", items, pos: t.pos };
             }
             default: throw new DeclareError(t.text === "("
-                ? "expected a value, got '(' — a value written bare is a literal; an expression goes in braces: { ({}) }, { (a + b) / 2 }"
+                ? "expected a value, got '(' — a value written bare is a literal; an expression goes in braces: { {} }, { (a + b) / 2 }"
                 : `expected a value, got '${t.text || t.kind}'`, t.pos);
         }
     }
@@ -1127,7 +1139,7 @@ class Parser {
                 optional = true;
             }
             if (this.peek().kind === "bang") {
-                throw new DeclareError(`'${name.text}!' — identity is never declared: a record's 'id' field IS its identity by convention (key = :field overrides an unconventional name); drop the '!'`, this.peek().pos);
+                throw new DeclareError(`'${name.text}!' — identity is never declared: a record's 'id' field IS its identity by convention (identityKey = :field overrides an unconventional name); drop the '!'`, this.peek().pos);
             }
             this.expect("colon", `':' after the shape field '${name.text}'`);
             let field;
@@ -1790,6 +1802,7 @@ export function parseProgram(source) {
     const p = new Parser(tokenize(source));
     const before = parseTopDecls(p);
     const root = p.parseElement();
+    const closed = p.previous();
     const after = parseTopDecls(p);
     const classes = [...before.classes, ...after.classes];
     const themes = [...before.themes, ...after.themes];
@@ -1809,6 +1822,17 @@ export function parseProgram(source) {
     if (before.declareVersion !== undefined && after.declareVersion !== undefined)
         throw new DeclareError(ONE_DECLARE_VERSION, after.declareVersion.pos);
     const declareVersion = before.declareVersion ?? after.declareVersion;
+    // more after the top-level element: most often its body was closed early, by
+    // one ']' too many inside it — so say where it closed, by that line's text
+    const left = p.peek();
+    if (left.kind !== "eof" && closed.kind === "rbracket" && after.classes.length + after.shapes.length + after.scripts.length === 0) {
+        const from = source.lastIndexOf("\n", closed.pos.offset - 1) + 1;
+        const to = source.indexOf("\n", closed.pos.offset);
+        const line = source.slice(from, to < 0 ? undefined : to).trim();
+        const up = left.pos.line - closed.pos.line;
+        const err = new DeclareError(`expected end of input, got '${left.text || left.kind}' — the ${root.tag}'s body ended at the ']' of \`${line.length > 60 ? line.slice(0, 59) + "…" : line}\`${up > 0 ? ` (${up} line${up === 1 ? "" : "s"} up)` : ""}; if the body goes on past it, a ']' at or before it closes one bracket too many`, left.pos);
+        throw p.errors.length > 0 ? new DeclareErrors([...p.errors, err]) : err;
+    }
     p.expect("eof", "end of input");
     if (p.errors.length > 0)
         throw new DeclareErrors(p.errors);

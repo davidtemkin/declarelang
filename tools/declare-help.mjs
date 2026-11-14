@@ -29,7 +29,8 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CSS_ATTRIBUTE_HINTS, cssAttributeHint, hintedForeignName, hostGlobalHint, memberHint, nearestName } from "../runtime/dist/teach.js";
+import { CSS_ATTRIBUTE_HINTS, cssAttributeHint, hintedForeignName, hostGlobalHint, memberHint, nearestName, renamedClassMember } from "../runtime/dist/teach.js";
+import { BUILTIN_PROVIDED } from "../runtime/dist/schema.js";
 import { readBriefs, findBrief, briefIndex } from "./internal/doc/briefs.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -38,13 +39,15 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const BUDGET_LINES = 40;
 /** Shared functions a { } VALUE may not call — they act later, and a value computes. */
 const HANDLER_ONLY = new Set(["afterDelay"]);
+// …and those that answer for the view whose body calls them: no script block has one
+const VIEW_BOUND = new Set(["provided", "hostProvided", "providedTextStyle"]);
 
 // ── arguments ────────────────────────────────────────────────────────────────
 const args = process.argv.slice(2);
 const JSON_OUT = args.includes("--json");
 const ALL = args.includes("--all");
 const EXAMPLE = args.includes("--example");
-const query = args.filter((a) => !a.startsWith("--")).join(" ").trim();
+let query = args.filter((a) => !a.startsWith("--")).join(" ").trim();
 
 // several names in one call (`PinchEvent WheelEvent`, `Sheet Popover`): each is answered
 // in turn, as if asked alone — a question in words is still one query
@@ -249,6 +252,16 @@ function memberNames(cls) {
 /** Resolve `cls.member` to its reference entry, walking the chain and the
  *  three id spellings (attr, method, event — `onWheel` reads as event wheel). */
 function findMember(cls, member) {
+  // the reference's own spellings, asked of a class that inherits them
+  // (`TextInput.event.blur` is View's): the kind named, the chain walked as for a bare name
+  const kind = /^(event|on|method)\.(.+)$/.exec(member);
+  if (kind !== null) {
+    for (const c of chainOf(cls, { withNode: true })) {
+      const ids = kind[1] === "method" ? [`${c}.method.${kind[2]}`] : [`${c}.event.${kind[2]}`, `${c}.on.${kind[2]}`];
+      for (const id of ids) if (REF[id]) return REF[id];
+    }
+    return null;
+  }
   const event = member.startsWith("on") && member.length > 2
     ? member.charAt(2).toLowerCase() + member.slice(3) : null;
   // what a class inherits from Node (datapath, id, onInit) is answered under it too
@@ -364,12 +377,16 @@ function sayClass(cls) {
   // not part of the path), and the guide's "/rows/-" example invited folding it in.
   for (const m of t?.methods ?? []) if (!m.name.startsWith("_")) rows.push(`  ${m.signature ?? `${m.name}()`} — method`);
   const inherited = chain.slice(1);
+  // the role a screen reader is given is part of what the class promises: said up
+  // front (twice an agent read a library source for ChoiceItem's, Venue 30 and 31)
+  const role = findMember(cls, "accessibilityRole")?.default;
+  if (typeof role === "string" && role !== "" && role !== "none") say(`  role: ${role} — what a screen reader calls it`);
   const cap = ALL ? Infinity : BUDGET_LINES - out.length - 3;
   say(`  members (own):`);
   for (const r of rows.slice(0, cap)) say(`  ${r}`);
   if (rows.length > cap) say(`    …and ${rows.length - cap} more — declare-help ${cls} --all`);
   // what a library base adds is how the class is used as often as its own
-  // members are (a Sheet opens with Floating's `shown` and `input`): named, a
+  // members are (a Sheet opens with Floating's `shown` and `commit`): named, a
   // line per base; the platform's own View and Node are the reference's to list
   for (const base of inherited) {
     const bs = ownKey(SPINE.library, base) !== undefined ? schemaOf(base) : null;
@@ -425,13 +442,30 @@ function answerDotted(cls, member) {
   if (schema === null) return false;
   const hit = findMember(cls, member);
   if (hit) { sayEntry(hit); json = { kind: "entry", entry: hit }; return true; }
-  // the compiler's own miss, minus a position (teach.ts routing: hint first,
-  // hinted near-miss second, member near-miss last)
+  // a BUILT-IN provided value (schema.ts BUILTIN_PROVIDED): any container sets it
+  // bare, and what inside reads it takes it — `Button [ fontSize = 13 ]` sizes
+  // the label. Not the class's member, and not a miss either.
+  if (BUILTIN_PROVIDED.has(member)) {
+    const readers = CLASS_NAMES.filter((c) => Object.hasOwn(schemaOf(c)?.attrs ?? {}, member));
+    const reader = readers.includes("Text") ? "Text" : readers[0];
+    say(`${cls}.${member} — a built-in provided value: set here (${cls} [ ${member} = … ]), it is provided to the views inside${reader ? `, and a ${reader} inside takes it unless something nearer sets it — its entry: declare-help ${reader}.${member}` : ""}`);
+    json = { kind: "provided", scope: cls, name: member, reader: reader ?? null };
+    return true;
+  }
+  // the compiler's own miss, minus a position (teach.ts routing: a member the
+  // class had under that name first, hint next, hinted near-miss, member
+  // near-miss last)
+  const renamed = renamedClassMember(chainOf(cls, { withNode: true }), member);
+  if (renamed !== "") { say(`${cls} has no '${member}' — ${renamed}`); json = { kind: "renamed", scope: cls, name: member, hint: renamed }; return true; }
   const hint = cssAttributeHint(member);
   if (hint !== "") { say(`${cls} has no attribute '${member}'${hint}`); json = { kind: "foreign", name: member, hint }; return true; }
   const hinted = hintedForeignName(member);
   if (hinted !== null) { say(`${cls} has no attribute '${member}'${cssAttributeHint(hinted)}`); json = { kind: "foreign", name: member, hint: cssAttributeHint(hinted) }; return true; }
-  const near = nearestName(member, memberNames(cls));
+  // a member a class BELOW it has (`ValueControl.onEnter` is TextInput's): that
+  // class, rather than a near-miss on this one
+  const below = (c) => (TREE.get(c)?.subclasses ?? []).flatMap((k) => [k, ...below(k)]);
+  const sub = below(cls).find((k) => findMember(k, member));
+  const near = sub !== undefined ? null : nearestName(member, memberNames(cls));
   if (near !== null) {
     const target = findMember(cls, near);
     say(`${cls} has no '${member}' — did you mean '${near}'${target ? ` (${firstSentence(target.doc)})` : ""}?`);
@@ -442,14 +476,18 @@ function answerDotted(cls, member) {
   // past a spelling slip, members that share the word's stem ('children' →
   // childViews): a name asked for from another platform is often half right
   const stem = member.toLowerCase().slice(0, 5);
-  const related = stem.length < 4 ? [] : memberNames(cls).filter((n) => n.toLowerCase().startsWith(stem) || n.toLowerCase().includes(member.toLowerCase())).slice(0, 5);
-  if (related.length > 0) {
-    say(`${cls} has no member '${member}' — related: ${related.join(", ")} (declare-help ${cls}.<name>)`);
-    json = { kind: "member-miss", scope: cls, name: member, related };
-    return true;
-  }
-  say(`${cls} has no member '${member}' and nothing near it — the member table: declare-help ${cls}`);
-  json = { kind: "member-miss", scope: cls, name: member };
+  const related = sub !== undefined || stem.length < 4 ? [] : memberNames(cls).filter((n) => n.toLowerCase().startsWith(stem) || n.toLowerCase().includes(member.toLowerCase())).slice(0, 5);
+  if (sub !== undefined) say(`${cls} has no member '${member}' — ${sub} (a ${cls}) has it: declare-help ${sub}.${member}`);
+  else if (related.length > 0) say(`${cls} has no member '${member}' — related: ${related.join(", ")} (declare-help ${cls}.<name>)`);
+  else say(`${cls} has no member '${member}' and nothing near it — the member table: declare-help ${cls}`);
+  // the name may live elsewhere (another class's method, a concept): what the
+  // bare name answers, beneath
+  const miss = { kind: "member-miss", scope: cls, name: member, ...(related.length > 0 ? { related } : {}), ...(sub !== undefined ? { owner: sub } : {}) };
+  const asked = query;
+  query = member;
+  const bare = answer();
+  query = asked;
+  json = bare ? { ...miss, bare: json } : miss;
   return true;
 }
 
@@ -491,6 +529,14 @@ function answer() {
   // never sees it; route it to sayClass, whose preset branch says how it is used
   if (REF[query]?.kind === "theme") return sayClass(query);
   if (REF[query]) { sayEntry(REF[query]); json = { kind: "entry", entry: REF[query] }; return true; }
+
+  // the reference's own three-part spelling for a member the class inherits:
+  // `TextInput.event.blur` answers with View's entry, as `TextInput.onBlur` does
+  const kinded = query.match(/^([A-Za-z][A-Za-z0-9]*)\.(event|on|method)\.([A-Za-z][A-Za-z0-9]*)$/);
+  if (kinded && schemaOf(kinded[1]) !== null) {
+    const hit = findMember(kinded[1], `${kinded[2]}.${kinded[3]}`);
+    if (hit) { sayEntry(hit); json = { kind: "entry", entry: hit }; return true; }
+  }
 
   // dotted: Class.member (or a near-missed class)
   const dot = query.match(/^([A-Za-z][A-Za-z0-9]*)\.([A-Za-z][A-Za-z0-9]*)$/);
@@ -568,7 +614,10 @@ function answer() {
       ? query.charAt(2).toLowerCase() + query.slice(3) : null;
     if (handlerOnly && ev === null) return false;
     for (const name of ev !== null ? [ev] : [query]) {
-      const owners = CLASS_NAMES.filter((c) => (schemaOf(c)?.events ?? []).includes(name));
+      // the platform's events (a class schema's), else a library class's own
+      // (`TextInput.event.enter`: a method the class calls, documented as an event)
+      let owners = CLASS_NAMES.filter((c) => (schemaOf(c)?.events ?? []).includes(name));
+      if (owners.length === 0) owners = CLASS_NAMES.filter((c) => REF[`${c}.event.${name}`] !== undefined);
       if (owners.length === 0) continue;
       const handler = "on" + name.charAt(0).toUpperCase() + name.slice(1);
       const payload = SPINE.events?.payload?.[name];
@@ -596,15 +645,15 @@ function answer() {
   // ALONG as orientation rather than replacing it — the CSS reader still learns
   // that there is no general padding, and the Declare reader still gets
   // `TextInput.padding`. The gate in surfaces.mjs keeps the two halves honest.
-  if (Object.hasOwn(CSS_ATTRIBUTE_HINTS, query) && !isRealName(query)) {
+  // (`root` is also TooltipEvent's, `key` KeyEvent's: a name some record really carries is not denied)
+  const onARecord = (SPINE.types?.shared?.interfaces ?? []).some((i) => i.members.some((m) => new RegExp(`^(readonly\\s+)?${query}\\??\\s*[:(]`).test(m)));
+  if (Object.hasOwn(CSS_ATTRIBUTE_HINTS, query) && !isRealName(query) && !onARecord) {
     say(`'${query}' is not a Declare name${cssAttributeHint(query)}`);
     json = { kind: "foreign", name: query, hint: cssAttributeHint(query) };
     return true;
   }
   // a member a newcomer reads or calls on a node (teach.ts MEMBER_HINTS) — the
   // same answer the compiler gives when a body writes it
-  // (`root` is also TooltipEvent's: a name some record really carries is not denied)
-  const onARecord = (SPINE.types?.shared?.interfaces ?? []).some((i) => i.members.some((m) => new RegExp(`^(readonly\\s+)?${query}\\??\\s*[:(]`).test(m)));
   if (memberHint(query) !== "" && !isRealName(query) && !onARecord) {
     say(`'${query}' is not a Declare name — ${memberHint(query)}`);
     json = { kind: "foreign", name: query, hint: memberHint(query) };
@@ -613,7 +662,7 @@ function answer() {
 
   // enum — by enum name or by an attribute that carries one
   const enumByName = Object.keys(SPINE.enums).find((k) => k.toLowerCase() === query.toLowerCase());
-  if (enumByName) {
+  const sayEnum = (enumByName) => {
     say(`${enumByName} — tokens: ${SPINE.enums[enumByName].join(" · ")}`);
     const carrier = CLASS_NAMES.flatMap((c) => Object.entries(schemaOf(c).attrs)
       .filter(([, ty]) => typeof ty === "string" && ty.startsWith("enum(") &&
@@ -627,7 +676,8 @@ function answer() {
     if (page) say(`  ${page.nUsed} use${page.nUsed === 1 ? "" : "s"} in the reference · docs: type/${enumByName}`);
     json = { kind: "enum", name: enumByName, tokens: SPINE.enums[enumByName], docs: page ? `type/${enumByName}` : null };
     return true;
-  }
+  };
+  if (enumByName) return sayEnum(enumByName);
   const tokensQ = query.match(/^([A-Za-z]+)\s+tokens$/);
   if (tokensQ) {
     const attr = tokensQ[1];
@@ -706,7 +756,10 @@ function answer() {
     }) ||
     sharedHit("shared-alias", "aliases", (a) => say(`${a.name} — a shared type alias: ${a.type}`)) ||
     sharedHit("shared-function", "functions", (f) => {
-      say(`${f.name} — a shared function, callable in ${HANDLER_ONLY.has(f.name) ? "a handler or a method (a { } value never waits)" : "any { } body"}: ${f.signature}`);
+      const where = HANDLER_ONLY.has(f.name) ? "a handler or a method (a { } value never waits)"
+        : VIEW_BOUND.has(f.name) ? "any { } body (not a script block: it answers for the view that calls it)"
+        : "any { } body or script block";
+      say(`${f.name} — a shared function, callable in ${where}: ${f.signature}`);
       // a view's event by the same name (blur the filter, blur the focus leaving)
       if ((schemaOf("View")?.events ?? []).includes(f.name)) say(`  also an event of every view, on${f.name[0].toUpperCase()}${f.name.slice(1)}(): declare-help View.event.${f.name}`);
     }) ||
@@ -768,8 +821,13 @@ function answer() {
   if (answerEvent(false)) return true;
 
   // concept — the curated synonym table, then negative knowledge, then retrieval
-  const norm = query.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
-  const syn = CONCEPTS.synonyms[norm] ?? CONCEPTS.synonyms[query];
+  // a camelCase word another platform spells (`scrollPadding`) is its words
+  // (`scroll padding`); a name the language has stays whole
+  const camel = (t) => t.replace(/([a-z0-9])([A-Z])/g, "$1 $2");
+  const flatNorm = (t) => t.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+  const norm = flatNorm(isRealName(query) ? query : camel(query));
+  const flat = flatNorm(query);   // the word unsplit, as a table may store it
+  const syn = CONCEPTS.synonyms[norm] ?? CONCEPTS.synonyms[flat] ?? CONCEPTS.synonyms[query];
   if (syn && REF[syn]) {
     // Say that the answer is a SYNONYM's, so `declare-help Popover` printing
     // Menu reads as an answer rather than a wrong lookup.
@@ -778,7 +836,8 @@ function answer() {
   }
   // terms are normalized the same way as the query — a stored "viewport-fit"
   // must match the query "viewport-fit" after both lose their hyphen
-  const normTerm = (t) => t.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+  // (split as the query is, so a stored `setTimeout animation` meets the asked one)
+  const normTerm = (t) => flatNorm(isRealName(query) ? t : camel(t));
   // FORMS — the language's own vocabulary: the top-level declarations, the
   // class-level keywords, the binding operators, the scope nouns. None of them
   // is a class, so the Class.attr model has no room for them and a lookup
@@ -804,13 +863,35 @@ function answer() {
   // React key prop) must not answer `onKeyDown`, nor `grid` answer `DataGrid` —
   // a substring match sent real names to "there is no such thing" (the 2026-09
   // reference audit).
+  // The entry whose term covers MOST of the query answers: a whole-query match,
+  // else the longest phrase, so `colour picker` is the colour picker's absence,
+  // not Select's for the one word `picker`. Ties keep the table's order.
   const hasPhrase = (hay, needle) => needle.length > 0 && (" " + hay + " ").includes(" " + needle + " ");
+  let bestNeg = null, bestLen = 0;
   for (const neg of CONCEPTS.negative) {
-    if (neg.terms.some((t) => norm === normTerm(t) || hasPhrase(norm, normTerm(t)))) {
-      for (const line of neg.answer.split("\n")) say(line);
-      json = { kind: "negative", terms: neg.terms, answer: neg.answer };
-      return true;
+    for (const t of neg.terms) {
+      const n = normTerm(t);
+      const len = norm === n ? Infinity : hasPhrase(norm, n) ? n.split(" ").length : 0;
+      if (len > bestLen) { bestNeg = neg; bestLen = len; }
     }
+  }
+  if (bestNeg !== null) {
+    for (const line of bestNeg.answer.split("\n")) say(line);
+    json = { kind: "negative", terms: bestNeg.terms, answer: bestNeg.answer };
+    return true;
+  }
+
+  // bare method — the class that declares it first (the base the others
+  // override), with the overriding classes named: `tabOrder` is View's. After
+  // the curated absences, which a coincidental method (`select`) must not mask
+  const methodOwners = Object.keys(REF).filter((id) => REF[id].internal !== true && id.endsWith(`.method.${query}`) && id.split(".").length === 3).map((id) => id.split(".")[0]);
+  if (methodOwners.length > 0) {
+    const base = [...methodOwners].sort((a, b) => chainOf(a).length - chainOf(b).length)[0];
+    sayEntry(REF[`${base}.method.${query}`]);
+    const others = methodOwners.filter((c) => c !== base);
+    if (others.length > 0) say(`  also declared by: ${others.slice(0, ALL ? Infinity : 8).join(", ")}${others.length > 8 && !ALL ? `, …and ${others.length - 8} more (--all)` : ""} — declare-help <Class>.${query}`);
+    json = { kind: "entry", entry: REF[`${base}.method.${query}`], owners: methodOwners };
+    return true;
   }
 
   // A MEMBER of a shared interface, by its bare name — `fillText`, `beginPath`,
@@ -848,8 +929,14 @@ function answer() {
   // a host global (document, localStorage, process …) — the compiler's own
   // answer, verbatim, so the tool and the diagnostic cannot disagree
   if (hostGlobalHint(query) !== null) return answerHostGlobal();
+  // a word of one closed vocabulary, spelled as written (`rowHeader`): that
+  // vocabulary, not the entries whose prose happens to mention it
+  const ofEnums = Object.keys(SPINE.enums).filter((k) => SPINE.enums[k].includes(query));
+  if (ofEnums.length === 1) { say(`'${query}' is a token of ${ofEnums[0]}:`); return sayEnum(ofEnums[0]); }
   // foreign near-miss for the whole query (colour → color's hint)
-  const hinted = hintedForeignName(query);
+  // (the same real-name guard as the exact key above: a near-miss of a hint key
+  // that is itself a real name — `tabOrder`, two edits from `border` — answers as itself)
+  const hinted = isRealName(query) || onARecord ? null : hintedForeignName(query);
   if (hinted !== null) { say(`'${query}' is not a Declare name${cssAttributeHint(hinted)}`); json = { kind: "foreign", name: query, hint: cssAttributeHint(hinted) }; return true; }
   // unscoped near-miss, stricter than the compiler's (§4): one edit only
   const nearAttr = nearestName(query, [...new Set(CLASS_NAMES.flatMap((c) => Object.keys(schemaOf(c).attrs)))], 1);

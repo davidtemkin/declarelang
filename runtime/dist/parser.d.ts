@@ -156,7 +156,7 @@ export interface AttrDecl {
     route?: "list" | "corners";
     slotType?: AttrType;
 }
-/** A navigable target extracted from an activation handler's `navigate(to)`
+/** A navigable target extracted from an activation handler's `openURL(to)`
  *  call (capabilities.md §6, links.ts): a literal URL, or a read-path to
  *  evaluate against the instance at t=0 (`this.url` — the value carries the
  *  URL, and its emptiness carries the conditionality). Compiler-attached and
@@ -179,6 +179,13 @@ export interface Element {
     decls: AttrDecl[];
     methods: Method[];
     children: Element[];
+    /** `record: Seat` in a class (or on an instance): the schema the `:` reads
+     *  inside stand on, for the schema check — written where a class's use sites
+     *  give it records of different schemas. Not a member. */
+    recordType?: {
+        name: string;
+        pos: Pos;
+    };
     /** An embedded raw `{ }` body (`events: Dataset { …json… }`, language §9) —
      *  captured verbatim; whether the tag admits one (and what the text means)
      *  is the checker's question. Absent for `[ ]`-bodied elements. */
@@ -195,7 +202,7 @@ export interface Element {
      *  child's name belongs to the element it is written in. */
     existsOf?: true;
     /** The navigable target of this element's activation handler, when the
-     *  compiler's link extraction (compiler/src/links.ts) found a `navigate(to)`
+     *  compiler's link extraction (compiler/src/links.ts) found an `openURL(to)`
      *  call in it. Rides the serialized program / a walk-order side-list. */
     link?: LinkTarget;
     /** On a routed program: this named child is the VALUE of a class-typed slot
@@ -230,7 +237,7 @@ export interface TopDecl {
  *  marker lives in the shape, which is what lets a shape and a replication
  *  walk agree), and `tags[]: string` (an array of scalars). Identity is NOT
  *  declared — it is INFERRED from a record's `id` field by convention (ruled
- *  2026-07-30, the invisible version; `key = :field` is the explicit
+ *  2026-07-30, the invisible version; `identityKey = :field` is the explicit
  *  override, the structural-equality fallback beneath). `type` is null
  *  exactly when `fields` carries a nested shape. */
 export interface ShapeField {

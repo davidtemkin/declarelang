@@ -382,7 +382,8 @@ async function precompileBodies(program, made = {}) {
     for (const k of Object.keys(v)) walk(v[k]);
   };
   walk(program);
-  const scriptFns = scripts.map((sc) => `function() { ${sc.src}\n }`);
+  // a script shares the bodies' runtime scope (expr.ts evalScript), one function in
+  const scriptFns = scripts.map((sc) => `function($d) { const { ${helpers.join(", ")} } = $d; return (function () { ${sc.src}\n })(); }`);
   scripts.forEach((sc, i) => { sc.src = "\u0000" + i; sc.compiled = true; });   // each token evaluates alone
   // the functions each token names, for the sizes report to weigh
   made.fns = fns; made.scriptFns = scriptFns;

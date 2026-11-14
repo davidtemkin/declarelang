@@ -38,11 +38,11 @@ await test("click selects; the selection holds RECORDS; row visuals derive from 
   const rows = rowsOf(app.t);
   rows[2].onClick();
   settle();
-  assert.equal(app.t.selected, app.d.value.rows[2], "the value is the member — the record itself");
+  assert.equal(app.t.selectedItem, app.d.value.rows[2], "the value is the member — the record itself");
   assert.deepEqual(app.t.selection.map((r) => r.id), [2]);
   assert.equal(rows[2].selected, true, "the row PRESENTS membership");
   assert.equal(rows[1].selected, false);
-  assert.equal(app.t.active, app.d.value.rows[2], "click lands the keyboard position too");
+  assert.equal(app.t.activeItem, app.d.value.rows[2], "click lands the keyboard position too");
 });
 
 await test("the protocol: toggle, range from the anchor, single-mode replace", async () => {
@@ -72,7 +72,7 @@ await test("keyboard: arrows move-and-select, shift extends, the ⌘-walk + Spac
   const t = app.t;
   t.onKeyDown(KEY("ArrowDown"));                  // → row 0, selected
   settle();
-  assert.equal(t.active.id, 0);
+  assert.equal(t.activeItem.id, 0);
   assert.deepEqual(t.selection.map((r) => r.id), [0]);
   t.onKeyDown(KEY("ArrowDown", { shift: true })); // extend 0..1
   t.onKeyDown(KEY("ArrowDown", { shift: true })); // extend 0..2
@@ -81,18 +81,18 @@ await test("keyboard: arrows move-and-select, shift extends, the ⌘-walk + Spac
   t.onKeyDown(KEY("ArrowDown", { meta: true }));  // ⌘-walk: position only
   t.onKeyDown(KEY("ArrowDown", { meta: true }));
   settle();
-  assert.equal(t.active.id, 4, "the walk moved the position…");
+  assert.equal(t.activeItem.id, 4, "the walk moved the position…");
   assert.deepEqual(t.selection.map((r) => r.id), [0, 1, 2], "…and the selection stood still");
   t.onKeyDown(KEY(" "));                          // Space toggles at the position
   settle();
   assert.deepEqual(t.selection.map((r) => r.id), [0, 1, 2, 4], "keyboard parity for discontiguous selection");
   t.onKeyDown(KEY("End", { meta: true }));
   settle();
-  assert.equal(t.active.id, 5, "End jumps the position");
+  assert.equal(t.activeItem.id, 5, "End jumps the position");
 });
 
-await test("the delivery seam: a use-site input() owns the value; the default writes the slots", async () => {
-  const app = await makeApp("", 6, 'input(sel: object) { app.delivered = sel },');
+await test("the delivery seam: a use-site commit() owns the value; the default writes the slots", async () => {
+  const app = await makeApp("", 6, 'commit(sel: object) { app.delivered = sel },');
   const rows = rowsOf(app.t);
   rows[1].onClick();
   settle();
@@ -107,7 +107,7 @@ await test("selection is record-anchored: it survives data reorder", async () =>
   settle();
   app.d.move(["rows"], 1, 4);
   settle();
-  assert.equal(app.t.selected, rec, "the record stays selected wherever it moves");
+  assert.equal(app.t.selectedItem, rec, "the record stays selected wherever it moves");
   const nowAt = rowsOf(app.t).findIndex((r) => r.selected);
   assert.equal(nowAt, 4, "the visual follows the record to its new place");
 });
@@ -139,7 +139,7 @@ await test("windowed: ranges cross the window and arrow travel materializes the 
   app.t.activeIndex = 800;
   app.t.onKeyDown(KEY("ArrowDown"));
   settle();
-  assert.equal(app.t.active.id, 801);
+  assert.equal(app.t.activeItem.id, 801);
   const inst = rowsOf(app.t).find((r) => r.tableIndex() === 801);
   assert.ok(inst !== undefined, "the destination materialized on arrival");
   assert.equal(inst.selected, true);
@@ -171,7 +171,7 @@ await test("written members: rows ARE the members (the RadioGroup practice); sel
   settle();
   app.t.b.onClick();
   settle();
-  assert.equal(app.t.selected, app.t.b, "a written member IS the child view");
+  assert.equal(app.t.selectedItem, app.t.b, "a written member IS the child view");
   assert.equal(app.t.b.selected, true);
   app.t.rowClick(2, app.t.c, false, true); // shift-range b..c over child order
   settle();

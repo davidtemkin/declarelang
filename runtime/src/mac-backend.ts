@@ -88,7 +88,7 @@ export const OP = {
   EDITAPPLY: 51,
 } as const;
 
-/** A Declare motion token as the cubic bezier the host animates with — the
+/** A Declare easing token as the cubic bezier the host animates with — the
  *  platform's motion honoring the program's curve (scrolling.md: "where a
  *  provider can honor a Declare motion curve it does"). Penner's families as
  *  their standard CSS approximations; unknown → cubicOut, the scroll default. */
@@ -104,10 +104,10 @@ const GLIDE_BEZIERS: Record<string, [number, number, number, number]> = {
   circIn: [0.55, 0, 1, 0.45], circOut: [0, 0.55, 0.45, 1], circBoth: [0.85, 0, 0.15, 1],
   backIn: [0.36, 0, 0.66, -0.56], backOut: [0.34, 1.56, 0.64, 1], backBoth: [0.68, -0.6, 0.32, 1.6],
 };
-function glideBezier(motion: string | undefined): [number, number, number, number] {
-  return GLIDE_BEZIERS[motion ?? "cubicOut"] ?? GLIDE_BEZIERS.cubicOut;
+function glideBezier(easing: string | undefined): [number, number, number, number] {
+  return GLIDE_BEZIERS[easing ?? "cubicOut"] ?? GLIDE_BEZIERS.cubicOut;
 }
-type Glide = { duration?: number; motion?: string };
+type Glide = { duration?: number; easing?: string };
 
 /** The host side of the bridge — provided by the Swift shell before boot. */
 export interface MacHost {
@@ -868,7 +868,7 @@ class MacSurface implements Surface, SceneSurface {
       // Typographical treatments — the paint vocabulary the web backends carry.
       // Colors ride as CSS strings here (the standalone TEXTSTYLE convention),
       // unlike the rich-run bridge which sends color numbers.
-      outline: style.outline == null ? null : { width: style.outline.width, color: colorToCss(style.outline.color) },
+      outline: style.textStroke == null ? null : { width: style.textStroke.width, color: colorToCss(style.textStroke.color) },
       textTransform: style.textTransform == null || style.textTransform === "none" ? null : style.textTransform,
       smallCaps: style.smallCaps === true,
       underline: style.underline === true,
@@ -1010,7 +1010,7 @@ class MacSurface implements Surface, SceneSurface {
     if (!this.scrolls || this.gestureLive) return;
     const ext = this.pageExtentY();
     const next = Math.min(Math.max(0, ext - this.viewportH), Math.max(0, v));
-    if (glide !== undefined) { emit(OP.SCROLLGLIDE, this.id, 1, next, glide.duration ?? 260, ...glideBezier(glide.motion)); return; }
+    if (glide !== undefined) { emit(OP.SCROLLGLIDE, this.id, 1, next, glide.duration ?? 260, ...glideBezier(glide.easing)); return; }
     // a request past the end as this surface knows it: the box may change in
     // the same update (a pane shrinking takes its offset with it), so the flush
     // (reclampScrollers), which sees the box as it lands, settles what was
@@ -1032,14 +1032,14 @@ class MacSurface implements Surface, SceneSurface {
     if (!this.scrollsX || this.gestureLive) return;
     const ext = this.pageExtentX();
     const next = Math.min(Math.max(0, ext - this.viewportW), Math.max(0, v));
-    if (glide !== undefined) { emit(OP.SCROLLGLIDE, this.id, 0, next, glide.duration ?? 260, ...glideBezier(glide.motion)); return; }
+    if (glide !== undefined) { emit(OP.SCROLLGLIDE, this.id, 0, next, glide.duration ?? 260, ...glideBezier(glide.easing)); return; }
     if (next === this.scrollXOffset) { if (v !== next) this.onScrollXCb?.(next); return; }
     this.scrollXOffset = next;
     this.onScrollXCb?.(next);
     emit(OP.SCROLLXPOS, this.id, next, ext);
   }
 
-  scrollIntoView(align: "start" | "nearest" = "nearest", smooth = false): void {
+  scrollIntoView(align: "start" | "nearest" = "nearest", smooth = false, inset = 0): void {
     this.revealX(align, smooth);
     // Walk to the nearest scrolling ancestor, accumulating this surface's
     // offset within it — the canvas backend's math, verbatim.
@@ -1048,17 +1048,21 @@ class MacSurface implements Surface, SceneSurface {
     while (sc !== null && !sc.scrolls) { top += sc.y; sc = sc.parent; }
     if (sc === null) return;
     const bottom = top + this.height;
-    const viewTop = sc.scrollOffset;
-    const viewBottom = viewTop + sc.viewportH;
+    // `inset`: the top `inset` px are covered (fixed chrome) — DOM's
+    // scroll-margin-top: the view lands that far below the top, a view under
+    // the band is not yet shown, and the bottom edge is unchanged
+    const viewTop = sc.scrollOffset + inset;
+    const viewBottom = sc.scrollOffset + sc.viewportH;
+    const room = sc.viewportH - inset;
     let next = sc.scrollOffset;
     // Same `nearest` rule as revealX — measured against Chrome on the embedded
     // desktop's Files-column reveal: a column TALLER than the island viewport,
     // below the fold, top-aligns there (minimal); the far-edge alignment this
     // used to do scrolled ~100px further than the reference.
-    if (align === "start") next = top;
+    if (align === "start") next = top - inset;
     else if (top < viewTop && bottom > viewBottom) { /* covers the viewport */ }
-    else if (top < viewTop) next = this.height > sc.viewportH ? bottom - sc.viewportH : top;
-    else if (bottom > viewBottom) next = this.height > sc.viewportH ? top : bottom - sc.viewportH;
+    else if (top < viewTop) next = this.height > room ? bottom - sc.viewportH : top - inset;
+    else if (bottom > viewBottom) next = this.height > room ? top - inset : bottom - sc.viewportH;
     const max = Math.max(0, sc.pageExtentY() - sc.viewportH);
     next = Math.min(max, Math.max(0, next));
     if (next !== sc.scrollOffset) {
@@ -1091,10 +1095,10 @@ class MacSurface implements Surface, SceneSurface {
 
   /** The sink, plus WHAT THIS VIEW ASKED FOR.
    *
-   *  `wants` is not decoration: the shared router reads `wantsDbl` off the hit
+   *  `wants` is not decoration: the shared router reads `wantsDoubleClick` off the hit
    *  target to decide whether to HOLD a click for the double-click window, and
    *  `wantsHold` to arm the hold timer. A backend that drops it silently loses
-   *  onDblClick and onHold — the DOM backend keeps the same fact in a WANTS map
+   *  onDoubleClick and onHold — the DOM backend keeps the same fact in a WANTS map
    *  and spreads it onto every hit target, so this mirrors it exactly.
    *  `wantsTouch` is recorded for symmetry; a Mac mouse never reports fingers. */
   setInput(sink: InputSink | null, wants?: InputWants): void {
@@ -1117,6 +1121,9 @@ class MacSurface implements Surface, SceneSurface {
       value: spec.value ?? "", placeholder: spec.placeholder ?? "",
       // whether a change is put to the field before it lands (the host waits, bounded)
       admits: spec.admit !== undefined,
+      // TextInput.showsCaret: a field that holds the keyboard showing no caret
+      // and no selection highlight (a DataGrid's selected cell)
+      caret: spec.caret !== false,
       // An editable carries its OWN style — the DOM backend styles the element
       // from `spec.style`, not from the surface's text style. Leaving it out made
       // every field fall back to the default face, which is why the Viewer's

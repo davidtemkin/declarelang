@@ -132,8 +132,8 @@ App [ appName = "What's under the hood · Declare",
             top: View [
                 Segmented [ x = center, width = 300, height = 32,
                     value = { app.heroActual ? "is" : "looks" },
-                    choices = { [ ({ id: "looks", label: "What it looks like" }), ({ id: "is", label: "What it is" }) ] },
-                    input(v: object) { app.heroMode = "" + v }
+                    items = { [ ({ id: "looks", label: "What it looks like" }), ({ id: "is", label: "What it is" }) ] },
+                    commit(v: object) { app.heroMode = "" + v }
                     ]
                 ],
             Plate [ pad = 0,

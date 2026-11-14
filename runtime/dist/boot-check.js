@@ -6,8 +6,9 @@
 // The runtime decides every box, so a boot has the real layout. In a browser it
 // also has the real text; headless, text is measured by a stand-in, and the
 // checks that rest on text are left out (`realText`).
+import { constructedClasses } from "./node.js";
 import { View } from "./view.js";
-import { rootFrameBox, pressAt } from "./interaction.js";
+import { rootFrameBox, pressAt, pointerOff } from "./interaction.js";
 import { findPath as find, pathOf } from "./node-path.js";
 import { at } from "./errors.js";
 import { isSet, ownerOf, percentOwned, setBound } from "./attributes.js";
@@ -17,8 +18,9 @@ import { settle } from "./reactive.js";
 import { declareName } from "./declare-name.js";
 import { inColumns } from "./columns.js";
 import { Focus } from "./focus.js";
+import { judgeEmptyContainers } from "./size-report.js";
 export function bootCheck(app, opts = {}) {
-    const record = { nodes: 0, notes: [], layout: [], unbuilt: [], answers: [], samples: [], flagged: [] };
+    const record = { nodes: 0, notes: [], layout: [], faults: [], unbuilt: [], neverBuilt: [], answers: [], samples: [], flagged: [] };
     if (opts.feed) {
         const fed = feedSchemaSamples(app, record.samples);
         if (fed > 0) {
@@ -32,9 +34,15 @@ export function bootCheck(app, opts = {}) {
     walk(app);
     record.notes.push(...outOfReach(app));
     record.layout.push(...tabAgainstSight(app));
-    record.layout.push(...layoutChecks(app, opts, record.flagged));
-    if (opts.classes !== undefined)
+    record.layout.push(...layoutChecks(app, opts, record.flagged, record.faults));
+    if (opts.classes !== undefined) {
         record.unbuilt = unbuiltClasses(app, opts.classes);
+        const ever = new Set();
+        for (const k of constructedClasses())
+            for (let c = k; c && c !== Object; c = Object.getPrototypeOf(c))
+                ever.add(c.name);
+        record.neverBuilt = record.unbuilt.filter((n) => !ever.has(n));
+    }
     if (opts.queries)
         record.answers = answer(app, opts.queries);
     return record;
@@ -122,15 +130,34 @@ function tabAgainstSight(app) {
     const floating = (v) => { for (let a = v; a instanceof View; a = a.parent)
         if (isA(a, "Floating") || a.ignoreScroll)
             return true; return false; };
+    // shown: itself and every view above it visible (Focus leaves the rest out of
+    // the walk; a stop it names is checked the same way)
+    const shown = (v) => { for (let a = v; a instanceof View; a = a.parent)
+        if (!a.visible)
+            return false; return true; };
+    const holds = (a, v) => { for (let n = v; n instanceof View; n = n.parent)
+        if (n === a)
+            return true; return false; };
+    // where the eye sees a stop, against one outside its scroller: the scroller's
+    // own place on the page (the outermost one the other is not in). A field below
+    // the fold is read inside its pane, so the bar below the pane — fixed chrome,
+    // a sibling of the scroller (View.scrolls) — comes after it, not above it.
+    const seen = (v, other) => {
+        let s = null;
+        for (let a = v.parent; a instanceof View && a.parent !== null; a = a.parent)
+            if (a.scrolls !== "none" && !holds(a, other))
+                s = a;
+        return box(s ?? v);
+    };
     for (let i = 0; i + 1 < seq.length && out.length < 3; i++) {
         const a = seq[i], b = seq[i + 1];
-        if (!a.visible || !b.visible || floating(a) || floating(b))
+        if (!shown(a) || !shown(b) || floating(a) || floating(b))
             continue;
         // a step into or out of a program running inside this one, or onto a
         // program's own root, is a boundary, not a place on the page
         if (a.$root !== b.$root || b === b.$root || a === a.$root)
             continue;
-        const A = box(a), B = box(b);
+        const A = seen(a, b), B = seen(b, a);
         if (A.width <= 0 || A.height <= 0 || B.width <= 0 || B.height <= 0)
             continue;
         const sameRow = Math.min(A.y + A.height, B.y + B.height) - Math.max(A.y, B.y) >= Math.min(A.height, B.height) / 2;
@@ -146,7 +173,7 @@ function tabAgainstSight(app) {
 /** A size for a message: whole when it is whole, else to a tenth, so 43.6 is not
  *  said as 44 under a rule that it be at least 44. */
 const size1 = (n) => (Math.abs(n - Math.round(n)) < 0.05 ? String(Math.round(n)) : n.toFixed(1));
-function layoutChecks(app, { touch = false, realText = false, skip = [] }, flagged) {
+function layoutChecks(app, { touch = false, realText = false, skip = [] }, flagged, faults) {
     const skipped = new Set(skip);
     // a control reported once is not reported again: kept by kind and path
     const fresh = (kind, path) => {
@@ -180,8 +207,10 @@ function layoutChecks(app, { touch = false, realText = false, skip = [] }, flagg
         const bad = ["width", "height", "x", "y"].find((k) => !Number.isFinite(v[k]));
         if (bad !== undefined) {
             if (fresh("nan", pathOf(app, v))) {
-                const where = ownerOf(v, bad)?.sourcePos ?? null;
-                out.push(`${pathOf(app, v)} (${declareName(v)}) has ${bad} ${v[bad]}${at(where)} — it is not a number, so it and everything in it draw nothing. Something it reads is undefined or not a number: a layout's parameter left unset, a field read before it arrives, a division by zero.`);
+                const owner = ownerOf(v, bad);
+                const where = owner?.sourcePos ?? null;
+                const cause = `Something it reads is undefined or not a number: a layout's parameter left unset, a field read before it arrives, a division by zero.`;
+                out.push(`${pathOf(app, v)} (${declareName(v)}) has ${bad} ${v[bad]}${at(where)} — it is not a number, so it and everything in it draw nothing. ${cause}`);
             }
             return;
         }
@@ -214,7 +243,7 @@ function layoutChecks(app, { touch = false, realText = false, skip = [] }, flagg
         // A CELL WITH NOTHING IN IT: under `columns` a child keeps its own width and
         // takes its cell's only when it flexes — one whose own width is 0 (sized by
         // what it holds, which is sized from it) draws nothing in its cell
-        // (one whose children all take their width from it is said at boot, as a
+        // (one whose children all take their width from it is said below, as a
         // size nothing decides, in the same words)
         {
             const cycle = (c) => c.children.some((k) => k instanceof View) && c.children.every((k) => !(k instanceof View) || !k.visible || k.ignoreLayout || percentOwned(k, "width"));
@@ -330,7 +359,7 @@ function layoutChecks(app, { touch = false, realText = false, skip = [] }, flagg
         // (a control that lets presses through — pointerEvents = none, a seat a
         // tap must first bring close — is no one's target there, so neither
         // question is asked of it)
-        const passes = v.pointerEvents === "none";
+        const passes = pointerOff(v);
         const shown = isA(v, "Control") || isA(v, "TextInput") ? rootFrameBox(v) : null;
         // a control scrolled partly out of a scroller it sits in is brought clear
         // by scrolling, which a person does, and one a clipping view cuts off is
@@ -388,6 +417,10 @@ function layoutChecks(app, { touch = false, realText = false, skip = [] }, flagg
     };
     if (app instanceof View)
         visit(app, false);
+    // A VIEW WHOSE SIZE NOTHING DECIDES — or only its padding, its children hanging
+    // outside (size-report.ts) — asked here, where a view shown only later is too
+    if (app instanceof View)
+        faults.push(...judgeEmptyContainers(app, (key) => fresh("empty", key)));
     if (covered.length > 0)
         out.push(`${covered.length} control(s) another view takes the presses of: at the control's centre a press — and a screen reader's activation — reaches the other view instead: ${covered.slice(0, 4).join(", ")}${covered.length > 4 ? ", …" : "."} If the cover is meant only for a pointer, keep it off while a control is focused or a screen reader is on; otherwise let the press through (pointerEvents = none) or place the control above it.`);
     if (touchSmall.length > 0)

@@ -59,11 +59,6 @@ export declare function noteEffect(): void;
 export declare function noteOrigin(label: string, node?: object | null): void;
 /** Is a settle running now (a rule body, a step, a change handler)? */
 export declare function isSettling(): boolean;
-/** Is there work the table does not yet reflect — a settle scheduled, writes
- *  or reads in the rings, or a settle mid-flight? Answered without a call
- *  (the kernel's flag and counts are views): a declared default's untracked
- *  read evaluates live while this holds (attributes.ts declStale). */
-export declare function workPending(): boolean;
 export declare function loadJsKernel(): Promise<void>;
 /** THE KERNEL A BUILD CARRIES (build-flags.d.ts __DECLARE_KERNEL__). A
  *  `--kernel=js` build imports the JavaScript kernel and nothing else: the
@@ -243,6 +238,20 @@ export declare class Constraint {
     /** Is a recompute of this rule queued (its inputs moved; the table lags)?
      *  Pending ring writes are flushed first so the answer reflects them. */
     isQueued(): boolean;
+    /** @internal The JS cell this rule writes (its slot is not a table slot),
+     *  or -1 — so a reader's staleness walk can find it (isBehind). */
+    writesRef: number;
+    /** @internal Name the JS cell `cell` as this rule's output. */
+    writesCell(cell: number): void;
+    /** Is this rule's value behind the world — its recompute queued, or not yet
+     *  run, or anything it read written by a rule that is (transitively)? A
+     *  handler's write queues only the rule that read it; a rule reading THAT
+     *  rule's output is queued when it lands, at the settle. So a rule none of
+     *  whose inputs moved is current even while other work is pending — what an
+     *  untracked read of a declared default asks (attributes.ts declStale): a
+     *  default that is not behind answers its stored value, and one that keeps
+     *  an object (`{ new Map() }`) keeps its identity. */
+    isBehind(): boolean;
     /** KERNEL-NATIVE: the rule is evaluated entirely by the kernel (an EXPR
      *  body, bind.ts); this object is its handle for ownership, labels and
      *  disposal. The kernel never calls back into it. */

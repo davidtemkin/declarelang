@@ -2,14 +2,14 @@
 # Tree
 
 An outline whose rows open and close to show their children — a file browser, the
-sidebar of a mail program or a Finder window. Like `Segmented`'s choices and `Menu`'s
+sidebar of a mail program or a Finder window. Like `Segmented`'s and `Menu`'s
 items, what it shows is **data**: nested records, each `{ id, label, icon?, children? }`.
 
 ```declare-fragment
 Tree [ width = 240, accessibilityLabel = "Files",
     items = { app.folders },
-    value = { app.picked }, input(v: string) { app.picked = v },
-    expanded = { app.openFolders }, expandInput(ids: array) { app.openFolders = ids }
+    value = { app.picked }, commit(v: string) { app.picked = v },
+    expanded = { app.openFolders }, applyExpanded(ids: array) { app.openFolders = ids }
     ]
 ```
 
@@ -17,8 +17,8 @@ The Tree holds two values, and both follow the value pattern: **`value`**, the i
 selected row, and **`expanded`**, the ids of the rows that are open. Neither is written
 into the records — the records say what the outline holds, the two values say where the
 person is in it — so the same records can stand under two trees open in different
-places. Each value works standalone, or is owned by the program through `input` and
-`expandInput`.
+places. Each value works standalone, or is owned by the program through `commit` and
+`applyExpanded`.
 
 The rows on screen are the open part of the outline, flattened into a dataset and
 replicated as `TreeRow`s. Every row is built, none virtualized: a tree is for tens or
@@ -48,7 +48,7 @@ their labels.
 App [ width = 320, height = 300, picked: string = "notes",
     Tree [ x = 20, y = 20, width = 280, accessibilityLabel = "Documents",
         expanded = ["docs"],
-        value = { app.picked }, input(v: string) { app.picked = v },
+        value = { app.picked }, commit(v: string) { app.picked = v },
         items = { [
             ({ id: "docs", label: "Documents", children: [
                 ({ id: "notes", label: "Notes.txt" }),
@@ -72,23 +72,24 @@ whole tree — selection and the open rows are held by it. `icon` names an icon 
 the array is empty.
 
 ## value
-The **id of the selected row**, `""` for none. Constrain it to your own state and
-override `input` to own it, or leave it alone and read it back. Selecting a row inside a
+The **id of the selected row**, `""` for none. Bind it both ways to your own state
+(`value <-> app.picked`), or constrain it and override `commit` to own it, or leave it alone
+and read it back. Selecting a row inside a
 closed parent leaves the parent closed: open the ancestors through `expanded` to show it.
 
-## input()
+## commit()
 **Where the selection goes**, receiving the picked id. The default writes `value`;
 override it to own the destination.
 
 ## select()
-Selects a row by id, routing through `input`. What a click, Enter and Space call.
+Selects a row by id, routing through `commit`. What a click, Enter and Space call.
 
 ## expanded
 The **ids of the open rows**. A row whose parent is closed stays hidden whatever this
 says, and opens again as it was when its parent does. Constrain it and override
-`expandInput` to own it, exactly as `value` with `input`.
+`applyExpanded` to own it, exactly as `value` with `commit`.
 
-## expandInput()
+## applyExpanded()
 **Where the open rows go**, receiving the whole new list of ids. The default writes
 `expanded`; override it to own the destination.
 
@@ -96,10 +97,10 @@ says, and opens again as it was when its parent does. Constrain it and override
 Whether a row is open, by id.
 
 ## openRow()
-Opens a row by id, routing through `expandInput`. Does nothing to a row already open.
+Opens a row by id, routing through `applyExpanded`. Does nothing to a row already open.
 
 ## closeRow()
-Closes a row by id, routing through `expandInput`. Its descendants keep their own
+Closes a row by id, routing through `applyExpanded`. Its descendants keep their own
 open state for when it opens again.
 
 ## toggle()
@@ -171,7 +172,7 @@ class Tree [
     accessibilityLabel = "",
 
     items: array = [],
-    disabled: boolean = false,
+    disabled: boolean = { provided("disabled", false) },     // a container switched off switches this off
     width = 240,
     indent: number = 16,
     opacity = { disabled ? (provided("theme").disabledOpacity) : 1 },
@@ -179,14 +180,14 @@ class Tree [
     // ── the two values, each the value pattern ────────────────────────────
 
     value: string = "",
-    input(v: string) { value = v },
-    select(id: string) { input(id) },
+    commit(v: string) { value = v },
+    select(id: string) { commit(id) },
 
     expanded: array = [],
-    expandInput(ids: array) { expanded = ids },
+    applyExpanded(ids: array) { expanded = ids },
     isOpen(id: string) -> boolean { return (this.expanded ?? []).includes(id) },
-    openRow(id: string) { if (!this.isOpen(id)) expandInput((this.expanded ?? []).concat([id])) },
-    closeRow(id: string) { if (this.isOpen(id)) expandInput((this.expanded ?? []).filter((x) => x !== id)) },
+    openRow(id: string) { if (!this.isOpen(id)) applyExpanded((this.expanded ?? []).concat([id])) },
+    closeRow(id: string) { if (this.isOpen(id)) applyExpanded((this.expanded ?? []).filter((x) => x !== id)) },
     toggle(id: string) { if (this.isOpen(id)) closeRow(id); else openRow(id) },
 
     // ── the rows on screen: the open part of the outline, flattened ───────
@@ -234,7 +235,7 @@ class Tree [
         if (Focus.getFocus() == v) v.scrollIntoView("nearest")
         },
 
-    // the second click a row pairs with. Not the platform's onDblClick: that
+    // the second click a row pairs with. Not the platform's onDoubleClick: that
     // makes every single click wait out the double window, and a click on a
     // row must select at once.
 

@@ -212,7 +212,7 @@ place by `center` or `end`. This is where an intuition from CSS misleads, becaus
 width can be worked out from the content and given back to the children in the same pass.
 The tempting mistake is to leave the list's width out, as if it could take the width of its
 widest row while each row takes the width of the list. Each size would wait on the other,
-and the program says so when it starts:
+and verify says so when it boots the program:
 
 > View.width (app.list) is 0 — it takes its width from its children, and every one of them (NoteRow)
 > takes its width from it, so nothing decides it. To make them as wide as the widest, remove

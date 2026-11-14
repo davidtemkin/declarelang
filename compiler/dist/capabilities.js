@@ -105,7 +105,7 @@ export const CAPABILITIES = [
         modules: ["schema"], when: [], hostsKeep: true, refusal: "unused", subset: { export: "SCHEMAS", keys: "classes" } },
     { id: "size-report", describe: "the authoring reports of a size nothing decides: a child sized from a parent with no size to give, a container whose children all take their size from it",
         modules: ["size-report"], when: [{ build: { debug: true } }], refusal: "unused",
-        inert: { noteNegativeSize: "noop", judgeNegativeSizes: "noop", judgeEmptyContainers: "noop" } },
+        inert: { noteNegativeSize: "noop", judgeNegativeSizes: "noop", judgeEmptyContainers: "array" } },
     // ── classes and constructs the core recognises but need not carry ─────────
     // (data — Dataset, cursors, region cells and the path selectors — ships in
     // every build: a datapath can arrive as a view's member, from createView's
@@ -133,7 +133,7 @@ export const CAPABILITIES = [
         when: [{ classes: ["DOMIsland"] }],
         inert: { wireIslands: { returns: { members: { renderChild: "noop", retry: "noop", discover: "noop", dispose: "noop" } } } } },
     // motion: a Spring follows physics; the timed run, its curves, groups and the
-    // tweening layout come only with the classes that use them (`motion` is an
+    // tweening layout come only with the classes that use them (`easing` is an
     // Animator's and an AnimatorGroup's attribute, so the class carries the curves)
     { id: "animator", describe: "Animator: the motion family's shared base", modules: ["animator"], hostsKeep: true, refusal: "unused",
         when: [{ classes: ["Animator"] }] },
@@ -141,7 +141,7 @@ export const CAPABILITIES = [
         hostsKeep: true, refusal: "unused", when: [{ classes: ["Spring"] }], inert: { arriveSubtree: "noop" } },
     { id: "tween", describe: "an Animator's timed run", modules: ["tween"], requires: ["animator", "easing"], hostsKeep: true, refusal: "unused",
         when: [{ ownClasses: ["Animator"] }, { classes: ["AnimatorGroup", "TweenLayout"] }] },
-    { id: "easing", describe: "the easing curves a motion names", modules: ["easing"], hostsKeep: true, refusal: "unused",
+    { id: "easing", describe: "the easing curves an Animator follows", modules: ["easing"], hostsKeep: true, refusal: "unused",
         when: [{ classes: ["Animator", "AnimatorGroup", "TweenLayout"] }, { build: { render: "canvas" } }], inert: { MOTION_TOKENS: "array" } },
     { id: "animator-group", describe: "AnimatorGroup", modules: ["animator-group"], requires: ["tween"], hostsKeep: true, refusal: "unused",
         when: [{ classes: ["AnimatorGroup"] }] },
@@ -184,7 +184,7 @@ function readBody(src, into) {
     };
     visit(file);
 }
-/** Constructor calls inside a literal value (`filter = [blur(3)]`, `fill = gradient(…)`). */
+/** Constructor calls inside a literal value (`visualFilter = [blur(3)]`, `fill = gradient(…)`). */
 function literalCalls(v, into) {
     if (v === null || typeof v !== "object")
         return;

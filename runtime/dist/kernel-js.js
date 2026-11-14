@@ -1221,7 +1221,8 @@ export function instantiateKernelJS(host, caps = {}) {
         },
         track: trackCell,
         settle,
-        pending: () => pendingFlag[0] === 1,
+        // what kernel.c's kernel_pending answers: a settle asked for, or work queued
+        pending: () => pendingFlag[0] === 1 || ringCount[0] > 0 || q[0].length > 0 || q[1].length > 0,
         dirty: () => {
             const out = new Uint32Array(dirtyList.length);
             for (let i = 0; i < dirtyList.length; i++) {

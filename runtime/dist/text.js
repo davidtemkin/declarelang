@@ -22,7 +22,7 @@
 // tracking); the derive *yields* to a direct author write. Wrapping /
 // multiline is a ruled open question (HANDOFF) — a run never wraps.
 import { View, onDiscard } from "./view.js";
-import { insetSides, shadowEqual, outlineEqual } from "./value.js";
+import { insetSides, shadowEqual, strokeEqual } from "./value.js";
 import { fontMetrics, fontString, textWidth, transformText, wrapLines, capHeight as measureCapHeight, xHeight as measureXHeight } from "./measure.js";
 import { holdsFamily, heldFamily } from "./font-value.js";
 /** A line count under `maxLines` (0 = no clamp). */
@@ -248,7 +248,7 @@ export class Text extends View {
                 direction: runDirection(this),
                 italic: this.italic,
                 textFill: this.textFill,
-                outline: this.outline,
+                textStroke: this.textStroke,
                 textTransform: this.textTransform,
                 smallCaps: this.smallCaps,
                 numerals: this.numerals,
@@ -319,7 +319,7 @@ defineAttributes(Text, {
     textFill: { def: null },
     // Typographical treatments — a Text wears them like textShadow/textFill; runs
     // get them through the RichText span path. Paint/decoration, per-Text.
-    outline: { def: null, equal: outlineEqual },
+    textStroke: { def: null, equal: strokeEqual },
     textTransform: { def: "none" },
     smallCaps: { def: false },
     // OpenType figures: `normal` on either axis is the face's own default, which

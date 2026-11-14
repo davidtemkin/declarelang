@@ -160,4 +160,17 @@ export function wireEditableInput(el, spec) {
     const sync = () => { reported = el.value; };
     el.$synced = sync;
 }
+/** A field that shows no caret and no selection highlight (`showsCaret = false`):
+ *  focused, it takes typing — and an input method's composing — while it reads
+ *  as plain text, as a spreadsheet's selected cell does. */
+let caretRule = false;
+export function applyCaret(el, shows) {
+    if (!shows && !caretRule && typeof document !== "undefined") {
+        caretRule = true;
+        const st = document.createElement("style");
+        st.textContent = ".declare-no-caret{caret-color:transparent}.declare-no-caret::selection{background:transparent}";
+        document.head.appendChild(st);
+    }
+    el.classList.toggle("declare-no-caret", !shows);
+}
 //# sourceMappingURL=editable-input.js.map

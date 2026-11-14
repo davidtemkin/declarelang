@@ -342,7 +342,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
     pickCellOf(o: View?) -> PickCell? { return o != null && o.parent != null && (o.parent as any).choices != null ? o.parent as PickCell : null },
     pickItems(o: View?) -> array {
         const c = app.pickCellOf(o)
-        return c == null ? [] : c.choices.map((v) => ({ id: v, label: v, checked: v == c.value }))
+        return c == null ? [] : c.choices.map((v) => ({ id: v, label: v, group: "choice", checked: v == c.value }))
         },
 
     resort(on: string, dir: string) {
@@ -363,10 +363,10 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
     stylingMenu: Menu [
         width = 240,
         items = { [
-            ({ id: "style:sanFrancisco", label: "San Francisco", checked: app.style == "sanFrancisco" }),
-            ({ id: "style:mountainView", label: "Mountain View", checked: app.style == "mountainView" }),
-            ({ id: "style:cupertino", label: "Cupertino", checked: app.style == "cupertino" }),
-            ({ id: "style:redmond", label: "Redmond", checked: app.style == "redmond" }),
+            ({ id: "style:sanFrancisco", label: "San Francisco", group: "style", checked: app.style == "sanFrancisco" }),
+            ({ id: "style:mountainView", label: "Mountain View", group: "style", checked: app.style == "mountainView" }),
+            ({ id: "style:cupertino", label: "Cupertino", group: "style", checked: app.style == "cupertino" }),
+            ({ id: "style:redmond", label: "Redmond", group: "style", checked: app.style == "redmond" }),
             ({ divider: true }),
             ({ kind: "TintRow" }),
             ({ divider: true }),
@@ -498,12 +498,12 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         brand: View [ x = 20, y = 15, height = 22,
             layout: SimpleLayout [ axis = x, spacing = 5 ],
 
-            // "Declare" is the way home — navigate() resolves against the
+            // "Declare" is the way home — openURL() resolves against the
             // distro root, so this works on either host at any mount point
 
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
                 textFill = { gradient("90deg", provided("theme").accent, provided("theme").accentSecondary) }, text = "Declare",
-                onClick() { app.navigate("apps/homepage/homepage.declare") }
+                onClick() { app.openURL("apps/homepage/homepage.declare") }
                 ],
 
             // on a narrow bar the app name hides first, leaving "Declare"
@@ -516,15 +516,15 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
 
         pageSwitch: TabBar [ y = { app.compact ? 52 : 11 },
             x = { app.compact ? (app.width - this.width) / 2 : Math.max(200, (app.width - this.width) / 2) },
-            segMin = { app.compact ? Math.min(92, (app.width - 32) / 6) : 92 },
+            segmentMinWidth = { app.compact ? Math.min(92, (app.width - 32) / 6) : 92 },
             value = { app.page },
-            input(v: object) { app.page = v as "controls" | "forms" | "table" | "grid" | "overlays" | "more" },
-            choices = { [ ({ id: "controls", label: "Controls" }),
-                          ({ id: "forms",    label: "Forms" }),
-                          ({ id: "table",    label: "Table" }),
-                          ({ id: "grid",     label: "DataGrid" }),
-                          ({ id: "overlays", label: "Overlays" }),
-                          ({ id: "more",     label: "More" }) ] }
+            commit(v: object) { app.page = v as "controls" | "forms" | "table" | "grid" | "overlays" | "more" },
+            items = { [ ({ id: "controls", label: "Controls" }),
+                        ({ id: "forms",    label: "Forms" }),
+                        ({ id: "table",    label: "Table" }),
+                        ({ id: "grid",     label: "DataGrid" }),
+                        ({ id: "overlays", label: "Overlays" }),
+                        ({ id: "more",     label: "More" }) ] }
             ],
 
         // at the right end: the STYLING door — a button with a menu (the
@@ -538,7 +538,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
             styling: Button [ height = 30, label = "Styling", menu = { app.stylingMenu } ],
             appear: AppearanceSwitch [
                 dark = { app.darkUI },
-                input(v: boolean) { app.themeMode = v ? "dark" : "light" }
+                commit(v: boolean) { app.themeMode = v ? "dark" : "light" }
                 ]
             ]
         ],
@@ -593,10 +593,10 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                             layout: SimpleLayout [ axis = y, spacing = 10 ],
                             Segmented [ width = { Math.min(260, parent.width) }, value = { app.span },
                                 accessibilityLabel = "Span",
-                                choices = { [ ({ id: "day", label: "Day" }),
-                                              ({ id: "week", label: "Week" }),
-                                              ({ id: "month", label: "Month" }) ] },
-                                input(v: string) { app.span = v }
+                                items = { [ ({ id: "day", label: "Day" }),
+                                            ({ id: "week", label: "Week" }),
+                                            ({ id: "month", label: "Month" }) ] },
+                                commit(v: string) { app.span = v }
                                 ],
                             Text [ fontSize = 12, textColor = { provided("theme").textMuted },
                                 text = { "showing a " + app.span } ]
@@ -604,7 +604,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                         size: View [ width = 100%,
                             layout: SimpleLayout [ axis = x, spacing = 12, align = center ],
                             TextSizeSwitch [ value = { app.readScale },
-                                input(v: object) { app.readScale = v as number }
+                                commit(v: object) { app.readScale = v as number }
                                 ],
                             Text [ fontSize = { 13 * app.readScale }, textColor = { provided("theme").textMuted }, text = "Text at this size" ]
                             ]
@@ -638,8 +638,8 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                     Specimen [ label = "Context menu",
                         pad: View [ width = 100%, height = 74,
                             cornerRadius = 8, fill = { provided("theme").background }, stroke = { stroke(1, provided("theme").line) },
-                            onContextMenu(e: PointerEvent) { app.ctxMenu.open(this, e) },
-                            onHold(e: PointerEvent) { app.ctxMenu.open(this, e) },
+                            onContextMenu(e: PointerEvent) { app.ctxMenu.showAt(this, e) },
+                            onHold(e: PointerEvent) { app.ctxMenu.showAt(this, e) },
                             Text [ x = 14, y = 14, fontSize = 13, textColor = { provided("theme").textMuted },
                                 text = "Right-click (or long-press) in this box." ],
                             got: Text [ x = 14, y = 40, fontSize = 12, textColor = { provided("theme").textMuted },
@@ -729,10 +729,10 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                         demo: View [ width = 100%,
                             layout: SimpleLayout [ axis = y, spacing = 12 ],
                             TabBar [ width = { Math.min(260, parent.width) }, value = { app.pane },
-                                choices = { [ ({ id: "general", label: "General" }),
-                                              ({ id: "privacy", label: "Privacy" }),
-                                              ({ id: "sync", label: "Sync" }) ] },
-                                input(v: string) { app.pane = v }
+                                items = { [ ({ id: "general", label: "General" }),
+                                            ({ id: "privacy", label: "Privacy" }),
+                                            ({ id: "sync", label: "Sync" }) ] },
+                                commit(v: string) { app.pane = v }
                                 ],
                             View [ visible = { app.pane == "general" },
                                 accessibilityRole = tabPanel, accessibilityLabel = "General",
@@ -884,10 +884,10 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                     widths = { app.gridNarrow
                         ? ({ id: 34, title: 116, state: 84, owner: 74, done: 44, ...(app.gridWidths ?? ({})) })
                         : app.gridWidths },
-                    resizeInput(id: string, w: number) {
+                    applyColumnWidth(id: string, w: number) {
                         app.gridWidths = ({ ...(app.gridWidths ?? ({})), [id]: w })
                         },
-                    sortInput(on: string, dir: string) {
+                    applySort(on: string, dir: string) {
                         sortOn = on
                         sortDir = dir
                         app.resort(on, dir)
@@ -899,7 +899,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                                   { id: "done",  title: "Done",  width: 64,  cell: "DoneCell" } ] }
                     ],
                 cap: Text [ width = 100%, wrap = true, fontSize = 12, textColor = { provided("theme").textMuted },
-                    text = "Title edits live; State and Owner pick from a menu; Done is a checkbox — every edit writes the record. Drag headers to reorder, edges to resize, click to sort. From the keyboard: arrows move the active cell, Enter or typing edits, Esc puts it back." ]
+                    text = "A press selects a cell; typing, Enter or a second press edits it. Title writes as you type; State and Owner pick from a menu; Done is a checkbox — every edit writes the record. Drag headers to reorder, edges to resize, click to sort. From the keyboard: arrows move the active cell, Tab moves along while editing, Esc puts it back." ]
                 ],
 
             // ── More page: more controls, two balanced columns ──────────────
@@ -947,11 +947,11 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                         Toolbar [ accessibilityLabel = "Formatting",
                             ToolButton [ label = "B", toggle = true, accessibilityLabel = "Bold",
                                 on = { parent.parent.bold },
-                                input(v: boolean) { (parent.parent as any).bold = v }
+                                commit(v: boolean) { (parent.parent as any).bold = v }
                                 ],
                             ToolButton [ label = "I", toggle = true, accessibilityLabel = "Italic",
                                 on = { parent.parent.italic },
-                                input(v: boolean) { (parent.parent as any).italic = v }
+                                commit(v: boolean) { (parent.parent as any).italic = v }
                                 ],
                             ToolbarDivider [ ],
                             ToolButton [ label = "Cut" ],
@@ -989,7 +989,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                             items = { [ ({ id: "home", label: "Home" }),
                                         ({ id: "guide", label: "Guide" }),
                                         ({ id: "layout", label: "Layout" }) ] },
-                            input(id: string) { (parent as any).at = id }
+                            commit(id: string) { (parent as any).at = id }
                             ],
                         Text [ fontSize = 12, textColor = { provided("theme").textMuted }, text = { "last pressed: " + parent.at } ]
                         ],
@@ -1036,7 +1036,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                                 ],
                             Window [ x = 150, y = 80, width = 220, height = 180, title = "Notes", resizable = true,
                                 open = { parent.parent.notesOpen },
-                                input(v: boolean) { (parent.parent as any).notesOpen = v },
+                                commit(v: boolean) { (parent.parent as any).notesOpen = v },
                                 View [ width = 100%, padding = 14,
                                     layout: SimpleLayout [ axis = y, spacing = 10 ],
                                     TextInput [ width = 100%, placeholder = "Title" ]

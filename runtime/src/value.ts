@@ -84,7 +84,10 @@ export function isGradient(f: Fill): f is Gradient {
 }
 
 /** A border drawn INSIDE the view box (ruled: `stroke` over CSS's `border` —
- *  the box stays the layout/hit fact, per R5's hit-region rule). */
+ *  the box stays the layout/hit fact, per R5's hit-region rule). The same value
+ *  strokes a Text's GLYPHS as `textStroke` — traced along each letterform's
+ *  contour (CSS `-webkit-text-stroke` / canvas `strokeText`), under the fill;
+ *  paint only, it does not change advance or the line box. */
 export interface Stroke {
   readonly width: number;
   readonly color: Color;
@@ -112,18 +115,9 @@ export function strokeUniform(s: BoxStroke): Stroke | null | undefined {
   return sidesUniform(s as readonly (Stroke | null)[]);
 }
 
-/** A glyph OUTLINE (`outline` on text) — a stroke traced along each letterform's
- *  contour (CSS `-webkit-text-stroke` / canvas `strokeText`), NOT a box border
- *  (that is `stroke`). Same shape as Stroke; a distinct type so the two never
- *  confuse. Paint-only: it does not change advance or the line box. */
-export interface Outline {
-  readonly width: number;
-  readonly color: Color;
-}
-
 /** A drop shadow — ONE value, three sites (graphics-pass.md §1.1): on the
  *  view box (`shadow`, the CSS box-shadow shape minus spread), on glyphs
- *  (`textShadow`), and inside a `filter` list, where it shadows the painted
+ *  (`textShadow`), and inside a `visualFilter` list, where it shadows the painted
  *  group's ALPHA (CSS `drop-shadow`). It carries its function tag so a list
  *  can hold it beside the other filters. */
 export interface Shadow {
@@ -135,7 +129,7 @@ export interface Shadow {
 }
 
 /** The filter vocabulary (graphics-pass.md §1) — ONE set of functions at two
- *  tiers: `filter` (the view's own painted subtree, as a group) and `backdrop`
+ *  tiers: `visualFilter` (the view's own painted subtree, as a group) and `backdrop`
  *  (what lies beneath, sampled before the view paints); the same names are
  *  ordinary functions inside `{ }`, and a `draw()` body's `d.filter` takes the
  *  list too. Plain, frozen data: a list crosses the raster worker and the Mac
@@ -162,7 +156,7 @@ export function isMaskGradient(m: Mask): m is Gradient {
   return typeof m === "object" && m !== null && "stops" in m;
 }
 
-/** A `filter`/`backdrop` value as written or bound: one function, a list, or
+/** A `visualFilter`/`backdrop` value as written or bound: one function, a list, or
  *  null — normalized to a frozen list (empty = none) at the seam. */
 export type FilterValue = Filter | readonly Filter[] | null;
 export function filterList(v: FilterValue | undefined): readonly Filter[] {
@@ -208,7 +202,7 @@ export const colorStop = (offset: number, color: Color): GradientStop => Object.
  *  the value is legal, it is only certainly not what was meant.) */
 const MAX_SANE_STROKE = 4096;
 const swapped = new Set<string>();
-function checkOrder(fn: "stroke" | "outline", width: number, color: Color): void {
+function checkOrder(fn: "stroke", width: number, color: Color): void {
   if (!(typeof width === "number") || width <= MAX_SANE_STROKE) return;
   const key = `${fn}:${width}:${String(color)}`;
   if (swapped.has(key)) return;
@@ -220,7 +214,6 @@ function checkOrder(fn: "stroke" | "outline", width: number, color: Color): void
 }
 
 export const stroke = (width: number, color: Color): Stroke => { checkOrder("stroke", width, color); return Object.freeze({ width, color }); };
-export const outline = (width: number, color: Color): Outline => { checkOrder("outline", width, color); return Object.freeze({ width, color }); };
 export const shadow = (dx: number, dy: number, blur: number, color: Color): Shadow =>
   Object.freeze({ fn: "shadow", dx, dy, blur, color });
 /** How far a filter's output can reach past the painted box, in view units —
@@ -258,10 +251,6 @@ export function strokeEqual(a: BoxStroke, b: BoxStroke): boolean {
   const s = a as Stroke;
   const t = b as Stroke;
   return s.width === t.width && s.color === t.color;
-}
-
-export function outlineEqual(a: Outline | null, b: Outline | null): boolean {
-  return a !== null && b !== null && a.width === b.width && a.color === b.color;
 }
 
 export function filterEqual(a: Filter, b: Filter): boolean {
@@ -484,9 +473,11 @@ export type AttrType =
   | { readonly kind: "record"; readonly name: string; readonly data?: true; readonly required?: true }
   | { readonly kind: "fill" }
   | { readonly kind: "stroke" }
-  | { readonly kind: "outline" }
+  // Text.textStroke: ONE stroke along the glyphs' edges (`stroke(width, color)`
+  // or null) — the Stroke value, without the box stroke's per-side list.
+  | { readonly kind: "glyphStroke" }
   | { readonly kind: "shadow" }
-  // A filter list (graphics-pass.md §1): `filter` on the view's own paint,
+  // A filter list (graphics-pass.md §1): `visualFilter` on the view's own paint,
   // `backdrop` on what lies beneath. Literal forms: one constructor
   // (`blur(3)`), a bare list of them (`[blur(3), brightness(0.8)]`), the
   // `frost(radius, saturation?)` pair, or `null` (the default) = none.
@@ -498,8 +489,8 @@ export type AttrType =
   // Animation (animation.md §1): an easing curve. Two written forms, both
   // already in the grammar — a bare named token (`easeBoth`, `quartOut`, like
   // any enum) or a value constructor (`cubicBezier(…)`, `back(…)`, `steps(…)`,
-  // `laszlo(…)`, like `shadow(…)`). Resolves to a Motion value (animate.ts).
-  | { readonly kind: "motion" }
+  // `laszlo(…)`, like `shadow(…)`). Resolves to a curve (animate.ts Motion); the public type is `Easing`.
+  | { readonly kind: "easing" }
   // Fonts: a family slot (`fontFamily`, `codeFamily`). Its literal form is a
   // family string or a list of them; from a { } it also takes a Font object or a
   // list mixing both (font-value.ts resolves it where text measures and paints).
@@ -511,7 +502,7 @@ export type AttrType =
   | { readonly kind: "faceWeight" };
 
 /** Declare an enum attribute type: `enumType("Stretch", "none", "width", …)`
- *  — how §6's named unions declare. Built-in consumers: Image.stretches and
+ *  — how §6's named unions declare. Built-in consumers: Image.fit and
  *  Text.fontWeight (R3); user unions and Align slot in as pure data. */
 export function enumType(name: string, ...tokens: string[]): AttrType {
   return { kind: "enum", name, tokens };
@@ -579,7 +570,7 @@ const DECLARED_TYPES: Readonly<Record<string, AttrType>> = {
  *  the name is not in the declarable vocabulary. */
 /** An AUTHORED literal union (`"idle" | "loading"`) is an enum whose NAME is
  *  the written union text — that text is the discriminator between it and a
- *  built-in vocabulary (Axis, Motion), whose name is an identifier. Every
+ *  built-in vocabulary (Axis, Easing), whose name is an identifier. Every
  *  consumer asks this one question here, not with its own `startsWith('"')`. */
 export const isAuthoredUnion = (name: string): boolean => name.startsWith('"');
 

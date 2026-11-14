@@ -3,7 +3,7 @@
 //
 // A `{ }` constraint's dependency analysis (dep-extract.ts) follows a call into a
 // USER method's body to infer the reactive cells it reads. A LANGUAGE-supplied
-// method — a runtime View/class method like `navigate` — has no Declare body
+// method — a runtime View/class method like `openURL` — has no Declare body
 // to follow (its body is runtime TS), so its reactive effect is DECLARED here
 // instead. This is the effect analog of a typed library signature:
 // a user method's effect is INFERRED from its body, a language method's is
@@ -24,13 +24,13 @@
  *  bare name, matching how dep-extract keys user methods (a same-named user method
  *  is resolved first and shadows an entry here). */
 export const LANGUAGE_METHOD_EFFECTS = new Map([
-    // App.navigate(to) — the navigation SERVICE ACTION (view.ts, capabilities.md
+    // App.openURL(to) — the navigation SERVICE ACTION (view.ts, capabilities.md
     // §6). It writes the host channel and reads no reactive cell → PURE for
     // dependency analysis. Registered so a body that reaches it (a handler, or a
     // method a constraint transitively calls) analyzes cleanly rather than falling
     // to the §3 residue. The NAVIGATION effect itself — the link relation — is
     // extracted separately, by links.ts, from the CALL SITE.
-    ["navigate", []],
+    ["openURL", []],
     ["openWindow", []],
     // App.destinationOf(loc) (view.ts) — strips the runtime's own trailing
     // `@name` from a location string. A pure function of its ARGUMENT: the
@@ -38,7 +38,7 @@ export const LANGUAGE_METHOD_EFFECTS = new Map([
     // extracted at the call site, so the binding wires exactly them. PURE.
     ["destinationOf", []],
     // App.followLink(ref) — the one arrival operation (location.md §0.5). Like
-    // navigate: an ACTION a handler calls — it writes location and the host
+    // openURL: an ACTION a handler calls — it writes location and the host
     // channels, and reads no reactive cell the CALLER's analysis must wire (the
     // app-scoped onFollowLink hook runs inside it imperatively, never as a tracked
     // read). The LINK relation itself is authored (`link =`), not inferred here.
@@ -89,7 +89,7 @@ export const LANGUAGE_METHOD_EFFECTS = new Map([
     // residue rule exists to catch. So absence is not a gap: it lets the GENERAL
     // §3 path do its job, and it splits the two uses correctly on its own — a
     // constraint refuses (DECLARE7001), while a handler anchoring an overlay at
-    // gesture time (Menu.openAt/openFor, FocusRing) keeps working, which is where
+    // gesture time (Menu.showAt/showFor, FocusRing) keeps working, which is where
     // a snapshot was the right semantics all along.
     //
     // Live geometry in a constraint is already expressible, and statically: name

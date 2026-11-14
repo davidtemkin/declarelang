@@ -173,7 +173,7 @@ Three zones, each answering a different question — where you have been, what t
 is showing, and how you are looking at it.
 
 **Back and forward** walk the programs this window has visited. A program navigates with
-`app.navigate(url)` (or `app.openWindow(url)` for a window of its own); relative URLs
+`app.openURL(url)` (or `app.openWindow(url)` for a window of its own); relative URLs
 resolve against the program, the same rule its includes and assets follow.
 
 The trail holds *programs*, so two things deliberately stay off it: Source mode, which is

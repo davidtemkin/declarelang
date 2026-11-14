@@ -2,7 +2,7 @@
 # ProgressBar
 
 Display-only bounded number — the read-only sibling of Slider (same `value`/
-`min`/`max` vocabulary, no interaction, no `input`). Restyle by theme; set
+`min`/`max` vocabulary, no interaction, no `commit`). Restyle by theme; set
 `width` at the use site (220 by default).
 
 ## value
@@ -66,7 +66,7 @@ class ProgressBar [
 
     _sweep: number = 0,
     _still: boolean = { provided("accessibilitySettings")?.reduceMotion === true },
-    _sweeping: Animator [ attribute = _sweep, from = 0, to = 1, duration = 1400, motion = easeBoth,
+    _sweeping: Animator [ attribute = _sweep, from = 0, to = 1, duration = 1400, easing = easeBoth,
         repeat = { Infinity }, started = { classroot.indeterminate && !classroot._still } ],
 
     _bar: View [ height = 100%, cornerRadius = { parent.height / 2 }, fill = { provided("theme").accent },

@@ -57,7 +57,7 @@ geometry in the language, and why the surface is drawn the way it is:
   `scrollBy(dx, dy[, glide])`, `reveal(target)`. A request asks the process
   to move; the process clamps, and may glide. `scrollStartY`/`scrollStartX`
   declare a starting offset, applied once at first layout.
-- **The glide** (`{ duration, motion }`) is the platform's own motion — the
+- **The glide** (`{ duration, easing }`) is the platform's own motion — the
   browser's smooth scroll, an `NSAnimationContext`, the runtime provider's
   tween — not a Declare Animator: the provider's curve, no Animator
   semantics, cancelled by a gesture. Where a provider can honor a Declare
@@ -151,7 +151,7 @@ in every animation frame (`Compositor.frameTick`: loop → paint → facts).
   retires to `null` at rest (arbitration rule 3). A request during a session
   is dropped (rule 1); a tap moves nothing.
 - **Glides**: `scrollToY/X(v, glide)` tween on the loop
-  (`motionToken(glide.motion) ?? DEFAULT_MOTION`, `sample`) and land exactly
+  (`motionToken(glide.easing) ?? DEFAULT_MOTION`, `sample`) and land exactly
   on the clamped target; a wheel delta or a touch on the same pane cancels
   them; a plain request cancels and jumps. **Equal is inert**: the fact's own
   echo through the attribute push (view.ts `scrollY`'s push → `scrollToY`)

@@ -1142,6 +1142,8 @@ final class EditableOverlay: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
 
     func configure(_ spec: [String: Any], style: TextStyleSpec) {
         self.spec = spec
+        showsCaret = (spec["caret"] as? NSNumber)?.boolValue ?? true
+        defer { applyCaret() }
         let ml = (spec["multiline"] as? NSNumber)?.boolValue ?? false
         enterSubmits = (spec["enterSubmits"] as? NSNumber)?.boolValue ?? false
         admits = (spec["admits"] as? NSNumber)?.boolValue ?? false
@@ -1379,10 +1381,24 @@ final class EditableOverlay: NSObject, NSTextFieldDelegate, NSTextViewDelegate {
 
     func setFocus(_ on: Bool) {
         let responder: NSView? = multiline ? textView : field
-        if on { view.window?.makeFirstResponder(responder) }
+        if on { view.window?.makeFirstResponder(responder); applyCaret() }
         else if ownsFirstResponder { view.window?.makeFirstResponder(view) }
         bridge.call("__declareEditFocus", [id, on])
     }
+
+    /// TextInput.showsCaret: a field holding the keyboard with no caret and no
+    /// selection highlight, so it reads as plain text until it is edited (a
+    /// DataGrid's selected cell). A single-line field is drawn by the window's
+    /// shared FIELD EDITOR, so this is applied as the field takes the keyboard,
+    /// and every field applies its own — the next one puts the defaults back.
+    private var showsCaret = true
+    private func applyCaret() {
+        let editor: NSTextView? = multiline ? textView : (field?.currentEditor() as? NSTextView)
+        guard let tv = editor else { return }
+        tv.insertionPointColor = showsCaret ? .textColor : .clear
+        tv.selectedTextAttributes = [.backgroundColor: showsCaret ? NSColor.selectedTextBackgroundColor : NSColor.clear]
+    }
+    func controlTextDidBeginEditing(_ obj: Notification) { applyCaret() }
     /// Is this editable the window's first responder? A single-line field is
     /// edited by the window's FIELD EDITOR — an NSTextView whose delegate is
     /// the field — so identity against the NSTextField itself never matched,

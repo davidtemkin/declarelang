@@ -106,6 +106,24 @@ function plainLabel(label) {
 const bump = (m, k, by = 1) => { m.set(k, (m.get(k) ?? 0) + by); };
 const className = (n) => n.constructor?.name ?? "Node";
 const work = () => open ?? between;
+/** The finite motion in flight now, each named by what it moves and where —
+ *  `Spring (x) on app.panel`: the settle predicate's tickers (perpetual ones,
+ *  a Time or a `repeat = Infinity` loop, are life and never listed). */
+export function motionInFlight(nameOf = className) {
+    return sharedClock.tickersNow().filter((t) => t.perpetual !== true).map((t) => {
+        const owner = t.$resolveTarget?.() ?? t.parent ?? null;
+        let where = "";
+        if (owner !== null) {
+            try {
+                where = ` on ${nameOf(owner)}`;
+            }
+            catch {
+                where = ` on a ${className(owner)}`;
+            }
+        }
+        return `${className(t)}${t.attribute ? ` (${t.attribute})` : ""}${where}`;
+    });
+}
 const HOOK = {
     begin: enter,
     ran(rule, ms, changed) {
@@ -487,10 +505,7 @@ export function profileReport(nameOf = className, root = null) {
         }
         return { n: t.n, at: t.at, ms: t.ms, lead: t.lead, origin: t.origin, runs: t.hostRuns, kernelRuns: Math.max(0, t.kernelRuns - t.inRuns), changed, built: b, builtBy, spent: spentOf(t), triggers: triggersOf(t).slice(0, 5), top, why: top.length > 0 ? whyOf(t, topRule.get(top[0])) : [] };
     });
-    const motion = sharedClock.tickersNow().filter((t) => t.perpetual !== true).map((t) => {
-        const owner = t.$resolveTarget?.() ?? t.parent ?? null;
-        return `${className(t)}${t.attribute ? ` (${t.attribute})` : ""}${owner !== null ? ` on ${nameOf(owner)}` : ""}`;
-    });
+    const motion = motionInFlight(nameOf);
     // what is built but hidden, by the hidden view that holds it: kept current
     // while no one sees it
     const hiddenParts = [];

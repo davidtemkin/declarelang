@@ -36,6 +36,12 @@ Where no Chrome can be found (or with `DECLARE_HEADLESS_BOOT=1`), rung 4 boots i
 instead: the layout is the runtime's own, but text is measured by a stand-in, so the
 checks that rest on text do not run — the run says so.
 
+On a Mac the tools run Chrome for Testing when it is installed, and your own Chrome only
+when it is not: a headless copy of your own Chrome counts, to macOS, as the app you use, so
+with your windows closed the Dock, ⌘N and Quit can reach a copy that has no window to show.
+Install it once with `npx @puppeteer/browsers install chrome@stable --path ~/.cache/puppeteer`.
+`PUPPETEER_EXECUTABLE_PATH` names any other Chrome.
+
 **A program that never finishes** — a loop whose exit never comes, as it boots or under a
 click a script makes — is stopped at any browser rung once its page has gone the budget
 (`--boot-budget`, 15 s) without answering, and the line it was running is quoted:
@@ -126,7 +132,22 @@ cookies and service — give its address instead of (or as well as) the file:
 `npx declare-look --url http://127.0.0.1:8200/my-apps/shop/shop.declare --shot served.png`.
 Every action works the same there; no browser script of your own is needed.
 
-The actions — `--click PATH`, `--dblclick PATH`, `--click-at PATH X,Y` (a point inside it, from its top-left: a
+**What the app does as it loads.** A look normally starts once the app has arrived, with
+whatever it set moving run to rest. `--from-start` looks from the first frame instead: it
+lets the program's time pass in 50 ms steps until nothing moves, and says what moved — each
+view's place, size, opacity and text, from what to what, over which milliseconds:
+
+```bash
+npx declare-look app.declare --from-start
+# from the start, 2 changes over 1050 ms:
+#   app.stats.total.text: "0" → "128", 0–400 ms
+#   app.card.y: 140 → 100, 0–650 ms
+```
+
+`--filmstrip DIR` saves a picture at each step as well. An assert script starts the same way
+with `export const fromStart = true`.
+
+The actions — `--click PATH`, `--dblclick PATH [X,Y]`, `--click-at PATH X,Y` (a point inside it, from its top-left: a
 step of a drawn scale), `--drag PATH DX,DY`, a drag a step at a time — `--press PATH [X,Y]`,
 `--move DX,DY`, `--release`, with `--shot` and `--read` between them seeing it in progress —
 `--wheel PATH DY`, `--pinch PATH SCALE` (two
@@ -162,14 +183,19 @@ a locator as Playwright's does:
   own, as a screen reader is given them; strict when two match. `getByLabel` finds a field by what labels
   it — a `Field`'s caption, an `accessibilityLabel`; a control whose own `label` is its words
   (a `Checkbox`, a `Switch`, a `Radio`, a `Button`) is named by them, and found by role:
-  `getByRole("checkbox", { name: "Show password" })`.
+  `getByRole("checkbox", { name: "Show password" })`. `getByText` finds words a person sees;
+  what the program only says aloud (`Accessibility.announce`) is not among them —
+  `expect.announced` checks that.
 - **acting:** `click`, `dblclick`, `tap`, `hover`, `fill`, `clear`, `pressSequentially`
   (`type`), `press`, `check`, `uncheck`, `setChecked`, `focus`, `blur`, `selectOption` (a
   `<select>`), `scrollIntoViewIfNeeded` — through the driver: a real press (a finger on a
   touch device), then the program settles, as after a `drive` verb. As the driver's own, a
   press waits for a still target and refuses a point another element covers, naming it
   (`force: true` presses there anyway); unlike the driver's, a locator brings its element
-  into view by scrolling it there, not by a swipe. `click` takes `button`, `clickCount`,
+  into view by scrolling it there, not by a swipe. The typing verbs (`fill`, `clear`,
+  `pressSequentially`, `press`) reach their field the same way first, so a field a person
+  could not get to — below the window in a pane that does not scroll, or under another view —
+  is said rather than typed into; `focus` alone does not, as Tab can focus what is out of sight. `click` takes `button`, `clickCount`,
   `modifiers`, `position`, `force` and `trial`; an option it can't honour is refused, never
   ignored. `page.click(css)` and the other selector forms are the same.
 - **reading:** `isVisible`, `isHidden`, `isEnabled`, `isDisabled`, `isChecked`, `isEditable`,
@@ -196,9 +222,12 @@ it sent, and a run that fails after earlier runs wrote to the same service says 
 A script runs in the laptop window rung 4 boots in (1280×800) by default. To run it on another device, export one:
 `export const device = { width: 390, height: 844, touch: true }` — the app loads once, on it.
 `drive` and `expect` drive the app by **view path**, never by DOM selector. A path names
-members (`app.toolbar.add`), a replicated row by its index among the views (`app.list.3`: the fourth view, whatever else the list holds; in a virtualized list only the rows on screen are built, in no data order, so `.0` is not record 0 — name such a row by what it says), or a view by what
+members (`app.toolbar.add`), a replicated row by its index among the views (`app.list.3`: the fourth view, whatever else the list holds; in a virtualized list only the rows near the screen are built, in data order, so `.0` is the first of those, not record 0 — name such a row by what it says; an index
+also reaches a library control's unnamed parts, `app.range.0.1` the second view inside the
+first), or a view by what
 it says — its label, accessible name or text (`app.tabs.Settings`, quoted when it holds a dot
-or a space: `app.menu."Save As…"`). A press is a person's: a view below the fold is scrolled
+or a space: `app.menu."Save As…"`). Such a step names one view, as a strict locator does: two
+that say it alike (a field and a button both "Count") fail, naming both. A press is a person's: a view below the fold is scrolled
 into sight first, and a press on a view something else covers fails, naming what it would
 have reached, rather than landing elsewhere in silence.
 
@@ -222,7 +251,9 @@ double-click (`drive.dblclick(path)` makes one), and `drive.click`, `drive.wait(
 
 What the **world** does runs on real time, and a step waits for it: a native scroll's glide,
 the visibility the browser reports after it, a request's answer. A step ends once those have
-landed, so held time never misses what the world delivered. A service whose own schedule
+landed, so held time never misses what the world delivered. A script starts the same way,
+once the app has arrived: its requests answered (a `DataSource` that fetches on its own has
+loaded) and its opening motion run, so it needs no opening wait. A service whose own schedule
 sends a message in six seconds, a socket's timed frames, or anything measured over real
 frames is waited for with `drive.waitReal(ms)`: the program runs **live** with the world for
 `ms`, its motion on real frames and its time keeping pace, and is held again after. Holding
@@ -263,7 +294,7 @@ user's scroll coming to rest, keep real time; only the program's time is the dri
 | `drive.hover(path)` | the pointer brought over the view and left there — what `hovered` answers |
 | `drive.press(path, x?, y?)`, `drive.moveBy(dx, dy)`, `drive.release()` | a drag a step at a time: the pointer goes down on the view (at a point inside it, else its centre) and stays down while `moveBy` moves it, so `expect` and pictures can look at the drag in progress — the ghost, the target lit — before `release` drops it |
 | `drive.clickAt(path, x, y, { modifiers?, button? })`, `drive.hold(path, ms?)` | a press at a point inside the view (from its top-left), with keys held and buttons as `click`'s; a press held `ms` (default 600) of the program's time, then released — what `onHold` answers |
-| `drive.dblclick(path, x?, y?)` | a double-click (a double tap on a touch device) on the view, or at a point inside it — what `onDblClick` answers |
+| `drive.dblclick(path, x?, y?)` | a double-click (a double tap on a touch device) on the view, or at a point inside it — what `onDoubleClick` answers |
 | `drive.pinch(path, scale)` | a pinch about the view's centre to `scale`: two fingers on a touch device (`onPinch…` runs), a trackpad pinch otherwise (`onWheel` runs with `e.pinch`) |
 | `drive.profile(async () => { … }, { why?, drawings? })`, `drive.profileFromBoot({ itemize?, why? })`, `drive.profileReport()` | what the program did meanwhile, in its own terms — what opened each turn, what was built, what its drawings cost the GPU — and the time each frame took to reach the screen ([Profiling](declare-docs:operational:profile)): `{ report, text, frames }` |
 | `drive.traceInput(async () => { … })` | the gestures inside it, and what the platform did with them, read from Chrome's own trace: `{ platformScrollUpdates, waitedOnPage }` — scroll updates the browser handled itself, on its own thread and time (a swipe the page let it have), and input events that first waited for the page's main thread. A scroll the program sets counts none. Observation only: nothing is slowed or changed |
@@ -275,13 +306,16 @@ user's scroll coming to rest, keep real time; only the program's time is the dri
 | `drive.key(name)`, `drive.type(text)`, `drive.tab(n?)` | keys, to whatever has the focus; a chord is written with `+` as a person names it — `"Shift+Tab"`, `"Cmd+Z"`, `"Option+ArrowLeft"`, `"Mod+S"` (⌘ on a Mac, Ctrl elsewhere) — and a Mac's editing chords (⌘C, ⌥⌫, ⌘←…) do what they do on a Mac. `page.keyboard.press` and a locator's `press` take the same names |
 | `drive.selectAll(path)` | focus the text field and select everything in it, as select-all does before typing over a value |
 | `drive.set(path, attr, value)` | an assignment, as a handler's write |
+| `drive.hold({ method?, path })` | every request that matches — `path` a prefix of its path, or a RegExp over the URL — waits, unsent, until the script lets it go: `const h = await drive.hold({ method: "POST", path: "/api/orders" })`, then look at what the program shows while it waits ("Sending…", a disabled button), then `await h.release()`. `h.count` is how many are held |
+| `drive.read(path)` | a value, as `--read` gives it — `await drive.read("app.list.height")`: the attribute after the last dot, on the view the rest names; a view comes back as its class's name |
 | `drive.wait(ms)` | exactly `ms` of the program's time, run frame by frame — not `ms` of real time; what the program asked for in the meantime (a request, a frame) is waited for as it lands |
-| `drive.waitReal(ms)` | the program runs **live** for `ms` of real time, its motion on real frames and its own time keeping pace, then is held again — for what runs on the world's clock: a service's timed messages, a socket's schedule, anything measured over real frames |
+| `drive.waitReal(ms)` | the program runs **live** for `ms` of real time, its motion on real frames and its own time keeping pace, then is held again — for what runs on the world's clock: a service's timed messages, a socket's schedule, anything measured over real frames. A check starts once the app has arrived (its first data in), so it needs no opening wait: `waitReal` is for real-time events |
 | `drive.settleMotion(maxMs?)` | motion run to rest, frame by frame; loops that never end (`repeat = { Infinity }`, a `Time`) do not hold it |
 | `drive.settleData()` | the network gone quiet |
 | `drive.download(fn, { timeout? })` | runs `fn` — the press that saves a file — and answers the file the program gave the person, `{ name, size, text }`; a press that saves nothing within `timeout` ms (default 5000) is said |
 | `drive.chooseFiles(files, fn)` | runs `fn` — the press that opens a file dialog — and chooses `files` in it, each a path or `{ name, text }` made up in the script |
-| `expect.attr(path, attr, expected)`, `expect.approx(path, attr, expected, tol?)`, `expect.text(path, contains)` (the view's text, or a row's or card's: all its visible descendants' together, rich text included), `expect.visible(path)` (shown: its own `visible` and every view's above it, with a size — failing, it names what hides it), `expect.hidden(path)` (a path that names nothing fails), `expect.exists(path)`, `expect.count(path, kind, n)`, `expect.equal(a, b)` | assertions: each fails the rung with what it found |
+| `expect.attr(path, attr, expected)`, `expect.approx(path, attr, expected, tol?)`, `expect.text(path, contains)` (the view's text, or a row's or card's: all its visible descendants' together, rich text included), `expect.visible(path)` (shown: its own `visible` and every view's above it, with a size — failing, it names what hides it), `expect.hidden(path)` (a path that names nothing fails, unless the script found a view there earlier: it is gone, which is hidden), `expect.exists(path)`, `expect.count(path, kind, n)`, `expect.equal(a, b)` | assertions: each fails the rung with what it found |
+| `expect.announced(contains)` | the program said something containing `contains` through `Accessibility.announce` (the latest 20 since the page loaded) — failing, it lists what was said |
 | `expect.explain(path, attr)` | why an attribute holds its value — an assertion about structure, not a number |
 | `expect.traceStart(n?)`, `expect.trace()`, `expect.traceText()` | the runtime's own record of what it did |
 
@@ -324,7 +358,8 @@ including formula-valued ones. It reads `find(path)[name]` live inside the page
 and falls back to `explain()`, where `inspect().attrs` carries only *written*
 attributes and reports a formula attribute as absent. To take a value **into** the
 script rather than assert one, go through the page yourself:
-`drive.page.evaluate((p, a) => window.__declare.find(p)[a], path, name)`.
+`page.evaluate((p, a) => window.__declare.find(p)[a], path, name)` (`drive.page` is
+the same page).
 `evaluate()` returns an Inspector **transcript object** that serializes to `{}`,
 so read values that way too, never by JSON-ing a transcript.
 

@@ -21,6 +21,9 @@ export interface InlineViewHost {
     /** Is `name` a VIEW class this program declares? Exact, case-sensitive — and
      *  only the program's own classes, never a built-in tag. */
     declares(name: string): boolean;
+    /** The name of the program class `value` is (a class written as a value —
+     *  `tagViews = { { Chip: Chip } }`), or null when it is none of them. */
+    nameOf(value: unknown): string | null;
     /** The declared type of attribute `name` on class `cls` (an AttrType from
      *  value.ts), or null when the class has no such attribute. */
     attrType(cls: string, name: string): AttrType | null;
@@ -72,6 +75,8 @@ export declare function provideVisibleRows(fn: (v: View) => {
     first: number;
     last: number;
 }): void;
+/** Did a replication make this view (one of its rows)? Untracked. */
+export declare function isReplica(v: View): boolean;
 /** The tracked read behind `View.rowIndex`. */
 export declare function readRowIndex(v: View): number;
 export declare function setRowIndex(v: View, index: number): void;
@@ -265,7 +270,7 @@ export declare class View extends Node {
      *  group, an island boundary; plain containers are transparent to
      *  blending). `normal` = plain painting. A blending view blends as a unit,
      *  children included; paint only — hit testing and focus never change. */
-    blend: "normal" | "multiply" | "screen" | "overlay" | "darken" | "lighten" | "colorDodge" | "colorBurn" | "hardLight" | "softLight" | "difference" | "exclusion" | "hue" | "saturation" | "color" | "luminosity" | "plusLighter";
+    blendMode: "normal" | "multiply" | "screen" | "overlay" | "darken" | "lighten" | "colorDodge" | "colorBurn" | "hardLight" | "softLight" | "difference" | "exclusion" | "hue" | "saturation" | "color" | "luminosity" | "plusLighter";
     /** How what is painted inside this view — its images and drawings, and its
      *  descendants' — looks when shown larger or smaller. `smooth` blends
      *  neighbouring pixels; `pixelated` shows every pixel as a solid block, a
@@ -282,7 +287,7 @@ export declare class View extends Node {
      *  §1): one filter or a list — `blur(3)`, `[blur(2), brightness(0.8)]`,
      *  `shadow(…)` for a shadow of the group's alpha, `tint(c)` for the group's
      *  alpha in one colour. Lengths in view units. Paint only, never input. */
-    filter: FilterValue;
+    visualFilter: FilterValue;
     /** A soft alpha mask (graphics-pass.md §2): a gradient's alpha over the
      *  box, or a stencil view (`mask = { stencil }`) whose painted alpha,
      *  placed by its own x/y inside this box, masks the subtree. Applied after
@@ -361,6 +366,8 @@ export declare class View extends Node {
     accessibilityActiveItem: View | null;
     /** Which way the column this header heads is sorted: "none", "ascending" or "descending". */
     accessibilitySort: "none" | "ascending" | "descending";
+    /** Where the person is, among views of its kind: "page", "step", "location", "date", "time", "item", or "none". */
+    accessibilityCurrent: "none" | "page" | "step" | "location" | "date" | "time" | "item";
     /** Whether more than one of this list's, grid's or tree's items can be selected at once. */
     accessibilityMultiselectable: boolean;
     accessibilityLevel: number | null;
@@ -876,22 +883,27 @@ export declare class View extends Node {
         y?: number;
     }, glide?: {
         duration?: number;
-        motion?: string;
+        easing?: string;
     }): void;
     /** A request made before this view had a surface, put to it once it has one. */
     private $heldScroll;
+    /** Put an offset the model has taken to the surface — or, before the view
+     *  has one, hold it for the surface it gets (as scrollTo holds a request):
+     *  a correction made while the tree is still building (an end pane over a
+     *  virtualized list knows its extent before attach) must not be lost. */
+    $putScrollY(y: number): void;
     /** The horizontal twin of `scrollTo` — same request/clamp/hold contract,
      *  for a `scrolls = x` (or `both`) view. */
     scrollToX(x: number, glide?: {
         duration?: number;
-        motion?: string;
+        easing?: string;
     }): void;
     /** A RELATIVE request — `scrollBy(dx, dy[, glide])`: the same contract as
      *  `scrollTo`/`scrollToX`, measured from the current facts. The optional
      *  glide is the provider's own motion (see ScrollGlide in backend.ts). */
     scrollBy(dx: number, dy: number, glide?: {
         duration?: number;
-        motion?: string;
+        easing?: string;
     }): void;
     /** Promotion (planes.md §1 — order is a slot): re-link this view among its
      *  siblings, tree and surface both. `raise()` moves it to the FRONT (last
@@ -1028,7 +1040,16 @@ export interface AccessibilitySettings {
     readonly reduceTransparency: boolean;
     readonly textScale: number;
 }
+export declare function withStartingHost<T>(size: {
+    width: number;
+    height: number;
+} | null, build: () => T): T;
 export declare class App extends View {
+    constructor();
+    /** At build, when the boot knows the host's size: an unset width and height
+     *  START at the host's (a runtime write — not a binding, not the program's
+     *  own); attach binds them to the host as ever. `own`: what the program sets. */
+    $bindStartingExtent(own: ReadonlySet<string>): void;
     /** The app's language travels with its root surface from the start. */
     protected $flush(s: Surface): void;
     /** onReady — the boot transaction's close, DELIVERED (schema.ts App
@@ -1082,6 +1103,9 @@ export declare class App extends View {
      *  page books nothing. Read-only to user code; schema.ts has the caveats
      *  (Safari does not report window occlusion). */
     pageVisible: boolean;
+    /** Whether the app fills the screen — read it to follow the platform (Esc
+     *  leaves full screen), write it to enter or leave. */
+    fullScreen: boolean;
     /** "Is this device built for touch?" — true when the device's primary pointer
      *  is coarse (`pointer: coarse`): a phone or tablet, keyboard or not. A stable device fact fed
      *  live by the runtime, to size from; a hover reveal keys on `lastPointerType`, and
@@ -1151,7 +1175,7 @@ export declare class App extends View {
      *  near the URL, so it is not shareable and not crawlable, by construction.
      *  The app owns the grammar, same as location. Schema attr; default "". */
     waypoint: string;
-    /** app→host navigation channel: `navigate(to)` sets it when no host services
+    /** app→host navigation channel: `openURL(to)` sets it when no host services
      *  are installed, and a polling host opens the URL and clears it to "". A plain
      *  field, not a reactive attribute — nothing in the tree renders from it, and no
      *  Declare source names it: navigation is the CALL, never an observed attribute.
@@ -1161,17 +1185,21 @@ export declare class App extends View {
     /** The host's service table — the app→host VERBS' direct line, installed at
      *  mount by provideHostServices (boot.ts). Per-app, so two embedded apps on
      *  one page each route to their own host, and a foreign page can supply its
-     *  own (route `navigate` into an SPA router). A registered service is called
+     *  own (route `openURL` into an SPA router). A registered service is called
      *  SYNCHRONOUSLY inside the verb — still within the click's transient user
      *  activation, which is what window.open needs. Null = no host registered:
      *  the verb parks its intent on the matching pending* channel for a polling
-     *  host. (The mac bridge replaces `navigate` wholesale — Bridge.swift — and
+     *  host. (The mac bridge replaces the `navigate` service wholesale — Bridge.swift — and
      *  reads neither.) */
     $hostServices: {
         navigate?: (to: string) => void;
         openWindow?: (to: string) => void;
         inspect?: (slot: string) => void;
     } | null;
+    /** The host's line for `fullScreen` (boot.ts wireFullScreen): asked to enter
+     *  or leave full screen when the attribute is written. Null in a host that
+     *  has none — the attribute then only records what was asked. */
+    $fullScreenHost: ((on: boolean) => void) | null;
     /** @internal an EMBEDDED tenant's line to its host island (linkIslandTenant
      *  installs it). Null = not linked (a top-level app, or never linked) —
      *  send() says so instead of vanishing. */
@@ -1190,12 +1218,13 @@ export declare class App extends View {
      *  "do this", not "this is so" (islands design; the state channel is the
      *  `external` attributes). */
     postToHost(topic: string, payload?: unknown): void;
-    /** navigate(to) — the navigation SERVICE ACTION (capabilities.md §6). A link or
-     *  button calls `app.navigate(url)` in an activation handler; the compiler reads
+    /** openURL(to) — the navigation SERVICE ACTION (capabilities.md §6): the app
+     *  leaves for another address. A link or button calls `app.openURL(url)` in an
+     *  activation handler; the compiler reads
      *  the call statically (links.ts → `<a href>` in the static extraction), and at
      *  runtime the host opens `to`. DOM-free: bodies never touch window.location, so
      *  navigation rides this channel like `editing` — one clear way, analyzable. */
-    navigate(to: string): void;
+    openURL(to: string): void;
     /** The reference schemes a link may carry (location.md §0.4) — the shared
      *  predicate lives at the render seam (backend.ts allowedRef), because the
      *  realization path enforces it too: a disallowed scheme never becomes an
@@ -1217,7 +1246,7 @@ export declare class App extends View {
      *  Source requests, runtime delivers, destination decides. The app-scoped
      *  hook `onFollowLink(ref) -> ref'` (a user-declared method, §0.6) is applied
      *  ONCE — transform, veto (""), or side-effect; then an external reference
-     *  leaves through `navigate`, and a `#…` writes `location`. The anchor
+     *  leaves through `openURL`, and a `#…` writes `location`. The anchor
      *  reveal rides the existing retained intent (resolveReveal); an anchorless
      *  arrival seeds the scroll to the top. Re-following the current reference
      *  re-runs the arrival step — no dead clicks. */
@@ -1238,11 +1267,11 @@ export declare class App extends View {
      *  source reads it. */
     $pendingInspect: string | null;
     /** inspect(slot) — the Inspector SERVICE ACTION. `slot` names an embedded
-     *  app's island ("run:spring"); omit it to inspect this app. Like navigate(),
+     *  app's island ("run:spring"); omit it to inspect this app. Like openURL(),
      *  the intent rides the service table (or its channel fallback), so a `{ }`
      *  body never touches the document. */
     inspect(slot?: string): void;
-    /** openWindow(to) — navigate's NEW-WINDOW sibling (a "View Source" that must
+    /** openWindow(to) — openURL's NEW-WINDOW sibling (a "View Source" that must
      *  not replace the running app). Same discipline: bodies never touch
      *  `window`, the intent rides the service table (or its channel fallback).
      *  A registered service runs synchronously inside the activation, which is

@@ -88,6 +88,18 @@ live as the system theme flips. Theme off it: `theme = { app.systemDark ? darkTo
 It is only the OS signal; when you offer a Light/Dark/Auto control, keep your own mode
 attribute and read `app.systemDark` as the "auto" case.
 
+## fullScreen
+Whether the app fills the screen, **both ways**: it reads `true` while it does, whoever put it
+there — and goes back to `false` when the person leaves (Esc, the browser's own control) — and
+writing it asks to enter or leave. A browser enters full screen only in answer to a press, so
+write it from one; a request it refuses leaves `fullScreen` false. A top-level app takes the
+whole page; an embedded app, its own box.
+
+```declare-fragment
+Button [ label = { app.fullScreen ? "Exit full screen" : "Full screen" },
+    onClick() { app.fullScreen = !app.fullScreen } ]
+```
+
 ## pageVisible
 **Read-only.** Is the page this app lives on **visible** — `false` when the tab is
 hidden, the window minimized, or the display asleep; `true` again on return (the
@@ -98,11 +110,12 @@ both) — and the frame clock empties: a page nobody can see books nothing. A br
 covered by another window may still read `true` (Safari does not report occlusion;
 Chrome and the native host do). Per-document, so an embedded app inherits its page's.
 
-## navigate()
-Navigate the host **out** of the app: `app.navigate("https://…")` for an external link, or
-`app.navigate("some/app.declare")` for another program (resolved against the distro root). It
-is a service **method**, not an attribute — call it from a handler; `app.navigate = …` is an
-error. Running inside another program's island, the call goes to that island first: when
+## openURL()
+Leaves the app for another address: `app.openURL("https://…")` for an external link, or
+`app.openURL("some/app.declare")` for another program (resolved against the distro root).
+It is not routing within the app — moving between the app's own places is a write to
+`location`. It is a service **method**, not an attribute — call it from a handler;
+`app.openURL = …` is an error. Running inside another program's island, the call goes to that island first: when
 it declares `onNavigate`, the host decides what the link means (a desktop opens a window),
 and otherwise the page navigates. The program writes the same call either way.
 
@@ -110,7 +123,7 @@ and otherwise the page navigates. The program writes the same call either way.
 The **one operation behind every arrival**: a linked
 view's activation, an authored href in rendered prose, a pasted URL, and back/forward all
 reduce to `app.followLink(ref)`. The reference passes through `onFollowLink` once; an external
-reference leaves through `navigate`; a `#…` reference writes `location` — a bare anchor
+reference leaves through `openURL`; a `#…` reference writes `location` — a bare anchor
 name (`"#story"`) first derives its destination from the tree, so the author never writes
 a compound. An anchored arrival is not finished until the target is rendered, **measured**,
 and in the viewport (`revealInset` honored); an anchorless one starts at the top — unless
@@ -341,8 +354,8 @@ opinion, and the host keeps whatever title it served.
 
 ## openWindow()
 Opens a URL in a new window or tab — the service action, so a `{ }` body never touches the
-document. `navigate` is the same-window form. Inside an island, it reaches the island's
-`onNavigate` first, as `navigate` does, with `newWindow` true.
+document. `openURL` is the same-window form. Inside an island, it reaches the island's
+`onNavigate` first, as `openURL` does, with `newWindow` true.
 
 ## inspect()
 Opens the Inspector on this app, or on an embedded child app when given its island key

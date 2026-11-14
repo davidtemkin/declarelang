@@ -28,6 +28,7 @@ export declare class NativeText extends Node {
     wrap: boolean;
     enterSubmits: boolean;
     spellcheck: boolean;
+    showsCaret: boolean;
     purpose: Purpose;
     concealed: boolean;
     numeralWidth: NumeralWidth;

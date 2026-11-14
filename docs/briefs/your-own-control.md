@@ -9,8 +9,8 @@ class Counter extends Control [ width = 96, height = 28, cornerRadius = 7,
     value: number = 0,
     step:  number = 1,
 
-    input(v: number) { value = v },          // the default delivery; a use site overrides it
-    press() { input(value + step) },         // click, Space and Enter all land here
+    commit(v: number) { value = v },         // the default delivery; a use site overrides it
+    press() { commit(value + step) },        // click, Space and Enter all land here
 
     fill = { pressed ? provided("theme").controlPressed : hovered ? provided("theme").controlHovered : provided("theme").control },
     t: Text [ x = center, y = center, fontSize = 13, textColor = { provided("theme").text },
@@ -21,7 +21,7 @@ App [ width = 320, height = 130, theme = { SanFrancisco },
     n: number = 0,
     col: View [ x = 20, y = 20,
         layout: SimpleLayout [ axis = y, spacing = 12 ],
-        Counter [ value = { app.n }, input(v: number) { app.n = v } ],
+        Counter [ value = { app.n }, commit(v: number) { app.n = v } ],
         Text [ textColor = { provided("theme").text }, text = { "count: " + app.n } ]
         ]
     ]
@@ -32,9 +32,9 @@ App [ width = 320, height = 130, theme = { SanFrancisco },
   (a card, a badge). `Control` brings focus, Space/Enter activation, and makes
   `hovered`/`pressed` respect `disabled`.
 - Override `press()`, not the pointer handlers: click, Space and Enter all land there.
-- A control **delivers, never stores**: `press()` calls `input(v)`; it never writes its
-  own value. The default `input` writes the value (standalone use); a use site that owns
-  the value overrides `input`. One class works both ways.
+- A control **delivers, never stores**: `press()` calls `commit(v)`; it never writes its
+  own value. The default `commit` writes the value (standalone use); a use site that owns
+  the value overrides `commit`. One class works both ways.
 - Style from `hovered`/`pressed`: on a control they are false while `disabled`, and
   `pressed` includes a keyboard press, so a disabled control never lights up.
 - A subclass refines methods and attributes (`super.press()` keeps the base's), never the

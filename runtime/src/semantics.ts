@@ -13,10 +13,11 @@
 // runtime's own leaves (Text, rich text, TextInput, Image) are what they are.
 
 import { View } from "./view.js";
-import { readRowIndex } from "./view.js";
+import { readRowIndex, isReplica } from "./view.js";
 import { blocksOf } from "./replicate.js";
 import { rootFrameBox, type InteractionView } from "./interaction.js";
 import { untracked } from "./reactive.js";
+import { providedRead } from "./attributes.js";
 import type { Block, Inline, ReadOptions } from "./md.js";
 
 // What the tree needs of a rich document, from the runtime's own class: its
@@ -100,25 +101,37 @@ function topModal(root: View): View | null {
 }
 
 /** The view's role as the tree reads it: what it declares, or what a runtime
- *  leaf is (a field, a picture). */
+ *  leaf is (a field, a picture). A scroller with a name and no role is a
+ *  `group` of that name: a scroller is a stop of its own (focus.ts), and a
+ *  name needs a role to be read by (ARIA names no generic element). */
 export function roleOf(v: View): string {
   const r = v.accessibilityRole;
   if (r !== "none") return r;
   const leaf = v.$leafRole?.();
-  return leaf === "textField" || leaf === "image" ? leaf : "none";
+  if (leaf === "textField" || leaf === "image") return leaf;
+  return v.scrolls !== "none" && v.accessibilityLabel !== "" ? "group" : "none";
 }
 
 // What the tree needs of the role contracts (a11y-roles.ts), which the
 // compiler checks and a production build does not carry: whose name is its
 // content, and which roles are pressed or stepped.
 /** The roles a person reaches on their own — a container's name from content leaves them out. */
-export const REACHED_APART = new Set(["button", "toggle", "checkbox", "switch", "radio", "link", "menuItem", "slider", "spinButton", "textField", "searchBox", "combobox"]);
-const CELLS = new Set(["cell", "columnHeader"]);
-export const NAMED_BY_CONTENT = new Set(["button", "toggle", "checkbox", "switch", "radio", "link", "heading", "listItem", "cell", "columnHeader", "tab", "menuItem", "option", "treeItem"]);
-export const PRESSED = new Set(["button", "toggle", "checkbox", "switch", "radio", "tab", "menuItem", "option", "treeItem", "link", "row", "cell", "listItem"]);
+export const REACHED_APART = new Set(["button", "toggle", "checkbox", "switch", "radio", "link", "menuItem", "menuItemRadio", "slider", "spinButton", "textField", "searchBox", "combobox"]);
+const CELLS = new Set(["cell", "columnHeader", "rowHeader"]);
+export const NAMED_BY_CONTENT = new Set(["button", "toggle", "checkbox", "switch", "radio", "link", "heading", "listItem", "cell", "columnHeader", "rowHeader", "tab", "menuItem", "menuItemRadio", "option", "treeItem"]);
+export const PRESSED = new Set(["button", "toggle", "checkbox", "switch", "radio", "tab", "menuItem", "menuItemRadio", "option", "treeItem", "link", "row", "cell", "listItem"]);
 export const STEPPED = new Set(["slider", "spinButton", "separator"]);
-const POSITIONED = new Set(["listItem", "menuItem", "tab", "radio", "option", "treeItem", "row"]);
-const PRESENTATIONAL = new Set(["button", "toggle", "checkbox", "switch", "radio", "tab", "slider", "spinButton", "progress", "separator", "option", "menuItem", "image"]);
+/** The controls a `Field` names with its caption when they have no name of their own. */
+const FIELD_NAMED = new Set(["button", "toggle", "checkbox", "switch", "radio", "slider", "spinButton", "progress", "meter",
+  "textField", "searchBox", "combobox", "link", "listbox", "tree", "grid", "radioGroup", "tabList"]);
+/** The caption of the `Field` a control is in, when it has no name of its own and is
+ *  a kind a field names — `""` otherwise. */
+export function fieldCaption(v: View, role: string): string {
+  if (!FIELD_NAMED.has(role)) return "";
+  return String(providedRead(v, "fieldLabel", true, "") ?? "");
+}
+const POSITIONED = new Set(["listItem", "menuItem", "menuItemRadio", "tab", "radio", "option", "treeItem", "row"]);
+const PRESENTATIONAL = new Set(["button", "toggle", "checkbox", "switch", "radio", "tab", "slider", "spinButton", "progress", "meter", "separator", "option", "menuItem", "menuItemRadio", "image"]);
 
 function walk(v: View, out: SemNode[]): void {
   // what cannot be seen is not read: hidden, or faded to nothing; nor is what
@@ -148,6 +161,8 @@ function walk(v: View, out: SemNode[]): void {
   if (role === "image" && node.name === "") return;
   const fromContent = NAMED_BY_CONTENT.has(role) && v.accessibilityLabel === "";
   if (fromContent) node.name = nameOfContent(v);
+  // nameless, inside a Field: the field's caption names it
+  if (node.name === "") node.name = fieldCaption(v, role);
   // a tip that is not the name describes: "Archive" on a button that says "A"
   if (node.hint === undefined && v.tooltipLabel !== "" && v.tooltipLabel !== node.name) node.hint = v.tooltipLabel;
   for (const c of v.children) if (c instanceof View) walk(c, node.children);
@@ -190,6 +205,7 @@ function nodeFor(v: View, role: string): SemNode {
   if (v.accessibilityPressed !== null) st.push(v.accessibilityPressed ? "pressed" : "not pressed");
   if (v.accessibilitySelected === true) st.push("selected");
   if (v.accessibilitySort !== "none") st.push("sorted " + v.accessibilitySort);
+  if (v.accessibilityCurrent !== "none") st.push("current " + v.accessibilityCurrent);
   if (v.accessibilityMultiselectable) st.push("multiselectable");
   if (v.accessibilityExpanded !== null) st.push(v.accessibilityExpanded ? "expanded" : "collapsed");
   if (a.disabled === true) st.push("disabled");
@@ -224,14 +240,15 @@ function nodeFor(v: View, role: string): SemNode {
 }
 
 /** How many records the replications under a list hold — its own, or those of
- *  the views with no role between it and its rows (a scroller, a body). Null
- *  when nothing under it replicates. */
+ *  the views with no role between it and its rows (a scroller, a body). Only
+ *  the outermost replication counts: what a row replicates in turn (its cells)
+ *  is not more rows. Null when nothing under it replicates. */
 export function rowsUnder(v: View): number | null {
   let n: number | null = null;
   const blocks = blocksOf(v);
   if (blocks.length > 0) n = blocks.reduce((k, b) => k + b.logicalCount(), 0);
   for (const c of v.children) {
-    if (!(c instanceof View) || roleOf(c) !== "none" || isText(c)) continue;
+    if (!(c instanceof View) || roleOf(c) !== "none" || isText(c) || isReplica(c)) continue;
     const m = rowsUnder(c);
     if (m !== null) n = (n ?? 0) + m;
   }

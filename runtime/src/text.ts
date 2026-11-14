@@ -24,7 +24,7 @@
 
 import { View, onDiscard } from "./view.js";
 import type { RenderBackend, Surface } from "./backend.js";
-import { insetSides, shadowEqual, outlineEqual, type Fill, type Shadow, type Outline, type Color, type Inset } from "./value.js";
+import { insetSides, shadowEqual, strokeEqual, type Fill, type Shadow, type Stroke, type Color, type Inset } from "./value.js";
 import { fontMetrics, fontString, textWidth, transformText, wrapLines, capHeight as measureCapHeight, xHeight as measureXHeight, type TextTransform, type FontWeight } from "./measure.js";
 import type { Numerals, NumeralWidth } from "./font-features.js";
 import { holdsFamily, heldFamily, type FamilyValue } from "./font-value.js";
@@ -104,7 +104,7 @@ export class Text extends View {
   declare textAlign: "start" | "center" | "end" | "left" | "right";
   declare italic: boolean;
   declare textFill: Fill | null;
-  declare outline: Outline | null;
+  declare textStroke: Stroke | null;
   declare textTransform: TextTransform;
   declare smallCaps: boolean;
   declare numerals: Numerals;
@@ -297,7 +297,7 @@ export class Text extends View {
           direction: runDirection(this),
           italic: this.italic,
           textFill: this.textFill,
-          outline: this.outline,
+          textStroke: this.textStroke,
           textTransform: this.textTransform,
           smallCaps: this.smallCaps,
           numerals: this.numerals,
@@ -367,7 +367,7 @@ defineAttributes(Text, {
   textFill: { def: null },
   // Typographical treatments — a Text wears them like textShadow/textFill; runs
   // get them through the RichText span path. Paint/decoration, per-Text.
-  outline: { def: null, equal: outlineEqual },
+  textStroke: { def: null, equal: strokeEqual },
   textTransform: { def: "none" },
   smallCaps: { def: false },
   // OpenType figures: `normal` on either axis is the face's own default, which

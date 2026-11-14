@@ -35,7 +35,8 @@ options
 
 actions, run in the order written (each may repeat)
   --click PATH                 press the view at PATH
-  --dblclick PATH              double-click the view at PATH (a double tap with --touch)
+  --dblclick PATH [X,Y]        double-click the view at PATH (at X,Y inside it, from its
+                               top-left; a double tap with --touch)
   --hover PATH                 bring the pointer over the view at PATH and leave it there
   --click-at PATH X,Y          press at (X, Y) inside it, from its top-left — a part of a
                                drawn control that is not a view of its own
@@ -56,7 +57,9 @@ actions, run in the order written (each may repeat)
   --wait MS                    let MS milliseconds of the program's time pass — its clock is
                                held between steps, so motion, timers and Time move only here
   --wait-real MS               let the program run live for MS of real time: what arrives on
-                               the world's clock (a socket's or a service's timed messages)
+                               the world's clock (a socket's or a service's timed messages).
+                               No opening wait: a look starts once the app has arrived (its
+                               first data in), so --wait-real is for real-time events only
   --read PATH.ATTR             print PATH's attribute: app.list.scrollY = 240 (or any
                                property past it: app.col.childViews.length)
   --call PATH.METHOD(ARGS)     call a method, its arguments as JSON: --call 'app.preset(14)'
@@ -66,6 +69,12 @@ actions, run in the order written (each may repeat)
   --js EXPRESSION              evaluate a JavaScript expression in the page and print
                                what it returns (awaited, as JSON) — for what the options
                                above do not ask: document.activeElement.id, a computed style
+  --from-start [MS]            from the first moment, let the program's time pass in small
+                               steps (until nothing moves, or MS) and say what moved: each
+                               view's place, size, opacity and text, from what to what, and
+                               over which milliseconds — what the app does as it loads
+  --filmstrip DIR              with --from-start, a picture of the window at each step too,
+                               saved in DIR as 0000ms.png, 0050ms.png, …
   --requests                   print the requests the program has sent so far — its
                                data sources and streams: method, path, body, status
                                (roles, names, values, states, actions), as it stands then
@@ -103,7 +112,7 @@ let file = argv.find((a) => a.endsWith(".declare") && !/^[a-z]+:\/\//i.test(a));
 if (file === undefined && url === undefined) { console.error(HELP); process.exit(2); }
 
 const fail = (msg) => { console.error(`declare-look: ${msg}`); process.exit(2); };
-let size, touch = false, dark = false, consoleOut = false, settle = true, scrollbars = false;
+let size, touch = false, dark = false, consoleOut = false, settle = true, scrollbars = false, filmstrip = null;
 const actions = [];
 for (let i = 0; i < argv.length; i++) {
   const a = argv[i];
@@ -118,7 +127,11 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === "--no-settle") settle = false;
   else if (a === "--scrollbars") scrollbars = true;
   else if (a === "--click") actions.push({ kind: "click", path: arg() });
-  else if (a === "--dblclick") actions.push({ kind: "dblclick", path: arg() });
+  else if (a === "--dblclick") {
+    const path = arg(), next = argv[i + 1];
+    const at = next !== undefined && /^-?[\d.]+,-?[\d.]+$/.test(next) ? arg().split(",").map(Number) : null;
+    actions.push({ kind: "dblclick", path, x: at?.[0], y: at?.[1] });
+  }
   else if (a === "--hover") actions.push({ kind: "hover", path: arg() });
   else if (a === "--click-at") {
     const path = arg(), at = arg().split(",").map(Number);
@@ -176,6 +189,12 @@ for (let i = 0; i < argv.length; i++) {
   else if (a === "--shot-of") { const path = arg(); actions.push({ kind: "shotOf", path, file: resolve(arg()) }); }
   else if (a === "--semantics") actions.push({ kind: "semantics" });
   else if (a === "--requests") actions.push({ kind: "requests" });
+  else if (a === "--from-start") {
+    const ms = /^\d+$/.test(argv[i + 1] ?? "") ? Number(arg()) : 4000;
+    // the look starts where the program starts: nothing is run to rest first
+    settle = false;
+    actions.push({ kind: "fromStart", ms });
+  } else if (a === "--filmstrip") filmstrip = resolve(arg());
   else if (a === "--js") actions.push({ kind: "js", src: arg() });
   else fail(`${a} is not an option — see --help`);
 }
@@ -187,10 +206,11 @@ const step = (x) => {
   const p = JSON.stringify(x.path);
   switch (x.kind) {
     case "click": return `await drive.click(${p});${rest}`;
-    case "dblclick": return `await drive.dblclick(${p});${rest}`;
+    case "dblclick": return x.x === undefined ? `await drive.dblclick(${p});${rest}` : `await drive.dblclick(${p}, ${x.x}, ${x.y});${rest}`;
     case "clickAt": return `await drive.clickAt(${p}, ${x.x}, ${x.y});${rest}`;
     case "pinch": return `await drive.pinch(${p}, ${x.scale});${rest}`;
     case "hold": return `await drive.hold(${p}, ${x.ms});${rest}`;
+    case "fromStart": return fromStart(x.ms);
     case "drag": return `await drive.drag(${p}, ${x.dx}, ${x.dy});${rest}`;
     // a held drag is looked at as it stands: no settle between its steps
     case "hover": return `await drive.hover(${p});${rest}`;
@@ -250,8 +270,52 @@ const step = (x) => {
   }
 };
 
+/** --from-start: the program's time in 50 ms steps from where it starts, each view's
+ *  place, size, opacity and text read at every step; what changed is said as one
+ *  line per view and attribute — first value, last value, and the span of steps it
+ *  moved over. Stops once nothing has moved for 400 ms, or at `ms`. */
+function fromStart(ms) {
+  const dir = filmstrip === null ? "null" : JSON.stringify(filmstrip);
+  return `{ const dir = ${dir}; if (dir !== null) { const fs = await import("node:fs"); fs.mkdirSync(dir, { recursive: true }); }
+    const snap = () => page.evaluate(() => {
+      const d = window.__declare, out = {};
+      const walk = (v) => {
+        if (v == null || typeof v !== "object" || !("children" in v)) return;
+        if (v.visible === false) return;
+        let at; try { at = d.pathOf(v); } catch { return; }
+        for (const k of ["x", "y", "width", "height", "opacity"]) if (typeof v[k] === "number") out[at + "." + k] = Math.round(v[k] * 100) / 100;
+        if (typeof v.text === "string" && v.text !== "") out[at + ".text"] = v.text;
+        for (const c of v.children ?? []) walk(c);
+      };
+      walk(d.find("app"));
+      return out;
+    });
+    const shot = async (t) => { if (dir !== null) await page.screenshot({ path: dir + "/" + String(t).padStart(4, "0") + "ms.png" }); };
+    const moved = new Map();
+    let prev = await snap(), quietSince = 0, t = 0;
+    await shot(0);
+    while (t < ${ms}) {
+      await drive.wait(50); t += 50;
+      const cur = await snap();
+      let any = false;
+      for (const k of new Set([...Object.keys(prev), ...Object.keys(cur)])) {
+        if (prev[k] === cur[k]) continue;
+        any = true;
+        const m = moved.get(k) ?? { from: prev[k], first: t - 50 };
+        m.to = cur[k]; m.last = t; moved.set(k, m);
+      }
+      await shot(t);
+      prev = cur;
+      if (any) quietSince = t; else if (t - quietSince >= 400) break;
+    }
+    const say = (v) => v === undefined ? "(not shown)" : typeof v === "string" ? JSON.stringify(v.length > 40 ? v.slice(0, 40) + "…" : v) : String(v);
+    const lines = [...moved].map(([k, m]) => k + ": " + say(m.from) + " → " + say(m.to) + ", " + m.first + "–" + m.last + " ms");
+    console.log(lines.length === 0 ? "from the start: nothing moved (" + t + " ms looked at)" : "from the start, " + lines.length + " change" + (lines.length === 1 ? "" : "s") + " over " + t + " ms:\\n  " + lines.join("\\n  "));
+    if (dir !== null) console.log("filmstrip: " + dir); }`;
+}
+
 // the device is the page's from its first load: one load, not a load and a reload
-const script = `export const device = ${JSON.stringify({ width: w ?? 1280, height: h ?? 800, touch, hideScrollbars: !scrollbars, echoConsole: consoleOut, ...(dark ? { scheme: "dark" } : {}) })};
+const script = `${actions.some((x) => x.kind === "fromStart") ? "export const fromStart = true;\n" : ""}export const device = ${JSON.stringify({ width: w ?? 1280, height: h ?? 800, touch, hideScrollbars: !scrollbars, echoConsole: consoleOut, ...(dark ? { scheme: "dark" } : {}) })};
 export default async ({ page, drive, expect }) => {
   ${settle ? "await drive.settleMotion();" : ""}
   ${actions.map(step).join("\n  ")}

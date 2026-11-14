@@ -15,6 +15,8 @@
 import { View } from "./view.js";
 import { defineAttributes, isSet, ownerOf, setBound } from "./attributes.js";
 import { resolveAsset } from "./asset-base.js";
+import { pathOf } from "./node-path.js";
+import { declareName } from "./declare-name.js";
 // The asset base lives in its own leaf module (asset-base.ts) — the render glue
 // needs the same rule for a font face, and importing it from here would pin the
 // Image class into every bundle.
@@ -25,6 +27,21 @@ export class Image extends View {
     bitmap = null;
     /** Discards a superseded load: only the latest request may land. */
     loadSeq = 0;
+    /** The source turning back to an address whose load just failed — what a
+     *  source that reads its own `failed` does (`source = { failed ? other :
+     *  url }`): the failure moves it away, the next load clears `failed`, and it
+     *  turns back, without end. `failed` speaks about the current source, so no
+     *  reading of it can hold such a source still; the turn is caught instead.
+     *  `$lastFailed` is the address that failed, `$wentTo` the one the source
+     *  moved to next, `$returns` how often it came straight back (each within
+     *  RETURN_MS of the failure). At RETURN_LIMIT it is said once, and the Image
+     *  holds the other address: the failed one is not asked for again, and
+     *  `failed` stays true, until the source names a third address. */
+    $lastFailed = "";
+    $failedAt = 0;
+    $wentTo = "";
+    $returns = 0;
+    $held = false;
     /** The arrived bitmap's natural size — what contentExtent folds into a
      *  parent-style auto-extent when this Image has children of its own (LZX's
      *  max(resource, subviews)). Zero until loaded. */
@@ -44,7 +61,7 @@ export class Image extends View {
         // across (the image element itself arrives via load's async landing).
         if (this.bitmap !== null)
             s.setImage(this.bitmap); // a surface after the load (first shown later) takes what arrived
-        s.setImageStretch(this.stretches);
+        s.setImageStretch(this.fit);
         if (this.alignX !== "center" || this.alignY !== "center")
             s.setImageAlign?.(this.alignX, this.alignY);
         if (this.tint !== null)
@@ -56,9 +73,12 @@ export class Image extends View {
         const s = this.$surface;
         if (s === null)
             return;
+        if (this.$turnsBack())
+            return;
         // a new attempt speaks for the new source: `failed` clears here (and only
         // here), so it is always a fact about the CURRENT address
-        setBound(this, "failed", false);
+        if (!this.$held)
+            setBound(this, "failed", false);
         if (this.source === "") {
             s.setImage(null);
             return;
@@ -71,9 +91,14 @@ export class Image extends View {
         // document.createElement, not `new Image()` — this class shadows that
         // global inside its own module.
         const img = document.createElement("img");
+        const addr = this.source;
         img.onload = () => {
             if (seq !== this.loadSeq || this.$surface === null)
                 return; // superseded or detached
+            if (addr === this.$lastFailed) {
+                this.$lastFailed = this.$wentTo = "";
+                this.$returns = 0;
+            }
             // Natural size lands through the reactive write path (setBound: the
             // runtime is the writer, so was-set stays false) and only into slots
             // the author left alone — explicit sizes and constraints win (an
@@ -95,14 +120,58 @@ export class Image extends View {
         img.onerror = () => {
             if (seq !== this.loadSeq || this.$surface === null)
                 return; // superseded or detached
+            if (addr !== this.$lastFailed) {
+                this.$lastFailed = addr;
+                this.$wentTo = "";
+                this.$returns = 0;
+            }
+            this.$failedAt = Date.now();
             setBound(this, "failed", true);
         };
         img.src = resolveAsset(this.source, this.$root);
     }
+    /** Whether this load is the source turning back to the address that just
+     *  failed, once too often (above) — said once, and then not asked for. */
+    $turnsBack() {
+        const addr = this.source;
+        if (this.$lastFailed === "")
+            return false;
+        if (addr !== this.$lastFailed) {
+            if (this.$wentTo === "")
+                this.$wentTo = addr;
+            else if (addr !== this.$wentTo) {
+                this.$lastFailed = this.$wentTo = "";
+                this.$returns = 0;
+                this.$held = false;
+            }
+            return false;
+        }
+        if (this.$held) {
+            setBound(this, "failed", true);
+            return true;
+        }
+        if (this.$wentTo === "" || Date.now() - this.$failedAt > RETURN_MS) {
+            this.$wentTo = "";
+            this.$returns = 0;
+            return false;
+        }
+        if (++this.$returns < RETURN_LIMIT)
+            return false;
+        this.$held = true;
+        setBound(this, "failed", true);
+        const at = this.$root != null ? pathOf(this.$root, this) : declareName(this);
+        console.error(`[Declare] ${at}: its source keeps turning back to "${addr.slice(0, 80)}", whose load failed — a source that reads the Image's own \`failed\` (\`source = { failed ? other : url }\`) clears it by moving away, so it turns back again. It now holds "${this.$wentTo.slice(0, 80)}". \`failed\` speaks about the current source: put the other picture under this one instead (\`Image [ source = other ]\`, then this Image with \`source = { url }\` and \`visible = { !this.failed }\`)`);
+        return true;
+    }
 }
+/** A turn back to the failed address counts when it comes this soon after the
+ *  failure — the time a fallback takes to load, not a person trying again. */
+const RETURN_MS = 2000;
+/** Turns back before the loop is said and stopped. */
+const RETURN_LIMIT = 3;
 defineAttributes(Image, {
     source: { def: "", push: (i) => i.$load() },
-    stretches: { def: "none", push: (i, v) => i.$surface?.setImageStretch(v) },
+    fit: { def: "none", push: (i, v) => i.$surface?.setImageStretch(v) },
     alignX: { def: "center", push: (i) => i.$surface?.setImageAlign?.(i.alignX, i.alignY) },
     alignY: { def: "center", push: (i) => i.$surface?.setImageAlign?.(i.alignX, i.alignY) },
     tint: { def: null, push: (i, v) => i.$surface?.setImageTint?.(v) },

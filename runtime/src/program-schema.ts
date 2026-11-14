@@ -380,11 +380,6 @@ export function checkDecl(
   if (structural !== null) {
     return err(diag`'${d.name}' is ${structural} — it cannot be declared; choose another name`, d.pos);
   }
-  if (d.name === "key") {
-    // `key = …` where an element is used is always replication metadata
-    // (language §9), so an attribute of this name could never be set
-    return err(diag`'key' is replication metadata — 'key = …' where an element is used names a replicated record's identity, so an attribute called 'key' could never be set; choose another name ('field', 'code', 'name')`, d.pos);
-  }
   if (attrType(schema, d.name) !== null) {
     // A read-only intrinsic must not advise "write name = …" — setting it is
     // ALSO an error (skill-arm finding: `contentWidth: number = …` got the
@@ -395,8 +390,11 @@ export function checkDecl(
         d.pos
       );
     }
+    // …or, when one of its own was meant, a name that is free: the class's
+    // last word before it, as a held child name is answered (check.ts)
+    const own = (owner.match(/[A-Z][a-z0-9]*$/)?.[0] ?? owner).toLowerCase() + d.name[0].toUpperCase() + d.name.slice(1);
     return err(
-      diag`${schema.name} already has an attribute '${d.name}' — a declaration introduces a new one; write '${d.name} = …' to set the existing one`,
+      diag`${schema.name} already has an attribute '${d.name}' — a declaration introduces a new one; write '${d.name} = …' to set the existing one, or, for one of your own, name it otherwise, e.g. '${own}'`,
       d.pos
     );
   }

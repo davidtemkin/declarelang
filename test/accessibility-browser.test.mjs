@@ -297,7 +297,7 @@ App [ width = 500, height = 500,
         more: Button [ label = "More", menu = { app.m } ],
         city: Combobox [ width = 200, placeholder = "City", items = ["Boston", "Berlin", "Bern"] ],
         tbl: Table [ width = 200, height = 100, accessibilityLabel = "Cities", datapath = { app.cities.value },
-            TableRow [ datapath = :rows[], height = 28, onContextMenu(e: PointerEvent) { app.ctx.open(this, e) },
+            TableRow [ datapath = :rows[], height = 28, onContextMenu(e: PointerEvent) { app.ctx.showAt(this, e) },
                 Text [ x = 8, y = center, text = :name ] ] ],
         save: Button [ label = "Save", tooltipLabel = "Save the draft" ] ],
     dlg: Dialog [ ],
@@ -440,6 +440,37 @@ await test("a toast: its action reachable, held while hovered, announced once", 
   assert.ok((await undo()) !== null, "held open past its time while the pointer is over it");
   await pg.mouse.move(5, 290); await wait(2400);
   assert.equal(await undo(), null, "and gone a moment after it is let go");
+  await pg.close();
+});
+
+await test("a grid's row headers are rowheaders, and a labelled scroller is a named group in Chrome's tree", async () => {
+  const c = await compile(`App [ width = 400, height = 300,
+    sheet: View [ width = 300, height = 120, scrolls = both, focusable = true, accessibilityLabel = "Spreadsheet",
+      View [ accessibilityRole = grid, accessibilityLabel = "Cells", layout: SimpleLayout [ axis = y ],
+        View [ accessibilityRole = row, layout: SimpleLayout [ axis = x ], Text [ text = " ", width = 30 ], Text [ text = "A", width = 60, accessibilityRole = columnHeader ] ],
+        View [ accessibilityRole = row, layout: SimpleLayout [ axis = x ], Text [ text = "0", width = 30, accessibilityRole = rowHeader ], Text [ text = "5", width = 60, accessibilityRole = cell ] ] ] ],
+    log: View [ y = 140, width = 200, height = 60, scrolls = y, accessibilityLabel = "Log", View [ width = 100, height = 300 ] ] ]`);
+  assert.equal(c.errors.length, 0, c.report);
+  const pg = await browser.newPage();
+  const errs = []; pg.on("pageerror", (e) => errs.push(String(e)));
+  await pg.goto(BASE + "/", { waitUntil: "domcontentloaded" });
+  await pg.evaluate(async (base, json) => {
+    const rt = await import(base + "/runtime/dist/index.js");
+    const dom = await import(base + "/runtime/dist/semantics-dom.js");
+    await rt.kernelReady?.();
+    const host = document.createElement("div");
+    host.style.cssText = "position:absolute;left:0;top:0;width:400px;height:300px";
+    document.body.appendChild(host);
+    const app = rt.buildProgram(JSON.parse(json));
+    rt.mountApp(app, host, new rt.DomBackend());
+    const frame = () => new Promise((res) => requestAnimationFrame(() => setTimeout(res, 0)));
+    rt.settle(); await frame(); dom.flushAnnotations(); rt.settle(); await frame();
+  }, BASE, JSON.stringify(c.program));
+  const s = await pg.createCDPSession();
+  const { nodes } = await s.send("Accessibility.getFullAXTree");
+  const seen = nodes.filter((n) => !n.ignored && ["group", "grid", "rowheader", "columnheader"].includes(n.role?.value)).map((n) => `${n.role.value} ${n.name?.value ?? ""}`);
+  for (const want of ["group Spreadsheet", "group Log", "grid Cells", "columnheader A", "rowheader 0"]) assert.ok(seen.includes(want), `${want} in ${JSON.stringify(seen)}`);
+  assert.deepEqual(errs, []);
   await pg.close();
 });
 

@@ -1,13 +1,13 @@
 // Combobox / ContextMenu / DataGrid (B7 — component-briefs.md §3–§5): the
 // remaining ruled briefs as library classes. Protocol-driven, the table-test
 // discipline: gestures land on the seams (pickIndex / headerClick / _commitDrop
-// / resizeInput) — the pointer-to-seam wiring is inspection-pinned.
+// / applyColumnWidth) — the pointer-to-seam wiring is inspection-pinned.
 
 import assert from "node:assert/strict";
 import { test, summarize } from "./harness.mjs";
 import { compileProgram } from "../compiler/dist/declarec.js";
 import { instantiate } from "../runtime/dist/instantiate.js";
-import { settle, provideMeasurer } from "../runtime/dist/index.js";
+import { settle, provideMeasurer, Focus } from "../runtime/dist/index.js";
 import { approximateMeasurer } from "../compiler/dist/headless.js";
 
 // Menu machinery centers text (`y = center`) — node has no canvas, so the
@@ -135,15 +135,15 @@ await test("Combobox: a use-site commit() owns the value (press-never-writes)", 
 
 // ── ContextMenu ───────────────────────────────────────────────────────────
 
-await test("ContextMenu: open(v, e) anchors at the pointer; pick delivers and closes", async () => {
+await test("ContextMenu: showAt(v, e) anchors at the pointer; pick delivers and closes", async () => {
   const app = await boot(`App [ width = 500, height = 400,
     last: string = "",
     m: ContextMenu [ items = { [({ id: "cut", label: "Cut" }), ({ id: "copy", label: "Copy" })] },
       picked(id: string) { app.last = id },
     ],
     v: View [ x = 100, y = 100, width = 200, height = 100,
-      onContextMenu(e: PointerEvent) { app.m.open(this, e) },
-      onHold(e: PointerEvent) { app.m.open(this, e) },
+      onContextMenu(e: PointerEvent) { app.m.showAt(this, e) },
+      onHold(e: PointerEvent) { app.m.showAt(this, e) },
     ],
   ]`);
   assert.equal(app.m.shown, false);
@@ -170,8 +170,8 @@ await test("ContextMenu: picked() still knows its opener — one menu serving ev
     m: ContextMenu [ items = { [({ id: "delete", label: "Delete" })] },
       picked(id: string) { app.last = id + " " + (this.opener == null ? "nothing" : (this.opener as any).tag) },
     ],
-    a: View [ tag: string = "first", x = 0, y = 0, width = 200, height = 50, onContextMenu(e: PointerEvent) { app.m.open(this, e) } ],
-    b: View [ tag: string = "second", x = 0, y = 60, width = 200, height = 50, onContextMenu(e: PointerEvent) { app.m.open(this, e) } ],
+    a: View [ tag: string = "first", x = 0, y = 0, width = 200, height = 50, onContextMenu(e: PointerEvent) { app.m.showAt(this, e) } ],
+    b: View [ tag: string = "second", x = 0, y = 60, width = 200, height = 50, onContextMenu(e: PointerEvent) { app.m.showAt(this, e) } ],
   ]`);
   app.b.onContextMenu({ x: 10, y: 10 }); settle();
   app.m.pick("delete");
@@ -188,7 +188,7 @@ await test("ContextMenu: a serving view inside a SCROLLED pane anchors where the
     sc: View [ x = 0, y = 50, width = 500, height = 300, scrolls = y, clip = true,
       tall: View [ width = 500, height = 2000,
         pad: View [ x = 40, y = 600, width = 200, height = 100,
-          onContextMenu(e: PointerEvent) { app.m.open(this, e) },
+          onContextMenu(e: PointerEvent) { app.m.showAt(this, e) },
         ],
       ],
     ],
@@ -210,7 +210,7 @@ await test("Menu: viewport-aware — a list that won't fit below emerges ABOVE; 
     btn: View [ x = 50, y = 240, width = 120, height = 30 ],
   ]`);
   assert.equal(Keys.navClaimed(), false);
-  app.m.openFor(app.btn);
+  app.m.showFor(app.btn);
   settle();
   assert.equal(Keys.navClaimed(), true, "an open menu claims the nav keys from page scroll");
   const h = app.m.expectedHeight();
@@ -225,7 +225,7 @@ await test("Menu: a long list caps at the viewport and its body scrolls (the rov
     m: Menu [ items = { Array.from({ length: 40 }, (_, i) => ({ id: "" + i, label: "Item " + i })) } ],
     btn: View [ x = 50, y = 10, width = 120, height = 30 ],
   ]`);
-  app.m.openFor(app.btn);
+  app.m.showFor(app.btn);
   settle();
   assert.ok(app.m._panel.height <= 260 - 8, "the panel caps at the viewport");
   assert.equal(app.m._panel.body.scrolls, "y", "…and the body is the scroller");
@@ -246,7 +246,7 @@ await test("Menu: the ruled COLUMN model — check space always, icon column iff
     ] } ],
     btn: View [ x = 40, y = 10, width = 100, height = 24 ],
   ]`);
-  app.m.openFor(app.btn);
+  app.m.showFor(app.btn);
   settle();
   assert.equal(app.m.hasIcons, true);
   const rows = app.m._panel.body.children.filter((r) => r.lbl !== undefined);
@@ -260,7 +260,7 @@ await test("Menu: the ruled COLUMN model — check space always, icon column iff
     m: Menu [ items = { [({ id: "a", label: "One" }), ({ id: "b", label: "Two", checked: true })] } ],
     btn: View [ x = 40, y = 10, width = 100, height = 24 ],
   ]`);
-  app2.m.openFor(app2.btn);
+  app2.m.showFor(app2.btn);
   settle();
   assert.equal(app2.m.hasIcons, false);
   const rows2 = app2.m._panel.body.children.filter((r) => r.lbl !== undefined);
@@ -291,7 +291,7 @@ await test("Menu: a row's key shows as the person's keyboard spells it (Keyboard
   const app = await boot(`App [ width = 400, height = 300,
     m: Menu [ items = { [ ({ id: "g", label: "Group", key: "Ctrl+G" }) ] } ],
     btn: View [ x = 50, y = 10, width = 120, height = 30 ] ]`);
-  app.m.openFor(app.btn); settle();
+  app.m.showFor(app.btn); settle();
   const shown = [];
   const walk = (v) => { if (typeof v.text === "string" && v.text !== "" && v.visible) shown.push(v.text); for (const c of v.childViews ?? []) walk(c); };
   walk(app.m);
@@ -338,7 +338,7 @@ await test("DataGrid: no children — rows from items, cells from the columns' r
   assert.deepEqual(cellTexts(rows[1]), ["1", "Issue 1", "open"], "a cell with no class shows its field as text");
   assert.equal(app.g._hdr.y, 0, "the header takes the top of the grid's own box");
   assert.equal(app.g._hdr.ignoreScroll, true, "pinned there while the rows scroll");
-  assert.equal(rows[0].y, app.g.headerH, "rows begin below it — a layout placing the grid places header and rows together");
+  assert.equal(rows[0].y, app.g.headerHeight, "rows begin below it — a layout placing the grid places header and rows together");
 });
 
 await test("DataGrid: header click is a SORT DELIVERY — it names a derivation, data stays the truth", async () => {
@@ -370,7 +370,7 @@ await test("DataGrid: reorder and resize are value-pattern state — deliveries 
   assert.deepEqual(app.g._currentOrder(), ["title", "id", "state"], "the release committed the reorder");
   assert.equal(app.g._dragCol, "", "drag state cleared");
   assert.deepEqual(cellTexts(gridRows(app.g)[0]), ["Issue 0", "0", "done"], "cells follow the order");
-  app.g.resizeInput("title", 150);
+  app.g.applyColumnWidth("title", 150);
   settle();
   const cols = app.g._colData.value.cols;
   assert.deepEqual(cols.map((c) => [c.id, c.x]), [["title", 0], ["id", 150], ["state", 220]],
@@ -381,7 +381,7 @@ await test("DataGrid: reorder and resize are value-pattern state — deliveries 
     d: Dataset { { "rows": [] } },
     g: DataGrid [ x = 10, y = 10, width = 600, height = 300, items = { app.d.value.rows },
       columns = { [ { id: "a", title: "A", width: 100 }, { id: "b", title: "B", width: 100 } ] },
-      arrangeInput(ord: array) { app.got = ord } ],
+      applyColumnOrder(ord: array) { app.got = ord } ],
   ]`);
   app2.d.value = { rows: [{ id: 1, a: 1, b: 2 }] };
   settle();
@@ -400,7 +400,7 @@ await test("DataGrid: the Table contract rides along — selection over grid row
   const rows = gridRows(app.g);
   rows[1].onClick();
   settle();
-  assert.equal(app.g.selected, app.d.value.rows[1], "a grid row selects its item — the dataset's own record");
+  assert.equal(app.g.selectedItem, app.d.value.rows[1], "a grid row selects its item — the dataset's own record");
   assert.equal(rows[1].selected, true);
   app.g.rowClick(3, app.d.value.rows[3], false, true);
   settle();
@@ -421,7 +421,8 @@ await test("DataGrid: a column's cell is a class of the app's own, bound to its 
   const rows = gridRows(app.g);
   const [title1, done1] = cellsOf(rows[0]);
   const done2 = cellsOf(rows[1])[1];
-  assert.deepEqual([title1._kind(), done1._kind()], ["edit", "own"]);
+  assert.deepEqual([title1._kind(), done1._kind()], ["editor", "own"]);
+  assert.equal(title1._drawn().constructor.name, "DataGridText", "an edit column's cell shows its text until it is selected");
   assert.equal(done1._drawn().constructor.name, "DoneCell", "the column's class is what the cell draws");
   assert.deepEqual([done1._drawn().box.checked, done2._drawn().box.checked], [false, true],
     "each copy reads its own row's record");
@@ -430,20 +431,64 @@ await test("DataGrid: a column's cell is a class of the app's own, bound to its 
   assert.equal(app.d.value.rows[0].done, true, "the app's class writes its row's record — the dataset's own");
   assert.equal(app.d.value.rows[1].done, true, "…and no other");
   // an edit column writes as you type, and Esc puts back where the edit began
+  const later = async () => { for (let i = 0; i < 3; i++) { await new Promise((r) => setTimeout(r, 20)); settle(); } };
+  Focus.focus(app.g); app.g.activeIndex = 0; app.g.activeItem = app.d.value.rows[0]; app.g.activeCol = 0;
+  await later();
   const ed = title1._editor();
-  ed.onFocus();
+  assert.ok(ed != null && Focus.getFocus() === ed, "the selected cell's field holds the keyboard");
   ed._typed("Renamed");   // what the native element reports as the person types
-  settle();
+  await later();
   assert.equal(app.d.value.rows[0].title, "Renamed", "typing writes the record live");
   ed.onKeyDown({ key: "Escape", shift: false, ctrl: false, alt: false, meta: false, repeat: false, code: "Escape" });
   settle();
   assert.equal(app.d.value.rows[0].title, "One", "Esc puts the text back");
   // the grid's keyboard: Space on a cell of the app's own presses its control
-  app.g.activeIndex = 1; app.g.active = app.d.value.rows[1]; app.g.activeCol = 1;
+  app.g.activeIndex = 1; app.g.activeItem = app.d.value.rows[1]; app.g.activeCol = 1;
   settle();
   app.g._enterCell(app.g._activeCell(), " ");
   settle();
   assert.equal(app.d.value.rows[1].done, false, "Space pressed the row's checkbox");
+});
+
+await test("DataGrid: the grid's text editor keeps a number field a number; text that is not one yet writes nothing", async () => {
+  const app = await boot(`App [ width = 500, height = 300,
+    d: Dataset { { "rows": [ { "id": 1, "qty": 3 } ] } },
+    g: DataGrid [ width = 400, height = 200, items = { app.d.value.rows },
+      columns = { [ { id: "qty", title: "Qty", width: 120, edit: true } ] } ] ]`);
+  const later = async () => { for (let i = 0; i < 3; i++) { await new Promise((r) => setTimeout(r, 20)); settle(); } };
+  Focus.focus(app.g); app.g.activeIndex = 0; app.g.activeItem = app.d.value.rows[0]; app.g.activeCol = 0;
+  await later();
+  const ed = app.g._activeCell()._editor();
+  ed._typed("42"); await later();
+  assert.equal(app.d.value.rows[0].qty, 42, "typed digits land as a number");
+  ed._typed("-"); await later();
+  assert.equal(app.d.value.rows[0].qty, 42, "a lone '-' is not a number yet: nothing written");
+  ed._typed("-7"); await later();
+  assert.equal(app.d.value.rows[0].qty, -7);
+});
+
+await test("DataGrid: Tab in an open text edit ends it and moves a cell along, wrapping rows; Shift-Tab back", async () => {
+  const app = await boot(`App [ width = 700, height = 400,
+    d: Dataset { { "rows": [ { "id": 1, "a": "A1", "b": "B1" }, { "id": 2, "a": "A2", "b": "B2" } ] } },
+    g: DataGrid [ x = 10, y = 10, width = 650, height = 300, items = { app.d.value.rows },
+      columns = { [ { id: "a", title: "A", width: 200, edit: true }, { id: "b", title: "B", width: 200, edit: true } ] } ] ]`);
+  const later = async () => { for (let i = 0; i < 3; i++) { await new Promise((r) => setTimeout(r, 20)); settle(); } };
+  const K = (key, shift = false) => ({ key, shift, ctrl: false, alt: false, meta: false, repeat: false, code: key });
+  const at = () => [app.g.activeIndex, app.g.activeCol, app.g.editing];
+  const tab = async (shift) => {
+    app.g.editing = true; await later();
+    app.g._activeCell()._editor().onKeyDown(K("Tab", shift)); await later();
+  };
+  Focus.focus(app.g); app.g.activeIndex = 0; app.g.activeItem = app.d.value.rows[0]; app.g.activeCol = 0;
+  await later();
+  await tab(false);
+  assert.deepEqual(at(), [0, 1, false], "Tab: the next cell in the row, the edit ended");
+  await tab(false);
+  assert.deepEqual(at(), [1, 0, false], "Tab past the last column: the next row's first cell");
+  await tab(true);
+  assert.deepEqual(at(), [0, 1, false], "Shift-Tab: back across the row boundary");
+  await tab(true); await tab(true);
+  assert.deepEqual(at(), [0, 0, false], "Shift-Tab at the first cell stays");
 });
 
 await test("DataGrid: a heading record is a heading row — full width, no cells, passed over by selection and keys", async () => {
@@ -489,7 +534,7 @@ await test("DataGrid: windowing composes — the header offsets the window (the 
   assert.ok(rows.length < 60, "10k rows, a window's worth of instances");
   const first = rows.find((r) => r.tableIndex() === 0);
   assert.ok(first !== undefined);
-  assert.equal(first.y, app.g.headerH, "row 0 sits below the header — its place leads the window");
+  assert.equal(first.y, app.g.headerHeight, "row 0 sits below the header — its place leads the window");
   assert.deepEqual(cellTexts(first), ["0", "Issue 0"], "cells render in the window");
 });
 
@@ -535,8 +580,8 @@ await test("Segmented: every segment is a STOP — tab to an inactive choice, Sp
     page: string = "a",
     s: Segmented [ x = 20, y = 20,
       value = { app.page },
-      input(v: object) { app.page = "" + v },
-      choices = { [ ({ id: "a", label: "Alpha" }), ({ id: "b", label: "Beta" }), ({ id: "c", label: "Gamma" }) ] },
+      commit(v: object) { app.page = "" + v },
+      items = { [ ({ id: "a", label: "Alpha" }), ({ id: "b", label: "Beta" }), ({ id: "c", label: "Gamma" }) ] },
     ],
   ]`);
   const s = app.s;
@@ -569,12 +614,12 @@ await test("Segmented: every segment is a STOP — tab to an inactive choice, Sp
 
 await test("Segmented: a choice with a location is a real link — declared, not navigated by hand; replace follows the group", async () => {
   const r = await (await import("../compiler/dist/compile-node.js")).compile(`App [ width = 500, height = 200,
-    s: Segmented [ replace = true, choices = { [ ({ id: "g", label: "Guide", location: "guide" }), ({ id: "x", label: "Plain" }) ] } ],
+    s: Segmented [ replace = true, items = { [ ({ id: "g", label: "Guide", location: "guide" }), ({ id: "x", label: "Plain" }) ] } ],
     guide: View [ shows = "guide" ] ]`);
   assert.deepEqual((r.warnings ?? []).map((w) => w.message), [], "no crawl-edge lint from library code");
   const app = await boot(`App [ width = 500, height = 200, picked: string = "",
-    s: Segmented [ replace = true, input(v: object) { app.picked = "" + v },
-      choices = { [ ({ id: "g", label: "Guide", location: "guide" }), ({ id: "x", label: "Plain" }) ] } ],
+    s: Segmented [ replace = true, commit(v: object) { app.picked = "" + v },
+      items = { [ ({ id: "g", label: "Guide", location: "guide" }), ({ id: "x", label: "Plain" }) ] } ],
     guide: View [ shows = "guide" ] ]`);
   const [g, x] = app.s.segs();
   assert.equal(g.link, "#guide", "the segment declares its destination");
@@ -605,7 +650,7 @@ await test("the library raises no warnings in a program that uses it", async () 
   const r = await (await import("../compiler/dist/compile-node.js")).compile(`App [ width = 600, height = 600,
     col: View [ layout: SimpleLayout [ axis = y ],
     Button [ label = "b" ], Checkbox [ label = "c" ], Switch [ accessibilityLabel = "s" ], Slider [ accessibilityLabel = "v" ], ProgressBar [ accessibilityLabel = "p" ], Gauge [ label = "g" ],
-    Segmented [ choices = { [ ({ id: "a", label: "A", location: "a" }) ] } ], Combobox [ placeholder = "o" ], TextInput [ accessibilityLabel = "t" ], AppearanceSwitch [ ],
+    Segmented [ items = { [ ({ id: "a", label: "A", location: "a" }) ] } ], Combobox [ placeholder = "o" ], TextInput [ accessibilityLabel = "t" ], AppearanceSwitch [ ],
     RadioGroup [ Radio [ choice = "a", label = "A" ] ], Field [ ], Card [ ], Divider [ ],
     Accordion [ AccordionPane [ ] ], Menu [ ], MenuBar [ ], ContextMenu [ ], Dialog [ ], Tooltip [ ], Icon [ ] ] ]`);
   assert.deepEqual((r.errors ?? []).map((e) => e.message), []);
@@ -739,7 +784,7 @@ await test("Combobox creates: text that names no item is offered, and asked for,
 await test("RangeSlider: two thumbs that never cross, each on a step", async () => {
   const app = await boot(`App [ width = 400, height = 100, lo: number = 20, hi: number = 100,
     r: RangeSlider [ min = 0, max = 500, step = 5, accessibilityLabel = "Amount",
-      low = { app.lo }, high = { app.hi }, commit(low: number, high: number) { app.lo = low; app.hi = high } ] ]`);
+      value = { ({ low: app.lo, high: app.hi }) }, commit(v: object) { app.lo = v.low; app.hi = v.high } ] ]`);
   app.r.setHigh(10); settle();
   assert.deepEqual([app.lo, app.hi], [20, 20], "the high end stops at the low one");
   app.r.setLow(333); settle();
@@ -761,16 +806,17 @@ await test("Stepper: digits typed together are one number, held to the range", a
   assert.equal(app.n, 50, "99 is held to max");
 });
 
-await test("DataGrid editInput: an edit goes through it — the default writes, false keeps the record", async () => {
+await test("DataGrid applyEdit: an edit goes through it — the default writes, false keeps the record", async () => {
   const src = (over) => `App [ width = 700, height = 400, sent: string = "",
     d: Dataset { { "rows": [ { "id": 1, "title": "One" } ] } },
     g: DataGrid [ width = 600, height = 300, items = { app.d.value.rows },
       columns = { [ { id: "title", title: "Title", width: 240, edit: true, commitOn: "end" } ] } ${over} ] ]`;
+  const editAt = (a) => { a.g.activeIndex = 0; a.g.activeItem = a.d.value.rows[0]; a.g.activeCol = 0; settle(); a.g.editing = true; settle(); return cellsOf(gridRows(a.g)[0])[0]._drawn(); };
   const app = await boot(src(""));
-  cellsOf(gridRows(app.g)[0])[0]._drawn().write("Two"); settle();
+  editAt(app).write("Two"); settle();
   assert.equal(app.d.value.rows[0].title, "Two", "by default it writes");
-  const app2 = await boot(src(`, editInput(record: object, field: string, value: string) -> boolean { app.sent = field + "=" + value; return false }`));
-  cellsOf(gridRows(app2.g)[0])[0]._drawn().write("Two"); settle();
+  const app2 = await boot(src(`, applyEdit(record: object, field: string, value: string) -> boolean { app.sent = field + "=" + value; return false }`));
+  editAt(app2).write("Two"); settle();
   assert.equal(app2.sent, "title=Two", "the override hears it");
   assert.equal(app2.d.value.rows[0].title, "One", "and false keeps the record for the service's answer");
 });

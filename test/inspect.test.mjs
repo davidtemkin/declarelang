@@ -163,6 +163,22 @@ await test("explain: provenance — literal vs wired constraint (label + static 
   app.discard();
 });
 
+// A tracked rule has no extracted read-paths: explain names what its last run
+// read instead — never `deps: null` for a rule that is working (Murmur run 17:
+// that answer sent an agent chasing closures).
+await test("explain: a tracked rule reports its last run's reads, slots and data regions", async () => {
+  const app = await boot(`App [ width = 100, height = 100, k: string = "a",
+    d: Dataset { { "rows": [ { "id": "a", "n": 3 } ] } },
+    pick() -> number { return (app.d.value as any).rows.find((r: any) => r.id == app.k)?.n ?? 0 },
+    t: Text [ text = { "" + app.pick() } ] ]`);
+  const why = explain(find(app, "app.t"), "text");
+  assert.equal(why.constraint.static, false, "tracked, not wired");
+  const deps = why.constraint.deps ?? [];
+  assert.ok(deps.includes("app.k"), `the slot it read: ${JSON.stringify(deps)}`);
+  assert.ok(deps.some((d) => d.startsWith("app.d /rows")), `the data it read: ${JSON.stringify(deps)}`);
+  app.discard();
+});
+
 await test("driven clock: step() advances motion deterministically; settleMotion() lands it", async () => {
   clock.manual();
   const app = await boot(APP);
@@ -281,8 +297,8 @@ await test("explain: an unknown slot answers loudly, never with placid nothing",
 // position among its siblings (a Segmented's segments sit after its own parts).
 await test("find: a path step names a view by its label, accessible name or text; quoted when it holds a dot", async () => {
   const app = await boot(`App [ width = 300, height = 200, pick: string = "a",
-    seg: Segmented [ width = 240, value = { app.pick }, input(v: any) { app.pick = v },
-        choices = { [ ({ id: "a", label: "One" }), ({ id: "b", label: "Two" }) ] } ],
+    seg: Segmented [ width = 240, value = { app.pick }, commit(v: any) { app.pick = v },
+        items = { [ ({ id: "a", label: "One" }), ({ id: "b", label: "Two" }) ] } ],
     box: View [ Text [ text = "Save As…" ], v: View [ accessibilityLabel = "Volume", accessibilityRole = group ] ] ]`);
   const two = find(app, "app.seg.Two");
   assert.ok(two !== null && (two.label === "Two" || two.text === "Two"), "the view in the segment that says Two (a press on it is the segment's)");

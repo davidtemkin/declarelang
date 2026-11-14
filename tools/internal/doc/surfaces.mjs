@@ -242,7 +242,7 @@ export const SURFACES = [
     spineKeys: ["enums"],
     gated: true,
     // Was ungated, on the reasoning that "the tokens ARE the documentation".
-    // They are not: a reader who meets `motion: Motion` in a signature gets a
+    // They are not: a reader who meets `easing: Easing` in a signature gets a
     // name with nothing behind it, and a token list answers neither what the
     // vocabulary selects nor how to choose within it. Every enum now has a page
     // of its own with that paragraph, and this is what keeps a new one from

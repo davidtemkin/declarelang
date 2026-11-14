@@ -197,7 +197,7 @@ directory. `boot()` resolves to the page's handle on the app (also on
 `boot({ provides })` and `tenant.provide(name, value)` feed values in,
 `tenant.exposed(name, default)` reads what it exposes (watch it with
 `observe(() => tenant.exposed(…), cb)`), `boot({ onPost })` and `tenant.post`
-carry messages, and `boot({ onNavigate })` takes over the app's `navigate` /
+carry messages, and `boot({ onNavigate })` takes over the app's `openURL` /
 `openWindow` for your own router. The guide's
 [Crossing boundaries](declare-docs:guide:embedding) chapter walks all three
 embedding directions — app-in-page, page-in-app (`DOMIsland`), and

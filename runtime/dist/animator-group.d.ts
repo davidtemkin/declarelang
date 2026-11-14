@@ -24,7 +24,7 @@ export declare class AnimatorGroup extends Node implements Animatable {
     from: number | null;
     relative: boolean;
     duration: number;
-    motion: Motion;
+    easing: Motion;
     /** Run members one-after-another (`sequential`, default) or all-at-once
      *  (`simultaneous`) — the one group-only control (LZX). */
     process: "sequential" | "simultaneous";

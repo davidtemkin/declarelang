@@ -110,7 +110,7 @@ export function buildRegistry(reference, typeNames, formNames) {
   }
   // Types: one id per enum / shared type page. PREFIXED, because a type name and
   // a class name share one namespace otherwise (`View` is both a class and a
-  // declarable type) — `type:Motion`, the same shape `guide:` and `operational:`
+  // declarable type) — `type:Easing`, the same shape `guide:` and `operational:`
   // have. The docs app resolves it to the type's own page.
   for (const n of typeNames ?? Object.keys(committed?.types?.pages ?? {})) {
     ids[`type:${n}`] = { path: "docs/declare-model.json", title: n, kind: "type" };

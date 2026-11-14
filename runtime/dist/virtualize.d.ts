@@ -161,6 +161,11 @@ export declare class Windowing {
     /** Give the parent's height back: the slot's owner entry goes with the
      *  derive, or a dead rule would keep the auto-extent from returning. */
     private dropHeightOwner;
+    /** The mounted rows in their records' order among the parent's children, and
+     *  their surfaces likewise, the parked rows after them: Tab and assistive
+     *  tech walk the tree, so a re-pointed row takes its record's place, not the
+     *  one its view held. Only the surfaces out of order move. */
+    private inDataOrder;
     private park;
     private unpark;
     private drop;

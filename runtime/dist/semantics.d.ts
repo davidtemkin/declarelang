@@ -38,16 +38,22 @@ export declare function semanticId(v: View): number;
  *  subtree is reported then. Read untracked — building it wakes nothing. */
 export declare function semanticTree(root: View): SemNode;
 /** The view's role as the tree reads it: what it declares, or what a runtime
- *  leaf is (a field, a picture). */
+ *  leaf is (a field, a picture). A scroller with a name and no role is a
+ *  `group` of that name: a scroller is a stop of its own (focus.ts), and a
+ *  name needs a role to be read by (ARIA names no generic element). */
 export declare function roleOf(v: View): string;
 /** The roles a person reaches on their own — a container's name from content leaves them out. */
 export declare const REACHED_APART: Set<string>;
 export declare const NAMED_BY_CONTENT: Set<string>;
 export declare const PRESSED: Set<string>;
 export declare const STEPPED: Set<string>;
+/** The caption of the `Field` a control is in, when it has no name of its own and is
+ *  a kind a field names — `""` otherwise. */
+export declare function fieldCaption(v: View, role: string): string;
 /** How many records the replications under a list hold — its own, or those of
- *  the views with no role between it and its rows (a scroller, a body). Null
- *  when nothing under it replicates. */
+ *  the views with no role between it and its rows (a scroller, a body). Only
+ *  the outermost replication counts: what a row replicates in turn (its cells)
+ *  is not more rows. Null when nothing under it replicates. */
 export declare function rowsUnder(v: View): number | null;
 /** The text a view holds, in reading order — what a name is taken from. */
 export declare function textOf(v: View): string;

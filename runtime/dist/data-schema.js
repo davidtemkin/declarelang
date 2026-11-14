@@ -8,7 +8,7 @@
 //      a binding;
 //   2. that's it — identity is NOT a schema concern (ruled 2026-07-30, the
 //      invisible version): a record's `id` field is its identity by
-//      convention, inferred by the reconciler; `key = :field` overrides an
+//      convention, inferred by the reconciler; `identityKey = :field` overrides an
 //      unconventional name; the compiler's static `:path` walker lives
 //      compile-side with its errors.
 //

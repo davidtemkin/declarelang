@@ -24,6 +24,9 @@ const browser = await launchChrome({ executablePath: chrome, headless: true, arg
 // super through three levels, fired at boot: the log is "cab" only if every
 // `super.onInit()` reached its base
 const SOURCE = `
+script {
+    function mark(): string { return colorWithAlpha(0x112233, 255) == 0x112233 ? "log:" : "lost:" }
+    }
 class A extends View [ log: string = "",
     onInit() { log = log + "a" } ]
 class B extends A [
@@ -32,7 +35,7 @@ class C extends B [
     onInit() { log = log + "c"; super.onInit() } ]
 App [ width = 200, height = 60,
     c: C [ ],
-    shown: Text [ text = { "log:" + app.c.log } ] ]`;
+    shown: Text [ text = { mark() + app.c.log } ] ]`;
 
 /** Build for production, serve it, boot it with eval and Function trapped. */
 async function boot(precompile) {

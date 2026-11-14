@@ -28,8 +28,8 @@
 import { DeclareError, insetOrRadiusMessage, noBaselineMessage, stackBaselineMessage, placedAttributeMessage } from "./errors.js";
 import { SCHEMAS, attrType, isReadOnly, descendsFrom, eventOfHandler, eventsOf, handlerName, EVENT_PAYLOAD, BUILTIN_PROVIDED } from "./schema.js";
 import { Diag, nearestName } from "./diagnostics.js";
-import { runtimeFieldsOf, runtimeMethodsOf } from "./runtime-methods.js";
-import { cssAttributeHint, hintedForeignName } from "./teach.js";
+import { RUNTIME_METHODS, runtimeFieldsOf, runtimeMethodsOf } from "./runtime-methods.js";
+import { cssAttributeHint, hintedForeignName, renamedClassMember } from "./teach.js";
 import { autoIncludableNames } from "./include.js";
 import { coerce, describeLiteral, noteLiteral } from "./value.js";
 import { resolveShapes, shapeNames } from "./shape-resolve.js";
@@ -391,7 +391,7 @@ function checkBundleUse(bundle, body, schema, at) {
     for (const a of body.attrs) {
         const type = attrType(schema, a.name);
         if (type === null) {
-            errors.push(new DeclareError(`style ${bundle} sets '${a.name}', which ${schema.name} does not declare`, a.pos));
+            errors.push(new DeclareError(`style ${bundle} sets '${a.name}', which ${schema.name} does not declare${attributeMiss(schema, a.name)}`, a.pos));
             continue;
         }
         const bad = UNSTYLABLE[type.kind];
@@ -597,12 +597,10 @@ classRoot = false) {
             errors.push(new DeclareError(`only a Dataset carries a { } body — a ${el.tag}'s members go in [ ]`, el.raw.pos));
         }
         checkNamespace(el, eff, errors);
-        // `key = :field` is replication metadata (language §9): on a child whose
-        // datapath matches many, it names each record's STABLE identity so a
-        // re-derived collection reconciles by that key (reusing instances) instead
-        // of by object identity (rebuilding every fresh object). It is magic ONLY
-        // on a replication template — elsewhere `key` is an ordinary attribute
-        // name — so the special case can't collide with a real `key` slot.
+        // `identityKey = :field` is replication metadata (language §9): on a child
+        // whose datapath matches many, it names each record's STABLE identity so a
+        // re-derived collection reconciles by that field (reusing instances)
+        // instead of by object identity (rebuilding every fresh object).
         const replicated = manyPathOf(el, schemas) !== null;
         for (const attr of el.attrs) {
             // Both are REPLICATION metadata. They sit in View's schema so they
@@ -610,7 +608,7 @@ classRoot = false) {
             // so a `{ }` body has a declared type to check against — but they mean
             // nothing on a node that replicates nothing, and schema membership alone
             // would make them silently legal there.
-            if ((attr.name === "key" || attr.name === "virtualize" || attr.name === "classFor") && !replicated) {
+            if ((attr.name === "identityKey" || attr.name === "virtualize" || attr.name === "classFor") && !replicated) {
                 errors.push(new DeclareError(`'${attr.name}' is replication metadata — it belongs on a node whose datapath matches many ('datapath = :rows[]'), beside that path. This node replicates nothing, so there is no collection for it to describe`, attr.pos));
                 continue;
             }
@@ -630,13 +628,21 @@ classRoot = false) {
                 }
                 continue;
             }
-            if (attr.name === "key" && replicated) {
+            if (attr.name === "identityKey" && replicated) {
                 if (attr.value.kind !== "path" || attr.value.many) {
-                    errors.push(new DeclareError(`key = :field names each record's identity field (e.g. 'key = :id') — a single :path, not ${attr.value.kind === "path" ? "a many-path" : "a literal"}`, attr.value.pos));
+                    errors.push(new DeclareError(`identityKey = :field names each record's identity field (e.g. 'identityKey = :sku') — a single :path, not ${attr.value.kind === "path" ? "a many-path" : "a literal"}`, attr.value.pos));
                 }
                 continue;
             }
-            // `virtualize` is replication metadata like `key` (materialization.md;
+            // `key` is an ordinary name — a class may declare one. Where none is
+            // declared, `key = :field` on a replicated node is the instinct
+            // `identityKey` replaced (and React's `key`): name it, with the field.
+            if (attr.name === "key" && replicated && attrType(eff, "key") === null) {
+                const field = attr.value.kind === "path" && !attr.value.many ? `:${attr.value.path}` : ":field";
+                errors.push(new DeclareError(`${schema.name} has no attribute 'key' — a replicated record's identity is identityKey: 'identityKey = ${field}'`, attr.pos));
+                continue;
+            }
+            // `virtualize` is replication metadata like `identityKey` (materialization.md;
             // spelled `virtualize` since the 2026-08-02 naming ruling — the
             // MECHANISM stays materialization, the KNOB takes the word its audience
             // arrives with). A BOOLEAN, default false, and a `{ }` constraint is
@@ -704,7 +710,12 @@ classRoot = false) {
             // by shape — a two-item list is not a shorthand, it is a mistake.
             const k0 = attrType(eff, attr.name)?.kind;
             if ((k0 === "radius" || k0 === "inset") && attr.value.kind === "list") {
-                if (attr.value.items.length !== 4 || attr.value.items.some((it) => it.kind !== "number")) {
+                // four items, one of them computed, is the right shape in the wrong form: say the form
+                const computed = attr.value.items.find((it) => it.kind !== "number");
+                if (attr.value.items.length === 4 && computed !== undefined) {
+                    errors.push(new DeclareError(`${eff.name}.${attr.name}: a bare list holds numbers only. For anything computed, write the whole list as a { } constraint: { [ … ] }`, computed.pos));
+                }
+                else if (attr.value.items.length !== 4 || computed !== undefined) {
                     errors.push(new DeclareError(insetOrRadiusMessage(eff.name, attr.name), attr.value.pos));
                 }
                 continue;
@@ -769,7 +780,7 @@ classRoot = false) {
                 errors.push(new DeclareError(`'${child.name}' is ${structural} — a child cannot take its name; choose another`, child.pos));
             }
             else if (declared !== null) {
-                errors.push(new DeclareError(`${schema.name}.${child.name} is an attribute — a child may not take an attribute's name`, child.pos));
+                errors.push(new DeclareError(`${schema.name}.${child.name} is an attribute — a child may not take an attribute's name; rename the child (e.g. '${child.name}${child.tag.replace(/^.*\./, "")}')`, child.pos));
             }
             else if (!declsOwned && CLASS_MEMBERS.get(el.tag)?.has(child.name) === true) {
                 // The use site is configuring the class's own child by redeclaring
@@ -860,7 +871,7 @@ function checkDataNode(el, schema, errors, classRoot) {
         // at every use site).
         const derived = el.attrs.some((a) => a.name === "contents") || classSets(el.tag, "contents");
         if (el.raw === undefined && !derived && !classRoot) {
-            errors.push(new DeclareError(`a Dataset needs data — a literal JSON body ('${el.name ?? "events"}: Dataset { … }') or a derived 'contents = { … }'`, el.pos));
+            errors.push(new DeclareError(`a Dataset needs data — a literal JSON body ('${el.name ?? "events"}: ${el.tag} { … }'; one the program fills itself starts from its shape's empty form, such as '{ "rows": [] }') or a derived 'contents = { … }'`, el.pos));
         }
         else if (el.raw !== undefined && derived) {
             errors.push(new DeclareError(`${el.name ?? el.tag}: a Dataset is EITHER a literal '{ … }' body OR a derived 'contents = { … }', not both`, el.raw.pos));
@@ -999,7 +1010,7 @@ classRoot = false) {
                 if (parentSchema != null && isReadOnly(parentSchema, a.value.name)) {
                     const scroll = a.value.name === "scrollX" || a.value.name === "scrollY";
                     errors.push(new DeclareError(scroll
-                        ? `an animator drives an attribute — ${parentSchema.name}.${a.value.name} is a platform fact, which nothing drives. Glide the scroller with ${a.value.name === "scrollX" ? "scrollToX(x" : "scrollTo(y"}, { duration, motion }) instead`
+                        ? `an animator drives an attribute — ${parentSchema.name}.${a.value.name} is a platform fact, which nothing drives. Glide the scroller with ${a.value.name === "scrollX" ? "scrollToX(x" : "scrollTo(y"}, { duration, easing }) instead`
                         : `an animator drives an attribute — ${parentSchema.name}.${a.value.name} is read-only (computed), so it cannot be driven`, a.value.pos));
                 }
             }
@@ -1019,6 +1030,17 @@ classRoot = false) {
     if (!hasAttribute && !attributeCascaded && !classRoot && !classSets(el.tag, "attribute")) {
         errors.push(new DeclareError(`${/^[AEIOU]/.test(el.tag) ? "an" : "a"} ${el.tag} needs 'attribute = <name>' — the attribute it drives`, el.pos));
     }
+}
+/** The refusal for a State overriding a provided value (`fontSize`): the
+ *  override engine drives the view's own slots only, so the condition goes
+ *  into the value itself — named with the State's own condition and value. */
+export function stateProvidedMessage(state, a) {
+    const applied = state.attrs.find((x) => x.name === "applied")?.value;
+    const cond = applied?.kind === "code" ? applied.src.trim() : "cond";
+    const v = a.value;
+    const val = v.kind === "code" ? v.src.trim() : v.kind === "number" ? (v.hex ? "0x" + v.value.toString(16).toUpperCase() : String(v.value))
+        : v.kind === "string" ? JSON.stringify(v.value) : v.kind === "hexColor" ? v.raw : v.kind === "ident" ? v.name : "…";
+    return `${state.tag}.${a.name}: a state override sets a declared attribute of the view, not a provided value — put the condition in the value instead: ${a.name} = { ${cond} ? ${val} : … }, with … what it is otherwise`;
 }
 /** Validate a state node (docs/system-design/states.md: descendsFrom "State"). Its
  *  body is special and does NOT walk as a generic class: `applied` is the
@@ -1064,7 +1086,7 @@ classRoot = false) {
         // A name the enclosing view does not declare would be a provided value, and
         // an override drives the view's own slots only (the engine's rule too).
         if (attrType(parentSchema, a.name) === null) {
-            errors.push(new DeclareError(`${el.tag}.${a.name}: a state override sets a declared attribute of the view, not a provided value`, a.value.pos));
+            errors.push(new DeclareError(stateProvidedMessage(el, a), a.value.pos));
             continue;
         }
         const r = checkAttr(parentSchema, a);
@@ -1119,7 +1141,7 @@ function checkAnimatorGroupNode(el, schema, schemas, parentSchema, errors, attri
                 if (parentSchema != null && isReadOnly(parentSchema, a.value.name)) {
                     const scroll = a.value.name === "scrollX" || a.value.name === "scrollY";
                     errors.push(new DeclareError(scroll
-                        ? `an animator drives an attribute — ${parentSchema.name}.${a.value.name} is a platform fact, which nothing drives. Glide the scroller with ${a.value.name === "scrollX" ? "scrollToX(x" : "scrollTo(y"}, { duration, motion }) instead`
+                        ? `an animator drives an attribute — ${parentSchema.name}.${a.value.name} is a platform fact, which nothing drives. Glide the scroller with ${a.value.name === "scrollX" ? "scrollToX(x" : "scrollTo(y"}, { duration, easing }) instead`
                         : `an animator drives an attribute — ${parentSchema.name}.${a.value.name} is read-only (computed), so it cannot be driven`, a.value.pos));
                 }
             }
@@ -1403,14 +1425,18 @@ function layoutPlaces(layoutEl) {
         name = cd.base;
     }
     const base = name;
-    const all = (kind) => new Map([["x", kind], ["y", kind], ["width", kind], ["height", kind], ["visible", kind]]);
     const result = (placed) => ({ placed, byName: new Map(), errors: [] });
-    // a TweenLayout places every attribute of every child it arranges, whatever
-    // its place() returns — its install interpolates whole boxes
-    if (base === "TweenLayout")
-        return result(all("all"));
     // an author's own place() anywhere in the chain replaces the library's
     const definer = chain.findIndex((cd) => cd.body.methods.some((m) => m.name === "place"));
+    // a TweenLayout places what its boxes name, and the visibility of every child
+    // it arranges; a key its boxes leave out stays the child's own
+    if (base === "TweenLayout") {
+        const scanned = definer >= 0 ? scanPlaceKeys(chain.slice(0, definer + 1)) : null;
+        if (scanned === null)
+            return null;
+        scanned.keys.set("visible", "all");
+        return result(scanned.keys);
+    }
     if (definer >= 0) {
         const scanned = scanPlaceKeys(chain.slice(0, definer + 1));
         if (scanned === null)
@@ -1559,7 +1585,10 @@ function checkNamespace(el, schema, errors) {
         ...el.attrs.map((a) => ({ name: a.name, pos: a.pos, kind: "set" })),
         ...el.decls.map((d) => ({ name: d.name, pos: d.pos, kind: "decl" })),
         ...el.methods.map((m) => ({ name: m.name, pos: m.pos, kind: "method" })),
-        ...el.children.filter((c) => c.name !== null).map((c) => ({ name: c.name, pos: c.pos, kind: "child" })),
+        // a child with `exists` is lowered to a State standing for it: its name is
+        // still a member here, in the same namespace
+        ...el.children.map((c) => (c.existsOf === true && c.children.length === 1 ? c.children[0] : c))
+            .filter((c) => c.name !== null).map((c) => ({ name: c.name, pos: c.pos, kind: "child" })),
     ].sort((a, b) => a.pos.offset - b.pos.offset);
     const seen = new Map();
     const kindName = { set: "set", decl: "declared", method: "a method", child: "a child" };
@@ -1606,6 +1635,20 @@ function attrNames(schema) {
  *  each got a bare "has no attribute", with the whole legal list in hand and
  *  the fix one character away. Those are precisely the errors a model makes. */
 function attributeMiss(schema, name) {
+    const chain = [];
+    for (let s = schema; s !== null; s = s.base)
+        chain.push(s.name);
+    // A METHOD of the chain, set as if it were an attribute (`focusShape = null`):
+    // it is a member, just not one that takes a value — said before any hint or
+    // spelling, which would otherwise answer a name that exists with another one.
+    const method = methodOfChain(chain, name);
+    if (method !== null)
+        return ` — '${name}' is a method of ${method.owner}, not an attribute: override it in the body, ${name}(${method.params}) { … }, or call it from a handler`;
+    // a member this class's chain had under another name (teach.ts): answered
+    // only here, where it was the class's — elsewhere the name is free
+    const renamed = renamedClassMember(chain, name);
+    if (renamed !== "")
+        return ` — ${renamed}`;
     const hint = cssAttributeHint(name);
     if (hint !== "")
         return hint;
@@ -1624,6 +1667,28 @@ function attributeMiss(schema, name) {
     }
     const near = nearestName(name, attrNames(schema));
     return near === null ? "" : ` — did you mean '${near}'?`;
+}
+/** The methods a built-in calls when a view declares one, which its runtime
+ *  class does not itself define (so runtime-methods.ts, which pins the
+ *  prototype, does not list them): name → the parameters an override takes. */
+const HOOK_METHODS = {
+    View: { tabOrder: "", draw: "d: DrawContext" },
+};
+/** The class in `chain` (most derived first) that declares `name` as a method —
+ *  a program or library class's body, a built-in's hook, or its runtime class —
+ *  with the parameters an override writes. */
+function methodOfChain(chain, name) {
+    for (const c of chain) {
+        const m = CHECK_CLASSES.get(c)?.body.methods.find((x) => x.name === name);
+        if (m !== undefined)
+            return { owner: c, params: m.params.map((q) => q.name).join(", ") };
+        const hook = HOOK_METHODS[c]?.[name];
+        if (hook !== undefined)
+            return { owner: c, params: hook };
+        if (RUNTIME_METHODS[c]?.includes(name) === true)
+            return { owner: c, params: "…" };
+    }
+    return null;
 }
 /** Validate one attribute against a schema. check() collects the errors and
  *  instantiate() throws them — one message source, so the reporting and the
@@ -1680,10 +1745,13 @@ export function checkAttr(schema, attr) {
         // is a VERB (a request to the scroll process) or the declared start.
         const scroll = attr.name === "scrollY" || attr.name === "scrollX" || attr.name === "userScrolling";
         const msg = scroll
-            ? `${schema.name}.${attr.name} is a fact the platform reports — nothing may set it. To move the scroller, call ${attr.name === "scrollX" ? "scrollToX(x" : "scrollTo(y"}[, { duration, motion }]); for a declared starting offset use ${attr.name === "scrollX" ? "scrollStartX" : "scrollStartY"}`
-            : attr.name === "refused"
-                ? `${schema.name}.refused is read-only — a refusal is said of the value it concerns, with refuse(message) (a form's submit does it for a service's reply)`
-                : `${schema.name}.${attr.name} is read-only — it is computed, so a constraint may read it but nothing may set it`;
+            ? `${schema.name}.${attr.name} is a fact the platform reports — nothing may set it. To move the scroller, call ${attr.name === "scrollX" ? "scrollToX(x" : "scrollTo(y"}[, { duration, easing }]); for a declared starting offset use ${attr.name === "scrollX" ? "scrollStartX" : "scrollStartY"}`
+            // a RangeSlider's ends come from its value, one record (2026-11): name the form
+            : (attr.name === "low" || attr.name === "high") && descendsFrom(schema, "RangeSlider")
+                ? `${schema.name}.${attr.name} is read-only — a RangeSlider's range is its value, one record: value = { { low: …, high: … } }, and commit(v) reads v.low and v.high`
+                : attr.name === "refused"
+                    ? `${schema.name}.refused is read-only — a refusal is said of the value it concerns, with refuse(message) (a form's submit does it for a service's reply)`
+                    : `${schema.name}.${attr.name} is read-only — it is computed, so a constraint may read it but nothing may set it`;
         return { ok: false, error: new DeclareError(msg, attr.pos) };
     }
     // An App is clipped by definition (ruled 2026-07-29): a program owns its
@@ -1792,12 +1860,12 @@ export function checkAttr(schema, attr) {
 /** checkMethod, plus the rule only a whole program can decide: a METHOD
  *  named exactly like one of this class's EVENTS is a dead member unless
  *  something calls it. The runtime fires the event, which resolves to the
- *  `on…` handler, so a bare `input(v)` on a TextInput compiles, typechecks and
- *  silently saves nothing (cold agent run, 2026-08-05). But the author may also
+ *  `on…` handler, so a method named for the event compiles, typechecks and
+ *  silently saves nothing (cold agent run, 2026-08-05: `input(v)` on a TextInput). But the author may also
  *  call a method of that name themselves (`hold()`) — then it is
  *  alive, and refusing it squats an ordinary verb. So the rule fires only when
  *  the author's own code never calls the name; library code does not count, or
- *  a Checkbox's own `this.input(v)` would excuse every TextInput in the program.
+ *  a library class's own call of the name would excuse every use in the program.
  *
  *  Keyed on the schema's own event list, so it covers every such collision and
  *  cannot fire where the event does not exist — except where the name is ALSO
@@ -1810,23 +1878,24 @@ function checkMethodHere(schema, m) {
         return r;
     if (eventsOf(schema).includes(m.name) && !runtimeMethodsOf(schema).has(m.name) && !AUTHOR_CALLS.has(m.name) && !AUTHOR_CALLS.has(schema.name + ":" + m.name)) {
         return { ok: false, error: new DeclareError(`${schema.name}.${m.name}(…) is never called — '${m.name}' is an EVENT here, delivered to '${handlerName(m.name)}'. ` +
-                `Rename it to '${handlerName(m.name)}(…)'. (The 'input(v)' value pattern belongs to CONTROLS — Checkbox, Slider, ` +
-                `Segmented — which fire no such event; an editor delivers through its event instead.)`, m.pos) };
+                `Rename it to '${handlerName(m.name)}(…)'. (A change the person makes to a control's value — a Checkbox's, a ` +
+                `Slider's, a Segmented's — reaches 'commit(v)'.)`, m.pos) };
     }
     return r;
 }
 /** The value pattern's one trap, caught where it is written: a class whose
- *  `input(v)` writes one of its own attributes (`input(v) { value = v }`, a
- *  Slider's; `input(open) { shown = open }`, every overlay's) delivers its own
+ *  `commit(v)` writes one of its own attributes (`commit(v) { value = v }`, a
+ *  Slider's; `commit(open) { shown = open }`, every overlay's) delivers its own
  *  changes — a drag, Esc, a press past it — through that write. Constrain the
  *  attribute at a use site (`shown = { app.editing }`) and the write is refused
  *  at run time, the first time the user acts. So a constrained attribute that
- *  the class's own `input` writes needs an `input` override beside it. */
+ *  the class's own `commit` writes needs a `commit` override beside it, or the
+ *  two-way `<->` that says both at once. */
 function checkControlledInput(program) {
     const errors = [];
     const byName = new Map(program.classes.map((c) => [c.name, c]));
-    // the delivery method: `commit` on a value control (ValueControl's edit contract),
-    // `input` on everything else that hands a change back (an overlay's `shown`)
+    // the delivery method, `commit` — on a value control (ValueControl's edit
+    // contract) and on everything else that hands a change back (an overlay's `shown`)
     const writes = new Map();
     const writtenByInput = (name) => {
         if (writes.has(name))
@@ -1834,11 +1903,11 @@ function checkControlledInput(program) {
         writes.set(name, null);
         let out = null;
         for (let c = byName.get(name), n = 0; c !== undefined && n < 32; c = byName.get(c.base), n++) {
-            const m = c.body.methods.find((x) => x.name === "commit") ?? c.body.methods.find((x) => x.name === "input");
+            const m = c.body.methods.find((x) => x.name === "commit");
             if (m === undefined)
                 continue;
             const p = m.params[0]?.name;
-            const hit = p === undefined ? null : new RegExp(`^\\s*\\{?\\s*(?:this\\.)?(\\w+)\\s*=\\s*${p}\\s*;?\\s*\\}?\\s*$`).exec(m.body);
+            const hit = p === undefined || m.params.length > 1 ? null : new RegExp(`^\\s*\\{?\\s*(?:this\\.)?(\\w+)\\s*=\\s*${p}\\s*;?\\s*\\}?\\s*$`).exec(m.body);
             out = hit !== null ? { attr: hit[1], via: m.name } : null;
             break;
         }
@@ -1855,14 +1924,18 @@ function checkControlledInput(program) {
                 // the place to name: the one written (`:done`, `{ app.muted }`), else a plain attribute of the app's
                 const chain = a.value.kind === "code" ? /^\s*((?:app|classroot)(?:\.[A-Za-z_$][\w$]*)+)\s*$/.exec(a.value.src)?.[1] : undefined;
                 const state = a.value.kind === "path" ? `:${a.value.path}` : chain ?? `app.${attr === "shown" ? "open" : attr}`;
-                const type = attr === "shown" || attr === "checked" ? "boolean" : "any";
-                errors.push(new DeclareError(`${tag}.${attr} is constrained here, but the ${tag} also changes it itself — its own '${via}(…)' writes ${attr} ` +
-                    `(whatever the user does to it — a press, a drag, Esc, a pick), and that write is refused against your constraint. ` +
-                    (via === "commit"
-                        ? `Write '${attr} <-> ${state}' to bind it both ways, or add 'commit(…)' beside it that writes your state — ` +
-                            `'${attr} = ${a.value.kind === "path" ? state : `{ ${state} }`}' with 'commit(v: ${type}) { ${state} = v }'`
-                        : `Add '${via}(…)' beside it that writes your state instead — '${attr} = { ${state} }' with ` +
-                            `'${via}(v: ${type}) { ${state} = v }'`), a.pos));
+                const type = ["shown", "checked", "open", "on", "dark"].includes(attr) ? "boolean" : "any";
+                // `input(…)` beside it: the name an earlier Declare gave this hook, which nothing calls now
+                const old = el.methods.find((m) => m.name === "input");
+                if (old !== undefined) {
+                    errors.push(new DeclareError(`${tag}.${attr} is constrained here, and this ${tag}'s 'input(…)' is never called — the change it hands back ` +
+                        `goes to 'commit(v)'. Rename 'input(…)' to 'commit(…)', or write '${attr} <-> ${state}' in place of both when the change goes straight back`, old.pos ?? a.pos));
+                }
+                else
+                    errors.push(new DeclareError(`${tag}.${attr} is constrained here, but the ${tag} also changes it itself — its own '${via}(…)' writes ${attr} ` +
+                        `(whatever the user does to it — a press, a drag, Esc, a pick), and that write is refused against your constraint. ` +
+                        `Write '${attr} <-> ${state}' to bind it both ways, or add 'commit(…)' beside it that writes your state — ` +
+                        `'${attr} = ${a.value.kind === "path" ? state : `{ ${state} }`}' with 'commit(v: ${type}) { ${state} = v }'`, a.pos));
             }
         }
         // …and the element's OWN method writing what the element itself binds
@@ -1873,8 +1946,7 @@ function checkControlledInput(program) {
         for (const a of el.attrs) {
             if ((a.value.kind !== "code" && a.value.kind !== "path") || a.bind !== undefined)
                 continue;
-            const writes = new RegExp(`(?:^|[^.:\\w$])(?:this\\.)?${a.name}\\s*=(?!=)`);
-            const m = el.methods.find((x) => writes.test(x.body.replace(/(["'`])(?:\\.|(?!\1).)*\1/g, '""')));
+            const m = el.methods.find((x) => writesMember(x, a.name));
             if (m === undefined)
                 continue;
             const bound = a.value.kind === "path" ? `:${a.value.path}` : `{ ${a.value.src.trim()} }`;
@@ -1888,6 +1960,30 @@ function checkControlledInput(program) {
     for (const c of program.classes)
         visit(c.body, c.base, c.name);
     return errors;
+}
+/** Does this method write the member `name`? `this.name = …` always does; a
+ *  bare `name = …` does unless the method declares a local of that name — a
+ *  `const x` in a `draw()` is the method's own `x`, not the view's (shadowing).
+ *  The checker has no TypeScript parser (it stays browser-loadable), so a local
+ *  is recognised by its declaring forms: `const`/`let`/`var` (plain or
+ *  destructured), a parameter of the method or of a function or arrow inside
+ *  it, and `catch (name)`. A declaration anywhere in the method shadows the
+ *  bare name throughout it: a missed refusal here still meets the run-time
+ *  refusal at the first write; a false one refuses correct code. */
+function writesMember(m, name) {
+    const body = m.body.replace(/(["'`])(?:\\.|(?!\1).)*\1/g, '""').replace(/\/\/[^\n]*|\/\*[\s\S]*?\*\//g, "");
+    if (new RegExp(`(?:^|[^.\\w$])this\\.${name}\\s*=(?![=>])`).test(body))
+        return true;
+    if (!new RegExp(`(?:^|[^.:\\w$])${name}\\s*=(?![=>])`).test(body))
+        return false;
+    const id = new RegExp(`(?<![\\w$.])${name}(?![\\w$])`);
+    const declares = m.params.some((p) => p.name === name) ||
+        new RegExp(`\\b(?:const|let|var)\\s+${name}(?![\\w$])`).test(body) ||
+        [...body.matchAll(/\b(?:const|let|var)\s*([[{][^=;]*)/g)].some((g) => id.test(g[1])) ||
+        [...body.matchAll(/(?:\bfunction\b[\w$\s]*|\bcatch\s*)\(([^()]*)\)/g)].some((g) => id.test(g[1])) ||
+        [...body.matchAll(/\(([^()]*)\)\s*(?::[^=;{]*)?=>/g)].some((g) => id.test(g[1])) ||
+        new RegExp(`(?<![\\w$.])${name}\\s*=>`).test(body);
+    return !declares;
 }
 /** `defaultPlacement = name` (instantiate.ts DEFAULT PLACEMENT): written on a
  *  CLASS body, and naming a child that body declares, at any depth. */
@@ -1966,8 +2062,8 @@ function checkTagStyleNames(program) {
  *  is written, `app.a.b.name(` to the element that path names; a receiver
  *  this pass cannot follow counts as plain `name`, for any class. Each key is
  *  also filed under the user bases of its class, which declare the members it
- *  inherits. A Checkbox's own `input(!checked)` keeps a Checkbox's `input`
- *  alive and says nothing of a TextInput's. (Library code does not count where
+ *  inherits. A Disclosure's own `toggle()` keeps a Disclosure's `toggle`
+ *  alive and says nothing of another class's. (Library code does not count where
  *  its file is known; where it is not, the scoping above is what keeps it out.) */
 let AUTHOR_CALLS = new Set();
 /** Built-in class names a program class tried to take (see check()). */

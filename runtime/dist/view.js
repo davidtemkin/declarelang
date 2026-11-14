@@ -56,7 +56,7 @@ import { afterPush, bindDerived, blockOf, defineAttributes, disposeBindings, fre
 import {} from "./value.js";
 import { hostValuesFor } from "./boundary.js";
 import { armVisibility, reattachVisibility, retireVisibility } from "./visibility.js";
-import { judgeEmptyContainers, judgeNegativeSizes, noteNegativeSize } from "./size-report.js";
+import { judgeNegativeSizes, noteNegativeSize } from "./size-report.js";
 import { handlerName } from "./handlers.js";
 import { splitPath } from "./path-plan.js";
 import { selectValue } from "./select.js";
@@ -118,6 +118,8 @@ const ROW_PLACES = new WeakMap();
 /** The in-view range of a view's replication (replicate.ts supplies it). */
 let visibleRows = () => ({ first: -1, last: -1 });
 export function provideVisibleRows(fn) { visibleRows = fn; }
+/** Did a replication make this view (one of its rows)? Untracked. */
+export function isReplica(v) { return ROW_PLACES.has(v); }
 /** The tracked read behind `View.rowIndex`. */
 export function readRowIndex(v) {
     const p = ROW_PLACES.get(v);
@@ -173,6 +175,17 @@ export function withdrawPaintGuests(root) {
 // continues; the replicator marks evictions so discard stays silent for
 // them). Children before parents, mirroring initTree's order; once per
 // lifetime. Fired at the TOP of discard, so handlers see live state.
+/** Said once per view: a press it took was carried to it after the layout moved
+ *  it from under a pointer that stayed put (input.ts click rule). The press
+ *  counts; the jump is what the person saw, and usually a layout that reflows
+ *  when focus leaves a field. */
+const CARRIED = new WeakSet();
+function noteCarriedPress(v) {
+    if (CARRIED.has(v))
+        return;
+    CARRIED.add(v);
+    console.warn(`[Declare] ${declareName(v)} moved while pressed (the layout changed during the press, often a field losing focus); the press was carried to it — keep a pressed control in place`);
+}
 const EVICTING = new WeakSet();
 const RETIRED = new WeakSet();
 export function markEvicting(v) {
@@ -420,7 +433,13 @@ function realSurfaceAfter(v) {
         return null;
     const sibs = p.children;
     for (let i = sibs.indexOf(v) + 1; i < sibs.length; i++) {
-        const s = sibs[i].$surface;
+        const sib = sibs[i];
+        // a sibling that paints in another view's place (an overlay shown once,
+        // `paintsIn` its layer) has its element there, not here: it marks no place
+        // among these children, and inserting before it would land at the end
+        if (sib.paintsIn != null)
+            continue;
+        const s = sib.$surface;
         if (isPlaced(s))
             return s;
     }
@@ -550,8 +569,10 @@ export class View extends Node {
         if ((typeof __DECLARE_ACCESSIBILITY__ === "undefined" || __DECLARE_ACCESSIBILITY__)
             && annotator !== null && (this.accessibilityRole !== "none" || this.$leafRole?.() === "textField" || this.accessibilityLabel !== "" || this.accessibilityHidden || this.link !== "" || this.scrolls !== "none"))
             annotator(this);
+        // the place among the siblings is the model's: the first later sibling with
+        // a surface of its own HERE (not a stand-in, not one painting elsewhere)
         if (!defer && !detached)
-            parentSurface?.insertChild(s, before !== null && !isPlaced(before) ? realSurfaceAfter(this) : before);
+            parentSurface?.insertChild(s, before !== null ? realSurfaceAfter(this) : null);
         // Each child joins the surface this view has NOW: the flush, or a child
         // that needs a real surface while hidden, may have brought this view in.
         for (const child of this.children) {
@@ -836,14 +857,19 @@ export class View extends Node {
                 continue; // frame chrome: derives from the bounds, never defines them
             if (c.$paintsElsewhere())
                 continue; // measured in another view's frame
-            if (percentOwned(c, axis) || percentOwned(c, size))
+            // A size taken from this view's is its own output: never counted. A place
+            // taken from it (center, end, a percent) counts the child at its size,
+            // from the start: the view is as big as what it holds, and the child is
+            // then placed in that — a label centred in a pill sized by the label.
+            if (percentOwned(c, size))
                 continue;
+            const placed = percentOwned(c, axis);
             // The TRANSFORMED footprint (bounds), not the raw slots: a scaled or
             // rotated child counts the box it visibly covers — the same geometry
             // paint and the hit walk already honor (one geometry, every reader
             // agrees; the 2026-08-13 scale ruling).
             const b = c.$dragHome ?? c.bounds();
-            const extent = (axis === "x" ? b.x : b.y) + b[size];
+            const extent = (placed ? 0 : (axis === "x" ? b.x : b.y)) + b[size];
             if (extent > max)
                 max = extent;
         }
@@ -1250,7 +1276,7 @@ export class View extends Node {
     }
     $flushView(s) {
         // Pushers fire on CHANGE; the attach flush carries pre-attach state
-        // across (the Image.stretches discipline). Text selection is realized by
+        // across (the Image.fit discipline). Text selection is realized by
         // the text leaves themselves (Text/TextInput's `selectable` push), which
         // read the ambient `selectable` provided value. A container that PROVIDES
         // `selectable = true` is additionally a selection SURFACE, so a press in the
@@ -1303,14 +1329,14 @@ export class View extends Node {
             pushTransform(this);
         if (this.perspective !== 0)
             s.setPerspective?.(this.perspective);
-        if (this.blend !== "normal")
-            s.setBlend?.(this.blend);
+        if (this.blendMode !== "normal")
+            s.setBlend?.(this.blendMode);
         if (this.imageRendering !== "smooth")
             s.setScaling?.(this.imageRendering);
         if (this.backdrop !== null)
             s.setBackdrop?.(nullIfEmpty(filterList(this.backdrop)));
-        if (this.filter !== null)
-            s.setFilter?.(nullIfEmpty(filterList(this.filter)));
+        if (this.visualFilter !== null)
+            s.setFilter?.(nullIfEmpty(filterList(this.visualFilter)));
         if (this.mask !== null)
             this.$applyMask(this.mask);
         // a stencil attaching late: the views it masks re-push, now with a surface
@@ -1608,6 +1634,17 @@ export class View extends Node {
     }
     /** A request made before this view had a surface, put to it once it has one. */
     $heldScroll = null;
+    /** Put an offset the model has taken to the surface — or, before the view
+     *  has one, hold it for the surface it gets (as scrollTo holds a request):
+     *  a correction made while the tree is still building (an end pane over a
+     *  virtualized list knows its extent before attach) must not be lost. */
+    $putScrollY(y) {
+        if (this.$surface === null) {
+            (this.$heldScroll ??= {}).y = y;
+            return;
+        }
+        this.$surface.scrollToY?.(y);
+    }
     /** The horizontal twin of `scrollTo` — same request/clamp/hold contract,
      *  for a `scrolls = x` (or `both`) view. */
     scrollToX(x, glide) {
@@ -1664,10 +1701,14 @@ export class View extends Node {
             return;
         const away = this.$surface?.isTraveling?.() === true;
         if (below == null || below === this || below.parent !== p) {
-            if (p.children[p.children.length - 1] === this)
-                return; // already frontmost
-            p.$removeChild(this);
-            p.$insertChild(this, p.children.length);
+            // already frontmost in the model — but the surface may not be: a sibling
+            // that travelled and came home (the focus ring) re-seats at the end of its
+            // parent, past this one. The front is re-asserted on the surface too
+            // (insertChild does nothing when it is already there).
+            if (p.children[p.children.length - 1] !== this) {
+                p.$removeChild(this);
+                p.$insertChild(this, p.children.length);
+            }
             if (!away && this.$surface !== null && p.$surface !== null && !isDeferred(this.$surface))
                 p.$surface.insertChild(this.$surface, null);
             return;
@@ -1734,6 +1775,18 @@ export class View extends Node {
             // on that path to ask, so the rule is the runtime's.
             if (type === "click" && isDisabled(this))
                 return;
+            // A click carried to the view pressed (input.ts: the pointer stayed put and
+            // the layout moved this view from under it) lands only while it is shown;
+            // the move is said once, since it is a jump the person saw
+            if (type === "click" && extra?.carried === true) {
+                for (let n = this; n !== null; n = n.parent instanceof View ? n.parent : null) {
+                    if (!n.visible)
+                        return;
+                    if (n.parent === null && n !== this.$root)
+                        return;
+                }
+                noteCarriedPress(this);
+            }
             if (this.tooltipLabel !== "") {
                 if (type === "pointerOver")
                     Tooltips.over(this);
@@ -1803,13 +1856,13 @@ export class View extends Node {
         const self = this;
         const has = (t) => typeof self[handlerName(t)] === "function";
         return {
-            wantsDbl: has("dblClick"),
+            wantsDoubleClick: has("doubleClick"),
             wantsHold: has("hold"),
             wantsTouch: TOUCH_TYPES.some(has),
             wantsPinch: PINCH_TYPES.some(has),
             wantsDrag: has("dragStart") || has("drag") || has("dragEnd"),
             wantsMove: has("pointerMove"),
-            takesClicks: has("click") || has("dblClick") || has("hold") || this.link !== "",
+            takesClicks: has("click") || has("doubleClick") || has("hold") || this.link !== "",
             wantsWheel: has("wheel"),
             claimAxis: this.claim,
             wantsContext: has("contextMenu"),
@@ -2067,10 +2120,10 @@ defineAttributes(View, {
     skewY: { def: 0, push: pushTransform },
     // optional-chained (the ignoreScroll pattern): backends adopt independently,
     // and the seam table (test/seam.test.mjs) says which have.
-    blend: { def: "normal", push: (v, b) => v.$surface?.setBlend?.(b) },
+    blendMode: { def: "normal", push: (v, b) => v.$surface?.setBlend?.(b) },
     imageRendering: { def: "smooth", push: (v, m) => v.$surface?.setScaling?.(m) },
     backdrop: { def: null, push: (v, b) => v.$surface?.setBackdrop?.(nullIfEmpty(filterList(b))), equal: backdropEqual },
-    filter: { def: null, push: (v, f) => v.$surface?.setFilter?.(nullIfEmpty(filterList(f))), equal: filtersEqual },
+    visualFilter: { def: null, push: (v, f) => v.$surface?.setFilter?.(nullIfEmpty(filterList(f))), equal: filtersEqual },
     mask: { def: null, push: (v, m) => v.$applyMask(m) },
     paintsIn: { def: null, push: (v) => v.$paintHostChanged() },
     outsidePress: { def: "none", push: (v) => noteOverlay(v) },
@@ -2111,6 +2164,7 @@ defineAttributes(View, {
         accessibilitySelected: { def: null },
         accessibilityActiveItem: { def: null },
         accessibilitySort: { def: "none" },
+        accessibilityCurrent: { def: "none" },
         accessibilityMultiselectable: { def: false },
         accessibilityLevel: { def: null },
         accessibilityExpanded: { def: null },
@@ -2122,7 +2176,7 @@ defineAttributes(View, {
     // no surface effect. (Materializes §6's "named view"; heading slugs are the rest.)
     anchor: { def: "" },
     // `link` — the view IS a link to this reference (location.md §0): "#name" in-app,
-    // anything else out through `navigate`. "" = not a link (no interest, no focus
+    // anything else out through `openURL`. "" = not a link (no interest, no focus
     // stop, nothing for the crawl). Interest derives from it exactly as from declared
     // handlers (inputSink) — the `tooltipLabel` precedent — so the push REWIRES the surface's
     // input when the value changes (empty↔non-empty flips interest itself).
@@ -2158,7 +2212,7 @@ defineAttributes(View, {
     // for the RUNTIME's own writes (`scrollTo` lands a finite request in the
     // model before the surface clamps it); on a mirrored value it is inert, the
     // surface already holding that number. A scroller that wants to move itself
-    // calls its verb — `strip.scrollToX(x, { duration, motion })` — a request
+    // calls its verb — `strip.scrollToX(x, { duration, easing })` — a request
     // to THIS scroller only (scrollIntoView is axis-blind and walks ancestors,
     // which is how a strip reveal once vertically scrolled its hosting island).
     scrollY: { def: 0, push: (v, y) => v.$surface?.scrollToY?.(y) },
@@ -2447,11 +2501,51 @@ export function viewLayoutReady() {
     return true;
 }
 const NO_SETTINGS = Object.freeze({ reduceMotion: false, increaseContrast: false, reduceTransparency: false, textScale: 1 });
+/** The host's size an App starts from, set by the boot for the build it is
+ *  about to run (boot.ts renderProgram, buildProgram's `host`): a program's
+ *  first evaluation then reads the window's size, not 0 — so an arrangement, a
+ *  fetch or an ad sized by width is right the first time rather than worked out
+ *  for a zero-width screen and redone. The runtime's own feed (wireEnvironment)
+ *  takes over at mount. */
+let startingHost = null;
+export function withStartingHost(size, build) {
+    const was = startingHost;
+    startingHost = size;
+    try {
+        return build();
+    }
+    finally {
+        startingHost = was;
+    }
+}
 export class App extends View {
+    constructor() {
+        super();
+        if (startingHost !== null && startingHost.width > 0) {
+            this.hostWidth = startingHost.width;
+            this.hostHeight = startingHost.height;
+        }
+    }
+    /** At build, when the boot knows the host's size: an unset width and height
+     *  START at the host's (a runtime write — not a binding, not the program's
+     *  own); attach binds them to the host as ever. `own`: what the program sets. */
+    $bindStartingExtent(own) {
+        if (this.hostWidth <= 0)
+            return;
+        for (const size of ["width", "height"]) {
+            if (own.has(size) || isSet(this, size) || ownerOf(this, size) !== null)
+                continue;
+            setBound(this, size, size === "width" ? Math.max(this.hostWidth, this.minWidth) : Math.max(this.hostHeight, this.minHeight));
+        }
+    }
     /** The app's language travels with its root surface from the start. */
     $flush(s) {
         super.$flush(s);
         s.setLanguage?.(this.language);
+        // the page's extent as it stands: the rule that keeps it (bindPageScroll)
+        // pushes only on change, and an App laid out before its surface existed
+        // (its size known at build) has nothing left to change
+        s.setPageExtent?.(this.contentWidth, this.contentHeight);
     }
     /** onReady — the boot transaction's close, DELIVERED (schema.ts App
      *  events): boot is the one settle with no app handler anywhere in it, so
@@ -2469,10 +2563,9 @@ export class App extends View {
             afterSettle(() => fireEvent(this, "ready"));
             // the program has its room from here: sizes noted before it did are judged now
             afterSettle(judgeNegativeSizes);
-            afterSettle(() => judgeEmptyContainers(this));
         }
     }
-    /** app→host navigation channel: `navigate(to)` sets it when no host services
+    /** app→host navigation channel: `openURL(to)` sets it when no host services
      *  are installed, and a polling host opens the URL and clears it to "". A plain
      *  field, not a reactive attribute — nothing in the tree renders from it, and no
      *  Declare source names it: navigation is the CALL, never an observed attribute.
@@ -2482,13 +2575,17 @@ export class App extends View {
     /** The host's service table — the app→host VERBS' direct line, installed at
      *  mount by provideHostServices (boot.ts). Per-app, so two embedded apps on
      *  one page each route to their own host, and a foreign page can supply its
-     *  own (route `navigate` into an SPA router). A registered service is called
+     *  own (route `openURL` into an SPA router). A registered service is called
      *  SYNCHRONOUSLY inside the verb — still within the click's transient user
      *  activation, which is what window.open needs. Null = no host registered:
      *  the verb parks its intent on the matching pending* channel for a polling
-     *  host. (The mac bridge replaces `navigate` wholesale — Bridge.swift — and
+     *  host. (The mac bridge replaces the `navigate` service wholesale — Bridge.swift — and
      *  reads neither.) */
     $hostServices = null;
+    /** The host's line for `fullScreen` (boot.ts wireFullScreen): asked to enter
+     *  or leave full screen when the attribute is written. Null in a host that
+     *  has none — the attribute then only records what was asked. */
+    $fullScreenHost = null;
     /** @internal an EMBEDDED tenant's line to its host island (linkIslandTenant
      *  installs it). Null = not linked (a top-level app, or never linked) —
      *  send() says so instead of vanishing. */
@@ -2513,12 +2610,13 @@ export class App extends View {
         }
         this.$hostSink.message(topic, payload);
     }
-    /** navigate(to) — the navigation SERVICE ACTION (capabilities.md §6). A link or
-     *  button calls `app.navigate(url)` in an activation handler; the compiler reads
+    /** openURL(to) — the navigation SERVICE ACTION (capabilities.md §6): the app
+     *  leaves for another address. A link or button calls `app.openURL(url)` in an
+     *  activation handler; the compiler reads
      *  the call statically (links.ts → `<a href>` in the static extraction), and at
      *  runtime the host opens `to`. DOM-free: bodies never touch window.location, so
      *  navigation rides this channel like `editing` — one clear way, analyzable. */
-    navigate(to) {
+    openURL(to) {
         if (this.$hostServices?.navigate) {
             this.$hostServices.navigate(to);
             return;
@@ -2549,7 +2647,7 @@ export class App extends View {
      *  Source requests, runtime delivers, destination decides. The app-scoped
      *  hook `onFollowLink(ref) -> ref'` (a user-declared method, §0.6) is applied
      *  ONCE — transform, veto (""), or side-effect; then an external reference
-     *  leaves through `navigate`, and a `#…` writes `location`. The anchor
+     *  leaves through `openURL`, and a `#…` writes `location`. The anchor
      *  reveal rides the existing retained intent (resolveReveal); an anchorless
      *  arrival seeds the scroll to the top. Re-following the current reference
      *  re-runs the arrival step — no dead clicks. */
@@ -2566,7 +2664,7 @@ export class App extends View {
                 return;
         }
         if (!ref.startsWith("#")) {
-            this.navigate(ref);
+            this.openURL(ref);
             return;
         }
         let loc = ref.slice(1);
@@ -2640,7 +2738,7 @@ export class App extends View {
      *  source reads it. */
     $pendingInspect = null;
     /** inspect(slot) — the Inspector SERVICE ACTION. `slot` names an embedded
-     *  app's island ("run:spring"); omit it to inspect this app. Like navigate(),
+     *  app's island ("run:spring"); omit it to inspect this app. Like openURL(),
      *  the intent rides the service table (or its channel fallback), so a `{ }`
      *  body never touches the document. */
     inspect(slot = "") {
@@ -2650,7 +2748,7 @@ export class App extends View {
         }
         this.$pendingInspect = slot;
     }
-    /** openWindow(to) — navigate's NEW-WINDOW sibling (a "View Source" that must
+    /** openWindow(to) — openURL's NEW-WINDOW sibling (a "View Source" that must
      *  not replace the running app). Same discipline: bodies never touch
      *  `window`, the intent rides the service table (or its channel fallback).
      *  A registered service runs synchronously inside the activation, which is
@@ -2966,6 +3064,8 @@ defineAttributes(App, {
     // page visibility (schema.ts) — true until a host reports otherwise, so
     // headless and test mounts that never wire it see a visible page
     pageVisible: { def: true },
+    // full screen, both ways: the host feeds it, and a write asks the host
+    fullScreen: { def: false, push: (v, on) => v.$fullScreenHost?.(on) },
     touchFirst: { def: false },
     hasTouch: { def: false },
     hasMouse: { def: true }, // a plain desktop until the profile says otherwise

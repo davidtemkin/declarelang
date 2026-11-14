@@ -22,7 +22,7 @@ takes the turned-away face out of the picture **and out of hit-testing**, so a
 pointer passes through to whatever is behind it; `visible` keeps painting the
 mirrored face.
 
-## Blend
+## BlendMode
 
 The W3C blend modes, in camelCase, naming how a view lands against what has
 already painted beneath it. The operator is not a filter on the view: it reaches
@@ -81,6 +81,11 @@ How a change to a live view is announced. `off`: it is not. `polite`: at the nex
 interrupting. `assertive`: at once, interrupting what is being read — for what cannot wait.
 
 
+## AccessibilityCurrent
+Where the person is, among views of one kind: `page` (the page shown now), `step` (in a
+sequence), `location` (on a map or a diagram), `date` or `time` (in a calendar), `item` (the
+current one of anything else), or `none`.
+
 ## AccessibilitySort
 Which way the column a `columnHeader` heads is sorted, as a screen reader says it with the
 header's name: `none` (not the sorted column), `ascending` or `descending`.
@@ -127,7 +132,7 @@ move the row; `fill` does not — it spreads the row's slack into the gaps betwe
 its children, so every full row ends flush. As in justified text, the **last row
 stays at `start`** under `fill`, and a row holding one child has no gap to widen.
 
-## Motion
+## Easing
 
 The shape of an interpolation over its duration: which fraction of the travel has
 been covered at each fraction of the time. Read a token as a family plus a
@@ -216,7 +221,7 @@ difference between a stream that is coming back and `failed`, which is not.
 
 ## ImageFit
 
-The type of `stretches` on Image and Video: how a picture (a bitmap, or a video's
+The type of `fit` on Image and Video: how a picture (a bitmap, or a video's
 frame) fills a box whose size differs from its natural size. The axis values
 — `width`, `height`, `both` — **distort by design**; the aspect-preserving fits
 never do: `contain` puts the whole picture in the box and letterboxes the

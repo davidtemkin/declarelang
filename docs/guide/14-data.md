@@ -50,7 +50,7 @@ data, not by name.
 
 Rows are matched to records by the record's **`id`** field, with nothing declared. Sort
 the data and the rows *move* rather than being rebuilt, and any state a row holds
-travels with its record. When identity lives under another name, `key = :field` on the
+travels with its record. When identity lives under another name, `identityKey = :field` on the
 replicated view says which.
 
 When code needs the row that shows one record, to focus it or bring it into view, it looks
@@ -63,6 +63,15 @@ A view that isn't replicated points at a *place*, not a record. `datapath = :row
 or `datapath = { app.newest }`, shows whatever is there now: insert a record at the
 front and the view shows the new one. A replicated row presents its record, and moves
 with it.
+
+**A datapath points into declared data, never at a value computed in `{ }`.** A filtered
+array, an object put together from several records, a reply a service sent back with an
+error: none of them is in a dataset, and a `datapath` on one is refused when it runs.
+Records a program computes are a derived dataset, a
+[`Dataset`](declare-docs:Dataset.contents) whose `contents` is the computation, and views
+point into that and write through it. A computed value that isn't records to show
+in rows is read where it is used, `text = { classroot.summary.total }`, with no
+datapath at all.
 
 > **From React:** this retires `rows.map((r) => <Row key={r.id}/>)`. Identity is the
 > data's, not a render hint you remember to pass, and never an array index.
@@ -310,7 +319,7 @@ create: DataSource [ url = "/api/tasks", method = "POST",
     body = { { title: app.draft, done: false } },
     onLoad() { app.draft = ""; app.tasks.fetch() }
     ],
-TextInput [ width = 220, value = { app.draft }, commit(v: string) { app.draft = v } ],
+TextInput [ width = 220, value <-> app.draft ],
 Button [ label = { app.create.loading ? "Saving…" : "Add" },
     disabled = { app.create.loading || app.draft == "" },
     onClick() { app.create.fetch() }
@@ -512,11 +521,11 @@ signIn: Form [ source = { app.session },
     layout: SimpleLayout [ axis = y, spacing = 14 ],
     Field [ label = "Email", stacked = true,
         TextInput [ width = 280, name = "email", purpose = email, required = "Enter your email address.",
-            value = { app.email }, commit(v: string) { app.email = v },
+            value <-> app.email,
             validate(v: string) -> string { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) ? "" : "Enter an email address like name@example.com." } ] ],
     Field [ label = "Password", stacked = true,
         TextInput [ width = 280, name = "password", purpose = password, required = "Enter your password.",
-            value = { app.password }, commit(v: string) { app.password = v } ] ],
+            value <-> app.password ] ],
     Text [ visible = { parent.error != "" }, text = { parent.error } ],
     Button [ label = { parent.pending ? "Signing in…" : "Sign in" }, primary = true,
         onClick() { parent.submit() } ]
@@ -544,8 +553,8 @@ There is no flag to keep and no handler for failure:
   own `validate()`.
 
 [`Field`](declare-docs:Field) puts the label beside or above its control and the control's `error` under it.
-Any control that holds a value is a field: a `Checkbox`, `Switch`, `RadioGroup`, `Combobox`,
-`DatePicker`, `Slider` or `Stepper` takes `name`, `required` and `validate` the same way, and a
+Any control that holds a value is a field: a `Checkbox`, `Switch`, `RadioGroup`, `Segmented`,
+`Combobox`, `DatePicker`, `Slider` or `Stepper` takes `name`, `required` and `validate` the same way, and a
 control of your own does by extending [`ValueControl`](declare-docs:ValueControl).
 
 ### A form with no service
@@ -562,7 +571,7 @@ App [ width = 380, height = 220, fill = white, textColor = black,
         layout: SimpleLayout [ axis = y, spacing = 12 ],
         Field [ label = "Name", stacked = true,
             entry: TextInput [ width = 240, name = "name", required = "Enter a name.",
-                value = { app.draft }, commit(v: string) { app.draft = v } ] ],
+                value <-> app.draft ] ],
         Button [ label = "Add", primary = true, onClick() { parent.submit() } ],
         send() {
             const taken = (app.names.value?.rows ?? []).some((r) => r.name == app.draft.trim())
@@ -632,7 +641,7 @@ App [ width = 400, height = 300, fill = white, textColor = black,
         Button [ label = "New page", onClick() { app.adding = true } ],
         Text [ text = { (app.pages.value?.rows ?? []).map((r) => "/" + r.slug).join("  ") } ] ],
     sheet: Sheet [ accessibilityLabel = "New page", shown = { app.adding },
-        input(open: boolean) { app.adding = open },
+        commit(open: boolean) { app.adding = open },
         NewPage [ exists = { app.sheet.present } ]
         ]
     ]
@@ -726,7 +735,9 @@ Whatever a `{ }` reads, it follows.
 
 What a derived dataset *makes* is its own, and read-only: the column objects here, a copy
 (`{ ...c }`), a summary. A write to one is refused, with an error saying to write the
-source, because the next recompute would replace it. So what a row needs beyond its
+source, because the next recompute would replace it. Records taken from an attribute
+rather than a dataset count as made: the derived dataset holds copies of them, and never
+writes the objects the attribute holds. So what a row needs beyond its
 record comes one of four ways:
 
 - **Computed in the row**, when it follows from the record alone: a label, a colour —

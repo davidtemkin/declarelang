@@ -40,7 +40,7 @@ extension LayerTree {
     // ── the floor ───────────────────────────────────────────────────────────
     //
     // How far down a sample reaches. `View.backdrop` says "the same isolating
-    // ancestor `blend` does", and `View.blend` names: the App root, an
+    // ancestor `blendMode` does", and `View.blendMode` names: the App root, an
     // `opacity < 1` group, a scrolling view's content, an island boundary.
     //
     // ⚠ A SCROLLER IS NOT A FLOOR HERE, and that is deliberate — it is what the
@@ -862,7 +862,7 @@ extension LayerTree {
 
     // ── BLEND, composited here ───────────────────────────────────────────────
     //
-    // `View.blend` lands a view's painted subtree on what is already painted
+    // `View.blendMode` lands a view's painted subtree on what is already painted
     // beneath it, inside its isolating ancestor, with the operator — the web's
     // mix-blend-mode, which blends the ENCODED sRGB values. Core Animation's
     // compositing filters run in linear light instead, so difference,
@@ -876,7 +876,7 @@ extension LayerTree {
     // as the frost is. A view under a transform keeps Core Animation's named
     // mode — its backdrop would have to be sampled through the transform.
 
-    /// The isolating ancestor a blend stops at (View.blend): the App root, an
+    /// The isolating ancestor a blend stops at (View.blendMode): the App root, an
     /// island, an `opacity < 1` group, a filtered or masked view — and, unlike a
     /// backdrop, a scrolling view's content.
     func blendFloor(_ n: Node) -> Node {

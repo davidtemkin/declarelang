@@ -118,7 +118,7 @@ await test("an open overlay's own shortcuts fire while it holds the keyboard; th
     open: boolean = false,
     sc: Shortcuts [ items = { [ ({ id: "page-new", key: "N", label: "New" }), ({ id: "page-save", key: "⌘S", label: "Save" }) ] },
         picked(id: string) { app.got = app.got + id + ";" } ],
-    sheet: Sheet [ shown = { app.open }, input(v: boolean) { app.open = v },
+    sheet: Sheet [ shown = { app.open }, commit(v: boolean) { app.open = v },
         entry: View [ width = 200, height = 100,
             keys: Shortcuts [ items = { [ ({ id: "run", key: "R", label: "Run" }), ({ id: "save", key: "⌘↩", label: "Save" }) ] },
                 picked(id: string) { app.got = app.got + id + ";" } ],
@@ -149,7 +149,7 @@ await test("nothing on the page fires while an open overlay holds the keyboard",
     opener: Button [ label = "Open" ],
     menu: Menu [ items = { [ ({ id: "a", label: "A" }) ] } ]
     ]`);
-  app.menu.openFor(app.opener); settle();
+  app.menu.showFor(app.opener); settle();
   press("s", { meta: true });
   assert.equal(app.got, "", "the menu's keys are its own");
   app.menu.close(); settle();

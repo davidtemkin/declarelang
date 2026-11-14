@@ -24,10 +24,10 @@ App [ width = 900, height = 400, fill = #202124, textColor = whitesmoke,
     // everything at once: scale, per-axis scale, skew, rotation, about a pivot — with a child and a filter
 
     c: View [ x = 460, y = 40, width = 160, height = 200, cornerRadius = 12, fill = { hovered ? 0xFF5A36 : 0x4C8DFF },
-        scale = 1.1, scaleX = 0.8, skewY = -12, rotation = 15, pivotX = 80, pivotY = 0, filter = shadow(0, 10, 24, 0x000000AA),
+        scale = 1.1, scaleX = 0.8, skewY = -12, rotation = 15, pivotX = 80, pivotY = 0, visualFilter = shadow(0, 10, 24, 0x000000AA),
         onClick() { app.hit = "c (composed)" },
         Text [ x = 14, y = 90, fontSize = 20, fontWeight = bold, text = "composed" ],
-        Image [ x = 40, y = 120, width = 80, height = 70, stretches = contain, source = "assets/badge.png" ]
+        Image [ x = 40, y = 120, width = 80, height = 70, fit = contain, source = "assets/badge.png" ]
         ],
 
     // mirrored: a negative scale flips the view

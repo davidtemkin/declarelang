@@ -28,28 +28,49 @@ header to sort.
   `Dataset`, they are the dataset's own records: an edit made in a cell writes the record,
   and everything that reads it follows.
 - **Columns** are records with an `id` (the field the column shows, and its name), a
-  `title`, a `width`, and optionally a `cell` or `edit`. Being data, they can be built,
-  stored, or chosen by the person, like any records.
-- **A cell** shows its field as text, unless its column names a class: `cell: "DoneCell"`
+  `title`, a `width`, and optionally a `cell`, an `editor` or `edit`. Being data, they can be
+  built, stored, or chosen by the person, like any records.
+- **A cell** shows its field as plain text — `String(value)`, from the left, in the theme's
+  `gridFontSize` — with no formatting and no alignment of its own. Money, dates, and numbers
+  set to the right are a class that formats and places the text:
+  `{ id: "amount", cell: "MoneyCell" }` with
+  `class MoneyCell [ width = 100%, height = 100%, TextLabel [ x = end, padding = [0, 8, 0, 8], fontSize = { provided("theme").gridFontSize }, text = { money(:amount) } ] ]`.
+- **A cell of your own:** a column that names a class (`cell: "DoneCell"`)
   draws that class in every row of the column, each copy bound to its own row's record (so
   `:done` is that row's `done`). One class can serve several columns: it reads which it is
   in as `provided("column")` — `{ id, title }` — and the field as `:@[(provided("column").id)]`.
-  A field of your own in a cell answers its keys first: Escape reaches what the cell holds,
+  Enter or F2 on such a cell enters it: the focus goes to the first focusable view a person
+  can see inside it (shown, and not at `opacity` 0), in the order they are written (Space presses that control instead), and a cell
+  with none is not entered. A field of your own in a cell answers its keys first: Escape reaches what the cell holds,
   then the grid's own bindings, and only then leaves the cell; a single-line field's Return
   runs its `onEnter` before anything else hears it. Cells in one column can differ by row: the class decides
   how to look for its record, with a `State` or a `classFor` inside it.
-- **`edit: true`** makes a column's cells text fields that write the record as you type,
-  with a spreadsheet's keys: Enter, F2 or a typed character starts the edit, Up and Down
-  move it a row, Esc puts the text back. With `commitOn: "end"` beside it, a cell writes once,
+- **Editing selects first.** A press selects a cell; Enter, F2 or a second press on the
+  selected cell enters it, and Escape or Enter leaves it (Enter a row down; Tab and Shift-Tab
+  leave it a cell along, wrapping rows). A column's
+  `editor` names the class a cell becomes while it is edited, beside the `cell` it shows the
+  rest of the time — `{ id: "state", cell: "StateText", editor: "StatePicker" }` — bound to
+  the row's record like the cell, with its first control given the keyboard. What your
+  editor does not answer of Escape, Enter and Tab leaves it.
+- **`edit: true`** is the grid's own editor, a text field writing the record as you type:
+  typing on a selected cell replaces its text and opens the edit — an accent, an Option
+  letter or an input method's word composes there as in any field — Up and Down end it and
+  move a row, Esc puts the text back. With `commitOn: "end"` beside it, a cell writes once,
   when the edit ends (Enter, or leaving the cell), and Esc drops it. Either way the write
-  goes through `editInput`, which a program overrides to send it to a service.
+  goes through `applyEdit`, which a program overrides to send it to a service.
 - **A heading row** is a record with a `heading` field — `{ id: "g1", heading: "Overdue" }` —
   drawn across the full width, with no cells, passed over by selection and the arrow keys.
   `headingClass` names a class of your own to draw it.
 - **Sorting names a derivation.** A header click sets `sortOn` and `sortDir`; your app
   derives the sorted items from them, and the grid shows the order it is given.
 - **Order and widths** are the grid's state, `order` and `widths`, delivered through
-  `arrangeInput` and `resizeInput`, so an app can persist a person's layout.
+  `applyColumnOrder` and `applyColumnWidth`, so an app can persist a person's layout. A
+  width of `0` hides a column.
+- **Rows** are the theme's `gridRowHeight` tall (28), the header `gridHeaderHeight` (30), and
+  the text `gridFontSize`: set them in a theme to change every grid.
+- **Selection** is `Table`'s (a press, Shift for a range, ⌘ or Ctrl to add one, the arrows,
+  ⌘-walk with Space). Select-all is not built in: a ⌘A of your own (`keyBindings`) or a
+  button calls `commit(records)` with the records it means, as every selection goes.
 
 ## items
 The records, one row each, in the order shown. Usually a dataset's list —
@@ -59,8 +80,9 @@ record whose `heading` field is set is a heading row.
 ## columns
 The columns, as records, in their first order: `id` (the field shown, and the column's
 name), `title` (the header; the id when absent), `width` (in pixels; 120 when absent),
-and optionally `cell` (the name of a class drawn in each of the column's cells) or `edit`
-(`true` for text fields, with `commitOn: "end"` to write once when the edit ends). **The column model follows this list**: add, remove or change a
+and optionally `cell` (the name of a class drawn in each of the column's cells), `editor`
+(the name of the class a cell becomes while it is edited) or `edit` (`true` for the grid's
+own text editor, with `commitOn: "end"` to write once when the edit ends). **The column model follows this list**: add, remove or change a
 record and the grid follows.
 
 ## headingClass
@@ -70,7 +92,7 @@ heading record as its data.
 
 ## order
 The presented column order, as column ids — `null` means the order of `columns`. Part of
-the grid's value-pattern state: delivered through `arrangeInput`, so an app that overrides
+the grid's value-pattern state: delivered through `applyColumnOrder`, so an app that overrides
 that owns the order and can persist it.
 
 ## widths
@@ -87,28 +109,29 @@ from this, and the grid displays the order it is given.
 ## sortDir
 `"asc"` or `"desc"`, alongside `sortOn`.
 
-## sortInput()
+## applySort()
 **Delivery seam for sorting.** The default writes `sortOn`/`sortDir`; override it to own
 the sort — which is what you do when the sort belongs to a server query.
 
-## arrangeInput()
+## applyColumnOrder()
 **Delivery seam for reordering**, receiving the new column-id order. Override it to
 persist a user's column layout.
 
-## resizeInput()
+## applyColumnWidth()
 **Delivery seam for resizing**, receiving a column id and its new width. Widths are
 plain values — **nothing measures cells** — so an override is free to clamp, snap, or
 store them.
 
-## editInput()
-An edited cell's text on its way into its record: `editInput(record, field, value)`. The
-default lets it write. To send the change to a service, override it, start the request, and
+## applyEdit()
+An edited cell's value on its way into its record: `applyEdit(record, field, value)` — the
+typed text, or a number for a field that holds one (text that is not a number yet is not
+sent). The default lets it write. To send the change to a service, override it, start the request, and
 return `false` — the record keeps what it had until the service's answer replaces it.
 
 ```declare-fragment
 DataGrid [ items = { app.rows.value.rows },
     columns = { [ { id: "title", title: "Title", width: 240, edit: true, commitOn: "end" } ] },
-    editInput(record: object, field: string, value: string) -> boolean {
+    applyEdit(record: object, field: string, value: string) -> boolean {
         app.save(record, field, value)
         return false
         } ]
@@ -116,9 +139,9 @@ DataGrid [ items = { app.rows.value.rows },
 
 ## headerClick()
 Toggles the sort on a column: same column flips direction, a new column starts
-ascending. Routes through `sortInput`.
+ascending. Routes through `applySort`.
 
-## headerH
+## headerHeight
 The header row's height. The header takes the top of the grid's box and stays there; the
 rows begin below it and scroll up under it.
 
@@ -127,10 +150,49 @@ rows begin below it and scroll up under it.
 An override narrows it with `super.selectable(m)`, so headings stay out.
 
 ## _topInset
-**Internal.** Follows `headerH`: the header row pinned over the rows' top.
+**Internal.** Follows `headerHeight`: the header row pinned over the rows' top.
 
-## _editStep()
-**Internal.** Moves an edit to the same column one row up or down, passing over headings and scrolling the row into existence.
+## editing
+Whether the active cell is open in its column's editor. Moving the active cell ends it.
+
+## _leaveEdit()
+**Internal.** Ends the edit: the keyboard comes back to the grid, on the cell a number of rows down, passing over headings.
+
+## _leaveAcross()
+**Internal.** Ends the edit a cell along: a number of columns over, wrapping to the next or previous row past either end.
+
+## _seatKeyboard()
+**Internal.** Gives the keyboard to the active cell's text field, its text selected, once the press or move that made it active has finished.
+
+## _within
+**Internal.** Whether the keyboard is in the grid — on it, or in a cell's field.
+
+## _focusWatch
+**Internal.** Follows the focus, for `_within`.
+
+## _moveWatch
+**Internal.** Ends the edit when the active cell moves.
+
+## _isEditing()
+**Internal.** The `when` of the bindings that leave an editor of your own.
+
+## _leaveHere()
+**Internal.** Escape from an editor of your own: leaves it on the same cell.
+
+## _leaveDown()
+**Internal.** Return from an editor of your own: leaves it a row down.
+
+## _leaveNext()
+**Internal.** Tab from an editor of your own: leaves it a cell along.
+
+## _leavePrev()
+**Internal.** Shift-Tab from an editor of your own: leaves it a cell back.
+
+## keyBindings
+Escape and Return leave an editor of your own, and Tab and Shift-Tab leave it a cell along, when it does not answer them itself.
+
+## onFocus
+The keyboard arriving on a cell of a text column goes on to its field.
 
 ## _columnRecords()
 **Internal.** The derived column model: the `columns` records ordered and widthed by state, with running x offsets.
@@ -180,8 +242,8 @@ The active cell's column — with Table's active row, the grid's keyboard positi
 **Internal.** Enters a cell: an edit cell's field takes the focus, else its first control does, or for Space is pressed.
 
 ## onKeyDown
-Left and Right move the active cell; Enter, F2 or a typed character edits a text column;
-Enter or F2 moves into a cell's control, and Space presses it; the rest is Table's.
+Left and Right move the active cell; Enter or F2 enters it — into its editor, or a cell
+of your own's first control — and Space presses that control; the rest is Table's.
 An override passes the keys it does not take to `super.onKeyDown(e)`.
 
 ## datapath
@@ -198,7 +260,7 @@ class DataGrid extends Table [
 
     _isDataGrid: boolean = true,
 
-    headerH: number = { provided("theme").gridHeaderHeight },
+    headerHeight: number = { provided("theme").gridHeaderHeight },
 
     // ── what it shows: the records, and the columns as records ─────────────
 
@@ -216,18 +278,18 @@ class DataGrid extends Table [
     // ── the delivery seams — defaults write the attributes; use-site overrides
     //    own the state (persisted layouts, app-derived sorts) ──────────────
 
-    sortInput(on: string, dir: string) { sortOn = on; sortDir = dir },
-    arrangeInput(ord: array) { order = ord },
-    resizeInput(id: string, w: number) { widths = ({ ...(widths ?? ({})), [id]: w }) },
+    applySort(column: string, direction: string) { sortOn = column; sortDir = direction },
+    applyColumnOrder(ord: array) { order = ord },
+    applyColumnWidth(id: string, w: number) { widths = ({ ...(widths ?? ({})), [id]: w }) },
 
     // an edited cell's text, on its way into the record: the default lets it
     // write; an override sends it (a PATCH) and returns false to leave the
     // record as it was until the service's answer replaces it
 
-    editInput(record: object, field: string, value: string) -> boolean { return true },
+    applyEdit(record: object, field: string, value: string | number) -> boolean { return true },
 
     headerClick(id: string) {
-        this.sortInput(id, sortOn == id && sortDir == "asc" ? "desc" : "asc")
+        this.applySort(id, sortOn == id && sortDir == "asc" ? "desc" : "asc")
         },
 
     // a heading between rows is not a row a person picks
@@ -258,8 +320,10 @@ class DataGrid extends Table [
             // (priority, not squish): a responsive `widths` state zeroes the
             // low-priority columns and the model omits them entirely
             if (wd <= 0) continue
+            // `editor` names what a cell becomes while it is edited; `edit: true` is the grid's own text editor
+            const editor = c.editor != null ? "" + c.editor : c.edit == true ? "DataGridEdit" : ""
             out.push({ id: id, title: "" + (c.title ?? id), width: wd, x: x,
-                cell: c.cell != null ? "" + c.cell : "", edit: c.edit == true, commitOn: c.commitOn == "end" ? "end" : "", i: out.length })
+                cell: c.cell != null ? "" + c.cell : "", editor: editor, commitOn: c.commitOn == "end" ? "end" : "", i: out.length })
             x = x + wd
             }
         return out
@@ -284,8 +348,8 @@ class DataGrid extends Table [
     // the header row's place at the top of the grid: the rows stack after it,
     // and scroll up under the header itself (`_hdr`, pinned)
 
-    _hdrSpace: View [ width = 0, height = { classroot.headerH } ],
-    _topInset = { this.headerH },
+    _hdrSpace: View [ width = 0, height = { classroot.headerHeight } ],
+    _topInset = { this.headerHeight },
 
     TableRow [ datapath = :rows[], virtualize = true,
         classFor = { :heading != null ? DataGridHeadingRow : DataGridRow } ],
@@ -331,7 +395,7 @@ class DataGrid extends Table [
         const ord = cols.map((r) => r.id)
         ord.splice(from, 1)
         ord.splice(to, 0, id)
-        this.arrangeInput(ord)
+        this.applyColumnOrder(ord)
         },
 
     // ── the active cell: the keyboard position in two dimensions — the active
@@ -359,16 +423,54 @@ class DataGrid extends Table [
         return (inst as DataGridRow).cellAt(activeCol)
         },
 
+    // ── editing: the active cell open in its column's editor. A press selects a
+    //    cell; Enter, F2 or a second press enters it; Escape or Enter leaves.
+    //    Moving the active cell ends the edit ──────────────────────────────
+
+    editing: boolean = false,
+
+    // whether the keyboard is in the grid — on it, or in a cell's field
+
+    _within: boolean = false,
+    _focusWatch: Focus [ onFocusChange() { classroot._within = Focus.holds(classroot) }
+        ],
+
+    // the keyboard coming to the grid, on a cell its text editor edits: the
+    // cell's field takes it, its text selected, so typing reaches the cell
+
+    onFocus() {
+        super.onFocus()
+        this._seatKeyboard()
+        },
+
+    // the active cell's text field takes the keyboard from the grid, its text
+    // selected so what is typed replaces it — after the press or the move that
+    // made it active has finished, so the platform's own focus does not follow
+
+    _seatKeyboard() {
+        afterDelay(0, () => {
+            if (!this.focused || editing || inHeader) return
+            const ed = this._activeCell()?._editor()
+            if (ed == null) return
+            Focus.focus(ed)
+            afterSettle(() => { ed.select(0, ("" + ed.text).length) })
+            })
+        },
+    _moveWatch: Node [
+        at: string = { classroot.activeIndex + ":" + classroot.activeCol },
+        trackChanges = ["at"],
+        onChange() { classroot.editing = false }
+        ],
+
     _enterCell(cell: DataGridCell, typed: string) {
-        const ed = cell._editor()
-        if (ed != null) {
-            if (typed == "" || typed == " ") { Focus.focus(ed); return }
-            // a typed character starts the edit with it: after this keypress,
-            // so the key is not typed a second time into the field it moved to
-            afterDelay(0, () => {
-                Focus.focus(ed)                     // first: the edit records the value it began from
-                cell._writeText(typed)
-                afterSettle(() => { ed.select("end") })
+        if (cell._kind() == "editor") {
+            editing = true
+            // the editor is built by this settle: its first control takes the focus
+            afterSettle(() => {
+                const ed = cell._editor()
+                if (ed != null) { Focus.focus(ed); ed.select("end"); return }
+                const ctl = cell._firstControl()
+                if (ctl != null) Focus.focus(ctl)
                 })
             return
             }
@@ -378,54 +480,74 @@ class DataGrid extends Table [
         else Focus.focus(ctl)
         },
 
+    // the edit ends: the keyboard comes back to the grid, on the cell `d` rows
+    // down (0: the same one), passing over headings
+
+    _leaveEdit(d: number) {
+        editing = false
+        Focus.focus(this)
+        if (d == 0) return
+        const n = this.itemCount()
+        let i = activeIndex + d
+        while (i >= 0 && i < n && !this.selectable(this.itemAt(i))) i = i + d
+        if (i < 0 || i >= n) return
+        activeIndex = i
+        activeItem = this.itemAt(i)
+        this.showRow(i)
+        },
+
+    // the edit ends a cell along: `d` columns over (1 right, -1 left), on to
+    // the next row's first cell past the last column and back the same way
+
+    _leaveAcross(d: number) {
+        const n = this._colData.value.cols.length
+        const c = activeCol + d
+        if (c >= 0 && c < n) { this._leaveEdit(0); activeCol = c; return }
+        const before = activeIndex
+        this._leaveEdit(d)
+        if (activeIndex != before) activeCol = d > 0 ? 0 : n - 1
+        },
+
+    // what an editor of your own does not answer on its way out through the
+    // walk: Escape leaves it, Return leaves it a row down, Tab and Shift-Tab a
+    // cell along
+
+    keyBindings = { [ ({ key: "Escape", command: "_leaveHere", when: "_isEditing" }),
+        ({ key: "Enter", command: "_leaveDown", when: "_isEditing" }),
+        ({ key: "Tab", command: "_leaveNext", when: "_isEditing" }),
+        ({ key: "Shift+Tab", command: "_leavePrev", when: "_isEditing" }) ] },
+    _isEditing() -> boolean { return editing },
+    _leaveHere() { this._leaveEdit(0) },
+    _leaveDown() { this._leaveEdit(1) },
+    _leaveNext() { this._leaveAcross(1) },
+    _leavePrev() { this._leaveAcross(-1) },
+
     onKeyDown(e: KeyEvent) {
-        if (disabled) return
+        // the grid's own keys; the rest go on to Table's, and on through the walk
+        if (disabled) { super.onKeyDown(e); return }
         const n = this._colData.value.cols.length
         const plain = !e.meta && !e.ctrl && !e.alt
         if (e.key == "ArrowRight" && plain) { activeCol = Math.min(n - 1, activeCol + 1); return }
         if (e.key == "ArrowLeft" && plain) { activeCol = Math.max(0, activeCol - 1); return }
         if (inHeader) {
-            if (e.key == "ArrowDown" && plain) inHeader = false
-            else if ((e.key == "Enter" || e.key == " ") && plain && !e.repeat) {
+            if (e.key == "ArrowDown" && plain) { inHeader = false; return }
+            if ((e.key == "Enter" || e.key == " ") && plain) {
                 const c = this._colData.value.cols[activeCol]
-                if (c != null) this.headerClick("" + c.id)
+                if (c != null && !e.repeat) this.headerClick("" + c.id)
+                return
                 }
-            return
+            // the keys the rows would take stop at the header; the rest go on
+            if (e.key == "ArrowUp" || e.key == "Home" || e.key == "End" || e.key == "Delete" || e.key == "Backspace") return
             }
         if (e.key == "ArrowUp" && plain && activeIndex <= this._firstRow()) { inHeader = true; return }
         const cell = this._activeCell()
-        if (cell != null && plain && !e.repeat) {
+        // a key an input method is composing is the method's, never a command
+        if (cell != null && !e.repeat && !e.isComposing) {
             const kind = cell._kind()
-            if ((e.key == "Enter" || e.key == "F2") && kind != "text") { this._enterCell(cell, ""); return }
-            if (e.key == " " && kind == "own") { this._enterCell(cell, " "); return }
-            if (kind == "edit" && e.key.length == 1 && e.key != " ") { this._enterCell(cell, e.key); return }
+            if ((e.key == "Enter" || e.key == "F2") && kind != "text" && plain) { this._enterCell(cell, ""); return }
+            if (e.key == " " && kind == "own" && plain) { this._enterCell(cell, " "); return }
             }
         super.onKeyDown(e)
-        },
-
-    // vertical arrows from an edit: the edit moves to the same column one row
-    // up/down (the spreadsheet expectation), passing over headings — the
-    // destination scrolls into existence and its field takes focus.
-    //
-    // The focus waits for the next frame (afterDelay 0) rather than an afterSettle
-    // step because showRow scrolls the platform scroller, and that scroll
-    // lands as an event after this settle: the windowed rows re-link on it,
-    // and a field whose row element moves loses the focus it was just
-    // given. By the next frame the rows have re-seated.
-
-    _editStep(row: View, col: number, d: number) {
-        const n = this.itemCount()
-        let i = (row as TableRow).tableIndex() + d
-        while (i >= 0 && i < n && !this.selectable(this.itemAt(i))) i = i + d
-        if (i < 0 || i >= n) return
-        this.showRow(i)
-        afterDelay(0, () => {
-            const inst = this.children.find((c) => (c as DataGridRow)._isGridRow === true && (c as DataGridRow).tableIndex() == i)
-            if (inst == null) return
-            const cell = (inst as DataGridRow).cellAt(col)
-            const ed = cell != null ? cell._editor() : null
-            if (ed != null) Focus.focus(ed)
-            })
         },
 
     _prevColId(id: string) -> string {
@@ -446,7 +568,7 @@ class DataGrid extends Table [
     //    itself out of the stacking. A grid placed by a layout is header and
     //    rows together, and covers nothing beside it ──────────────────────────
 
-    _hdr: View [ height = { classroot.headerH },
+    _hdr: View [ height = { classroot.headerHeight },
         x = 0, y = 0,
         width = { classroot.width },
         ignoreLayout = true,
@@ -538,7 +660,7 @@ class DataGrid extends Table [
             // column — the boundary region belongs to this cell (later
             // siblings hit first), so the grip must live here to be
             // reachable; absent on the first column. Plain widths delivered
-            // through resizeInput — nothing measures anything.
+            // through applyColumnWidth — nothing measures anything.
 
             grip: View [ width = 10, height = 100%,
                 x = -5,
@@ -556,10 +678,10 @@ class DataGrid extends Table [
                     },
                 onDrag(e: PointerEvent) {
                     if (!resizing) return
-                    (classroot as DataGrid).resizeInput(pid, Math.max(40, w0 + e.deltaX))
+                    (classroot as DataGrid).applyColumnWidth(pid, Math.max(40, w0 + e.deltaX))
                     },
                 onDragEnd(e: DragEndEvent) {
-                    if (resizing && e.canceled) (classroot as DataGrid).resizeInput(pid, w0)
+                    if (resizing && e.canceled) (classroot as DataGrid).applyColumnWidth(pid, w0)
                     resizing = false
                     }
                 ],
@@ -608,6 +730,18 @@ The cell in a column, by its place in the column model.
 ## _isGridRow
 **Internal.** The marker identifying a grid row — not API.
 
+## _colAt()
+**Internal.** The column at an x in the row, or −1.
+
+## _pressedActive
+**Internal.** Whether the press began on the grid's active cell — what makes it a second press.
+
+## onPointerDown
+Notes whether the press is on the active cell, then focuses the grid as any table row does.
+
+## onClick
+Selects the cell under the press; a second press on the selected cell enters it.
+
 ## height
 From the theme's `gridRowHeight` (28 by default); the header row is `gridHeaderHeight` (30).
 */
@@ -632,11 +766,47 @@ class DataGridRow extends TableRow [
     // over a null record
 
     _cellData: Dataset [ contents = { { cells: classroot._grid == null ? [] : classroot._grid._colData.value.cols.map((c) =>
-        ({ id: c.id, title: c.title, x: c.x, width: c.width, cell: c.cell, edit: c.edit, commitOn: c.commitOn, i: c.i,
+        ({ id: c.id, title: c.title, x: c.x, width: c.width, cell: c.cell, editor: c.editor, commitOn: c.commitOn, i: c.i,
             row: classroot.rec == null ? [] : [classroot.rec] })) } } ],
 
     cellAt(col: number) -> DataGridCell? {
         return (this._cells.children.find((c) => (c as DataGridCell)._isGridCell === true && (c as DataGridCell)._ci == col) ?? null) as DataGridCell | null
+        },
+
+    // the column at x in the row, or -1
+
+    _colAt(x: number) -> number {
+        const g = this._grid
+        if (g == null) return -1
+        const c = g._colData.value.cols.find((r) => x >= r.x && x < r.x + r.width)
+        return c != null ? c.i : -1
+        },
+
+    // a press selects the cell under it; a second press on the active cell
+    // enters it. Whether it was active is read at the press, before the
+    // press itself moves anything
+
+    _pressedActive: boolean = false,
+    onPointerDown(e?: PointerEvent) {
+        const g = this._grid
+        const ci = e != null ? this._colAt(e.x) : -1
+        _pressedActive = g != null && g._within && !g.inHeader && this.active && ci >= 0 && ci == g.activeCol
+        super.onPointerDown()
+        },
+    onClick(e?: PointerEvent) {
+        const again = _pressedActive
+        _pressedActive = false
+        super.onClick(e)
+        const g = this._grid
+        const ci = e != null ? this._colAt(e.x) : -1
+        if (g == null || ci < 0 || disabled) return
+        g.activeCol = ci
+        g.inHeader = false
+        if (again && !g.editing) {
+            const cell = this.cellAt(ci)
+            if (cell != null && cell._kind() == "editor") g._enterCell(cell, "")
+            }
+        else g._seatKeyboard()
         },
 
     _cells: View [ x = 0, y = 0, width = 100%, height = 100%,
@@ -713,16 +883,28 @@ data of what it draws — the column's `cell` class, an edit field for an `edit`
 field as text. The grid makes it; a program writes the class it draws.
 
 ## _kind()
-**Internal.** What the cell holds: `"own"` (the column's class), `"edit"` (a text field) or `"text"`.
+**Internal.** What the cell holds: `"editor"` (its column edits in an editor), `"own"` (the column's class) or `"text"`.
+
+## _editorCls
+**Internal.** The class its column edits in, or `""`.
+
+## _shows
+**Internal.** The class it shows when not edited: its column's `cell`, or the field as text.
+
+## _atCell
+**Internal.** Whether it is the grid's active cell, focused or not.
+
+## editingHere
+Whether it is the cell being edited.
 
 ## _drawn()
 **Internal.** What the cell draws, as a view: its one child view.
 
 ## _editor()
-**Internal.** The text field of an `edit` cell, or null.
+**Internal.** The grid's text field in the cell, when it holds one, or null.
 
 ## _firstControl()
-**Internal.** The first focusable view inside the cell's own class, or null.
+**Internal.** The first focusable view inside the cell's own class that a person can see (shown, and not fully transparent), or null.
 
 ## _writeText()
 **Internal.** Writes a text value into the cell's field in its row's record.
@@ -753,7 +935,7 @@ columns reads, as `provided("column")`.
 **Internal.** The field its column shows.
 
 ## _cls
-**Internal.** The class it draws.
+**Internal.** The class it draws: its editor while edited (and the grid's text editor while it is the active cell), else what it shows.
 
 ## _reportActive()
 **Internal.** The cell that becomes the grid's active cell records itself as the grid's
@@ -791,9 +973,20 @@ class DataGridCell [ x = { :x }, width = { :width }, height = 100%, clip = true,
     // `provided("column")` from inside it
 
     column: object = { { id: "" + :id, title: "" + (:title ?? :id) } },
-    _cls: string = { :edit == true ? "DataGridEdit" : ("" + (:cell ?? "")) != "" ? "" + :cell : "DataGridText" },
+    _editorCls: string = { "" + (:editor ?? "") },
+    _shows: string = { ("" + (:cell ?? "")) != "" ? "" + :cell : "DataGridText" },
 
-    _kind() -> string { return this._cls == "DataGridEdit" ? "edit" : this._cls == "DataGridText" ? "text" : "own" },
+    // what it draws: its column's editor while it is edited; the grid's text
+    // editor while it is the active cell, too, so typed text — an accent, an
+    // input method's word — arrives in a field and opens the edit; else what
+    // the column shows
+
+    _cls: string = { this.editingHere || (this._editorCls == "DataGridEdit" && this.activeHere) ? this._editorCls : this._shows },
+
+    // "editor": its column edits in an editor; "own": it draws a class of the
+    // program's, entered at its first control; "text": neither
+
+    _kind() -> string { return this._editorCls != "" ? "editor" : this._shows == "DataGridText" ? "text" : "own" },
 
     // what it draws, as a view: its one child view
 
@@ -809,7 +1002,8 @@ class DataGridCell [ x = { :x }, width = { :width }, height = 100%, clip = true,
         if (d == null) return null
         const walk = (v: View) => {
             for (const c of v.childViews) {
-                if (c.focusable == true && c.visible) return c
+                // what a person can't see is not where the keyboard goes
+                if (c.focusable == true && c.visible && c.opacity > 0) return c
                 const deeper = walk(c)
                 if (deeper != null) return deeper
                 }
@@ -828,8 +1022,10 @@ class DataGridCell [ x = { :x }, width = { :width }, height = 100%, clip = true,
 
     _row: DataGridRow? = { (this.parent?.parent as DataGridRow)?._isGridRow === true ? this.parent.parent as DataGridRow : null },
     _dataGrid: DataGrid? = { this._row != null ? this._row._grid : null },
-    gridFocused: boolean = { this._dataGrid != null && this._dataGrid.focused && !this._dataGrid.inHeader },
-    activeHere: boolean = { this.gridFocused && this._row?.active == true && this._dataGrid?.activeCol == this._ci },
+    gridFocused: boolean = { this._dataGrid != null && this._dataGrid._within && !this._dataGrid.inHeader },
+    _atCell: boolean = { this._row?.active == true && this._dataGrid?.activeCol == this._ci },
+    activeHere: boolean = { this.gridFocused && this._atCell },
+    editingHere: boolean = { this._atCell && this._dataGrid?.editing == true },
     stroke = { this.activeHere ? stroke(2, provided("theme").accent) : null },
     cornerRadius = { provided("theme").gridCellCornerRadius },
 
@@ -859,7 +1055,7 @@ class DataGridCell [ x = { :x }, width = { :width }, height = 100%, clip = true,
         g.activeCol = this._ci
         const i = r.tableIndex()
         g.activeIndex = i
-        g.active = g.itemAt(i)
+        g.activeItem = g.itemAt(i)
         },
 
     // what it draws: one view over the row's record, of the class its column
@@ -896,7 +1092,19 @@ field into the row's record as you type.
 The field edited — its column's id.
 
 ## write()
-Writes a text value into the field — through the grid's `editInput`, which may keep it.
+Writes a text value into the field — through the grid's `applyEdit`, which may keep it.
+
+## open
+Whether the edit is open: the field shows as a field. Until then the active cell's field holds the keyboard with its text selected, drawn as the cell's text.
+
+## _cell
+**Internal.** The cell it is drawn in.
+
+## _typing
+**Internal.** Text arriving in the field opens the edit.
+
+## onInit
+Gives the keyboard to the field when the cell is the active cell of a grid that has it.
 
 ## _grid
 **Internal.** The grid the cell is in.
@@ -910,35 +1118,98 @@ Writes a text value into the field — through the grid's `editInput`, which may
 
 class DataGridEdit [ width = 100%, height = 100%,
     _isGridEdit: boolean = true,
-    field: string = { (parent as DataGridCell)._isGridCell === true ? (parent as DataGridCell)._fld : "" },
+    _cell: DataGridCell? = { (parent as DataGridCell)._isGridCell === true ? parent as DataGridCell : null },
+    field: string = { this._cell != null ? this._cell._fld : "" },
     _before: string = "",
-    _grid: DataGrid? = { (parent as DataGridCell)._isGridCell === true ? (parent as DataGridCell)._dataGrid : null },
+    _grid: DataGrid? = { this._cell != null ? this._cell._dataGrid : null },
+
+    // the edit is open: the field shows as a field. Until then the active cell's
+    // field holds the keyboard with its text selected, drawn as the cell's text,
+    // so what is typed replaces it and opens the edit
+
+    open: boolean = { this._cell != null && (this._cell.editingHere || (this._ed.editing && this._cell._atCell)) },
+
+    // the field keeps the value's kind: a number field takes the typed text as a
+    // number, and text that is not one yet (a "-", an empty field) writes nothing
+
     write(v: string) {
         const rec = :@
-        if (_grid == null || _grid.editInput(rec, field, v) !== false) { :@[(field)] = v }
+        const now = (rec as any)[field]
+        let out: string | number = v
+        if (typeof now == "number") {
+            const n = v.trim() == "" ? NaN : Number(v)
+            if (!Number.isFinite(n)) return
+            out = n
+            }
+        if (_grid == null || _grid.applyEdit(rec, field, out) !== false) { :@[(field)] = out }
         },
 
+    // built for the active cell of a grid that has the keyboard: the field takes it
+
+    onInit() { if (_grid != null) _grid._seatKeyboard() },
+
+    // text arriving opens the edit
+
+    _typing: Node [
+        on: boolean = { classroot._ed.editing },
+        trackChanges = ["on"],
+        onChange() { if (on && classroot._grid != null && !classroot._grid.editing) classroot._grid.editing = true }
+        ],
+
     _ed: TextInput [ x = 4, y = 3, fontSize = { provided("theme").gridFontSize },
-        accessibilityLabel = { (classroot.parent as DataGridCell)._isGridCell === true ? "" + (classroot.parent as any).title : "" },
+        accessibilityLabel = { classroot._cell != null ? "" + classroot._cell.column.title : "" },
         width = { parent.width - 8 },
         height = { parent.height - 6 },
+        padding = [0, 4, 0, 4],
+        fill = { classroot.open ? provided("theme").surface : null },
+        showsCaret = { classroot.open },
+        stroke = { classroot.open ? stroke(1, provided("theme").accent) : null },
         value = { "" + (:@[(classroot.field)] ?? "") },
-        commitOn = { (classroot.parent as DataGridCell)._isGridCell === true && (classroot.parent as DataGridCell)._commitOn == "end" ? "end" : "each" },
+        commitOn = { classroot._cell != null && classroot._cell._commitOn == "end" ? "end" : "each" },
         onFocus() {
+            super.onFocus()
             classroot._before = "" + (:@[(classroot.field)] ?? "")
-            const cell = classroot.parent as DataGridCell
-            if (cell._isGridCell === true) cell._takeActive()
+            if (classroot._cell != null) classroot._cell._takeActive()
             },
         commit(v: string) { classroot.write(v) },
+
+        // a second press on the active cell opens the edit, the caret where it landed
+
+        onPointerDown(e?: PointerEvent) {
+            if (!classroot.open && classroot._grid != null) classroot._grid.editing = true
+            },
         onKeyDown(e: KeyEvent) {
-            const cell = classroot.parent as DataGridCell
-            if (cell._isGridCell !== true || cell._row == null || cell._dataGrid == null) super.onKeyDown(e)
-            else if (e.key == "ArrowDown" || e.key == "Enter") cell._dataGrid._editStep(cell._row, cell._ci, 1)
-            else if (e.key == "ArrowUp") cell._dataGrid._editStep(cell._row, cell._ci, -1)
-            // a cell that commits at the end: Escape drops the edit (the field's own
-            // Escape); one that wrote as it went puts the text back
-            else if (e.key == "Escape") { if (commitOn == "end") super.onKeyDown(e); else classroot.write(classroot._before) }
-            else super.onKeyDown(e)
+            const g = classroot._grid
+            // a key that belongs to an input method's composition (its Return commits it) is the field's
+            if (g == null || e.isComposing) { super.onKeyDown(e); return }
+            const plain = !e.meta && !e.ctrl && !e.alt
+            if (!classroot.open) {
+                // selected, not editing: the grid's keys move and enter; the rest is typing
+                if ((e.key == "Enter" || e.key == "F2") && plain) { g.editing = true; this.select("end"); return }
+                if (e.key == "ArrowUp" || e.key == "ArrowDown" || e.key == "ArrowLeft" || e.key == "ArrowRight" ||
+                    e.key == "Home" || e.key == "End" || e.key == "PageUp" || e.key == "PageDown") {
+                    Focus.focus(g)
+                    g.onKeyDown(e)
+                    return
+                    }
+                super.onKeyDown(e)
+                return
+                }
+            // open: Return and the vertical arrows end the edit and move a row
+            if (e.key == "Enter" && plain) { this.endEdit(); g._leaveEdit(1); return }
+            if (e.key == "ArrowDown" && plain) { this.endEdit(); g._leaveEdit(1); return }
+            if (e.key == "ArrowUp" && plain) { this.endEdit(); g._leaveEdit(-1); return }
+            // Tab ends the edit and opens the next cell's place; Shift-Tab the one before
+            if (e.key == "Tab" && plain) { this.endEdit(); g._leaveAcross(e.shift ? -1 : 1); return }
+            // Escape: a cell that commits at the end drops the edit; one that
+            // wrote as it went puts the text back. Either way the edit ends
+            if (e.key == "Escape") {
+                if (commitOn != "end") classroot.write(classroot._before)
+                this.cancelEdit()
+                g._leaveEdit(0)
+                return
+                }
+            super.onKeyDown(e)
             }
         ]
     ]

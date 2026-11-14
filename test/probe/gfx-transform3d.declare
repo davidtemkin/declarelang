@@ -19,7 +19,7 @@ App [ width = 900, height = 420, fill = #202124, textColor = whitesmoke,
             rotateY = -45, pivotX = 90, pivotY = 110,
             onClick() { app.hit = "b (rotateY -45)" },
             Text [ x = 20, y = 30, fontSize = 26, fontWeight = bold, text = "rotateY" ],
-            Image [ x = 40, y = 90, width = 100, height = 100, stretches = contain, source = "assets/badge.png" ]
+            Image [ x = 40, y = 90, width = 100, height = 100, fit = contain, source = "assets/badge.png" ]
             ],
 
         // pushed toward the viewer, so it grows
@@ -38,7 +38,7 @@ App [ width = 900, height = 420, fill = #202124, textColor = whitesmoke,
             Text [ x = 20, y = 90, fontSize = 22, fontWeight = bold, text = "hidden" ]
             ],
         e: View [ x = 690, y = 60, width = 180, height = 220, cornerRadius = 12, fill = { hovered ? 0xFF5A36 : 0x9B59B6 }, opacity = 0.9,
-            rotateX = 35, rotateY = 25, rotation = 10, scaleY = 0.9, pivotX = 90, pivotY = 110, filter = shadow(0, 12, 30, 0x000000AA),
+            rotateX = 35, rotateY = 25, rotation = 10, scaleY = 0.9, pivotX = 90, pivotY = 110, visualFilter = shadow(0, 12, 30, 0x000000AA),
             onClick() { app.hit = "e (composed 3D)" },
             Text [ x = 20, y = 90, fontSize = 22, fontWeight = bold, text = "composed" ]
             ]

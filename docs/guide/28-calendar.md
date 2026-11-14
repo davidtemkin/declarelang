@@ -79,7 +79,7 @@ costs only the days that changed:
 ```declare-fragment
 cal: Dataset [ schema = [ grid[]: Day ], contents = { app.buildModel() } ]
 
-// consumed by:  Cell [ datapath = :grid[], key = :key ]   and   Ev [ datapath = :events[], key = :id ]
+// consumed by:  Cell [ datapath = :grid[], identityKey = :key ]   and   Ev [ datapath = :events[], identityKey = :id ]
 ```
 
 Paging to the next month sets one number; `buildModel` re-derives; keyed replication

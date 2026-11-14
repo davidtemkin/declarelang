@@ -1,7 +1,7 @@
 // Animation v1 — the motion substrate (docs/system-design/animation.md §1–§4).
 //
 // Two pieces, both author-invisible kernel-tier services (the design's magic
-// ledger §3): the `motion` vocabulary (the curves themselves are easing.ts),
+// ledger §3): the easing vocabulary (the curves themselves are easing.ts),
 // and the one shared clock every running Animator registers with. Deliberately free of
 // any Animator / View / schema import — this is the substrate those sit on,
 // unit-testable on its own with an injected scheduler (no browser rAF needed).

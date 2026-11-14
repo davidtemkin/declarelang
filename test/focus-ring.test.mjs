@@ -103,8 +103,8 @@ await test("the ring over scrolled content stacks beneath the page's pinned bar,
 
 await test("focus moved by an arrow's handler is keyboard focus: the ring stays on, and flies", async () => {
   const app = await boot(`App [ width = 500, height = 200, sel: string = "a",
-    seg: Segmented [ x = 20, y = 20, value = { app.sel }, input(v: any) { app.sel = v },
-        choices = { [ ({ id: "a", label: "A" }), ({ id: "b", label: "B" }), ({ id: "c", label: "C" }) ] } ],
+    seg: Segmented [ x = 20, y = 20, value = { app.sel }, commit(v: any) { app.sel = v },
+        items = { [ ({ id: "a", label: "A" }), ({ id: "b", label: "B" }), ({ id: "c", label: "C" }) ] } ],
     after: Button [ x = 20, y = 100, label = "After" ] ]`);
   deliverKeys(Keys, Focus);
   const segs = app.seg.segs();

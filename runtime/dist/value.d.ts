@@ -45,7 +45,10 @@ export type Fill = Color | Gradient;
 /** Narrow a Fill to its gradient arm. */
 export declare function isGradient(f: Fill): f is Gradient;
 /** A border drawn INSIDE the view box (ruled: `stroke` over CSS's `border` —
- *  the box stays the layout/hit fact, per R5's hit-region rule). */
+ *  the box stays the layout/hit fact, per R5's hit-region rule). The same value
+ *  strokes a Text's GLYPHS as `textStroke` — traced along each letterform's
+ *  contour (CSS `-webkit-text-stroke` / canvas `strokeText`), under the fill;
+ *  paint only, it does not change advance or the line box. */
 export interface Stroke {
     readonly width: number;
     readonly color: Color;
@@ -67,17 +70,9 @@ export type BoxStroke = Stroke | readonly (Stroke | null)[] | null;
  *  common uniform case on the one-ring fast path in both backends; the FOUR-side
  *  arm lives in stroke-sides.ts, one module for everything four sides mean. */
 export declare function strokeUniform(s: BoxStroke): Stroke | null | undefined;
-/** A glyph OUTLINE (`outline` on text) — a stroke traced along each letterform's
- *  contour (CSS `-webkit-text-stroke` / canvas `strokeText`), NOT a box border
- *  (that is `stroke`). Same shape as Stroke; a distinct type so the two never
- *  confuse. Paint-only: it does not change advance or the line box. */
-export interface Outline {
-    readonly width: number;
-    readonly color: Color;
-}
 /** A drop shadow — ONE value, three sites (graphics-pass.md §1.1): on the
  *  view box (`shadow`, the CSS box-shadow shape minus spread), on glyphs
- *  (`textShadow`), and inside a `filter` list, where it shadows the painted
+ *  (`textShadow`), and inside a `visualFilter` list, where it shadows the painted
  *  group's ALPHA (CSS `drop-shadow`). It carries its function tag so a list
  *  can hold it beside the other filters. */
 export interface Shadow {
@@ -88,7 +83,7 @@ export interface Shadow {
     readonly color: Color;
 }
 /** The filter vocabulary (graphics-pass.md §1) — ONE set of functions at two
- *  tiers: `filter` (the view's own painted subtree, as a group) and `backdrop`
+ *  tiers: `visualFilter` (the view's own painted subtree, as a group) and `backdrop`
  *  (what lies beneath, sampled before the view paints); the same names are
  *  ordinary functions inside `{ }`, and a `draw()` body's `d.filter` takes the
  *  list too. Plain, frozen data: a list crosses the raster worker and the Mac
@@ -123,14 +118,13 @@ export type Mask = Gradient | {
     readonly height: number;
 };
 export declare function isMaskGradient(m: Mask): m is Gradient;
-/** A `filter`/`backdrop` value as written or bound: one function, a list, or
+/** A `visualFilter`/`backdrop` value as written or bound: one function, a list, or
  *  null — normalized to a frozen list (empty = none) at the seam. */
 export type FilterValue = Filter | readonly Filter[] | null;
 export declare function filterList(v: FilterValue | undefined): readonly Filter[];
 export declare function gradient(...args: (number | string | GradientStop)[]): Gradient;
 export declare const colorStop: (offset: number, color: Color) => GradientStop;
 export declare const stroke: (width: number, color: Color) => Stroke;
-export declare const outline: (width: number, color: Color) => Outline;
 export declare const shadow: (dx: number, dy: number, blur: number, color: Color) => Shadow;
 /** How far a filter's output can reach past the painted box, in view units —
  *  a blur's 3σ, a shadow's offset plus its 3σ. The over-scan a backdrop sample
@@ -140,7 +134,6 @@ export declare function filterBleed(list: readonly Filter[]): number;
 export declare function filterBlur(list: readonly Filter[]): number;
 export declare function shadowEqual(a: Shadow | null, b: Shadow | null): boolean;
 export declare function strokeEqual(a: BoxStroke, b: BoxStroke): boolean;
-export declare function outlineEqual(a: Outline | null, b: Outline | null): boolean;
 export declare function filterEqual(a: Filter, b: Filter): boolean;
 /** Structural equality over a filter value in any written form (one, a list, null). */
 export declare function filtersEqual(a: FilterValue | undefined, b: FilterValue | undefined): boolean;
@@ -276,7 +269,7 @@ export type AttrType = {
 } | {
     readonly kind: "stroke";
 } | {
-    readonly kind: "outline";
+    readonly kind: "glyphStroke";
 } | {
     readonly kind: "shadow";
 } | {
@@ -284,7 +277,7 @@ export type AttrType = {
 } | {
     readonly kind: "mask";
 } | {
-    readonly kind: "motion";
+    readonly kind: "easing";
 } | {
     readonly kind: "font";
     readonly nullable?: boolean;
@@ -294,7 +287,7 @@ export type AttrType = {
     readonly kind: "faceWeight";
 };
 /** Declare an enum attribute type: `enumType("Stretch", "none", "width", …)`
- *  — how §6's named unions declare. Built-in consumers: Image.stretches and
+ *  — how §6's named unions declare. Built-in consumers: Image.fit and
  *  Text.fontWeight (R3); user unions and Align slot in as pure data. */
 export declare function enumType(name: string, ...tokens: string[]): AttrType;
 /** An enum that also takes a number in `[min, max]` — see AttrType's `numeric`. */
@@ -303,7 +296,7 @@ export declare function numericEnumType(name: string, range: readonly [number, n
  *  the name is not in the declarable vocabulary. */
 /** An AUTHORED literal union (`"idle" | "loading"`) is an enum whose NAME is
  *  the written union text — that text is the discriminator between it and a
- *  built-in vocabulary (Axis, Motion), whose name is an identifier. Every
+ *  built-in vocabulary (Axis, Easing), whose name is an identifier. Every
  *  consumer asks this one question here, not with its own `startsWith('"')`. */
 export declare const isAuthoredUnion: (name: string) => boolean;
 /** The members of a written string-literal union, or null when `text` is not

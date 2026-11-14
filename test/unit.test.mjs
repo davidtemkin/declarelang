@@ -15,7 +15,7 @@ import { test, summarize, tempDir } from "./harness.mjs";
 import { compile, compileTracked, isUpToDate, diskProbe, extractStatic, settleHeadless } from "../compiler/dist/compile-node.js";
 import { KeysService } from "../runtime/dist/keys.js";
 import { wrapLines, wrapEditable, provideMeasurer } from "../runtime/dist/measure.js";
-import { stroke, outline } from "../runtime/dist/value.js";
+import { stroke } from "../runtime/dist/value.js";
 import { Focus, FocusService, deliverKeys, bareScroller } from "../runtime/dist/focus.js";
 import { routeInput } from "../runtime/dist/input.js";
 import {
@@ -256,6 +256,72 @@ class Row [ height = 10, n: number = 0, lit: boolean = { app.picked == n }, fill
   assert.ok(fill.runs <= 2, `only the two rows whose lit changed re-ran their fill, not all twenty: ${fill.runs}`);
 });
 
+await test("a paint rule reading a declared default whose input the instance binds settles on the default's final value, even when that equals the slot's starting value", async () => {
+  // the class's fill/stroke run before the default's rule installs and before
+  // the use-site `a = { … }` lands: they took the default live (m: true), and
+  // the rule then landed false — the slot's starting value — waking no one
+  // (Ledger run 5: every category chip kept its warning outline)
+  const app = buildProgram(await compiled(`App [ width = 300, height = 200, v: string? = "x",
+    k: K [ a = { app.v } ], n: N [ a = { "x" } ], j: K [ y = 30 ] ]
+class K [ width = 50, height = 20, a: string? = null, m: boolean = { classroot.a == null },
+  fill = { classroot.m ? 0xFF0000 : 0x00AA00 }, stroke = { classroot.m ? stroke(1, 0xFF0000) : null } ]
+class N [ width = 50, height = 20, a: string? = null, m: number = { classroot.a == null ? 1 : 0 },
+  fill = { classroot.m == 1 ? 0xFF0000 : 0x00AA00 } ]`));
+  settle();
+  assert.equal(app.k.m, false);
+  assert.equal(app.k.fill, 0x00AA00, "fill follows m's settled value");
+  assert.equal(app.k.stroke, null, "stroke follows m's settled value");
+  assert.equal(app.n.fill, 0x00AA00, "a number default too");
+  assert.equal(app.j.fill, 0xFF0000, "an instance that leaves the input unset keeps the default's own value");
+  app.v = null;
+  settle();
+  assert.equal(app.k.fill, 0xFF0000, "and a later change still reaches it");
+  app.discard();
+});
+
+await test("an afterSettle step finds a view its settle brought into existence settled — a new field holds its text", async () => {
+  // the `exists` gate builds the field as its value is pushed, at the settle's
+  // close; the rules that build woke ran only after the steps, so a step that
+  // focused the field and selected all of it selected the empty text (Ledger run 5)
+  const app = buildProgram(await compiled(`App [ width = 300, height = 200, on: boolean = false, s: string = "Original", seen: string = "-",
+  go() { on = true; afterSettle(() => { app.seen = app.f!.value + "/" + app.f!.shown + "/" + app.f!.text }) },
+  f: TextInput [ exists = { app.on }, accessibilityLabel = "F", value = { app.s }, commit(v: string) { app.s = v } ] ]`));
+  settle();
+  app.go();
+  settle();
+  assert.equal(app.seen, "Original/Original/Original");
+  app.discard();
+});
+
+await test("a handler reading a declared default while other work is pending gets its stored value unless the default's own inputs moved — an object default keeps its identity", async () => {
+  // `{ new Map() }` read after a write something else reads: the read was
+  // evaluated live — a fresh, empty Map — so the handler's own `.set` was not
+  // what it read back (7GUIs run 2: the Cells model computed nothing)
+  const app = buildProgram(await compiled(`class Store extends Dataset [ _m: Map<string, number> = { new Map() }, seen: number = -1,
+  put(k: string) { _m.set(k, 1); this.set(["n"], 1); seen = _m.size } ]
+App [ width = 300, height = 200, s: Store { { "n": 0 } }, Text [ datapath = { app.s.value }, text = { "n = " + :n } ],
+  a: number = 1, b: number = { a * 2 }, c: string = { "c" + b }, d: string = { c + "!" }, chain: string = "",
+  k: number = 1, m: Map<string, number> = { new Map([["k", k]]) }, same: boolean = false, moved: number = -1,
+  v: View [ _m: Map<string, number> = { new Map() }, w: number = 0, seen: number = -1,
+    put(k: string) { _m.set(k, 1); w = 1; seen = _m.size }, Text [ text = { "w = " + parent.w + app.d + app.m.size } ] ],
+  chained() { a = 5; chain = b + "/" + c + "/" + d },
+  kept() { const held = m; v.w = 2; same = held === m; k = 7; moved = m.get("k") ?? -1 } ]`));
+  settle();
+  app.s.put("a");
+  app.v.put("a");
+  assert.equal(app.s.seen, 1, "a Dataset's Map default is the one the handler just changed");
+  assert.equal(app.v.seen, 1, "a View's too");
+  settle();
+  app.chained();
+  assert.equal(app.chain, "10/c10/c10!", "a default whose inputs moved still reads live, through every default between");
+  settle();
+  app.kept();
+  assert.equal(app.same, true, "unrelated pending work leaves the default's object as it is");
+  assert.equal(app.moved, 7, "its own input moving gives its new value");
+  settle();
+  app.discard();
+});
+
 await test("every pointer event carries both frames — local x/y through the view's transform, rootX/rootY, and deltaX/deltaY since the press", async () => {
   const app = buildProgram(await compiled(`App [ width = 400, height = 300,
     got: object = null,
@@ -333,20 +399,51 @@ await test("a word kept in a local before it is passed is said plainly, with the
   assert.deepEqual((fine.errors ?? []).map((x) => x.message), [], "both fixes check");
 });
 
-await test("a declared name TypeScript's standard library already owns is said plainly, at the declaration", async () => {
+await test("a declared name TypeScript's standard library holds as a value is said plainly, at the declaration, with a rename", async () => {
   for (const [src, kind, name] of [
-    [`class Pick extends View [ on: boolean = false ]\nApp [ p: Pick [ ], flip(v: Pick) { v.on = !v.on }, onClick() { flip(p) } ]`, "class", "Pick"],
-    [`schema Record [ id: string ]\nApp [ onClick() { const n = 1 } ]`, "schema", "Record"],
     [`class Map extends View [ n: number = 0 ]\nApp [ m: Map [ ], onClick() { m.n = 1 } ]`, "class", "Map"],
+    [`schema Date [ id: string ]\nApp [ onClick() { const n = 1 } ]`, "schema", "Date"],
   ]) {
     const r = await compile(src);
     const e = (r.errors ?? []).find((x) => x.code === "DECLARE4015");
     assert.ok(e, `${kind} ${name} is reported`);
-    assert.match(e.message, new RegExp(`${kind} ${name} takes a name TypeScript's standard library already declares \\(lib\\.[a-z0-9.]+\\.d\\.ts\\)`));
+    assert.match(e.message, new RegExp(`${kind} ${name} takes a name TypeScript's standard library already declares \\(lib\\.[a-z0-9.]+\\.d\\.ts\\) — in a \\{ \\} body '${name}' is that built-in`));
+    assert.match(e.message, new RegExp(`Rename yours, as 'My${name}'`));
     assert.equal(e.pos?.line, 1, "at the declaration");
   }
   const clean = await compile(`class Choice extends View [ on: boolean = false ]\nApp [ c: Choice [ ], flip(v: Choice) { v.on = !v.on }, onClick() { flip(c) } ]`);
   assert.deepEqual((clean.errors ?? []).map((x) => x.message), [], "a free name");
+});
+
+await test("a declared name TypeScript's standard library holds only as a type (Pick, Record) is the program's", async () => {
+  // Cadence runs 30 and 32 met `class Pick` refused: the program's classes
+  // shared one scope with the library. They are declared in their own now, so
+  // the program's name shadows the library's type, in bodies and signatures.
+  const r = await compile(`class Pick extends View [ on: boolean = false, label: string = "",
+    opacity = { label == "" ? 0.5 : 1 } ]
+schema Record [ id: string ]
+App [ width = 100, height = 100, p: Pick [ label = "a" ], rec: Record? = null,
+  flip(v: Pick) { v.on = !v.on; if (v instanceof Pick) v.label = "b" },
+  onClick() { flip(p); const o: Partial<{ a: number }> = {} } ]`);
+  assert.deepEqual((r.errors ?? []).map((x) => x.message), [], "compiles");
+  const app = settleHeadless(r.program);
+  assert.equal(app.p.opacity, 1, "the class's body runs");
+  app.flip(app.p); settle();
+  assert.equal(app.p.on, true);
+  assert.equal(app.p.label, "b", "instanceof the program's Pick");
+  // still checked against the program's class, and said in its name (no `$P.`)
+  const bad = await compile(`class Pick extends View [ on: boolean = false ]\nApp [ p: Pick [ ], onClick() {\n    p.onn = true } ]`);
+  const e = (bad.errors ?? []).find((x) => x.code === "DECLARE6001");
+  assert.match(e?.message ?? "", /'onn' is not a member of Pick/);
+  assert.ok(!/\$P/.test(e.message), "the namespace stays the scaffold's");
+  assert.equal(e.pos?.line, 3); assert.equal(e.pos?.col, 7, "at the member");
+});
+
+await test("a declared attribute whose name is held offers both repairs: set it, or a name of one's own", async () => {
+  // Cadence run 32: `scale: number = 1` on a class was told only to set View's scale
+  const r = await compile(`class DayBar extends View [ scale: number = 1 ]\nApp [ DayBar [ ] ]`);
+  const e = (r.errors ?? []).find((x) => /already has an attribute 'scale'/.test(x.message));
+  assert.match(e?.message ?? "", /write 'scale = …' to set the existing one, or, for one of your own, name it otherwise, e\.g\. 'barScale'/);
 });
 
 await test("a declared name one of Declare's own types already holds is said plainly, at the declaration, with the app's rename", async () => {
@@ -354,7 +451,7 @@ await test("a declared name one of Declare's own types already holds is said pla
   // Outline, Process; the collision is the same with the names now held)
   for (const [src, kind, name] of [
     [`class FilterList extends View [ height = { this.$root.height }, tint: number = 1 ]\nApp [ b: FilterList [ ] ]`, "class", "FilterList"],
-    [`schema GlyphOutline [ wide: number ]\nApp [ onClick() { const n = 1 } ]`, "schema", "GlyphOutline"],
+    [`schema BoxStroke [ wide: number ]\nApp [ onClick() { const n = 1 } ]`, "schema", "BoxStroke"],
     [`class Color extends View [ tint: number = 1 ]\nApp [ c: Color [ ], onClick() { c.tint = 2 } ]`, "class", "Color"],
     // a word list, and a preset theme
     [`class AnimatorOrder extends View [ tint: number = 1 ]\nApp [ p: AnimatorOrder [ ], onClick() { p.tint = 2 } ]`, "class", "AnimatorOrder"],
@@ -376,24 +473,90 @@ await test("a constraint whose decisions tangle is warned of (DECLARE4025); the 
     return (r.warnings ?? []).some((w) => w.code === "DECLARE4025");
   };
   assert.equal(await warned(`app.k == "x" ? 1 : app.k == "y" ? 2 : app.k == "z" ? 3 : 4`), true, "three nested choices");
-  assert.equal(await warned(`app.a && app.b && app.c && app.d ? 1 : 0`), true, "one condition of four parts");
+  assert.equal(await warned(`app.k != "a" && app.k != "b" && app.k != "c" && app.k != "d" ? 1 : 0`), true, "one condition of four parts");
+  assert.equal(await warned(`app.a && app.b && !app.c && app.d ? 1 : 0`), false, "four parts already named facts: naming them is done");
   assert.equal(await warned(`app.a ? 1 : app.b ? 2 : 3`), false, "two levels — the pressed/hovered idiom");
   assert.equal(await warned(`app.a && app.b && (app.c || app.d) ? 1 : 0`), false, "three parts, one of them a bracketed either");
   assert.equal(await warned(`({ x: 1, y: 2, z: 3 } as Record<string, number>)[app.k] ?? 4`), false, "a lookup");
   assert.equal(await warned(`[1, 2].map((v) => v == 1 ? 1 : v == 2 ? 2 : v == 3 ? 3 : 4)[0]`), false, "a callback inside the body is its own matter");
 });
 
-await test("`T?` in a body says the declaration's shorthand is not a body's, and gives the Declare form: T | null", async () => {
-  const r = await compile(`App [ width = 100, height = 100, n: number = 0,
-    pick() { let v: string? = null; app.n = v == null ? 0 : 1 } ]`);
-  assert.match(r.report, /'\?' after a type is the declaration's shorthand [^\n]*so write string \| null/, r.report);
-  assert.doesNotMatch(r.report, /undefined/, "never TypeScript's undefined, which Declare does not use");
+await test("an App mounting into a known host reads its width from the first evaluation — and keeps a size of its own", async () => {
+  const { withStartingHost } = await import("../runtime/dist/view.js");
+  const host = { width: 1440, height: 900 };
+  const follow = await compiled(`${TALLY}App [ seen: number = { (note("__w", app.width), app.width) }, Text [ text = "x" ] ]`);
+  const lit = await compiled(`App [ width = 800, Text [ text = "x" ] ]`);
+  const bnd = await compiled(`App [ k: number = 320, width = { app.k * 2 }, Text [ text = "x" ] ]`);
+  globalThis.__w = [];
+  const follows = withStartingHost(host, () => buildProgram(follow));
+  assert.deepEqual(globalThis.__w, [1440], "the first evaluation saw the host's width, not 0");
+  assert.deepEqual([follows.width, follows.height], [1440, 900]);
+  assert.equal(withStartingHost(host, () => buildProgram(lit)).width, 800, "a literal width is the App's own");
+  assert.equal(withStartingHost(host, () => buildProgram(bnd)).width, 640, "a bound width is the App's own");
+});
+
+await test("an App's unset height is its host's, not its children's: a row's stretch fills the window (Ledger run 9)", async () => {
+  const { withStartingHost } = await import("../runtime/dist/view.js");
+  const host = { width: 390, height: 844 };
+  const p = await compiled(`App [ layout: SimpleLayout [ axis = x, align = stretch ], scrolls = none,
+    main: View [ flexes = true, layout: SimpleLayout [ axis = y, align = stretch ],
+        head: View [ height = 50 ],
+        body: View [ flexes = true ] ] ]`);
+  const app = withStartingHost(host, () => buildProgram(p));
+  assert.equal(app.height, 844);
+  assert.equal(app.main.height, 844, "the pane stretches to the App, not to its own tallest child");
+  assert.equal(app.main.body.height, 794, "…so its flexing body takes the rest");
+});
+
+await test("a paint written by name in a signature may be none: -> Stroke and -> Shadow return null, as Color does", async () => {
+  const r = await compile(`App [ width = 100, height = 100, on: boolean = false,
+    outline(w: number) -> Stroke { return w <= 0 ? null : stroke(w, 0x112233) },
+    lift() -> Shadow { return app.on ? shadow(0, 2, 4, 0x00000033) : null },
+    tint() -> Color { return app.on ? 0x112233 : null },
+    View [ width = 10, height = 10, stroke = { app.outline(1) }, shadow = { app.lift() } ] ]`);
+  assert.deepEqual(r.errors, [], r.report);
+});
+
+await test("`T?` in a body is Declare's \"a T, or null\", as in a declaration — checked, stripped, and run", async () => {
+  const src = `schema Choice [ id: string ]
+  App [ width = 100, height = 100, n: number = -1, got: string = "",
+    pick(v: object) {
+      const c = v as Choice?;
+      let k: number? = null
+      if (c != null) k = c.id.length
+      const t = (v as boolean) ? 1 : 2
+      const pair: [string, number?] = ["x"]
+      app.n = (k ?? 0) * 10 + t + pair.length
+      app.got = c?.id ?? ""
+      } ]`;
+  const r = await compile(src);
+  assert.deepEqual(r.errors, [], r.report);
+  const app = buildProgram(await compiled(src));
+  app.pick({ id: "abc" });
+  assert.deepEqual([app.n, app.got], [32, "abc"], "the cast and the local ran as JavaScript, their types stripped with the '?'");
+  // still checked: a T? may be null, and undefined is not null
+  const absent = await compile(`schema Choice [ id: string ]
+  App [ width = 100, height = 100, s: string = "",
+    a(v: object) { const c = v as Choice?; app.s = c.id },
+    b(v: object) { const c = v as Choice?; const k: string? = c?.id; app.s = k ?? "" } ]`);
+  assert.match(absent.report, /'c' may be absent here/, absent.report);
+  assert.match(absent.report, /gives undefined \(as \?\. and a missing field do\)[^\n]*\?\? null/, absent.report);
+  // TypeScript's own parse: `as T?` ending a line, the next beginning with a name,
+  // reads as the start of a ? : — said exactly, with the two ways to write it
+  const lineEnd = await compile(`schema Choice [ id: string ]
+  App [ width = 100, height = 100, s: string = "",
+    a(v: object) {
+      const c = v as Choice?
+      app.s = c?.id ?? ""
+      } ]`);
+  assert.match(lineEnd.report, /'as T\?' at the end of a line reads as the start of a \? :[^\n]*end that line with ;/, lineEnd.report);
 });
 
 await test("the report tells one code's advice once: a later site keeps what is particular to it and points back", async () => {
   const r = await compile(`App [ width = 100, height = 100, a: boolean = true, b: boolean = false, c: boolean = true, d: boolean = false,
-    n: number = { app.a && app.b && app.c && app.d ? 1 : 0 },
-    m: number = { app.d && app.c && app.b && app.a ? 1 : 0 } ]`);
+    k: string = "x",
+    n: number = { app.k != "a" && app.k != "b" && app.k != "c" && app.k != "d" ? 1 : 0 },
+    m: number = { app.k != "d" && app.k != "c" && app.k != "b" && app.k != "a" ? 1 : 0 } ]`);
   const lines = r.report.split("\n").filter((l) => l.includes("[DECLARE4025]"));
   assert.equal(lines.length, 2, r.report);
   assert.match(lines[0], /n decides on one condition of 4 parts — give the facts it decides on names of their own/, "the first is told in full");
@@ -674,7 +837,7 @@ await test("colorToCss renders a Color as CSS", () => {
 await test("check() accepts Text and Image with all their attributes", () => {
   const src = `App [ width=240, height=160,
     Text [ x=10, y=10, text="hi", textColor=navy, fontSize=20, fontFamily="Arial", fontWeight=bold ],
-    Image [ x=10, y=40, width=40, height=24, source="a.png", stretches=both ] ]`;
+    Image [ x=10, y=40, width=40, height=24, source="a.png", fit=both ] ]`;
   assert.deepEqual(check(parse(src)), []);
 });
 
@@ -685,13 +848,13 @@ await test("Text and Image inherit View's schema (x/y/clip/…)", () => {
 
 await test("Image: cover/contain accepted, natural dimensions read-only (assessment 1.1, 2026-08-06)", async () => {
   const r = await compile(`App [ width = 200, height = 200,
-    pic: Image [ width = 100, height = 60, stretches = cover, source = "x.png" ],
+    pic: Image [ width = 100, height = 60, fit = cover, source = "x.png" ],
     ratio: number = { app.pic.naturalWidth > 0 ? app.pic.naturalHeight / app.pic.naturalWidth : 0 },
   ]`, {});
   assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
   const app = settleHeadless(r.program);
   try {
-    assert.equal(app.pic.stretches, "cover");
+    assert.equal(app.pic.fit, "cover");
     assert.equal(app.pic.naturalWidth, 0, "0 until loaded (headless never loads)");
     assert.equal(app.ratio, 0, "derives read the honest zero");
   } finally {
@@ -706,7 +869,7 @@ await test("check() rejects bad Text/Image values with pointed messages", () => 
     ["Text [ fontWeight=heavy ]", /Text\.fontWeight expects a FontWeight \(one of .*\bmedium\b.*\bbold\b.*\), got 'heavy'/],
     ["Text [ text=42 ]", /Text\.text expects a string, got the number 42/],
     ['Text [ fontSize="big" ]', /Text\.fontSize expects a number, got the string "big"/],
-    ["Image [ stretches=sideways ]", /Image\.stretches expects an ImageFit \(one of none \| width \| height \| both \| cover \| contain\), got 'sideways'/],
+    ["Image [ fit=sideways ]", /Image\.fit expects an ImageFit \(one of none \| width \| height \| both \| cover \| contain\), got 'sideways'/],
     ["Image [ source=7 ]", /Image\.source expects a string, got the number 7/],
   ];
   for (const [src, want] of cases) {
@@ -719,7 +882,7 @@ await test("check() rejects bad Text/Image values with pointed messages", () => 
 await test("buildProgram() instantiates Text/Image with coerced fields and defaults", async () => {
   const app = buildProgram(await compiled(`App [ width=10, height=10,
     Text [ text="hello", textColor=#FFE28A, fontSize=20, fontWeight=bold, fontFamily="Arial" ],
-    Image [ source="a.png", stretches=width ],
+    Image [ source="a.png", fit=width ],
     Text [ ], Image [ ] ]`));
   const [t, i, t2, i2] = app.children;
   assert.ok(t instanceof Text && t instanceof View);
@@ -729,14 +892,14 @@ await test("buildProgram() instantiates Text/Image with coerced fields and defau
   assert.equal(t.fontWeight, "bold");
   assert.ok(i instanceof Image && i instanceof View);
   assert.equal(i.source, "a.png");
-  assert.equal(i.stretches, "width");
+  assert.equal(i.fit, "width");
   assert.equal(i.loaded, false);
   // Defaults: browser-native text (16px sans-serif, black), unstretched image.
   assert.deepEqual(
     [t2.text, t2.textColor, t2.fontSize, t2.fontFamily, t2.fontWeight],
     ["", 0x000000, 16, "sans-serif", "normal"]
   );
-  assert.deepEqual([i2.source, i2.stretches], ["", "none"]);
+  assert.deepEqual([i2.source, i2.fit], ["", "none"]);
 });
 
 // ── R3: the ClipPath value type (clip) ─────────────────────────────────────────
@@ -1765,16 +1928,16 @@ await test("routeInput: POINTER events drive the sink protocol (down/up/click; c
     const mk = (name) => ({ key: { name }, sink: (type) => log.push([name, type]), x: 1, y: 2 });
     const targets = { A: mk("A"), B: mk("B") };
     routeInput(() => true, (e) => targets[e.k] ?? null, (e) => ({ x: e.clientX, y: e.clientY }));
-    const fire = (type, k, pointerType = "touch") =>
-      (handlers[type] ?? []).forEach((h) => h({ k, clientX: 10, clientY: 20, pointerType }));
+    const fire = (type, k, pointerType = "touch", clientX = 10) =>
+      (handlers[type] ?? []).forEach((h) => h({ k, clientX, clientY: 20, pointerType }));
 
     fire("pointerdown", "A"); fire("pointerup", "A");
     assert.deepEqual(log.map((e) => e[1]), ["pointerDown", "pointerUp", "click"], "a tap fires down, up, then click");
     assert.equal(log[2][0], "A", "click resolves to the pressed view");
 
     log.length = 0;
-    fire("pointerdown", "A"); fire("pointerup", "B");
-    assert.deepEqual(log.map((e) => e[1]), ["pointerDown", "pointerUp"], "release over another view clicks nothing");
+    fire("pointerdown", "A"); fire("pointermove", "B", "touch", 60); fire("pointerup", "B", "touch", 60);
+    assert.deepEqual(log.filter((e) => ["pointerDown", "pointerUp", "click", "doubleClick"].includes(e[1])).map((e) => e[1]), ["pointerDown", "pointerUp"], "moved off onto another view: clicks nothing");
 
     log.length = 0;
     fire("pointerdown", "A"); fire("pointercancel", "A");
@@ -1828,6 +1991,22 @@ await test("click slop: a moved FINGER does not click (it was swiping), a still 
   } finally { h.done(); }
 });
 
+await test("click carried: the layout moves the pressed view from under a still pointer — the click is the pressed view's", () => {
+  const h = inputHarness({ A: {}, B: {}, D: { wantsDoubleClick: true } });
+  try {
+    h.fire("pointerdown", "A", { x: 100, y: 100, pointerType: "mouse" });
+    h.fire("pointerup", "B", { x: 100, y: 100, pointerType: "mouse" });       // B slid in under the pointer
+    const clicks = h.log.filter((e) => e[1] === "click");
+    assert.deepEqual(clicks.map((e) => e[0]), ["A"], "A clicked, B did not");
+    assert.equal(clicks[0][2].carried, true, "and the click says it was carried (the view takes it only while shown)");
+
+    h.log.length = 0;
+    h.fire("pointerdown", "D", { x: 300, y: 100, pointerType: "mouse" });
+    h.fire("pointerup", "B", { x: 300, y: 100, pointerType: "mouse" });
+    assert.ok(!h.types().includes("click"), "a view that answers double-clicks is not carried a click (its pair would mislead)");
+  } finally { h.done(); }
+});
+
 await test("click slop: a MOUSE tracks inside its target (4px), unlike a finger", () => {
   const h = inputHarness({ A: {} });
   try {
@@ -1859,31 +2038,31 @@ await test("a canceled gesture says so: the release carries canceled: true", () 
   } finally { h.done(); }
 });
 
-await test("dblClick: two taps pair; the first click arrives at once, and a view declaring onDblClick hears the pair as dblClick alone", async () => {
-  const h = inputHarness({ A: {}, D: { wantsDbl: true } });
+await test("doubleClick: two taps pair; the first click arrives at once, and a view declaring onDoubleClick hears the pair as doubleClick alone", async () => {
+  const h = inputHarness({ A: {}, D: { wantsDoubleClick: true } });
   try {
-    // a plain view: click fires immediately, the pair adds dblClick
+    // a plain view: click fires immediately, the pair adds doubleClick
     h.fire("pointerdown", "A"); h.fire("pointerup", "A");
     h.fire("pointerdown", "A"); h.fire("pointerup", "A");
-    assert.deepEqual(h.types().filter((t) => t === "click" || t === "dblClick"),
-      ["click", "click", "dblClick"], "no arbitration where none was asked for");
+    assert.deepEqual(h.types().filter((t) => t === "click" || t === "doubleClick"),
+      ["click", "click", "doubleClick"], "no arbitration where none was asked for");
 
     // a view that answers double-clicks: its first click is not held back
     h.log.length = 0;
     h.fire("pointerdown", "D"); h.fire("pointerup", "D");
     assert.deepEqual(h.types().filter((t) => t === "click"), ["click"], "the single click arrives at once, as the platforms deliver it");
     h.fire("pointerdown", "D"); h.fire("pointerup", "D");
-    assert.deepEqual(h.types().filter((t) => t === "click" || t === "dblClick"),
-      ["click", "dblClick"], "the second click is the pair: dblClick, not a second click");
+    assert.deepEqual(h.types().filter((t) => t === "click" || t === "doubleClick"),
+      ["click", "doubleClick"], "the second click is the pair: doubleClick, not a second click");
   } finally { h.done(); }
 });
 
-await test("dblClick proximity: two taps far apart on one big view are not a pair", () => {
+await test("doubleClick proximity: two taps far apart on one big view are not a pair", () => {
   const h = inputHarness({ A: {} });
   try {
     h.fire("pointerdown", "A", { x: 10, y: 10 }); h.fire("pointerup", "A", { x: 10, y: 10 });
     h.fire("pointerdown", "A", { x: 200, y: 200 }); h.fire("pointerup", "A", { x: 200, y: 200 });
-    assert.ok(!h.types().includes("dblClick"), "opposite corners of a large view are two singles");
+    assert.ok(!h.types().includes("doubleClick"), "opposite corners of a large view are two singles");
   } finally { h.done(); }
 });
 
@@ -1962,7 +2141,8 @@ App [ width = 300, height = 200,
     ghost: View [ x = 20, y = 20, width = 100, height = 40, pointerEvents = "none",
         chip: View [ x = 4, y = 4, width = 60, height = 20, fill = #DDDDDD ] ] ]`));
   settle();
-  assert.equal(app.viewAt(30, 30), app.ghost.chip, "pointerEvents on the ghost leaves its chip in the way");
+  const under = app.viewAt(30, 30);
+  assert.ok(under === app.a || under?.parent === app.a, "pointerEvents = none on the ghost switches its chip off too");
   assert.equal(app.viewAt(30, 30, app.ghost), app.a, "passed as except, the ghost and all it holds are gone");
   app.find(30, 30);
   assert.equal(app.found, "a", "instanceof Tile walks up from the label to the card");
@@ -2682,6 +2862,36 @@ await test("a constraint cycle through a layout's stretch names the stretched si
     app.show = false;
     assert.throws(() => settle(), (e) => /constraint cycle/.test(e.message)
       && /The loop: .*View\.width \(stretched by View's SimpleLayout\[y\]\) \(at app\.hall\.pane\)/.test(e.message), "the loop names the pane's width");
+  } finally { app.discard(); }
+});
+
+// A size that measures its children in only one branch measures them only while
+// that branch is taken. Wired, `{ app.phone ? this.contentHeight : 600 }` carried
+// the edges of both branches, so the row was judged sized by its children and
+// stretched its scroller to the scroller's content (1000) instead of to the 600
+// band: nothing scrolled (Venue 31's checkout pane). Both axes.
+await test("align = stretch: a size that reads its content only in a branch not taken is the band", async () => {
+  const r = await compile(`App [ width = 1000, height = 800, phone: boolean = false,
+      row: View [ width = 100%, height = { app.phone ? this.contentHeight : 600 },
+        layout: SimpleLayout [ axis = x, align = stretch ],
+        main: View [ flexes = true, scrolls = y, View [ width = 300, height = 1000 ] ],
+        side: View [ width = 200 ] ],
+      col: View [ y = 700, height = 100, width = { app.phone ? this.contentWidth : 500 },
+        layout: SimpleLayout [ axis = y, align = stretch ],
+        main: View [ flexes = true, scrolls = x, View [ width = 900, height = 30 ] ],
+        side: View [ height = 20 ] ],
+    ]`, {});
+  assert.equal(r.errors.length, 0, r.errors.map((e) => e.message).join("; "));
+  const app = settleHeadless(r.program);
+  try {
+    assert.deepEqual([app.row.height, app.row.main.height, app.row.side.height], [600, 600, 600], "a row: stretched to its 600");
+    assert.deepEqual([app.col.width, app.col.main.width, app.col.side.width], [500, 500, 500], "a column: stretched to its 500");
+    app.phone = true; settle();
+    assert.equal(app.row.layout.sizedByChildren("height"), true, "the branch taken now measures the children");
+    assert.equal(app.row.main.height, 1000, "…and the line stands: the tallest content");
+    assert.equal(app.col.main.width, 900);
+    app.phone = false; settle();
+    assert.deepEqual([app.row.main.height, app.col.main.width], [600, 500], "and back to the band");
   } finally { app.discard(); }
 });
 
@@ -3883,26 +4093,54 @@ await test("check: a derived Dataset takes `contents = { }` INSTEAD of a body", 
   assert.match(path[0].message, /contents is a derived value/);
 });
 
-await test("check: `key = :field` is replication metadata, refused off a template", () => {
+await test("check: `identityKey = :field` is replication metadata, refused off a template", () => {
   // valid on a replicated child (has a many datapath)
   assert.deepEqual(
-    check(parse(`App [ d: Dataset { {"rows":[]} }, list: View [ datapath = { classroot.d.value }, View [ datapath = :rows[], key = :id ] ] ]`)),
+    check(parse(`App [ d: Dataset { {"rows":[]} }, list: View [ datapath = { classroot.d.value }, View [ datapath = :rows[], identityKey = :id ] ] ]`)),
     []
   );
-  // key that is not a single :path
-  const many = check(parse(`App [ d: Dataset { {"rows":[]} }, list: View [ datapath = { classroot.d.value }, View [ datapath = :rows[], key = :id[] ] ] ]`));
-  assert.match(many.find((e) => /key/.test(e.message)).message, /names each record's identity field/);
-  // `key` on a NON-replicated element is refused BY NAME. It used to fall out
-  // as an unknown attribute; since 2026-08-03 `key` is a real View attribute
-  // (so it documents itself in the reference and a `{ }` body has a declared
-  // type to check against), which means schema membership alone would have made
-  // it silently legal here — hence the explicit refusal, naming where it goes.
-  const plain = check(parse(`App [ v: View [ key = :id ] ]`));
+  // an identityKey that is not a single :path
+  const many = check(parse(`App [ d: Dataset { {"rows":[]} }, list: View [ datapath = { classroot.d.value }, View [ datapath = :rows[], identityKey = :id[] ] ] ]`));
+  assert.match(many.find((e) => /identityKey/.test(e.message)).message, /names each record's identity field/);
+  // on a NON-replicated element it is refused BY NAME: it is in View's schema
+  // (so it documents itself in the reference), which alone would make it
+  // silently legal here — hence the explicit refusal, naming where it goes.
+  const plain = check(parse(`App [ v: View [ identityKey = :id ] ]`));
   assert.ok(plain.some((e) => /replication metadata/.test(e.message)),
     `expected a replication-metadata refusal, got: ${plain.map((e) => e.message).join(" | ")}`);
 });
 
-await test("check: `virtualize` is replication metadata too — same gate as `key`", () => {
+await test("check: `key = :field` on a replicated node names identityKey, with the field", () => {
+  const errs = check(parse(`App [ d: Dataset { {"rows":[]} }, list: View [ datapath = { classroot.d.value }, View [ datapath = :rows[], key = :sku ] ] ]`));
+  assert.equal(errs.length, 1, errs.map((e) => e.message).join(" | "));
+  assert.match(errs[0].message, /has no attribute 'key' — a replicated record's identity is identityKey: 'identityKey = :sku'/);
+  // off a template it is an unknown attribute, answered as React's instinct
+  const plain = check(parse(`App [ v: View [ key = "x" ] ]`));
+  assert.match(plain[0].message, /has no attribute 'key' — the React instinct: .*identityKey = :field/);
+});
+
+await test("`key` is an ordinary name — a class declares it, a replicated use sets it, no hint", async () => {
+  const src = `class Chip [ key: string = "", t: Text [ text = { classroot.key } ] ]
+App [ width = 10, height = 10,
+    d: Dataset { {"rows": [{"sku":"a","key":"Ctrl+A"},{"sku":"b","key":"Ctrl+B"}]} },
+    list: View [ datapath = { app.d.value }, Chip [ datapath = :rows[], key = :key, identityKey = :sku ] ],
+    one: Chip [ key = "Ctrl+S" ] ]`;
+  assert.deepEqual(check(parseProgram(src)).map((e) => e.message), []);
+  const app = buildProgram(await compiled(src));
+  const rows = () => app.list.children.filter((c) => c.constructor.name === "Chip");
+  assert.deepEqual(rows().map((r) => r.key), ["Ctrl+A", "Ctrl+B"], "each instance's own key, bound per record");
+  assert.equal(app.one.key, "Ctrl+S");
+  const before = new Map(rows().map((r) => [r.key, r]));
+  // fresh record objects, reordered and one field changed: only identityKey can match them
+  app.d.set(["rows"], app.d.value.rows.slice().reverse().map((r) => ({ ...r, key: r.key + "!" })));
+  settle();
+  assert.equal(rows().length, 2);
+  assert.equal(before.get("Ctrl+A").key, "Ctrl+A!", "the instance for sku 'a' followed its record");
+  assert.equal(before.get("Ctrl+B").key, "Ctrl+B!", "the instance for sku 'b' followed its record");
+  assert.deepEqual(new Set(rows()), new Set(before.values()), "identityKey reconciled fresh records onto the same instances");
+});
+
+await test("check: `virtualize` is replication metadata too — same gate as `identityKey`", () => {
   // legal on a replicated child, as a literal and as a constraint
   assert.deepEqual(
     check(parse(`App [ d: Dataset { {"rows":[]} }, list: View [ datapath = { classroot.d.value }, View [ datapath = :rows[], virtualize = true ] ] ]`)),
@@ -3929,7 +4167,7 @@ await test("run: a derived Dataset recomputes, keyed replication reuses instance
     src: Dataset { {"rows": [{"id":"a"},{"id":"b"}]} },
     grid: Dataset [ contents = { app.make() } ],
     list: View [ datapath = { app.grid.value },
-      View [ datapath = :rows[], key = :id ] ],
+      View [ datapath = :rows[], identityKey = :id ] ],
     make() { const r = this.src.read(["rows"]) ?? []; return { rows: r.map((x) => ({ id: x.id, v: this.n })) }; },
   ]`));
   const rows = () => app.list.children.filter((c) => c.constructor.name === "View");
@@ -4398,6 +4636,32 @@ await test("DataSource auto: fetches once per distinct address, never for a re-d
     app.zip = "10014";
     settle();
     assert.deepEqual(hits, ["/w/94110", "/w/10014"], "a new address fetches exactly once");
+    app.discard();
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});
+
+await test("DataSource auto: a source whose view leaves in the same assignment that changes its url does not fetch", async () => {
+  const realFetch = globalThis.fetch;
+  try {
+    const hits = [];
+    globalThis.fetch = async (url) => { hits.push(url); return { ok: true, json: async () => ({ from: url }) }; };
+    const app = buildProgram(await compiled(`class ThingPage [ slug: string = "",
+      src: DataSource [ autoFetch = true, url = { "/things/" + classroot.slug } ]
+      ]
+      App [ width=10, height=10,
+      at: string = "/thing/abc",
+      thing: ThingPage [ exists = { app.at.split("/")[1] == "thing" }, slug = { app.at.split("/")[2] ?? "" } ]
+      ]`));
+    settle();
+    assert.deepEqual(hits, ["/things/abc"], "the page's own address fetches");
+    app.at = "/";
+    settle();
+    assert.deepEqual(hits, ["/things/abc"], "the page leaving fetches nothing on its way out");
+    app.at = "/thing/xyz";
+    settle();
+    assert.deepEqual(hits, ["/things/abc", "/things/xyz"], "the page built again fetches its address");
     app.discard();
   } finally {
     globalThis.fetch = realFetch;
@@ -5009,16 +5273,16 @@ await test("decoration literals: gradient / stroke / shadow constructor forms", 
 await test("graphics pass: filter / mask / gradient literals coerce, and the names stay out of the way", () => {
   const v = (src) => checkAttr(SCHEMAS.View, attrOf(`View [ ${src} ]`));
   // one function, a list, the frost pair, null
-  assert.deepEqual(v("filter=blur(3)").value, [{ fn: "blur", radius: 3 }]);
-  assert.deepEqual(v("filter=[blur(2), brightness(0.8), colorize(#FF5A36)]").value,
+  assert.deepEqual(v("visualFilter=blur(3)").value, [{ fn: "blur", radius: 3 }]);
+  assert.deepEqual(v("visualFilter=[blur(2), brightness(0.8), colorize(#FF5A36)]").value,
     [{ fn: "blur", radius: 2 }, { fn: "brightness", amount: 0.8 }, { fn: "colorize", color: 0xff5a36 }]);
-  assert.deepEqual(v("filter=[shadow(0, 26, 52, #00000080)]").value, [{ fn: "shadow", dx: 0, dy: 26, blur: 52, color: colorWithAlpha(0, 0x80) }]);
+  assert.deepEqual(v("visualFilter=[shadow(0, 26, 52, #00000080)]").value, [{ fn: "shadow", dx: 0, dy: 26, blur: 52, color: colorWithAlpha(0, 0x80) }]);
   assert.deepEqual(v("backdrop=frost(20, 1.4)").value, [{ fn: "blur", radius: 20 }, { fn: "saturate", amount: 1.4 }]);
   assert.deepEqual(v("backdrop=[blur(12), saturate(1.6), brightness(1.1)]").value,
     [{ fn: "blur", radius: 12 }, { fn: "saturate", amount: 1.6 }, { fn: "brightness", amount: 1.1 }]);
-  assert.equal(v("filter=null").value, null);
-  assert.match(v("filter=blur(-1)").error.message, /a filter/);
-  assert.match(v("filter=wobble(3)").error.message, /a filter/);
+  assert.equal(v("visualFilter=null").value, null);
+  assert.match(v("visualFilter=blur(-1)").error.message, /a filter/);
+  assert.match(v("visualFilter=wobble(3)").error.message, /a filter/);
   // masks: a gradient (its alpha), or null; a stencil view only from { }
   assert.equal(v("mask=gradient(#00000000, #000000FF)").value.stops.length, 2);
   assert.equal(v("mask=null").value, null);
@@ -5444,26 +5708,26 @@ await test("sample: cubicBezier / steps / back / laszlo", () => {
   assert.equal(sample(lz, 0.25, 0), 0.25, "laszlo with zero travel degrades to linear (no 0/0)");
 });
 
-await test("buildProgram(): motion accepts family tokens and the four constructors", async () => {
+await test("buildProgram(): easing accepts family tokens and the four constructors", async () => {
   const app = buildProgram(await compiled(`App [ width=1, height=1, View [
-    a: Animator [ attribute=x, to=1, motion=quartOut ],
-    b: Animator [ attribute=x, to=1, motion=cubicBezier(0.42, 0, 0.58, 1) ],
-    c: Animator [ attribute=x, to=1, motion=laszloBoth ],
-    d: Animator [ attribute=x, to=1, motion=steps(4, jumpStart) ],
-    e: Animator [ attribute=x, to=1, motion=back(2) ] ] ]`));
+    a: Animator [ attribute=x, to=1, easing=quartOut ],
+    b: Animator [ attribute=x, to=1, easing=cubicBezier(0.42, 0, 0.58, 1) ],
+    c: Animator [ attribute=x, to=1, easing=laszloBoth ],
+    d: Animator [ attribute=x, to=1, easing=steps(4, jumpStart) ],
+    e: Animator [ attribute=x, to=1, easing=back(2) ] ] ]`));
   const v = app.children[0];
-  assert.deepEqual(v.a.motion, { k: "poly", fam: "quart", dir: "out" }, "family token");
-  assert.equal(v.b.motion.k, "bezier", "cubicBezier constructor");
-  assert.deepEqual(v.c.motion, { k: "laszlo", beginPole: 0.25, endPole: 0.25 }, "laszlo alias = OL easeboth");
-  assert.deepEqual(v.d.motion, { k: "steps", n: 4, jump: "start" }, "steps with jumpStart");
-  assert.deepEqual(v.e.motion, { k: "back", dir: "both", overshoot: 2 }, "back with overshoot");
+  assert.deepEqual(v.a.easing, { k: "poly", fam: "quart", dir: "out" }, "family token");
+  assert.equal(v.b.easing.k, "bezier", "cubicBezier constructor");
+  assert.deepEqual(v.c.easing, { k: "laszlo", beginPole: 0.25, endPole: 0.25 }, "laszlo alias = OL easeboth");
+  assert.deepEqual(v.d.easing, { k: "steps", n: 4, jump: "start" }, "steps with jumpStart");
+  assert.deepEqual(v.e.easing, { k: "back", dir: "both", overshoot: 2 }, "back with overshoot");
 });
 
-await test("check(): a bogus motion token / out-of-range bézier is rejected, naming Motion", () => {
-  const e1 = check(parseProgram(`App [ width=1, height=1, View [ Animator [ attribute=x, motion=swoosh ] ] ]`));
-  assert.ok(e1.some((e) => /Motion/.test(e.message)), `unknown token names Motion: ${e1.map((e) => e.message).join(" | ")}`);
-  const e2 = check(parseProgram(`App [ width=1, height=1, View [ Animator [ attribute=x, motion=cubicBezier(2, 0, 0.5, 1) ] ] ]`));
-  assert.ok(e2.some((e) => /Motion|\[0, 1\]/.test(e.message)), `bézier x out of range: ${e2.map((e) => e.message).join(" | ")}`);
+await test("check(): a bogus easing token / out-of-range bézier is rejected, naming Easing", () => {
+  const e1 = check(parseProgram(`App [ width=1, height=1, View [ Animator [ attribute=x, easing=swoosh ] ] ]`));
+  assert.ok(e1.some((e) => /Easing/.test(e.message)), `unknown token names Easing: ${e1.map((e) => e.message).join(" | ")}`);
+  const e2 = check(parseProgram(`App [ width=1, height=1, View [ Animator [ attribute=x, easing=cubicBezier(2, 0, 0.5, 1) ] ] ]`));
+  assert.ok(e2.some((e) => /Easing|\[0, 1\]/.test(e.message)), `bézier x out of range: ${e2.map((e) => e.message).join(" | ")}`);
 });
 
 await test("Clock: idle until a ticker is added, live while one runs (idle-zero)", () => {
@@ -5536,7 +5800,7 @@ await test("Animator: start() drives a plain target slot to `to`, then goes idle
   anim.attribute = "height";
   anim.to = 225;
   anim.duration = 100;
-  anim.motion = LINEAR;
+  anim.easing = LINEAR;
   anim.start();
   assert.equal(sched.scheduled, true, "starting registers a live frame loop");
   // The baseline is seeded at start() (the issue-#17 arming fix): elapsed time
@@ -5566,7 +5830,7 @@ await test("Animator: a scheduler handover rebases in-flight anchors (issue #17)
   a.attribute = "height";
   a.to = 100;
   a.duration = 100;
-  a.motion = LINEAR;
+  a.easing = LINEAR;
   real.frame(500); // establish a late real-time origin
   a.start(); // anchor seeded at real now = 500
   const driven = fakeScheduler(); // its timeline starts at 0 — 500 behind
@@ -5586,7 +5850,7 @@ await test("Animator: `from` defaults to the slot's current value; an explicit `
   a.to = 140;
   a.from = 100; // explicit — start here regardless of the slot's 40
   a.duration = 100;
-  a.motion = LINEAR;
+  a.easing = LINEAR;
   a.start();
   sched.frame(0);
   assert.equal(view.height, 100, "an explicit `from` wins over the current value");
@@ -5605,7 +5869,7 @@ await test("Animator: relative — `to` is a delta from `from`", () => {
   a.relative = true;
   a.to = 10; // +10 from the sampled from (25) → 35
   a.duration = 100;
-  a.motion = LINEAR;
+  a.easing = LINEAR;
   a.start();
   sched.frame(0);
   assert.equal(view.height, 25);
@@ -5623,7 +5887,7 @@ await test("Animator: start() while running is a no-op (LZX doStart guard)", () 
   a.attribute = "height";
   a.to = 100;
   a.duration = 100;
-  a.motion = LINEAR;
+  a.easing = LINEAR;
   a.start();
   sched.frame(0);
   sched.frame(50); // → 50
@@ -5643,7 +5907,7 @@ await test("Animator: stop() halts in place — no snap to either end", () => {
   a.attribute = "height";
   a.to = 100;
   a.duration = 100;
-  a.motion = LINEAR;
+  a.easing = LINEAR;
   a.start();
   sched.frame(0);
   sched.frame(50); // → 50
@@ -5662,7 +5926,7 @@ await test("Animator: paused freezes in place; unpausing resumes where it left o
   a.attribute = "height";
   a.to = 100;
   a.duration = 100;
-  a.motion = LINEAR;
+  a.easing = LINEAR;
   a.start();
   sched.frame(0);
   sched.frame(50); // → 50
@@ -5687,7 +5951,7 @@ await test("Animator: repeat replays from→to the given number of times, then l
   a.to = 100;
   a.duration = 100;
   a.repeat = 2;
-  a.motion = LINEAR;
+  a.easing = LINEAR;
   a.start();
   sched.frame(0); // cycle 1, t = 0 → 0
   sched.frame(50); // cycle 1, t = 0.5 → 50
@@ -5737,7 +6001,7 @@ await test("Animator: displaces a constraint owner, then resumes it re-evaluated
   anim.from = 60;
   anim.to = 0;
   anim.duration = 100;
-  anim.motion = LINEAR;
+  anim.easing = LINEAR;
   anim.start();
   sched.frame(0);
   assert.equal(v.x, 60);
@@ -5760,7 +6024,7 @@ await test("Animator: displaces a constraint owner, then resumes it re-evaluated
 await test("Animator: check() accepts named and anonymous animators (LZX's member shape)", () => {
   assert.deepEqual(check(parseProgram(`App [ width=100, height=100,
     View [ height=25,
-      slide: Animator [ attribute=height, to=255, duration=300, motion=easeBoth ],
+      slide: Animator [ attribute=height, to=255, duration=300, easing=easeBoth ],
       Animator [ attribute=x, to=100, started=true, paused=false, relative=false, repeat=3 ] ] ]`)), []);
 });
 
@@ -5816,14 +6080,14 @@ await test("buildProgram(): a named animator is a reachable member with coerced 
   setClock(new Clock(fakeScheduler())); // isolate any auto-start onto a throwaway clock
   const app = buildProgram(await compiled(`App [ width=100, height=100,
     View [ height=25,
-      slide: Animator [ attribute=height, to=255, from=25, duration=300, motion=easeBoth, repeat=2, started=false ] ] ]`));
+      slide: Animator [ attribute=height, to=255, from=25, duration=300, easing=easeBoth, repeat=2, started=false ] ] ]`));
   const v = app.children[0];
   assert.ok(v.slide instanceof Animator, "named animator is reachable as a member");
   assert.equal(v.slide.attribute, "height");
   assert.equal(v.slide.to, 255);
   assert.equal(v.slide.from, 25);
   assert.equal(v.slide.duration, 300);
-  assert.deepEqual(v.slide.motion, EASEBOTH);
+  assert.deepEqual(v.slide.easing, EASEBOTH);
   assert.equal(v.slide.repeat, 2);
   assert.equal(v.slide.parent, v, "the target defaults to the parent node");
 });
@@ -5833,7 +6097,7 @@ await test("buildProgram(): slide.start() from the pipeline drives the parent's 
   setClock(new Clock(sched));
   const app = buildProgram(await compiled(`App [ width=100, height=100,
     View [ height=25,
-      slide: Animator [ attribute=height, to=225, duration=100, motion=linear, started=false ] ] ]`));
+      slide: Animator [ attribute=height, to=225, duration=100, easing=linear, started=false ] ] ]`));
   const v = app.children[0];
   assert.equal(v.height, 25);
   v.slide.start();
@@ -5850,7 +6114,7 @@ await test("buildProgram(): started=true auto-starts the animator at init (opt-i
   const sched = fakeScheduler();
   setClock(new Clock(sched));
   const app = buildProgram(await compiled(`App [ width=100, height=100,
-    View [ Animator [ attribute=x, to=80, duration=100, motion=linear, started=true ] ] ]`));
+    View [ Animator [ attribute=x, to=80, duration=100, easing=linear, started=true ] ] ]`));
   assert.equal(sched.scheduled, true, "started=true → auto-started during build's init");
   const v = app.children[0];
   sched.frame(0);
@@ -5871,7 +6135,7 @@ await test("Animator: the two facts of motion — running while in flight, arriv
   const sched = fakeScheduler();
   setClock(new Clock(sched));
   const app = buildProgram(await compiled(`App [ width=100, height=100,
-    v: View [ anim: Animator [ attribute=x, to=100, duration=100, motion=linear ] ] ]`));
+    v: View [ anim: Animator [ attribute=x, to=100, duration=100, easing=linear ] ] ]`));
   const a = app.v.anim;
   assert.equal(a.running, false, "false at birth"); assert.equal(a.arrived, false, "not arrived at birth");
   a.start(); settle();
@@ -5910,7 +6174,7 @@ await test("Animator: `started` is REACTIVE — a constraint flipping it starts 
   setClock(new Clock(sched));
   const app = buildProgram(await compiled(`App [ width=100, height=100,
     v: View [ open: boolean = false,
-      anim: Animator [ attribute=x, to=100, duration=100, motion=linear, started = { parent.open } ] ] ]`));
+      anim: Animator [ attribute=x, to=100, duration=100, easing=linear, started = { parent.open } ] ] ]`));
   const v = app.v;
   assert.equal(v.anim.started, false, "the binding's boot value");
   assert.equal(sched.scheduled, false, "false at init → nothing running (opt-in auto-start)");
@@ -5940,7 +6204,7 @@ await test("Animator: `paused` is clock MEMBERSHIP — a paused animator holds z
   const sched = fakeScheduler();
   setClock(new Clock(sched));
   const app = buildProgram(await compiled(`App [ width=100, height=100,
-    v: View [ anim: Animator [ attribute=x, to=100, duration=100, motion=linear, started=true ] ] ]`));
+    v: View [ anim: Animator [ attribute=x, to=100, duration=100, easing=linear, started=true ] ] ]`));
   const v = app.v;
   sched.frame(0);
   sched.frame(40);
@@ -5968,7 +6232,7 @@ await test("AnimatorGroup: group `paused` idles the clock; members re-anchor on 
   const sched = fakeScheduler();
   setClock(new Clock(sched));
   const app = buildProgram(await compiled(`App [ width=100, height=100,
-    v: View [ g: AnimatorGroup [ process=simultaneous, duration=100, motion=linear, started=true,
+    v: View [ g: AnimatorGroup [ process=simultaneous, duration=100, easing=linear, started=true,
       Animator [ attribute=x, to=100 ],
       Animator [ attribute=y, to=200 ] ] ] ]`));
   const v = app.v;
@@ -5994,7 +6258,7 @@ await test("Animator: start() under `paused = true` arms without enrolling (zero
   const sched = fakeScheduler();
   setClock(new Clock(sched));
   const app = buildProgram(await compiled(`App [ width=100, height=100,
-    v: View [ anim: Animator [ attribute=x, to=100, duration=100, motion=linear, paused=true ] ] ]`));
+    v: View [ anim: Animator [ attribute=x, to=100, duration=100, easing=linear, paused=true ] ] ]`));
   const v = app.v;
   v.anim.start();
   assert.equal(v.anim.running, true, "armed");
@@ -6012,7 +6276,7 @@ await test("AnimatorGroup: a reactive `started` drives the whole group (issue #1
   setClock(new Clock(sched));
   const app = buildProgram(await compiled(`App [ width=100, height=100,
     v: View [ open: boolean = false,
-      grp: AnimatorGroup [ process=simultaneous, duration=100, motion=linear, started = { parent.open },
+      grp: AnimatorGroup [ process=simultaneous, duration=100, easing=linear, started = { parent.open },
         Animator [ attribute=x, to=10, started=true ],
         Animator [ attribute=y, to=20 ] ] ] ]`));
   const v = app.v;
@@ -6031,8 +6295,8 @@ await test("Animator: start() and stop() write `started` — it reads what was l
   setClock(new Clock(sched));
   const app = buildProgram(await compiled(`App [ width=100, height=100,
     v: View [ open: boolean = false,
-      anim: Animator [ attribute=x, to=100, duration=100, motion=linear ],
-      gated: Animator [ attribute=y, to=100, duration=100, motion=linear, started = { parent.open } ] ] ]`));
+      anim: Animator [ attribute=x, to=100, duration=100, easing=linear ],
+      gated: Animator [ attribute=y, to=100, duration=100, easing=linear, started = { parent.open } ] ] ]`));
   const v = app.v;
   v.anim.start();
   assert.equal(v.anim.started, true, "start() asked for a run, and `started` says so");
@@ -6050,7 +6314,7 @@ await test("AnimatorGroup: `arrived` comes true when a run finishes on its own, 
   const sched = fakeScheduler();
   setClock(new Clock(sched));
   const app = buildProgram(await compiled(`App [ width=100, height=100,
-    v: View [ grp: AnimatorGroup [ process=simultaneous, duration=100, motion=linear,
+    v: View [ grp: AnimatorGroup [ process=simultaneous, duration=100, easing=linear,
         Animator [ attribute=x, to=10 ] ] ] ]`));
   const v = app.v;
   v.grp.start();
@@ -6081,7 +6345,7 @@ await test("buildProgram(): the target is the parent — a user-declared numeric
   assert.ok(tab.slide instanceof Animator && tab.grow instanceof Animator);
   assert.equal(tab.grow.parent, tab, "target = parent (the user class instance)");
   assert.equal(tab.openHeight, 255);
-  tab.grow.motion = LINEAR;
+  tab.grow.easing = LINEAR;
   tab.grow.duration = 100; // sampled at start
   tab.grow.start();
   sched.frame(0);
@@ -6102,7 +6366,7 @@ await test("Animator: onStart at start, onStop at natural completion (fired once
   a.attribute = "height";
   a.to = 100;
   a.duration = 100;
-  a.motion = LINEAR;
+  a.easing = LINEAR;
   const log = [];
   a.onStart = () => log.push("start");
   a.onStop = () => log.push("stop");
@@ -6141,7 +6405,7 @@ await test("Animator: on* handlers fire through the pipeline (build) with repeat
   setClock(new Clock(sched));
   globalThis.__aev = [];
   const app = buildProgram(await compiled(`${TALLY}App [ width=100, height=100, View [
-    Animator [ attribute=x, to=100, duration=100, motion=linear, repeat=2, started=false,
+    Animator [ attribute=x, to=100, duration=100, easing=linear, repeat=2, started=false,
       onStart() { note("__aev", "start") },
       onRepeat() { note("__aev", "repeat") },
       onStop() { note("__aev", "stop") } ] ] ]`));
@@ -6167,7 +6431,7 @@ await test("Animator: an onStop that start()s again restarts cleanly (re-entrant
   a.attribute = "height";
   a.to = 100;
   a.duration = 100;
-  a.motion = LINEAR;
+  a.easing = LINEAR;
   let runs = 0;
   a.onStop = () => {
     runs++;
@@ -6214,7 +6478,7 @@ await test("Animator: displaces a LAYOUT-laid axis; the layout re-lays on comple
   anim.from = 30;
   anim.to = 80;
   anim.duration = 100;
-  anim.motion = LINEAR;
+  anim.easing = LINEAR;
   anim.start();
   sched.frame(0);
   assert.equal(b.y, 30);
@@ -6241,7 +6505,7 @@ await test("Animator: displaces a percent binding; it re-resolves against the ne
   anim.from = 100;
   anim.to = 0;
   anim.duration = 100;
-  anim.motion = LINEAR;
+  anim.easing = LINEAR;
   anim.start();
   sched.frame(0);
   assert.equal(v.width, 100);
@@ -6271,14 +6535,14 @@ await test("A2 additive: two animators on one slot COMPOSE (their deltas sum)", 
   a.relative = true;
   a.to = 100; // +100
   a.duration = 100;
-  a.motion = LINEAR;
+  a.easing = LINEAR;
   const b = new Animator();
   view.$appendChild(b);
   b.attribute = "x";
   b.relative = true;
   b.to = 40; // +40 — composes on top of a, not displacing it
   b.duration = 100;
-  b.motion = LINEAR;
+  b.easing = LINEAR;
   a.start();
   b.start();
   sched.frame(0);
@@ -6301,14 +6565,14 @@ await test("A2 additive ledger: composing animators land the EXACT expected sum 
   a.relative = true;
   a.to = 10;
   a.duration = 100;
-  a.motion = EASEBOTH; // curves whose summed increments would NOT be exact
+  a.easing = EASEBOTH; // curves whose summed increments would NOT be exact
   const b = new Animator();
   view.$appendChild(b);
   b.attribute = "x";
   b.relative = true;
   b.to = 3;
   b.duration = 100;
-  b.motion = EASEIN;
+  b.easing = EASEIN;
   a.start();
   b.start();
   sched.frame(0); // anchor elapsed at 0 (the first frame's dt is 0)
@@ -6328,13 +6592,13 @@ await test("A2 additive: a later ABSOLUTE `to` measures its delta against the EX
   a.attribute = "x";
   a.to = 100; // absolute → expected becomes 100
   a.duration = 100;
-  a.motion = LINEAR;
+  a.easing = LINEAR;
   const b = new Animator();
   view.$appendChild(b);
   b.attribute = "x";
   b.to = 40; // absolute, started while a is in flight → delta = 40 − expected(100) = −60
   b.duration = 100;
-  b.motion = LINEAR;
+  b.easing = LINEAR;
   a.start();
   b.start();
   sched.frame(0);
@@ -6358,14 +6622,14 @@ await test("A2 additive: a lone animator still displaces a constraint ONCE and r
   a.relative = true;
   a.to = 10;
   a.duration = 100;
-  a.motion = LINEAR;
+  a.easing = LINEAR;
   const b = new Animator();
   v.$appendChild(b);
   b.attribute = "x";
   b.relative = true;
   b.to = 20;
   b.duration = 200; // outlives a — the constraint must NOT resume when a finishes
-  b.motion = LINEAR;
+  b.easing = LINEAR;
   a.start();
   b.start();
   sched.frame(0);
@@ -6397,7 +6661,7 @@ await test("A2 AnimatorGroup simultaneous: members animate together off one cloc
   const sched = fakeScheduler();
   setClock(new Clock(sched));
   const app = buildProgram(await compiled(`App [ width=200, height=200, View [ x=0, y=0,
-    grp: AnimatorGroup [ process=simultaneous, duration=100, motion=linear, started=false,
+    grp: AnimatorGroup [ process=simultaneous, duration=100, easing=linear, started=false,
       Animator [ attribute=x, to=100 ],
       Animator [ attribute=y, to=50 ] ] ] ]`));
   const v = app.children[0];
@@ -6421,7 +6685,7 @@ await test("A2 AnimatorGroup sequential: members animate one after another", asy
   const sched = fakeScheduler();
   setClock(new Clock(sched));
   const app = buildProgram(await compiled(`App [ width=200, height=200, View [ x=0, y=0,
-    grp: AnimatorGroup [ process=sequential, duration=100, motion=linear, started=false,
+    grp: AnimatorGroup [ process=sequential, duration=100, easing=linear, started=false,
       Animator [ attribute=x, to=100 ],
       Animator [ attribute=y, to=50 ] ] ] ]`));
   const v = app.children[0];
@@ -6449,7 +6713,7 @@ await test("A2 AnimatorGroup: stop() cascades — halts every running member in 
   const sched = fakeScheduler();
   setClock(new Clock(sched));
   const app = buildProgram(await compiled(`App [ width=200, height=200, View [ x=0, y=0,
-    grp: AnimatorGroup [ process=simultaneous, duration=100, motion=linear, started=false,
+    grp: AnimatorGroup [ process=simultaneous, duration=100, easing=linear, started=false,
       Animator [ attribute=x, to=100 ],
       Animator [ attribute=y, to=50 ] ] ] ]`));
   const v = app.children[0];
@@ -6472,7 +6736,7 @@ await test("A2 AnimatorGroup: started=true auto-starts the group at init (member
   const sched = fakeScheduler();
   setClock(new Clock(sched));
   const app = buildProgram(await compiled(`App [ width=200, height=200, View [ x=0, y=0,
-    AnimatorGroup [ process=simultaneous, duration=100, motion=linear, started=true,
+    AnimatorGroup [ process=simultaneous, duration=100, easing=linear, started=true,
       Animator [ attribute=x, to=100 ],
       Animator [ attribute=y, to=50 ] ] ] ]`));
   assert.equal(sched.scheduled, true, "started=true → the group auto-started at build's init");
@@ -6490,7 +6754,7 @@ await test("A2 AnimatorGroup: repeat replays the WHOLE group, landing exactly", 
   const sched = fakeScheduler();
   setClock(new Clock(sched));
   const app = buildProgram(await compiled(`App [ width=200, height=200, View [ x=0,
-    grp: AnimatorGroup [ process=simultaneous, duration=100, motion=linear, repeat=2, started=false,
+    grp: AnimatorGroup [ process=simultaneous, duration=100, easing=linear, repeat=2, started=false,
       Animator [ attribute=x, from=0, to=100 ] ] ] ]`));
   const v = app.children[0];
   v.grp.start();
@@ -6537,17 +6801,17 @@ await test("A2 AnimatorGroup: nested groups run in order and inherit cascade tra
   const sched = fakeScheduler();
   setClock(new Clock(sched));
   const app = buildProgram(await compiled(`App [ width=200, height=200, View [ x=0, y=0,
-    outer: AnimatorGroup [ process=sequential, duration=100, motion=linear, started=false,
+    outer: AnimatorGroup [ process=sequential, duration=100, easing=linear, started=false,
       Animator [ attribute=x, to=100 ],
       AnimatorGroup [ process=simultaneous,
         Animator [ attribute=y, to=50 ] ] ] ] ]`));
   const v = app.children[0];
-  // the nested group's member inherited duration=100 / motion=linear from the
+  // the nested group's member inherited duration=100 / easing=linear from the
   // OUTER group (it set neither) — transitive cascade
   const nested = v.outer.children[1];
   assert.ok(nested instanceof AnimatorGroup, "the nested group is a member of the outer group");
   assert.equal(nested.children[0].duration, 100, "cascade threaded through the nested group to its member");
-  assert.deepEqual(nested.children[0].motion, LINEAR);
+  assert.deepEqual(nested.children[0].easing, LINEAR);
   v.outer.start();
   sched.frame(0);
   sched.frame(50);
@@ -6563,10 +6827,10 @@ await test("A2 AnimatorGroup: nested groups run in order and inherit cascade tra
   assert.equal(sched.scheduled, false);
 });
 
-await test("A2 AnimatorGroup: build cascades duration/motion to members; members keep their own attribute", async () => {
+await test("A2 AnimatorGroup: build cascades duration/easing to members; members keep their own attribute", async () => {
   setClock(new Clock(fakeScheduler())); // isolate any auto-start
   const app = buildProgram(await compiled(`App [ width=200, height=200, View [ x=0, y=0,
-    grp: AnimatorGroup [ process=simultaneous, duration=250, motion=easeIn, started=false,
+    grp: AnimatorGroup [ process=simultaneous, duration=250, easing=easeIn, started=false,
       Animator [ attribute=x, to=100 ],
       Animator [ attribute=y, to=50, duration=99 ] ] ] ]`));
   const grp = app.children[0].grp;
@@ -6574,7 +6838,7 @@ await test("A2 AnimatorGroup: build cascades duration/motion to members; members
   assert.ok(mx instanceof Animator && my instanceof Animator, "members are Animators under the group");
   assert.equal(mx.attribute, "x", "member keeps its own attribute");
   assert.equal(mx.duration, 250, "duration cascaded from the group");
-  assert.deepEqual(mx.motion, EASEIN, "motion cascaded from the group");
+  assert.deepEqual(mx.easing, EASEIN, "easing cascaded from the group");
   assert.equal(my.duration, 99, "a member's OWN duration is not overwritten by the cascade");
 });
 
@@ -7137,6 +7401,21 @@ await test("typecheck: a cross-boundary type error is caught, mapped to its .dec
   assert.match(type[0].message, /ternary that yields numbers/, "the canonical fix is named");
 });
 
+await test("typecheck: a slot typed T? takes ?.'s undefined, and holds null for it", async () => {
+  const app = await build(`App [ width = 200, height = 100, pick: View? = null,
+    other: View? = { this.pick?.parent }, k: number? = { this.pick?.width } ]`);
+  settle();
+  assert.equal(app.other, null, "a View? holds null, not undefined");
+  assert.equal(app.k, null, "a number? holds null, not 0 or undefined");
+});
+
+await test("typecheck: array and object cast in a body as they declare: a list, a record of no shape", async () => {
+  const r = await compile(`App [ width = 200, height = 100, n: number = 0,
+    take(xs: array) { n = xs.length },
+    pickAll(s: object) { this.take(s as array); const k = (s as object).name; n = (s as array).length } ]`, { typecheck: true });
+  assert.deepEqual(r.errors.map((e) => e.message), []);
+});
+
 await test("typecheck: a valid program passes and still emits source", async () => {
   const src = `class Tile extends View [ width = 80, flag: boolean = false,
   height = { flag ? 200 : 25 },
@@ -7190,8 +7469,8 @@ await test("keys: listen is IDEMPOTENT per target — a re-mount replaces the wi
   const after1 = registered.length;
   keys.listen(() => true, target);  // the second mount
   keys.listen(() => true, target);  // and a third
-  assert.equal(after1, 4, "one wire = keydown, keyup, blur, and the pointer press that ends a ⌘ hold");
-  assert.equal(registered.length, 4, "re-mounting replaces the liveness probe — it adds NOTHING");
+  assert.equal(after1, 6, "one wire = keydown (and its capture-phase arrival, which notes where the focus was), keyup, the beforeinput that keeps an answered key's text in its field, blur, and the pointer press that ends a ⌘ hold");
+  assert.equal(registered.length, 6, "re-mounting replaces the liveness probe — it adds NOTHING");
 });
 
 await test("keys: a replaced liveness probe governs — the newest app owns the wire", () => {
@@ -8600,22 +8879,22 @@ await test("extractStatic: a compile failure yields html null and the rendered r
   assert.match(out.report, /Txet/);
 });
 
-await test("extractStatic: navigate(to) in an activation handler wraps the subtree in <a href> (capabilities.md §6)", async () => {
+await test("extractStatic: openURL(to) in an activation handler wraps the subtree in <a href> (capabilities.md §6)", async () => {
   // The navigation SERVICE ACTION, extracted statically from the CALL — a
   // literal target, and a class whose onClick navigates via classroot.url (the
   // library-button pattern), resolved per instance. Only an ACTIVATION handler
   // becomes an anchor; conditionality lives in the VALUE (an empty url → none).
   const src = `
 class Nav extends View [ url: string = "",
-    onClick() { app.navigate(classroot.url) },
+    onClick() { app.openURL(classroot.url) },
     lbl: Text [ text = { classroot.url } ],
     ]
 
 App [
-  home: Text [ text = "Home", onClick() { app.navigate("https://x.example/home") } ],
+  home: Text [ text = "Home", onClick() { app.openURL("https://x.example/home") } ],
   a: Nav [ url = "docs/index.declare" ],
   b: Nav [ url = "" ],
-  init: Text [ text = "init-nav", onInit() { app.navigate("https://x.example/init") } ],
+  init: Text [ text = "init-nav", onInit() { app.openURL("https://x.example/init") } ],
   plain: Text [ text = "plain" ],
   ]`;
   const out = await extractStatic(src);
@@ -8625,7 +8904,7 @@ App [
     '<a href="docs/index.declare"><p>docs/index.declare</p></a>\n' + // classroot.url read-path, per instance
     // b (url = "") — the value is empty, so no anchor and no content: nothing
     '<p>init-nav</p>\n' +   // onInit is NOT activation → no anchor
-    '<p>plain</p>');        // no navigate → plain content
+    '<p>plain</p>');        // no openURL → plain content
 });
 
 await test("extractStatic: heading level inferred from settled type — bigger + bolder than body becomes <hN>", async () => {
@@ -8675,10 +8954,10 @@ await test("extractStatic: a headline split across two views is one h1 and an h2
   assert.ok(out.html.includes('<p>Wordmark</p>'), out.html);
 });
 
-await test("navigate is a service action, not an attribute — `app.navigate = url` is a type error", async () => {
+await test("openURL is a service action, not an attribute — `app.openURL = url` is a type error", async () => {
   // The migration signal for the §6 model: assignment to the method fails to
   // typecheck (the old surface is gone), so a stale program cannot silently ship.
-  const out = await extractStatic(`App [ lnk: Text [ text = "t", onClick() { app.navigate = "u" } ] ]`);
+  const out = await extractStatic(`App [ lnk: Text [ text = "t", onClick() { app.openURL = "u" } ] ]`);
   assert.equal(out.html, null);
   assert.match(out.report, /\(to: string\) => void/);
 });
@@ -9083,12 +9362,10 @@ await test("stroke(color, width) — the reversal a { } body cannot catch — is
   try {
     stroke(0xD6DEDB, 1);
     stroke(1, 0xD6DEDB);            // the correct order stays silent
-    outline(0xD6DEDB, 2);
   } finally { console.warn = warn; }
-  assert.equal(said.length, 2, said.join("\n"));
+  assert.equal(said.length, 1, said.join("\n"));
   assert.match(said[0], /arguments look reversed/);
   assert.match(said[0], /0xD6DEDB as a colour/);
-  assert.match(said[1], /outline\(/, "outline has the same shape and the same guard");
 });
 
 await test("an unresolved name in a SIZE slot points at the content intrinsics", async () => {

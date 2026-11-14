@@ -81,15 +81,15 @@ letters; overrides `textColor` when set. `textFill = { gradient("90deg", 0xFFFFF
 A drop shadow on the glyphs — the same `shadow(dx, dy, blur, color)` value as the box
 `shadow` attribute, applied to the text instead of the box.
 
-## outline
-Strokes the glyph **edges** in `outline(width, color)` — outlined letters, **not** a box
-around the run. The stroke rides *under* the fill, so a filled letter shows a thin ring
+## textStroke
+Strokes the glyph **edges** in `stroke(width, color)` — the box `stroke` value, traced
+along the letters instead: outlined letters, **not** a box around the run. The stroke rides *under* the fill, so a filled letter shows a thin ring
 and a `textColor`-less one reads hollow. Per-`Text`, **not** a provided value — set it
 here, or wear it through a `style` bundle / a `<span class>`. In a `[ ]` literal the color
 is `#RRGGBB`; inside a `{ }` body it is `0xRRGGBB`.
 ```declare
 App [ fill = #1E293B,
-    Text [ x = 20, y = 20, fontSize = 28, textColor = white, fontWeight = bold, outline = outline(1, #C0392B), text = "ringed" ]
+    Text [ x = 20, y = 20, fontSize = 28, textColor = white, fontWeight = bold, textStroke = stroke(1, #C0392B), text = "ringed" ]
     ]
 ```
 

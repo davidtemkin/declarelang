@@ -36,13 +36,15 @@ await test("frame chrome is hit first, at unshifted coordinates, over a scrolled
   assert.equal(hitWalk(pane, 50, 40), null, "below the chrome, the row has scrolled away");
 });
 
-await test("pointerEvents none passes the press through, without sealing the subtree", () => {
+await test("pointerEvents none passes the press through, its subtree with it; 'auto' below switches a part back on", () => {
   const child = surf({ width: 20, height: 20, sink: sink() });
-  const over = surf({ pe: "none", sink: sink() }, [child]);
+  const back = surf({ x: 30, width: 20, height: 20, pe: "auto", sink: sink() });
+  const over = surf({ pe: "none", sink: sink() }, [child, back]);
   const under = surf({ sink: sink() });
   const root = surf({}, [under, over]);
   assert.equal(hitWalk(root, 50, 50).key, under, "the transparent view's area goes to the view beneath");
-  assert.equal(hitWalk(root, 10, 10).key, child, "its own child still takes a press");
+  assert.equal(hitWalk(root, 10, 10).key, under, "its child is switched off too");
+  assert.equal(hitWalk(root, 40, 10).key, back, "a child that says 'auto' takes its press again");
 });
 
 await test("a clip bounds hits, except for ignoreClip children", () => {

@@ -77,20 +77,20 @@ App [ minWidth = 340,
         brand: Text [ x = 20, y = center, fontSize = 18, fontWeight = semibold, wrap = false, text = "Swatchbook" ],
         pages: Segmented [ y = 11, visible = { !app.matrix },
             x = { Math.max(app.compact ? 150 : 170, (app.width - this.width) / 2) },
-            segMin = { app.compact ? 44 : 78 },
+            segmentMinWidth = { app.compact ? 44 : 78 },
             value = { app.page },
-            input(v: object) { app.page = "" + v },
-            choices = { [ ({ id: "type", label: "Type" }), ({ id: "lines", label: "Lines" }),
-                          ({ id: "rich", label: "Rich" }), ({ id: "paint", label: "Paint" }),
-                          ({ id: "effects", label: "Effects" }), ({ id: "transforms", label: "Transforms" }),
-                          ({ id: "images", label: "Images" }), ({ id: "drawing", label: "Drawing" }),
-                          ({ id: "measure", label: "Measure" }), ({ id: "combos", label: "Combined" }) ] }
+            commit(v: object) { app.page = "" + v },
+            items = { [ ({ id: "type", label: "Type" }), ({ id: "lines", label: "Lines" }),
+                        ({ id: "rich", label: "Rich" }), ({ id: "paint", label: "Paint" }),
+                        ({ id: "effects", label: "Effects" }), ({ id: "transforms", label: "Transforms" }),
+                        ({ id: "images", label: "Images" }), ({ id: "drawing", label: "Drawing" }),
+                        ({ id: "measure", label: "Measure" }), ({ id: "combos", label: "Combined" }) ] }
             ],
         matrixNote: Text [ y = center, x = { (app.width - this.width) / 2 }, visible = { app.matrix }, fontSize = 13, wrap = false,
             textColor = { provided("theme").textMuted }, text = "The matrix — every case of every section" ],
         themeSwitch: AppearanceSwitch [ y = center, x = { app.width - this.width - 14 },
             dark = { app.darkUI },
-            input(v: boolean) { app.themeMode = v ? "dark" : "light" }
+            commit(v: boolean) { app.themeMode = v ? "dark" : "light" }
             ]
         ],
 

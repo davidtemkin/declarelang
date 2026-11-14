@@ -63,7 +63,7 @@ class Plate [ fill = { provided("theme").mat }, stroke = { stroke(1, provided("t
 
     padding = 8,
     pic: Image [ width = 100%, height = 100%,
-        stretches = contain, source = { classroot.slug == "" ? "" : "plates/" + classroot.slug + ".jpg" } ]
+        fit = contain, source = { classroot.slug == "" ? "" : "plates/" + classroot.slug + ".jpg" } ]
     ]
 
 
@@ -118,7 +118,7 @@ class Section [ width = 100%,
     head: Text [ fontSize = 17, letterSpacing = 1, textColor = { provided("theme").muted },
         text = { (:name ?? "").toUpperCase() } ],
     grid: View [ y = 34, width = 100%,
-        Tile [ datapath = :birds[], key = :slug ]
+        Tile [ datapath = :birds[], identityKey = :slug ]
         ]
     ]
 
@@ -283,7 +283,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
         },
     retSlug: string = "",
     retT:    number = 1,
-    ret:     Animator [ attribute = retT, from = 0, to = 1, duration = 340, motion = cubicOut ],
+    ret:     Animator [ attribute = retT, from = 0, to = 1, duration = 340, easing = cubicOut ],
 
     inFlight(slug: string) -> boolean { return app.retT < 1 && app.retSlug == slug },
     tileRectOf(slug: string) -> object {
@@ -328,7 +328,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
         layout: SimpleLayout [ axis = y, spacing = 34 ],
         loadNote: Text [ fontSize = 14, textColor = { provided("theme").muted }, visible = { !app.data.loaded },
             text = { app.data.failed ? "The field guide failed to load: " + app.data.error : "Fetching the plates…" } ],
-        Section [ datapath = :groups[], key = :name ],
+        Section [ datapath = :groups[], identityKey = :name ],
         credit: Text [ width = 100%, fontSize = 12, textColor = { provided("theme").muted }, lineHeight = 1.5,
             text = "Plates: John James Audubon, The Birds of America (1827–1838), public domain — high-resolution scans courtesy of the National Audubon Society. Prose written for this field guide." ]
         ],
@@ -350,7 +350,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
         // present.
 
         flyT: number = 1,
-        fly: Animator [ attribute = flyT, from = 0, to = 1, duration = 340, motion = cubicOut ],
+        fly: Animator [ attribute = flyT, from = 0, to = 1, duration = 340, easing = cubicOut ],
 
         // the close box is declared last so it paints on top, but it sits top
         // right, so Tab reaches it before the details
@@ -447,7 +447,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
                 choices: View [ width = 100%, datapath = { app.round.value },
                     layout: SimpleLayout [ axis = y, spacing = 14 ],
                     focusScope = stop,   // one Tab stop; the arrows move among the choices
-                    Choice [ datapath = :choices[], key = :n ]
+                    Choice [ datapath = :choices[], identityKey = :n ]
                     ],
                 verdict: View [ width = 100%, height = 44, visible = { app.revealed },
                     v: Text [ x = 0, y = center, fontSize = 16,
@@ -469,7 +469,7 @@ App [ width = { app.hostWidth > 0 ? app.hostWidth : 1200 }, theme = { { ...SanFr
                     text = "Hold Back and the whole round unwinds, answer by answer — ten entries, one URL. Each bird below is an address; the round never was." ],
                 recap: View [ width = 100%, datapath = { app.round.value },
                     layout: SimpleLayout [ axis = y, spacing = 14 ],
-                    Recap [ datapath = :recap[], key = :t ]
+                    Recap [ datapath = :recap[], identityKey = :t ]
                     ],
                 again: BookButton [ width = 180, label = "Another ten",
                     press() { app.startQuiz() }

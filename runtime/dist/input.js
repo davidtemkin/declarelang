@@ -13,7 +13,7 @@
 // TWO LAYERS, one wire. The RAW layer (pointerDown/pointerMove/pointerUp, and the
 // touch family) reports what the pointer physically did, immediately — the
 // layer a drag, a slider, or an app running its own gesture physics needs. The
-// RESOLVED layer (click, dblClick, hold) reports what the user MEANT, which the
+// RESOLVED layer (click, doubleClick, hold) reports what the user MEANT, which the
 // router decides by watching the whole gesture. Apps activate on the resolved
 // layer and manipulate on the raw one; the guide's input chapter is the long
 // version.
@@ -142,7 +142,7 @@ topLevel = true) {
     let pressAux = false;
     // Double-click pairing (platform-level, both backends): a second click on
     // the SAME view within the interval — and, on touch, within slop of the first
-    // tap — also fires dblClick; the third starts a fresh cycle (the classic
+    // tap — also fires doubleClick; the third starts a fresh cycle (the classic
     // desktop rule — triple is double + single, not two doubles).
     let lastClickKey = null;
     let lastClickAt = 0;
@@ -831,7 +831,14 @@ topLevel = true) {
             // pointer never wandered past slop (a moved finger was swiping, whatever
             // it started on). An excursion that returns still counts as wandering —
             // the gesture declared itself a drag when it left.
-            if (t !== null && t.key === captor.key && !wandered && !heldAbove && !pressAux) {
+            // A pointer that stayed where it pressed meant what it pressed, even when
+            // a layout change during the press moved that view out from under it (a
+            // field losing focus at the press reflows the bar the button sits in): the
+            // click is carried to it, and the view takes it only while it is still
+            // shown (view.ts inputSink).
+            const same = t !== null && t.key === captor.key;
+            if ((same || captor.wantsDoubleClick !== true) && !wandered && !heldAbove && !pressAux) {
+                const carried = same ? {} : { carried: true };
                 const now = Date.now();
                 // The pair must also land in about the same PLACE — a view can be
                 // large, and two taps at opposite corners are not a double-tap.
@@ -841,11 +848,11 @@ topLevel = true) {
                 const isSecond = lastClickKey === captor.key && now - lastClickAt < DBL_MS && near;
                 if (isSecond) {
                     // The second tap of a pair. A view that answers double-clicks hears
-                    // the pair as `dblClick` alone — the double is what the second click
+                    // the pair as `doubleClick` alone — the double is what the second click
                     // meant — and any other view hears a second click too, then the pair.
-                    if (captor.wantsDbl !== true)
-                        captor.sink("click", p.x, p.y, moved(p.x, p.y));
-                    captor.sink("dblClick", p.x, p.y, moved(p.x, p.y));
+                    if (captor.wantsDoubleClick !== true)
+                        captor.sink("click", p.x, p.y, { ...moved(p.x, p.y), ...carried });
+                    captor.sink("doubleClick", p.x, p.y, moved(p.x, p.y));
                     lastClickKey = null;
                 }
                 else {
@@ -856,7 +863,7 @@ topLevel = true) {
                     lastClickAt = now;
                     lastClickX = p.x;
                     lastClickY = p.y;
-                    captor.sink("click", p.x, p.y, moved(p.x, p.y));
+                    captor.sink("click", p.x, p.y, { ...moved(p.x, p.y), ...carried });
                 }
             }
         }

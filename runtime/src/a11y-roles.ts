@@ -58,6 +58,8 @@ const makeContracts = () => ({
   spinButton: c(["accessibilityValue", "accessibilityMin", "accessibilityMax"], ["accessibilityStep", "accessibilityValueText"],
     ["accessibilityIncrement", "accessibilityDecrement"], { named: true }),
   progress: c(["accessibilityValue", "accessibilityMin", "accessibilityMax"], ["accessibilityValueText"], [], { named: true }),
+  // a measurement within a known range (storage used, a battery): a value, not progress toward an end
+  meter: c(["accessibilityValue", "accessibilityMin", "accessibilityMax"], ["accessibilityValueText"], [], { named: true }),
   textField: c([], ["accessibilityValueText"], [], { named: true }),
   link: c([], [], [], { nameFromContent: true, named: true }),
   image: c([], [], []),
@@ -68,12 +70,15 @@ const makeContracts = () => ({
   row: c([], ["accessibilitySelected", "accessibilityExpanded"], []),
   cell: c([], ["accessibilitySelected"], [], { nameFromContent: true }),
   columnHeader: c([], ["accessibilitySort"], [], { nameFromContent: true }),
+  rowHeader: c([], [], [], { nameFromContent: true }),
   tabList: c([], [], []),
   tab: c(["accessibilitySelected"], [], PRESS, { nameFromContent: true, named: true }),
   tabPanel: c([], [], []),
   menu: c([], [], []),
   menuBar: c([], [], []),
   menuItem: c([], ["accessibilityChecked", "accessibilityExpanded"], PRESS, { nameFromContent: true, named: true }),
+  // one of a set of menu items of which one is chosen at a time (a sort order, a view)
+  menuItemRadio: c(["accessibilityChecked"], [], PRESS, { nameFromContent: true, named: true }),
   dialog: c([], [], [], { named: true }),
   alertDialog: c([], [], [], { named: true }),
   group: c([], ["accessibilityExpanded"], []),
@@ -94,6 +99,7 @@ const makeContracts = () => ({
   search: c([], [], []),
   banner: c([], [], []),
   complementary: c([], [], []),
+  contentinfo: c([], [], []),
 }) satisfies Record<(typeof ROLES)[number], RoleContract>;   // every word has its contract
 export const ROLE_CONTRACTS: Readonly<Record<string, RoleContract>> = /* @__PURE__ */ makeContracts();
 

@@ -59,7 +59,7 @@ the wrong record. That decision is **identity**, and you almost never declare it
 The ladder, in order:
 
 1. **A record's `id` field**, by convention. Nothing to write.
-2. **`key = :field`**, when identity lives under an unconventional name.
+2. **`identityKey = :field`**, when identity lives under an unconventional name.
 3. **Structural matching**, beneath both — for records derived fresh on every
    recompute, where nothing is stable to key on.
 
@@ -68,10 +68,10 @@ them and the instances *move* — they are not rebuilt, no lifecycle re-fires, a
 state an instance is holding travels with its record. That is the payoff for identity being
 a first-class idea rather than a prop you remember to pass.
 
-Reach for `key` only when the convention does not fit:
+Reach for `identityKey` only when the convention does not fit:
 
 ```declare-fragment
-View [ datapath = :people[], key = :email ]
+View [ datapath = :people[], identityKey = :email ]
 ```
 
 **A small fixed set is replicated too.** Four filters across a row, five stars, a handful of
@@ -142,7 +142,8 @@ App [ width = 320, height = 300, fill = white, textColor = #1B2733,
 
 Each record builds exactly its own class: an item has no rule and no picture — nothing
 hidden, nothing built and never shown. `classFor` reads only the record, so the choice is
-the record's own; a record whose `kind` changes is rebuilt as its new class in place, and
+the record's own (with many kinds, a `script` function of the fields, `classFor = {
+rowClass(:kind) }`, chooses as well as a condition does); a record whose `kind` changes is rebuilt as its new class in place, and
 under `virtualize` each class keeps its own recycled rows.
 
 **What a row *is* is its class; what state it is *in* is a [`State`](declare-docs:State).**
@@ -234,7 +235,10 @@ boundary, not to the problem.
 and last records any part of which is on screen, kept as the list scrolls — a chat's date chip
 is `{ app.d.value.rows[app.list.firstVisibleRow]?.day }`. Ask the list, never the rows: a
 virtualized list reuses a row for another record as you scroll, and the row, which stays where
-it was, has nothing of its own that changed to tell you.
+it was, has nothing of its own that changed to tell you. Inside the row, the same: its `Image`
+keeps the last record's picture, with `loaded` still true, until the new `source` lands
+([Images](declare-docs:guide:media@images)), so `onChange` on `loaded` does not fire for the new
+record. Key what the row does for its picture off `source`, or `failed`.
 
 **The window is legible, not hidden.** [`childViews`](declare-docs:View.childViews) on a virtualized block answers with
 the instances that exist — a subset, changing as you scroll — and [`virtualized`](declare-docs:View.virtualized) tells you
@@ -294,14 +298,18 @@ presentation.
 
 ```declare-fragment
 Table [ width = 300, height = 400, datapath = { app.d.value },
-    selects = "multi", input(sel: object) { app.chosen = sel },
+    selects = "multi",
+    selection = { app.chosen }, commit(sel: object) { app.chosen = sel },
     TableRow [ datapath = :rows[] ]
     ]
 ```
 
-Note the shape: the table *owns* `selected` and [`selection`](declare-docs:Table.selection), and hands them out through
-`input` — the derive-down/deliver-up pair from
-[Controls](declare-docs:guide:controls@the-value-pattern). You do not write into its attributes.
+Note the shape: the derive-down/deliver-up pair from
+[Controls](declare-docs:guide:controls@the-value-pattern). The selection is `app.chosen`;
+it comes down into [`selection`](declare-docs:Table.selection), so the table shows it, and
+every click, range and key delivers the new one up through `commit`. Left alone, a table
+keeps its selection itself: the default `commit` writes `selection` and `selectedItem`.
+Either way, a handler never assigns them; it selects by calling `commit`.
 
 Sort the table, flip the direction, apply a filter, scroll a selected record out of the
 window — the selection is unchanged, because it was never a set of views. A selected
@@ -309,7 +317,7 @@ record that a filter has hidden is still selected, and any count you show the us
 be the full-dataset count, not the visible one.
 
 Three facts travel together in a collection: the **selection**, the **anchor** a range
-extends from, and `active`, the keyboard position. [`selects`](declare-docs:Table.selects) declares the mode —
+extends from, and `activeItem`, the keyboard position. [`selects`](declare-docs:Table.selects) declares the mode —
 `none`, `single` (the default), or `multi`.
 
 ## DataGrid columns
@@ -336,7 +344,7 @@ App [ width = 460, height = 240, fill = white, textColor = black,
         columns = { [ { id: "id",    title: "ID",    width: 60 },
                       { id: "title", title: "Title", width: 220 },
                       { id: "state", title: "State", width: 120 } ] },
-        input(sel: object) { app.chosen = (sel ?? []).length }
+        commit(sel: object) { super.commit(sel); app.chosen = (sel ?? []).length }
         ]
     ]
 ```
@@ -354,7 +362,7 @@ row's `done`:
 ```declare-fragment
 class DoneCell [ width = 100%, height = 100%,
     Checkbox [ x = center, y = center, label = "", accessibilityLabel = "Done",
-        checked = :done, commit(v: boolean) { :done = v } ] ]
+        checked <-> :done ] ]
 
 DataGrid [ columns = { [ { id: "title", title: "Title", width: 240, edit: true },
                         { id: "done",  title: "Done",  width: 70,  cell: "DoneCell" } ] } ]
@@ -366,19 +374,29 @@ items so each heading stays above its rows.
 
 From the keyboard the grid is one Tab stop with an active cell: the arrows move it; in an
 edit column, Enter, F2 or a typed character edits, Esc puts the value back, and Enter commits
-and moves down; in a cell of your own, Enter moves into its control and Space presses it.
+and moves down, Tab a cell along; in a cell of your own, Enter moves into its control and
+Space presses it.
+
+A press selects a cell; a second press, Enter or typing edits it. An edit goes to the record
+through [`applyEdit(record, field, value)`](declare-docs:DataGrid.method.applyEdit), not
+`commit` — the grid's `commit` is its selection — so a program that saves edits to a service
+overrides `applyEdit` and returns `false` to write when the answer comes. `edit: true` edits
+text, and a number field as a number; with `commitOn: "end"` beside it a cell writes once, when
+the edit ends. A field that is a choice, a date or anything else names an `editor` class
+beside its `cell`, a value control bound to the record: `{ id: "state", cell: "StateText",
+editor: "StatePicker" }`.
 
 Two things here are worth carrying to your own work.
 
 **Sorting names a derivation; it does not reorder anything.** Clicking a header delivers
-through [`sortInput(on, dir)`](declare-docs:DataGrid.method.sortInput), whose default writes [`sortOn`](declare-docs:DataGrid.sortOn)/[`sortDir`](declare-docs:DataGrid.sortDir) and stops. The grid
+through [`applySort(column, direction)`](declare-docs:DataGrid.method.applySort), whose default writes [`sortOn`](declare-docs:DataGrid.sortOn)/[`sortDir`](declare-docs:DataGrid.sortDir) and stops. The grid
 displays the order its items already have, and *you* derive the sorted items —
-overriding `sortInput` when the sort belongs to a server query — which is why sorting a
+overriding `applySort` when the sort belongs to a server query — which is why sorting a
 virtualized million rows is a data operation, not a view operation, and why a server-side
 sort needs no special case.
 
 **Order and widths are the value pattern again.** [`order`](declare-docs:DataGrid.order) and [`widths`](declare-docs:DataGrid.widths) are the grid's
-state, delivered through [`arrangeInput`](declare-docs:DataGrid.method.arrangeInput) and [`resizeInput`](declare-docs:DataGrid.method.resizeInput) — override those and you own the
+state, delivered through [`applyColumnOrder`](declare-docs:DataGrid.method.applyColumnOrder) and [`applyColumnWidth`](declare-docs:DataGrid.method.applyColumnWidth) — override those and you own the
 column layout, which is how you persist a user's arrangement. Widths are plain values;
 nothing measures cells. And a width of `0` **drops** a column, so a responsive table is a
 constraint: `widths = { app.narrow ? { notes: 0 } : null }` — priority, not squish.

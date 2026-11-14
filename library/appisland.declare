@@ -31,7 +31,7 @@ window — two more cross on their own, with nothing named on either side. **Whe
 is**: `location` is the tenant's location, both ways — set it to start the program
 at a place or send it to one, and read it to follow where the program has gone;
 `departedPlace` and `place` carry where the person had scrolled, for back and
-forward. **Where it wants to go**: the program's `navigate(to)` and `openWindow(to)`
+forward. **Where it wants to go**: the program's `openURL(to)` and `openWindow(to)`
 come to the island as `onNavigate(n: IslandNavigation)` when the island declares it,
 so the host decides what a link leading out of it means — a desktop opens a window.
 Without it, the page navigates. A host that only shows a program uses none of this.

@@ -18,7 +18,7 @@
 
 import { inPointerDispatch } from "./pointer-dispatch.js";
 import { View, fireEvent, setFocusDiscardHook, setKeyDefaultHook, noteFocused, type KeyLayer } from "./view.js";
-import { Keys, comboOf, comboOfCode, normalizeCombo, keyLabel, commanded, FIELD_CHORDS, KEYS_ON_MAC, setKeyWalk, setInForce, type KeyEvent } from "./keys.js";
+import { Keys, comboOf, comboOfCode, normalizeCombo, keyLabel, commanded, composing, FIELD_CHORDS, KEYS_ON_MAC, setKeyWalk, setInForce, type KeyEvent } from "./keys.js";
 /** Classes whose focusShape() was said to return no box (said once each). */
 const BAD_SHAPE = new WeakSet<object>();
 import { compileExpr, type ExprFn } from "./expr.js";
@@ -27,7 +27,7 @@ import { radiusMax } from "./value.js";
 import { isSet, ownerOf, providedRead } from "./attributes.js";
 import type { KeysService } from "./keys.js";
 import { Cell, Constraint, afterSettle, untracked } from "./reactive.js";
-import { rootFrameBox, rootTransform, type InteractionView } from "./interaction.js";
+import { rootFrameBox, rootTransform, pointerOff, type InteractionView } from "./interaction.js";
 import { apply as applyAffine } from "./affine.js";
 import { provideKeyContextTarget } from "./input.js";
 import { pathOf } from "./node-path.js";
@@ -729,7 +729,7 @@ const REVEAL_ROOM = 6;
  *  a dialog scrolls the dialog's panes, never the page behind it. A scroller
  *  the user is scrolling takes the reveal when that scroll ends, measured
  *  then. Within the focused view's own program. */
-function reveal(v: View): void {
+export function reveal(v: View): void {
   let child: View = v;
   for (let s: View | null = paintParent(v); s !== null; child = s, s = paintParent(s)) {
     if (child !== v && scopeOf(child) === "modal") return;
@@ -773,7 +773,7 @@ function pinnedEdges(s: View, skip: View, b: { x: number; y: number; width: numb
   const fx = b.x - s.scrollX, fy = b.y - s.scrollY;     // the box in the frame
   const sh = frameExtent(s, "height"), sw = frameExtent(s, "width");
   for (const k of s.childViews) {
-    if (k === skip || !k.ignoreScroll || !k.visible || k.pointerEvents === "none") continue;
+    if (k === skip || !k.ignoreScroll || !k.visible || pointerOff(k as unknown as InteractionView)) continue;
     const kx = k.x, ky = k.y, kw = k.width, kh = k.height;
     const acrossX = kx < fx + b.width && kx + kw > fx;   // over the box's columns
     const acrossY = ky < fy + b.height && ky + kh > fy;  // over the box's rows
@@ -960,7 +960,7 @@ interface Entry { view: View; scope: View | null }
  *  `stop` or `region` is one entry; a `modal` is reached only from inside; an
  *  island's tenant splices its own entries in, or stands as one stop. */
 function sequence(root: View, out: Entry[] = []): Entry[] {
-  for (const m of tabOrderOf(root)) visit(m, out);
+  for (const m of tabOrderOf(root)) if (shownFrom(m, root)) visit(m, out);
   const t = tenantOf(root);
   if (t !== null) visit(t, out);
   return out;
@@ -1003,7 +1003,7 @@ function visit(m: View, out: Entry[]): void {
   }
   if (m.focusable === true || m.link !== "") out.push({ view: m, scope: null });   // links are stops (§0.4); a quiet view is not
   const at = out.length;
-  for (const c of tabOrderOf(m)) visit(c, out);
+  for (const c of tabOrderOf(m)) if (shownFrom(c, m)) visit(c, out);
   // a scroller nothing inside it takes focus is a stop of its own, so the keyboard
   // can scroll what it holds (bareScroller)
   if (out.length === at && !m.focusable && m.link === "" && m.scrolls !== "none") out.push({ view: m, scope: null });
@@ -1020,8 +1020,23 @@ export function bareScroller(v: View): boolean {
   // scroller is not a stop, whatever it holds — the default false is not a word
   if (isSet(v, "focusable") || ownerOf(v, "focusable") !== null) return false;
   const inner: Entry[] = [];
-  for (const c of tabOrderOf(v)) visit(c, inner);
+  for (const c of tabOrderOf(v)) if (shownFrom(c, v)) visit(c, inner);
   return inner.length === 0;
+}
+
+/** Is a member `tabOrder()` named on `from` shown as far as `from` — every view
+ *  between them visible? A list may name a view further down (View.tabOrder), or
+ *  one elsewhere in the program; either way a view not shown — under a hidden
+ *  container, or discarded — is no stop, as it would not be on its own. The
+ *  member's own `visible` is visit's. */
+function shownFrom(c: View, from: View): boolean {
+  for (let n: View | null = parentAcross(c); n !== null; n = parentAcross(n)) {
+    if (n === from) return true;
+    if (!n.visible) return false;
+  }
+  // not inside `from`: named elsewhere in the program — shown all the way up,
+  // and in the same program (a discarded view's chain ends short of the App)
+  return shownChain(c) && rootOf(c) === rootOf(from);
 }
 
 /** The entry `f` is at: the entry itself, or the scope entry it is inside. */
@@ -1605,6 +1620,7 @@ export function deliverKeys(keys: KeysService, focus: FocusService): () => void 
   const existing = perFocus.get(focus);
   if (existing !== undefined) return existing;
   focus.keys = keys;
+  keys.focusProbe = () => focus.getFocus();
   // Esc then Tab leaves a region (planes.md §13.3): an Esc with nothing open
   // to close arms a one-shot, and a Tab that comes next moves to the next
   // region — Shift-Tab the previous — as F6 does. Any other key disarms it.
@@ -1671,16 +1687,30 @@ export function deliverKeys(keys: KeysService, focus: FocusService): () => void 
       return;
     }
     const d = keys.current;
-    const f = focus.getFocus();
+    // the key is the view's that had focus as it arrived: a native field's own
+    // handling (Return → onEnter) runs first and may move focus, and the key
+    // is not delivered again where focus went — one Return, one action. A
+    // view torn down meanwhile answered it and is gone: it goes no further.
+    const at = d?.arrivedAt;
+    if (at instanceof View && at !== focus.getFocus() && (at as unknown as { $tornDown?: boolean }).$tornDown === true) return;
+    const f = at instanceof View && at !== focus.getFocus() ? at : focus.getFocus();
     if (f !== null) {
       // the focused view's handler, whose base is the walk (key-bindings.md):
       // a region's Enter, a link's Enter and a member scope's Escape are
       // bindings every view carries, read last in its table
       fireEvent(f, "keyDown", e);
-      // a handler that didn't hand the key on (no super) keeps today's rule:
-      // the navigation keys are not also the page's while a control, not a
-      // text field, has focus
-      if (d !== null && !d.reachedBase && !isTextField(f) && NAV_KEYS.has(e.key)) d.prevent = true;
+      // a handler that didn't hand the key on (no super) answered it, and the
+      // key is consumed — one key, one action: not also the page's (the
+      // navigation keys' scroll), and not typed into a field the handler moved
+      // focus to (a typed character that opens an editor passes itself on:
+      // `beginEdit(e.key)`). A text field's typing stays its own while focus
+      // stays in it; a command chord the handler didn't hand on stays the
+      // browser's.
+      if (d !== null && !d.reachedBase && !composing(e)) {
+        const plain = !commanded(comboOf(e));
+        if (!isTextField(f)) { if (plain || NAV_KEYS.has(e.key)) d.prevent = true; }
+        else if (plain) d.consumedIfFocusLeaves = f;
+      }
     } else if (d === null || (!d.walked && !d.skipTables)) {
       // nothing focused: the walk starts at the program's root
       if (d !== null) d.walked = true;

@@ -22,7 +22,7 @@ import { SCHEMAS, RichTextSchema } from "./schema.js";
 export const RUNTIME_METHODS = {
     Node: ["discard"],
     View: ["contentBox", "bounds", "footprint", "tabDefault", "viewAt", "containsPoint", "rootBounds", "rootTransform", "transformTo", "rootOrigin", "scrollIntoView", "scrollTo", "scrollToX", "scrollBy", "createView", "raise", "onKeyDown"],
-    App: ["postToHost", "navigate", "destinationOf", "followLink", "inspect", "openWindow", "reveal"],
+    App: ["postToHost", "openURL", "destinationOf", "followLink", "inspect", "openWindow", "reveal"],
     Text: [],
     Image: [],
     Media: ["play"],

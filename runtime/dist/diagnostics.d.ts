@@ -65,8 +65,15 @@ export declare function quietedBy(d: {
  *  one being picked, because choosing between `Segmented` and `SegmentedItem`
  *  requires knowing what the author meant. */
 export declare function extensionsOf(name: string, candidates: readonly string[]): readonly string[];
+/** Is this a name a class keeps for itself — `_` (a library's or a program's
+ *  private member) or `$` (the runtime's)? */
+export declare function isInternalName(name: string): boolean;
 /** The single high-confidence near-miss among `candidates`, or null (no match
- *  in budget, or an ambiguous tie — ambiguity is below suggestion confidence). */
+ *  in budget, or an ambiguous tie — ambiguity is below suggestion confidence).
+ *  An internal name (`_field`, `$root`) is never offered for a public one: it is
+ *  a class's own machinery, not a fix (Ledger run 5 was told "did you mean
+ *  '_field'?" for `field`). A name written with the mark may be corrected to
+ *  another so marked — a program's own `_draft` for `_darft`. */
 export declare function nearestName(name: string, candidates: readonly string[], budget?: number): string | null;
 export declare const Diag: {
     syntax: (message: string, pos?: Pos) => DeclareError;
@@ -82,7 +89,7 @@ export declare const Diag: {
     setTwice: (message: string, pos: Pos) => DeclareError;
     smallField: (message: string, pos: Pos, hint?: string) => DeclareError;
     type: (message: string, pos?: Pos) => DeclareError;
-    unresolved: (name: string, scope: string, pos: Pos, sizing?: boolean) => DeclareError;
+    unresolved: (name: string, scope: string, pos: Pos, sizing?: boolean, hint?: string) => DeclareError;
     shadowing: (message: string, pos: Pos) => DeclareError;
     hostGlobal: (name: string, hint: string, pos: Pos) => DeclareError;
     enumTokenInExpr: (token: string, slot: string, pos: Pos, quoted?: boolean) => DeclareError;
@@ -93,14 +100,15 @@ export declare const Diag: {
      *  with `shows = "home"` rendered display:none, silently, forever). */
     showsUnreachable: (name: string, initial: string, names: readonly string[], pos: Pos) => DeclareError;
     literalDatapath: (pos: Pos) => DeclareError;
-    shadowsTsGlobal: (kind: string, name: string, lib: string, pos: Pos) => DeclareError;
+    shadowsTsGlobal: (kind: string, name: string, lib: string, rename: string, pos: Pos) => DeclareError;
     shadowsDeclareType: (kind: string, name: string, rename: string, pos: Pos) => DeclareError;
     springsBoundSlot: (owner: string, slot: string, spring: string, pos: Pos) => DeclareError;
-    shadowsRichTextTag: (name: string, pos: Pos) => DeclareError;
     centersByHand: (axis: "x" | "y", pos: Pos) => DeclareError;
     animatorNeverStarts: (tag: string, name: string | null, pos: Pos) => DeclareError;
     buttonPressOverride: (owner: string, pos: Pos) => DeclareError;
     unknownHandler: (owner: string, name: string, known: readonly string[], pos: Pos, near?: string | null) => DeclareError;
+    inputIsCommit: (owner: string, pos: Pos) => DeclareError;
+    hookRenamed: (owner: string, name: string, now: string, pos: Pos) => DeclareError;
     accessibilityContract: (message: string, pos: Pos) => DeclareError;
     accessibilityRoleComputed: (pos: Pos) => DeclareError;
     versionNewer: (wrote: string, have: string, pos: Pos) => DeclareError;

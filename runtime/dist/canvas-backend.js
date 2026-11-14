@@ -26,7 +26,7 @@
 // from declared handlers). Rotation/scale inverses — originally left out with
 // the rest — arrived with the compositing arc (2026-08: `invertPoint` below,
 // so the hit walk tells the truth about a turned or scaled surface).
-import { wireEditableInput, setEditableValue, applyEditableText } from "./editable-input.js";
+import { wireEditableInput, setEditableValue, applyEditableText, applyCaret } from "./editable-input.js";
 import { watchSelection } from "./edit-selection.js";
 import { profileHook } from "./reactive.js";
 import { platformTimeout, clearPlatformTimeout } from "./platform-time.js";
@@ -150,7 +150,7 @@ function applyCanvasEditStyle(el, st) {
     const m = fontMetrics(fontString(st));
     s.lineHeight = m.ascent + m.descent + "px";
 }
-/** The Blend enum's camelCase tokens → Canvas2D operators. The set is the
+/** The BlendMode enum's camelCase tokens → Canvas2D operators. The set is the
  *  W3C compositing-and-blending modes every backend carries natively
  *  (compositing.md §2); only two spellings differ from a mechanical
  *  hyphenation: `normal` is source-over, `plusLighter` is `lighter`. */
@@ -388,7 +388,7 @@ class ScrollLoop {
     }
     /** A request with a glide: a tween on the provider's own loop. */
     glide(s, axis, to, g) {
-        const curve = motionToken(g.motion ?? "cubicOut") ?? DEFAULT_MOTION;
+        const curve = motionToken(g.easing ?? "cubicOut") ?? DEFAULT_MOTION;
         const from = axis === "y" ? s.scrollOffset : s.scrollXOffset;
         const list = (this.tweens.get(s) ?? []).filter((t) => t.axis !== axis);
         list.push({ axis, from, to, start: performance.now(), duration: Math.max(1, g.duration ?? 260), curve });
@@ -2202,7 +2202,7 @@ class CanvasSurface {
         // smallCaps rides `fontString(st)` above (the CSS variant slot), so the
         // painter and the shared measurer synthesize the same caps; the rest are
         // paint-time decorations honored in the text branch below.
-        this.textOutline = st.outline ?? null;
+        this.textOutline = st.textStroke ?? null;
         this.textDirection = st.direction ?? "ltr";
         this.fontSizePx = st.fontSize;
         this.textTransform = st.textTransform ?? "none";
@@ -2519,6 +2519,7 @@ class CanvasSurface {
         // spellcheck election, and the wrap mode all come from the one spec —
         // the overlay is the same editable, positioned differently.
         applyPurpose(el, spec.purpose, spec.concealed, spec.spellcheck, spec.enterHint ?? "");
+        applyCaret(el, spec.caret !== false);
         el.style.padding = insetCss(spec.padding);
         if (el instanceof HTMLTextAreaElement) {
             el.wrap = spec.wrap ? "soft" : "off";
@@ -2902,7 +2903,10 @@ class CanvasSurface {
      *  "nearest" scrolls the minimum distance that reveals the surface — nothing
      *  when it is already visible (the keyboard traversal's reveal). */
     scrollIntoView(align = 0, _smooth = false, inset = 0) {
-        const within = (typeof align === "number" ? align : 0) - inset;
+        // `inset`: the scroller's top `inset` px are covered (fixed chrome) — the
+        // view lands that far below the top, and "nearest" counts a view under the
+        // band as hidden; the bottom edge is unchanged (DOM's scroll-margin-top)
+        const within = typeof align === "number" ? align : 0;
         // the x arm (the mac backend's revealX, verbatim in spirit): the nearest
         // HORIZONTAL scroller reveals this surface's box on its own axis
         {
@@ -2942,12 +2946,12 @@ class CanvasSurface {
             return; // nothing scrolls above us
         off += cur.y + within; // cur is the scroll container's direct child
         const max = Math.max(0, sc.contentExtent() - sc.height);
-        let next = Math.min(max, Math.max(0, off));
+        let next = Math.min(max, Math.max(0, off - inset));
         if (align === "nearest") {
             const top = sc.scrollOffset, bottom = top + sc.height;
-            if (off >= top && off + this.height <= bottom)
+            if (off - inset >= top && off + this.height <= bottom)
                 return; // already visible
-            next = off < top ? Math.max(0, off) : Math.min(max, off + this.height - sc.height);
+            next = off - inset < top ? Math.max(0, off - inset) : Math.min(max, off + this.height - sc.height);
         }
         if (next !== sc.scrollOffset) {
             if (sc.pageRoot) {

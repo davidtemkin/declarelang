@@ -13,7 +13,7 @@ class Row extends View [ height = 30, width = 100%, Text [ text = :k ],
 const app = run(r);
 const rows = () => app.list.children.filter((c) => c instanceof RT.View);
 const cycle = async () => {
-  if (!NOOPEN) { for (const x of rows()) x.pop.openFor(x); R.settle(); for (const x of rows()) x.pop.close(); R.settle(); }
+  if (!NOOPEN) { for (const x of rows()) x.pop.showFor(x); R.settle(); for (const x of rows()) x.pop.close(); R.settle(); }
   await sleep(60);
   if (GC) await gc();
   if (!KEEP) { app.seq++; R.settle(); }

@@ -57,7 +57,7 @@ await test("a two-way arrow on what is not a control's value names the form that
   const f = join(DIR, "box.declare");
   writeFileSync(f, `App [ width = 200, height = 100, w: number = 40, View [ height = 10, width <-> app.w ] ]`);
   const r = run("verify.mjs", f);
-  assert.match(r.out, /View is not a value control/);
+  assert.match(r.out, /View has no commit/);
   assert.match(r.out, /Constrain it one way, 'width = \{ … \}'/);
 });
 
@@ -282,6 +282,15 @@ await test("an assert script that asserts nothing passes R5 only with that said"
   assert.match(one.out, /R5 ✓ behavior \(\d+ steps?, real input, 1 assertion\)/, one.out);
 });
 
+await test("drive.waitReal longer than the stuck-evaluate watch is the driver's wait, not a program that never finishes", () => {
+  const f = join(DIR, "waitreal.declare");
+  writeFileSync(f, `App [ width = 200, height = 100, TextLabel [ text = "hello" ] ]`);
+  // the watch fires on an evaluate past twice the budget: 2 s here
+  const r = run("verify.mjs", f, "--assert", script("waitreal.mjs", `  await drive.waitReal(5000);\n  await expect.text("app", "hello");`), "--rung=5", "--no-boot", "--boot-budget", "1000");
+  assert.equal(r.status, 0, r.out);
+  assert.match(r.out, /R5 ✓ behavior/, r.out);
+});
+
 await test("an assert script that writes to a live service is told what it left there", async () => {
   const { spawn } = await import("node:child_process");
   const svc = spawn("node", ["-e", `require("node:http").createServer((q, r) => { r.writeHead(q.method === "OPTIONS" ? 204 : 201, { "access-control-allow-origin": "*", "access-control-allow-headers": "content-type", "access-control-allow-methods": "POST, DELETE", "content-type": "application/json" }); r.end(q.method === "OPTIONS" ? "" : "{}"); }).listen(8397, "127.0.0.1", () => console.log("up"))`]);
@@ -358,13 +367,64 @@ await test("R4: geometry that is not a number is a layout finding, said where it
   assert.equal((r.out.match(/is not a number, so it/g) ?? []).length, 1, "once, at the view where it starts");
 });
 
-await test("R4: a view that is only its padding is named by its address, not its class alone", () => {
+await test("R4: a view nothing sizes is named by its address, not its class alone", () => {
   const f = join(DIR, "badge.declare");
   writeFileSync(f, `App [ width = 300, height = 200,
     row: View [ layout: SimpleLayout [ axis = x ],
-        View [ padding = 6, TextLabel [ x = center, text = "3" ] ] ] ]`);
+        View [ padding = 6, View [ width = 100%, height = 10, fill = #CCCCCC ] ] ] ]`);
   const r = run("verify.mjs", f);
-  assert.match(r.out, /View\.width \(app\.row\.0\) is only its padding/, r.out);
+  assert.match(r.out, /View\.width \(app\.row\.0\) is 0 — it takes its width from its children/, r.out);
+});
+
+await test("R5: a view shown only later that nothing sizes fails the script where it comes to rest, as at boot", () => {
+  // Cadence run 32: the judgement ran once, at attach, and skipped what was hidden
+  // then — zoom pills shown once data arrived were 20 wide, their labels overlapping,
+  // with every check clean
+  const f = join(DIR, "shown-later.declare");
+  writeFileSync(f, `App [ width = 400, height = 200, shown: boolean = false,
+    Button [ x = 20, y = 140, label = "Show", onClick() { app.shown = true } ],
+    pill: View [ x = 20, y = 20, height = 40, visible = { app.shown },
+        View [ width = 100%, height = 10, fill = #CCCCCC ] ] ]`);
+  const sc = script("shown-later.mjs", `  await drive.click("app.0");
+  await drive.settleMotion();`);
+  const r = run("verify.mjs", f, "--assert", sc, "--rung=5");
+  assert.notEqual(r.status, 0, r.out);
+  assert.match(r.out, /R5 ✗/, r.out);
+  assert.match(r.out, /View\.width \(app\.pill\) is 0 — it takes its width from its children.*\((?:after click app\.0|at the end of the script)\)/, r.out);
+  assert.equal((r.out.match(/nothing decides it/g) ?? []).length, 1, "said once");
+});
+
+await test("expect.text reads as a person does: a no-break space is a space; a difference nothing shows is named", () => {
+  // Cadence run 32: "expected "1h 24m", got "1h 24m"" — a U+00A0 the program wrote
+  const f = join(DIR, "nbsp.declare");
+  writeFileSync(f, `App [ width = 300, height = 100,
+    hero: Text [ text = { "1h\\u00a024m" } ], zw: Text [ y = 40, text = { "1h\\u200b24m" } ] ]`);
+  const ok = run("verify.mjs", f, "--assert", script("nbsp.mjs", `  await expect.text("app.hero", "1h 24m");`), "--rung=5", "--no-boot");
+  assert.equal(ok.status, 0, ok.out);
+  const zw = run("verify.mjs", f, "--assert", script("zw.mjs", `  await expect.text("app.zw", "1h24m");`), "--rung=5", "--no-boot");
+  assert.notEqual(zw.status, 0, zw.out);
+  assert.match(zw.out, /they differ where nothing shows: the view's text holds U\+200B \(zero-width space\) at index 2/, zw.out);
+});
+
+await test("a path through a declared child not built now says so, not that its parts are internal; drive.page is the script's page", () => {
+  // Cadence run 32: expect.hidden("app.entrySheet.form") after Save said the
+  // sheet's parts were internal, while the form's exists was false
+  const f = join(DIR, "sheet-gone.declare");
+  writeFileSync(f, `App [ width = 600, height = 400, open: boolean = false,
+    Button [ label = "Log", onClick() { app.open = true } ],
+    sheet: Sheet [ edge = "end", sheetWidth = 300, accessibilityLabel = "Log",
+        shown = { app.open }, commit(v: boolean) { app.open = v },
+        form: View [ width = 100%, height = 200, exists = { app.sheet.present },
+            send: Button [ label = "Save", onClick() { app.open = false } ] ] ] ]`);
+  const sc = script("sheet-gone.mjs", `  if (typeof drive.page.getByRole !== "function") throw new Error("drive.page has no locators");
+  await drive.click("app.0");
+  await drive.settleMotion();
+  await drive.click("app.sheet.form.send");
+  await drive.settleMotion();
+  await expect.hidden("app.sheet.form");`);
+  const r = run("verify.mjs", f, "--assert", sc, "--rung=5", "--no-boot");
+  assert.match(r.out, /no node at 'app\.sheet\.form' — 'form' is not built now: its exists is false/, r.out);
+  assert.doesNotMatch(r.out, /parts are internal|has no locators/, r.out);
 });
 
 await test("timing on (as an eval run has it), a behavior run still passes: drive's synchronous calls stay synchronous", () => {
@@ -661,6 +721,34 @@ export default async ({ drive }) => {
   assert.match(r.out, /layout after tap app\.moreBtn: 1 control\(s\) another view takes the presses of: .*app\.panel\.hidden \(by app\.panel\.cover\)/, r.out);
   assert.doesNotMatch(r.out, /layout after[^\n]*app\.go 73/, "a control the boot reported is not reported again");
   assert.doesNotMatch(r.out, /\(by app\.s\b/, "what an open sheet covers is behind it by design");
+});
+
+await test("a checkpoint after a real press runs the press's motion to rest and is checked there; a class built between checks is not 'never built'", () => {
+  // RealWorld run 2: a locator click left the press's look moving on the driven
+  // clock, so every settleData after it was put off to the script's end (a
+  // 70-step flow, one check), and the pages it visited were called never built
+  const f = join(DIR, "pressed.declare");
+  writeFileSync(f, `class Brief [ width = 100, height = 40, Text [ text = "brief" ] ]
+App [ width = 390, height = 700, more: boolean = false, brief: boolean = false,
+    moreBtn: Button [ x = 20, y = 20, label = "More", onClick() { app.more = true } ],
+    Brief [ y = 600, exists = { app.brief } ],
+    panel: View [ y = 300, width = 390, height = 200, exists = { app.more },
+        hidden: Button [ x = 20, y = 20, label = "Under", onClick() { } ],
+        cover: View [ width = 390, height = 200, onClick() { } ] ] ]`);
+  const script = join(DIR, "pressed.mjs");
+  writeFileSync(script, `export const device = { width: 390, height: 700 };
+export default async ({ drive, page }) => {
+  await page.getByRole("button", { name: "More" }).click();
+  await drive.settleData();
+  await drive.set("app", "brief", true);
+  await drive.set("app", "brief", false);
+  await drive.set("app", "more", false); await drive.settleData();
+};`);
+  const r = run("verify.mjs", f, "--assert", script, "--rung=5");
+  assert.equal(r.status, 0, r.out);
+  assert.match(r.out, /layout after [^\n]*: 1 control\(s\) another view takes the presses of: .*app\.panel\.hidden \(by app\.panel\.cover\)/, r.out);
+  assert.doesNotMatch(r.out, /never built[^\n]*Brief/, r.out);
+  assert.match(r.out, /built, but never checked for layout[^\n]*Brief/, r.out);
 });
 
 await test("a driven check waits for the browser's scroll to come to rest: after a fling, what it reports is what is covered where the list stopped", () => {

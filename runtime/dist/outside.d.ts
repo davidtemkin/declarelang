@@ -28,6 +28,12 @@ export declare function anyOverlayOpen(): boolean;
  *  leafAcross takes them: should the router swallow it? The overlays it
  *  passes are told (onOutsidePress) as their policies say. */
 export declare function pressOutside(app: View, x: number, y: number, rx?: number, ry?: number): boolean;
+/** The open overlay that holds back a scroll of what holds `v` — one with
+ *  `scrollBelow = block` in whose context `v` sits, and that does not hold `v`
+ *  itself — or null: scrollOutside's answer for a scroll begun over `v`, asked
+ *  without telling anyone. What a tool reaching `v` the way a person would
+ *  (a swipe, a reveal before typing) is refused by, and names. */
+export declare function scrollHeldFor(v: View): View | null;
 /** A scroll (wheel or touch move) at frame point (x, y) of `app` — root
  *  point (rx, ry): should it be swallowed? */
 export declare function scrollOutside(app: View, x: number, y: number, rx?: number, ry?: number): boolean;

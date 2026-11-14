@@ -177,4 +177,34 @@ await test("a Tab step that goes back against reading order is said; a step into
   assert.match(tab[0], /Tab goes from “Save” \(app\.save\) to “Title” \(app\.title\), which sits above it/);
 });
 
+await test("Tab order: a stop under a hidden container is no stop; a bar below a scroller comes after its fields", () => {
+  // tabOrder() naming a hidden panel's child: Tab skips it, and nothing is said
+  const h = verify("tabhidden.declare", `App [ width = 390, height = 600,
+    hall: View [ width = 100%, height = 600,
+        tabOrder() -> View[] { return [this.top, this.aside.picked, this.bar] },
+        top: View [ y = 0, Button [ label = "Heading stop" ] ],
+        aside: View [ visible = false, y = 400, picked: View [ Button [ label = "Hidden" ] ] ],
+        bar: View [ y = 300, Button [ label = "Continue" ] ] ] ]`);
+  assert.ok(!h.boot.layout.some((l) => /^Tab goes/.test(l)), h.boot.layout.join("\n"));
+  // a field below the fold, then the bar that is the scroller's sibling: right
+  // order; a header above the scroller after its last field: said
+  const s = verify("tabbar.declare", `App [ width = 390, height = 600,
+    layout: SimpleLayout [ axis = y ],
+    pane: View [ width = 100%, height = 520, scrolls = y,
+        layout: SimpleLayout [ axis = y, spacing = 20 ],
+        View [ width = 100%, height = 900 ],
+        last: TextInput [ width = 200, accessibilityLabel = "Postal code" ] ],
+    bar: View [ width = 100%, height = 80, Button [ y = 16, label = "Pay" ] ] ]`);
+  assert.ok(!s.boot.layout.some((l) => /^Tab goes/.test(l)), s.boot.layout.join("\n"));
+  const u = verify("tabup.declare", `App [ width = 390, height = 600,
+    pane: View [ y = 80, width = 100%, height = 520, scrolls = y,
+        layout: SimpleLayout [ axis = y, spacing = 20 ],
+        View [ width = 100%, height = 900 ],
+        last: TextInput [ width = 200, accessibilityLabel = "Postal code" ] ],
+    head: Button [ y = 16, label = "Back" ] ]`);
+  const up = u.boot.layout.filter((l) => /^Tab goes/.test(l));
+  assert.equal(up.length, 1, u.boot.layout.join("\n"));
+  assert.match(up[0], /“Postal code” .* to “Back” .* which sits above it/);
+});
+
 summarize("verify-boot");

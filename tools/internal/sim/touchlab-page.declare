@@ -7,7 +7,7 @@ shape, and the only scroll a browser upgrades to pinch. The `bar` is
 ignoreScroll chrome, so the counters stay readable in every screenshot.
 
 Zones, one per contract:
-  clicky / dbly / holdy — the resolved layer (click, dblClick, hold).
+  clicky / dbly / holdy — the resolved layer (click, doubleClick, hold).
   dragy  — an immediate-claim drag (a drag event alone): a finger landing
            here is the app's from the first move; the page must not pan.
   dragx  — claim = x on a y-scrolling page: sideways is the app's, down is
@@ -43,7 +43,7 @@ App [ width = { app.hostWidth }, height = 1600, fill = 0x101418,
         Text [ x = 10, y = 18, fontSize = 13, textColor = 0xCCDDCC, text = "click" ]
         ],
     dbly: View [ x = 140, y = 90, width = 116, height = 56, fill = 0x4A2A2A, cornerRadius = 8,
-        onDblClick() { app.dbls = app.dbls + 1 },
+        onDoubleClick() { app.dbls = app.dbls + 1 },
         onClick()    { app.dblC = app.dblC + 1 },
         Text [ x = 10, y = 18, fontSize = 13, textColor = 0xDDCCCC, text = "dbl" ]
         ],

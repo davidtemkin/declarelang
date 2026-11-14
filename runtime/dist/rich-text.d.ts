@@ -6,7 +6,7 @@ import { type Numerals, type NumeralWidth } from "./font-features.js";
 import { type FamilyValue } from "./font-value.js";
 import type { Block, Inline, ReadOptions } from "./md.js";
 import type { Unsupported } from "./html.js";
-import type { Fill, Shadow, Outline, Color } from "./value.js";
+import type { Fill, Shadow, Stroke, Color } from "./value.js";
 export declare const PROSE: {
     heading: number[];
     headingGap: number[];
@@ -46,7 +46,7 @@ export interface RunStyle {
     textFill?: Fill;
     letterSpacing?: number;
     textShadow?: Shadow | null;
-    outline?: Outline | null;
+    textStroke?: Stroke | null;
     textTransform?: TextTransform;
     smallCaps?: boolean;
     numerals?: Numerals;
@@ -106,7 +106,7 @@ export interface Style {
     fill?: Fill;
     family?: string;
     shadow?: Shadow | null;
-    outline?: Outline | null;
+    outline?: Stroke | null;
     transform?: TextTransform;
     smallCaps?: boolean;
     numerals?: Numerals;
@@ -177,7 +177,7 @@ export declare class TextFlow extends View {
      *  nearest ancestor with a declared onLink wins whole (the docs app's
      *  openDocLink keeps its custom routing untouched); with none, the href
      *  goes into the app's follow — "#story" navigates in-app, a URL leaves
-     *  through navigate. Bound, so either backend can take it as a bare fn. */
+     *  through openURL. Bound, so either backend can take it as a bare fn. */
     private followLink;
     private manual;
     /** The first line's baseline inside this flow (the RichText's `baseline`
@@ -388,6 +388,8 @@ export declare abstract class RichText extends View {
      *  defaults to the nearest provided one (defineAttributes below). */
     textStyles: Record<string, RunStyle>;
     tagStyles: Partial<Record<TagKind, string>>;
+    /** Which tags build views: tag name → one of the program's view classes. */
+    tagViews: Readonly<Record<string, unknown>> | null;
     textAlign: "start" | "center" | "end" | "left" | "right";
     protected $stylesOf(): Record<string, RunStyle>;
     /** A rich text's type size is `fontScale`, its own attribute, and it never
@@ -409,7 +411,7 @@ export declare abstract class RichText extends View {
     /** A link run was activated. Mechanism only: fire `onLink(href)` for the app to
      *  dispatch (custom routing — the docs app's openDocLink); unhandled, the href
      *  goes into the App's FOLLOW (location.md §0.5) — "#story" navigates in-app,
-     *  anything else leaves through navigate — so authored prose links work with
+     *  anything else leaves through openURL — so authored prose links work with
      *  no wiring at all. (The old fallback was `navigate(href)` raw, which sent a
      *  fragment ref to the HOST as an outbound URL — the browser then opened
      *  DISTRO_ROOT + "#…", a different page entirely: §12.2's second half.) */

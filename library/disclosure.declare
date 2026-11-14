@@ -29,15 +29,15 @@ A summary of what the section holds, set at the line's right end — "3 set", "1
 so it reads whether the section is open or shut. Empty, the default, shows nothing.
 
 ## open
-Whether the section is open. Constrain it to your own state and override `input` to own
-the destination, or leave it alone and read it back.
+Whether the section is open. Bind it both ways to your own state (`open <-> app.more`), or
+constrain it and override `commit` to own the destination, or leave it alone and read it back.
 
-## input()
+## commit()
 **Where a toggle goes**, receiving the new `open`. The default writes `open`; override it to
 own the destination.
 
 ## toggle()
-Opens a closed section and closes an open one, routing through `input`. What the line's
+Opens a closed section and closes an open one, routing through `commit`. What the line's
 press calls.
 
 ## _twist
@@ -61,8 +61,8 @@ class Disclosure [ clip = true, width = 100%,
     label: string = "",
     detail: string = "",
     open: boolean = false,
-    input(v: boolean) { open = v },
-    toggle() { input(!open) },
+    commit(v: boolean) { open = v },
+    toggle() { commit(!open) },
 
     // where the content goes: the body, present only while open or sliding,
     // so Tab and a screen reader reach it only when it can be seen

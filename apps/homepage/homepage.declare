@@ -267,11 +267,11 @@ class Shot [
     shadow = { app.isDark ? shadow(0, 0, 26, hovered || hot ? 0xBFD8EA8C : 0xBFD8EA4D) : shadow(0, hovered || hot ? 12 : 6, hovered || hot ? 30 : 20, hovered || hot ? 0x14202A40 : 0x14202A2E) },
 
     pic: Image [ width = 100%, height = 100%,
-        stretches = both, source = { classroot.src },
+        fit = both, source = { classroot.src },
         visible = { classroot.motion == "" || !this.parent.reel.loaded } ],
 
     reel: Video [ visible = { classroot.motion != "" },
-        width = 100%, height = 100%, stretches = both,
+        width = 100%, height = 100%, fit = both,
         loop = true, source = { classroot.motion },
         playing = { classroot.live && classroot.motion != "" } ],
 
@@ -481,7 +481,7 @@ class SiteButton extends Button [ height = 46, cornerRadius = 9,
     // the one ink decision, the library's own seam: the page's ground colour
     // reads on the accent, the ordinary text colour on the quiet fill
 
-    inkColor = { primary ? provided("theme").ink : provided("theme").text }
+    ink = { primary ? provided("theme").ink : provided("theme").text }
     ]
 
 
@@ -803,7 +803,7 @@ App [ tagline: string = "a UI language for you and your AI",
 
     /* No link-routing code, and none is wanted. Every href in the rendered
        Markdown below follows the same default as a `link`: a "#name" stays
-       in-app, anything else leaves through `navigate`. */
+       in-app, anything else leaves through `openURL`. */
     // the page’s textual material, fetched as text (format = "text") and loaded
     // on its own (auto): the core doc itself (docs/declare.md — up the tree, but
     // still the deployed repo’s own material), the getting-started guide, and
@@ -833,7 +833,7 @@ App [ tagline: string = "a UI language for you and your AI",
     // the site nav — ONE list of destinations, shared by the header pills (wide)
     // and the mobile sheet (narrow), so a link added here appears in both and the
     // two can never drift. An entry is a `label`, a `link` — "#name" follows
-    // in-app, anything else leaves through `navigate`, and the runtime decides
+    // in-app, anything else leaves through `openURL`, and the runtime decides
     // which from the reference itself — and its `children`. `navSource` is the
     // Dataset both surfaces replicate from; `menuOpen` is the sheet's toggle.
 
@@ -1483,7 +1483,7 @@ App [ tagline: string = "a UI language for you and your AI",
     // if the window is widened back past the breakpoint.
 
     navSheet: Floating [ shown = { app.menuOpen && app.header.bar.kebab.visible },
-        input(open: boolean) { app.menuOpen = open },
+        commit(open: boolean) { app.menuOpen = open },
         pressPolicy = "dismiss", takesFocus = true, focusScope = modal,
         width = { app.width }, height = { app.height },
         scrim: View [ y = { 56 + app.safeTop }, width = 100%, height = { parent.height - 56 - app.safeTop }, fill = { provided("theme").scrim },
@@ -1514,7 +1514,7 @@ App [ tagline: string = "a UI language for you and your AI",
     // it with the pills it belongs to.
 
     appsMenu: Floating [ shown = { app.appsOpen && !app.header.bar.kebab.visible },
-        input(open: boolean) { app.appsOpen = open },
+        commit(open: boolean) { app.appsOpen = open },
         pressPolicy = "dismiss", takesFocus = true, focusScope = modal,
         panel: View [ x = { app.appsX }, y = { app.appsY }, width = 190,
             cornerRadius = 12, padding = 6,

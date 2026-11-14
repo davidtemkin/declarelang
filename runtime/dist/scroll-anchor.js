@@ -104,7 +104,7 @@ function correct(s, y, st) {
         return;
     st.corrected = clamped;
     s.scrollY = clamped;
-    s.$surface?.scrollToY?.(clamped);
+    s.$putScrollY(clamped);
 }
 /** Install the anchor on a scroller (idempotent). */
 export function installScrollAnchor(s) {

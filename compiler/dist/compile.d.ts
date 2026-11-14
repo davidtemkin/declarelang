@@ -19,7 +19,7 @@ export interface Compiled {
     source: string | null;
     deps?: readonly (readonly string[])[];
     /** The extracted navigation relation (capabilities.md §6, links.ts) — a
-     *  sparse walk-order side-list of `navigate(to)` targets, present exactly when
+     *  sparse walk-order side-list of `openURL(to)` targets, present exactly when
      *  `source` is. Rides the ONE result like `deps`; the runtime zips it back on
      *  and the static extractor turns each into an `<a href>`. */
     links?: readonly SerializedLink[];

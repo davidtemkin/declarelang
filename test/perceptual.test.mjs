@@ -60,7 +60,7 @@ const R2_SOURCE = `App [ width=240, height=160, fill=navy,
 //   [1] Text (native metrics, auto-sized),
 //   [2] a declarative clip (a triangle — real diagonal edges),
 //   [3] an Image at natural size (no width/height given),
-//   [4] the same Image stretched ×2 (stretches=both),
+//   [4] the same Image stretched ×2 (fit=both),
 //   [5] a plain View given a draw method in the page (runtime API until R5).
 // The bitmap is generated in-page (see r3PageHtml) and spliced in for __IMG__.
 const R3_SOURCE = `App [ width=240, height=160, fill=#20242C,
@@ -70,7 +70,7 @@ const R3_SOURCE = `App [ width=240, height=160, fill=#20242C,
   Text [ x=10, y=90, text="Declare 72°", textColor=#FFE28A, fontSize=20, fontWeight=bold, fontFamily="Arial" ],
   View [ x=130, y=10, width=80, height=60, fill=#3FA34D, clip="M10 5 L70 5 L40 55 Z" ],
   Image [ x=130, y=90, source="__IMG__" ],
-  Image [ x=170, y=90, width=40, height=24, stretches=both, source="__IMG__" ],
+  Image [ x=170, y=90, width=40, height=24, fit=both, source="__IMG__" ],
   View [ x=10, y=120, width=60, height=30 ] ]`;
 
 // The box-clip program (tabslider-gaps.md gap 1): a container `clip=true`,
@@ -378,7 +378,7 @@ const C2_SOURCE = `App [ width=240, height=160, fill=#20242C,
   View [ x=20, y=90, width=200, height=50, clip=true, fill=#264653,
     TextInput [ x=8, y=10, width=180, height=22, fontSize=15, fontFamily="Arial", textColor=#FFFFFF, value="inside the clip" ] ] ]`;
 
-// The view-compositing scene (compositing.md §6): `blend` where its absence —
+// The view-compositing scene (compositing.md §6): `blendMode` where its absence —
 // or a wrong isolation model — shows. Four cases over a two-tone sibling
 // ground, each a distinct failure mode:
 //   chip — a multiply LEAF over sibling fills: a backend that ignores
@@ -396,14 +396,14 @@ const C2_SOURCE = `App [ width=240, height=160, fill=#20242C,
 const BLEND_SOURCE = `App [ width=240, height=160, fill=#20242C,
   View [ x=0, y=0, width=120, height=160, fill=#FFD24A ],
   View [ x=120, y=0, width=120, height=160, fill=#2244AA ],
-  chip: View [ x=20, y=10, width=200, height=30, blend=multiply, fill=#CC3344 ],
-  unit: View [ x=20, y=50, width=90, height=40, blend=multiply, fill=#66CCEE,
+  chip: View [ x=20, y=10, width=200, height=30, blendMode=multiply, fill=#CC3344 ],
+  unit: View [ x=20, y=50, width=90, height=40, blendMode=multiply, fill=#66CCEE,
     View [ x=10, y=10, width=40, height=20, fill=#EEEEEE ] ],
   outer: View [ x=20, y=100, width=80, height=40,
     View [ x=4, y=4, width=72, height=32,
-      View [ x=4, y=4, width=60, height=24, blend=screen, fill=#703090 ] ] ],
+      View [ x=4, y=4, width=60, height=24, blendMode=screen, fill=#703090 ] ] ],
   pane: View [ x=140, y=50, width=80, height=60, scrolls=y,
-    View [ x=10, y=10, width=60, height=30, blend=multiply, fill=#CC3344 ] ] ]`;
+    View [ x=10, y=10, width=60, height=30, blendMode=multiply, fill=#CC3344 ] ] ]`;
 
 // The frost scene (compositing.md §6): a frosted panel over four
 // high-contrast bars. Interior points over a UNIFORM bar are inert to the
@@ -434,8 +434,8 @@ const FROST_SOURCE = `App [ width=240, height=160, fill=#181C22,
 //   gradients — a radial fill: white at the centre, the edge colour at the corner.
 const GFX_SOURCE = `App [ width=240, height=160, fill=#20242C,
   plain: View [ x=8, y=8, width=50, height=50, fill=#E4572E ],
-  blurred: View [ x=66, y=8, width=50, height=50, fill=#E4572E, filter=[blur(5), brightness(0.5)] ],
-  tinted: View [ x=124, y=8, width=50, height=50, fill=#E4572E, filter=colorize(#17BEBB) ],
+  blurred: View [ x=66, y=8, width=50, height=50, fill=#E4572E, visualFilter=[blur(5), brightness(0.5)] ],
+  tinted: View [ x=124, y=8, width=50, height=50, fill=#E4572E, visualFilter=colorize(#17BEBB) ],
   sheared: View [ x=200, y=8, width=30, height=40, fill=#9B59B6, skewX=-30, pivotX=0, pivotY=0 ],
   masked: View [ x=8, y=70, width=100, height=30, fill=#FFC914, mask=gradient("90deg", #000000FF, #000000FF, #00000000, #00000000) ],
   squashed: View [ x=130, y=70, width=50, height=50, fill=#17BEBB, scaleY=0.2, pivotX=25, pivotY=25 ],
@@ -466,14 +466,14 @@ const ROT_SOURCE = `App [ width=240, height=160, fill=#20242C,
   View [ x=130, y=40, width=60, height=60, fill=#3FA34D, rotation=45, scale=0.8, pivotX=30, pivotY=30,
     View [ x=15, y=15, width=30, height=30, fill=#264653 ] ] ]`;
 
-// The treatments scene: the span/Text paint vocabulary — outline (stroke under
+// The treatments scene: the span/Text paint vocabulary — textStroke (stroke under
 // fill), underline, strike, small-caps, uppercase transform — exercised BOTH
 // through HTMLText spans (the flowRichCanvas run path) and a standalone Text.
 // The canvas backend synthesizes each to match the DOM's native CSS (the glyph
 // bands are soft — rasterizer AA and the manual decoration rules — everything
 // between the lines is strict background). The `style` bundles ride the source,
 // so the checker also proves top-level named styles cascade into spans.
-const TREAT_SOURCE = `style ring  [ outline = outline(1, #C0392B), textColor = #FFFFFF, fontWeight = bold ]
+const TREAT_SOURCE = `style ring  [ textStroke = stroke(1, #C0392B), textColor = #FFFFFF, fontWeight = bold ]
 style mark  [ underline = true, textColor = #2FA35C ]
 style gone  [ strike = true, textColor = #9AA4AE ]
 style caps  [ smallCaps = true ]
@@ -484,7 +484,7 @@ App [ width=240, height=160, fill=#0B141B,
   c: HTMLText [ x=8, y=56,  width=224, fontSize=18, bodyColor=#E7EEF2, html="a <span class='gone'>gone</span> here" ],
   d: HTMLText [ x=8, y=82,  width=224, fontSize=18, bodyColor=#E7EEF2, html="in <span class='caps'>Small Caps</span> ok" ],
   e: HTMLText [ x=8, y=108, width=224, fontSize=18, bodyColor=#E7EEF2, html="the <span class='upper'>up</span> word" ],
-  t: Text [ x=8, y=134, fontSize=16, outline=outline(1, #C0392B), textColor=#FFFFFF, fontWeight=bold, text="ringed text" ] ]`;
+  t: Text [ x=8, y=134, fontSize=16, textStroke=stroke(1, #C0392B), textColor=#FFFFFF, fontWeight=bold, text="ringed text" ] ]`;
 
 // One page template per backend and program; the only differences are which
 // backend class renders and which source. The canvas backend's first paint is
@@ -722,7 +722,7 @@ const r10PageHtml = (backendClass) => `<!doctype html>
 // the source compiles (like R6–R10) before it reaches the runtime.
 const ANIM_RAW = `App [ width=240, height=160, fill=#20242C,
   box: View [ x=20, y=60, width=40, height=40, fill=#4FC3F7,
-    slide: Animator [ attribute=x, to=140, duration=600, motion=easeBoth, started=false ] ],
+    slide: Animator [ attribute=x, to=140, duration=600, easing=easeBoth, started=false ] ],
   chaser: View [ x={ box.x }, y=112, width=40, height=36, fill=#E9C46A ] ]`;
 const animCompiled = await compile(ANIM_RAW);
 if (animCompiled.errors.length > 0 || animCompiled.warnings.length > 0) {
@@ -773,8 +773,8 @@ const animPageHtml = (backendClass) => `<!doctype html>
 // must go idle after both land.
 const ANIM2_RAW = `App [ width=240, height=160, fill=#20242C,
   box: View [ x=20, y=60, width=40, height=40, fill=#4FC3F7,
-    a: Animator [ attribute=x, relative=true, to=80, duration=600, motion=linear, started=false ],
-    b: Animator [ attribute=x, relative=true, to=40, duration=600, motion=linear, started=false ] ],
+    a: Animator [ attribute=x, relative=true, to=80, duration=600, easing=linear, started=false ],
+    b: Animator [ attribute=x, relative=true, to=40, duration=600, easing=linear, started=false ] ],
   chaser: View [ x={ box.x }, y=112, width=40, height=36, fill=#E9C46A ] ]`;
 const anim2Compiled = await compile(ANIM2_RAW);
 if (anim2Compiled.errors.length > 0 || anim2Compiled.warnings.length > 0) {
@@ -2583,7 +2583,7 @@ try {
     assert.equal(diff.over, 0, `channels beyond tolerance: ${diff.over} (max delta ${diff.max})`);
   });
 
-  // ── the view compositing tier: `blend` (compositing.md §6) ───────────────
+  // ── the view compositing tier: `blendMode` (compositing.md §6) ───────────
 
   const BLEND_PROBES = [
     { at: [5, 5], color: [0xff, 0xd2, 0x4a], label: "ground, yellow field" },
@@ -2784,7 +2784,7 @@ try {
   const domTreat = await renderShot("/dom-treat", 1, "treat-dom.png");
   const canvasTreat = await renderShot("/canvas-treat", 1, "treat-canvas.png");
 
-  await test("cross-backend: text treatments agree (outline/underline/strike/small-caps/uppercase — glyph bands soft)", async () => {
+  await test("cross-backend: text treatments agree (textStroke/underline/strike/small-caps/uppercase — glyph bands soft)", async () => {
     // Each specimen line is a soft band (AA + the manual decoration rules);
     // the gaps between them stay strict background. A treatment that failed to
     // paint on canvas (a missing underline, an un-stroked outline) shows up as
@@ -2792,7 +2792,7 @@ try {
     // signal, the same design as the rotation/frost scenes.
     const diff = await diffShots(canvasTreat.page, domTreat.png, canvasTreat.png, {
       soft: [
-        { x: 0, y: 4,   w: 240, h: 22, label: "outline span (stroke under fill)" },
+        { x: 0, y: 4,   w: 240, h: 22, label: "textStroke span (stroke under fill)" },
         { x: 0, y: 30,  w: 240, h: 22, label: "underline span" },
         { x: 0, y: 56,  w: 240, h: 22, label: "strike span" },
         { x: 0, y: 82,  w: 240, h: 22, label: "small-caps span" },
@@ -2902,9 +2902,9 @@ try {
     const cases = [
       `App [ m: Markdown [ width = 400, text = "# H\\n\\nBody **b** [x](https://e.example/)." ], n: number = 5, t: Text [ y = 200, text = { "n=" + n } ] ]`,
       `App [ d: Dataset { { "rows": [ { "t": "a" }, { "t": "b" } ] } }, list: View [ datapath = { app.d.value }, Text [ datapath = :rows[], text = { :t } ] ] ]`,
-      // the navigate(to) link relation (§6): a literal target and a classroot.url
+      // the openURL(to) link relation (§6): a literal target and a classroot.url
       // read-path resolved per instance — extraction + compileExpr, browser vs Node.
-      `class Nav extends View [ url: string = "", onClick() { app.navigate(classroot.url) }, lbl: Text [ text = { classroot.url } ], ]\nApp [ home: Text [ text = "Home", onClick() { app.navigate("https://e.example/h") } ], a: Nav [ url = "docs/x.declare" ] ]`,
+      `class Nav extends View [ url: string = "", onClick() { app.openURL(classroot.url) }, lbl: Text [ text = { classroot.url } ], ]\nApp [ home: Text [ text = "Home", onClick() { app.openURL("https://e.example/h") } ], a: Nav [ url = "docs/x.declare" ] ]`,
       // heading inference from settled type (§5 revision): level from size+weight,
       // reading SET attributes only — identical on the browser's real measurer and Node's.
       `App [ fill = 0xffffff, h: Text [ fontSize = 40, fontWeight = semibold, text = "Title Here" ], s: Text [ y = 60, fontSize = 24, fontWeight = semibold, text = "Section" ], b: Text [ y = 120, fontSize = 16, text = "Body copy that carries the most characters on the page by a comfortable margin overall." ] ]`,

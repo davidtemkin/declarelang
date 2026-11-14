@@ -1,7 +1,7 @@
 // The optional dataset schema (B4, language §9 — built 2026-07-30): the
 // shape literal, validate-on-receipt, static `:path` checking — and the
 // INVISIBLE identity rule (ruled 2026-07-30): a record's `id` field is its
-// identity by CONVENTION, inferred, never declared; `key = :field` is the
+// identity by CONVENTION, inferred, never declared; `identityKey = :field` is the
 // explicit override; the structural fallback sits beneath. The schema is
 // validation-only.
 
@@ -121,7 +121,7 @@ await test("the ! marker refuses with the convention named; key= overrides an un
     derived: Dataset [
       contents = { { rows: (app.raw.read(["rows"]) ?? []).map(r => ({ uuid: r.uuid, id: "FRESH-" + r.label, label: r.label.toUpperCase() })) } } ],
     list: View [ datapath = { derived.value },
-      View [ datapath = :rows[], key = :uuid, height = 10, t: Text [ text = :label ] ],
+      View [ datapath = :rows[], identityKey = :uuid, height = 10, t: Text [ text = :label ] ],
     ],
   ]`);
   assert.deepEqual(src.errors.map((e) => e.message), []);
@@ -176,7 +176,7 @@ import * as awaitedReplicate from "../runtime/dist/replicate.js";
 await test("DataSource.credentials — a token surface, the Fetch API's spelling on the wire", async () => {
   // The three Fetch credentials modes, as a closed set. `same-origin` cannot be
   // a token (the hyphen is subtraction), so the language spells it `sameOrigin`
-  // and data.ts maps it back — exactly as `blend` maps colorDodge → color-dodge.
+  // and data.ts maps it back — exactly as `blendMode` maps colorDodge → color-dodge.
   const src = (v) => `App [ width = 10, height = 10, d: DataSource [ url = "/x"${v} ] ]`;
   for (const tok of ["omit", "sameOrigin", "include"]) {
     const r = await compile(src(`, credentials = ${tok}`));
@@ -275,6 +275,56 @@ await test("typed data: one declaration serves compiler and runtime — the flag
       ],
     ]`);
   assert.match(path.errors[0].message, /'labell' is not in the schema here; fields: id, label/);
+});
+
+await test("the :path check reaches class bodies: a class's schema, an app cursor, agreeing use sites", async () => {
+  const HEAD = `
+    schema SeatRow [ name: string ]
+    schema Section [ name: string, priceCents: number, rows[]: SeatRow ]
+    schema Plan [ sections[]: Section ]
+  `;
+  const DATA = `{ { sections: [ { name: "O", priceCents: 1, rows: [ { name: "A" } ] } ] } }`;
+  const msgs = (r) => r.errors.map((e) => e.message).join("\n");
+  // a schema set in the class a data node extends
+  const inClass = await compile(HEAD + `
+    class PlanData extends Dataset [ schema = Plan ]
+    App [ width=1, height=1, plan: PlanData [ contents = ${DATA} ],
+      View [ datapath = { app.plan.value }, Text [ datapath = :sections[], text = { :nmae ?? "" } ] ] ]`);
+  assert.match(msgs(inClass), /'nmae' is not in the schema here; fields: name, priceCents, rows\[\]/);
+  // a class body whose cursor is the root's dataset
+  const appCursor = await compile(HEAD + `
+    App [ width=1, height=1, plan: Dataset [ schema = Plan, contents = ${DATA} ], Hall [ ] ]
+    class Hall [ datapath = { app.plan.value }, Text [ datapath = :sections[], text = { :nmae ?? "" } ] ]`);
+  assert.match(msgs(appCursor), /'nmae' is not in the schema here/);
+  // a class body read with the record its (agreeing) use sites give it; an
+  // instance's own attribute reads its own record, and the message says how to pass one down
+  const body = (uses) => HEAD + `
+    App [ width=1, height=1, plan: Dataset [ schema = Plan, contents = ${DATA} ],
+      View [ datapath = { app.plan.value }, ${uses} ] ]
+    class HallSection [ Row [ datapath = :rows[], price = { :priceCents ?? 0 } ] ]
+    class Row [ price: number = 0 ]`;
+  const agreed = await compile(body(`HallSection [ datapath = :sections[] ], HallSection [ datapath = :sections[0] ]`));
+  assert.match(msgs(agreed), /'priceCents' is not in the schema here; fields: name — 'price' is written on the element whose datapath is ':rows\[\]', and an element's own attributes read its own record; 'priceCents' is in the record above\. To pass it down, declare it as a member of HallSection, whose record holds it \(priceCents: number = \{ :priceCents \}\), and read it here as classroot\.priceCents/);
+  // the fix the message names compiles clean
+  const fixed = await compile(body(`HallSection [ datapath = :sections[] ]`).replace(
+    "class HallSection [ Row [ datapath = :rows[], price = { :priceCents ?? 0 } ] ]",
+    "class HallSection [ priceCents: number = { :priceCents ?? 0 }, Row [ datapath = :rows[], price = { classroot.priceCents } ] ]"));
+  assert.deepEqual(fixed.errors.map((e) => e.message), []);
+  // use sites that disagree (or one the walk cannot place) leave the body unchecked, as before
+  const mixed = await compile(body(`HallSection [ datapath = :sections[] ], HallSection [ ]`));
+  assert.ok(!/priceCents/.test(msgs(mixed)), msgs(mixed));
+  // a class constructed in code has use sites no walk sees: unchecked
+  const dynamic = await compile(body(`HallSection [ datapath = :sections[] ], onInit() { void HallSection }`));
+  assert.ok(!/priceCents/.test(msgs(dynamic)), msgs(dynamic));
+  // …unless the class says what it stands on: `record: Section` checks the body
+  // whatever its use sites, and each use site against it
+  const declared = (uses) => body(uses).replace("class HallSection [", "class HallSection [ record: Section,");
+  const said = await compile(declared(`HallSection [ datapath = :sections[] ], onInit() { void HallSection }`));
+  assert.match(msgs(said), /'priceCents' is not in the schema here; fields: name/, "the body is checked against Section");
+  const wrongUse = await compile(declared(`HallSection [ datapath = :sections[0].rows[] ]`));
+  assert.match(msgs(wrongUse), /HallSection stands on Section records \(record: Section\), and here it stands on a record with no 'priceCents', 'rows'/);
+  const unknown = await compile(declared(`HallSection [ ]`).replace("record: Section,", "record: Sectoin,"));
+  assert.match(msgs(unknown), /'record: Sectoin' — Sectoin is not a schema this program declares; schemas: SeatRow, Section, Plan/);
 });
 
 await test("typed data: the verbs are held to the shape — refused at the write, extras pass", async () => {

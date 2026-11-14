@@ -89,6 +89,26 @@ await test("the driver swipes a view clear of a bar pinned to the window's foot,
   assert.ok(r.ok, r.out);
 });
 
+await test("a locator press brings its target in as Tab does: clear of a bar pinned to the window's foot", () => {
+  // a form scrolling with the page, its foot padded to scroll every field clear of the bar
+  const form = join(DIR, "form.declare");
+  const fields = Array.from({ length: 20 }, (_, i) => `Field [ width = 100%, stacked = true, label = "F${i}", TextInput [ width = 100% ] ]`).join(",\n        ");
+  writeFileSync(form, `App [ minWidth = 320,
+    form: View [ width = 100%, padding = [16, 20, 140, 20], layout: SimpleLayout [ axis = y, spacing = 16 ],
+        ${fields} ],
+    dock: View [ ignoreScroll = true, ignoreLayout = true, y = end, width = { app.width }, height = 100, fill = #EEEEEE,
+        Button [ width = 100%, height = 100, label = "Pay" ] ]
+    ]`);
+  const script = join(DIR, "locator-foot.mjs");
+  writeFileSync(script, `export const device = { width: 390, height: 844, touch: true };
+export default async ({ page, expect }) => {
+  await page.getByLabel("F16", { exact: true }).click();
+  await expect(page.getByLabel("F16", { exact: true })).toBeFocused();
+};`);
+  const r = spawnSync("node", [join(ROOT, "tools/verify.mjs"), form, "--assert", script, "--rung=5", "--no-boot"], { cwd: ROOT, encoding: "utf8" });
+  assert.equal(r.status, 0, (r.stdout ?? "") + (r.stderr ?? ""));
+});
+
 await test("the driver swipes the page, then the pane, to reach a view below the pane's fold", () => {
   const r = run("pane", `
   await drive.click("app.col.pane.inner.deep");

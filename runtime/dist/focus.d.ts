@@ -235,6 +235,14 @@ export declare class FocusService {
      *  focus without a ring; one reached by Tab keeps the ring going. */
     private recover;
 }
+/** Show a keyboard-focused view (planes.md §14): each scroller that carries it,
+ *  innermost first, scrolls the least that shows it with room for its ring. A
+ *  scroller does not carry it past a view that ignores scroll (an overlay
+ *  layer fixed to the viewport), and the walk ends at a modal scope: focus in
+ *  a dialog scrolls the dialog's panes, never the page behind it. A scroller
+ *  the user is scrolling takes the reveal when that scroll ends, measured
+ *  then. Within the focused view's own program. */
+export declare function reveal(v: View): void;
 /** A scroller with nothing inside it that takes focus — a pane of text, a strip
  *  of pictures — is a Tab stop of its own, as Firefox and Chrome make it, so a
  *  keyboard can scroll it (WCAG 2.1.1): focused, the arrows, Page Up/Down, Space,

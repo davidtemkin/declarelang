@@ -78,7 +78,7 @@ export class Animator extends Node implements Animatable {
   /** Duration in milliseconds (LZX; a plain number, no unit suffix). */
   declare duration: number;
   /** The easing curve, carried whole (default easeBoth, LZX). */
-  declare motion: Motion;
+  declare easing: Motion;
   /** How many times to play from→to (default 1; Infinity legal, LZX). */
   declare repeat: number;
   perpetual = false;
@@ -233,7 +233,7 @@ defineAttributes(Animator, {
   from: { def: null },
   relative: { def: false },
   duration: { def: 1000 },
-  motion: { def: DEFAULT_MOTION },
+  easing: { def: DEFAULT_MOTION },
   repeat: { def: 1 },
   started: { def: false, push: (s: Animator, v: boolean) => s.$startedChanged(v) },
   paused: { def: false, push: (s: Animator, v: boolean) => s.$pausedChanged(v) },

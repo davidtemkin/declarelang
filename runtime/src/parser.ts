@@ -189,7 +189,7 @@ export interface AttrDecl {
   slotType?: AttrType;
 }
 
-/** A navigable target extracted from an activation handler's `navigate(to)`
+/** A navigable target extracted from an activation handler's `openURL(to)`
  *  call (capabilities.md §6, links.ts): a literal URL, or a read-path to
  *  evaluate against the instance at t=0 (`this.url` — the value carries the
  *  URL, and its emptiness carries the conditionality). Compiler-attached and
@@ -209,6 +209,10 @@ export interface Element {
   decls: AttrDecl[];
   methods: Method[];
   children: Element[];
+  /** `record: Seat` in a class (or on an instance): the schema the `:` reads
+   *  inside stand on, for the schema check — written where a class's use sites
+   *  give it records of different schemas. Not a member. */
+  recordType?: { name: string; pos: Pos };
   /** An embedded raw `{ }` body (`events: Dataset { …json… }`, language §9) —
    *  captured verbatim; whether the tag admits one (and what the text means)
    *  is the checker's question. Absent for `[ ]`-bodied elements. */
@@ -222,7 +226,7 @@ export interface Element {
    *  child's name belongs to the element it is written in. */
   existsOf?: true;
   /** The navigable target of this element's activation handler, when the
-   *  compiler's link extraction (compiler/src/links.ts) found a `navigate(to)`
+   *  compiler's link extraction (compiler/src/links.ts) found an `openURL(to)`
    *  call in it. Rides the serialized program / a walk-order side-list. */
   link?: LinkTarget;
   /** On a routed program: this named child is the VALUE of a class-typed slot
@@ -260,7 +264,7 @@ export interface TopDecl {
  *  marker lives in the shape, which is what lets a shape and a replication
  *  walk agree), and `tags[]: string` (an array of scalars). Identity is NOT
  *  declared — it is INFERRED from a record's `id` field by convention (ruled
- *  2026-07-30, the invisible version; `key = :field` is the explicit
+ *  2026-07-30, the invisible version; `identityKey = :field` is the explicit
  *  override, the structural-equality fallback beneath). `type` is null
  *  exactly when `fields` carries a nested shape. */
 export interface ShapeField {
@@ -821,6 +825,8 @@ class Parser {
   constructor(private readonly tokens: Token[]) {}
 
   peek(): Token { return this.tokens[this.i]; }
+  /** The token just consumed (the first token when none has been). */
+  previous(): Token { return this.tokens[Math.max(this.i - 1, 0)]; }
   peekAt(ahead: number): Token { return this.tokens[Math.min(this.i + ahead, this.tokens.length - 1)]; }
   next(): Token { return this.tokens[this.i++]; }
   expect(kind: TokKind, what: string): Token {
@@ -1006,6 +1012,12 @@ class Parser {
     this.expect("lbracket", "'['");
     this.parseMembers(body);
     this.expect("rbracket", "']'");
+    // `class S extends Dataset [ … ] { { … } }`: embedded data is an instance's
+    // (a document is one place), never a class's
+    if (this.peek().kind === "code") {
+      const inst = name.text[0].toLowerCase() + name.text.slice(1);
+      throw new DeclareError(`a class takes no embedded data — a { } after a class's [ ] is a data body, and data belongs to an instance: ${inst}: ${name.text} { { … } }`, this.peek().pos);
+    }
     return { name: name.text, base, basePos, body, pos: kw.pos };
   }
 
@@ -1174,7 +1186,9 @@ class Parser {
           }
           let def: Literal | null = null;
           if (this.peek().kind === "eq") { this.next(); def = this.parseLiteral(); }
-          el.decls.push({ name: name.text, type: type.text, typePos: type.pos, def, readOnly, pos: declPos });
+          // `record: Seat` — the record the `:` reads here stand on, not a member
+          if (name.text === "record" && def === null && !readOnly) el.recordType = { name: type.text, pos: type.pos };
+          else el.decls.push({ name: name.text, type: type.text, typePos: type.pos, def, readOnly, pos: declPos });
         }
       } else if (this.peek().kind === "lparen") {
         // a method — `name(p: Type, …) -> Ret { statements }` (language §4:
@@ -1350,7 +1364,7 @@ class Parser {
         return { kind: "list", items, pos: t.pos };
       }
       default: throw new DeclareError(t.text === "("
-        ? "expected a value, got '(' — a value written bare is a literal; an expression goes in braces: { ({}) }, { (a + b) / 2 }"
+        ? "expected a value, got '(' — a value written bare is a literal; an expression goes in braces: { {} }, { (a + b) / 2 }"
         : `expected a value, got '${t.text || t.kind}'`, t.pos);
     }
   }
@@ -1374,7 +1388,7 @@ class Parser {
       if (this.peek().kind === "query") { this.next(); optional = true; }
       if (this.peek().kind === "bang") {
         throw new DeclareError(
-          `'${name.text}!' — identity is never declared: a record's 'id' field IS its identity by convention (key = :field overrides an unconventional name); drop the '!'`,
+          `'${name.text}!' — identity is never declared: a record's 'id' field IS its identity by convention (identityKey = :field overrides an unconventional name); drop the '!'`,
           this.peek().pos
         );
       }
@@ -2021,6 +2035,7 @@ export function parseProgram(source: string): Program {
   const p = new Parser(tokenize(source));
   const before = parseTopDecls(p);
   const root = p.parseElement();
+  const closed = p.previous();
   const after = parseTopDecls(p);
   const classes = [...before.classes, ...after.classes];
   const themes = [...before.themes, ...after.themes];
@@ -2038,6 +2053,17 @@ export function parseProgram(source: string): Program {
   const shapes = [...before.shapes, ...after.shapes];
   if (before.declareVersion !== undefined && after.declareVersion !== undefined) throw new DeclareError(ONE_DECLARE_VERSION, after.declareVersion.pos);
   const declareVersion = before.declareVersion ?? after.declareVersion;
+  // more after the top-level element: most often its body was closed early, by
+  // one ']' too many inside it — so say where it closed, by that line's text
+  const left = p.peek();
+  if (left.kind !== "eof" && closed.kind === "rbracket" && after.classes.length + after.shapes.length + after.scripts.length === 0) {
+    const from = source.lastIndexOf("\n", closed.pos.offset - 1) + 1;
+    const to = source.indexOf("\n", closed.pos.offset);
+    const line = source.slice(from, to < 0 ? undefined : to).trim();
+    const up = left.pos.line - closed.pos.line;
+    const err = new DeclareError(`expected end of input, got '${left.text || left.kind}' — the ${root.tag}'s body ended at the ']' of \`${line.length > 60 ? line.slice(0, 59) + "…" : line}\`${up > 0 ? ` (${up} line${up === 1 ? "" : "s"} up)` : ""}; if the body goes on past it, a ']' at or before it closes one bracket too many`, left.pos);
+    throw p.errors.length > 0 ? new DeclareErrors([...p.errors, err]) : err;
+  }
   p.expect("eof", "end of input");
   if (p.errors.length > 0) throw new DeclareErrors(p.errors);
   for (const c of classes) { lowerExists(c.body); lowerTwoWay(c.body); }

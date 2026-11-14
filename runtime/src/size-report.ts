@@ -8,7 +8,7 @@ import { View } from "./view.js";
 import type { Node } from "./node.js";
 import { afterSettle } from "./reactive.js";
 import { cellIdsOf, isSet, ownerOf, percentOwned } from "./attributes.js";
-import { emptyContainerMessage, negativeSizeMessage, placedFromParentMessage } from "./errors.js";
+import { emptyContainerMessage, negativeSizeMessage } from "./errors.js";
 import { declareName } from "./declare-name.js";
 import { pathOf } from "./node-path.js";
 import { inColumns } from "./columns.js";
@@ -73,10 +73,14 @@ export function judgeNegativeSizes(): void {
 /** A VIEW WHOSE SIZE NOTHING DECIDES: it takes its size from its children, and
  *  every one of them takes its size from it (`height = 100%` in a row as tall as
  *  its children). Nothing changes, so nothing is noted as it is written: each
- *  size stays at its first 0, and the view draws nothing. Looked for once, when
- *  the program first has its room. A layout that STRETCHES them is the way to say
- *  "as tall as the tallest", which is what the message offers. */
-export function judgeEmptyContainers(root: View): void {
+ *  size stays at its first 0, and the view draws nothing. One of the layout
+ *  questions (boot-check.ts), asked wherever a check comes to rest — a view shown
+ *  only later is judged there too. `fresh` keeps one said once across the asks:
+ *  once per class and axis (one authored line builds every replicated row). A
+ *  layout that STRETCHES them is the way to say "as tall as the tallest", which
+ *  is what the message offers. */
+export function judgeEmptyContainers(root: View, fresh: (key: string) => boolean = () => true): string[] {
+  const out: string[] = [];
   const said = new Set<string>();
   // which one: a class name alone ("View") sent an agent grepping for the view it
   // meant (Murmur run 13) — its address says, as every layout finding's does
@@ -91,22 +95,17 @@ export function judgeEmptyContainers(root: View): void {
       // takes it from the content in that branch alone
       const o = ownerOf(v, axis);
       if (!(o === null ? !isSet(v, axis) : o.isAutoExtent || o.readsAny(new Set(kids.flatMap(cellIdsOf))))) continue;
-      // every child takes its size from the view — or its place (`x = center`),
-      // which counts it out as surely: the view is its padding, and they hang outside
-      // (a padded one: an unpadded view of no size is a point, and a label
-      // centred on a point is meant)
-      const pos = axis === "width" ? "x" : "y";
-      const padded = ((v as unknown as Record<string, number>)[axis === "width" ? "$insetX" : "$insetY"] ?? 0) > 0;
-      if (!kids.every((c) => percentOwned(c, axis) || (padded && percentOwned(c, pos)))) continue;
+      // every child takes its size from the view: nothing decides it (a child
+      // that takes only its place from it — `x = center` — counts at its size)
+      if (!kids.every((c) => percentOwned(c, axis))) continue;
       const key = `${declareName(v)}.${axis}`;
       if (said.has(key)) continue;
       said.add(key);
-      const placed = kids.find((c) => !percentOwned(c, axis));
-      console.error("[Declare] " + (placed === undefined
-        ? emptyContainerMessage(declareName(v), axis, declareName(kids[0]), where(v), axis === "width" && inColumns(v))
-        : placedFromParentMessage(declareName(v), axis, declareName(placed), pos, where(v))));
+      if (!fresh(key)) continue;
+      out.push(emptyContainerMessage(declareName(v), axis, declareName(kids[0]), where(v), axis === "width" && inColumns(v)));
     }
     for (const c of kids) walk(c);
   };
   walk(root);
+  return out;
 }

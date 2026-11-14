@@ -18,7 +18,7 @@ style rStrike  [ strike = true ]
 
 style rCaps    [ smallCaps = true ]
 
-style rOutline [ fontWeight = bold, textColor = #FFFFFF, outline = outline(1, #2E6FE0) ]
+style rOutline [ fontWeight = bold, textColor = #FFFFFF, textStroke = stroke(1, #2E6FE0) ]
 
 style rShadow  [ textShadow = shadow(0, 2, 4, #00000080) ]
 
@@ -171,6 +171,9 @@ class RichSection extends Section [ title = "Rich text",
 
     SubHead [ visible = { app.matrix }, text = "Inline views" ],
     Grid [ visible = { classroot.showing("inline") },
+        // which tags in the content below are views, and of which class
+
+        tagViews = { { Chip: Chip, TallChip: TallChip, Pill: Pill } },
         Swatch [ name = "chips on the baseline",
             HTMLText [ x = 10, y = 10, width = 192, fontSize = 14,
                 html = "Filed under <Chip label='docs'/> and <Chip label='runtime'/>, each a real view on the line's baseline." ]

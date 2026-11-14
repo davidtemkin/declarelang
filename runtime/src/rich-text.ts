@@ -30,7 +30,7 @@ import type { Block, Inline, ReadOptions } from "./md.js";
 import { headingSlug } from "./slug.js";
 import type { Unsupported } from "./html.js";
 import { resolveAsset } from "./asset-base.js";
-import type { Fill, Shadow, Outline, Color } from "./value.js";
+import type { Fill, Shadow, Stroke, Color } from "./value.js";
 import type { Attr, Literal } from "./parser.js";
 import { percentAxis } from "./bind.js";
 import { physicalAlign, runDirection } from "./text.js";
@@ -84,7 +84,7 @@ export interface RunStyle {
   letterSpacing?: number;
   // typographical treatments (paint/decoration; a run wears them like any Text)
   textShadow?: Shadow | null;
-  outline?: Outline | null;
+  textStroke?: Stroke | null;
   textTransform?: TextTransform;
   smallCaps?: boolean;
   numerals?: Numerals;
@@ -135,13 +135,13 @@ function assignRunField(rs: RunStyle, name: string, val: unknown): void {
     case "textColor": if (typeof val === "number" || val === null) rs.textColor = val as number; break;
     case "textFill": rs.textFill = val as Fill; break;
     case "textShadow": rs.textShadow = val as Shadow | null; break;
-    case "outline": rs.outline = val as Outline | null; break;
+    case "textStroke": rs.textStroke = val as Stroke | null; break;
     case "textTransform": if (typeof val === "string") rs.textTransform = val as TextTransform; break;
   }
 }
 
 const TEXT_ATTR = new Set(["fontSize", "fontFamily", "fontWeight", "italic", "textColor", "textFill", "letterSpacing",
-  "textShadow", "outline", "textTransform", "smallCaps", "numerals", "numeralWidth", "slashedZero",
+  "textShadow", "textStroke", "textTransform", "smallCaps", "numerals", "numeralWidth", "slashedZero",
   "underline", "strike"]);
 /** A `style` bundle's text attributes read into a RunStyle — from the bundle's
  *  record (style-bundles.ts), the same values a drawing or a body reads by name. */
@@ -379,22 +379,46 @@ class SlotHost {
 
   constructor(private readonly owner: View) {}
 
-  /** Does the program declare a VIEW class called `name`? The one gate that
-   *  turns a tag into a view — everything else stays the text it is today. */
-  declares(name: string): boolean {
-    return inlineViewHost(this.owner)?.declares(name) ?? false;
+  /** The class a tag builds: the one this rich text's `tagViews` map names
+   *  for it, when that is one of the program's view classes. The ONE gate that
+   *  turns a tag into a view — no entry, no view, and the tag stays the text it
+   *  is today. An entry naming something else is refused once, at its tag. */
+  classOf(tag: string): string | null {
+    const map = (this.owner as RichText).tagViews;
+    const host = inlineViewHost(this.owner);
+    if (host === null) return null;
+    if (map === null || map === undefined || !Object.hasOwn(map, tag)) {
+      // A tag spelled exactly as one of your view classes, with no entry: said
+      // once, never thrown — content from elsewhere may name a class on purpose.
+      if (host.declares(tag)) this.note(`<${tag}/> names your class ${tag}, but no tagViews entry maps it, so it stays text — to build it, set tagViews = { { ${tag}: ${tag} } } here or on a view above`);
+      return null;
+    }
+    const cls = host.nameOf(map[tag]);
+    if (cls === null || !host.declares(cls)) {
+      this.refuse(`tagViews.${tag} is not one of your view classes — the map's values are classes, written as names: { ${tag}: ${/^[A-Za-z_$][\w$]*$/.test(String(map[tag])) ? String(map[tag]) : "Chip"} }`);
+      return null;
+    }
+    return cls;
   }
 
   /** The reader options for this rich text's parse. */
   readOptions(policy: Unsupported): ReadOptions {
     this.policy = policy;
-    return { isClass: (n) => this.declares(n), refuse: (m) => this.refuse(m) };
+    return { isClass: (n) => this.classOf(n) !== null, refuse: (m) => this.refuse(m) };
   }
 
   /** Refused, through the class's own `unsupported` policy: `error` throws
    *  naming the offence, `strip` drops it, keeps going, and says so once. */
   private refuse(message: string): void {
     if (this.policy === "error") throw new DeclareError(message);
+    if (this.said.has(message)) return;
+    this.said.add(message);
+    console.error("[Declare] " + declareName(this.owner) + ": " + message);
+  }
+
+  /** Said once and never thrown, whatever the policy: a fact about the
+   *  content, not a refusal of it. */
+  private note(message: string): void {
     if (this.said.has(message)) return;
     this.said.add(message);
     console.error("[Declare] " + declareName(this.owner) + ": " + message);
@@ -409,7 +433,9 @@ class SlotHost {
   resolve(node: Extract<Inline, { t: "view" }>, style: Style, family: string): string | null {
     const host = inlineViewHost(this.owner);
     if (host === null) return null;                  // no program table: not a view
-    const cls = node.name;
+    const tag = node.name;
+    const cls = this.classOf(tag);
+    if (cls === null) return null;                   // no longer in the map: not a view
     // IDENTITY: the `key` attribute, else the class name plus the ordinal of
     // this tag among the class's UNKEYED tags — so inserting a keyed tag before
     // an unkeyed one cannot shift what the unkeyed one is.
@@ -439,25 +465,25 @@ class SlotHost {
     for (const [name, raw] of Object.entries(node.attrs)) {
       // The flow owns placement, exactly as a layout owns its children's.
       if (name === "x" || name === "y") {
-        this.refuse(`<${cls} ${name}='…'/>: the text flow places an inline view — '${name}' is not yours to set here`);
+        this.refuse(`<${tag} ${name}='…'/>: the text flow places an inline view — '${name}' is not yours to set here`);
         continue;
       }
       const type = host.attrType(cls, name);
       if (type === null) {
-        this.refuse(`<${cls} ${name}='…'/>: ${cls} has no attribute '${name}'`);
+        this.refuse(`<${tag} ${name}='…'/>: ${cls} has no attribute '${name}'`);
         continue;
       }
       // A computed slot (View's `hovered`, `contentWidth`, a class's own
       // `readonly`) refuses assignment from anywhere; through a tag that would
       // throw out of the render, so it is a refusal like any other.
       if (host.readOnly(cls, name)) {
-        this.refuse(`<${cls} ${name}='…'/>: ${cls}.${name} is read-only — it is computed from its declaration and cannot be set`);
+        this.refuse(`<${tag} ${name}='…'/>: ${cls}.${name} is read-only — it is computed from its declaration and cannot be set`);
         continue;
       }
       const lit = literalFor(type, raw);
       const c = coerce(type, lit);
       if (!c.ok) {
-        this.refuse(`<${cls} ${name}='${raw === true ? "" : raw}'/>: ${name} expects ${c.expected}${c.found === undefined ? "" : ` — found ${c.found}`}`);
+        this.refuse(`<${tag} ${name}='${raw === true ? "" : raw}'/>: ${name} expects ${c.expected}${c.found === undefined ? "" : ` — found ${c.found}`}`);
         continue;
       }
       // A percent resolves against the parent's extent on its own axis, like
@@ -465,14 +491,14 @@ class SlotHost {
       // the content width. A slot with no axis to resolve against is refused
       // rather than bound (bindPercent would throw mid-render).
       if (lit.kind === "percent" && percentAxis(name) === null) {
-        this.refuse(`<${cls} ${name}='${String(raw)}'/>: no axis to resolve a percent against — ${name} is not a width or a height`);
+        this.refuse(`<${tag} ${name}='${String(raw)}'/>: no axis to resolve a percent against — ${name} is not a width or a height`);
         continue;
       }
       // `center` / `end` align a view against its parent's box; the flow places
       // an inline view, and x/y are refused above, so an align literal has no
       // reading here (it would silently bind the wrong axis).
       if (isAlign(c.value)) {
-        this.refuse(`<${cls} ${name}='${String(raw)}'/>: the text flow places an inline view — center and end have no meaning on ${name}`);
+        this.refuse(`<${tag} ${name}='${String(raw)}'/>: the text flow places an inline view — center and end have no meaning on ${name}`);
         continue;
       }
       attrs.push({ name, value: lit, pos: NOPOS });
@@ -548,7 +574,7 @@ let SLOTS: SlotHost | null = null;
 
 // ── inline tier ────────────────────────────────────────────────────────────
 // A run's resolved style, flattened from the inline tree for the seam.
-export interface Style { size: number; weight: FontWeight; italic: boolean; mono: boolean; strike: boolean; color: number; tracking: number; link?: string; fill?: Fill; family?: string; shadow?: Shadow | null; outline?: Outline | null; transform?: TextTransform; smallCaps?: boolean; numerals?: Numerals; numeralWidth?: NumeralWidth; slashedZero?: boolean; underline?: boolean }
+export interface Style { size: number; weight: FontWeight; italic: boolean; mono: boolean; strike: boolean; color: number; tracking: number; link?: string; fill?: Fill; family?: string; shadow?: Shadow | null; outline?: Stroke | null; transform?: TextTransform; smallCaps?: boolean; numerals?: Numerals; numeralWidth?: NumeralWidth; slashedZero?: boolean; underline?: boolean }
 export function base(size: number, weight: FontWeight, color: number, tracking = 0): Style {
   return { size: sz(size), weight, italic: false, mono: false, strike: false, color, tracking };
 }
@@ -570,7 +596,7 @@ function applyStyle(style: Style, rs: RunStyle): Style {
   if (rs.textFill !== undefined) s.fill = rs.textFill;
   if (rs.letterSpacing !== undefined) s.tracking = rs.letterSpacing;
   if (rs.textShadow !== undefined) s.shadow = rs.textShadow;
-  if (rs.outline !== undefined) s.outline = rs.outline;
+  if (rs.textStroke !== undefined) s.outline = rs.textStroke;
   if (rs.textTransform !== undefined) s.transform = rs.textTransform;
   if (rs.smallCaps !== undefined) s.smallCaps = rs.smallCaps;
   if (rs.numerals !== undefined) s.numerals = rs.numerals;
@@ -750,7 +776,7 @@ export class TextFlow extends View {
    *  nearest ancestor with a declared onLink wins whole (the docs app's
    *  openDocLink keeps its custom routing untouched); with none, the href
    *  goes into the app's follow — "#story" navigates in-app, a URL leaves
-   *  through navigate. Bound, so either backend can take it as a bare fn. */
+   *  through openURL. Bound, so either backend can take it as a bare fn. */
   private followLink = (href: string): void => {
     for (let n = this.parent; n !== null; n = n.parent) {
       const h = (n as unknown as { onLink?: (href: string) => void }).onLink;
@@ -788,7 +814,7 @@ export class TextFlow extends View {
     let im = this.imageViews.get(key);
     if (im === undefined) {
       im = new Image();
-      im.stretches = "both";     // fill the aspect-correct box the flow sizes it to
+      im.fit = "both";     // fill the aspect-correct box the flow sizes it to
       im.source = src;
       this.imageViews.set(key, im);
       this.$appendChild(im);
@@ -913,7 +939,7 @@ export class TextFlow extends View {
     if (s === null) return;
     // The DEFAULT for a rich-text link is the app's own follow (location.md
     // §0.5): a plain click on an authored href reaches the app with no wiring —
-    // "#story" navigates in-app, a URL leaves through navigate — and an
+    // "#story" navigates in-app, a URL leaves through openURL — and an
     // explicit onLink handler still wins whole. This closes §12.2 (every
     // authored .md link was dead unless each flow hand-wired a handler).
     const link = this.onLink ?? this.followLink;
@@ -1265,6 +1291,8 @@ export abstract class RichText extends View {
    *  defaults to the nearest provided one (defineAttributes below). */
   declare textStyles: Record<string, RunStyle>;
   declare tagStyles: Partial<Record<TagKind, string>>;
+  /** Which tags build views: tag name → one of the program's view classes. */
+  declare tagViews: Readonly<Record<string, unknown>> | null;
   declare textAlign: "start" | "center" | "end" | "left" | "right";
   protected $stylesOf(): Record<string, RunStyle> { return this.textStyles ?? EMPTY_STYLES; }
 
@@ -1293,7 +1321,7 @@ export abstract class RichText extends View {
     // first build it knows none, so it keys on every face until then.
     // Every slot $rebuild reads is in the key: a size or weight that settles after
     // the first build (a `{ }` on the window's width) otherwise kept the first one.
-    const c = new Constraint(`${declareName(this)}.render`, () => `${this.$sourceKey()} ${this.lineHeight} ${this.maxLines} ${this.bodyColor} ${this.$paletteKey()} ${this.fontScale} ${this.codeBackground} ${this.codeRule} ${this.fontSize} ${this.fontWeight} ${this.letterSpacing} ${this.headingWeight} ${this.headingColor} ${this.linkColor} ${this.linkUnderline} ${this.codeColor} ${this.codeSize} ${JSON.stringify(this.richTextLayout ?? null)} ${textStylesKey(this.textStyles)} ${JSON.stringify(this.tagStyles ?? null)} ${this.textAlign} ${this.$families === null ? `*${faceGeneration()}` : familiesGeneration(this.$families)} ${heldFamily(this, "fontFamily", this.fontFamily)} ${heldFamily(this, "codeFamily", this.codeFamily)}`, () => { this.$families = collectFamilies(() => this.$rebuild()); }, 0);
+    const c = new Constraint(`${declareName(this)}.render`, () => `${this.$sourceKey()} ${this.lineHeight} ${this.maxLines} ${this.bodyColor} ${this.$paletteKey()} ${this.fontScale} ${this.codeBackground} ${this.codeRule} ${this.fontSize} ${this.fontWeight} ${this.letterSpacing} ${this.headingWeight} ${this.headingColor} ${this.linkColor} ${this.linkUnderline} ${this.codeColor} ${this.codeSize} ${JSON.stringify(this.richTextLayout ?? null)} ${textStylesKey(this.textStyles)} ${JSON.stringify(this.tagStyles ?? null)} ${tagViewsKey(this.tagViews)}${this.textAlign} ${this.$families === null ? `*${faceGeneration()}` : familiesGeneration(this.$families)} ${heldFamily(this, "fontFamily", this.fontFamily)} ${heldFamily(this, "codeFamily", this.codeFamily)}`, () => { this.$families = collectFamilies(() => this.$rebuild()); }, 0);
     c.run();
     onDiscard(this, () => c.dispose());
     // WIDTH — nothing structural depends on it, so re-width in place. Separate
@@ -1334,7 +1362,7 @@ export abstract class RichText extends View {
   /** A link run was activated. Mechanism only: fire `onLink(href)` for the app to
    *  dispatch (custom routing — the docs app's openDocLink); unhandled, the href
    *  goes into the App's FOLLOW (location.md §0.5) — "#story" navigates in-app,
-   *  anything else leaves through navigate — so authored prose links work with
+   *  anything else leaves through openURL — so authored prose links work with
    *  no wiring at all. (The old fallback was `navigate(href)` raw, which sent a
    *  fragment ref to the HOST as an outbound URL — the browser then opened
    *  DISTRO_ROOT + "#…", a different page entirely: §12.2's second half.) */
@@ -1342,9 +1370,9 @@ export abstract class RichText extends View {
     if (typeof (this as unknown as Record<string, unknown>).onLink === "function") { fireEvent(this, "link", href); return; }
     let r: unknown = this;
     while (r instanceof View && r.parent !== null) r = r.parent;
-    const app = r as unknown as { followLink?: (ref: string) => void; navigate?: (to: string) => void };
+    const app = r as unknown as { followLink?: (ref: string) => void; openURL?: (to: string) => void };
     if (typeof app.followLink === "function") app.followLink(href);
-    else app.navigate?.(href);   // a non-App root: external links keep working
+    else app.openURL?.(href);   // a non-App root: external links keep working
   }
 
   /** The last layout's blocks, with the geometry each derived from. */
@@ -1542,6 +1570,15 @@ const READING_MEASURE = 640;
  *  source key (stylesOf rides sourceKey's signature). */
 const EMPTY_STYLES: Record<string, RunStyle> = Object.freeze({});
 const EMPTY_TAGS: Partial<Record<TagKind, string>> = Object.freeze({});
+const EMPTY_VIEWS: Readonly<Record<string, unknown>> = Object.freeze({});
+/** The `tagViews` map as render-key text: each tag with the class it names, so
+ *  a changed entry re-reads the content and an unchanged map never churns. */
+function tagViewsKey(map: Readonly<Record<string, unknown>> | null): string {
+  if (map === null || map === undefined) return "";
+  let out = "";
+  for (const [tag, cls] of Object.entries(map)) out += tag + "=" + (typeof cls === "function" ? cls.name : String(cls)) + ";";
+  return out;
+}
 
 defineAttributes(RichText, {
   // The named-style palette — inherited, like the face slots below it. `styles`
@@ -1550,6 +1587,9 @@ defineAttributes(RichText, {
   textStyles: { def: EMPTY_STYLES, defBinding: providedDefault("textStyles", EMPTY_STYLES) },
   // which named style each element wears — inherited with the palette it names
   tagStyles: { def: EMPTY_TAGS, defBinding: providedDefault("tagStyles", EMPTY_TAGS) },
+  // which tags build views, and of which class — inherited, so a program states
+  // it once for every rich text below; with none, no tag is a view
+  tagViews: { def: EMPTY_VIEWS, defBinding: providedDefault("tagViews", EMPTY_VIEWS) },
   textAlign: { def: "start" },
   // the line length a rich text with no width wraps at; it then takes its widest line
   wrapWidth: { def: READING_MEASURE },

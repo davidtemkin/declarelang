@@ -11,5 +11,5 @@ export declare function sample(motion: Motion, t: number, delta?: number): numbe
  *  Bézier; `laszlo*` carry OpenLaszlo's exact pole offsets. */
 export declare function motionToken(name: string): Motion | null;
 /** Every named motion token — the checker's "expected" set and the scaffold's
- *  `Motion` union, generated so the two never drift from `motionToken`. */
+ *  `Easing` union, generated so the two never drift from `motionToken`. */
 export declare const MOTION_TOKENS: readonly string[];

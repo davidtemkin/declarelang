@@ -330,17 +330,17 @@ crumb: Text [ text = { app.docs.location } ]           // and say where it is no
 Assign it from a handler or `onInit`, not with a constraint: the tenant writes it
 too, and a constraint would claim a value two sides move.
 
-**Where it wants to go.** A program's [`navigate(to)`](declare-docs:App.method.navigate)
+**Where it wants to go.** A program's [`openURL(to)`](declare-docs:App.method.openURL)
 and [`openWindow(to)`](declare-docs:App.method.openWindow) are its links leaving it.
 Inside an island they come to the island first, as
 [`onNavigate`](declare-docs:DOMIsland.event.navigate), and the host decides what a
 link means; declaring the handler is the claim, and without one the page navigates.
-The tenant writes nothing different — it calls `navigate` as it would running alone.
+The tenant writes nothing different — it calls `openURL` as it would running alone.
 
 ```declare-fragment
 viewer: AppIsland [ program = "../viewer/viewer",
     onNavigate(n: IslandNavigation) {
-        if (n.program == "") { app.navigate(n.to); return }   // not a Declare program: the page follows it
+        if (n.program == "") { app.openURL(n.to); return }   // not a Declare program: the page follows it
         app.side.program = n.program                          // a program: open it beside this one,
         app.side.location = n.location                        // at the place the link names
         }

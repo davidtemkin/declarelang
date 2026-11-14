@@ -37,6 +37,10 @@ export interface SceneSurface {
     /** An editable text field, painted while it has no element (canvas-backend). */
     editable?(): boolean;
 }
+/** Switched off for the pointer: the nearest authored `pointerEvents`, on it or
+ *  above it, is `"none"` — a `"none"` reaches the whole subtree, and an
+ *  `"auto"` below it switches its own part back on. */
+export declare function pointerOff(s: SceneSurface): boolean;
 /** The cursor shown at a point in `s`'s parent frame, as CSS shows it on the
  *  DOM: the topmost view there that takes a press or shows a cursor of its own
  *  shows its own, else the nearest ancestor's — `""` inherits. A view with no

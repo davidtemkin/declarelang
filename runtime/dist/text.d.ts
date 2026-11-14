@@ -1,6 +1,6 @@
 import { View } from "./view.js";
 import type { RenderBackend, Surface } from "./backend.js";
-import { type Fill, type Shadow, type Outline, type Color } from "./value.js";
+import { type Fill, type Shadow, type Stroke, type Color } from "./value.js";
 import { type TextTransform, type FontWeight } from "./measure.js";
 import type { Numerals, NumeralWidth } from "./font-features.js";
 import { type FamilyValue } from "./font-value.js";
@@ -37,7 +37,7 @@ export declare class Text extends View {
     textAlign: "start" | "center" | "end" | "left" | "right";
     italic: boolean;
     textFill: Fill | null;
-    outline: Outline | null;
+    textStroke: Stroke | null;
     textTransform: TextTransform;
     smallCaps: boolean;
     numerals: Numerals;

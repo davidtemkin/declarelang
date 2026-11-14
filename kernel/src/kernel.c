@@ -1273,7 +1273,12 @@ static double extent_run(dk_kernel *k, Rule *r) {
     uint32_t base = w[i];
     if (!block_ok(k, base)) continue;
     if (VB(base, visible) == 0 || VB(base, ignoreClip) != 0) continue;
-    if (percent_owned(k, base + (axis == 0 ? k->vl.x : k->vl.y)) || percent_owned(k, base + (axis == 0 ? k->vl.width : k->vl.height))) continue;
+    /* a size taken from this view's own is its output: never counted. A place
+       taken from it (center, end, a percent) counts the child at its size, from
+       the start — the view is as big as what it holds, and the child is then
+       placed in that (view.ts extentOf) */
+    if (percent_owned(k, base + (axis == 0 ? k->vl.width : k->vl.height))) continue;
+    int placed = percent_owned(k, base + (axis == 0 ? k->vl.x : k->vl.y));
     if (VB(base, rotateX) != 0 || VB(base, rotateY) != 0 || VB(base, translateZ) != 0) {
       /* out of the plane: the host's footprint3D — decline, leave the value */
       int32_t target = r->target;
@@ -1292,7 +1297,7 @@ static double extent_run(dk_kernel *k, Rule *r) {
       }
       lead = axis == 0 ? minX : minY; ext = axis == 0 ? maxX - minX : maxY - minY;
     }
-    double e = (axis == 0 ? VB(base, x) : VB(base, y)) + lead + ext;
+    double e = (placed ? 0 : (axis == 0 ? VB(base, x) : VB(base, y)) + lead) + ext;
     if (e > max) max = e;
   }
   /* the container's own padding on this axis: children sit inside its content

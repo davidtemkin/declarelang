@@ -219,13 +219,6 @@ let scheduled = false;
 let inSettle = false;
 /** Is a settle running now (a rule body, a step, a change handler)? */
 export function isSettling(): boolean { return inSettle; }
-/** Is there work the table does not yet reflect — a settle scheduled, writes
- *  or reads in the rings, or a settle mid-flight? Answered without a call
- *  (the kernel's flag and counts are views): a declared default's untracked
- *  read evaluates live while this holds (attributes.ts declStale). */
-export function workPending(): boolean {
-  return inSettle || ringCount[0] > 0 || trackCount[0] > 0 || (K !== null && K.pendingFlag[0] !== 0);
-}
 let stepsRan = false;
 
 const HOST: KernelHost = {
@@ -276,7 +269,15 @@ const HOST: KernelHost = {
     // surfaces current; the kernel's own writes (EXPR bodies, the visibility
     // rule) get the same standing here, before anything of theirs runs.
     if (pushHook !== null) { const d = K!.kdirty(); if (d.length > 0) pushHook(d); }
+    // …and that push can BUILD: a gate the kernel landed (`exists`, a State's
+    // `applied`) constructs its views as its value reaches them, here. What the
+    // build woke runs before any step does — the kernel goes round again and
+    // comes back — so a step finds the new views settled: a field that has
+    // just come into existence holds its text when a step focuses it and
+    // selects all of it (Ledger run 5: the selection was taken of the empty
+    // field, and the person's typing landed after the old text).
     if (after.length === 0) return false;
+    if (ringCount[0] > 0 || K!.pending()) return true;
     stepsRan = true;
     const batch = after.splice(0);
     try { for (const step of batch) step(); }
@@ -753,9 +754,32 @@ export class Cell {
    *  freed cell drops its subscribers; the Cell may be tracked again later
    *  and takes a fresh id. */
   free(): void {
-    if (this.id >= 0) { if (!this.owned) K!.freeCell(this.id); this.id = -1; }
+    if (this.id >= 0) { if (REF_WRITER.get(this.id)?.writesRef === this.id) REF_WRITER.delete(this.id); if (!this.owned) K!.freeCell(this.id); this.id = -1; }
   }
 }
+
+/** Constraint.isBehind's walk, over what each rule last read and who writes
+ *  it. Past a large upstream the answer is "behind": the live evaluation the
+ *  caller then makes is right, only not identity-keeping. */
+function ruleBehind(rule: number, seen: Set<number>): boolean {
+  if (seen.has(rule)) return false;
+  if (seen.size > 2000) return true;
+  seen.add(rule);
+  const st = K!.stateOf(rule);
+  if ((st & (KERNEL_STATE.DEAD | KERNEL_STATE.SUSPENDED)) !== 0) return false;
+  if ((st & (KERNEL_STATE.QUEUED | KERNEL_STATE.UNLANDED)) !== 0) return true;
+  for (const cell of K!.deps(rule)) {
+    let w = K!.owner(cell);
+    if (w < 0) { const c = REF_WRITER.get(cell); w = c !== undefined ? c.id : -1; }
+    if (w >= 0 && w !== rule && ruleBehind(w, seen)) return true;
+  }
+  return false;
+}
+
+/** The rule that writes a JS cell (a slot outside the numeric table, whose
+ *  cell the kernel holds no owner for): attributes.ts names it when both the
+ *  slot's owner and its cell exist. Asked only by Constraint.isBehind. */
+const REF_WRITER = new Map<number, Constraint>();
 
 /** Which flush pass a constraint runs in: values first, then draw
  *  re-records — so a draw body always records against settled attributes. */
@@ -914,6 +938,28 @@ export class Constraint {
     if (this.id < 0 || K === null) return false;
     if (ringCount[0] > 0 || trackCount[0] > 0) K.flush();   // pending writes may queue it
     return (K.stateOf(this.id) & KERNEL_STATE.QUEUED) !== 0;
+  }
+  /** @internal The JS cell this rule writes (its slot is not a table slot),
+   *  or -1 — so a reader's staleness walk can find it (isBehind). */
+  writesRef = -1;
+  /** @internal Name the JS cell `cell` as this rule's output. */
+  writesCell(cell: number): void {
+    if (this.writesRef >= 0 && REF_WRITER.get(this.writesRef) === this) REF_WRITER.delete(this.writesRef);
+    this.writesRef = cell;
+    REF_WRITER.set(cell, this);
+  }
+  /** Is this rule's value behind the world — its recompute queued, or not yet
+   *  run, or anything it read written by a rule that is (transitively)? A
+   *  handler's write queues only the rule that read it; a rule reading THAT
+   *  rule's output is queued when it lands, at the settle. So a rule none of
+   *  whose inputs moved is current even while other work is pending — what an
+   *  untracked read of a declared default asks (attributes.ts declStale): a
+   *  default that is not behind answers its stored value, and one that keeps
+   *  an object (`{ new Map() }`) keeps its identity. */
+  isBehind(): boolean {
+    if (this.id < 0 || K === null) return false;
+    if (ringCount[0] > 0 || trackCount[0] > 0) K.flush();   // pending writes may queue it
+    return ruleBehind(this.id, new Set());
   }
   /** KERNEL-NATIVE: the rule is evaluated entirely by the kernel (an EXPR
    *  body, bind.ts); this object is its handle for ownership, labels and
@@ -1122,6 +1168,7 @@ export class Constraint {
   /** Permanently retire (a yielding owner displaced by a direct write). */
   dispose(): void {
     this.dead = true;
+    if (this.writesRef >= 0 && REF_WRITER.get(this.writesRef) === this) REF_WRITER.delete(this.writesRef);
     if (this.id >= 0) {
       // a dead rule owns nothing: its id will serve another rule
       if (this.ownsCell >= 0) K!.release(this.ownsCell, this.id);

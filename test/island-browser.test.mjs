@@ -9,7 +9,7 @@
 //   - verbs round-trip: host post → tenant onPost bumps what it exposes and acks →
 //     host sees both the new pos and the ack;
 //   - where the tenant is crosses both ways: it starts at the island's location,
-//     and its navigate() comes to the island's onNavigate, not the page.
+//     and its openURL() comes to the island's onNavigate, not the page.
 import assert from "node:assert/strict";
 import http from "node:http";
 import path from "node:path";
@@ -83,7 +83,7 @@ async function run(label, url, tenantOf) {
   await test(`${label}: the tenant starts at the island's location, and its navigation comes to the island`, async () => {
     const s = await page.evaluate(`({ at: ${tenantOf}.location, nav: window.__app.nav, url: location.pathname })`);
     assert.equal(s.at, "start", "the island's location seeded the tenant's");
-    assert.equal(s.nav, "other|there|false", "the tenant's navigate() reached onNavigate, broken into program and place");
+    assert.equal(s.nav, "other|there|false", "the tenant's openURL() reached onNavigate, broken into program and place");
     assert.ok(s.url.endsWith("bridge-host.declare"), "the page did not navigate");
   });
 

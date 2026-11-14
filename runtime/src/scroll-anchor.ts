@@ -115,7 +115,7 @@ function correct(s: View, y: number, st: AnchorState): void {
   if (Math.abs(clamped - s.scrollY) < 0.5) return;
   st.corrected = clamped;
   s.scrollY = clamped;
-  s.$surface?.scrollToY?.(clamped);
+  s.$putScrollY(clamped);
 }
 
 /** Install the anchor on a scroller (idempotent). */

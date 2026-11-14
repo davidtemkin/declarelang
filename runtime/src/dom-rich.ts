@@ -265,7 +265,7 @@ function renderBlock(doc: Document, b: RichBlock, onLink: (href: string) => void
     }
     // A link run is a REAL <a href> — native hover URL, right/middle/⌘-click
     // open-in-tab — but a plain left click routes through `onLink` so the app,
-    // not the browser, decides (scroll, in-app route, or app.navigate).
+    // not the browser, decides (scroll, in-app route, or app.openURL).
     const isLink = r.href !== undefined;
     const el = doc.createElement(isLink ? "a" : "span");
     const rs = el.style;

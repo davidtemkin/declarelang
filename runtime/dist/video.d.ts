@@ -1,7 +1,7 @@
 import { Media } from "./media.js";
 import type { Stretch, Surface } from "./backend.js";
 export declare class Video extends Media {
-    stretches: Stretch;
+    fit: Stretch;
     /** The frame's natural size — what contentExtent folds into an auto-extent. */
     private natural;
     protected $contentExtent(size: "width" | "height"): number;

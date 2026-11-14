@@ -255,13 +255,18 @@ const VIEWS = {
     },
     toChild: (v, c, lx, ly) => toChildLocal(v, c, lx, ly),
 };
-// `pointerEvents = "none"` makes a view pointer-transparent; it does not seal
-// its subtree — a child decides for itself, as the reference renderer does
-// (dom-backend gives any view carrying a sink `pointer-events: auto`, which
-// overrides an ancestor's `none` the way CSS lets an explicit value override an
-// inherited one). The Inspector's picker (`pierce`) wants what you can SEE, so
-// it ignores the gate.
-const POINTABLE = (v) => v.pointerEvents === "none" ? 'skipped — pointerEvents = "none" (this view is transparent; its children decide for themselves)' : null;
+// `pointerEvents = "none"` switches a view and everything inside it off for the
+// pointer; a view below it that says `"auto"` switches its own part back on —
+// the nearest authored value decides, as CSS's inherited `pointer-events` does
+// (dom-backend reads it the same way). The Inspector's picker (`pierce`) wants
+// what you can SEE, so it ignores the gate.
+export function pointerOff(v) {
+    for (let u = v; u != null; u = u.parent)
+        if (u.pointerEvents !== "" && u.pointerEvents !== undefined)
+            return u.pointerEvents === "none";
+    return false;
+}
+const POINTABLE = (v) => pointerOff(v) ? 'skipped — pointerEvents = "none" here or above it' : null;
 const ANY = () => null;
 // What a PRESS reaches: past views that declared no interest in the pointer —
 // no handler, tip, link or scroll axis — to what is beneath, as the backends

@@ -342,6 +342,14 @@ await test("datapaths, two-way binds, source members, lists keep canon spacing",
   }
 });
 
+await test("a datapath's fields and brackets in any order — :stories[0].image — as the compiler reads them", () => {
+  const src = "App [\n    a: View [ datapath = :stories[0].image ],\n    b: View [ datapath = :rows[2:8][].cells[0] ]\n    ]\n";
+  const out = fmt(src);
+  for (const piece of ["datapath = :stories[0].image", "datapath = :rows[2:8][].cells[0]"]) {
+    if (!out.includes(piece)) throw new Error(`path changed: ${piece}\n${out}`);
+  }
+});
+
 await test("the removed `<-` operator fails the formatter with the rewrite named", () => {
   let msg = "";
   try { fmt("App [\n    onKeyUp(e) <- Keys { go(e) }\n    ]\n"); } catch (e) { msg = e.message; }
@@ -413,11 +421,13 @@ await test("the whole corpus is canon (docs/system-design excluded)", () => {
   // weather.declare there showcases unlanded grammar (`state … when { }`) the
   // formatter cannot parse. Gating it would either block forever or pressure
   // someone to rewrite the artifact the formatting spec is derived FROM.
+  // evals/reports/ is excluded for the same reason: each app there is the record of
+  // what an eval's agent delivered, kept as it wrote it.
   // Tracked AND new-but-unignored files: a file not yet committed is exactly the
   // one most likely to be off canon, and listing only tracked files let a new probe
   // pass the suite and fail at the commit hook (2026-09-15). Ignored trees
   // (my-apps/) stay out; a tracked file deleted on disk is skipped.
-  const files = projectFiles(".declare").filter((f) => !f.startsWith("docs/system-design/") && existsSync(f));
+  const files = projectFiles(".declare").filter((f) => !f.startsWith("docs/system-design/") && !f.startsWith("evals/reports/") && existsSync(f));
   const bad = files.filter((f) => {
     const before = readFileSync(f, "utf8");
     let after; try { after = formatSource(before); }

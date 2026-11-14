@@ -16,7 +16,7 @@
  *  churn for nothing. */
 let currentOpts = null;
 /** Scan a self-closing INLINE VIEW tag at `at` (where `src[at]` is `<`): a tag
- *  whose name is a class the program declares. Returns the class name, its
+ *  the rich text's `tagViews` map names. Returns the tag name, its
  *  attributes (case PRESERVED — an attribute names a slot, and slots are
  *  camelCase), the reserved `key`, whether the tag closed itself, and the index
  *  past `>`. Null when this `<` does not open a class tag at all, which leaves
@@ -526,8 +526,8 @@ export function parseInline(src, opts) {
                 i = close === -1 ? src.length : close + 3;
                 continue;
             }
-            // An INLINE VIEW: `<Issue id='142'/>`, where `Issue` is a class the
-            // program declares. Read before the autolink test and ONLY for a name the
+            // An INLINE VIEW: `<Issue id='142'/>`, where `tagViews` maps `Issue` to
+            // a view class. Read before the autolink test and ONLY for a name the
             // predicate claims, so every other `<` — an autolink, a raw HTML tag, a
             // lone `<` — keeps the meaning the ruling gave it.
             if (o?.isClass !== undefined) {

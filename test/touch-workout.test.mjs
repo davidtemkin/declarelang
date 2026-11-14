@@ -110,8 +110,8 @@ writeFileSync(GESTURES, `App [ width = 390, height = 844, theme = { SanFrancisco
     slider: Slider [ x = 20, width = 350, min = 0, max = 100, value = { app.level }, commit(v: number) { app.level = v } ],
     sw: Switch [ x = 20, checked = { app.on }, commit(v: boolean) { app.on = v }, accessibilityLabel = "On" ],
     seg: Segmented [ x = 20, width = 300, value = { app.mode },
-        choices = { [ ({ id: "a", label: "First" }), ({ id: "b", label: "Second" }) ] },
-        input(v: string) { app.mode = v } ],
+        items = { [ ({ id: "a", label: "First" }), ({ id: "b", label: "Second" }) ] },
+        commit(v: string) { app.mode = v } ],
     room: View [ width = 100%, height = 1200 ]
     ]`);
 

@@ -68,7 +68,7 @@ text and the name of the grid.
 **Internal.** The ISO date of a year, a month (1–12) and a day.
 
 ## _dateOf()
-**Internal.** The local date an ISO date names, at midnight, never parsed as UTC.
+**Internal.** The local date an ISO date names, at midnight, never parsed as UTC; today for a string that names no day.
 
 ## _isoOfDate()
 **Internal.** The ISO date of a local date.
@@ -319,7 +319,9 @@ class MonthCalendar [
     _isoOf(y: number, m: number, d: number) -> string { return y + "-" + this._pad2(m) + "-" + this._pad2(d) },
     _dateOf(iso: string) -> Date {
         const p = iso.split("-").map((s) => parseInt(s, 10))
-        return new Date(p[0], (p[1] ?? 1) - 1, p[2] ?? 1)
+        const d = new Date(p[0], (p[1] ?? 1) - 1, p[2] ?? 1)
+        // a value that names no day shows today's month, as no value does
+        return isNaN(d.getTime()) ? new Date(this._clock.year, this._clock.month - 1, this._clock.day) : d
         },
     _isoOfDate(d: Date) -> string { return this._isoOf(d.getFullYear(), d.getMonth() + 1, d.getDate()) },
     _addDays(iso: string, n: number) -> string {

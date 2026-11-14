@@ -105,7 +105,7 @@ export async function bootHost(cfg) {
     catch { console.error(`[Declare] data-declare-provide is not valid JSON — nothing provided: ${provideAttr.slice(0, 80)}`); }
   }
   pageProvides = { ...pageProvides, ...(cfg.provides ?? {}) };
-  const app = buildApp({ program: cfg.program }, { provides: pageProvides });
+  const app = buildApp({ program: cfg.program }, { provides: pageProvides, host });
   host.__declareApp = app;                            // the app itself (tools and tests reach it here)
   // THE PAGE AS A HOST, in an island's words (islands.md): the page hears the
   // app's postToHost through `boot({ onPost })`, speaks to its onHostMessage
@@ -400,7 +400,7 @@ export async function bootHost(cfg) {
   // activation (which is what window.open needs — the old next-frame poll sat
   // a frame later, not earlier). This replaced navTick, a 60Hz loop that
   // re-read three channels for the life of every page. An embedded app gets
-  // navigate/openWindow — a widget's outbound link legitimately navigates the
+  // openURL/openWindow — a widget's outbound link legitimately navigates the
   // page, and a foreign embedder can re-provide its own table to intercept —
   // but never the Inspector, which is the page tenant's tool.
   // how an address resolves here — what an island's onNavigate is handed

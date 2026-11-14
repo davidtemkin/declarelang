@@ -198,7 +198,7 @@ await test("past a modal's edge only the App's everywhere bindings are read", as
     keyBindings = { [ ({ key: "Ctrl+S", command: "save" }), ({ key: "Ctrl+Q", command: "quit", everywhere: true }) ] },
     save() { app.got = app.got + "save;" },
     quit() { app.got = app.got + "quit;" },
-    sheet: Sheet [ shown = { app.open }, input(v: boolean) { app.open = v },
+    sheet: Sheet [ shown = { app.open }, commit(v: boolean) { app.open = v },
         b: View [ width = 50, height = 20, focusable = true ] ],
     f: View [ y = 200, width = 40, height = 20, focusable = true ] ]`);
   app.open = true; settle();
@@ -263,6 +263,32 @@ await test("ledger-3: the stop's own Escape binding comes before leaving the row
   assert.equal(app.got, "cancel;", "the list's own Escape");
 });
 
+await test("ledger-5: a Table or DataGrid with the focus hands on the keys it doesn't use — Escape reaches the grid's own binding and the App's", async () => {
+  const app = await boot(`App [ width = 400, height = 400, got: string = "",
+    keyBindings = { [ ({ key: "Escape", command: "outer" }) ] },
+    outer() { app.got = app.got + "app;" },
+    data: Dataset { { "rows": [ { "id": "a", "t": "Alpha" }, { "id": "b", "t": "Beta" } ] } },
+    t: Table [ width = 300, height = 100, accessibilityLabel = "Things", datapath = { app.data.value },
+        TableRow [ datapath = :rows[], height = 30, Text [ text = { :t } ] ] ],
+    g: DataGrid [ y = 120, width = 300, height = 200, accessibilityLabel = "Grid",
+        items = { app.data.value.rows },
+        columns = { [ { id: "t", title: "T", width: 200 } ] },
+        keyBindings = { [ ({ key: "Escape", command: "close" }) ] },
+        close() { app.got = app.got + "grid;" } ] ]`);
+  Focus.focus(app.t); settle();
+  press("ArrowDown", { code: "ArrowDown" });
+  assert.equal(app.t.activeIndex, 0, "the table keeps its own arrows");
+  press("Escape", { code: "Escape" });
+  assert.equal(app.got, "app;", "the Table hands Escape on to the App's binding");
+  Focus.focus(app.g); settle();
+  press("ArrowDown", { code: "ArrowDown" });
+  press("Escape", { code: "Escape" });
+  assert.equal(app.got, "app;grid;", "the DataGrid's own binding hears Escape, nearest first");
+  app.g.inHeader = true; settle();
+  press("Escape", { code: "Escape" });
+  assert.equal(app.got, "app;grid;grid;", "from its header too");
+});
+
 await test("ledger-4: a Combobox's Return that picks goes no further; with a choice made it goes on to the row", async () => {
   const app = await boot(`App [ width = 500, height = 300, saved: number = 0, cat: string = "",
     row: View [ width = 400, height = 40,
@@ -309,6 +335,58 @@ await test("a one-line field's Enter in a Dialog presses the default; a focused 
   assert.equal(app.got, "ok;", "the field's Enter reaches the Dialog's default");
 });
 
+await test("7guis-2: a field's onEnter that moves focus to the view around it — Return is one action, not the grid's too", async () => {
+  const app = await boot(`App [ width = 400, height = 200,
+    grid: View [ width = 300, height = 120, focusable = true,
+        gridEnters: number = 0, fieldEnters: number = 0,
+        startEdit() { gridEnters = gridEnters + 1 },
+        keyBindings = { [ ({ key: "Enter", command: "startEdit" }) ] },
+        f: TextInput [ width = 200, accessibilityLabel = "Formula", value = "", commit(v: string) { },
+            onEnter() { parent.fieldEnters = parent.fieldEnters + 1; afterSettle(() => Focus.focus(parent)) } ] ] ]`);
+  const g = app.grid;
+  Focus.focus(g.f); settle();
+  // the platform's field handles Return (onEnter) before the key reaches the
+  // walk, and the settle between moves focus: the key arrived at the field
+  const at = Focus.getFocus();
+  g.f.onEnter(); settle();
+  assert.ok(Focus.getFocus() === g, "onEnter moved focus to the grid");
+  const e = { key: "Enter", code: "Enter", shift: false, ctrl: false, alt: false, meta: false, repeat: false };
+  Keys.keyDown(e, at); Keys.keyUp(e); settle();
+  assert.equal(g.fieldEnters, 1, "the field's onEnter ran");
+  assert.equal(g.gridEnters, 0, "and Return went no further: the grid's Enter didn't run");
+  press("Enter", { code: "Enter" });
+  assert.equal(g.gridEnters, 1, "the next Return, arriving at the grid, is the grid's");
+});
+
+await test("7guis-3: a key a handler answers is consumed — it doesn't also type into the field focus moved to", async () => {
+  const app = await boot(`App [ width = 400, height = 200, editing: boolean = false, draft: string = "",
+    grid: View [ width = 300, height = 60, focusable = true,
+        onKeyDown(e: KeyEvent) {
+            if (e.key.length == 1) { app.draft = e.key; app.editing = true }
+            else super.onKeyDown(e)
+            },
+        editor: TextInput [ exists = { app.editing }, width = 200, accessibilityLabel = "Cell", value <-> app.draft,
+            onInit() { afterSettle(() => Focus.focus(this)) } ] ],
+    a: TextInput [ y = 100, width = 120, accessibilityLabel = "A",
+        onKeyDown(e: KeyEvent) { if (e.key == ",") Focus.focus(app.b); else super.onKeyDown(e) } ],
+    b: TextInput [ y = 140, width = 120, accessibilityLabel = "B" ] ]`);
+  Focus.focus(app.grid); settle();
+  assert.equal(press("5", { code: "Digit5" }), true, "the grid's handler answered 5: its default (typing where focus went) is prevented");
+  assert.equal(app.draft, "5", "and the handler passed it on itself");
+  assert.ok(Focus.getFocus() === app.grid.editor, "the editor took focus");
+  assert.equal(press("6", { code: "Digit6" }), false, "in the editor, a key is typing again");
+  // a field's handler: its own typing stays, but only in that field
+  Focus.focus(app.a); settle();
+  const e = { key: ",", code: "Comma", shift: false, ctrl: false, alt: false, meta: false, repeat: false };
+  assert.equal(Keys.keyDown(e), false, "a field's answered key isn't prevented outright");
+  assert.ok(Keys.typesOnlyIn === app.a, "its text may land only in the field that answered it");
+  Keys.keyUp(e); settle();
+  assert.ok(Focus.getFocus() === app.b, "focus went on to B");
+  const y = { ...e, key: "y", code: "KeyY" };
+  Keys.keyDown(y); Keys.keyUp(y);
+  assert.equal(Keys.typesOnlyIn, null, "a key handed on (super) types wherever focus is");
+});
+
 await test("a menu row's command walks from where the person was working, not from the menu", async () => {
   const app = await boot(`App [ width = 500, height = 400,
     got: string = "",
@@ -319,14 +397,14 @@ await test("a menu row's command walks from where the person was working, not fr
         keyBindings = { [ ({ key: "Ctrl+B", command: "bold" }) ] },
         bold() { app.got = app.got + "bold;" } ] ]`);
   Focus.focus(app.doc); settle();
-  app.menu.openFor(app.opener); settle();
+  app.menu.showFor(app.opener); settle();
   const rows = app.menu._panel.body.childViews;
   assert.equal(rows[0].enabled, true, "Bold: the document answers it");
   assert.equal(rows[1].enabled, false, "a command no view answers is greyed");
   rows[0].pickSelf(); settle();
   assert.equal(app.got, "bold;", "the document's bold ran");
   assert.equal(app.menu.shown, false, "the menu closed");
-  app.menu.openFor(app.opener); settle();
+  app.menu.showFor(app.opener); settle();
   app.menu._panel.body.childViews[2].pickSelf();
   await new Promise((r) => setTimeout(r, 20)); settle();
   assert.equal(app.got, "bold;picked:p;", "a row with no command is picked(id), as ever");
@@ -366,7 +444,7 @@ await test("a context menu's command acts on the view it was opened on", async (
     a: View [ width = 100, height = 30, focusable = true, keyBindings = { [ ({ command: "remove" }) ] }, remove() { app.got = app.got + "a;" } ],
     b: View [ y = 50, width = 100, height = 30, focusable = true, keyBindings = { [ ({ command: "remove" }) ] }, remove() { app.got = app.got + "b;" } ] ]`);
   Focus.focus(app.a); settle();
-  app.rowMenu.openAt(app.b, { x: 5, y: 5 }); settle();
+  app.rowMenu.showAt(app.b, { x: 5, y: 5 }); settle();
   app.rowMenu._panel.body.childViews[0].pickSelf(); settle();
   assert.equal(app.got, "b;", "the row it was opened on, not the focus");
 });
@@ -379,7 +457,7 @@ await test("a menu's Copy reaches onClipboardCopy from the view the person was i
     canvas: View [ y = 100, width = 200, height = 100, focusable = true,
         onClipboardCopy(e: ClipboardEvent) { e.put("shape"); app.got = app.got + "copied;" } ] ]`);
   Focus.focus(app.canvas); settle();
-  app.menu.openFor(app.opener); settle();
+  app.menu.showFor(app.opener); settle();
   assert.equal(app.menu._panel.body.childViews[0].enabled, true, "Copy is there");
   app.menu._panel.body.childViews[0].pickSelf(); settle();
   assert.equal(app.got, "copied;");
@@ -431,6 +509,106 @@ await test("DECLARE4031 covers every view\'s onKeyDown that hands nothing on; ta
   assert.equal(await warned(`App [ g: View [ focusable = true, onKeyDown(e: KeyEvent) { if (e.key == "x") app.width = 1 } ] ]`), 1, "a plain view that swallows Tab");
   assert.equal(await warned(`App [ g: View [ focusable = true, onKeyDown(e: KeyEvent) { if (e.key == "x") app.width = 1; else super.onKeyDown(e) } ] ]`), 0, "handing the rest on");
   assert.equal(await warned(`App [ g: View [ focusable = true, takesAllKeys = true, onKeyDown(e: KeyEvent) { if (e.key == "x") app.width = 1 } ] ]`), 0, "a game that means every key");
+});
+
+// ── DataGrid: select first, then type ─────────────────────────────────────
+// The active cell of a text column holds the keyboard in its field, its text
+// selected, so typed text — a letter, an accent, an input method's word —
+// arrives natively and opens the edit. Keys an input method is composing are
+// the method's; a chord is never text.
+const GRID = `App [ width = 500, height = 300,
+    data: Dataset { { "rows": [ { "id": "a", "t": "One" }, { "id": "b", "t": "Two" } ] } },
+    g: DataGrid [ width = 400, height = 200, accessibilityLabel = "Grid",
+        items = { app.data.value.rows },
+        columns = { [ { id: "t", title: "Title", width: 240, edit: true } ] } ] ]`;
+const later = async () => { for (let i = 0; i < 3; i++) { await new Promise((r) => setTimeout(r, 20)); settle(); } };
+const gridOn = async () => {
+  const app = await boot(GRID);
+  Focus.focus(app.g); settle();
+  press("ArrowDown", { code: "ArrowDown" });
+  await later();
+  assert.equal(app.g.activeIndex, 0, "the first row is active");
+  assert.equal(Focus.getFocus()?.accessibilityLabel, "Title", "the active cell's field holds the keyboard");
+  assert.equal(app.g.editing, false, "selected, not editing");
+  return app;
+};
+
+await test("DataGrid: a selected text cell's field holds the keyboard; composing keys and chords open nothing", async () => {
+  const app = await gridOn();
+  press("n", { code: "KeyN", isComposing: true });
+  press("é", { code: "KeyE", keyCode: 229 });
+  press("s", { code: "KeyS", meta: true });
+  press("s", { code: "KeyS", ctrl: true });
+  await later();
+  assert.equal(app.data.value.rows[0].t, "One", "nothing written");
+  assert.equal(app.g.editing, false, "no edit opened");
+});
+
+await test("DataGrid: text arriving in the selected cell opens the edit with it", async () => {
+  const app = await gridOn();
+  Focus.getFocus()._typed("å");   // what the native field reports when text lands
+  await later();
+  assert.equal(app.data.value.rows[0].t, "å", "the text replaced the cell's");
+  assert.equal(app.g.editing, true, "and the edit is open");
+});
+
+await test("DataGrid: arrows move the selection from a selected cell; Enter enters it", async () => {
+  const app = await gridOn();
+  press("ArrowDown", { code: "ArrowDown" });
+  await later();
+  assert.equal(app.g.activeIndex, 1, "ArrowDown moved to the next row");
+  assert.equal(Focus.getFocus()?.accessibilityLabel, "Title", "whose field holds the keyboard");
+  press("Enter", { code: "Enter" });
+  await later();
+  assert.equal(app.g.editing, true, "Enter entered the cell");
+});
+
+await test("DataGrid: the Return that commits an input method's composition stays in the field", async () => {
+  const app = await gridOn();
+  press("F2", { code: "F2" });
+  await later();
+  const ed = Focus.getFocus();
+  assert.equal(app.g.editing, true, "F2 entered the cell");
+  press("Enter", { code: "Enter", isComposing: true });
+  await later();
+  assert.ok(Focus.getFocus() === ed && app.g.editing, "a composing Return moves nothing");
+  press("Enter", { code: "Enter" });
+  await later();
+  assert.equal(app.g.editing, false, "a plain Return ends the edit");
+  assert.equal(app.g.activeIndex, 1, "…and moves a row down");
+});
+
+await test("DataGrid: Tab leaves an open edit a cell along — the grid's own editor and one of your own", async () => {
+  const app = await boot(`
+  class NoteEdit extends View [ width = 100%, height = 100%,
+    f: TextInput [ width = 100%, accessibilityLabel = "Note edit", value = { "" + :n }, commit(v: string) { :n = v } ] ]
+  App [ width = 600, height = 300,
+    data: Dataset { { "rows": [ { "id": "a", "t": "One", "n": "x" }, { "id": "b", "t": "Two", "n": "y" } ] } },
+    g: DataGrid [ width = 500, height = 200, accessibilityLabel = "Grid",
+        items = { app.data.value.rows },
+        columns = { [ { id: "t", title: "Title", width: 200, edit: true },
+                      { id: "n", title: "Note", width: 200, editor: "NoteEdit" } ] } ] ]`);
+  Focus.focus(app.g); settle();
+  press("ArrowDown", { code: "ArrowDown" });
+  await later();
+  press("F2", { code: "F2" });
+  await later();
+  assert.equal(app.g.editing, true, "F2 entered the text cell");
+  press("Tab", { code: "Tab" });
+  await later();
+  assert.deepEqual([app.g.activeIndex, app.g.activeCol, app.g.editing], [0, 1, false], "Tab: the next cell, the edit ended");
+  press("Enter", { code: "Enter" });
+  await later();
+  assert.equal(app.g.editing, true, "Enter entered the cell of your own editor");
+  assert.equal(Focus.getFocus()?.accessibilityLabel, "Note edit", "its first control holds the keyboard");
+  press("Tab", { code: "Tab" });
+  await later();
+  assert.deepEqual([app.g.activeIndex, app.g.activeCol, app.g.editing], [1, 0, false], "Tab past the last column: the next row's first cell");
+  press("Enter", { code: "Enter" });
+  await later();
+  press("Tab", { code: "Tab", shift: true });
+  await later();
+  assert.deepEqual([app.g.activeIndex, app.g.activeCol, app.g.editing], [0, 1, false], "Shift-Tab: back across the rows");
 });
 
 summarize("key-bindings");

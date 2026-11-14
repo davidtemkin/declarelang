@@ -1,6 +1,6 @@
 // A view in the middle of a sentence
-// A tag whose name is a class this program declares builds one real view of that class,
-// placed in the flowing line as an atomic box the words wrap around. Each chip sizes itself
+// A tag the App's tagViews map names builds one real view of that class, placed in the
+// flowing line as an atomic box the words wrap around. Each chip sizes itself
 // to its label and carries its own state — click one and watch the line re-flow around its
 // new width, which no styled run of text could do.
 
@@ -16,7 +16,7 @@ class Chip [
     ]
 
 
-App [ fill = #F6F8FA, textColor = 0x172530, fontSize = 15,
+App [ fill = #F6F8FA, textColor = 0x172530, fontSize = 15, tagViews = { { Chip: Chip } },
     HTMLText [ x = 20, y = 18, width = 420, lineHeight = 1.45, bodyColor = 0x33424E,
         html = "Filed under <Chip label='docs'/>, <Chip label='runtime'/> and <Chip label='renderers'/> — every chip here is a view, with a size of its own, a state of its own, and the whole language available to it." ]
     ]

@@ -29,6 +29,10 @@ function inFile(e, file) {
     return e instanceof DeclareErrors ? e.errors.map(one) : [one(e)];
 }
 import { Diag } from "./diagnostics.js";
+/** The file an included class or schema was declared in, as its `include`
+ *  names it — for a message about the declaration made after the files are
+ *  merged, whose position is that file's own line. */
+const includedFrom = new WeakMap();
 /** Cut a source's `include [ … ]` directives out of its text, leaving the rest
  *  byte-for-byte (offsets after each cut shift left by its length). Splicing
  *  highest-offset first keeps earlier spans valid; directives never overlap.
@@ -229,11 +233,15 @@ export async function resolveIncludes(program, host, originDir) {
             // message form).
             const from = inc.path;
             for (const c of lib.classes)
-                if (fold(c.name, c.pos, from))
+                if (fold(c.name, c.pos, from)) {
                     classes.push(c);
+                    includedFrom.set(c, from);
+                }
             for (const d of lib.shapes ?? [])
-                if (fold(d.name, d.pos, from))
+                if (fold(d.name, d.pos, from)) {
                     shapes.push(d);
+                    includedFrom.set(d, from);
+                }
             for (const s of lib.themes)
                 if (fold(s.name, s.pos, from))
                     themes.push(s);
@@ -339,7 +347,7 @@ mainSource,
 prefix = "My") {
     const auto = host;
     if (typeof auto.autoincludes !== "function" || typeof auto.resolveLibrary !== "function") {
-        return { program, sources: [], sourceIds: [], sourceFrom: [], sourceSplices: [], errors: [] };
+        return { program, sources: [], sourceIds: [], sourceFrom: [], sourceSplices: [], errors: [], squats: [] };
     }
     const manifest = auto.autoincludes();
     // Record what COULD have been auto-included, for the checker's near-miss.
@@ -384,6 +392,7 @@ prefix = "My") {
     // win — the library's is then never pulled — so taking one is refused,
     // naming what it replaces. Not when the file being compiled IS that library
     // file (verifying library/card.declare declares Card by right).
+    const squats = [];
     for (const d of [...program.classes, ...(program.shapes ?? [])]) {
         const path = manifest[d.name];
         if (path === undefined)
@@ -392,7 +401,9 @@ prefix = "My") {
         if (lib !== null && (visited.has(lib.canonical) || (mainSource !== undefined && mainSource.includes(lib.source))))
             continue;
         const kind = "base" in d ? "a class" : "a schema";
-        errors.push(new DeclareError(`'${d.name}' is a library class — ${kind} of the program can't take its name; rename yours, as '${prefix}${d.name}' (the library's is used as '${d.name} [ … ]')`, d.pos));
+        // a declaration from an included file is placed in that file
+        const file = includedFrom.get(d);
+        squats.push(new DeclareError(`'${d.name}' is a library class — ${kind} of the program can't take its name; rename yours, as '${prefix}${d.name}' (the library's is used as '${d.name} [ … ]')`, file !== undefined && d.pos.file === undefined ? { ...d.pos, file } : d.pos));
     }
     const foldOne = (name, pos, from) => {
         const prev = origin.get(name);
@@ -506,6 +517,7 @@ prefix = "My") {
         sourceFrom,
         sourceSplices,
         errors,
+        squats,
     };
 }
 //# sourceMappingURL=include.js.map

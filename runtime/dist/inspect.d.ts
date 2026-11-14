@@ -5,6 +5,14 @@ import { Node } from "./node.js";
  *  accessible name or its text (`app.seg.Two`), quoted when it holds a dot or a
  *  space (`app.menu."Save As…"`). */
 export declare function find(root: Node, path: string): Node | null;
+/** Where a path is ambiguous: the first step that names two or more views
+ *  alike (said), with their addresses — what a tool says instead of "no node",
+ *  as a strict locator names its matches. Null when the path is not. */
+export declare function ambiguity(root: Node, path: string): {
+    at: string;
+    step: string;
+    matches: string[];
+} | null;
 import { View } from "./view.js";
 import { type MaterializationDiag } from "./replicate.js";
 export interface InspectNode {
@@ -86,6 +94,8 @@ export interface Provenance {
         static: boolean;
         /** Typed into the Inspector at runtime — not compiled from source. */
         live: boolean;
+        /** What it reads: the read-paths it was wired to (`static`), or — a
+         *  tracked rule — the slots and data regions its last run read. */
         deps: readonly string[] | null;
         /** The MACHINERY writer, when the owner is not an authored constraint —
          *  "SimpleLayout" for layout-owned geometry (P2-2, field report

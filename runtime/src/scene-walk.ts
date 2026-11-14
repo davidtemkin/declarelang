@@ -82,12 +82,19 @@ const local = (s: SceneSurface, px: number, py: number): [number, number] => s.i
 // The wheel goes to the deepest `onWheel` claimant or scroller — an
 // intervening scroller keeps its wheel; the page's own scroller is the
 // browser's, never this walk's.
-const PRESS: HitAccept<SceneSurface> = (s) => (s.sink === null ? "passed over — holds no input" : s.pe === "none" ? "passed over — pointerEvents = \"none\"" : null);
+/** Switched off for the pointer: the nearest authored `pointerEvents`, on it or
+ *  above it, is `"none"` — a `"none"` reaches the whole subtree, and an
+ *  `"auto"` below it switches its own part back on. */
+export function pointerOff(s: SceneSurface): boolean {
+  for (let u: SceneSurface | null = s; u !== null; u = u.parent) if (u.pe !== "") return u.pe === "none";
+  return false;
+}
+const PRESS: HitAccept<SceneSurface> = (s) => (s.sink === null ? "passed over — holds no input" : pointerOff(s) ? "passed over — pointerEvents = \"none\"" : null);
 /** Under the pointer at all, as the browser's hit-testing sees a view on the
  *  DOM: it takes a press, or shows a cursor of its own (the DOM gives such a
  *  view `pointer-events: auto` for its cursor alone). */
 const POINTABLE: HitAccept<SceneSurface> = (s) =>
-  s.pe === "none" ? "passed over — pointerEvents = \"none\"" : s.sink !== null || s.cursorStyle !== "" ? null : "neither takes a press nor shows a cursor";
+  pointerOff(s) ? "passed over — pointerEvents = \"none\"" : s.sink !== null || s.cursorStyle !== "" ? null : "neither takes a press nor shows a cursor";
 const WHEEL: HitAccept<SceneSurface> = (s) =>
   (s.wants?.wantsWheel === true && s.sink !== null) || (scroller(s) && s.pageRoot !== true) ? null : "neither claims the wheel nor scrolls";
 
@@ -139,7 +146,7 @@ export function hitWalk(s: SceneSurface, px: number, py: number): HitTarget | nu
  *  that takes a press or is a field, when it is a field — a press on a view over a field
  *  stays that view's. */
 const FIELD: HitAccept<SceneSurface> = (s) =>
-  s.pe === "none" ? "passed over — pointerEvents = \"none\"" : s.sink !== null || s.editable?.() === true ? null : "neither takes a press nor is a field";
+  pointerOff(s) ? "passed over — pointerEvents = \"none\"" : s.sink !== null || s.editable?.() === true ? null : "neither takes a press nor is a field";
 export function fieldWalk(s: SceneSurface, px: number, py: number): SceneSurface | null {
   const [lx, ly] = local(s, px, py);
   const t = walkHit(s, lx, ly, SURFACES, FIELD);

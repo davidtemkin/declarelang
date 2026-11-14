@@ -48,8 +48,10 @@ App [ width = 340, height = 100,
 **What is wrong, and when to say so, are two facts.** `problem` is what is wrong with the
 text **now**: a service's refusal (`refused`), then `required`, then **`validate(v)`, a method
 you declare** — return `""` when the text is good, otherwise the sentence to show. `error` is
-`problem` once the field has been **judged** — left, `judge()`d, or submitted with its form —
-and is what the field shows and a screen reader hears. Judging never refuses a change or
+`problem` once the field has been **judged** — left, `judge()`d, or submitted with its form,
+or from the start with `judged = true` — and is what the field shows and a screen reader hears: while `error` is not `""`, the field
+outlines itself in the theme's `error` colour (put the sentence itself in a `Text` beside it,
+or let the `Field` around it show it). Judging never refuses a change or
 alters the text; only `admit` does.
 
 **A field in a `Form`** joins it by being inside it. Its `name` is the key a service names it
@@ -93,6 +95,12 @@ What Return does once it has ended the edit: on a single-line field, and on a `m
 that sets `enterSubmits`. By default, the field's form's Return — submit, or on to the next
 field under `enterMoves`. Override it to say what Return does instead (a chat composer sends);
 an override that wants the form's behaviour too calls `super.onEnter()`.
+
+## showsCaret
+Whether the caret and the selection's highlight show while the field has focus — `true`
+by default. `false` makes a focused field read as plain text until it is edited, while it
+still takes what is typed, an input method's composing included: a spreadsheet's selected
+cell, where typing replaces the text, or a label edited in place.
 
 ## spellcheck
 Toggles the native spell-check underline. A field whose `purpose` is not prose (an
@@ -217,6 +225,9 @@ The theme's `surface`.
 The theme's `line`; its `accent` while the field has the focus, its `error` while it says
 what is wrong.
 
+## opacity
+Disabled dims the whole field to the theme's `disabledOpacity`, as every control dims.
+
 ## cornerRadius
 The theme's `fieldCornerRadius`, else its `controlCornerRadius`.
 
@@ -254,6 +265,11 @@ class TextInput extends ValueControl [
     multiline: boolean = false,
     enterSubmits: boolean = false,
     spellcheck: boolean = true,
+
+    // false: focused, it shows no caret and no selection highlight, so it reads as
+    // text until it is edited — a spreadsheet's selected cell, a label edited in place
+
+    showsCaret: boolean = true,
     purpose: InputPurpose = text,
     concealed: boolean = { purpose == "password" || purpose == "newPassword" },
     wrap: boolean = true,
@@ -313,6 +329,7 @@ class TextInput extends ValueControl [
     fill = { provided("theme")?.surface ?? 0xFFFFFF },
     stroke = { stroke(1, error != "" ? (provided("theme")?.error ?? 0xC93429) : focused ? (provided("theme")?.accent ?? 0x2E6FE0) : (provided("theme")?.line ?? 0xDBE1E9)) },
     cornerRadius = { provided("theme")?.fieldCornerRadius ?? provided("theme")?.controlCornerRadius ?? 7 },
+    opacity = { disabled ? (provided("theme").disabledOpacity) : 1 },
 
     // on a touch-first device a one-line field is a finger's target, 44 tall, as
     // every control is there: its top and bottom insets grow to make it so
@@ -337,6 +354,7 @@ class TextInput extends ValueControl [
         multiline = { classroot.multiline },
         enterSubmits = { classroot.enterSubmits },
         spellcheck = { classroot.spellcheck },
+        showsCaret = { classroot.showsCaret },
         purpose = { classroot.purpose },
         concealed = { classroot.concealed },
         wrap = { classroot.wrap },

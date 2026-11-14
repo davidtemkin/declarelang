@@ -50,9 +50,9 @@ Null for anything else.
 What the field shows under its control: the control's `error`, empty when it says nothing.
 
 ## fieldLabel
-The caption, provided to what the field holds: every value control inside (a `TextInput`,
-`Stepper`, `RadioGroup`, `Combobox`, one of your own) takes it as its name to a screen reader
-unless it has its own (`accessibilityLabel`).
+The caption, provided to what the field holds: every control inside — a `TextInput`,
+`Combobox`, `Segmented`, a slider you drew — takes it as its name to a screen reader unless
+it has a name of its own (`accessibilityLabel`, or words it shows, as a `Button` does).
 
 ## _field
 **Internal.** what a control inside reads to report itself to this field.
@@ -107,17 +107,29 @@ class FieldLayout extends Layout [
         const f = this.view as Field
         const kids = this.laid()
         const out = [] as any
+        const cap = kids[0] as Text
         const x0 = f.stacked ? 0 : f.labelWidth + 12
-        const y0 = f.stacked ? kids[0].height + 6 : 0
         let x = x0
         let h = 0
+        let first = null as any
         for (let i = 2; i < kids.length; i++) {
             const c = kids[i]
             if (!c.visible) continue
+            if (first == null) first = c
             x = x + c.width + 12
             h = Math.max(h, c.height)
             }
-        out.push(f.stacked ? ({ x: 0, y: 0 }) : ({ x: 0, y: 6, w: f.labelWidth }))
+        // beside the control, the caption sits on its baseline when it declares
+        // one (a field's text), else centred on it (a slider, a bar); whichever
+        // of the two is lower sets the line
+        let capY = f.stacked ? 0 : 6
+        let y0 = f.stacked ? cap.height + 6 : 0
+        if (!f.stacked && first != null) {
+            const b = (first as any).baseline
+            capY = typeof b == "number" ? b - cap.baseline : (first.height - cap.height) / 2
+            if (capY < 0) { y0 = -capY; capY = 0 }
+            }
+        out.push(f.stacked ? ({ x: 0, y: 0 }) : ({ x: 0, y: capY, w: f.labelWidth }))
         // the message spans the controls, at least 160 so a short one's is not
         // cramped — but never past the field's own room, when it has one (a
         // half-width field on a phone ran its message off the screen)

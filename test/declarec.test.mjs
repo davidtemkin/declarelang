@@ -677,11 +677,16 @@ await test("buildProduction emits a self-contained bundle in the expected size r
 //   The runtime at 131.2 KB: +2.0 KB for the key walk (key-bindings.md step 1 —
 //   class-layered keyBindings, the standard table, chords first); step 2 (menus as
 //   commands, overlays and the clipboard on the walk) is still to land.
+//   2026-11-13: limit 136 → 139 KB, set by the author. The runtime at 136.1 KB (139,384 B)
+//   after the build list of 2026-11-13: app.fullScreen, disabled reaching every control
+//   inside, pointerEvents = "none" over a whole subtree, a TweenLayout box naming only
+//   what it moves, a content-sized view counting a child it centres, and a press carried
+//   to what was pressed when the layout moves it from under a still pointer.
 await test("the runtime and the one-file language stay within their budgets", async () => {
   const out = await buildProduction("App [ ]", { name: "empty", originDir: resolve(HERE, "..") });
   assert.ok(out.ok, "build should succeed: " + (out.errors?.map((e) => e.message).join("; ") ?? ""));
   const wire = out.files.reduce((n, f) => n + gzipSync(Buffer.from(f.contents)).length, 0);
-  assert.ok(wire < 136 * 1024, `the runtime is ${(wire / 1024).toFixed(1)} KB on the wire — past its 136 KB budget`);
+  assert.ok(wire < 139 * 1024, `the runtime is ${(wire / 1024).toFixed(1)} KB on the wire — past its 139 KB budget`);
   const words = readFileSync(resolve(HERE, "../docs/declare.md"), "utf8").split(/\s+/).filter(Boolean).length;
   assert.ok(words < 10000, `docs/declare.md is ${words} words — past its 10,000-word budget`);
 });

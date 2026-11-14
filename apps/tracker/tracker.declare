@@ -647,7 +647,7 @@ class EditorCard [
             // says what it is in its ink and outline
 
             del: Button [ width = 84, height = { app.footRowH }, visible = { !app.creating }, label = "Delete…",
-                inkColor = { provided("theme").danger }, stroke = { stroke(1, provided("theme").danger) },
+                ink = { provided("theme").danger }, stroke = { stroke(1, provided("theme").danger) },
                 onClick() { app.deleteSelection() }
                 ]
             ]
@@ -873,7 +873,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         this.takeSelection([rows[j]])
         this.list.showRow(j)
         this.list.activeIndex = j
-        this.list.active = rows[j]
+        this.list.activeItem = rows[j]
         },
 
     enterHit() {
@@ -1031,10 +1031,10 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         const it = draft.value.it
         const cur = it == null ? null : field == "status" ? it.status : field == "priority" ? it.priority : it.assignee
         if (field == "assignee")
-            return [({ id: "null", label: "Unassigned", checked: cur == null }), ({ id: "d", divider: true }),
-                ...issues.assignees().map((p) => ({ id: p, label: p, icon: "PersonIcon", props: ({ name: p }), checked: cur == p }))]
+            return [({ id: "null", label: "Unassigned", group: field, checked: cur == null }), ({ id: "d", divider: true }),
+                ...issues.assignees().map((p) => ({ id: p, label: p, icon: "PersonIcon", props: ({ name: p }), group: field, checked: cur == p }))]
         const opts = field == "status" ? issues.statuses : issues.priorities
-        return opts.map((o) => ({ id: o, label: field == "status" ? issues.statusLabel(o) : o, checked: cur == o }))
+        return opts.map((o) => ({ id: o, label: field == "status" ? issues.statusLabel(o) : o, group: field, checked: cur == o }))
         },
 
     addLabelMenu: Menu [
@@ -1076,14 +1076,14 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
     rowMenu(row: IssueRow, e: PointerEvent) {
         const rec = row.item()
         if (!selection.some((r) => r.id == rec.id)) this.takeSelection([rec])
-        this.ctx.open(row, e)
+        this.ctx.showAt(row, e)
         },
 
     sortMenu: Menu [
         items = { [
-            ({ id: "updated", label: "Updated", checked: app.sortOn == "updated" }),
-            ({ id: "priority", label: "Priority", checked: app.sortOn == "priority" }),
-            ({ id: "title", label: "Title", checked: app.sortOn == "title" }),
+            ({ id: "updated", label: "Updated", group: "sort", checked: app.sortOn == "updated" }),
+            ({ id: "priority", label: "Priority", group: "sort", checked: app.sortOn == "priority" }),
+            ({ id: "title", label: "Title", group: "sort", checked: app.sortOn == "title" }),
         ] },
         picked(id: string) { app.setSort(id as "updated" | "priority" | "title") }
         ],
@@ -1147,7 +1147,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
             layout: SimpleLayout [ axis = x, spacing = 5 ],
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
                 textFill = { gradient("90deg", provided("theme").accent, provided("theme").brandTeal) }, text = "Declare",
-                onClick() { app.navigate("apps/homepage/homepage.declare") }
+                onClick() { app.openURL("apps/homepage/homepage.declare") }
                 ],
             Text [ fontSize = 18, fontWeight = semibold, letterSpacing = { -0.02 * fontSize }, wrap = false,
                 visible = { !app.compact }, text = "Tracker" ]
@@ -1179,10 +1179,10 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
         // the scale demo: at phone widths the search field needs the room
 
         views: Segmented [ visible = { !app.compact },
-            segMin = 62,
+            segmentMinWidth = 62,
             value = { app.issues.total >= 1000000 ? "1M" : app.issues.total >= 100000 ? "100k" : "10k" },
-            input(v: object) { app.regenerate(("" + v) == "1M" ? 1000000 : ("" + v) == "100k" ? 100000 : 10000) },
-            choices = { [ ({ id: "10k", label: "10K" }), ({ id: "100k", label: "100K" }), ({ id: "1M", label: "1M" }) ] }
+            commit(v: object) { app.regenerate(("" + v) == "1M" ? 1000000 : ("" + v) == "100k" ? 100000 : 10000) },
+            items = { [ ({ id: "10k", label: "10K" }), ({ id: "100k", label: "100K" }), ({ id: "1M", label: "1M" }) ] }
             ],
 
         // light / dark: shows the appearance in force, a press flips it; until
@@ -1190,7 +1190,7 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
 
         appear: AppearanceSwitch [
             dark = { app.darkUI },
-            input(v: boolean) { app.themeMode = v ? "dark" : "light" }
+            commit(v: boolean) { app.themeMode = v ? "dark" : "light" }
             ]
         ],
 
@@ -1300,9 +1300,9 @@ App [ fill = { provided("theme").background }, textColor = { provided("theme").t
                 accessibilityLabel = "Issues",
                 datapath = { app.shown.value },
                 selects = "multi",
-                selected = { app.selected },
+                selectedItem = { app.selected },
                 selection = { app.selection },
-                input(sel: array) { app.takeSelection(sel) },
+                commit(sel: array) { app.takeSelection(sel) },
                 deleteRequested() { app.deleteSelection() },
                 activateRequested() { app.openDetail() },
                 ListRow [ datapath = :rows[], virtualize = true,

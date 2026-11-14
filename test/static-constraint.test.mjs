@@ -274,7 +274,7 @@ test("a wired constraint stays reactive after an Animator displaces and complete
     const app = await run(`App [ width = 400, height = 100,
         prog: number = 0,
         v: View [ height = 10, width = { 50 + app.prog },
-            a: Animator [ attribute = width, to = 150, duration = 100, motion = linear ] ] ]`);
+            a: Animator [ attribute = width, to = 150, duration = 100, easing = linear ] ] ]`);
     const k = owner(app.v, "width");
     assert.equal(k.isStatic, true, "the base is on the static path");
     assert.equal(app.v.width, 50, "base value at boot");

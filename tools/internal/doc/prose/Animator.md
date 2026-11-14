@@ -1,4 +1,4 @@
-Drives one numeric attribute from `from` to `to` over `duration`, on a motion curve — the
+Drives one numeric attribute from `from` to `to` over `duration`, on an easing curve — the
 **timed** half of the animation family. A non-visual node you place *inside* the view it
 animates, naming the target attribute with `attribute`. For motion toward a **live, reactive**
 target (one that keeps moving), reach for `Spring` instead — an Animator runs a fixed
@@ -33,8 +33,8 @@ a spinner, a typing indicator. A loop like that is never "about to finish", so a
 `settleMotion` runs every other motion to rest without waiting for it (a large finite count
 is a motion that ends, and holds it).
 
-## motion
-The easing curve — a motion token (`quad`, `back`, …) naming the shape of the interpolation
+## easing
+The easing curve — a token (`quad`, `back`, …) naming the shape of the interpolation
 between `from` and `to`.
 
 ## relative

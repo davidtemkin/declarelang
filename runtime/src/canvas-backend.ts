@@ -27,7 +27,7 @@
 // the rest — arrived with the compositing arc (2026-08: `invertPoint` below,
 // so the hit walk tells the truth about a turned or scaled surface).
 
-import { wireEditableInput, setEditableValue, applyEditableText } from "./editable-input.js";
+import { wireEditableInput, setEditableValue, applyEditableText, applyCaret } from "./editable-input.js";
 import { watchSelection } from "./edit-selection.js";
 import { profileHook } from "./reactive.js";
 import { platformTimeout, clearPlatformTimeout, type PlatformTimer } from "./platform-time.js";
@@ -125,7 +125,7 @@ const damageDisabled = (): boolean => typeof __DECLARE_DEV_SWITCHES__ !== "undef
 const damageChecking = (): boolean => typeof __DECLARE_DEV_SWITCHES__ !== "undefined" && __DECLARE_DEV_SWITCHES__ && (globalThis as { __declareDamageCheck?: unknown }).__declareDamageCheck !== undefined;
 import { type MaskSpec, notifyIslandSlot, type Bitmap, type EditableSpec, type InputSink, type RenderBackend, type Stretch, type Surface, type InputWants } from "./backend.js";
 import { lockFocusZoom } from "./viewport-lock.js";
-import { colorToCss, insetCss, insetSides, isGradient, radiusFit, radiusIsSquare, type Fill, type Gradient, type Outline, type Inset, type Radius, type Shadow, type BoxStroke, filterBlur, type Filter, filterBleed } from "./value.js";
+import { colorToCss, insetCss, insetSides, isGradient, radiusFit, radiusIsSquare, type Fill, type Gradient, type Stroke, type Inset, type Radius, type Shadow, type BoxStroke, filterBlur, type Filter, filterBleed } from "./value.js";
 import { filterCss } from "./filter-css.js";
 import { paintBox, paintBoxShadow, boxShape, realizeGradient } from "./boxpaint.js";
 import { clampLines, cssWeight, fontMetrics, fontString, textWidth, transformText, wrapLines, type TextStyle, type TextTransform } from "./measure.js";
@@ -159,7 +159,7 @@ function applyCanvasEditStyle(el: HTMLElement, st: TextStyle): void {
   s.lineHeight = m.ascent + m.descent + "px";
 }
 
-/** The Blend enum's camelCase tokens → Canvas2D operators. The set is the
+/** The BlendMode enum's camelCase tokens → Canvas2D operators. The set is the
  *  W3C compositing-and-blending modes every backend carries natively
  *  (compositing.md §2); only two spellings differ from a mechanical
  *  hyphenation: `normal` is source-over, `plusLighter` is `lighter`. */
@@ -374,7 +374,7 @@ function evictLeastValuable(except: CanvasSurface): boolean {
 //     session (Mesa's engine, scroll-physics.ts: drag, momentum, rubber-band
 //     spring) that steps here each frame. Its rubber band is PRESENTATION —
 //     the visual offset — while the fact stays clamped to the range.
-//   • GLIDES — a request with `{ duration, motion }` tweens here on a Declare
+//   • GLIDES — a request with `{ duration, easing }` tweens here on a Declare
 //     motion curve; a gesture on the same surface cancels it (arbitration).
 // Offsets land on the surfaces, the frame PAINTS (a translate of cached
 // rasters), and only then are the FACTS written — once per frame — so the
@@ -382,7 +382,7 @@ function evictLeastValuable(except: CanvasSurface): boolean {
 // later: the documented ≤1-frame lag). `userScrolling` is the USER's scroll: true
 // while a wheel stream or a touch is live (plus a short quiet tail after a
 // wheel stream) — a glide, the program's own motion, never raises it.
-type Glide = { duration?: number; motion?: string };
+type Glide = { duration?: number; easing?: string };
 interface Tween { axis: "x" | "y"; from: number; to: number; start: number; duration: number; curve: Motion }
 interface TouchSession { s: CanvasSurface; physics: ScrollPhysics; started: boolean; x0: number; y0: number; last: number }
 
@@ -435,7 +435,7 @@ class ScrollLoop {
 
   /** A request with a glide: a tween on the provider's own loop. */
   glide(s: CanvasSurface, axis: "x" | "y", to: number, g: Glide): void {
-    const curve = motionToken(g.motion ?? "cubicOut") ?? DEFAULT_MOTION;
+    const curve = motionToken(g.easing ?? "cubicOut") ?? DEFAULT_MOTION;
     const from = axis === "y" ? s.scrollOffset : s.scrollXOffset;
     const list = (this.tweens.get(s) ?? []).filter((t) => t.axis !== axis);
     list.push({ axis, from, to, start: performance.now(), duration: Math.max(1, g.duration ?? 260), curve });
@@ -1559,7 +1559,7 @@ class CanvasSurface implements Surface, SceneSurface {
   private textShadow: Shadow | null = null;
   // Typographical treatments (the span/Text paint vocabulary) — mirrored from
   // the DOM's setRichContent/setTextStyle so canvas runs wear the same look.
-  private textOutline: Outline | null = null;
+  private textOutline: Stroke | null = null;
   private textDirection: "ltr" | "rtl" = "ltr";
   private textTransform: TextTransform = "none";
   private textUnderline = false;
@@ -2002,7 +2002,7 @@ class CanvasSurface implements Surface, SceneSurface {
     // smallCaps rides `fontString(st)` above (the CSS variant slot), so the
     // painter and the shared measurer synthesize the same caps; the rest are
     // paint-time decorations honored in the text branch below.
-    this.textOutline = st.outline ?? null;
+    this.textOutline = st.textStroke ?? null;
     this.textDirection = st.direction ?? "ltr";
     this.fontSizePx = st.fontSize;
     this.textTransform = st.textTransform ?? "none";
@@ -2300,6 +2300,7 @@ class CanvasSurface implements Surface, SceneSurface {
     // spellcheck election, and the wrap mode all come from the one spec —
     // the overlay is the same editable, positioned differently.
     applyPurpose(el, spec.purpose, spec.concealed, spec.spellcheck, spec.enterHint ?? "");
+    applyCaret(el, spec.caret !== false);
     el.style.padding = insetCss(spec.padding);
     if (el instanceof HTMLTextAreaElement) {
       el.wrap = spec.wrap ? "soft" : "off";
@@ -2626,7 +2627,10 @@ class CanvasSurface implements Surface, SceneSurface {
    *  "nearest" scrolls the minimum distance that reveals the surface — nothing
    *  when it is already visible (the keyboard traversal's reveal). */
   scrollIntoView(align: "start" | "nearest" | number = 0, _smooth = false, inset = 0): void {
-    const within = (typeof align === "number" ? align : 0) - inset;
+    // `inset`: the scroller's top `inset` px are covered (fixed chrome) — the
+    // view lands that far below the top, and "nearest" counts a view under the
+    // band as hidden; the bottom edge is unchanged (DOM's scroll-margin-top)
+    const within = typeof align === "number" ? align : 0;
     // the x arm (the mac backend's revealX, verbatim in spirit): the nearest
     // HORIZONTAL scroller reveals this surface's box on its own axis
     {
@@ -2657,11 +2661,11 @@ class CanvasSurface implements Surface, SceneSurface {
     if (sc === null) return;                 // nothing scrolls above us
     off += cur.y + within;                   // cur is the scroll container's direct child
     const max = Math.max(0, sc.contentExtent() - sc.height);
-    let next = Math.min(max, Math.max(0, off));
+    let next = Math.min(max, Math.max(0, off - inset));
     if (align === "nearest") {
       const top = sc.scrollOffset, bottom = top + sc.height;
-      if (off >= top && off + this.height <= bottom) return;   // already visible
-      next = off < top ? Math.max(0, off) : Math.min(max, off + this.height - sc.height);
+      if (off - inset >= top && off + this.height <= bottom) return;   // already visible
+      next = off - inset < top ? Math.max(0, off - inset) : Math.min(max, off + this.height - sc.height);
     }
     if (next !== sc.scrollOffset) {
       if (sc.pageRoot) {

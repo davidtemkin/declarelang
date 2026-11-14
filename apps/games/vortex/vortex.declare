@@ -296,7 +296,7 @@ App [ appName = "Vortex", fontFamily = ["Menlo", "Consolas", "monospace"],
     choiceShown: number = 0,
     choiceSpring: Spring [ attribute = choiceShown, to = { app.choice }, stiffness = 260, damping = 26 ],
     chooseLeft: number = 10,
-    chooseClock: Animator [ attribute = chooseLeft, from = 10, to = 0, duration = 10000, motion = linear,
+    chooseClock: Animator [ attribute = chooseLeft, from = 10, to = 0, duration = 10000, easing = linear,
         started = { app.mode == "choose" }, paused = { app.paused },
         onStop() { if (app.mode == "choose") app.pick() }
         ],
@@ -311,16 +311,16 @@ App [ appName = "Vortex", fontFamily = ["Menlo", "Consolas", "monospace"],
     dive: number = 0,
     approach: number = 0,
     cam: number = { app.dive * (app.tube.zFar - 1) - app.approach },
-    diving: Animator [ attribute = dive, from = 0, to = 1, duration = 2600, motion = quadIn,
+    diving: Animator [ attribute = dive, from = 0, to = 1, duration = 2600, easing = quadIn,
         started = { app.mode == "zoom" }, paused = { app.paused },
         onStop() { if (app.mode == "zoom") app.levelDone() }
         ],
-    arriving: Animator [ attribute = approach, from = 16, to = 0, duration = 2600, motion = cubicOut,
+    arriving: Animator [ attribute = approach, from = 16, to = 0, duration = 2600, easing = cubicOut,
         paused = { app.paused },
         onStop() { if (app.mode == "warp") app.mode = "play" }
         ],
     starsShown: number = { app.mode == "warp" ? clamp(app.approach / 5, 0, 1) : 0 },
-    zapFlash: Animator [ attribute = flash, from = 1, to = 0, duration = 700, motion = quadOut ],
+    zapFlash: Animator [ attribute = flash, from = 1, to = 0, duration = 700, easing = quadOut ],
 
     /* ## The records in play */
 

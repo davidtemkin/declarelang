@@ -31,7 +31,7 @@ export declare class Animator extends Node implements Animatable {
     /** Duration in milliseconds (LZX; a plain number, no unit suffix). */
     duration: number;
     /** The easing curve, carried whole (default easeBoth, LZX). */
-    motion: Motion;
+    easing: Motion;
     /** How many times to play from→to (default 1; Infinity legal, LZX). */
     repeat: number;
     perpetual: boolean;

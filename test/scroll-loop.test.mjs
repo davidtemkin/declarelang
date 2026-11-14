@@ -121,7 +121,7 @@ await test("canvas: the pane CONTAINS — a wheel past its limit is consumed and
 });
 
 await test("canvas: a request with a glide tweens on the loop and lands exactly on target", async () => {
-  await page.evaluate(() => window.__app.pane.scrollTo(400, { duration: 160, motion: "cubicOut" }));
+  await page.evaluate(() => window.__app.pane.scrollTo(400, { duration: 160, easing: "cubicOut" }));
   await frames(3);
   const mid = await facts();
   assert.ok(mid.y < 1700 && mid.y > 400, `mid-glide the offset is between (got ${mid.y})`);

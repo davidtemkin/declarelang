@@ -1,4 +1,4 @@
-import type { Node } from "./node.js";
+import { type Node } from "./node.js";
 export interface BootCheckOptions {
     /** The window is a touch device: targets too small for a finger are said. */
     touch?: boolean;
@@ -21,7 +21,13 @@ export interface BootCheckRecord {
     nodes: number;
     notes: string[];
     layout: string[];
+    /** Faults, not judgements — a view whose size nothing decides, or only its
+     *  padding with its children hanging outside: they fail the rung that finds them. */
+    faults: string[];
+    /** The program's classes with no instance standing now… */
     unbuilt: string[];
+    /** …and of those, the ones never constructed at all in this page. */
+    neverBuilt: string[];
     answers: string[];
     samples: {
         source: string;

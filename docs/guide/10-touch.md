@@ -67,7 +67,7 @@ takes exactly what the handler needs in order to fire, and not one gesture more:
 |---|---|---|
 | `onDragStart` / `onDrag` / `onDragEnd` | the single-finger drag over this view | nothing — a mouse drag was always yours |
 | `onHold` + the drag handlers | the drag, **from the hold** — a quick swipe still pans | nothing new — the mouse drag was already yours |
-| `onDblClick` | the double tap | nothing — a double click was always yours |
+| `onDoubleClick` | the double tap | nothing — a double click was always yours |
 | `onWheel` | — | the wheel over this view, trackpad pinch included |
 | the `onPinch*` family | the **two-finger** gesture — one finger still pans the page | — |
 | the `onTouch*` family | **every finger** | — |
@@ -104,7 +104,7 @@ photo. A hold on the view that was pressed leaves that view's own click alone
 it is a child's tap that a hold answered above it ends.
 
 ```declare-fragment
-Bubble [ onHold(e: PointerEvent) { app.rowMenu.open(this, e) },
+Bubble [ onHold(e: PointerEvent) { app.rowMenu.showAt(this, e) },
     photo: Image [ onClick() { app.viewPhoto(:photo) } ],    // a tap opens the photo; a hold is the bubble's
     time: Text [ text = :time ]
     ]

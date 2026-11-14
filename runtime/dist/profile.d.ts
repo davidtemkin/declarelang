@@ -1,4 +1,8 @@
 import { type Node } from "./node.js";
+/** The finite motion in flight now, each named by what it moves and where —
+ *  `Spring (x) on app.panel`: the settle predicate's tickers (perpetual ones,
+ *  a Time or a `repeat = Infinity` loop, are life and never listed). */
+export declare function motionInFlight(nameOf?: (node: object) => string): string[];
 /** Start recording (clearing what was recorded). `cap` turns are kept, the oldest
  *  dropped. `why` records the wake trace beside the profile, so each turn can say
  *  which writes opened it (it costs a copy of the value table per settle); `frames`

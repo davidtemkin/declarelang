@@ -47,17 +47,17 @@ export class TweenLayout extends Layout {
             const a = new Animator();
             a.attribute = "t";
             a.to = 1;
-            a.motion = motionToken("laszloBoth");
+            a.easing = motionToken("laszloBoth");
             this.$appendChild(a); // parent = this layout → the animator targets `t` on it
             this.tween = a;
         }
         const kids = this.laid();
         const arranger = `${(this.view !== null ? declareName(this.view) : "?")}'s ${declareName(this)}`;
         const owned = [];
-        // This strategy claims all four geometry slots plus visibility on every
-        // laid child, unconditionally — the one arrangement in which a child
-        // cannot keep its own size and stay placed — so an author binding on any
-        // of them is a refusal, and the sentence has to SAY all of that. It called
+        // This strategy claims each geometry slot its boxes name, plus visibility,
+        // on every laid child — so an author binding on one it names is a refusal,
+        // and the sentence has to SAY all of that. A slot a box leaves out stays
+        // the child's own, as in every other layout. It called
         // own() bare until 2026-09-19 and got the generic `View.width is already
         // bound (by Grid[0].width)`: no layout named, no position, and no
         // `ignoreLayout` offered, which is exactly the message that most needed to
@@ -83,9 +83,14 @@ export class TweenLayout extends Layout {
                 o.k.dispose();
             }
         };
+        // the slots each child's box names: one it leaves out stays the child's own
+        // (a change in which it names re-installs, the base layout's shape watch)
+        const boxes = this.place();
         try {
             kids.forEach((child, idx) => {
                 for (const [slot, key] of SLOTS) {
+                    if (boxes[idx]?.[key] === undefined)
+                        continue;
                     const k = new Constraint(`${declareName(this)}[${idx}].${slot}`, () => {
                         const f = this.from[idx];
                         const g = this.to[idx];
@@ -177,10 +182,24 @@ export class TweenLayout extends Layout {
     /** `from` is each known child's live box; a child never placed before starts
      *  at its destination, hidden (`vis: false`), so it appears where it belongs
      *  once the motion lands instead of flying in from the origin. */
+    /** Each child's own box, as it stood before this layout first placed it —
+     *  what a key a place() box leaves out stands at. */
+    $ownBox = new WeakMap();
     $snapshot(animate) {
         const kids = this.laid();
-        // a box that leaves out `vis` is shown, as in every other layout's place()
-        const to = this.place().map((b) => b.vis === undefined ? { ...b, vis: true } : b);
+        for (const c of kids)
+            if (!this.placed.has(c) && !this.$ownBox.has(c))
+                this.$ownBox.set(c, { x: c.x, y: c.y, w: c.width, h: c.height });
+        // a box that leaves out `vis` is shown, as in every other layout's place();
+        // one that leaves out x, y, w or h keeps the child's own
+        const to = this.place().map((b, i) => {
+            const o = kids[i] !== undefined ? this.$ownBox.get(kids[i]) : undefined;
+            return {
+                ...b,
+                x: b.x ?? o?.x ?? 0, y: b.y ?? o?.y ?? 0, w: b.w ?? o?.w ?? 0, h: b.h ?? o?.h ?? 0,
+                vis: b.vis === undefined ? true : b.vis,
+            };
+        });
         this.from = kids.map((c, i) => this.placed.has(c) || to[i] === undefined
             ? { x: c.x, y: c.y, w: c.width, h: c.height, vis: c.visible }
             : { ...to[i], vis: false });

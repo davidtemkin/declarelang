@@ -17,7 +17,8 @@ import type { Program } from "./parser.js";
  *  matches the host itself, so one selector answers both. */
 export declare function isEmbedded(host: HTMLElement): boolean;
 /** The host's service table for the app→host verbs (App.$hostServices): install
- *  it at mount and `navigate`/`openWindow`/`inspect` call it SYNCHRONOUSLY —
+ *  it at mount and `openURL`/`openWindow`/`inspect` call it SYNCHRONOUSLY (the
+ *  service `navigate` carries `openURL`) —
  *  inside the click's transient user activation — instead of parking intents
  *  on the pending* channels for a poll that no longer exists. Per-app, so a
  *  page hosting several apps routes each to its own services, and an embedding
@@ -83,6 +84,11 @@ export declare function renderProgram(program: Program, host: HTMLElement, backe
 export declare function buildProgram(program: Program, opts?: {
     deps?: readonly (readonly string[])[];
     provides?: Readonly<Record<string, unknown>>;
+    host?: HTMLElement;
+    size?: {
+        width: number;
+        height: number;
+    };
 }): App;
 /** What renderProgramAsync takes beside the program: the program's own
  *  directory for its relative bitmaps and faces (`assetBase`), the host's

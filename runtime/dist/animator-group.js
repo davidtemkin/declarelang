@@ -200,7 +200,7 @@ defineAttributes(AnimatorGroup, {
     from: { def: null },
     relative: { def: false },
     duration: { def: 1000 },
-    motion: { def: DEFAULT_MOTION },
+    easing: { def: DEFAULT_MOTION },
     process: { def: "sequential" },
     repeat: { def: 1 },
     started: { def: false, push: (s, v) => s.$startedChanged(v) },

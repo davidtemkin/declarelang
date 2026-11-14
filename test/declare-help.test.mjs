@@ -12,7 +12,7 @@ import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { join, resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { CSS_ATTRIBUTE_HINTS } from "../runtime/dist/teach.js";
+import { CSS_ATTRIBUTE_HINTS, REACT_NAMES } from "../runtime/dist/teach.js";
 import { test, summarize } from "./harness.mjs";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -259,12 +259,21 @@ await test("no foreign-name hint denies a name the language actually has", () =>
   assert.ok(overlap.length > 0, "the overlap set is empty — this pin would be vacuous");
   const lying = overlap.filter((k) => help(k).out.includes("is not a Declare name"));
   assert.deepEqual(lying, [], "hint keys answered as foreign though the language declares them");
-  // …and the orientation is not lost: the CSS reader still gets the instinct
+  // …and the orientation is not lost: the CSS (or React) reader still gets the instinct
   for (const k of overlap) {
-    assert.match(help(k).out, /the CSS instinct:/, `${k} answered without its CSS orientation`);
+    const label = REACT_NAMES.has(k) ? /the React instinct:/ : /the CSS instinct:/;
+    assert.match(help(k).out, label, `${k} answered without its orientation`);
   }
   // a genuinely foreign name still answers as foreign
   assert.match(help("zIndex").out, /is not a Declare name/);
+});
+
+await test("a real name near a hint key answers as itself, not as the hint's near-miss (tabOrder ≠ border)", () => {
+  // the fuzzy route to the CSS hints (two edits) ran before the real-name guard
+  const r = help("tabOrder").out;
+  assert.doesNotMatch(r, /is not a Declare name/);
+  assert.match(r, /^View\.method\.tabOrder — method/, "a bare method answers as the class that declares it");
+  assert.match(help("bordr").out, /is not a Declare name/, "a genuine misspelling still reaches the hint");
 });
 
 await test("a member a class inherits from Node is answered under the class (View.datapath, Button.onInit)", () => {
@@ -298,6 +307,57 @@ await test("map lists a program's parts with their lines, so an exemplar is read
   const j = JSON.parse(help("map", "apps/calendar/calendar.declare", "--json").out);
   assert.ok(j.parts.some((p) => p.depth === 1), "an App member or a class's named part is listed under it");
   assert.equal(help("map", "no/such/file.declare").code, 1, "a missing file is a miss");
+});
+
+await test("a camelCase word is its words, and a Class.member miss still answers what the bare name does", () => {
+  // `scrollPadding` reaches what `scroll padding` does
+  for (const q of ["scrollPadding", "scrollMargin", "scrollInset", "scrollInsetBottom"]) {
+    const r = help(q);
+    assert.equal(r.code, 0, `${q}: ${r.out}`);
+    assert.match(r.out, /View\.ignoreScroll/, `${q} reaches the pinned-chrome concept: ${r.out.split("\n")[0]}`);
+  }
+  assert.equal(help("scrollPadding").out.split("\n").slice(1).join("\n"), help("scroll padding").out.split("\n").slice(1).join("\n"));
+  // a real camelCase name stays whole
+  assert.match(help("scrollIntoView").out, /^View\.method\.scrollIntoView/);
+  // `View.focusEntry` misses on View, then answers as `focusEntry` does
+  const fe = help("View.focusEntry");
+  assert.equal(fe.code, 0);
+  assert.match(fe.out, /View has no member 'focusEntry'/);
+  assert.ok(fe.out.includes(help("focusEntry").out.split("\n")[0]), fe.out);
+  for (const q of ["App.phone", "App.viewport"]) {
+    const r = help(q);
+    const bare = help(q.split(".")[1]).out.split("\n")[0];
+    assert.equal(r.code, 0, r.out);
+    assert.ok(r.out.includes(bare), `${q} answers at least what the bare name does (${bare}): ${r.out}`);
+  }
+});
+
+// 7GUIs run 3: a sheet's roles were unreachable — `grid` answered only the
+// layout sense, `spreadsheet` and `table roles` with prose noise, `rowHeader`
+// with entries that merely mention it.
+await test("a grid's roles are reachable: grid keeps the layout answer and adds the role; spreadsheet, table roles and rowHeader route to them", () => {
+  const g = help("grid");
+  assert.match(g.out, /No grid layout strategy/, g.out);
+  assert.match(g.out, /accessibilityRole = grid/, g.out);
+  for (const q of ["spreadsheet", "table roles"]) {
+    const r = help(q);
+    assert.equal(r.code, 0, r.out);
+    assert.match(r.out, /rowHeader/, `${q}: ${r.out}`);
+    assert.match(r.out, /docs\/guide\/19-accessibility\.md § Your own controls/, `${q}: ${r.out}`);
+  }
+  const rh = help("rowHeader");
+  assert.match(rh.out, /^'rowHeader' is a token of AccessibilityRole/, rh.out);
+  assert.match(rh.out, /View\.accessibilityRole/, rh.out);
+});
+
+// Murmur run 17: `onEnter` is TextInput's (a library event), and asked on the
+// class it sits under, it names the class that has it.
+await test("a library event answers by its handler name, and from a class above its owner", () => {
+  const bare = help("onEnter");
+  assert.match(bare.out, /^onEnter\(\) — an event on: TextInput/, bare.out);
+  const above = help("ValueControl.onEnter");
+  assert.match(above.out, /^ValueControl has no member 'onEnter' — TextInput \(a ValueControl\) has it/, above.out);
+  assert.match(above.out, /declare-help TextInput\.onEnter/, above.out);
 });
 
 summarize("declare-help");

@@ -50,14 +50,14 @@ function rectAt(x, y, w, h, fill) {
  *  canvas twin of dom-backend's setRichContent run block, so a span wears the
  *  same look on either substrate. Strike stays a manual rule in the flow below
  *  (baseline-tuned and DOM-parity-gated); underline, absent on canvas until now,
- *  and the paint treatments (shadow/outline/transform/smallCaps) the Text painter
+ *  and the paint treatments (shadow/textStroke/transform/smallCaps) the Text painter
  *  draws. smallCaps also rides the run's fontString at measure time, so its
  *  synthesized-caps width is the one the flow lays out. */
 function applyRunTreatments(t, r) {
     if (r.shadow != null)
         t.textShadow = r.shadow;
     if (r.outline != null)
-        t.outline = r.outline;
+        t.textStroke = r.outline;
     if (r.transform !== undefined)
         t.textTransform = r.transform;
     if (r.smallCaps)

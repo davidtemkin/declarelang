@@ -37,8 +37,8 @@ App [ width = 360, height = 260, fill = white,
 **Rules**
 - A handler writes the record under its cursor: `:done = v`. Elsewhere, `d.set(path, v)`,
   with `insert`, `removeAt` and `move` for arrays. `d.value` itself is read-only.
-- A control shows a value and hands edits back: `checked = :done` down, `input(v)` up.
-  Without the `input` override, the control's edit is refused.
+- A control shows a value and hands edits back: `checked = :done` down, `commit(v)` up.
+  Without the `commit` override, the control's edit is refused.
 - A control whose words are shown apart from it is named by them: the checkbox beside a
   row's text takes `accessibilityLabel = :title`, a field with no caption its own.
 - `<->` is for editors only (`TextInput`), and needs a `datapath` above it.
@@ -47,7 +47,7 @@ App [ width = 360, height = 260, fill = white,
 - A row of a derived dataset that *selects* writes through to the source. What the
   derivation *made* (a copy, a wrapper, a summary) is read-only and refuses the write.
 
-**Look up** `Dataset.set`, `Dataset.insert`, `Dataset.removeAt`, `Checkbox.input`,
+**Look up** `Dataset.set`, `Dataset.insert`, `Dataset.removeAt`, `Checkbox.commit`,
 `TextInput.text`, `Editor`.
 
 **Examples** `apps/lzx-calendar/lzx-calendar.declare`: `draft`, `startDraft()`, `apply()`,

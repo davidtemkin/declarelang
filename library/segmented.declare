@@ -2,17 +2,22 @@
 # Segmented
 
 A row of mutually exclusive choices — the control you reach for when the options
-are few, named, and worth showing all at once. Its choices are **data**, like
+are few, named, and worth showing all at once. Its choices are **data** — `items`, records like
 `Menu`'s items and `DataGrid`'s columns:
 
 ```declare-fragment
 Segmented [ width = 300, value = { app.page },
-    choices = { [ ({ id: "controls", label: "Controls" }),
-                 ({ id: "table",    label: "Table" }),
-                 ({ id: "grid",     label: "DataGrid" }) ] },
-    input(v: string) { app.page = v }
+    items = { [ ({ id: "controls", label: "Controls" }),
+               ({ id: "table",    label: "Table" }),
+               ({ id: "grid",     label: "DataGrid" }) ] },
+    commit(v: string) { app.page = v }
     ]
 ```
+
+### In a form
+
+It is a value control: in a `Form` it takes `name`, `required` and `validate` as a text field
+does, and a `Field` around it names it. Its value is the chosen segment's `id`.
 
 ### Tabs
 
@@ -34,30 +39,33 @@ Segments divide the control's width evenly — a segmented control divides evenl
 where a row of buttons sizes to its content. Equal width keeps the convention that
 segment labels are short and similar in length, and it lets the pill travel at
 constant width between segments. So **a `Segmented` does not size itself to its
-labels**: set `width`, or accept `segMin × choices.length`.
+labels**: set `width`, or accept `segmentMinWidth × items.length`.
 
 ### The pill
 
 The highlight springs a **normalized lane** — a float index — not pixels. `x` is
-then `lane × segW`, so a resize recomputes `segW` and the pill **snaps** to the
+then the lane times one segment's width, so a resize recomputes that width and the pill **snaps** to the
 right place instead of skating across the bar on every layout change. The chosen
 segment wears a raised `surface` pill with a hairline.
 
 ```declare
 App [ width = 340, height = 130, page: string = "one",
     Segmented [ x = 20, y = 20, width = 300, value = { app.page },
-        choices = { [ ({ id: "one", label: "One" }),
-                     ({ id: "two", label: "Two" }),
-                     ({ id: "three", label: "Three" }) ] },
-        input(v: string) { app.page = v }
+        items = { [ ({ id: "one", label: "One" }),
+                   ({ id: "two", label: "Two" }),
+                   ({ id: "three", label: "Three" }) ] },
+        commit(v: string) { app.page = v }
         ],
     Text [ x = 20, y = 74, text = { "showing: " + app.page } ]
     ]
 ```
 
+
+## fieldValue
+The chosen segment's `id` — what a form judges and a `required` asks for.
 ## value
-The active choice. Constrain it to your own state and override `input` to own the
-destination, or leave it alone and read `value` back — a `Segmented` works
+The active choice. Bind it both ways to your own state (`value <-> app.page`), or constrain it
+and override `commit` to own the destination, or leave it alone and read `value` back — a `Segmented` works
 standalone. Compared against each choice's `id` by identity, so any value type
 works.
 
@@ -66,17 +74,17 @@ works.
 `.declare` class cannot hold a reactive cell without declaring it, so a marker is
 necessarily surface — that does not make it API.
 
-## choices
+## items
 The segments, as **records**: `{ id, label }` or `{ id, icon }` — the same vocabulary
 `Menu`'s items use. A choice shows a label **or** an icon, never both. A choice may also
 carry a `location`, which makes that segment a real link (see `SegmentedItem.location`).
 
-## input()
+## commit()
 **Where the choice goes**, receiving the picked `id`. The default writes `value`;
 override it to own the destination.
 
 ## pick()
-Selects a choice by id, routing through `input`. The seam a segment calls.
+Selects a choice by id, routing through `commit`. The seam a segment calls.
 
 ## disabled
 Disables the whole control. **A segment is not separately disable-able** — a disabled
@@ -86,26 +94,26 @@ group leaves the tab order entirely rather than offering unreachable stops.
 Disabled dims the whole control — track, pill and every segment alike, never a
 recolour — to the theme's `disabledOpacity`, or 0.45 when the theme states none.
 
-## segMin
+## segmentMinWidth
 The per-segment width used when you set no `width` on the control. Because a
 `Segmented` **does not self-size to its labels**, this is what decides the default
-width: `segMin × choices.length`.
+width: `segmentMinWidth × items.length`.
 
-## count
-How many choices there are, floored at 1 so the width arithmetic never divides by zero.
+## _count
+**Internal.** How many items there are, floored at 1 so the width arithmetic never divides by zero.
 
-## segW
-One segment's width — the control's width divided by the count. What the pill and every
+## _segmentWidth
+**Internal.** One segment's width — the control's width divided by the count. What the pill and every
 segment position from.
 
-## idx
-Which choice is live, as an index into `choices`, from the **data** — the only place the
+## _idx
+**Internal.** Which item is live, as an index into `items`, from the **data** — the only place the
 question can be asked. `−1` (nothing selected) parks the pill at 0 and hides it rather
 than springing to a phantom slot.
 
-## lane
-The pill's position as a **float index**, sprung toward `idx`. The whole reason the pill
-is correct at any size: `x` is `lane × segW`, so a resize recomputes the width and the
+## _lane
+**Internal.** The pill's position as a **float index**, sprung toward `_idx`. The whole reason the pill
+is correct at any size: `x` is `_lane × _segmentWidth`, so a resize recomputes the width and the
 pill **snaps** to the right place instead of skating across the bar on every layout
 change.
 
@@ -134,10 +142,12 @@ between segments; one beside the pill fades as the pill reaches it, so they part
 selection as it slides.
 
 ## width
-Content-sized: every segment at least `segMin` wide, so short labels never squeeze.
+Divided evenly among the segments. Not sized to the labels: with no `width` it is
+`segmentMinWidth × items.length`, and a label longer than its segment runs into the next
+one — set a `width` the longest label fits in.
 
 ## datapath
-Roots the control on its own data, so the segments replicate from `choices` without the author writing a datapath.
+Roots the control on its own data, so the segments replicate from `items` without the author writing a datapath.
 
 ## height
 From the theme's `segmentedHeight` (30 by default); the labels' size is `segmentedFontSize` (13).
@@ -149,7 +159,7 @@ The control's `_rad`.
 /*
 # SegmentedItem
 
-One choice of a `Segmented`, **materialized from that control's `choices` data — never
+One choice of a `Segmented`, **materialized from that control's `items` data — never
 authored directly**, which is why it carries almost nothing of its own. It is a full
 `Control`: its own tab stop, activated by Space or Enter, so a user can tab to an
 inactive choice and select it.
@@ -199,7 +209,7 @@ Rings the segment's pill inset, not its whole box.
 As tall as the control.
 
 ## width
-Every segment the same width — the control's `segW`, its width divided by its count.
+Every segment the same width — the control's width divided by its count.
 
 ## x
 Placed by index: the control's inset plus `i` segment widths.
@@ -214,9 +224,9 @@ Follows `on`: a segment is one radio of its group.
 Empty for a segment that shows text (the text names it); a segment showing an icon is named by its record's `label`.
 */
 
-include [ "control.declare", "icons/icon.declare" ]
+include [ "valuecontrol.declare", "icons/icon.declare" ]
 
-class Segmented [
+class Segmented extends ValueControl [
     // one choice among a few: a group of radios to a screen reader, whatever it
     // looks like (a page switcher, an appearance switch)
 
@@ -226,17 +236,21 @@ class Segmented [
 
     _isSegmented: boolean = true,
 
-    choices: array = [],           // a bare literal: it owns a cell, so a use-site value wires
+    items: array = [],             // a bare literal: it owns a cell, so a use-site value wires
     value: object = null,
-    disabled: boolean = false,
+
+    // a form's member: its value is the chosen segment's id, under its `name`
+
+    fieldValue = { value },
 
     // one Tab stop, landing on the selected segment; the arrows move inside
     // (planes.md §13.6)
 
     focusScope = stop,
+    focusable = false,             // its segments are the stops, not the group
     focusEntry() -> View? {
         const ss = this.segs()
-        return (ss[Math.max(0, this.idx)] ?? null) as View | null
+        return (ss[Math.max(0, this._idx)] ?? null) as View | null
         },
 
     // The group honors View's own `replace`: with `replace = true`, a pick of
@@ -252,21 +266,21 @@ class Segmented [
     fill = { provided("theme").trackFill ?? provided("theme").control },
     opacity = { disabled ? (provided("theme").disabledOpacity) : 1 },
 
-    segMin: number = 96,           // per-segment width when the author sets none
-    count:  number = { Math.max(1, ((this.choices ?? []) as any).length) },
-    width  = { this.count * this.segMin },
-    segW:   number = { (this.width - 4) / this.count },
+    segmentMinWidth: number = 96,  // per-segment width when the author sets none
+    _count: number = { Math.max(1, ((this.items ?? []) as any).length) },
+    width  = { this._count * this.segmentMinWidth },
+    _segmentWidth: number = { (this.width - 4) / this._count },
 
     // Which choice is live, as an index — from the data, which is the only place
     // this question can be asked. −1 (nothing selected) parks the pill at 0 and
     // hides it rather than springing to a phantom slot.
 
-    idx: number = { ((this.choices ?? []) as any).findIndex((c) => c.id === this.value) },
+    _idx: number = { ((this.items ?? []) as any).findIndex((c) => c.id === this.value) },
 
     // ── the delivery seam ─────────────────────────────────────────────────
 
-    input(v: object) { value = v },
-    pick(v: object) { input(v) },
+    commit(v: object) { value = v },
+    pick(v: object) { edit(v) },          // a person's pick: through edit, so a form judges it
 
     // the member walk — handlers only; a constraint may not aggregate the tree
 
@@ -276,18 +290,18 @@ class Segmented [
         return out
         },
 
-    // The pill. `lane` is a float index the spring drives; `x` multiplies it by
+    // The pill. `_lane` is a float index the spring drives; `x` multiplies it by
     // the current segment width, so the pill is correct at any size the moment
     // layout changes and only animates when the selection does.
 
-    lane: number = 0,
-    Spring [ attribute = lane, to = { classroot.idx < 0 ? 0 : classroot.idx },
+    _lane: number = 0,
+    Spring [ attribute = _lane, to = { classroot._idx < 0 ? 0 : classroot._idx },
         stiffness = 260, damping = 30, mass = 0.9, epsilon = 0.002 ],
 
     _pill: View [ y = 2, height = { parent.height - 4 }, cornerRadius = { Math.max(0, (parent as Segmented)._rad - 2) },
-        x = { 2 + (parent as Segmented).lane * (parent as Segmented).segW },
-        width = { (parent as Segmented).segW },
-        visible = { (parent as Segmented).idx >= 0 },
+        x = { 2 + (parent as Segmented)._lane * (parent as Segmented)._segmentWidth },
+        width = { (parent as Segmented)._segmentWidth },
+        visible = { (parent as Segmented)._idx >= 0 },
         fill = { provided("theme").segmentedSelectedFill ?? provided("theme").surface },
         stroke = { stroke(1, provided("theme").line) } ],
 
@@ -300,12 +314,12 @@ class Segmented [
         draw(d: DrawContext) {
             const s = parent as Segmented
             d.fillStyle = (provided("theme").segmentDividerColor ?? provided("theme").line)
-            for (let i = 1; i < s.count; i++) {
-                const near = s.idx < 0 ? 1 : Math.abs(s.lane + 0.5 - i)
+            for (let i = 1; i < s._count; i++) {
+                const near = s._idx < 0 ? 1 : Math.abs(s._lane + 0.5 - i)
                 const a = Math.max(0, Math.min(1, (near - 0.5) * 2))
                 if (a <= 0) continue
                 d.globalAlpha = a
-                d.fillRect(2 + i * s.segW - 0.5, 7, 1, this.height - 14)
+                d.fillRect(2 + i * s._segmentWidth - 0.5, 7, 1, this.height - 14)
                 }
             }
         ],
@@ -313,12 +327,12 @@ class Segmented [
     // The index rides in the data — replication has no ordinal of its own, and
     // the pill needs one to place each segment.
 
-    _items: Dataset [ contents = { { rows: ((classroot.choices ?? []) as any).map((c, i) => ({ ...c, i: i })) } } ],
+    _segmentRows: Dataset [ contents = { { rows: ((classroot.items ?? []) as any).map((c, i) => ({ ...c, i: i })) } } ],
 
     // Replicated as direct children, so a segment's `parent` is the control
     // itself — the pill and the segments are siblings over one cursor.
 
-    datapath = { this._items.value },
+    datapath = { this._segmentRows.value },
     SegmentedItem [ datapath = :rows[] ]
     ]
 
@@ -332,8 +346,8 @@ class SegmentedItem extends Control [
     _isSegment: boolean = true,
 
     height = 100%,
-    width  = { (parent as Segmented).segW },
-    x      = { 2 + :i * (parent as Segmented).segW },
+    width  = { (parent as Segmented)._segmentWidth },
+    x      = { 2 + :i * (parent as Segmented)._segmentWidth },
 
     on: boolean = { (parent as Segmented).value === :id },
     accessibilityRole = radio,

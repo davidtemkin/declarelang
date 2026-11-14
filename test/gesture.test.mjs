@@ -310,6 +310,18 @@ const SINK_RAW = `App [ width = 640, height = 400, fill = #202830,
         tall: View [ x = 0, y = 0, width = 640, height = 1200 ],
         ],
     ]`;
+// A field told `pointerEvents = "none"` takes no press: the press reaches the
+// row beneath it (Ledger run 6: an invisible edit field over each grid cell
+// took the row's press, because the native input was forced back to `auto`).
+const INERT_FIELD_RAW = `App [ width = 640, height = 400, fill = white,
+    presses: number = 0,
+    fieldFocused: boolean = false,
+    row: View [ x = 20, y = 20, width = 400, height = 60, fill = #EEEEFF,
+        onClick() { app.presses = app.presses + 1 },
+        f: TextInput [ x = 2, y = 10, width = 396, height = 40, opacity = 0, pointerEvents = "none",
+            accessibilityLabel = "Hidden", onFocus() { app.fieldFocused = true } ] ] ]`;
+const inertFieldCompiled = await compile(INERT_FIELD_RAW);
+assert.deepEqual(inertFieldCompiled.errors, [], "inert-field fixture compiles clean");
 const sinkCompiled = await compile(SINK_RAW);
 assert.deepEqual(sinkCompiled.errors, [], "scroller-sink fixture compiles clean");
 // MODIFIERS: the keys held with a click reach the handler, as KeyEvent names them
@@ -318,6 +330,41 @@ const MODS_RAW = `App [ width = 400, height = 300, said: string = "",
         onClick(e: PointerEvent) { app.said = (e.shift ? "shift " : "") + (e.meta ? "meta " : "") + (e.alt ? "alt " : "") + (e.ctrl ? "ctrl " : "") + "click" } ] ]`;
 const modsCompiled = await compile(MODS_RAW);
 assert.deepEqual(modsCompiled.errors, [], "modifiers fixture compiles clean");
+
+// A PRESS CARRIED (input.ts click rule): the layout moves the pressed control out
+// from under a pointer that stays put (Presentify run 8: a title field losing
+// focus at the press reflowed the toolbar). The click is the pressed control's,
+// never the neighbour's that slid in under the pointer.
+const CARRIED_RAW = `App [ width = 400, height = 200, fill = white,
+    shifted: boolean = false, a: number = 0, b: number = 0,
+    pa: View [ x = { app.shifted ? 100 : 160 }, y = 20, width = 50, height = 40, fill = #88AACC,
+        onPointerDown() { app.shifted = true }, onClick() { app.a = app.a + 1 } ],
+    pb: View [ x = { app.shifted ? 160 : 300 }, y = 20, width = 50, height = 40, fill = #CC9988,
+        onClick() { app.b = app.b + 1 } ] ]`;
+const carriedCompiled = await compile(CARRIED_RAW);
+assert.deepEqual(carriedCompiled.errors, [], "carried-press fixture compiles clean");
+
+// RAISE RE-ASSERTS THE FRONT (view.ts raise): a view already last in the model is
+// made last on the surface too — a sibling that travelled and came home (the focus
+// ring) re-seats at the end of the parent, past the overlay layer, and a view
+// rebuilt before that sibling then lands above the layer (Presentify run 8: the
+// Edit menu under a rebuilt editor's inspector).
+const RAISE_RAW = `App [ width = 400, height = 200, fill = white,
+    a: View [ x = 0, y = 0, width = 200, height = 100, fill = #88AACC ],
+    b: View [ x = 0, y = 0, width = 200, height = 100, fill = #CC9988 ] ]`;
+const raiseCompiled = await compile(RAISE_RAW);
+assert.deepEqual(raiseCompiled.errors, [], "raise fixture compiles clean");
+
+// A PADDED PANE'S PINNED CHILD (dom-backend.ts seatScrollFrame): the pane's
+// inset is its CSS padding, and the sticky frame must not sit inside it, or a
+// pinned child paints the inset twice over (Ledger run 9's sheet foot).
+const PADPIN_RAW = `App [ width = 400, height = 300, fill = white,
+    pane: View [ x = 10, y = 10, width = 300, height = 200, scrolls = y, padding = [24, 0, 0, 16],
+        layout: SimpleLayout [ axis = y ],
+        View [ width = 100, height = 600, fill = #DDDDDD ],
+        pin: View [ ignoreLayout = true, ignoreScroll = true, x = 0, y = 0, width = 50, height = 20, fill = #CC3333 ] ] ]`;
+const padpinCompiled = await compile(PADPIN_RAW);
+assert.deepEqual(padpinCompiled.errors, [], "padded-pin fixture compiles clean");
 
 // DRAG HANDOFF (input.ts): controls inside views that claim a drag — a pan
 // surface holding a Button and a Slider, a Carousel with a Button on its page,
@@ -343,12 +390,19 @@ assert.deepEqual(handoffCompiled.errors, [], "drag-handoff fixture compiles clea
 const pages = {
   "/dom-handoff": pageHtml("DomBackend", handoffCompiled),
   "/canvas-handoff": pageHtml("CanvasBackend", handoffCompiled),
+  "/dom-carried": pageHtml("DomBackend", carriedCompiled),
+  "/dom-raise": pageHtml("DomBackend", raiseCompiled),
+  "/dom-padpin": pageHtml("DomBackend", padpinCompiled),
+  "/canvas-carried": pageHtml("CanvasBackend", carriedCompiled),
+  "/dom-inert-field": pageHtml("DomBackend", inertFieldCompiled),
+  "/canvas-inert-field": pageHtml("CanvasBackend", inertFieldCompiled),
   "/dom-sink": pageHtml("DomBackend", sinkCompiled),
   "/canvas-sink": pageHtml("CanvasBackend", sinkCompiled),
   "/dom-mods": pageHtml("DomBackend", modsCompiled),
   "/canvas-mods": pageHtml("CanvasBackend", modsCompiled),
   "/dom-wheel": pageHtml("DomBackend", wheelCompiled),
   "/dom-jump": pageHtml("DomBackend", jumpCompiled),
+  "/canvas-jump": pageHtml("CanvasBackend", jumpCompiled),
   "/dom-claims": pageHtml("DomBackend", claimsCompiled),
   "/dom-takeover": pageHtml("DomBackend", takeoverCompiled),
   "/canvas-claims": pageHtml("CanvasBackend", claimsCompiled),
@@ -448,6 +502,39 @@ await test("dom+canvas: a scroller takes the click — the control beneath it he
     const hits = await page.evaluate(() => window.__declare.find("app").hits);
     assert.equal(hits, 0, `${url}: the pane took the point`);
   }
+  await open("/dom-claims"); // restore the suite's working page
+});
+
+await test("dom+canvas: a TextInput with pointerEvents = \"none\" takes no press — the row beneath it does", async () => {
+  for (const url of ["/dom-inert-field", "/canvas-inert-field"]) {
+    await open(url);
+    await page.mouse.click(220, 50);
+    const r = await page.evaluate(() => { const a = window.__declare.find("app"); return { presses: a.presses, focused: a.fieldFocused }; });
+    assert.deepEqual(r, { presses: 1, focused: false }, `${url}: the row took the press, the field did not`);
+  }
+  await open("/dom-claims"); // restore the suite's working page
+});
+
+await test("dom+canvas: a press the layout moves from under a still pointer clicks what was pressed, not what slid in", async () => {
+  for (const url of ["/dom-carried", "/canvas-carried"]) {
+    await open(url);
+    await page.mouse.click(185, 40);            // on A; the press moves A away and slides B under the pointer
+    const r = await page.evaluate(() => { const a = window.__declare.find("app"); return { a: a.a, b: a.b, shifted: a.shifted }; });
+    assert.deepEqual(r, { a: 1, b: 0, shifted: true }, `${url}: A took its click`);
+  }
+  await open("/dom-claims"); // restore the suite's working page
+});
+
+await test("dom: raise() puts a view frontmost on the surface even when the model already has it last", async () => {
+  await open("/dom-raise");
+  const r = await page.evaluate(() => {
+    const app = window.__app, a = app.a.$surface.element, b = app.b.$surface.element, parent = b.parentElement;
+    parent.insertBefore(b, a);                 // the drift: last in the model, not last on the surface
+    const drifted = parent.lastElementChild === a;
+    app.b.raise();
+    return { drifted, front: parent.lastElementChild === b, modelLast: app.children[app.children.length - 1] === app.b };
+  });
+  assert.deepEqual(r, { drifted: true, front: true, modelLast: true });
   await open("/dom-claims"); // restore the suite's working page
 });
 
@@ -1147,6 +1234,22 @@ await test("dom: a pane's ignoreScroll toolbar rides the pane's frame (the stick
   assert.ok(r.sh >= 900, "the pane still scrolls its tall content");
 });
 
+await test("dom: a padded pane's pinned child paints where the model puts it, scrolled or not", async () => {
+  await open("/dom-padpin");
+  const r = await page.evaluate(async () => {
+    const pin = window.__app.pane.pin, el = pin.$surface.element;
+    const at = () => { const b = el.getBoundingClientRect(); return [Math.round(b.x), Math.round(b.y)]; };
+    const before = at();
+    window.__app.pane.$surface.element.scrollTop = 200;
+    await new Promise((res) => setTimeout(res, 250));
+    const o = pin.rootOrigin();
+    return { before, after: at(), model: [o.x, o.y] };
+  });
+  assert.deepEqual(r.model, [26, 34], "the model: the pane's origin plus its inset");
+  assert.deepEqual(r.before, r.model, "painted there");
+  assert.deepEqual(r.after, r.model, "…and still there scrolled");
+});
+
 await open("/canvas-page");
 
 await test("canvas: the same page shape — fixed canvas, strut-carried extent, same root default", async () => {
@@ -1373,6 +1476,29 @@ await test("scrollIntoView in a scrolls=y pane with overrun width moves y only; 
   assert.equal(r.left, 0, "a y-only scroller was not moved sideways");
   assert.equal(r.stripLeft, 400, "an x scroller's \"start\" jump still pins the leading edge");
 });
+
+// scrollIntoView's `inset` is one thing on every backend: the scroller's top
+// `inset` px are covered (scroll-margin-top). Venue run 32: DOM made it a top
+// margin, canvas took it off the target both ways (a reveal from below landed
+// short by it), Mac dropped it.
+for (const backend of ["dom", "canvas"]) {
+  await open(`/${backend}-jump`);
+  await test(`${backend}: scrollIntoView's inset is room above the view, and none below`, async () => {
+    const at = (y, align, inset) => page.evaluate(async (y, align, inset) => {
+      const app = window.__app, frames = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+      app.pane.scrollTo(y); await frames();
+      app.pane.target.scrollIntoView(align, false, inset); await frames(); await frames();
+      return Math.round(app.pane.scrollY);
+    }, y, align, inset);
+    // the target is at 600, 40 tall, in a 200-tall pane that scrolls to 720
+    assert.equal(await at(0, "nearest", 50), 440, "from below: its bottom at the pane's foot, the inset adding nothing there");
+    assert.equal(await at(720, "nearest", 50), 550, "from above: it lands the inset below the top");
+    assert.equal(await at(560, "nearest", 50), 550, "under the covered band: hidden, so revealed");
+    assert.equal(await at(560, "nearest", 0), 560, "no inset: in sight, not moved");
+    assert.equal(await at(0, "start", 50), 550, "start: the inset below the top");
+    assert.equal(await at(0, "start", 0), 600, "start with no inset after one: the top (the earlier inset is not kept)");
+  });
+}
 
 // ── DOM: the `userScrolling` fact holds through a momentum wheel stream ─────────
 

@@ -14,7 +14,7 @@ const KINDS = {
   Sheet: `pop: Sheet [ Text [ text = "sheet" ] ]`,
   Toast: `pop: Toast [ message = "saved" ]`,
 };
-const open = { Popover: "show()", Menu: "openFor(r)", ContextMenu: "openFor(r)", Dialog: "show()", Sheet: "show()", Toast: "say('hey', null)" };
+const open = { Popover: "show()", Menu: "showFor(r)", ContextMenu: "showFor(r)", Dialog: "show()", Sheet: "show()", Toast: "say('hey', null)" };
 
 const only = process.argv.find((a) => a.startsWith("--only="))?.slice(7);
 for (const [kind, decl] of Object.entries(KINDS)) {

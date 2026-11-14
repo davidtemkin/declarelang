@@ -14,7 +14,7 @@ App [ width = 360, height = 240, fill = white,
         layout: SimpleLayout [ axis = y, spacing = 12 ],
         Field [ label = "Email", stacked = true,
             TextInput [ width = 300, name = "email", purpose = email, required = "Enter your email address.",
-                value = { app.email }, commit(v: string) { app.email = v },
+                value <-> app.email,
                 validate(v: string) -> string { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim()) ? "" : "Enter an email address like name@example.com." } ] ],
         Button [ label = "Sign in", primary = true, onClick() { parent.submit() } ],
         send() { app.email = "" }
@@ -45,6 +45,13 @@ runs.
 
 ## _overlay
 **Internal.** The overlay around the form that waits while it sends (`SendHold`), if any.
+
+## _holding()
+**Internal.** Holds `_overlay` while the form's own request is out, and lets it go after.
+
+## _failedAs()
+**Internal.** A send failed without a refusal: `message` is laid as the form's own problem,
+then shown.
 
 ## submit()
 Ends every member's open edit first, committing it, so what is sent is what is shown. Then
@@ -110,8 +117,9 @@ Whether nothing is wrong: no member has a problem and `validate()` is satisfied.
 
 ## error
 The message that belongs to no field: a refusal that names none (an account locked), a name
-no counted member has, the form's own `validate()` on submit, or `failedMessage` when the
-request failed without a readable reply. Shown wherever the program places it.
+no counted member has, the form's own `validate()` on submit, or, when the send did not go
+through, the message for how it failed — `failedMessage`, `uncertainMessage`, `offlineMessage`
+or `unreadableMessage` (each below). Shown wherever the program places it.
 
 ## validate()
 The form's own rule, for what belongs to no one field — return `""` when it is fine, or
@@ -126,7 +134,9 @@ refusal reaches it from `source` by itself; a service that answers success with 
 the body (GraphQL does) calls it from the source's `onLoad`.
 
 ## refusal()
-`refusal(body)` reads a refusal's body into problems. It understands one field
+`refusal(body) -> FormProblem[]` reads a refusal's body into problems, each
+`{ name, message }`: `name` is the member it lands on (matched to a control's `name`; `""`
+for the form's own `error`), `message` what it says. It understands one field
 (`{ "field", "message" }`), a list (`{ "errors": [ … ] }` with `field`, `path`, a JSON
 `pointer` or JSON:API's `source.pointer`, and `message`, `detail` or `title`), and a bare
 `{ "message" }`, which names no field. A pointer is read as a dotted name
@@ -148,13 +158,15 @@ own — `refusedWith(body: Refusal)` — and read its fields with no cast.
 
 ## failedMessage
 What `error` says when the request could not be made at all (`failure = unsent`), or the
-server refused without saying why — nothing was sent, or nothing was done. Say it in the
-program's own words.
+server refused without saying why — nothing was sent, or nothing was done. It does not cover
+a network failure, a server error or a timeout: those show `uncertainMessage`, since the send
+may have been carried out, and a send while offline shows `offlineMessage`. Say each in the
+program's own words; one sentence for every failure is all four set to it.
 
 ## uncertainMessage
 What `error` says when no answer came — the server failed, the network broke, or nothing
 arrived for the source's `timeout` (`failure` = `serverError`, `networkError`, `timedOut`):
-the send may or may not have been carried out, so it says so rather than "nothing was saved".
+the send may or may not have been carried out, so it says so rather than "nothing changed".
 
 ## offlineMessage
 What `error` says when the send failed while the platform says it is offline.
@@ -234,8 +246,8 @@ class Form [
     _form: any = { this },
 
     source: DataSource? = null,
-    failedMessage: string = "That didn't go through, and nothing was saved. Try again.",
-    uncertainMessage: string = "No answer came back, so this may or may not have been saved. Check before trying again.",
+    failedMessage: string = "That didn't go through, so nothing changed. Try again.",
+    uncertainMessage: string = "No answer came back, so this may or may not have gone through. Check before trying again.",
     offlineMessage: string = "You seem to be offline, so this may not have gone through. Once you're back online, check before trying again.",
     unreadableMessage: string = "That went through, but the reply couldn't be read. Reload to see the result.",
 

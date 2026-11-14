@@ -119,7 +119,7 @@ export class Replicator {
     template;
     constraint;
     /** The record field that identifies an instance across re-derivations
-     *  (`key = :field`), split into segments — or null to reconcile by object
+     *  (`identityKey = :field`), split into segments — or null to reconcile by object
      *  identity (===), the default. A derived collection produces FRESH record
      *  objects every recompute, so identity would rebuild all of them; a key
      *  pools by a stable field, so only genuinely changed records rebuild. */
@@ -146,12 +146,12 @@ export class Replicator {
         this.keyPath = key === null ? null : splitPath(key);
         // The instances' element is the template MINUS its many-path attribute
         // (each instance gets its record's cursor instead, written by reconcile)
-        // and its replication-metadata attributes (`key`, `windowed`), consumed
+        // and its replication-metadata attributes (`identityKey`, `virtualize`, `classFor`), consumed
         // here.
         this.template = {
             ...element,
             attrs: element.attrs.filter((a) => !(a.name === "datapath" && a.value.kind === "path" && a.value.many) &&
-                !(a.name === "key" && a.value.kind === "path") &&
+                !(a.name === "identityKey" && a.value.kind === "path") &&
                 a.name !== "virtualize" && a.name !== "classFor"),
         };
         this.constraint = new Constraint(`${declareName(parent)}'s replication (:${path}[])`, () => this.classify(this.match()), (m) => this.reconcile(m));
@@ -371,7 +371,7 @@ export class Replicator {
         };
     }
     /** A record's pooling identity, per the REVISED ladder (ruled 2026-07-30,
-     *  the invisible version): the explicit `key = :field` override first,
+     *  the invisible version): the explicit `identityKey = :field` override first,
      *  then the INFERRED convention — a record's own scalar `id` field IS its
      *  identity, no declaration anywhere — then the record object itself
      *  (===; the structural-equality fallback catches misses beneath that). */
@@ -393,11 +393,11 @@ export class Replicator {
         return item;
     }
     /** The identity mode in force — the inspector's honesty about an invisible
-     *  rule (key | id | object; structural fallback applies on misses either
+     *  rule (identityKey | id | object; structural fallback applies on misses either
      *  way when keyless). */
     identityMode() {
         if (this.keyPath !== null)
-            return "key";
+            return "identityKey";
         const first = this.items[0];
         if (first !== null && typeof first === "object" && !Array.isArray(first) && Object.hasOwn(first, "id"))
             return "id";
@@ -457,7 +457,7 @@ export class Replicator {
         // (a transform-derived collection manufacturing fresh record objects)
         // falls back to matching by CONTENT, so unchanged rows survive a
         // recompute without rebuild. Built lazily — the map exists only when a
-        // miss happens, and costs only the miss set. A declared `key` IS the
+        // miss happens, and costs only the miss set. A declared `identityKey` IS the
         // identity, so keyed blocks never consult it.
         let byContent = null;
         const contentMatch = (value, kind) => {

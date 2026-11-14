@@ -33,6 +33,11 @@ function inFile(e: DeclareError, file: string): DeclareError[] {
 }
 import { Diag } from "./diagnostics.js";
 
+/** The file an included class or schema was declared in, as its `include`
+ *  names it — for a message about the declaration made after the files are
+ *  merged, whose position is that file's own line. */
+const includedFrom = new WeakMap<object, string>();
+
 /** Cut a source's `include [ … ]` directives out of its text, leaving the rest
  *  byte-for-byte (offsets after each cut shift left by its length). Splicing
  *  highest-offset first keeps earlier spans valid; directives never overlap.
@@ -265,8 +270,8 @@ export async function resolveIncludes(
       // author reads in the `include` directive (composition.md §1's collision
       // message form).
       const from = inc.path;
-      for (const c of lib.classes) if (fold(c.name, c.pos, from)) classes.push(c);
-      for (const d of lib.shapes ?? []) if (fold(d.name, d.pos, from)) shapes.push(d);
+      for (const c of lib.classes) if (fold(c.name, c.pos, from)) { classes.push(c); includedFrom.set(c, from); }
+      for (const d of lib.shapes ?? []) if (fold(d.name, d.pos, from)) { shapes.push(d); includedFrom.set(d, from); }
       for (const s of lib.themes) if (fold(s.name, s.pos, from)) themes.push(s);
       for (const s of lib.styles) if (fold(s.name, s.pos, from)) styles.push(s);
       for (const f of lib.fonts) if (fold(f.name, f.pos, from)) fonts.push(f);
@@ -375,10 +380,14 @@ export async function resolveAutoIncludes(
   /** The program's name as a class-name prefix (`Cadence`), for the rename a
    *  refused name is offered. */
   prefix = "My"
-): Promise<{ program: Program; sources: string[]; sourceIds: string[]; sourceFrom: SourceFrom[]; sourceSplices: Splice[][]; errors: DeclareError[] }> {
+): Promise<{ program: Program; sources: string[]; sourceIds: string[]; sourceFrom: SourceFrom[]; sourceSplices: Splice[][]; errors: DeclareError[];
+  /** A name the library already has, taken by the program: refused, but the
+   *  program's own declaration is whole, so the compile goes on and says the
+   *  rest of what is wrong beside it. */
+  squats: DeclareError[] }> {
   const auto = host as Partial<AutoIncludeHost>;
   if (typeof auto.autoincludes !== "function" || typeof auto.resolveLibrary !== "function") {
-    return { program, sources: [], sourceIds: [], sourceFrom: [], sourceSplices: [], errors: [] };
+    return { program, sources: [], sourceIds: [], sourceFrom: [], sourceSplices: [], errors: [], squats: [] };
   }
   const manifest = auto.autoincludes();
   // Record what COULD have been auto-included, for the checker's near-miss.
@@ -420,13 +429,16 @@ export async function resolveAutoIncludes(
   // win — the library's is then never pulled — so taking one is refused,
   // naming what it replaces. Not when the file being compiled IS that library
   // file (verifying library/card.declare declares Card by right).
+  const squats: DeclareError[] = [];
   for (const d of [...program.classes, ...(program.shapes ?? [])]) {
     const path = manifest[d.name];
     if (path === undefined) continue;
     const lib = await auto.resolveLibrary(path);
     if (lib !== null && (visited.has(lib.canonical) || (mainSource !== undefined && mainSource.includes(lib.source)))) continue;
     const kind = "base" in d ? "a class" : "a schema";
-    errors.push(new DeclareError(`'${d.name}' is a library class — ${kind} of the program can't take its name; rename yours, as '${prefix}${d.name}' (the library's is used as '${d.name} [ … ]')`, d.pos));
+    // a declaration from an included file is placed in that file
+    const file = includedFrom.get(d);
+    squats.push(new DeclareError(`'${d.name}' is a library class — ${kind} of the program can't take its name; rename yours, as '${prefix}${d.name}' (the library's is used as '${d.name} [ … ]')`, file !== undefined && d.pos.file === undefined ? { ...d.pos, file } : d.pos));
   }
 
   const foldOne = (name: string, pos: Element["pos"], from: string): boolean => {
@@ -515,5 +527,6 @@ export async function resolveAutoIncludes(
     sourceFrom,
     sourceSplices,
     errors,
+    squats,
   };
 }

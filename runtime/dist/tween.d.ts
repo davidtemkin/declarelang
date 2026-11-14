@@ -40,7 +40,7 @@ export declare class TweenRun {
     rebase(delta: number): void;
     /** Begin driving the target slot through the curve (LZX's doStart). A no-op
      *  while already running (LZX's guard). Samples from / to / duration /
-     *  motion / repeat ONCE here, and enrolls in the slot's exact-landing ledger
+     *  easing / repeat ONCE here, and enrolls in the slot's exact-landing ledger
      *  (displacing the slot's prior non-animator driver on the first arrival). */
     start(): void;
     /** Halt in place — no snap to either end (LZX). Idempotent; a no-op when not

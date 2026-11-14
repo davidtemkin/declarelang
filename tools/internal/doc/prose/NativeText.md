@@ -57,6 +57,10 @@ spell-checked, whatever this says.
 What the field holds, for autofill, password managers and a phone's keyboard — the tokens are
 `TextInput.purpose`'s.
 
+## showsCaret
+Whether the caret and the selection's highlight show while focused. Follows the field's
+`showsCaret`.
+
 ## concealed
 What is typed is hidden, as a password is. Follows `purpose` until set.
 

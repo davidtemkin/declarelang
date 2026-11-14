@@ -15,7 +15,7 @@ import QuartzCore
 import ImageIO
 import UniformTypeIdentifiers
 
-/// The Blend enum's camelCase tokens → the CIFilter each layer composites
+/// The BlendMode enum's camelCase tokens → the CIFilter each layer composites
 /// with (`compositingFilter` — public API on macOS; compositing.md §2). The
 /// same operators are already proven inside drawings through CGBlendMode
 /// (DrawReplay); this is the view tier of the same table. `normal` → nil.
@@ -30,7 +30,7 @@ let BLEND_FILTERS: [String: String] = [
     "luminosity": "CILuminosityBlendMode", "plusLighter": "CIAdditionCompositing",
 ]
 
-/// A glide in flight on one axis — a request's `{ duration, motion }`, run by
+/// A glide in flight on one axis — a request's `{ duration, easing }`, run by
 /// the host on its display link (the scroll process's own motion).
 struct ScrollGlide {
     let from: CGFloat
@@ -2314,7 +2314,7 @@ final class LayerTree {
     // the motion. What does cross is a CLAIMANT's stream (`onWheel`), which is
     // the program's to hear. The trackpad's own momentum arrives as deltas
     // (momentumPhase), applied as delivered — no physics, no rubber band, the
-    // desktop rule. Glides (a request's `{ duration, motion }`) run here too.
+    // desktop rule. Glides (a request's `{ duration, easing }`) run here too.
     //
     // Why not an NSScrollView per scroller: every surface is a CALayer under
     // one view, composed through its ancestors' clips, opacity, transforms and

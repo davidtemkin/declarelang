@@ -97,7 +97,7 @@ export function wireIslands({ app, host, cfg, seeds, compile, navServices, resol
       if (childApp) {
         childApp.demoSources = seeds;                     // populate a nested copy's own editors
         // The child's own wiring, by observation (its lifetime is known HERE):
-        //  • verbs — a child's navigate()/openWindow() go to its island first:
+        //  • verbs — a child's openURL()/openWindow() go to its island first:
         //    an island that declares onNavigate decides what a link inside it
         //    means (a desktop opens a window); otherwise the page navigates,
         //    the right meaning for a preview's outbound link.
@@ -267,7 +267,9 @@ export function wireIslands({ app, host, cfg, seeds, compile, navServices, resol
     if (view.__childApp || view.$surface == null) return;          // raced a re-mark / detached
     try {
       await kernelReady();
-      const childApp = buildApp(compiled, { provides: typeof view.post === "function" ? islandProvisions(view) : undefined });
+      // the island's own size is the child app's from its first evaluation
+      const childApp = buildApp(compiled, { provides: typeof view.post === "function" ? islandProvisions(view) : undefined,
+        size: { width: view.width, height: view.height } });
       const base = childAssetBase(name || "", islandDirFor(view));
       // ASSET base only — deliberately no per-app DATA base: an island child's
       // relative data urls resolve through the PAGE's transport, its host's

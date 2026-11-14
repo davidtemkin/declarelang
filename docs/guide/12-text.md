@@ -61,8 +61,8 @@ Beyond color and size, each run can carry per-run paint, set on the `Text` itsel
 
 - [`textFill`](declare-docs:Text.textFill) fills the glyphs with a gradient (or a color), overriding [`textColor`](declare-docs:Text.textColor).
 - [`textShadow`](declare-docs:Text.textShadow) drops a [`shadow(dx, dy, blur, color)`](declare-docs:type:Shadow) under the letters.
-- [`outline`](declare-docs:Text.outline) strokes the glyph edges with `outline(width, color)` — outlined letters, not a
-  box.
+- [`textStroke`](declare-docs:Text.textStroke) strokes the glyph edges with `stroke(width, color)` — outlined letters, not
+  a box.
 - [`italic`](declare-docs:Text.italic), [`underline`](declare-docs:Text.underline), [`strike`](declare-docs:Text.strike).
 - [`smallCaps`](declare-docs:Text.smallCaps), and [`textTransform`](declare-docs:Text.textTransform) (`uppercase`, `lowercase`, `capitalize`), which change
   what is drawn without changing the string, so selection and find-in-page still see what
@@ -73,7 +73,7 @@ Beyond color and size, each run can carry per-run paint, set on the `Text` itsel
 ```declare
 App [ width = 320, height = 84, fill = #0B141B,
     Text [ x = 20, y = 24, fontSize = 26, textColor = white, fontWeight = bold,
-        outline = outline(1, #C0392B), text = "OUTLINED" ]
+        textStroke = stroke(1, #C0392B), text = "OUTLINED" ]
     ]
 ```
 
@@ -194,7 +194,7 @@ Left unhandled, it navigates:
 doc: Markdown [ text = { app.article.value || "" },
     onLink(href: string) {
         if (href.startsWith("#")) app.location = href.slice(1)
-        else app.navigate(href)
+        else app.openURL(href)
         }
     ]
 ```
@@ -245,8 +245,8 @@ so `tagStyles = { { strong: "Figure" } }` sets every `<b>` and `**…**` in `Fig
 ## Views inside text
 
 Prose sometimes carries small pieces of interface — a status chip, an avatar, a keycap.
-Inside rich text, **a self-closing tag naming one of your own view classes builds one
-real view of that class**, placed in the line as a box the words wrap around:
+Inside rich text, **a self-closing tag that `tagViews` maps to one of your view classes
+builds one real view of that class**, placed in the line as a box the words wrap around:
 
 ```declare
 class Chip [
@@ -257,18 +257,22 @@ class Chip [
 
 App [ width = 380, height = 96, fill = white,
     HTMLText [ x = 20, y = 20, width = 340, fontSize = 15, bodyColor = 0x33424E,
+        tagViews = { { Chip: Chip } },
         html = "Filed under <Chip label='docs'/> and <Chip label='runtime'/> this morning." ]
     ]
 ```
 
-Both formats read these tags. The tag's attributes are the class's attributes, converted
+The map names, for each tag the content may write, the class it builds. A tag it doesn't
+name stays what it was, and with no map no tag is a view, so content you didn't write
+builds only what you listed. Like `tagStyles`, the map is inherited: set it once on the App
+and every rich text below reads it. Both formats read these tags. The tag's attributes are
+the class's attributes, converted
 by each attribute's declared type (`count='3'` is a number in a `number` attribute); the
 flow places the view, so `x` and `y` are refused. The view is real — it has state,
 handlers and motion — and when the content changes, a tag still present keeps its view.
 Markup carries no expressions: build the content string in a `{ }`, wrap every
 interpolated value in `escapeHtml`, or put an identity in the tag and let the class derive
-the rest. A class named only from a computed string needs `use [ Chip ]` to survive a
-production build. The [`RichText`](declare-docs:RichText) reference entry has the complete rules.
+the rest. The [`RichText`](declare-docs:RichText) reference entry has the complete rules.
 
 ---
 

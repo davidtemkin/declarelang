@@ -9,7 +9,7 @@
 // Markdown's block tree says what its text means, a Text is a paragraph, an
 // Image is an image, a TextInput is draft UI state (emitted as nothing), an
 // invisible subtree is skipped. No font-size-looks-like-a-heading inference,
-// ever. The `navigate` link model (capabilities.md §6, links.ts) joins here:
+// ever. The `openURL` link model (capabilities.md §6, links.ts) joins here:
 // the compile-time link relation, riding compile() like deps, stamps each
 // navigable instance `_navLink`, and the walk wraps its subtree in <a href>.
 //
@@ -226,7 +226,7 @@ const weightNum = (t: Text): number => parseInt(cssWeight(t.fontWeight), 10) || 
 /** The navigable target of an instance, or null. The compiler's link relation
  *  (§6) stamped `_navLink`: a literal href, or a read-path evaluated against the
  *  settled instance at t=0. An empty value → null (the value carries the
- *  conditionality — `navigate(this.link)` with `link = ""` links nothing). */
+ *  conditionality — `openURL(this.link)` with `link = ""` links nothing). */
 function navHref(v: View): string | null {
   // The LIVE `link` attribute wins (location.md §0.3): an authored link — a
   // literal, or a constraint's SETTLED value (the data tier: `link = { :to }`

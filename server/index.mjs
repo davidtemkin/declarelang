@@ -90,7 +90,11 @@ if (holder !== null) {
   // path is not printed, since nothing about it is actionable from here).
   const mine = server.identity().root;
   const sameTree = holder.root !== undefined && path.resolve(holder.root) === path.resolve(mine);
-  const elsewhere = `start this one on another port:  PORT=${PORT + 1} npm start`;
+  // the port offered is one nothing answers on now — the next one may be taken too
+  let free = null;
+  for (let p = PORT + 1; p <= PORT + 50 && free === null; p++) if (await whoHoldsPort(p) === null) free = p;
+  const elsewhere = free !== null ? `start this one on another port:  PORT=${free} npm start   (${free} is free now)`
+    : `start this one on another port that is free:  PORT=<port> npm start   (${PORT + 1}–${PORT + 50} are all taken)`;
   if (holder.pid === undefined) {
     console.error(`port ${PORT} is already taken by a process that is not a Declare dev server.\n  ${elsewhere[0].toUpperCase()}${elsewhere.slice(1)}`);
   } else if (sameTree) {

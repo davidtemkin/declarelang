@@ -302,6 +302,16 @@ function sizeFromParent(name: string, deps: readonly string[] | undefined, src: 
   return new RegExp("(?:^|[^\\w$.])(?:this\\s*\\.\\s*)?parent\\s*\\.\\s*(?:" + same + ")\\b").test(src);
 }
 
+/** Does a size read its OWN content size on its axis (`width = { …
+ *  this.contentWidth … }`) — the children it holds? Asked with `branches`: such
+ *  a size measures its children only on the runs that take that branch. */
+function sizeFromContent(name: string, deps: readonly string[] | undefined, src: string): boolean {
+  const content = name === "width" ? "contentWidth" : name === "height" ? "contentHeight" : null;
+  if (content === null) return false;
+  if (deps !== undefined) return deps.some((d) => d === content || d === "this." + content);
+  return new RegExp("(?:^|[^\\w$.])(?:this\\s*\\.\\s*)?" + content + "\\b").test(src);
+}
+
 /** Whether a by-branch size's last run read the parent's size on its axis —
  *  its size slot, or its content size. */
 const READ_PARENT = new WeakMap<object, boolean>();
@@ -329,6 +339,21 @@ function markByBranch(k: Constraint, view: Node): void {
     const p = (view as { parent?: unknown }).parent;
     if (p instanceof View) touchCell(p.$structureCellId());
   }
+}
+
+/** A size that reads its OWN content size in some branches: run it watching for
+ *  that read, and when the answer changes say so through the view's child list,
+ *  which a layout deciding whether the view measures its children watches
+ *  (layout.ts sizedByChildren) — a size that stays 600 across the change wakes
+ *  nothing else, and the arrangement must ask again. */
+function contentWatched(view: Node, name: string, fn: ExprFn): ExprFn {
+  let was: boolean | null = null;   // whether the last run measured the children
+  return function (this: unknown, ...args: unknown[]) {
+    const w = watchingContentRead(view, name, () => (fn as (...a: unknown[]) => unknown).apply(this, args));
+    if (was !== null && was !== w.hit) touchCell(view.$structureCellId());
+    was = w.hit;
+    return w.value;
+  } as ExprFn;
 }
 
 /** WHAT A BINDING'S TEMPLATE DECIDES, decided once. A written `{ }` is one
@@ -395,6 +420,14 @@ export function bindConstraint(
   // would take it out of its parent's content size, and a parent sized by its
   // content would collapse round it.
   const byBranch = derived && branches(src);
+  // The same for a size that reads its OWN content size in only some branches
+  // (`height = { compact ? this.contentHeight : 600 }`): wired, its edges are the
+  // union of every branch, and a layout asking whether this size measures the
+  // children it lays (layout.ts sizedByChildren) heard yes from a branch never
+  // taken — an `align = stretch` row stretched its scroller to the scroller's
+  // content instead of to the 600 the row was given, and nothing could scroll.
+  // Tracked, its edges are the branch it took.
+  const contentByBranch = !byBranch && sizeFromContent(name, deps, src) && branches(src);
   // A read reached THROUGH an attribute (`this.control.error`, where `control`
   // is a slot the program rebinds) cannot be prewired: the edge would be bound
   // on whatever the slot held at link time, and stay there when it changed.
@@ -403,7 +436,7 @@ export function bindConstraint(
   const rebindable = deps !== undefined && deps.some((p) => readsThroughSlot(view, classroot, p) || readsLiveDefault(view, classroot, p));
   // ITEMIZED PROFILING (profile.ts): every rule runs in JavaScript, so each run is
   // counted and named — slower, and for profiling only; read once, before boot
-  const expr = plan !== null && !byBranch && !rebindable && !ITEMIZE ? plan.expr : null;
+  const expr = plan !== null && !byBranch && !contentByBranch && !rebindable && !ITEMIZE ? plan.expr : null;
   if (expr !== null) {
     if (bindKernelExpr(view, name, expr, classroot, `${declareName(view)}.${name}`, src, pos, yielding, deps, derived)) { exprStats.kernel++; return; }
     exprStats.fallback++;
@@ -414,7 +447,7 @@ export function bindConstraint(
     throw new DeclareError(`${declareName(view)}.${name} = { … } ${c.error}`, pos);
   }
   const rule: { k: Constraint | null } = { k: null };
-  const fn = byBranch ? branchWatched(view, name, c.fn, rule) : c.fn;
+  const fn = byBranch ? branchWatched(view, name, c.fn, rule) : contentByBranch ? contentWatched(view, name, c.fn) : c.fn;
   // A DECLARED default that cannot be evaluated yet (`{ app.shown.value.total
   // ?? 0 }` before the dataset delivers) is simply not applied yet — the live
   // fallback it replaces was never read before its inputs existed, so a
@@ -455,7 +488,7 @@ export function bindConstraint(
   // dataset's tracked view (data.ts trackedView) makes such reads subscribe to
   // region cells, which live on the value tree and are recreated with it, so
   // the tracking path (re-tracked each run) is the only honest wiring here too.
-  if (plan !== null && plan.probes !== null && !byBranch && !rebindable) {
+  if (plan !== null && plan.probes !== null && !byBranch && !contentByBranch && !rebindable) {
     // Each read-path is an analyzable expression (`this.$root.n`, `this.theme`);
     // compiled once per template and read under tracking to wire the (stable) edge.
     const probes = plan.probes;

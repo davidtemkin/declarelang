@@ -322,7 +322,7 @@ class Combobox extends ValueControl [
         filtering = false
         this.syncList()
         const m = this.list as any
-        m.openFor(this)
+        m.showFor(this)
         },
     toggle() { if (this.listShown()) this.closeList(); else this.open() },
 
@@ -383,7 +383,7 @@ class Combobox extends ValueControl [
             // person's, opened only for one in the field
             if (!this.focused) { classroot._left(); return }
             classroot.syncList()
-            if (!classroot.listShown()) (classroot.list as any).openFor(classroot)
+            if (!classroot.listShown()) (classroot.list as any).showFor(classroot)
             },
 
         // Return answered here (a pick, opening the list, the form's) goes no

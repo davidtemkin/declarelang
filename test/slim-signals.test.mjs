@@ -45,10 +45,6 @@ await test("a class classFor picks is permitted", async () => {
   const { used } = await facts(`App [ d: Dataset [ contents = { [{ k: true }] } ],\n View [ datapath = :d[], classFor = { :k ? Image : View } ] ]`);
   assert.ok(used.has("Image"));
 });
-await test("a built-in a literal rich text names as a tag is permitted", async () => {
-  const { used } = await facts(`App [ Markdown [ text = "a <Image/> b" ] ]`);
-  assert.ok(used.has("Image"));
-});
 
 // ── globals: naming one carries what it reaches ───────────────────────────────
 // the body's names that come from the effects module, read from the runtime's
@@ -126,6 +122,7 @@ const CLASSIFIED = {
   "instantiate→checker": "build: an untrusted tree is checked; a production program is trusted",
   "value→literal-parsing": "syntax (an unlowered literal)",
   "view→size-report": "build (debug); inert",
+  "boot-check→size-report": "build (debug); inert: the stand-in judges nothing and returns no findings",
   "boot→bridge": "build; inert", "expr→datapath-scanner": "build (debug, hosting); inert",
   "services→inspector-service": "build; the Inspect façade answers ready() false",
   "semantics→replication": "inert, proven: only a Replicator writes the blocks table",

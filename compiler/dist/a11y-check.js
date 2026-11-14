@@ -21,7 +21,7 @@ import { ROLE_CONTRACTS, contractGaps, contractMessage } from "../../runtime/dis
 const NAME_NOT_FROM_CONTENT = (role) => ROLE_CONTRACTS[role]?.nameFromContent !== true;
 /** The roles a person presses or steps — a control. Nothing of these may hold
  *  another: their content is read as their name, never entered. */
-const CONTROL_ROLES = new Set(["button", "toggle", "checkbox", "switch", "radio", "tab", "menuItem", "option", "link", "slider", "spinButton"]);
+const CONTROL_ROLES = new Set(["button", "toggle", "checkbox", "switch", "radio", "tab", "menuItem", "menuItemRadio", "option", "link", "slider", "spinButton"]);
 /** The names an author gives the boolean that says this one is the one chosen. */
 const CHOSEN_FLAG = /^(on|selected|chosen|active|current|picked|checked|isOn|isSelected|isActive)$/;
 /** The top-level parts of a `{ }` body: the arms of a choice (`c ? a : b`), else
@@ -123,6 +123,9 @@ export function accessibilityDiagnostics(program, schemas, opts) {
      *  sets its parent's attributes while applied), and its declarations. */
     const sets = (levels, name) => levels.some((b) => b.attrs.some((a) => a.name === name) || b.decls.some((d) => d.name === name)
         || b.children.some((s) => isA(s.tag, "State") && s.attrs.some((a) => a.name === name)));
+    /** It scrolls, or may: `scrolls` set to anything but a literal `none`. */
+    const scrolls = (levels) => levels.some((b) => b.attrs.some((a) => a.name === "scrolls" && !(a.value.kind === "ident" && a.value.name === "none"))
+        || b.children.some((s) => isA(s.tag, "State") && s.attrs.some((a) => a.name === "scrolls")));
     const has = (levels, method) => levels.some((b) => b.methods.some((m) => m.name === method));
     /** The literal role the nearest level declares, or null (none written). */
     const roleOf = (levels) => {
@@ -292,6 +295,7 @@ export function accessibilityDiagnostics(program, schemas, opts) {
         visit(program.root);
         return (menuClasses = found);
     };
+    const unreadLabelClasses = new Set();
     const walk = (el, above = [], outer = null) => {
         const decl = classByBody.get(el);
         const owner = decl !== undefined ? decl.name : (el.name ?? el.tag);
@@ -315,9 +319,9 @@ export function accessibilityDiagnostics(program, schemas, opts) {
             const field = (role === null || role === "none") && isA(tag, "TextInput");
             const needs = field ? "textField" : role;
             // (a field's placeholder names it, as it does to every screen reader, and
-            // a field inside a Field is named by its caption)
+            // a control inside a Field is named by its caption)
             const placeholderNames = (needs === "textField" || needs === "searchBox" || needs === "combobox") && !emptyAttr(levels, "placeholder", above);
-            const captioned = field && provides(above, "fieldLabel");
+            const captioned = provides(above, "fieldLabel");
             // (a row whose class each record picks — classFor — is judged by those
             // classes, which the source names but the use site cannot know)
             const picked = el.attrs.some((a) => a.name === "classFor");
@@ -344,13 +348,22 @@ export function accessibilityDiagnostics(program, schemas, opts) {
             // a label on a view with no role reaches nothing: the runtime names only a
             // view that has a role (semantics-dom.ts ariaOf), so the label is dropped.
             // Judged at the use site, on a plain view — a text, a field, a picture or a
-            // document reads by what it is, a link by its link, a scroller as a stop
+            // document reads by what it is, a link by its link, a scroller as a named
+            // group (semantics.ts roleOf: a scroller is a stop, and its name is read)
             // (a mark inside a control names the control — a close icon in a button —
             // so a label there is read, through the control)
             if (decl === undefined && outer === null && !above.some((b) => b.attrs.some((x) => x.name === "link")) && roleOf(levels) === null && sets(levels, "accessibilityLabel")
-                && !sets(levels, "accessibilityRole") && !sets(levels, "link") && !sets(levels, "scrolls") && !sets(levels, "accessibilityHidden")
+                && !sets(levels, "accessibilityRole") && !sets(levels, "link") && !scrolls(levels) && !sets(levels, "accessibilityHidden")
                 && runtimeBase(el.tag) === "View") {
-                warnings.push(Diag.accessibilityLabelUnread(owner, el.pos));
+                // a label a class body sets is the class's: said once, at the class
+                const where = levels.find((b) => sets([b], "accessibilityLabel"));
+                const cls = where !== undefined && where !== el ? classByBody.get(where) : undefined;
+                if (cls === undefined)
+                    warnings.push(Diag.accessibilityLabelUnread(owner, el.pos));
+                else if (!unreadLabelClasses.has(cls)) {
+                    unreadLabelClasses.add(cls);
+                    warnings.push(Diag.accessibilityLabelUnread(cls.name, cls.body.pos));
+                }
             }
             // a radio is one of a group: outside a RadioGroup a screen reader hears no
             // "one of N", and the arrows do not move between its choices

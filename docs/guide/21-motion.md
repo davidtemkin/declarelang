@@ -154,13 +154,13 @@ change glide (below).
 
 Some motion really is clock-shaped: a progress sweep, a replay cursor moving through a day
 in ninety seconds, an entrance that runs once. An `Animator` drives one attribute from
-`from` to `to` over `duration` milliseconds on a `motion` curve (`linear`,
+`from` to `to` over `duration` milliseconds on an `easing` curve (`linear`,
 `quadOut`, `cubicBoth`, `back`, …):
 
 ```declare
 App [ width = 360, height = 150, fill = white, textColor = #172530,
     t: number = 0,
-    sweep: Animator [ attribute = t, from = 0, to = 1, duration = 1500, motion = linear ],
+    sweep: Animator [ attribute = t, from = 0, to = 1, duration = 1500, easing = linear ],
     col: View [ x = 20, y = 20, width = 320,
         layout: SimpleLayout [ axis = y, spacing = 12 ],
         track: View [ width = 100%, height = 10, cornerRadius = 5, fill = #E6EBF1,

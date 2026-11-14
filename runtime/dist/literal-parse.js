@@ -1,6 +1,6 @@
 // literal-parse — the written forms of the value literals that take PARSING:
-// colors (names, hex), the decoration constructors (gradient, stroke, outline,
-// shadow, a mask), motion (tokens and curves) and shapes. A compiled program
+// colors (names, hex), the decoration constructors (gradient, stroke, shadow,
+// a mask), motion (tokens and curves) and shapes. A compiled program
 // carries none of them as text — the compile ships each literal as its value
 // (compiler/src/lower-literals.ts) — so this module rides only where literal
 // text still reaches the runtime: a literal the compile could not turn into a
@@ -23,6 +23,13 @@ const fail = (expected, found) => ({ ok: false, expected, found });
  *  instinct is met. */
 const VALUE_INSTINCTS = {
     "AccessibilityRole.alert": "'alert' — an alert is `accessibilityRole = status` with `accessibilityLive = assertive`, said at once on every host",
+    // ARIA's spelling of a role Declare has under its own word
+    ...Object.fromEntries(Object.entries({
+        img: "image", textbox: "textField", progressbar: "progress", listitem: "listItem", gridcell: "cell",
+        columnheader: "columnHeader", rowheader: "rowHeader", tablist: "tabList", tabpanel: "tabPanel",
+        menubar: "menuBar", menuitem: "menuItem", menuitemradio: "menuItemRadio", alertdialog: "alertDialog", radiogroup: "radioGroup",
+        searchbox: "searchBox", spinbutton: "spinButton", treeitem: "treeItem", presentation: "none",
+    }).map(([aria, own]) => [`AccessibilityRole.${aria}`, `'${aria}' — ARIA's word; Declare's is ${own}`])),
 };
 // The literal forms for Color: navy / #354D5B / 0x354D5B / null (language
 // §6), plus the ruled alpha forms #RGBA / #RRGGBBAA (`0x…` stays 6-digit
@@ -77,6 +84,7 @@ export function coerceColor(lit) {
 // scope), so one vocabulary serves both lexical homes.
 export const FILL = diag `a Fill (a Color, gradient(#F8F8F8, #D8D8D8), gradient(angle, …stops), or null)`;
 const STROKE = strokeShapeMessage(); // errors.ts — one sentence, shared with the typecheck's report of the same mistake made inside a { }
+const GLYPH_STROKE = diag `a Stroke along the glyphs' edges (stroke(width, color), painted under the fill), or null`;
 const SHADOW = diag `a Shadow (shadow(dx, dy, blur, color), or null)`;
 /** A constructor argument as a plain color number (no null). */
 export function argColor(lit) {
@@ -180,16 +188,13 @@ function oneStroke(lit) {
         return fail(STROKE);
     return ok({ width, color });
 }
-export function coerceOutline(lit) {
-    if (lit.kind === "ident" && lit.name === "null")
-        return ok(null);
-    if (lit.kind !== "call" || lit.name !== "outline")
-        return fail(diag `an outline (outline(width, color))`);
-    const width = lit.args.length === 2 ? argNumber(lit.args[0]) : null;
-    const color = lit.args.length === 2 ? argColor(lit.args[1]) : null;
-    if (width === null || color === null || width < 0)
-        return fail(diag `an outline (outline(width, color))`);
-    return ok({ width, color });
+/** A Text's `textStroke`: ONE stroke along the glyphs' edges — the box stroke's
+ *  value without its per-side list (a glyph has no sides). */
+export function coerceGlyphStroke(lit) {
+    if (lit.kind === "list")
+        return fail(GLYPH_STROKE);
+    const c = oneStroke(lit);
+    return c.ok ? c : fail(GLYPH_STROKE);
 }
 export function coerceShadow(lit) {
     if (lit.kind === "ident" && lit.name === "null")
@@ -205,14 +210,14 @@ export function coerceShadow(lit) {
     return ok(shadow(dx, dy, blur, color));
 }
 const MASK = diag `a mask — a gradient (gradient(…), radialGradient(…), conicGradient(…); its alpha masks the view), a stencil view from a { } constraint (mask = { stencil }), or null`;
-// ── Motion (animation.md §1) ─────────────────────────────────────────────────
+// ── Easing (animation.md §1) ──────────────────────────────────────────────────
 //
 // A named token OR a value constructor — both forms already in the grammar,
 // so this adds a type, not syntax. Tokens resolve through animate.ts's
 // motionToken (kept as the single source of truth); the four constructors
 // (cubicBezier / back / steps / laszlo) validate their args here, next to the
 // stroke/shadow coercers whose shape they share.
-const MOTION = `a Motion (a named curve like easeBoth, quartOut, expoIn, or laszloBoth; or a constructor: ` +
+const MOTION = `an Easing (a named curve like easeBoth, quartOut, expoIn, or laszloBoth; or a constructor: ` +
     `cubicBezier(x1, y1, x2, y2), back(overshoot), steps(n[, jumpStart | jumpEnd]), laszlo(beginPole, endPole))`;
 export function coerceMotion(lit) {
     if (lit.kind === "ident") {
@@ -262,7 +267,7 @@ export function coerceMotion(lit) {
             return ok({ k: "laszlo", beginPole: bp, endPole: ep });
         }
         default:
-            return fail(MOTION, diag `'${lit.name}(…)' (not a motion constructor)`);
+            return fail(MOTION, diag `'${lit.name}(…)' (not an easing constructor)`);
     }
 }
 // A Shape's literal is SVG path *data* carried in a string (the `d`
@@ -468,8 +473,8 @@ export function parseLiteral(type, lit) {
             return coerceFill(lit);
         case "stroke":
             return coerceStroke(lit);
-        case "outline":
-            return coerceOutline(lit);
+        case "glyphStroke":
+            return coerceGlyphStroke(lit);
         case "shadow":
             return coerceShadow(lit);
         case "filter":
@@ -478,7 +483,7 @@ export function parseLiteral(type, lit) {
             return coerceFilter(lit);
         case "mask":
             return coerceMask(lit);
-        case "motion":
+        case "easing":
             return coerceMotion(lit);
         case "font":
             // A family string is the literal form (a list joins in check.ts/instantiate.ts

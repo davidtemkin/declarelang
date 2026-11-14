@@ -30,7 +30,7 @@ export class AnimatorGroup extends Node implements Animatable {
   declare from: number | null;
   declare relative: boolean;
   declare duration: number;
-  declare motion: Motion;
+  declare easing: Motion;
   /** Run members one-after-another (`sequential`, default) or all-at-once
    *  (`simultaneous`) — the one group-only control (LZX). */
   declare process: "sequential" | "simultaneous";
@@ -211,7 +211,7 @@ defineAttributes(AnimatorGroup, {
   from: { def: null },
   relative: { def: false },
   duration: { def: 1000 },
-  motion: { def: DEFAULT_MOTION },
+  easing: { def: DEFAULT_MOTION },
   process: { def: "sequential" },
   repeat: { def: 1 },
   started: { def: false, push: (s: AnimatorGroup, v: boolean) => s.$startedChanged(v) },

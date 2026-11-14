@@ -44,7 +44,7 @@ class Gauge [ height = 28,
 
     // a reading out of 100, named by its caption
 
-    accessibilityRole = progress,
+    accessibilityRole = meter,
     accessibilityLabel = { label },
     accessibilityValue = { value },
     accessibilityMin = 0,

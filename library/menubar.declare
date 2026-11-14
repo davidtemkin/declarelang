@@ -153,7 +153,7 @@ class MenuBar [
 
     openMenu(t: object) {
         openId = "" + t.mid
-        this.menu.openFor(t)
+        this.menu.showFor(t)
         },
 
     // while open, crossing another title switches to it (menu tracking)

@@ -6,7 +6,7 @@ import { census, censusDiff, retainingPaths } from "./retainers.mjs";
 
 const KINDS = {
   Popover: [`pop: Popover [ anchorTo = { classroot }, Text [ text = "hi" ] ]`, (r) => r.pop.show()],
-  Menu: [`pop: Menu [ items = { [{ id: "a", label: "A" }, { id: "b", label: "B" }] } ]`, (r) => r.pop.openFor(r)],
+  Menu: [`pop: Menu [ items = { [{ id: "a", label: "A" }, { id: "b", label: "B" }] } ]`, (r) => r.pop.showFor(r)],
   Dialog: [`pop: Dialog [ title = "T", message = "M" ]`, (r) => r.pop.show()],
 };
 const kind = process.argv.find((a) => a.startsWith("--kind="))?.slice(7) ?? "Popover";

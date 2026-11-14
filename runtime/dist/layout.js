@@ -95,7 +95,7 @@ import { Cell, Constraint, afterSettle, kernel, kernelLoaded } from "./reactive.
 import { blockOf, cellIdsOf, isSet, markPercent, own, ownerOf, release, setBound, setPercentMark, setPosOf, slotCellOf, useSiteSet } from "./attributes.js";
 import { LAYOUT_NOWRITE } from "./kernel-loader.js";
 import { DeclareError, discardedValueMessage, layoutConflictMessage, noBaselineMessage, stackBaselineMessage } from "./errors.js";
-import { isWindowedBlock, View, viewLayoutReady } from "./view.js";
+import { App, isWindowedBlock, View, viewLayoutReady } from "./view.js";
 import { declareName } from "./declare-name.js";
 /** Box key → the child slot it drives, in a stable order. */
 const BOX_SLOTS = [
@@ -482,8 +482,21 @@ export class Layout extends Node {
         const v = this.view;
         if (v === null)
             return false;
+        // Asked again when the answer may change: a size that measures the children
+        // in only some branches says so through the child list when its branch
+        // turns (bind.ts contentWatched) — its value may not move, so nothing else
+        // would wake the arrangement.
+        v.$watchChildList();
         const owner = ownerOf(v, size);
         if (owner === null) {
+            // An App's unset size is its HOST's (App.$bindExtent), never its
+            // children's: asked before attach, when nothing owns it yet, "measured
+            // from the children" put a stretch on the line, and nothing the
+            // arrangement tracks moved when the host's size took the slot — a row
+            // stayed as tall as its tallest child, and on a phone, with one pane
+            // left in the row, that pane's own height came back round as the line.
+            if (v instanceof App)
+                return false;
             // Unset and unowned: auto-extent measures these very children the moment
             // it installs, and attach order is not ours to assume.
             return !isSet(v, size);

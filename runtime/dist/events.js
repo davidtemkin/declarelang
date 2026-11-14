@@ -25,11 +25,11 @@
 export class Touch {
 }
 /** What every single-point pointer handler receives — `onMouseDown`,
- *  `onMouseMove`, `onClick`, `onDblClick`, `onHold`, `onMouseOver`,
+ *  `onMouseMove`, `onClick`, `onDoubleClick`, `onHold`, `onMouseOver`,
  *  `onMouseOut`.
  *
  *  The coordinate FRAME differs by handler, and deliberately: `onMouseDown`,
- *  `onClick` and `onDblClick` carry view-local coordinates, while
+ *  `onClick` and `onDoubleClick` carry view-local coordinates, while
  *  `onMouseMove` and `onMouseUp` carry ROOT-space ones — a drag needs a frame
  *  that does not move with the thing being dragged. */
 export class PointerEvent {

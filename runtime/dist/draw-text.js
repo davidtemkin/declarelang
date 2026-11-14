@@ -9,7 +9,7 @@ import { fontString, transformText } from "./measure.js";
  *  shared `fontString` — the one a Text measures with — so a Font in the style is
  *  a tracked read, and the drawing records again when its faces land. */
 export function styledRun(d, style, paint, text, run) {
-    for (const k of ["textFill", "outline", "underline", "strike"]) {
+    for (const k of ["textFill", "textStroke", "underline", "strike"]) {
         const v = style[k];
         if (v !== undefined && v !== null && v !== false) {
             throw new DeclareError(`${paint}Text draws a style's face, textColor and textShadow — '${k}' is not drawn in a drawing; paint it with the drawing's own calls`);

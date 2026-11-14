@@ -3,7 +3,7 @@ import type { RenderBackend, Stretch, Surface } from "./backend.js";
 import type { Color } from "./value.js";
 export declare class Image extends View {
     source: string;
-    stretches: Stretch;
+    fit: Stretch;
     /** A color multiplied over the bitmap's ALPHA (the one-mask-asset idiom —
      *  compositing.md §3.4): shape from the bitmap, color from here, exactly
      *  template-image rendering. null = the untouched bitmap. */
@@ -32,6 +32,21 @@ export declare class Image extends View {
     bitmap: HTMLImageElement | null;
     /** Discards a superseded load: only the latest request may land. */
     private loadSeq;
+    /** The source turning back to an address whose load just failed — what a
+     *  source that reads its own `failed` does (`source = { failed ? other :
+     *  url }`): the failure moves it away, the next load clears `failed`, and it
+     *  turns back, without end. `failed` speaks about the current source, so no
+     *  reading of it can hold such a source still; the turn is caught instead.
+     *  `$lastFailed` is the address that failed, `$wentTo` the one the source
+     *  moved to next, `$returns` how often it came straight back (each within
+     *  RETURN_MS of the failure). At RETURN_LIMIT it is said once, and the Image
+     *  holds the other address: the failed one is not asked for again, and
+     *  `failed` stays true, until the source names a third address. */
+    private $lastFailed;
+    private $failedAt;
+    private $wentTo;
+    private $returns;
+    private $held;
     /** The arrived bitmap's natural size — what contentExtent folds into a
      *  parent-style auto-extent when this Image has children of its own (LZX's
      *  max(resource, subviews)). Zero until loaded. */
@@ -43,4 +58,7 @@ export declare class Image extends View {
     protected $flush(s: Surface): void;
     /** (Re)load `source` — called at attach and by the `source` pusher. */
     $load(): void;
+    /** Whether this load is the source turning back to the address that just
+     *  failed, once too often (above) — said once, and then not asked for. */
+    private $turnsBack;
 }

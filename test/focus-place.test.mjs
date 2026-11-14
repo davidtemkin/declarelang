@@ -196,4 +196,22 @@ await test("a quiet view a tabOrder() lists sits where it lists it: Tab goes on 
   same(Focus.getFocus(), app.bar, "Shift-Tab: the stop before where it is listed");
 });
 
+await test("a tabOrder() naming a view under a hidden container skips it: Tab goes on to the next stop shown", async () => {
+  const app = await boot(`App [ width = 390, height = 600,
+    hall: View [ width = 100%, height = 600,
+      tabOrder() -> View[] { return [this.top, this.aside.picked, this.bar] },
+      top: Button [ label = "Heading stop" ],
+      aside: View [ visible = false, y = 400, picked: View [ go: Button [ label = "Continue to checkout" ] ] ],
+      bar: Button [ y = 300, label = "Continue" ] ] ]`);
+  Focus.focus(app.hall.top); settle();
+  Focus.next(); settle();
+  same(Focus.getFocus(), app.hall.bar, "Tab: past the hidden panel's button, to the next stop shown");
+  Focus.prev(); settle();
+  same(Focus.getFocus(), app.hall.top, "Shift-Tab: back past it");
+  app.hall.aside.visible = true; settle();
+  Focus.focus(app.hall.top); settle();
+  Focus.next(); settle();
+  same(Focus.getFocus(), app.hall.aside.picked.go, "shown again: a stop where the list names it");
+});
+
 summarize("focus-place");

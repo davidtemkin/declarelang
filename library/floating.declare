@@ -8,8 +8,9 @@ nearest `Window` provides, else in the App's own layers — overlays in the orde
 toasts above them.
 It carries, once, what every overlay needs:
 
-- **Opening and closing** — `show()` and `close()`; `shown` says whether it is open now. A
-  closed overlay builds no view of its own until it is first shown.
+- **Opening and closing** — `show()`, `showFor(v)` (for a view: a `Menu` also drops below
+  it; `showAt(v, e)` opens one at the pointer) and `close()`; `shown` says whether it is open
+  now. A closed overlay builds no view of its own until it is first shown.
 - **Motion** — it animates in and out on `openT` (0 closed, 1 open), and stays built until
   its closing motion lands: closing stops it taking input at once.
 - **Input** — `pressPolicy` and `scrollPolicy` say what a press and a scroll aimed past it do
@@ -23,8 +24,9 @@ It carries, once, what every overlay needs:
   turned or scaled; `keepOnApp(x, y, w, h)` moves a box back onto the App.
 - **Its colours are theme tokens** — the panel of a `Dialog`, `Sheet` or `Popover` paints the
   theme's `surface` (a `Menu`'s, `menuFill` else `surface`; a `Toast`'s, `tooltipFill`), and the
-  backdrop `scrimFill` at `scrimOpacity`. One overlay of its own colour is given a theme with
-  the token changed: `theme = { ({ ...provided("theme"), surface: #111111 }) }`.
+  backdrop `scrimFill` at `scrimOpacity`. One overlay of its own colour sets its `fill` (a
+  `Dialog`, `Sheet` or `Popover` paints its panel with it), or is given a theme with the token
+  changed, which its contents read too: `theme = { ({ ...provided("theme"), surface: #111111 }) }`.
 - **Forms** — it is a boundary: a field inside belongs to a `Form` inside it, not to one
   around the place it is declared.
 
@@ -44,8 +46,8 @@ paints above it.
 
 ## shown
 Whether it is open now. Open it with `show()` and close it with `close()` — or make it
-state: `shown = { app.editing }` with `input(open: boolean) { app.editing = open }`, and it
-opens and closes as the state does (SwiftUI's `isPresented`).
+state: `shown <-> app.editing`, and it opens and closes as the state does, and its own
+closings (Esc, a press past it) write the state back (SwiftUI's `isPresented`).
 
 ## present
 Whether it is built and drawn: open, or closing until its motion lands. Content built
@@ -114,14 +116,15 @@ else 0.
 ## _takeProgramTransform()
 **Internal.** Sets `_baseScale` and `_baseRotation` as it opens.
 
-## input()
-**Where opening and closing go** — the value pattern, as a control's `value` goes through
-its `commit`. The default writes `shown`. To make whether it is open your own state,
-constrain `shown` and override this to write that state, so its own closings (Esc, a press
-past it) reach it: `shown = { app.editing }, input(open: boolean) { app.editing = open }`.
-Constraining `shown` without it is a compile error.
+## commit()
+**Where opening and closing go** — the value pattern: as a control's `value` goes through
+its `commit`, so does an overlay's `shown`. The default writes `shown`. To make whether it
+is open your own state, bind it both ways — `shown <-> app.editing` — or constrain `shown`
+and override this to write that state, so its own closings (Esc, a press past it) reach it:
+`shown = { app.editing }, commit(open: boolean) { app.editing = open }`.
+Constraining `shown` with neither is a compile error.
 An override must deliver: write the state `shown` follows, or — with `shown` not
-constrained — call `super.input(open)`; otherwise `show()`, `close()`, Esc and a press past
+constrained — call `super.commit(open)`; otherwise `show()`, `close()`, Esc and a press past
 it do nothing. To act on closing, override `closed()` instead.
 
 ## _sync()
@@ -140,11 +143,11 @@ An overlay that goes while it is open leaves the overlays' stack and lets the ke
 go, as a close would. An override calls `super.onRetire()`.
 
 ## show()
-Opens it, through `input(true)`: picks its layer, builds it, holds the keyboard, and takes
+Opens it, through `commit(true)`: picks its layer, builds it, holds the keyboard, and takes
 focus if it takes focus.
 
 ## showFor()
-Opens it for `v` — `opener` becomes `v`.
+Opens it for `v` — `opener` becomes `v`. A `Menu` also places itself below `v`.
 
 ## _holdFocusItself()
 **Internal.** Focuses the overlay itself when it takes focus and holds nothing focusable,
@@ -157,7 +160,7 @@ Esc still closes it. An override that may find nothing to focus calls `super.foc
 for that case.
 
 ## close()
-Closes it at once, through `input(false)` (it stops taking input); it is torn down when its
+Closes it at once, through `commit(false)` (it stops taking input); it is torn down when its
 closing motion lands.
 An override calls `super.close()`. Work for every closing belongs in `closed()`: the state
 `shown` follows can close it without coming through here.
@@ -169,6 +172,10 @@ so focus moved here (to what the closing created) stays where it was put.
 ## _sendHold
 **Internal.** What a `Form` inside, while it sends through its source, holds the overlay's
 own ways of closing with — `SendHold`.
+
+## _waitsOnSend()
+**Internal.** Whether a `Form` inside is sending through its source: Escape, a press outside
+and a swipe wait for the answer instead of closing.
 
 ## escape()
 What Esc does when this is the open overlay nearest the focus — closes it; a dialog picks its
@@ -239,6 +246,10 @@ shows it again only then — a dismissal is not navigation.
 ## visible
 Follows `present`: it is drawn while open, and while its closing motion runs.
 
+## pointerEvents
+Follows `shown`: through its closing motion it takes no presses, and a press there reaches
+what is beneath.
+
 ## paintsIn
 Follows `host`: it paints in the layer it opened into.
 
@@ -262,6 +273,11 @@ use [ OverlayStrata ]
 
 class Floating [
     ignoreLayout = true,
+
+    // the layer it opens in is transparent to the pointer; an overlay is not,
+    // until it closes: through its closing motion a press goes to what is beneath
+
+    pointerEvents = { shown ? "auto" : "none" },
 
     // an overlay is a boundary for forms: what it holds belongs to a Form
     // inside it, never to one around the place it is declared
@@ -344,13 +360,13 @@ class Floating [
         _baseRotation = t.rotation * 180 / Math.PI
         },
 
-    // `shown` is state: the verbs below deliver through `input` (the value
+    // `shown` is state: the verbs below deliver through `commit` (the value
     // pattern), and a use site may instead constrain it to state of its own —
-    // `shown = { app.editing }` with `input(open: boolean) { app.editing = open }`
+    // `shown = { app.editing }` with `commit(open: boolean) { app.editing = open }`
     // — so Esc and a press past it still close it. Either way the open and
     // close work runs when `shown` changes (sync), whoever changed it.
 
-    input(open: boolean) { shown = open },
+    commit(open: boolean) { shown = open },
 
     _live: boolean = false,
 
@@ -371,7 +387,7 @@ class Floating [
         },
 
     show() {
-        if (!shown) this.input(true)
+        if (!shown) this.commit(true)
         this._sync()
         },
 
@@ -407,7 +423,7 @@ class Floating [
         },
 
     close() {
-        if (shown) this.input(false)
+        if (shown) this.commit(false)
         this._sync()
         },
 

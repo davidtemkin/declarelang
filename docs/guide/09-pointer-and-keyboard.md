@@ -70,7 +70,7 @@ The **raw layer** — `onPointerDown`, `onPointerMove`, `onPointerUp` — report
 pointer physically did, the moment it did it: a press, every move (hovering too), a
 release.
 
-The **resolved layer** — `onClick`, `onDblClick`, `onHold`, and the drag: `onDragStart`,
+The **resolved layer** — `onClick`, `onDoubleClick`, `onHold`, and the drag: `onDragStart`,
 `onDrag`, `onDragEnd` — reports what the person *meant*. That is a judgment the runtime
 makes by watching the whole gesture: a click is for *commands* (buttons, links, menu
 items), a drag for *manipulation* (moving a card, sliding a thumb, drawing).
@@ -83,10 +83,13 @@ difference. What the runtime decides:
 
 - A **click** is a press and release on the same view, with a pointer that never
   wandered far — about 4 pixels for a mouse, 10 for a finger. A gesture that moved
-  further was a drag or a swipe, and it activates nothing.
+  further was a drag or a swipe, and it activates nothing. A pointer that stayed put
+  clicks what it pressed even when the layout moved that view from under it during the
+  press (a field losing focus reflows the row beside it); the view takes the click while
+  it is still shown.
 - A **double-click** is two clicks on the same view, in about the same place, within
   400 ms. The first click arrives at once, as on every platform, and a view that declares
-  `onDblClick` hears the second as `onDblClick` rather than a second `onClick`. So make the
+  `onDoubleClick` hears the second as `onDoubleClick` rather than a second `onClick`. So make the
   single click something the double builds on: select on one click, open on two.
 - A **hold** is a press that stays in place for half a second. It does not consume the
   gesture: the raw stream continues and the eventual click still fires, so a hold can
@@ -129,7 +132,7 @@ moves — the three moments are where you draw it.
 **Drag and click on one view** need no arbitration code: a press is one or the other,
 never both. A view that takes no clicks drags from the moment it is pressed, so it
 follows the pointer from the first pixel. A view that also takes clicks — `onClick`,
-`onDblClick`, `onHold`, a `link` — waits until the press has wandered a few pixels (about 4
+`onDoubleClick`, `onHold`, a `link` — waits until the press has wandered a few pixels (about 4
 for a mouse, 10 for a finger), so a tap stays a tap, and a press that wandered never clicks.
 Whatever must happen at the press itself — a slider's thumb jumping to the point pressed —
 belongs in `onPointerDown`.
@@ -158,6 +161,29 @@ A drag that must land somewhere needs to know what it is over. Ask the tree:
 `view.containsPoint(x, y)` asks the same of one view. Both use the same walk the pointer
 itself is routed by — clipping, scale, scrolling and [`pointerEvents`](declare-docs:View.pointerEvents) all count — so what
 your handler computes and what a press would hit never disagree.
+
+**What a person presses is a view, whatever its shape.** The shapes on a drawing surface,
+the pieces on a board, the cards on a canvas are each a view with its own handlers, and the
+walk finds the one pressed; the program never compares a press's coordinates against its
+records to find a thing. (A position read along one drawing is another matter: a chart
+scrubbed across maps its `x` to the period under it.) A shape that isn't a rectangle takes presses only inside its
+[`clip`](declare-docs:View.clip) path, and a press outside it reaches what is beneath, so an
+ellipse answers exactly where it is drawn. A line is a thin view rotated along it, as wide as
+a finger needs:
+
+```declare
+App [ width = 360, height = 220, fill = white, got: string = "nothing yet",
+    View [ width = 360, height = 220, fill = #F1F3F6, onClick() { app.got = "the surface" } ],
+    View [ x = 40, y = 30, width = 160, height = 90, fill = #3A6FD8,
+        clip = "M 0 45 A 80 45 0 1 0 160 45 A 80 45 0 1 0 0 45 Z",
+        onClick() { app.got = "the ellipse" } ],
+    View [ x = 40, y = 170, width = 220, height = 12, rotation = -15, fill = #D8503A,
+        onClick() { app.got = "the line" } ],
+    Text [ x = 215, y = 40, text = { "pressed: " + app.got } ]
+    ]
+```
+
+Press the ellipse's box outside its outline and the press goes to the surface beneath.
 
 **A drag that rearranges is a change to the data.** What the person moves by hand, a row up a
 list or a card to another column, is a record changing its place. Move the record as the
@@ -188,17 +214,21 @@ as the third argument, `app.viewAt(e.rootX, e.rootY, ghost)`, and the walk skips
 A key goes to the view that has keyboard focus (how focus moves is in
 [Controls](declare-docs:guide:controls@keyboard-focus)) and from there outward — the view,
 its container, that one's container, out to the App — and the first view that binds the key
-takes it. After the App come the standard keys: Tab and Shift-Tab move focus, and F6 moves
+takes it. At each view the walk reads the view's `keyBindings`, then its `Shortcuts`, then
+what the view does by itself: a focused stop's arrows move among its members, and a scroller
+takes the arrows, Page Up and Down, Space, Home and End until it reaches its edge, then lets
+them go on. After the App come the standard keys: Tab and Shift-Tab move focus, and F6 moves
 between regions (Esc then Tab too, where a browser keeps F6 for itself). A key nothing takes
-is left to the browser, which may scroll the page with it. So:
+is left to the browser. So:
 
 - **The nearest view wins.** A focused slider's arrows come before an arrow the App binds;
   a pane can give ⌘F a meaning of its own while the rest of the program keeps the App's.
 - **A text field keeps its typing** and its editing keys — ⌘A, ⌘C, ⌘X, ⌘V, ⌘Z and the
   caret's moves — as text fields do everywhere. Tab, Escape and Enter go on from it.
-- **An open sheet or dialog holds the page's keys back.** With focus inside one, the walk
-  ends at it: the page's ⌘S doesn't save behind a sheet, while Tab still moves within it.
-  An open menu or list takes its own keys — the arrows, Enter, Escape.
+- **An open overlay holds the page's keys back.** While a menu, popover, sheet or dialog is
+  open, the walk ends at it: the page's ⌘S doesn't save behind a sheet or under an open menu,
+  while Tab still moves within a sheet and a menu's arrows, Enter and Escape are its own. Only
+  an App binding marked `everywhere: true` reaches past it.
 - **A key with Ctrl, Alt or a function key** reaches the bindings before any `onKeyDown`,
   below, so a handler can't swallow ⌘S by mistake.
 - **A program in an [`AppIsland`](declare-docs:AppIsland)** — one in each of a desktop's
@@ -206,6 +236,11 @@ is left to the browser, which may scroll the page with it. So:
   it: the desktop's ⌘W closes the window.
 
 ### Key bindings
+
+Three tables hold keys, all read in the one walk: `keyBindings`, the keys a view answers (most
+keys, below); a [`Shortcuts`](declare-docs:Shortcuts) set, when the keys are themselves data a
+person can see or change; and a [`MenuBar`](declare-docs:MenuBar)'s items, whose keys are the
+program's while the bar is there. A [`Menu`](declare-docs:Menu)'s `key:` is only shown.
 
 A view says which keys it answers with `keyBindings`: records naming a key and the method
 it runs.
@@ -244,7 +279,8 @@ the Mac's glyphs, `"⌘S"`, are accepted too. A typed symbol is written as it is
 - `enabled: false` (or a method's name) — shown greyed, it takes the key and does nothing;
 - `repeat: false` — a held key's repeats are taken but don't run it again;
 - `label` and `group` — what the [hold-⌘ panel](#keyboard-shortcuts) shows;
-- `everywhere: true` — an App binding that still reaches past an open sheet or dialog;
+- `everywhere: true` — an App binding that still reaches past an open overlay (a menu,
+  popover, sheet or dialog);
 - `command: "native"` — the platform's own use of the key, as a text field's typing is.
 
 `"Escape Tab"` is a sequence: a view that binds it takes Esc then Tab, the way out of a
@@ -253,7 +289,8 @@ region, for itself — a terminal does.
 ### Handling a key in code
 
 A focused view also receives `onKeyDown` and `onKeyUp`, for keys that need code rather than a
-name. The base `onKeyDown` is the walk itself, so an override takes the keys it wants and
+name. Only the focused view's own `onKeyDown` runs; a container answers keys from inside it
+with `keyBindings`. The base `onKeyDown` is the walk itself, so an override takes the keys it wants and
 hands the rest on — Tab included:
 
 ```declare-fragment
@@ -349,7 +386,8 @@ library's off), and a `KeyListener` hears ⌘ held alone as
 ### Keys the program polls
 
 A game reads the keyboard rather than answering keys: a [`KeyListener`](declare-docs:KeyListener)
-member hears every key down and up wherever focus is, and
+member hears every key down and up wherever focus is — except the keys an open overlay is
+using (a menu's arrows, Enter and Escape), which only the listeners inside it hear — and
 [`Keyboard.isDown("ShiftLeft")`](declare-docs:Keyboard.method.isDown) asks about any key at any
 moment. Like a [`Dataset`](declare-docs:Dataset) or a [`Spring`](declare-docs:Spring), a
 `KeyListener` is a child with no pixels, and it lives as long as the node that declares it:

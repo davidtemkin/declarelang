@@ -59,5 +59,8 @@ export declare abstract class TweenLayout extends Layout {
     /** `from` is each known child's live box; a child never placed before starts
      *  at its destination, hidden (`vis: false`), so it appears where it belongs
      *  once the motion lands instead of flying in from the origin. */
+    /** Each child's own box, as it stood before this layout first placed it —
+     *  what a key a place() box leaves out stands at. */
+    private $ownBox;
     private $snapshot;
 }

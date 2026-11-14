@@ -1,7 +1,7 @@
 // Identity by name
 // Reconciliation reuses an instance across sorts, filters and edits when it can tell
 // which record is which. That is the record's `id` by convention; when identity lives
-// under another name, `key = :field` on the replicated node says which. Re-sort and
+// under another name, `identityKey = :field` on the replicated node says which. Re-sort and
 // watch the rows keep their tint: the instances survived, only their order moved.
 
 App [ fill = 0xF6F8FA, textColor = 0x172530, fontSize = 14,
@@ -11,7 +11,7 @@ App [ fill = 0xF6F8FA, textColor = 0x172530, fontSize = 14,
     flip: boolean = false,
     col: View [ x = 20, y = 16, width = 340, datapath = { d.value },
         layout: SimpleLayout [ axis = y, spacing = 8 ],
-        View [ height = 28, width = 300, cornerRadius = 6, datapath = :people[], key = :email,
+        View [ height = 28, width = 300, cornerRadius = 6, datapath = :people[], identityKey = :email,
             tint: number = { 0xDCE8DC + Math.floor(Math.random() * 0x2000) },   // set once per INSTANCE
             fill = { tint },
             Text [ x = 10, y = 6, text = { :name + "  ·  " + :email } ]

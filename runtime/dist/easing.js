@@ -1,8 +1,8 @@
-// easing — the curves a `motion` names (animation.md §1): the Penner families
+// easing — the curves an `easing` names (animation.md §1): the Penner families
 // under a direction, a cubic Bézier, steps, `back`, and the ported LZX pole
 // curve, with the named tokens that resolve to them. Its own module because
 // only a timed run reads a curve — an Animator, a group, a TweenLayout, a
-// `motion` literal, the canvas scroller's glide — and a program with none of
+// `easing` literal, the canvas scroller's glide — and a program with none of
 // those (a Spring follows physics, not a curve) leaves it out of its build.
 // The Motion union itself, and the default, stay in animate.ts.
 const BACK_DEFAULT = 1.70158; // Penner's standard back overshoot (~10% past)
@@ -147,7 +147,7 @@ export function motionToken(name) {
     return null;
 }
 /** Every named motion token — the checker's "expected" set and the scaffold's
- *  `Motion` union, generated so the two never drift from `motionToken`. */
+ *  `Easing` union, generated so the two never drift from `motionToken`. */
 export const MOTION_TOKENS = [
     "linear", "ease", "easeIn", "easeOut", "easeBoth",
     ...FAMILIES.flatMap((f) => DIR_SUFFIX.map(([suf]) => f + suf)),

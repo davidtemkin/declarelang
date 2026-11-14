@@ -8,7 +8,7 @@
 // only in the rasterizer that inks it.
 
 import { phasesOn, phased } from "./phase-timer.js";
-import type { Color, Fill, Shadow, Outline } from "./value.js";
+import type { Color, Fill, Shadow, Stroke } from "./value.js";
 import { trackFamilies, faceGenerationNow } from "./face-table.js";
 import { familyOf } from "./font-value.js";
 import { featureFamily, featureTags, type Numerals, type NumeralWidth } from "./font-features.js";
@@ -57,7 +57,7 @@ export interface TextStyle {
    *  set. Canvas realizes it over the text box; DOM clips a background to text. */
   readonly textFill?: Fill | null;
   /** Typographical treatments — paint/decoration a Text (or run) wears. */
-  readonly outline?: Outline | null;
+  readonly textStroke?: Stroke | null;
   readonly textTransform?: TextTransform;
   readonly smallCaps?: boolean;
   readonly underline?: boolean;

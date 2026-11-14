@@ -11,7 +11,7 @@ surest way to be wrong.
 
 Learning it comes first: the reading below. When there is a program to write, the work
 then goes in this order: plan, check the plan against what Declare handles for you,
-write, then check the program and look at it running (§ Checking and looking).
+write, then check it to the level the request asks for (§ Checking).
 
 ## Read first, in order
 
@@ -24,7 +24,7 @@ write, then check the program and look at it running (§ Checking and looking).
    decides each size and place, and how a child asks its layout. Every program has layout,
    and it is not CSS, even where it looks like it.
 3. **The to-do app, whole** — `apps/todo/todo.declare` and the parts it includes,
-   `apps/todo/todo-parts.declare`, read together: <!--stat:todo.codeWithParts-->847<!--/stat--> lines of code, with
+   `apps/todo/todo-parts.declare`, read together: <!--stat:todo.codeWithParts-->848<!--/stat--> lines of code, with
    comments written for a first reader. It is a familiar program written in the grain
    Declare is designed for, one program for phone and desktop. Read it for how the work
    divides — the tasks as a dataset class that makes every write, the user's place on the
@@ -92,7 +92,7 @@ Then check every need in the plan against
   (`docs/guide/20-urls.md`), and `@slug` after it names a section heading in it;
   `operational:<name>` is `docs/operational/<name>.md`; `spec:core` is
   `docs/declare.md`; anything else is a name to ask `npx declare-help` about, with its
-  prefix dropped (`View.width` as it stands, `type:Motion` as `Motion`).
+  prefix dropped (`View.width` as it stands, `type:Easing` as `Easing`).
 - **The reference** — every class, attribute, type, enum token and error code — is not a
   set of files: ask for a name with `npx declare-help <name>` (`Slider.value`,
   `scrollAnchor`, `DECLARE3005`). Ask before guessing — a guessed name is a compile error,
@@ -199,7 +199,7 @@ build it: the guide section that teaches it, a program that does it, and names t
 | Drawing what attributes can't express: a gauge, a chart, an icon | `17-your-own-views.md` § Custom drawing, § Icons | weather (`weather-art.declare`): `WindDial`, `PressureGauge`; marketmap: `StageTile`'s sparkline | `draw`, `DrawContext`, `Icon` |
 | A layout of your own | `17-your-own-views.md` § Writing a layout | weather (`weather-art.declare`): `MasonryLayout`; marketmap: `MarketLayout` | `Layout`, `place` |
 | Anything that opens over the interface — a menu, a context menu, a popover, a dialog, a sheet, a toast — closing when it should, holding focus and keys while open, staying with its window | `18-overlays.md` | tracker: the App's `sortMenu`, `facetMenu`, `ctx: ContextMenu` and its undo `Toast`; sampler: the Overlays page, every kind opened from a card; desktop: a Files window's row menu, which opens in the window's layer | `Menu`, `ContextMenu`, `Popover`, `Dialog`, `Sheet`, `Toast`, `Window` |
-| A screen reader and the keyboard alone: names for what shows none, your own drawn control's role, announcements; what a field holds, for autofill and a phone's keyboard | `19-accessibility.md`; `08-controls.md` § Text fields | tracker: its icon buttons' `accessibilityLabel`; library: `Toast` (`Accessibility.announce`), `Slider`'s role contract | `accessibilityLabel`, `accessibilityRole`, `Accessibility`, `TextInput.purpose` |
+| A screen reader and the keyboard alone: names for what shows none, your own drawn control's role, a sheet, board or grid of your own, announcements; what a field holds, for autofill and a phone's keyboard | `19-accessibility.md` (§ Your own controls, for a sheet, board or grid); `08-controls.md` § Text fields | tracker: its icon buttons' `accessibilityLabel`; library: `Toast` (`Accessibility.announce`), `Slider`'s role contract | `accessibilityLabel`, `accessibilityRole`, `Accessibility`, `TextInput.purpose` |
 | Addresses, back and forward, deep links | `20-urls.md` | birds: the App's `location` and `waypoint` and what derives from them | `location`, `waypoint` |
 | Motion that can be interrupted and redirected | `21-motion.md` | tracker: `ListRow`'s height spring; calendar: `DetailSection`'s spring; desktop: `DockIcon`'s `magSpring` | `Spring` |
 | Clocks, a later call, one action when something changes | `22-time.md` | calendar: the App's `clock: Time [ tick = day ]`; tracker: `Toast` (`afterDelay`), the App's `trackChanges` and `onChange` | `Time`, `afterDelay`, `onChange` |
@@ -246,18 +246,26 @@ shows the Declare form.
   control: use the library's, or subclass `Control` and put the action in `press()`;
   keyboard, focus and pressed and hover states come with it. (`08-controls.md`;
   `17-your-own-views.md` § View or Control)
+- **Hit-testing by hand** — a press's coordinates compared against your own records'
+  geometry to find which thing was pressed. (Reading a position along one drawing, a chart
+  scrubbed across, is not this.) The things on a surface are views, and each takes its
+  own presses: an ellipse or any other outline through its `clip` path (a press outside the
+  path goes to what is beneath), a line as a thin view rotated along it. `viewAt` answers
+  what is under a point by the same walk the pointer takes. (`09-pointer-and-keyboard.md` §
+  Finding what is under the pointer)
 - **An overlay built by hand** — a full-window view with a scrim, shown by a flag; a panel
   positioned from a snapshot of its anchor, with its own flip and clamp; an empty `onClick`
   to stop presses falling through; Esc handled as a chain of checks in a `KeyListener` member. A
   full-window view with a scrim is a `Dialog` or a `Sheet`; a panel at a control is a
-  `Popover`, opened with `showFor`, or a `Menu`, opened with `openFor`. Each closes itself on Esc and on a press past
+  `Popover` or a `Menu`, opened with `showFor`. Each closes itself on Esc and on a press past
   it, holds back what is behind it as its kind should, keeps Tab inside while open, and
   animates out before it goes. (`18-overlays.md`)
 - **Keys as a chain of tests** in a `KeyListener` member — `if (e.meta && e.key == "s")`. A key a
   view answers is a `keyBindings` record on that view (on the App for the whole program), and
-  a command a menu or button also runs is a `command:` on it: it gets a label a panel can
-  list, stays out of a text field's typing, comes after a focused control's own keys, and
-  stands down while a dialog is open. (`09-pointer-and-keyboard.md` § Keyboard events)
+  a command a menu or button also runs is a `command:` on it. A key walks from the focused
+  view outward to the App and the nearest binding takes it, so a binding gets a label a panel
+  can list, stays out of a text field's typing, comes after a focused control's own keys, and
+  stands down while an overlay is open. (`09-pointer-and-keyboard.md` § Keyboard events)
 - **Placing everything by hand.** A page's cards, rows and insets are a layout's job; `x` and
   `y` are for a diagram's scene or an overlay. Four tells: a container whose height is
   arithmetic over its children (it sizes from its content);
@@ -269,54 +277,43 @@ shows the Declare form.
   (`06-layout.md`)
 - **A method per control that only passes the press on** — `picked() { }` declared on the
   class, `press() { this.picked() }`, the use site overriding `picked`. The use site overrides
-  `press()` itself. (`04-structure.md` § Reaching other parts of the tree)
+  `press()` itself (a `Button`'s action slot is `onClick`). (`04-structure.md` § Reaching other parts of the tree)
 
-## Checking and looking
+## Checking
 
-Start from the first check below and go only as far as the request needs: stop as soon as
-one answers. In a fresh checkout, run `npm install` once first: the tools need their
-packages. The runtime and compiler come built; there is no build step.
+A request says, or implies, how sure it wants you to be. Read that first. Then establish each
+bar the level holds, however you choose; the tools below are how Declare answers each one.
+When the request says nothing, work to **standard**.
 
-- **Check as you go** with `npx declare-verify app.declare`: in a second or two it compiles
-  the program, checks it, and boots it in a browser at a laptop's size (`--phone` for a
-  phone's, `--phone --desktop` for both, when the program is for phones) —
-  syntax, names, types, that it starts, and what it can see wrong in the layout (a child
-  spilling out of a box sized by its content, text past its box or the window, a target too
-  small for a finger). A program that never finishes is stopped, and its line quoted. Each error names its fix;
-  apply exactly that, change nothing else, check again. It also lists the classes the boot
-  never built — screens that appear later — which it could not check.
-- **Ask where things are before you look.** `npx declare-verify app.declare
-  --read app.list.height --outline app.sheet` answers from that boot: a value, and
-  every view under a path with its place and size, as text.
-- **Look at milestones** — once the whole program first runs, and after a change to what
-  people see — because paint, fonts and real text exist only in a browser.
-  `npx declare-look app.declare --shot out.png` (`--phone` for a phone) runs it in a browser
-  and saves a picture; it can click, drag, hold, pinch, scroll, type and press keys, in the
-  order you write them, and read values (`--help` lists them). Under `--touch` every press
-  is a finger. `--shot-of PATH file.png` pictures one view instead of the window. Look
-  when there is something to see, not after every edit. `look` is for reaching a state to
-  see it; whether a sequence of actions does what it should is a flow, and a flow is an
-  assert script.
-- **Check a whole flow with an assert script** for `npx declare-verify app.declare --assert
-  flow.mjs` (`docs/operational/verify.md`): `drive` presses, types and waits as a person
-  does, `expect` checks what is shown and what the program sent (`expect.request`). End
-  each flow by expecting what it should have done — R5 says when a script asserted nothing.
-  A view is named by its path or by what it says — `app.form."Pay $40.00"` — and the
-  script's `page` has Playwright's locators too (`page.getByRole("button", { name: "Pay" })`,
-  `getByLabel`), pressing through the same driver. Don't build a browser harness of your
-  own. Keep the scripts, and run them again after a change.
-- `npm start` serves a program at its file's path (`my-apps/app.declare` at
-  `http://127.0.0.1:8200/my-apps/app.declare`) for a person to use. When you tell the
-  person where to see the program, start it first: an address with nothing behind it is
-  the first thing they will try.
-- **Before you hand over a whole program, use it once as a person would.** Scroll a long
-  list from end to end, drag its scrollbar, resize the window, switch to dark mode and to
-  touch. A program can pass every check and still fail the first person who does one of
-  these.
-- **When it runs but is wrong**, don't re-read the source to guess: ask the running program
-  why a value is what it is, which view is under a point, where a value came from
-  (`05-run-and-check.md` § Debugging a running program; `docs/operational/introspection.md`).
-- **When it is slow, or won't settle**, profile it rather than guess: `npx declare-profile
-  app.declare --scenario <script.mjs>` names the rules that ran, how often to no effect, what
-  opened each costly turn, what was built, what drawings cost the GPU, and how long each frame
-  took to reach the screen; `expect.budget` holds a script to it (`docs/operational/profile.md`).
+**The levels.** Each one holds the bars of the one before it.
+
+- **Light**: it builds and starts, and the automatic checks pass. For a sketch, a spike, or
+  "a quick pass is fine".
+- **Standard**: what the request asks for works, at each size it is used at, and so does
+  every screen a person reaches using it.
+- **Deeper**: it holds up the way a person will treat it. A long list scrolls from end to
+  end and by its scrollbar, the window resizes, and dark mode and touch work. Every screen
+  is named for a screen reader, and Tab moves in reading order. When the request asks for
+  care or finish.
+
+**What answers each bar.** In a fresh checkout, run `npm install` once first. The runtime
+and compiler come built.
+
+| Bar | What answers it |
+|---|---|
+| Builds, starts, no layout faults on the first screen | `npx declare-verify app.declare` (`--phone`, or `--phone --desktop` for both). It checks syntax, names and types, boots the program in a browser, and reports what it can see wrong: a child spilling out of a box sized by its content, text past its box or the window, a target too small for a finger, a control with no name, Tab out of reading order. A program that never finishes is stopped, with its line quoted. Each error names its fix. It lists the classes the boot never built, which it could not check. |
+| A value or a place, without a picture | `--read app.list.height --outline app.sheet` on the same call: a value, and every view under a path with its place and size, as text. |
+| How it looks | `npx declare-look app.declare --shot out.png` (`--phone`, `--dark`, `--touch`). It can click, drag, hold, pinch, scroll, type and press keys first, in the order you write them, then picture the window or one view (`--shot-of`). Paint, fonts and real text exist only in a browser, so a look is the only answer to "does it look right". |
+| A flow works | an assert script, `npx declare-verify app.declare --assert flow.mjs` (`docs/operational/verify.md`). `drive` presses, types and waits as a person does; `expect` checks what is shown and what was sent (`expect.request`). A view is found by its path, by what it says (`app.form."Pay $40.00"`), or with Playwright's locators by role and name. Each screen the script stops on gets the same layout checks as the first. End each flow by expecting what it should have done. Keep the scripts, so the bar can be established again after a change. Don't build a browser harness of your own. |
+| It holds up in use | the deeper bars are flows too: drive the scroll, the thumb drag, the resize, dark mode and touch in a script, or check them in a look. |
+| A person can try it | `npm start` serves a program at its file's path, at the address it prints (`my-apps/app.declare` at `http://127.0.0.1:8200/my-apps/app.declare` when 8200 is free). Start it before you give anyone the address. |
+
+**When a bar fails and the reason isn't plain**, the running program can say why: why a
+value is what it is, which view is under a point, where a value came from
+(`05-run-and-check.md` § Debugging a running program; `docs/operational/introspection.md`).
+When it is slow or won't settle, `npx declare-profile app.declare --scenario <script.mjs>`
+names the rules that ran, how often to no effect, what opened each costly turn, what was
+built, what drawings cost the GPU, and how long each frame took to reach the screen;
+`expect.budget` holds a script to it (`docs/operational/profile.md`).
+
+**When you hand it over**, say which level you worked to and how you established each bar.

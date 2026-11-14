@@ -72,7 +72,7 @@ export declare const OP: {
 };
 type Glide = {
     duration?: number;
-    motion?: string;
+    easing?: string;
 };
 /** The host side of the bridge — provided by the Swift shell before boot. */
 export interface MacHost {
@@ -391,7 +391,7 @@ declare class MacSurface implements Surface, SceneSurface {
      *  own echo through the attribute push must never cancel a live glide. */
     scrollToY(v: number, glide?: Glide): void;
     scrollToX(v: number, glide?: Glide): void;
-    scrollIntoView(align?: "start" | "nearest", smooth?: boolean): void;
+    scrollIntoView(align?: "start" | "nearest", smooth?: boolean, inset?: number): void;
     revealRichAnchor(_slug: string, _within: number): boolean;
     /** An embed marker (DOMIsland's `slot`, and so AppIsland's `run:…` key).
      *  Natively nothing mounts into an element — the host reads the pending
@@ -400,10 +400,10 @@ declare class MacSurface implements Surface, SceneSurface {
     setEmbed(id: string, view?: unknown): void;
     /** The sink, plus WHAT THIS VIEW ASKED FOR.
      *
-     *  `wants` is not decoration: the shared router reads `wantsDbl` off the hit
+     *  `wants` is not decoration: the shared router reads `wantsDoubleClick` off the hit
      *  target to decide whether to HOLD a click for the double-click window, and
      *  `wantsHold` to arm the hold timer. A backend that drops it silently loses
-     *  onDblClick and onHold — the DOM backend keeps the same fact in a WANTS map
+     *  onDoubleClick and onHold — the DOM backend keeps the same fact in a WANTS map
      *  and spreads it onto every hit target, so this mirrors it exactly.
      *  `wantsTouch` is recorded for symmetry; a Mac mouse never reports fingers. */
     setInput(sink: InputSink | null, wants?: InputWants): void;

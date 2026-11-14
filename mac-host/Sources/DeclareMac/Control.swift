@@ -577,6 +577,20 @@ final class ControlChannel {
             let w = app.newWindow()
             if !url.isEmpty { w.open(url) }
             return "ok windows=\(app.windows.count)"
+        case "edit":
+            // `edit copy|cut|paste` — the Edit menu's action, sent straight to
+            // the program's view as the menu item reaches it through the key
+            // window. An automated window opens at the back and a test takes no
+            // focus, so it has no key window for `menukey c cmd` to reach; this
+            // performs the action itself, and `menukey` tests the menu's wiring.
+            guard let v = view else { return "no window" }
+            switch a.count > 1 ? a[1] : "" {
+            case "copy": v.copy(nil)
+            case "cut": v.cut(nil)
+            case "paste": v.paste(nil)
+            default: return "usage: edit copy|cut|paste"
+            }
+            return "ok"
         case "closewindow":
             guard let app = NSApp.delegate as? AppDelegate else { return "no app" }
             guard let w = target() else { return "no window" }

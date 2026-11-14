@@ -1,4 +1,4 @@
-import type { Color, Fill, Shadow, Outline } from "./value.js";
+import type { Color, Fill, Shadow, Stroke } from "./value.js";
 import { type Numerals, type NumeralWidth } from "./font-features.js";
 export type FontWeight = "thin" | "extralight" | "light" | "regular" | "normal" | "medium" | "semibold" | "bold" | "extrabold" | "black" | number;
 /** A content transform applied to a run's text (CSS text-transform). */
@@ -28,7 +28,7 @@ export interface TextStyle {
      *  set. Canvas realizes it over the text box; DOM clips a background to text. */
     readonly textFill?: Fill | null;
     /** Typographical treatments — paint/decoration a Text (or run) wears. */
-    readonly outline?: Outline | null;
+    readonly textStroke?: Stroke | null;
     readonly textTransform?: TextTransform;
     readonly smallCaps?: boolean;
     readonly underline?: boolean;

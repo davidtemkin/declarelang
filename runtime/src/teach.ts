@@ -18,6 +18,8 @@ export { nearestName };
  *  Declare slot, because "has no attribute" alone states the rule and not the
  *  fix. Evidence-driven — entries earn their place by appearing in eval
  *  failures or having one true equivalent; vague CSS concepts stay out. */
+const FONT_FEATURES_HINT = "a face's features are Text's own attributes: 'numeralWidth = tabular' (tnum: digits of one width, for columns and counters that do not jitter), 'numerals = oldstyle' or 'lining' (onum, lnum), 'slashedZero = true' (zero), 'smallCaps = true' (smcp)";
+const READONLY_HINT = "a value to read and select but not change is a Text with 'selectable = true' (a TextInput is for editing); 'disabled = true' dims a field and takes it out of Tab, and an 'admit(t)' that returns null refuses every change while the field stays live";
 export const CSS_ATTRIBUTE_HINTS: Readonly<Record<string, string>> = {
   border: "a border is 'stroke = { stroke(1, 0xE2E5E9) }' — drawn inside the box",
   borderWidth: "a border is 'stroke = { stroke(1, 0xE2E5E9) }' — width and color travel together",
@@ -52,9 +54,15 @@ export const CSS_ATTRIBUTE_HINTS: Readonly<Record<string, string>> = {
   backfaceVisibility: "'backface = hidden' hides a view turned past 90° about X or Y",
   scaleX: "per-axis scale is 'scaleX' / 'scaleY' (multiplied with the uniform 'scale')",
   perspective: "'perspective = 700' on the PARENT is the eye its children's 'rotateX'/'rotateY'/'translateZ' are seen through (px; 0 = orthographic)",
-  blur: "blur is a filter — 'filter = blur(4)' blurs this view's own paint as a group (a list composes: 'filter = [blur(4), brightness(0.8)]'); 'backdrop = blur(20)' blurs what lies BENEATH; inside a drawing, d.filter",
-  dropShadow: "a shadow of the painted ALPHA is 'filter = shadow(dx, dy, blur, color)' (the box's own shadow is the 'shadow' attribute; glyphs take 'textShadow')",
-  mixBlendMode: "compositing is the 'blend' attribute — 'blend = multiply' lands this view with the operator; inside a drawing, d.globalCompositeOperation",
+  blur: "blur is a visual filter — 'visualFilter = blur(4)' blurs this view's own paint as a group (a list composes: 'visualFilter = [blur(4), brightness(0.8)]'); 'backdrop = blur(20)' blurs what lies BENEATH; inside a drawing, d.filter",
+  dropShadow: "a shadow of the painted ALPHA is 'visualFilter = shadow(dx, dy, blur, color)' (the box's own shadow is the 'shadow' attribute; glyphs take 'textShadow')",
+  // `filter` is also the name an earlier Declare gave the attribute; it is the
+  // CSS name all the same, so it keeps the CSS label. It is free for a member
+  // of a program's own — a list's filter, a filter() method — and this
+  // answers only where nothing declares it.
+  filter: "a view's own effects are 'visualFilter' — 'visualFilter = blur(4)' or a list, 'visualFilter = [grayscale(1), brightness(0.8)]', over its painted subtree as a group; 'backdrop' filters what lies beneath",
+  mixBlendMode: "compositing is the 'blendMode' attribute — 'blendMode = multiply' lands this view with the operator; inside a drawing, d.globalCompositeOperation",
+  blend: "compositing is the 'blendMode' attribute — 'blendMode = multiply' lands this view with the operator; inside a drawing, d.globalCompositeOperation",
   backdropFilter: "the frost is 'backdrop = frost(radius, saturation)' — or any filter list, 'backdrop = [blur(20), saturate(1.4)]' — sampled beneath the view's own shape",
   maskImage: "a soft mask is 'mask = gradient(…)' (its alpha over the box) or 'mask = { stencil }' (another view's painted alpha); a hard edge is 'clip' — true for the box, or a path",
   objectPosition: "where a contain/cover fit sits is 'alignX' / 'alignY' on the Image — start, center, end",
@@ -73,7 +81,27 @@ export const CSS_ATTRIBUTE_HINTS: Readonly<Record<string, string>> = {
   animation: "there is no animation property — motion is a member: an 'Animator' (timed, from→to), a 'Spring' (chases a live target), an 'AnimatorGroup' (sequence)",
   keyframes: "there are no keyframes — an 'Animator' drives one attribute from→to through a motion curve; sequence several with 'AnimatorGroup'",
   fontStyle: "italics are Text's 'italic = true'",
-  objectFit: "image fitting is 'stretches' — 'cover' fills and crops, 'contain' letterboxes",
+  fontVariantNumeric: "figures are Text's own attributes: 'numeralWidth = tabular' (digits of one width, for columns and counters that do not jitter) or 'proportional', 'numerals = oldstyle' or 'lining', 'slashedZero = true'",
+  fontFeatureSettings: FONT_FEATURES_HINT,
+  fontFeatures: FONT_FEATURES_HINT,
+  // `blend`, `stretches` and `outline` are also names an earlier Declare used
+  // (see MEMBER_HINTS) — each answered with the attribute that holds it now.
+  objectFit: "image fitting is 'fit' on an Image or Video — 'cover' fills and crops, 'contain' letterboxes",
+  stretches: "image fitting is 'fit' on an Image or Video — 'cover' fills and crops, 'contain' letterboxes, 'both' stretches to the box",
+  outline: "a stroke along the glyphs' edges is Text's 'textStroke = stroke(1, #C0392B)', painted under the fill; a box's edge is 'stroke', drawn inside the box",
+  webkitTextStroke: "a stroke along the glyphs' edges is Text's 'textStroke = stroke(1, #C0392B)', painted under the fill",
+  // `onDblClick` and `motion` are names an earlier Declare used (see MEMBER_HINTS),
+  // answered where they are written; `ondblclick` (the DOM's spelling) routes here too.
+  onDblClick: "the double-click event is 'onDoubleClick' — 'onDoubleClick(e: PointerEvent) { … }'; the first click still reaches onClick at once",
+  // React's reconciliation prop, written where a replicated row is used. Free
+  // for a member of a program's own — this answers only where nothing declares
+  // it (and check.ts names the field on a replicated node).
+  key: "a replicated record's identity is its 'id' field, with nothing declared; when it lives under another name, 'identityKey = :field' beside the many-path datapath names it",
+  motion: "an Animator's curve is 'easing' — 'easing = cubicOut' (a token, or cubicBezier(…), back(…), steps(…), laszlo(…)); a scroll glide takes it too, '{ duration: 260, easing: \"cubicOut\" }'",
+  // a field to read, not edit (HTML's, AppKit's and UIKit's readOnly)
+  readOnly: READONLY_HINT,
+  // the ring set per view, as if each control drew its own
+  focusRing: "the focus ring is the app's one FocusRing, not a view's attribute: the theme's 'focusRingStyle' chooses how it shows (\"both\", \"travel\", \"rest\", or false for none), and it rings the focused control's focusShape(), which a control overrides to ring a part of itself",
 };
 
 /** The MEMBER instincts: names a newcomer reads or calls on a node, from the
@@ -81,11 +109,26 @@ export const CSS_ATTRIBUTE_HINTS: Readonly<Record<string, string>> = {
  *  cases where TypeScript's own nearest name would mislead (`scrolling` is
  *  nearest to `scrolls`, a word list that is always truthy) or where there is
  *  no near name at all (the DOM's tree verbs). Like the attribute table, it
- *  keys on what a newcomer brings, never on a former Declare name. */
+ *  keys on what a newcomer brings — with one exception, ruled with the paint
+ *  renames: the names an earlier Declare used (`blend`, `outline`, `stretches`,
+ *  `onDblClick`, `motion`, `navigate`, `openFor`, `openAt`) are answered here and, where they are
+ *  written as attributes, in the attribute table, so an author or a
+ *  model trained on them gets the current name. The hint says what IS. */
+const RM_HINT = "the person's reduced-motion preference is the App's accessibilitySettings.reduceMotion — read as provided(\"accessibilitySettings\").reduceMotion below the App; live, from the platform's setting (prefers-reduced-motion on the web)";
+const LEAVE_HINT = "whether the pointer is over a view, its children included, is the fact 'hovered' — read it in a constraint ('fill = { hovered ? … : … }'), and it turns false when the pointer leaves; the moment of leaving is 'onPointerOut', which belongs to the topmost view under the pointer (moving onto a child leaves its parent)";
+const ENTER_HINT = "whether the pointer is over a view, its children included, is the fact 'hovered' — read it in a constraint ('fill = { hovered ? … : … }'); the moment of entering is 'onPointerOver', which belongs to the topmost view under the pointer";
 export const MEMBER_HINTS: Readonly<Record<string, string>> = {
   scrolling: "the user's scroll in progress is 'userScrolling' — true while a finger, wheel, key or scrollbar moves this scroller, through its momentum; your own scrollTo() leaves it false",
   isScrolling: "the user's scroll in progress is 'userScrolling' — true while a finger, wheel, key or scrollbar moves this scroller, through its momentum; your own scrollTo() leaves it false",
   isHovered: "the pointer over a view is 'hovered'; a hovering pointer anywhere over the app is app.pointerHovering",
+  // the DOM's enter/leave pair: Declare's moments are over/out, and a region's hover is a fact
+  onPointerLeave: LEAVE_HINT,
+  onMouseLeave: LEAVE_HINT,
+  onPointerEnter: ENTER_HINT,
+  onMouseEnter: ENTER_HINT,
+  // the web's media-query name for the preference, and the slip one letter off it
+  reducedMotion: RM_HINT,
+  prefersReducedMotion: RM_HINT,
   isTouchDevice: "a device built for touch (a phone or tablet) is app.touchFirst; any touchscreen at all is app.hasTouch; a mouse or trackpad is app.hasMouse",
   appendChild: "a view is made in place with createView(tag, props) on its parent, ordered with raise(below), and destroyed with discard(); for a list, declare one child and let the data replicate it",
   insertBefore: "a view is made in place with createView(tag, props) on its parent and ordered with raise(below); for a list, declare one child and let the data replicate it",
@@ -98,18 +141,138 @@ export const MEMBER_HINTS: Readonly<Record<string, string>> = {
   setError: "a field takes an outside message with refuse(message); a Form lays a service's problems on its fields with refuse(problems)",
   touched: "whether a field has been judged (left, judge()d, or submitted) is 'judged'",
   isValid: "whether a field or a Form has nothing wrong is 'valid'; what is wrong now is 'problem' (a Form's: 'problems')",
+  // paint names an author may carry from an earlier Declare, read in a body
+  // (the attribute table above answers them where they are written)
+  blend: "a view's compositing operator is 'blendMode' ('multiply', 'screen', … or 'normal')",
+  stretches: "how an Image or Video fits its box is 'fit' ('cover', 'contain', 'both', …)",
+  outline: "a Text's glyph stroke is 'textStroke', a stroke(width, color) or null",
+  // names an earlier Declare used for an event, an attribute and a method, met in a body
+  onDblClick: "the double-click event is 'onDoubleClick'",
+  motion: "the curve an Animator or AnimatorGroup follows is 'easing' (a token like 'cubicOut', or cubicBezier(…)); a scroll glide names it too — scrollTo(y, { duration: 260, easing: \"cubicOut\" })",
+  navigate: "leaving the app for another address is app.openURL(to) (app.openWindow(to) for a window of its own); moving within the app is a write to app.location",
+  // a menu's verbs an earlier Declare used: every overlay opens with show(), showFor(v), showAt(v, e)
+  openFor: "a menu opens below a view with showFor(v) — the overlays' one verb (show(), showFor(v), showAt(v, e)); it flips above when there is no room below",
+  openAt: "a menu opens at the pointer with showAt(v, e) — the overlays' one verb (show(), showFor(v), showAt(v, e)); a ContextMenu's serving view calls it from onContextMenu and onHold",
 };
+
+/** Delivery hooks an earlier Declare named otherwise — the person's request
+ *  lands in the hook, its default carries it out, and an override changes how.
+ *  A method under the old name, on a class whose chain has the new hook, is an
+ *  ordinary method nothing calls (DECLARE4042 says so); `input` → `commit` is
+ *  the first of them. */
+export const FORMER_HOOKS: Readonly<Record<string, string>> = {
+  input: "commit",
+  sortInput: "applySort",
+  arrangeInput: "applyColumnOrder",
+  resizeInput: "applyColumnWidth",
+  editInput: "applyEdit",
+  expandInput: "applyExpanded",
+};
+
+/** One answer for the other platforms' line caps on a field (below). */
+const FIELD_CAP = "a 'multiline' field is as tall as its text; cap it as any box is capped, 'height = { Math.min(contentHeight, 120) }', and past that it scrolls";
+
+/** One answer for two of Menu's former metrics (below). */
+const MENU_METRICS = "the menu's column metrics are its own — a 'kind' row's content already begins at the text edge";
+
+/** Members an earlier Declare named otherwise — and a few another platform
+ *  names on that class (a field's line cap) — answered on the class that had
+ *  them and every class built on it — never elsewhere, where the old name is
+ *  an ordinary name an app may declare (`selected` is a row's boolean,
+ *  `choices` a quiz's list, `filter` a list's or a method). Keyed by the class
+ *  that had the member; the checker walks the class chain to find it. The
+ *  hint says what IS. */
+export const RENAMED_CLASS_MEMBERS: Readonly<Record<string, Readonly<Record<string, string>>>> = {
+  View: {
+    filter: "a view's own visual effects are 'visualFilter' — one function or a list, 'visualFilter = [blur(4), brightness(0.8)]', over its painted subtree as a group",
+  },
+  Segmented: {
+    choices: "the segments are 'items' — records { id, label } or { id, icon }, as a Menu's items are",
+    segMin: "the per-segment width used when the control sets no width is 'segmentMinWidth'",
+    // made internal: each answer names what the program reads instead
+    count: "how many segments there are is items.length — the count the control divides its width by is its own",
+    idx: "the chosen segment is 'value' — its index into items is the control's own",
+    lane: "the pill's sprung place is the control's own — the chosen segment is 'value'",
+    segW: "one segment's width is the control's own arithmetic — its width divided by items.length",
+  },
+  HTMLText: {
+    text: "an HTMLText's content is 'html' — the markup it shows ('html = { \"<b>\" + escapeHtml(name) + \"</b>\" }'); plain text is a Text's 'text'",
+  },
+  Control: {
+    rightIcon: "the trailing icon slot is 'iconRight' — which icon the control settles on (it, or the chevron a 'menu' implies) is its own",
+  },
+  Menu: {
+    checkW: MENU_METRICS,
+    textEdge: MENU_METRICS,
+    widestLabel: "the menu's width follows its rows by itself; 'minWidth' floors it and a 'width' of your own overrides it",
+  },
+  Table: {
+    selected: "the primary selected record is 'selectedItem' (a TableRow's own 'selected' is the boolean); every selected record is 'selection'",
+    active: "the record the keyboard stands on is 'activeItem', beside its index 'activeIndex' (a TableRow's own 'active' is the boolean)",
+  },
+  DataGrid: {
+    headerH: "the header row's height is 'headerHeight'",
+    sortInput: "a sort the person asks for lands in applySort(column, direction) — its default writes sortOn and sortDir; override it to own the sort",
+    arrangeInput: "a column order the person drags lands in applyColumnOrder(order) — its default writes 'order'",
+    resizeInput: "a column width the person drags lands in applyColumnWidth(column, width) — its default writes 'widths'",
+    editInput: "an edited cell's text lands in applyEdit(record, field, value) — its default lets it write; return false to keep the record as it was",
+  },
+  Tree: {
+    expandInput: "rows the person opens and closes land in applyExpanded(ids) — its default writes 'expanded'",
+  },
+  Button: {
+    inkColor: "the button's one ink, for its label and its icons, is 'ink'",
+  },
+  TextInput: {
+    maxLines: FIELD_CAP,
+    maxRows: FIELD_CAP,
+    rows: FIELD_CAP,
+  },
+};
+
+/** The renamed-member hint for `name` on a class whose chain (the class first,
+ *  then each base) is `chain`, or "". */
+export function renamedClassMember(chain: readonly string[], name: string): string {
+  for (const c of chain) {
+    const t = Object.hasOwn(RENAMED_CLASS_MEMBERS, c) ? RENAMED_CLASS_MEMBERS[c] : undefined;
+    if (t !== undefined && Object.hasOwn(t, name)) return t[name];
+  }
+  return "";
+}
 
 /** The member-instinct hint for a name read on a node, or "". */
 export function memberHint(name: string): string {
   return Object.hasOwn(MEMBER_HINTS, name) ? MEMBER_HINTS[name] : "";
 }
 
-/** The CSS-instinct hint for an unknown attribute name, or "" when the miss
- *  isn't a known CSS name. */
+/** The keys of CSS_ATTRIBUTE_HINTS that are names an earlier Declare used, not
+ *  CSS's: their hint says what holds the thing now, without the CSS label. */
+export const FORMER_DECLARE_NAMES: ReadonlySet<string> = new Set(["blend", "stretches", "outline", "onDblClick", "motion"]);
+
+/** The keys of CSS_ATTRIBUTE_HINTS that are React's, not CSS's: labelled as
+ *  React's instinct. (`key` is also the name an earlier Declare used.) */
+export const REACT_NAMES: ReadonlySet<string> = new Set(["key"]);
+
+/** The keys of CSS_ATTRIBUTE_HINTS that are HTML's (and the platforms') field
+ *  attributes, not CSS's. */
+export const HTML_NAMES: ReadonlySet<string> = new Set(["readOnly"]);
+
+/** The keys of CSS_ATTRIBUTE_HINTS that are Flutter's, not CSS's. */
+export const FLUTTER_NAMES: ReadonlySet<string> = new Set(["fontFeatures"]);
+
+/** The keys of CSS_ATTRIBUTE_HINTS that no platform names: a guess at what
+ *  Declare would call the thing. Answered without a label. */
+export const GUESSED_NAMES: ReadonlySet<string> = new Set(["focusRing"]);
+
+/** The hint for an unknown attribute name, or "" when the miss is neither a
+ *  known foreign name nor a former Declare one. A CSS name is labelled as the
+ *  CSS instinct and a React name as React's; a former Declare name is neither,
+ *  so it carries no label. */
 export function cssAttributeHint(name: string): string {
   const h = Object.hasOwn(CSS_ATTRIBUTE_HINTS, name) ? CSS_ATTRIBUTE_HINTS[name] : "";
-  return h ? ` — the CSS instinct: ${h}` : "";
+  if (!h) return "";
+  if (FORMER_DECLARE_NAMES.has(name) || GUESSED_NAMES.has(name)) return ` — ${h}`;
+  return REACT_NAMES.has(name) ? ` — the React instinct: ${h}` : HTML_NAMES.has(name) ? ` — the HTML instinct: ${h}` : FLUTTER_NAMES.has(name) ? ` — the Flutter instinct: ${h}` : ` — the CSS instinct: ${h}`;
 }
 
 /** The hint-table key a near-missed foreign name routes to, or null.
@@ -125,7 +288,9 @@ export function cssAttributeHint(name: string): string {
  *  `zap` is one edit from `gap` and is a typo for nothing at all. Five is the
  *  same floor nearestName already uses to widen its own budget. */
 export function hintedForeignName(name: string): string | null {
-  return name.length >= 5 ? nearestName(name, Object.keys(CSS_ATTRIBUTE_HINTS)) : null;
+  // React's `key` is written whole or not at all: `keyed` and `keyId` are names
+  // of the program's own, not a reach for record identity
+  return name.length >= 5 ? nearestName(name, Object.keys(CSS_ATTRIBUTE_HINTS).filter((k) => !REACT_NAMES.has(k))) : null;
 }
 
 /** The HOST-GLOBAL table: the browser's (and Node's) names a body may reach
@@ -146,7 +311,7 @@ export const HOST_GLOBAL_HINTS: Readonly<Record<string, string>> = {
   devicePixelRatio: "pixel density is the renderer's concern, not the program's — draw in points",
   document: "there is no document — the tree IS the program: reach a node by its name (app.sidebar.list), never by a query",
   navigator: "host facts are attributes (app.pageVisible, app.systemDark, app.width); a capability the language lacks is declared `external` and supplied by the host",
-  location: "the URL's fragment is app.location; follow a link with `link = …` or app.navigate(…)",
+  location: "the URL's fragment is app.location — write it to move within the app; a view with `link = …` is a link, and app.openURL(to) leaves the app for another address",
   history: "back/forward is the (location, waypoint) pair the host walks; a program writes app.location",
   requestAnimationFrame: "motion is declared: a Spring (target → value) or an Animator (time → value); per-frame integration is Time [ tick = frame, onTick(dt) ], and a value that is a function of the current time derives from a Time's facts (now, minute, …); one call on the next frame is afterDelay(0, fn)",
   cancelAnimationFrame: "a Spring or Animator is interruptible by writing its target; a Time stops with `running = false`",

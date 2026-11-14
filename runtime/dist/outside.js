@@ -175,6 +175,23 @@ export function pressOutside(app, x, y, rx = x, ry = y) {
     }
     return false;
 }
+/** The open overlay that holds back a scroll of what holds `v` — one with
+ *  `scrollBelow = block` in whose context `v` sits, and that does not hold `v`
+ *  itself — or null: scrollOutside's answer for a scroll begun over `v`, asked
+ *  without telling anyone. What a tool reaching `v` the way a person would
+ *  (a swipe, a reveal before typing) is refused by, and names. */
+export function scrollHeldFor(v) {
+    if (OPEN.length === 0)
+        return null;
+    const leaf = v;
+    for (const o of openTopFirst()) {
+        if (inside(leaf, o))
+            return null;
+        if (o.scrollBelow === "block" && inContext(leaf, o))
+            return o;
+    }
+    return null;
+}
 /** A scroll (wheel or touch move) at frame point (x, y) of `app` — root
  *  point (rx, ry): should it be swallowed? */
 export function scrollOutside(app, x, y, rx = x, ry = y) {

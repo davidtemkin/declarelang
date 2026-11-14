@@ -62,7 +62,7 @@ App [ width = 420, height = 240, fill = black,
 
     board: View [ x = 20, y = 20, width = { app.width - 40 }, height = { app.height - 40 }, clip = true,
         datapath = { grid.value },
-        Cell [ datapath = :cells[], key = :n ]
+        Cell [ datapath = :cells[], identityKey = :n ]
         ]
     ]
 ```
